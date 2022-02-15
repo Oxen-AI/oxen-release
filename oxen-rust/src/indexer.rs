@@ -10,6 +10,8 @@ use std::fs::OpenOptions;
 use std::io::Write;
 
 use crate::config::Config;
+use crate::api;
+use crate::model::user::User;
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -20,6 +22,7 @@ pub struct Indexer {
     commits_dir: PathBuf,
     synced_file: PathBuf,
     config: Config,
+    user: Option<User>
 }
 
 impl Indexer {
@@ -36,6 +39,7 @@ impl Indexer {
             commits_dir: commits_dir,
             synced_file: synced_file,
             config: Config::from(&config_file),
+            user: None
         }
     }
 
@@ -65,6 +69,14 @@ impl Indexer {
                 }
             }
         }
+    }
+
+    pub fn login(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Indexer::login()");
+        let user = api::get_user(&self.config)?;
+        println!("Indexer::login() response -> {:?}", user);
+        self.user = Some(user);
+        Ok(())
     }
     
     fn list_image_files_from_dir(&self, dirname: &Path) -> Vec<PathBuf> {
@@ -110,7 +122,6 @@ impl Indexer {
         let commit_path = PathBuf::from(&self.commits_dir).join(Path::new(&commit_filename));
         match File::create(&commit_path) {
             Ok(file) => {
-              
                 let hash = hasher::hash_buffer(&commit_filename.as_bytes());
                 match write!(&file, "{}\n", hash) {
                     Ok(_) => {},
@@ -139,7 +150,7 @@ impl Indexer {
         }
     }
 
-    fn sync_commit(&self, commit: &String) {
+    fn sync_commit(&self, user: &User, commit: &String) {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
         println!("Sync commit file: {:?}", file_name);
         let paths: Vec<PathBuf> = FileUtil::read_lines(file_name.as_path()).into_iter().map(PathBuf::from).collect();
@@ -147,24 +158,26 @@ impl Indexer {
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
-            
-            // let hash = hasher::hash_file_contents(&path);
-
-            // println!("Compute hash: {:?} => {:?}", path, hash);
-            if let Ok(form) = reqwest::blocking::multipart::Form::new()
-                .file("file", path)
-            {
-                let client = reqwest::blocking::Client::new();
-                // TODO: login using config to get token / dataset
-                let token = "SFMyNTY.g2gDbQAAACRjZTU1NTlkZC05YjgzLTQ1MGUtOTIwMi1iNzBkZTVkOWEzNThuBgBxmQHbfgFiAAFRgA.A5nHbhegqSiZ12QsJHcgN0ZiSPY0h2SrwqgZLMGAlzQ";
-                let dataset = "6f8f2178-6723-4b74-acd4-8e70cd105287";
-                let url = format!("http://{}/api/v1/repositories/{}/datasets/{}/entries", self.config.remote_ip, self.config.repository, dataset);
-                if let Ok(res) = client.post(url)
-                    .header(reqwest::header::AUTHORIZATION, token)
-                    .multipart(form)
-                    .send() {
-                    if res.status() != reqwest::StatusCode::OK {
-                        eprintln!("Error {:?}", res.text());
+            if let Ok(hash) = hasher::hash_file_contents(&path) {
+                if let Ok(_) = api::entry_from_hash(&self.config, user, &hash) {
+                    // println!("Already have entry {:?}", entry);
+                } else {
+                    // Only upload file if it's hash doesn't already exist
+                    if let Ok(form) = reqwest::blocking::multipart::Form::new()
+                    .file("file", path)
+                    {
+                        let client = reqwest::blocking::Client::new();
+                        // TODO: get database id we want to sync to
+                        let dataset_id = "f7e60754-5be1-413f-b835-721edeb8342d";
+                        let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), self.config.repository_id, dataset_id);
+                        if let Ok(res) = client.post(url)
+                            .header(reqwest::header::AUTHORIZATION, &user.access_token)
+                            .multipart(form)
+                            .send() {
+                            if res.status() != reqwest::StatusCode::OK {
+                                eprintln!("Error {:?}", res.text());
+                            }
+                        }
                     }
                 }
             }
@@ -174,7 +187,7 @@ impl Indexer {
         bar.finish();
     }
 
-    pub fn sync(&self) {
+    fn p_sync(&self, user: &User) {
         // list all commit files
         let commits: Vec<String> = FileUtil::list_files_in_dir(&self.commits_dir)
             .iter()
@@ -202,7 +215,16 @@ impl Indexer {
 
             for commit in difference.iter() {
                 println!("Need to sync: {:?}", commit);
-                self.sync_commit(commit);
+                self.sync_commit(user, commit);
+            }
+        }
+    }
+
+    pub fn sync(&self) {
+        match &self.user {
+            Some(user) => self.p_sync(user),
+            None => {
+                println!("Indexer::sync() Must call login() before sync()")
             }
         }
     }

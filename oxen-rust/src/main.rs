@@ -48,8 +48,16 @@ fn main() {
         },
         "sync" => {
             let current_dir = env::current_dir().unwrap();
-            let indexer = Indexer::new(&current_dir);
-            indexer.sync();
+            let mut indexer = Indexer::new(&current_dir);
+            // Must login to get access token
+            match indexer.login() {
+                Ok(_) => {
+                    indexer.sync();
+                },
+                Err(err) => {
+                    eprintln!("Indexer couldn't log in: {}", err)
+                }
+            }
         },
         "encode" => {
             let value = String::from(args.value_of("directory").unwrap());
