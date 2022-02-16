@@ -2,6 +2,7 @@
 use std::path::Path;
 use crate::util::file_util::FileUtil;
 use serde::Deserialize;
+use crate::model::user::User;
 
 #[derive(Deserialize)]
 pub struct Config {
@@ -9,6 +10,7 @@ pub struct Config {
   pub repository_id: String,
   pub email: String,
   pub password: String,
+  pub user: Option<User>
 }
 
 impl Config {

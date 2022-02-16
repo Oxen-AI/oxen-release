@@ -11,7 +11,7 @@ use std::io::Write;
 
 use crate::config::Config;
 use crate::api;
-use crate::model::user::User;
+use crate::model::dataset::Dataset;
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -21,8 +21,7 @@ pub struct Indexer {
     staging_file: PathBuf,
     commits_dir: PathBuf,
     synced_file: PathBuf,
-    config: Config,
-    user: Option<User>
+    config: Config
 }
 
 impl Indexer {
@@ -38,8 +37,7 @@ impl Indexer {
             staging_file: staging_file,
             commits_dir: commits_dir,
             synced_file: synced_file,
-            config: Config::from(&config_file),
-            user: None
+            config: Config::from(&config_file)
         }
     }
 
@@ -72,10 +70,8 @@ impl Indexer {
     }
 
     pub fn login(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        println!("Indexer::login()");
         let user = api::get_user(&self.config)?;
-        println!("Indexer::login() response -> {:?}", user);
-        self.user = Some(user);
+        self.config.user = Some(user);
         Ok(())
     }
     
@@ -150,44 +146,62 @@ impl Indexer {
         }
     }
 
-    fn sync_commit(&self, user: &User, commit: &String) {
-        let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
-        println!("Sync commit file: {:?}", file_name);
-        let paths: Vec<PathBuf> = FileUtil::read_lines(file_name.as_path()).into_iter().map(PathBuf::from).collect();
-        // len is usize and progressbar requires u64, I don't think we'll overflow...
-        let size: u64 = unsafe { std::mem::transmute(paths.len()) };
-        let bar = ProgressBar::new(size);
-        paths.par_iter().for_each(|path| {
-            if let Ok(hash) = hasher::hash_file_contents(&path) {
-                if let Ok(_) = api::entry_from_hash(&self.config, user, &hash) {
-                    // println!("Already have entry {:?}", entry);
-                } else {
-                    // Only upload file if it's hash doesn't already exist
-                    if let Ok(form) = reqwest::blocking::multipart::Form::new()
-                    .file("file", path)
-                    {
-                        let client = reqwest::blocking::Client::new();
-                        // TODO: get database id we want to sync to
-                        let dataset_id = "f7e60754-5be1-413f-b835-721edeb8342d";
-                        let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), self.config.repository_id, dataset_id);
-                        if let Ok(res) = client.post(url)
-                            .header(reqwest::header::AUTHORIZATION, &user.access_token)
-                            .multipart(form)
-                            .send() {
-                            if res.status() != reqwest::StatusCode::OK {
-                                eprintln!("Error {:?}", res.text());
+    fn sync_commit(&self, commit: &String, dataset_id: &String) {
+        if let Some(user) = &self.config.user {
+            let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
+            println!("Sync commit file: {:?}", file_name);
+            let paths: Vec<PathBuf> = FileUtil::read_lines(file_name.as_path()).into_iter().map(PathBuf::from).collect();
+            // len is usize and progressbar requires u64, I don't think we'll overflow...
+            let size: u64 = unsafe { std::mem::transmute(paths.len()) };
+            let bar = ProgressBar::new(size);
+            paths.par_iter().for_each(|path| {
+                if let Ok(hash) = hasher::hash_file_contents(&path) {
+                    if let Ok(_) = api::entry_from_hash(&self.config, &hash) {
+                        // println!("Already have entry {:?}", entry);
+                    } else {
+                        // Only upload file if it's hash doesn't already exist
+                        if let Ok(form) = reqwest::blocking::multipart::Form::new()
+                        .file("file", path)
+                        {
+                            let client = reqwest::blocking::Client::new();
+                            let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), self.config.repository_id, dataset_id);
+                            if let Ok(res) = client.post(url)
+                                .header(reqwest::header::AUTHORIZATION, &user.access_token)
+                                .multipart(form)
+                                .send() {
+                                if res.status() != reqwest::StatusCode::OK {
+                                    eprintln!("Error {:?}", res.text());
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            bar.inc(1);
-        });
-        bar.finish();
+                bar.inc(1);
+            });
+            bar.finish();
+        } else {
+            eprintln!("Error sync_commit called before logged in.");
+        }
     }
 
-    fn p_sync(&self, user: &User) {
+    fn dataset_id_from_name(&self, name: &str) -> Result<String, String> {
+        let datasets = api::list_datasets(&self.config)?;
+        let result = datasets.iter().find(|&x| { x.name == name });
+        
+        match result {
+            Some(dataset) => {
+                Ok(dataset.id.clone())
+            },
+            None => {
+                Err(format!("Couldn't find dataset \"{}\"", name))
+            }
+        }
+    }
+
+    pub fn sync(&self, dataset_name: &str) -> Result<(), String> {
+        let id = self.dataset_id_from_name(dataset_name)?;
+        
         // list all commit files
         let commits: Vec<String> = FileUtil::list_files_in_dir(&self.commits_dir)
             .iter()
@@ -215,17 +229,13 @@ impl Indexer {
 
             for commit in difference.iter() {
                 println!("Need to sync: {:?}", commit);
-                self.sync_commit(user, commit);
+                self.sync_commit(commit, &id);
             }
         }
+        Ok(())
     }
 
-    pub fn sync(&self) {
-        match &self.user {
-            Some(user) => self.p_sync(user),
-            None => {
-                println!("Indexer::sync() Must call login() before sync()")
-            }
-        }
+    pub fn list_datasets(&self) -> Result<Vec<Dataset>, String> {
+        api::list_datasets(&self.config)
     }
 }

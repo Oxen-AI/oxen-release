@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 chrono = "0.4.19"
-clap = "2"
+clap = { version = "3.1.0", features = ["cargo"] }
 indicatif = "0.16.2"
 jwalk = "0.6.0"
 rayon = "1.5.1"
