@@ -35,7 +35,7 @@ pub fn entry_from_hash(config: &Config, hash: &String) -> Result<Entry, String> 
     let url = format!("{}/entries/search?hash={}", config.endpoint(), hash);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client.get(url)
-                      .header(reqwest::header::AUTHORIZATION, &user.access_token)
+                      .header(reqwest::header::AUTHORIZATION, &user.token)
                       .send() { 
       if let Ok(entry_res) = res.json::<EntryResponse>() {
         Ok(entry_res.entry)
@@ -56,7 +56,7 @@ pub fn list_datasets(config: &Config) -> Result<Vec<Dataset>, String> {
     let url = format!("{}/repositories/{}/datasets", config.endpoint(), config.repository_id);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client.get(url)
-                      .header(reqwest::header::AUTHORIZATION, &user.access_token)
+                      .header(reqwest::header::AUTHORIZATION, &user.token)
                       .send() {
       if let Ok(datasets_res) = res.json::<ListDatasetsResponse>() {
         Ok(datasets_res.datasets)

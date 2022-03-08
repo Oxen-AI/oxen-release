@@ -26,6 +26,24 @@ impl FileUtil {
         result
     }
 
+    pub fn write_to_path(path: &Path, value: &str) {
+        match File::create(path) {
+            Ok(mut file) => {
+                match file.write(value.as_bytes()) {
+                    Ok(_) => {
+
+                    },
+                    Err(err) => {
+                        eprintln!("Could not write file {:?}\n{}", path, err)
+                    }
+                }
+            },
+            Err(err) => {
+                eprintln!("Could not create file {:?}\n{}", path, err)
+            }
+        }
+    }
+
     pub fn read_lines_file(file: &File) -> Vec<String> {
         let mut lines: Vec<String> = Vec::new();
         let reader = BufReader::new(file);
@@ -79,28 +97,52 @@ impl FileUtil {
         files
     }
 
+    pub fn is_image(path: &Path) -> bool {
+        let exts: HashSet<String> = vec!["jpg", "png"].into_iter().map(String::from).collect();
+        FileUtil::contains_ext(path, &exts)
+    }
+
+    pub fn is_text(path: &Path) -> bool {
+        let exts: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
+        FileUtil::contains_ext(path, &exts)
+    }
+
+    pub fn is_video(path: &Path) -> bool {
+        let exts: HashSet<String> = vec!["mp4"].into_iter().map(String::from).collect();
+        FileUtil::contains_ext(path, &exts)
+    }
+
+    pub fn is_audio(path: &Path) -> bool {
+        let exts: HashSet<String> = vec!["mp3", "wav"].into_iter().map(String::from).collect();
+        FileUtil::contains_ext(path, &exts)
+    }
+
+    pub fn contains_ext(path: &Path, exts: &HashSet<String>) -> bool {
+        match path.extension() {
+            Some(extension) => {
+                match extension.to_str() {
+                    Some(ext) => {
+                        exts.contains(ext)
+                    },
+                    None => {
+                        false
+                    }
+                }
+            },
+            None => {
+                false
+            }
+        }
+    }
+
     pub fn recursive_files_with_extensions(dir: &Path, exts: &HashSet<String>) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
         for entry in WalkDir::new(dir) {
             match entry {
                 Ok(val) => {
-                    match val.path().extension() {
-                        Some(extension) => {
-                            match extension.to_str() {
-                                Some(ext) => {
-                                    if exts.contains(ext) {
-                                        files.push(val.path());
-                                    }
-                                },
-                                None => {
-                                    eprintln!("Could not convert ext to string... {}", val.path().display())
-                                }
-                            }
-    
-                        },
-                        None => {
-                            // Ignore files with no extension
-                        }
+                    let path = val.path();
+                    if FileUtil::contains_ext(&path, &exts) {
+                        files.push(path);
                     }
                 },
                 Err(err) => eprintln!("Could not iterate over dir... {}", err),

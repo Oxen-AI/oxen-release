@@ -8,10 +8,13 @@ use std::fs::File;
 use indicatif::ProgressBar;
 use std::fs::OpenOptions;
 use std::io::Write;
+// use std::sync::Arc;
+// use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::Config;
 use crate::api;
 use crate::model::dataset::Dataset;
+use crate::model::user::User;
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -25,12 +28,39 @@ pub struct Indexer {
 }
 
 impl Indexer {
+    pub fn repo_exists(dirname: &PathBuf) -> bool {
+        let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
+        hidden_dir.exists()
+    }
+
     pub fn new(dirname: &PathBuf) -> Indexer {
-        let hidden_dir = PathBuf::from(dirname).join(Path::new(".indexer"));
+        let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
         let staging_file = PathBuf::from(&hidden_dir).join(Path::new("staging"));
         let commits_dir = PathBuf::from(&hidden_dir).join(Path::new("commits"));
         let synced_file = PathBuf::from(&hidden_dir).join(Path::new("synced"));
         let config_file = PathBuf::from(&hidden_dir).join(Path::new("config.toml"));
+
+        if !config_file.exists() {
+            match fs::create_dir_all(&hidden_dir) {
+                Ok(_) => {
+                    println!("Created directory: {:?}", hidden_dir);
+                    Config::create(&config_file)
+                },
+                Err(err) => {
+                    eprintln!("Error initializing repo {}", err)
+                }
+            }
+
+            match fs::create_dir_all(&commits_dir) {
+                Ok(_) => {
+                    
+                },
+                Err(err) => {
+                    eprintln!("Error initializing repo {}", err)
+                }
+            }
+        }
+
         Indexer {
             root_dir: PathBuf::from(&hidden_dir.parent().unwrap()),
             hidden_dir: hidden_dir,
@@ -41,31 +71,15 @@ impl Indexer {
         }
     }
 
-    fn is_initialized(&self) -> bool {
-        self.hidden_dir.exists()
+    pub fn is_initialized(&self) -> bool {
+        Indexer::repo_exists(&self.hidden_dir)
     }
 
     pub fn init(&self) {
         if self.is_initialized() {
             println!("Repository already exists for: {:?}", self.root_dir);
         } else {
-            // Create hidden dir
-            match fs::create_dir(&self.hidden_dir) {
-                Ok(_) => {
-                    // Create commits dir
-                    match fs::create_dir(&self.commits_dir) {
-                        Ok(_) => {
-                            println!("Initialized repository in: {:?}", self.root_dir);
-                        },
-                        Err(err) => {
-                            println!("Could not initialize repo: {}", err)
-                        }
-                    }
-                },
-                Err(err) => {
-                    println!("Could not initialize repo: {}", err)
-                }
-            }
+            println!("Repository initialized.")
         }
     }
 
@@ -101,7 +115,7 @@ impl Indexer {
                 println!("Added {} files", paths.len());
             },
             Err(err) => {
-                eprintln!("Could not add files... {}", err)
+                eprintln!("add_files Could not add files... {}", err)
             }
         }
     }
@@ -141,45 +155,66 @@ impl Indexer {
                 println!("Commited {} files", paths.len());
             },
             Err(err) => {
-                eprintln!("Could not add files... {}", err)
+                eprintln!("commit_staged Could not add files... {}", err)
             }
         }
     }
 
-    fn sync_commit(&self, commit: &String, dataset_id: &String) {
-        if let Some(user) = &self.config.user {
-            let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
-            println!("Sync commit file: {:?}", file_name);
-            let paths: Vec<PathBuf> = FileUtil::read_lines(file_name.as_path()).into_iter().map(PathBuf::from).collect();
-            // len is usize and progressbar requires u64, I don't think we'll overflow...
-            let size: u64 = unsafe { std::mem::transmute(paths.len()) };
-            let bar = ProgressBar::new(size);
-            paths.par_iter().for_each(|path| {
-                if let Ok(hash) = hasher::hash_file_contents(&path) {
-                    if let Ok(_) = api::entry_from_hash(&self.config, &hash) {
-                        // println!("Already have entry {:?}", entry);
-                    } else {
-                        // Only upload file if it's hash doesn't already exist
-                        if let Ok(form) = reqwest::blocking::multipart::Form::new()
-                        .file("file", path)
-                        {
-                            let client = reqwest::blocking::Client::new();
-                            let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), self.config.repository_id, dataset_id);
-                            if let Ok(res) = client.post(url)
-                                .header(reqwest::header::AUTHORIZATION, &user.access_token)
-                                .multipart(form)
-                                .send() {
-                                if res.status() != reqwest::StatusCode::OK {
-                                    eprintln!("Error {:?}", res.text());
-                                }
+    fn p_sync_commit(&self, commit: &String, dataset_id: &String, user: &User) {
+        let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
+        println!("Sync commit file: {:?}", file_name);
+        let paths: Vec<PathBuf> = FileUtil::read_lines(file_name.as_path()).into_iter().map(PathBuf::from).collect();
+        // let processed: Vec<AtomicBool> = Vec::with_capacity(paths.len());
+
+        // if let Ok(mut s) = signal_hook::iterator::Signals::new(signal_hook::consts::TERM_SIGNALS) {
+        //     std::thread::spawn(move || {
+        //         for _ in s.forever() {
+        //             let num_remaining = processed.iter().filter(|x| *x ).count();
+        //             println!("got a signal, num_remaining {:?}", num_remaining);
+        //             std::process::exit(1);
+        //         }
+        //     });
+        // } else {
+        //     println!("error with signals num_remaining {:?}", processed);
+        // }
+
+        // IF WE SPLIT INTO N THREADS, THEN INSIDE EACH THREAD CHECK FOR SIG, THEN MAYBE WE CAN GET ALL THE ONES IN PROGRESS
+        
+        // len is usize and progressbar requires u64, I don't think we'll overflow...
+        let size: u64 = unsafe { std::mem::transmute(paths.len()) };
+        let bar = ProgressBar::new(size);
+        paths.par_iter().for_each(|path| {
+            
+            if let Ok(hash) = hasher::hash_file_contents(&path) {
+                if let Ok(_) = api::entry_from_hash(&self.config, &hash) {
+                    // println!("Already have entry {:?}", entry);
+                } else {
+                    // Only upload file if it's hash doesn't already exist
+                    if let Ok(form) = reqwest::blocking::multipart::Form::new()
+                    .file("file", path)
+                    {
+                        let client = reqwest::blocking::Client::new();
+                        let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), self.config.repository_id, dataset_id);
+                        if let Ok(res) = client.post(url)
+                            .header(reqwest::header::AUTHORIZATION, &user.token)
+                            .multipart(form)
+                            .send() {
+                            if res.status() != reqwest::StatusCode::OK {
+                                eprintln!("Error {:?}", res.text());
                             }
                         }
                     }
                 }
+            }
 
-                bar.inc(1);
-            });
-            bar.finish();
+            bar.inc(1);
+        });
+        bar.finish();
+    }
+
+    fn sync_commit(&self, commit: &String, dataset_id: &String) {
+        if let Some(user) = &self.config.user {
+            self.p_sync_commit(commit, dataset_id, user)
         } else {
             eprintln!("Error sync_commit called before logged in.");
         }
@@ -199,7 +234,7 @@ impl Indexer {
         }
     }
 
-    pub fn sync(&self, dataset_name: &str) -> Result<(), String> {
+    pub fn push(&self, dataset_name: &str) -> Result<(), String> {
         let id = self.dataset_id_from_name(dataset_name)?;
         
         // list all commit files
@@ -237,5 +272,41 @@ impl Indexer {
 
     pub fn list_datasets(&self) -> Result<Vec<Dataset>, String> {
         api::list_datasets(&self.config)
+    }
+
+    pub fn status(&self) {
+        if !self.staging_file.exists() {
+            println!("No files staged.");
+            return;
+        }
+        
+        println!("Computing Status...\n");
+        let mut num_imgs = 0;
+        let mut num_audio = 0;
+        let mut num_video = 0;
+        let mut num_text = 0;
+        let lines = FileUtil::read_lines(&self.staging_file);
+        for line in lines {
+            let path = PathBuf::from(line);
+            if FileUtil::is_image(&path) { num_imgs += 1; }
+            if FileUtil::is_audio(&path) { num_audio += 1; }
+            if FileUtil::is_video(&path) { num_video += 1; }
+            if FileUtil::is_text(&path) { num_text += 1; }
+        }
+
+        println!("Staged files:");
+        if num_imgs > 0 { println!("{} image files", num_imgs) }
+        if num_audio > 0 { println!("{} audio files", num_audio) }
+        if num_video > 0 { println!("{} video files", num_video) }
+        if num_text > 0 { println!("{} text files", num_text) }
+    }
+
+    pub fn commit(&self, _status: &str) {
+        if !self.staging_file.exists() {
+            println!("No files staged.");
+            return;
+        }
+
+        self.commit_staged()
     }
 }

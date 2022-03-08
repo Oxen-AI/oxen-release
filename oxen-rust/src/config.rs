@@ -14,6 +14,15 @@ pub struct Config {
 }
 
 impl Config {
+  pub fn create(path: &Path) {
+    FileUtil::write_to_path(&path, r#"
+remote_ip = '127.0.0.1:4000'
+repository_id = 'c2b49c97-1e99-47c8-8074-bd989cc64534'
+email = 'mo@orlandomagic.com'
+password = 'password'
+    "#)
+  }
+
   pub fn from(path: &Path) -> Config {
     let contents = FileUtil::read_from_path(path);
     toml::from_str(&contents).unwrap()

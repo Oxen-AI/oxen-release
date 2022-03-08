@@ -1,6 +1,17 @@
-# Indexer
+# OxenCLI
 
 A tool to stage, commit, and push data to our servers
+
+## Commands
+
+`oxen init .`
+
+`oxen list datasets`
+
+`oxen add images/`
+
+`oxen push dataset_name`
+
 
 ## File Structure
 

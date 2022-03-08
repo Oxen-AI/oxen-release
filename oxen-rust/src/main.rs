@@ -3,7 +3,9 @@ use clap::{arg, Command};
 use std::path::PathBuf;
 use std::env;
 
-use blob::indexer::Indexer;
+use oxen::indexer::Indexer;
+
+const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
 
 fn init(path: &str) {
     let directory = PathBuf::from(&path);
@@ -13,20 +15,30 @@ fn init(path: &str) {
 
 fn add(path: &str) {
     let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        println!("{}", NO_REPO_MSG);
+        return;
+    }
+
     let indexer = Indexer::new(&current_dir);
     let directory = PathBuf::from(&path);
     indexer.add_files(&directory)
 }
 
-fn sync(dataset: &str) {
+fn push(dataset: &str) {
     let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        println!("{}", NO_REPO_MSG);
+        return;
+    }
+
     let mut indexer = Indexer::new(&current_dir);
     // Must login to get access token
     match indexer.login() {
         Ok(_) => {
-            match indexer.sync(dataset) {
+            match indexer.push(dataset) {
                 Ok(_) => {
-                    println!("Sync complete!")
+                    println!("Done.")
                 },
                 Err(err) => {
                     eprintln!("Error: {}", err)
@@ -41,6 +53,11 @@ fn sync(dataset: &str) {
 
 fn list_datasets() {
     let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        println!("{}", NO_REPO_MSG);
+        return;
+    }
+
     let mut indexer = Indexer::new(&current_dir);
     match indexer.login() {
         Ok(_) => {
@@ -62,7 +79,13 @@ fn list_datasets() {
 }
 
 fn create(args: Vec<&std::ffi::OsStr>) {
-    let err_str = "Must supply create with a type. Ex:\n\nblob create -d \"my_dataset\"";
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        println!("{}", NO_REPO_MSG);
+        return;
+    }
+
+    let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
     if args.len() != 2 {
         eprintln!("{}", err_str)
     } else {
@@ -72,7 +95,8 @@ fn create(args: Vec<&std::ffi::OsStr>) {
                 let name_arg = args[1];
                 match name_arg.to_str() {
                     Some(name) => {
-                        println!("Creating dataset name [{}]", name)
+                        println!("Creating dataset name [{}]", name);
+                        println!("TODO!!");
                     },
                     None => {
                         eprintln!("Invalid dataset name: \"{:?}\"", name_arg)
@@ -80,14 +104,20 @@ fn create(args: Vec<&std::ffi::OsStr>) {
                 }
             },
             _ => {
-                eprintln!("blob create used with unknown flag {:?}", flag)
+                eprintln!("oxen create used with unknown flag {:?}", flag)
             }
         }
     }
 }
 
 fn commit(args: Vec<&std::ffi::OsStr>) {
-    let err_str = "Must supply a commit message with -m. Ex:\n\nblob commit -m \"Adding data\"";
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        println!("{}", NO_REPO_MSG);
+        return;
+    }
+
+    let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
     if args.len() != 2 {
         eprintln!("{}", err_str)
     } else {
@@ -97,7 +127,9 @@ fn commit(args: Vec<&std::ffi::OsStr>) {
                 let msg_arg = args[1];
                 match msg_arg.to_str() {
                     Some(message) => {
-                        println!("Committing with msg [{}]", message)
+                        println!("Committing with msg [{}]", message);
+                        let indexer = Indexer::new(&current_dir);
+                        indexer.commit(&message);
                     },
                     None => {
                         eprintln!("Invalid commit message: \"{:?}\"", msg_arg)
@@ -111,8 +143,19 @@ fn commit(args: Vec<&std::ffi::OsStr>) {
     }
 }
 
+fn status() {
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        println!("{}", NO_REPO_MSG);
+        return;
+    }
+
+    let indexer = Indexer::new(&current_dir);
+    indexer.status()
+}
+
 fn main() {
-    let matches = Command::new("blob")
+    let matches = Command::new("oxen")
         .version("0.0.1")
         .about("Data management toolchain")
         .subcommand_required(true)
@@ -138,10 +181,10 @@ fn main() {
                 .arg(arg!(<OBJECT> "Name of the object you want to list (datasets)")),
         )
         .subcommand(
-            Command::new("sync")
-                .about("Syncs the files up to the remote repository, given a dataset")
+            Command::new("push")
+                .about("Push the files up to the remote repository, given a dataset")
                 .arg_required_else_help(true)
-                .arg(arg!(<DATASET> "Name of dataset to sync to")),
+                .arg(arg!(<DATASET> "Name of dataset to push to")),
         )
         .get_matches();
 
@@ -154,9 +197,9 @@ fn main() {
             let path = sub_matches.value_of("PATH").expect("required");
             add(path)
         }
-        Some(("sync", sub_matches)) => {
+        Some(("push", sub_matches)) => {
             let dataset = sub_matches.value_of("DATASET").expect("required");
-            sync(dataset)
+            push(dataset)
         }
         Some(("list", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").expect("required");
@@ -181,6 +224,9 @@ fn main() {
                 },
                 "create" => {
                     create(args)
+                },
+                "status" => {
+                    status()
                 },
                 _ => {
                     println!("Unknown command {}", ext)
