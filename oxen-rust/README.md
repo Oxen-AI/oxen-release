@@ -6,9 +6,13 @@ A tool to stage, commit, and push data to our servers
 
 `oxen init .`
 
+`oxen status`
+
 `oxen list datasets`
 
 `oxen add images/`
+
+`oxen status`
 
 `oxen push dataset_name`
 

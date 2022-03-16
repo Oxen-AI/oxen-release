@@ -71,3 +71,29 @@ pub fn list_datasets(config: &Config) -> Result<Vec<Dataset>, String> {
     Err(String::from("User is not logged in."))
   }
 }
+
+pub fn create_dataset(config: &Config, name: &str) -> Result<Dataset, String> {
+  if let Some(user) = &config.user {
+    let url = format!("{}/repositories/{}/datasets", config.endpoint(), config.repository_id);
+    let params = json!({
+      "name": name,
+    });
+
+    if let Ok(res) = Client::new()
+      .post(url)
+      .header(reqwest::header::AUTHORIZATION, &user.token)
+      .json(&params)
+      .send() {
+        let status = res.status();
+        if let Ok(user_res) = res.json::<DatasetResponse>() {
+          Ok(user_res.dataset)
+        } else {
+          Err(format!("status_code[{}], could not create dataset", status))
+        }
+    } else {
+      Err(String::from("api::create_dataset() API failed"))
+    }
+  } else {
+    Err(String::from("User is not logged in."))
+  }
+}

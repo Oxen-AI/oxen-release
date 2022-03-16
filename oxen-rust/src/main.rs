@@ -13,6 +13,10 @@ fn init(path: &str) {
     indexer.init()
 }
 
+fn clone(url: &str) {
+    let _indexer = Indexer::clone(&url);
+}
+
 fn add(path: &str) {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
@@ -25,7 +29,7 @@ fn add(path: &str) {
     indexer.add_files(&directory)
 }
 
-fn push(dataset: &str) {
+fn push(directory: &str) {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
         println!("{}", NO_REPO_MSG);
@@ -33,10 +37,13 @@ fn push(dataset: &str) {
     }
 
     let mut indexer = Indexer::new(&current_dir);
+
     // Must login to get access token
     match indexer.login() {
         Ok(_) => {
-            match indexer.push(dataset) {
+            // Create remote dataset
+            indexer.create_dataset_if_not_exists(directory);
+            match indexer.push(directory) {
                 Ok(_) => {
                     println!("Done.")
                 },
@@ -175,16 +182,22 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
-            Command::new("list")
-                .about("Lists the datasets within a repo")
+            Command::new("ls")
+                .about("Lists the directories within a repo")
                 .arg_required_else_help(true)
-                .arg(arg!(<OBJECT> "Name of the object you want to list (datasets)")),
+                .arg(arg!(<OBJECT> "Run ls locally or remote (remote, local)")),
+        )
+        .subcommand(
+            Command::new("clone")
+                .about("Clone a repository by its URL")
+                .arg_required_else_help(true)
+                .arg(arg!(<URL> "URL of the repository you want to clone")),
         )
         .subcommand(
             Command::new("push")
-                .about("Push the files up to the remote repository, given a dataset")
+                .about("Push the files up to the remote repository, given a directory")
                 .arg_required_else_help(true)
-                .arg(arg!(<DATASET> "Name of dataset to push to")),
+                .arg(arg!(<DIRECTORY> "Name of directory to push to")),
         )
         .get_matches();
 
@@ -198,19 +211,23 @@ fn main() {
             add(path)
         }
         Some(("push", sub_matches)) => {
-            let dataset = sub_matches.value_of("DATASET").expect("required");
-            push(dataset)
+            let directory = sub_matches.value_of("DIRECTORY").expect("required");
+            push(directory)
         }
-        Some(("list", sub_matches)) => {
+        Some(("ls", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").expect("required");
             match object_type {
-                "datasets" => {
+                "remote" => {
                     list_datasets()
                 }
                 _ => {
                     println!("Unknown object type: {}", object_type)
                 },
             }
+        }
+        Some(("clone", sub_matches)) => {
+            let url = sub_matches.value_of("URL").expect("required");
+            clone(url);
         }
         Some((ext, sub_matches)) => {
             let args = sub_matches
@@ -235,70 +252,4 @@ fn main() {
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachabe!()
     }
-
-    /*
-    let command = args.value_of("command").unwrap();
-    match command {
-        "init" => {
-            let dirname = String::from(args.value_of("directory").unwrap());
-            let directory = PathBuf::from(&dirname);
-            let indexer = Indexer::new(&directory);
-            indexer.init()
-        },
-        "add" => {
-            let current_dir = env::current_dir().unwrap();
-            let indexer = Indexer::new(&current_dir);
-            let dirname = String::from(args.value_of("directory").unwrap());
-            let directory = PathBuf::from(&dirname);
-            indexer.add_files(&directory)
-        },
-        "commit" => {
-            let current_dir = env::current_dir().unwrap();
-            let indexer = Indexer::new(&current_dir);
-            indexer.commit_staged()
-        },
-        "sync" => {
-            let current_dir = env::current_dir().unwrap();
-            let mut indexer = Indexer::new(&current_dir);
-            // Must login to get access token
-            match indexer.login() {
-                Ok(_) => {
-                    indexer.sync();
-                },
-                Err(err) => {
-                    eprintln!("Indexer couldn't log in: {}", err)
-                }
-            }
-        },
-        "encode" => {
-            let value = String::from(args.value_of("directory").unwrap());
-            let encoded = hasher::hash_buffer(value.as_bytes());
-            println!("{} => {}", value, encoded)
-        },
-        "list_datasets" => {
-            let current_dir = env::current_dir().unwrap();
-            let mut indexer = Indexer::new(&current_dir);
-            match indexer.login() {
-                Ok(_) => {
-                    match indexer.list_datasets() {
-                        Ok(datasets) => {
-                            for dataset in datasets.iter() {
-                                println!("{}", dataset.name);
-                            }
-                        },
-                        Err(err) => {
-                            eprintln!("Indexer couldn't list datasets: {}", err)
-                        }
-                    }
-                },
-                Err(err) => {
-                    eprintln!("Indexer couldn't log in: {}", err)
-                }
-            }
-        },
-        _ => {
-            println!("Unknown command: {}", command)
-        },
-    }
-    */
 }

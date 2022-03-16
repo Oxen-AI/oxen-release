@@ -17,8 +17,8 @@ impl Config {
   pub fn create(path: &Path) {
     FileUtil::write_to_path(&path, r#"
 remote_ip = '127.0.0.1:4000'
-repository_id = 'c2b49c97-1e99-47c8-8074-bd989cc64534'
-email = 'mo@orlandomagic.com'
+repository_id = '6bac0c43-8bc8-4b14-ac9e-565c11dbd0ef'
+email = 'gary@orlandomagic.com'
 password = 'password'
     "#)
   }

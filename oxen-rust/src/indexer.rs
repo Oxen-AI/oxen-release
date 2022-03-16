@@ -33,6 +33,18 @@ impl Indexer {
         hidden_dir.exists()
     }
 
+    pub fn clone(_url: &str) -> Indexer {
+        let config_file = PathBuf::from(PathBuf::from("")).join(Path::new("config.toml"));
+        Indexer {
+            root_dir: PathBuf::from(""),
+            hidden_dir: PathBuf::from(""),
+            staging_file: PathBuf::from(""),
+            commits_dir: PathBuf::from(""),
+            synced_file: PathBuf::from(""),
+            config: Config::from(&config_file)
+        }
+    } 
+
     pub fn new(dirname: &PathBuf) -> Indexer {
         let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
         let staging_file = PathBuf::from(&hidden_dir).join(Path::new("staging"));
@@ -43,7 +55,7 @@ impl Indexer {
         if !config_file.exists() {
             match fs::create_dir_all(&hidden_dir) {
                 Ok(_) => {
-                    println!("Created directory: {:?}", hidden_dir);
+                    println!("🐂 init {:?}", hidden_dir);
                     Config::create(&config_file)
                 },
                 Err(err) => {
@@ -152,18 +164,29 @@ impl Indexer {
                         Err(_) => {/* Cannot cannonicalize... */}
                     }
                 }
-                println!("Commited {} files", paths.len());
+                
             },
             Err(err) => {
                 eprintln!("commit_staged Could not add files... {}", err)
+            }
+        }
+
+        // Remove staged file for now
+        match fs::remove_file(&self.staging_file) {
+            Ok(_file) => {
+                println!("🐂 commited {} files", paths.len());
+            },
+            Err(err) => {
+                eprintln!("Could not remove staged file: {}", err)
             }
         }
     }
 
     fn p_sync_commit(&self, commit: &String, dataset_id: &String, user: &User) {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
-        println!("Sync commit file: {:?}", file_name);
-        let paths: Vec<PathBuf> = FileUtil::read_lines(file_name.as_path()).into_iter().map(PathBuf::from).collect();
+        // println!("Sync commit file: {:?}", file_name);
+        let path = file_name.as_path();
+        let paths: Vec<PathBuf> = FileUtil::read_lines(&path).into_iter().map(PathBuf::from).collect();
         // let processed: Vec<AtomicBool> = Vec::with_capacity(paths.len());
 
         // if let Ok(mut s) = signal_hook::iterator::Signals::new(signal_hook::consts::TERM_SIGNALS) {
@@ -210,6 +233,16 @@ impl Indexer {
             bar.inc(1);
         });
         bar.finish();
+
+        // Remove committed file for now (TODO: mark as synced or something)
+        match fs::remove_file(path) {
+            Ok(_file) => {
+                println!("Synced {} files", paths.len());
+            },
+            Err(err) => {
+                eprintln!("Could not remove commit file: {}", err)
+            }
+        }
     }
 
     fn sync_commit(&self, commit: &String, dataset_id: &String) {
@@ -254,16 +287,16 @@ impl Indexer {
             let synced: HashSet<String> = FileUtil::read_lines_file(&file).into_iter().collect();
             let difference: Vec<_> = commits.iter().filter(|item| !synced.contains(*item)).collect();
 
-            for commit in synced.iter() {
-                println!("Already synced: [{}]", commit);
-            }
+            // for commit in synced.iter() {
+            //     println!("Already synced: [{}]", commit);
+            // }
 
-            for commit in commits.iter() {
-                println!("Commits: [{}]", commit);
-            }
+            // for commit in commits.iter() {
+            //     println!("Commits: [{}]", commit);
+            // }
 
             for commit in difference.iter() {
-                println!("Need to sync: {:?}", commit);
+                // println!("Need to sync: {:?}", commit);
                 self.sync_commit(commit, &id);
             }
         }
@@ -280,7 +313,7 @@ impl Indexer {
             return;
         }
         
-        println!("Computing Status...\n");
+        println!("🐂 status\n");
         let mut num_imgs = 0;
         let mut num_audio = 0;
         let mut num_video = 0;
@@ -308,5 +341,21 @@ impl Indexer {
         }
 
         self.commit_staged()
+    }
+
+    pub fn create_dataset_if_not_exists(&self, name: &str) {
+        if !self.commits_dir.exists() {
+            println!("No data committed yet. Run `oxen commit -m 'your message'`.");
+            return;
+        }
+
+        match api::create_dataset(&self.config, &name) {
+            Ok(dataset) => {
+                println!("🐂 created remote directory {}", dataset.name);
+            },
+            Err(err) => {
+                eprintln!("Error creating dataset: {:?}", err);
+            }
+        };
     }
 }

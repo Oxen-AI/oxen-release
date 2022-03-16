@@ -29,7 +29,7 @@ pub fn hash_file_contents(path: &Path) -> Result<String, String> {
           }
       },
       Err(_) => {
-          eprintln!("Could not open file {:?}", path);
+        //   eprintln!("Could not open file {:?}", path);
           Err(String::from("Could not open file"))
       }
   }
