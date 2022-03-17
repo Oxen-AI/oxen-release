@@ -1,16 +1,13 @@
-
-use std::path::Path;
-use std::path::PathBuf;
+use jwalk::WalkDir;
+use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader};
 use std::io::prelude::*;
-use jwalk::{WalkDir};
-use std::collections::HashSet;
+use std::io::BufReader;
+use std::path::Path;
+use std::path::PathBuf;
 
-pub struct FileUtil {
-
-}
+pub struct FileUtil {}
 
 impl FileUtil {
     pub fn read_from_path(path: &Path) -> String {
@@ -18,7 +15,7 @@ impl FileUtil {
         match fs::read_to_string(path) {
             Ok(contents) => {
                 result = contents;
-            },
+            }
             Err(_) => {
                 eprintln!("Could not open staging file {}", path.display())
             }
@@ -28,14 +25,10 @@ impl FileUtil {
 
     pub fn write_to_path(path: &Path, value: &str) {
         match File::create(path) {
-            Ok(mut file) => {
-                match file.write(value.as_bytes()) {
-                    Ok(_) => {
-
-                    },
-                    Err(err) => {
-                        eprintln!("Could not write file {:?}\n{}", path, err)
-                    }
+            Ok(mut file) => match file.write(value.as_bytes()) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("Could not write file {:?}\n{}", path, err)
                 }
             },
             Err(err) => {
@@ -59,9 +52,7 @@ impl FileUtil {
     pub fn read_lines(path: &Path) -> Vec<String> {
         let mut lines: Vec<String> = Vec::new();
         match File::open(&path) {
-            Ok(file) => {
-                lines = FileUtil::read_lines_file(&file)
-            },
+            Ok(file) => lines = FileUtil::read_lines_file(&file),
             Err(_) => {
                 eprintln!("Could not open staging file {}", path.display())
             }
@@ -78,12 +69,16 @@ impl FileUtil {
                         files.push(path.path());
                     }
                 }
-            },
+            }
             Err(err) => {
-                eprintln!("FileUtil::list_files_in_dir Could not find dir: {} err: {}", dir.display(), err)
+                eprintln!(
+                    "FileUtil::list_files_in_dir Could not find dir: {} err: {}",
+                    dir.display(),
+                    err
+                )
             }
         }
-        
+
         files
     }
 
@@ -109,19 +104,11 @@ impl FileUtil {
 
     pub fn contains_ext(path: &Path, exts: &HashSet<String>) -> bool {
         match path.extension() {
-            Some(extension) => {
-                match extension.to_str() {
-                    Some(ext) => {
-                        exts.contains(ext)
-                    },
-                    None => {
-                        false
-                    }
-                }
+            Some(extension) => match extension.to_str() {
+                Some(ext) => exts.contains(ext),
+                None => false,
             },
-            None => {
-                false
-            }
+            None => false,
         }
     }
 
@@ -134,7 +121,7 @@ impl FileUtil {
                     if FileUtil::contains_ext(&path, exts) {
                         files.push(path);
                     }
-                },
+                }
                 Err(err) => eprintln!("Could not iterate over dir... {}", err),
             }
         }

@@ -1,16 +1,14 @@
-
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct User {
-  pub id: String,
-  pub token: String,
-  pub email: String,
-  pub name: String,
+    pub id: String,
+    pub token: String,
+    pub email: String,
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct UserResponse {
-  pub user: User
+    pub user: User,
 }
-

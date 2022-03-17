@@ -1,3 +1,2 @@
-
-pub mod indexer;
 pub mod dispatch;
+pub mod indexer;

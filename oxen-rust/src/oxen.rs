@@ -58,12 +58,10 @@ fn main() {
         Some(("ls", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").expect("required");
             match object_type {
-                "remote" => {
-                    dispatch::list_datasets()
-                }
+                "remote" => dispatch::list_datasets(),
                 _ => {
                     println!("Unknown object type: {}", object_type)
-                },
+                }
             }
         }
         Some(("clone", sub_matches)) => {
@@ -77,15 +75,9 @@ fn main() {
                 .collect::<Vec<_>>();
 
             match ext {
-                "commit" => {
-                    dispatch::commit(args)
-                },
-                "create" => {
-                    dispatch::create(args)
-                },
-                "status" => {
-                    dispatch::status()
-                },
+                "commit" => dispatch::commit(args),
+                "create" => dispatch::create(args),
+                "status" => dispatch::status(),
                 _ => {
                     println!("Unknown command {}", ext)
                 }

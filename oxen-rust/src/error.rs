@@ -1,4 +1,3 @@
-
 use std::error;
 use std::fmt;
 use std::io;
@@ -16,19 +15,17 @@ impl fmt::Display for OxenError {
 }
 
 // Defers to default method impls, compiler will fill in the blanks
-impl error::Error for OxenError {
-
-}
+impl error::Error for OxenError {}
 
 // if you do not want to call .map_err, implement the std::convert::From train
 impl From<io::Error> for OxenError {
     fn from(error: io::Error) -> Self {
-      OxenError::IO(error)
+        OxenError::IO(error)
     }
 }
 
 impl From<String> for OxenError {
-  fn from(error: String) -> Self {
-    OxenError::Basic(error)
-  }
+    fn from(error: String) -> Self {
+        OxenError::Basic(error)
+    }
 }

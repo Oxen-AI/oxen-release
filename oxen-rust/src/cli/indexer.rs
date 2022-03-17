@@ -1,18 +1,18 @@
-use std::path::Path;
-use std::path::PathBuf;
+use chrono::prelude::*;
+use indicatif::ProgressBar;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
-use rayon::prelude::*;
-use chrono::prelude::*;
 use std::fs::File;
-use indicatif::ProgressBar;
 use std::fs::OpenOptions;
 use std::io::Write;
+use std::path::Path;
+use std::path::PathBuf;
 // use std::sync::Arc;
 // use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::config::repo_config::RepoConfig;
 use crate::api;
+use crate::config::repo_config::RepoConfig;
 use crate::model::dataset::Dataset;
 use crate::model::user::User;
 use crate::util::file_util::FileUtil;
@@ -24,7 +24,7 @@ pub struct Indexer {
     staging_file: PathBuf,
     commits_dir: PathBuf,
     synced_file: PathBuf,
-    config: RepoConfig
+    config: RepoConfig,
 }
 
 impl Indexer {
@@ -41,9 +41,9 @@ impl Indexer {
             staging_file: PathBuf::from(""),
             commits_dir: PathBuf::from(""),
             synced_file: PathBuf::from(""),
-            config: RepoConfig::from(&config_file)
+            config: RepoConfig::from(&config_file),
         }
-    } 
+    }
 
     pub fn new(dirname: &Path) -> Indexer {
         let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
@@ -57,16 +57,14 @@ impl Indexer {
                 Ok(_) => {
                     println!("🐂 init {:?}", hidden_dir);
                     RepoConfig::create(&config_file)
-                },
+                }
                 Err(err) => {
                     eprintln!("Error initializing repo {}", err)
                 }
             }
 
             match fs::create_dir_all(&commits_dir) {
-                Ok(_) => {
-                    
-                },
+                Ok(_) => {}
                 Err(err) => {
                     eprintln!("Error initializing repo {}", err)
                 }
@@ -79,7 +77,7 @@ impl Indexer {
             staging_file,
             commits_dir,
             synced_file,
-            config: RepoConfig::from(&config_file)
+            config: RepoConfig::from(&config_file),
         }
     }
 
@@ -100,12 +98,12 @@ impl Indexer {
         self.config.user = Some(user);
         Ok(())
     }
-    
+
     fn list_image_files_from_dir(&self, dirname: &Path) -> Vec<PathBuf> {
         let img_ext: HashSet<String> = vec!["jpg", "png"].into_iter().map(String::from).collect();
         FileUtil::recursive_files_with_extensions(dirname, &img_ext)
     }
-    
+
     pub fn add_files(&self, dir: &Path) {
         println!("Adding files in: {}", dir.display());
         let paths = self.list_image_files_from_dir(dir);
@@ -114,15 +112,15 @@ impl Indexer {
                 for path in paths.iter() {
                     if let Ok(canonical) = fs::canonicalize(&path) {
                         match writeln!(&file, "{}", canonical.display()) {
-                            Ok(_) => {},
+                            Ok(_) => {}
                             Err(err) => {
                                 eprintln!("Could not add path {} err: {}", path.display(), err)
-                            },
+                            }
                         }
                     }
                 }
                 println!("Added {} files", paths.len());
-            },
+            }
             Err(err) => {
                 eprintln!("add_files Could not add files... {}", err)
             }
@@ -130,36 +128,44 @@ impl Indexer {
     }
 
     fn list_paths_from_staged(&self) -> Vec<PathBuf> {
-        FileUtil::read_lines(&self.staging_file).into_iter().map(PathBuf::from).collect()
+        FileUtil::read_lines(&self.staging_file)
+            .into_iter()
+            .map(PathBuf::from)
+            .collect()
     }
 
     pub fn commit_staged(&self) {
         let paths = self.list_paths_from_staged();
         let utc: DateTime<Utc> = Utc::now();
         // year_month_day_timestamp
-        let commit_filename = format!("{}_{:02}_{:02}_{}", utc.year(), utc.month(), utc.day(), utc.timestamp());
+        let commit_filename = format!(
+            "{}_{:02}_{:02}_{}",
+            utc.year(),
+            utc.month(),
+            utc.day(),
+            utc.timestamp()
+        );
         let commit_path = PathBuf::from(&self.commits_dir).join(Path::new(&commit_filename));
         match File::create(&commit_path) {
             Ok(file) => {
                 let hash = hasher::hash_buffer(commit_filename.as_bytes());
                 match writeln!(&file, "{}", hash) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => {
                         eprintln!("Could not write hash {} err: {}", hash, err)
-                    },
+                    }
                 }
                 for path in paths.iter() {
                     if let Ok(canonical) = fs::canonicalize(&path) {
                         match writeln!(&file, "{}", canonical.display()) {
-                            Ok(_) => {},
+                            Ok(_) => {}
                             Err(err) => {
                                 eprintln!("Could not add path {} err: {}", path.display(), err)
-                            },
+                            }
                         }
                     }
                 }
-                
-            },
+            }
             Err(err) => {
                 eprintln!("commit_staged Could not add files... {}", err)
             }
@@ -169,7 +175,7 @@ impl Indexer {
         match fs::remove_file(&self.staging_file) {
             Ok(_file) => {
                 println!("🐂 commited {} files", paths.len());
-            },
+            }
             Err(err) => {
                 eprintln!("Could not remove staged file: {}", err)
             }
@@ -180,7 +186,10 @@ impl Indexer {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
         // println!("Sync commit file: {:?}", file_name);
         let path = file_name.as_path();
-        let paths: Vec<PathBuf> = FileUtil::read_lines(path).into_iter().map(PathBuf::from).collect();
+        let paths: Vec<PathBuf> = FileUtil::read_lines(path)
+            .into_iter()
+            .map(PathBuf::from)
+            .collect();
         // let processed: Vec<AtomicBool> = Vec::with_capacity(paths.len());
 
         // if let Ok(mut s) = signal_hook::iterator::Signals::new(signal_hook::consts::TERM_SIGNALS) {
@@ -196,27 +205,31 @@ impl Indexer {
         // }
 
         // IF WE SPLIT INTO N THREADS, THEN INSIDE EACH THREAD CHECK FOR SIG, THEN MAYBE WE CAN GET ALL THE ONES IN PROGRESS
-        
+
         // len is usize and progressbar requires u64, I don't think we'll overflow...
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
-            
             if let Ok(hash) = hasher::hash_file_contents(path) {
                 if api::entry_from_hash(&self.config, &hash).is_ok() {
                     // println!("Already have entry {:?}", entry);
                 } else {
                     // Only upload file if it's hash doesn't already exist
-                    if let Ok(form) = reqwest::blocking::multipart::Form::new()
-                    .file("file", path)
-                    {
+                    if let Ok(form) = reqwest::blocking::multipart::Form::new().file("file", path) {
                         let client = reqwest::blocking::Client::new();
-                        let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), "NOPE", dataset_id);
+                        let url = format!(
+                            "{}/repositories/{}/datasets/{}/entries",
+                            self.config.endpoint(),
+                            "NOPE",
+                            dataset_id
+                        );
                         println!("Getting data from {}", url);
-                        if let Ok(res) = client.post(url)
+                        if let Ok(res) = client
+                            .post(url)
                             .header(reqwest::header::AUTHORIZATION, &user.token)
                             .multipart(form)
-                            .send() {
+                            .send()
+                        {
                             if res.status() != reqwest::StatusCode::OK {
                                 eprintln!("Error {:?}", res.text());
                             }
@@ -233,7 +246,7 @@ impl Indexer {
         match fs::remove_file(path) {
             Ok(_file) => {
                 println!("Synced {} files", paths.len());
-            },
+            }
             Err(err) => {
                 eprintln!("Could not remove commit file: {}", err)
             }
@@ -250,24 +263,21 @@ impl Indexer {
 
     fn dataset_id_from_name(&self, name: &str) -> Result<String, String> {
         let datasets = api::datasets::list(&self.config)?;
-        let result = datasets.iter().find(|&x| { x.name == name });
-        
+        let result = datasets.iter().find(|&x| x.name == name);
+
         match result {
-            Some(dataset) => {
-                Ok(dataset.id.clone())
-            },
-            None => {
-                Err(format!("Couldn't find dataset \"{}\"", name))
-            }
+            Some(dataset) => Ok(dataset.id.clone()),
+            None => Err(format!("Couldn't find dataset \"{}\"", name)),
         }
     }
 
     pub fn push(&self, dataset_name: &str) -> Result<(), String> {
         let id = self.dataset_id_from_name(dataset_name)?;
-        
+
         // list all commit files
         let commits: Vec<String> = FileUtil::list_files_in_dir(&self.commits_dir)
-            .iter().filter_map(|path| { path.as_path().file_name()?.to_str() })
+            .iter()
+            .filter_map(|path| path.as_path().file_name()?.to_str())
             .map(String::from)
             .collect();
 
@@ -278,7 +288,10 @@ impl Indexer {
             .open(&self.synced_file)
         {
             let synced: HashSet<String> = FileUtil::read_lines_file(&file).into_iter().collect();
-            let difference: Vec<_> = commits.iter().filter(|item| !synced.contains(*item)).collect();
+            let difference: Vec<_> = commits
+                .iter()
+                .filter(|item| !synced.contains(*item))
+                .collect();
 
             // for commit in synced.iter() {
             //     println!("Already synced: [{}]", commit);
@@ -305,7 +318,7 @@ impl Indexer {
             println!("No files staged.");
             return;
         }
-        
+
         println!("🐂 status\n");
         let mut num_imgs = 0;
         let mut num_audio = 0;
@@ -314,17 +327,33 @@ impl Indexer {
         let lines = FileUtil::read_lines(&self.staging_file);
         for line in lines {
             let path = PathBuf::from(line);
-            if FileUtil::is_image(&path) { num_imgs += 1; }
-            if FileUtil::is_audio(&path) { num_audio += 1; }
-            if FileUtil::is_video(&path) { num_video += 1; }
-            if FileUtil::is_text(&path) { num_text += 1; }
+            if FileUtil::is_image(&path) {
+                num_imgs += 1;
+            }
+            if FileUtil::is_audio(&path) {
+                num_audio += 1;
+            }
+            if FileUtil::is_video(&path) {
+                num_video += 1;
+            }
+            if FileUtil::is_text(&path) {
+                num_text += 1;
+            }
         }
 
         println!("Staged files:");
-        if num_imgs > 0 { println!("{} image files", num_imgs) }
-        if num_audio > 0 { println!("{} audio files", num_audio) }
-        if num_video > 0 { println!("{} video files", num_video) }
-        if num_text > 0 { println!("{} text files", num_text) }
+        if num_imgs > 0 {
+            println!("{} image files", num_imgs)
+        }
+        if num_audio > 0 {
+            println!("{} audio files", num_audio)
+        }
+        if num_video > 0 {
+            println!("{} video files", num_video)
+        }
+        if num_text > 0 {
+            println!("{} text files", num_text)
+        }
     }
 
     pub fn commit(&self, _status: &str) {
@@ -345,7 +374,7 @@ impl Indexer {
         match api::create_dataset(&self.config, name) {
             Ok(dataset) => {
                 println!("🐂 created remote directory {}", dataset.name);
-            },
+            }
             Err(err) => {
                 eprintln!("Error creating dataset: {:?}", err);
             }
