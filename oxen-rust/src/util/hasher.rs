@@ -20,7 +20,7 @@ pub fn hash_file_contents(path: &Path) -> Result<String, String> {
               Ok(_) => {
                   // read hash digest and consume hasher
                   let result = hash_buffer(&buffer);
-                  return Ok(result)
+                  Ok(result)
               },
               Err(_) => {
                   eprintln!("Could not read file to end {:?}", path);

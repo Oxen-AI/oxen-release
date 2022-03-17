@@ -20,7 +20,7 @@ pub struct RepoConfig {
 
 impl RepoConfig {
   pub fn create(path: &Path) {
-    FileUtil::write_to_path(&path, r#"
+    FileUtil::write_to_path(path, r#"
 remote_ip = 'oxenai.com'
 repository_id = 'f398e01c-e8dc-4e35-830d-df1eb97abcc4'
 email = 'greg@oxen.ai'

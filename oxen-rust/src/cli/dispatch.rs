@@ -12,7 +12,7 @@ pub fn init(path: &str) {
 }
 
 pub fn clone(url: &str) {
-  let _indexer = Indexer::clone(&url);
+  let _indexer = Indexer::clone(url);
 }
 
 pub fn add(path: &str) {
@@ -134,7 +134,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) {
                   Some(message) => {
                       println!("Committing with msg [{}]", message);
                       let indexer = Indexer::new(&current_dir);
-                      indexer.commit(&message);
+                      indexer.commit(message);
                   },
                   None => {
                       eprintln!("Invalid commit message: \"{:?}\"", msg_arg)

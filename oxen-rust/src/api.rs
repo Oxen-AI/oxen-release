@@ -58,7 +58,7 @@ pub fn get_user(config: &RepoConfig) -> Result<User, String> {
   }
 }
 
-pub fn entry_from_hash(config: &RepoConfig, hash: &String) -> Result<Entry, String> {
+pub fn entry_from_hash(config: &RepoConfig, hash: &str) -> Result<Entry, String> {
   if let Some(user) = &config.user {
     let url = format!("{}/entries/search?hash={}", config.endpoint(), hash);
     let client = reqwest::blocking::Client::new();

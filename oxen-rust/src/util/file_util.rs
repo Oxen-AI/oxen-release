@@ -47,15 +47,10 @@ impl FileUtil {
     pub fn read_lines_file(file: &File) -> Vec<String> {
         let mut lines: Vec<String> = Vec::new();
         let reader = BufReader::new(file);
-        for line in reader.lines() {
-            match line {
-                Ok(valid) => {
-                    let trimmed = valid.trim();
-                    if !trimmed.is_empty() {
-                        lines.push(String::from(trimmed));
-                    }
-                },
-                Err(_) => {/* Couldnt read line */}
+        for line in reader.lines().flatten() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                lines.push(String::from(trimmed));
             }
         }
         lines
@@ -78,14 +73,9 @@ impl FileUtil {
         let mut files: Vec<PathBuf> = Vec::new();
         match fs::read_dir(dir) {
             Ok(paths) => {
-                for path in paths {
-                    match path {
-                        Ok(val) => {
-                            if fs::metadata(val.path()).unwrap().is_file() {
-                                files.push(val.path());
-                            }
-                        }
-                        Err(_) => {}
+                for path in paths.flatten() {
+                    if fs::metadata(path.path()).unwrap().is_file() {
+                        files.push(path.path());
                     }
                 }
             },
@@ -141,7 +131,7 @@ impl FileUtil {
             match entry {
                 Ok(val) => {
                     let path = val.path();
-                    if FileUtil::contains_ext(&path, &exts) {
+                    if FileUtil::contains_ext(&path, exts) {
                         files.push(path);
                     }
                 },

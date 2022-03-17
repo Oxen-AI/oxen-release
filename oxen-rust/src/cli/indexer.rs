@@ -28,13 +28,13 @@ pub struct Indexer {
 }
 
 impl Indexer {
-    pub fn repo_exists(dirname: &PathBuf) -> bool {
+    pub fn repo_exists(dirname: &Path) -> bool {
         let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
         hidden_dir.exists()
     }
 
     pub fn clone(_url: &str) -> Indexer {
-        let config_file = PathBuf::from(PathBuf::from("")).join(Path::new("config.toml"));
+        let config_file = PathBuf::from("").join(Path::new("config.toml"));
         Indexer {
             root_dir: PathBuf::from(""),
             hidden_dir: PathBuf::from(""),
@@ -45,7 +45,7 @@ impl Indexer {
         }
     } 
 
-    pub fn new(dirname: &PathBuf) -> Indexer {
+    pub fn new(dirname: &Path) -> Indexer {
         let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
         let staging_file = PathBuf::from(&hidden_dir).join(Path::new("staging"));
         let commits_dir = PathBuf::from(&hidden_dir).join(Path::new("commits"));
@@ -75,10 +75,10 @@ impl Indexer {
 
         Indexer {
             root_dir: PathBuf::from(&hidden_dir.parent().unwrap()),
-            hidden_dir: hidden_dir,
-            staging_file: staging_file,
-            commits_dir: commits_dir,
-            synced_file: synced_file,
+            hidden_dir,
+            staging_file,
+            commits_dir,
+            synced_file,
             config: RepoConfig::from(&config_file)
         }
     }
@@ -108,20 +108,17 @@ impl Indexer {
     
     pub fn add_files(&self, dir: &Path) {
         println!("Adding files in: {}", dir.display());
-        let paths = self.list_image_files_from_dir(&dir);
+        let paths = self.list_image_files_from_dir(dir);
         match File::create(&self.staging_file) {
             Ok(file) => {
                 for path in paths.iter() {
-                    match fs::canonicalize(&path) {
-                        Ok(canonical) => {
-                            match write!(&file, "{}\n", canonical.display()) {
-                                Ok(_) => {},
-                                Err(err) => {
-                                    eprintln!("Could not add path {} err: {}", path.display(), err)
-                                },
-                            }
+                    if let Ok(canonical) = fs::canonicalize(&path) {
+                        match writeln!(&file, "{}", canonical.display()) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                eprintln!("Could not add path {} err: {}", path.display(), err)
+                            },
                         }
-                        Err(_) => {/* Cannot cannonicalize... */}
                     }
                 }
                 println!("Added {} files", paths.len());
@@ -144,24 +141,21 @@ impl Indexer {
         let commit_path = PathBuf::from(&self.commits_dir).join(Path::new(&commit_filename));
         match File::create(&commit_path) {
             Ok(file) => {
-                let hash = hasher::hash_buffer(&commit_filename.as_bytes());
-                match write!(&file, "{}\n", hash) {
+                let hash = hasher::hash_buffer(commit_filename.as_bytes());
+                match writeln!(&file, "{}", hash) {
                     Ok(_) => {},
                     Err(err) => {
                         eprintln!("Could not write hash {} err: {}", hash, err)
                     },
                 }
                 for path in paths.iter() {
-                    match fs::canonicalize(&path) {
-                        Ok(canonical) => {
-                            match write!(&file, "{}\n", canonical.display()) {
-                                Ok(_) => {},
-                                Err(err) => {
-                                    eprintln!("Could not add path {} err: {}", path.display(), err)
-                                },
-                            }
+                    if let Ok(canonical) = fs::canonicalize(&path) {
+                        match writeln!(&file, "{}", canonical.display()) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                eprintln!("Could not add path {} err: {}", path.display(), err)
+                            },
                         }
-                        Err(_) => {/* Cannot cannonicalize... */}
                     }
                 }
                 
@@ -182,11 +176,11 @@ impl Indexer {
         }
     }
 
-    fn p_sync_commit(&self, commit: &String, dataset_id: &String, user: &User) {
+    fn p_sync_commit(&self, commit: &str, dataset_id: &str, user: &User) {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
         // println!("Sync commit file: {:?}", file_name);
         let path = file_name.as_path();
-        let paths: Vec<PathBuf> = FileUtil::read_lines(&path).into_iter().map(PathBuf::from).collect();
+        let paths: Vec<PathBuf> = FileUtil::read_lines(path).into_iter().map(PathBuf::from).collect();
         // let processed: Vec<AtomicBool> = Vec::with_capacity(paths.len());
 
         // if let Ok(mut s) = signal_hook::iterator::Signals::new(signal_hook::consts::TERM_SIGNALS) {
@@ -208,8 +202,8 @@ impl Indexer {
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
             
-            if let Ok(hash) = hasher::hash_file_contents(&path) {
-                if let Ok(_) = api::entry_from_hash(&self.config, &hash) {
+            if let Ok(hash) = hasher::hash_file_contents(path) {
+                if api::entry_from_hash(&self.config, &hash).is_ok() {
                     // println!("Already have entry {:?}", entry);
                 } else {
                     // Only upload file if it's hash doesn't already exist
@@ -246,7 +240,7 @@ impl Indexer {
         }
     }
 
-    fn sync_commit(&self, commit: &String, dataset_id: &String) {
+    fn sync_commit(&self, commit: &str, dataset_id: &str) {
         if let Some(user) = &self.config.user {
             self.p_sync_commit(commit, dataset_id, user)
         } else {
@@ -273,10 +267,8 @@ impl Indexer {
         
         // list all commit files
         let commits: Vec<String> = FileUtil::list_files_in_dir(&self.commits_dir)
-            .iter()
-            .map(|path| { path.as_path().file_name()?.to_str() })
-            .flatten()
-            .map(|s| String::from(s))
+            .iter().filter_map(|path| { path.as_path().file_name()?.to_str() })
+            .map(String::from)
             .collect();
 
         if let Ok(file) = OpenOptions::new()
@@ -350,7 +342,7 @@ impl Indexer {
             return;
         }
 
-        match api::create_dataset(&self.config, &name) {
+        match api::create_dataset(&self.config, name) {
             Ok(dataset) => {
                 println!("🐂 created remote directory {}", dataset.name);
             },
