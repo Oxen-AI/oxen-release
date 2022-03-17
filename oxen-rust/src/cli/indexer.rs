@@ -11,7 +11,7 @@ use std::io::Write;
 // use std::sync::Arc;
 // use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::config::Config;
+use crate::config::repo_config::RepoConfig;
 use crate::api;
 use crate::model::dataset::Dataset;
 use crate::model::user::User;
@@ -24,7 +24,7 @@ pub struct Indexer {
     staging_file: PathBuf,
     commits_dir: PathBuf,
     synced_file: PathBuf,
-    config: Config
+    config: RepoConfig
 }
 
 impl Indexer {
@@ -41,7 +41,7 @@ impl Indexer {
             staging_file: PathBuf::from(""),
             commits_dir: PathBuf::from(""),
             synced_file: PathBuf::from(""),
-            config: Config::from(&config_file)
+            config: RepoConfig::from(&config_file)
         }
     } 
 
@@ -56,7 +56,7 @@ impl Indexer {
             match fs::create_dir_all(&hidden_dir) {
                 Ok(_) => {
                     println!("🐂 init {:?}", hidden_dir);
-                    Config::create(&config_file)
+                    RepoConfig::create(&config_file)
                 },
                 Err(err) => {
                     eprintln!("Error initializing repo {}", err)
@@ -79,7 +79,7 @@ impl Indexer {
             staging_file: staging_file,
             commits_dir: commits_dir,
             synced_file: synced_file,
-            config: Config::from(&config_file)
+            config: RepoConfig::from(&config_file)
         }
     }
 
@@ -217,7 +217,8 @@ impl Indexer {
                     .file("file", path)
                     {
                         let client = reqwest::blocking::Client::new();
-                        let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), self.config.repository_id, dataset_id);
+                        let url = format!("{}/repositories/{}/datasets/{}/entries", self.config.endpoint(), "NOPE", dataset_id);
+                        println!("Getting data from {}", url);
                         if let Ok(res) = client.post(url)
                             .header(reqwest::header::AUTHORIZATION, &user.token)
                             .multipart(form)
@@ -254,7 +255,7 @@ impl Indexer {
     }
 
     fn dataset_id_from_name(&self, name: &str) -> Result<String, String> {
-        let datasets = api::list_datasets(&self.config)?;
+        let datasets = api::datasets::list(&self.config)?;
         let result = datasets.iter().find(|&x| { x.name == name });
         
         match result {
@@ -304,7 +305,7 @@ impl Indexer {
     }
 
     pub fn list_datasets(&self) -> Result<Vec<Dataset>, String> {
-        api::list_datasets(&self.config)
+        api::datasets::list(&self.config)
     }
 
     pub fn status(&self) {

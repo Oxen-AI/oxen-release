@@ -1,17 +1,45 @@
 
-use crate::config::Config;
+use crate::config::repo_config::RepoConfig;
+use crate::error::OxenError;
 use crate::model::user::*;
 use crate::model::entry::*;
 use crate::model::dataset::*;
 use serde_json::json;
 use reqwest::blocking::Client;
 
-pub fn get_user(config: &Config) -> Result<User, String> {
+pub mod datasets;
+
+pub fn login(config: &RepoConfig, email: &str, password: &str) -> Result<User, OxenError> {
   let url = format!("{}/login", config.endpoint());
   let params = json!({
     "user": {
-      "email": config.email,
-      "password": config.password,
+      "email": email,
+      "password": password,
+    }
+  });
+
+  if let Ok(res) = Client::new()
+    .post(&url)
+    .json(&params)
+    .send() {
+      let status = res.status();
+      if let Ok(user_res) = res.json::<UserResponse>() {
+        Ok(user_res.user)
+      } else {
+        let err = format!("login failed status_code[{}], check email and password", status);
+        Err(OxenError::Basic(err))
+      }
+  } else {
+    Err(OxenError::Basic(format!("login failed [{}]", &url)))
+  }
+}
+
+pub fn get_user(config: &RepoConfig) -> Result<User, String> {
+  let url = format!("{}/login", config.endpoint());
+  let params = json!({
+    "user": {
+      "email": "denied",
+      "password": "nope",
     }
   });
 
@@ -30,7 +58,7 @@ pub fn get_user(config: &Config) -> Result<User, String> {
   }
 }
 
-pub fn entry_from_hash(config: &Config, hash: &String) -> Result<Entry, String> {
+pub fn entry_from_hash(config: &RepoConfig, hash: &String) -> Result<Entry, String> {
   if let Some(user) = &config.user {
     let url = format!("{}/entries/search?hash={}", config.endpoint(), hash);
     let client = reqwest::blocking::Client::new();
@@ -51,30 +79,9 @@ pub fn entry_from_hash(config: &Config, hash: &String) -> Result<Entry, String> 
   }
 }
 
-pub fn list_datasets(config: &Config) -> Result<Vec<Dataset>, String> {
-  if let Some(user) = &config.user {
-    let url = format!("{}/repositories/{}/datasets", config.endpoint(), config.repository_id);
-    let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client.get(url)
-                      .header(reqwest::header::AUTHORIZATION, &user.token)
-                      .send() {
-      if let Ok(datasets_res) = res.json::<ListDatasetsResponse>() {
-        Ok(datasets_res.datasets)
-      } else {
-        Err(String::from("Could not serialize entry"))
-      }
-    } else {
-      println!("hash_exists request failed..");
-      Err(String::from("Request failed"))
-    }
-  } else {
-    Err(String::from("User is not logged in."))
-  }
-}
-
-pub fn create_dataset(config: &Config, name: &str) -> Result<Dataset, String> {
-  if let Some(user) = &config.user {
-    let url = format!("{}/repositories/{}/datasets", config.endpoint(), config.repository_id);
+pub fn create_dataset(config: &RepoConfig, name: &str) -> Result<Dataset, String> {
+  if let (Some(user), Some(repository_id)) = (&config.user, &config.repository_id) {
+    let url = format!("{}/repositories/{}/datasets", config.endpoint(), repository_id);
     let params = json!({
       "name": name,
     });

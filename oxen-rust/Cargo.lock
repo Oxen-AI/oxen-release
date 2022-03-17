@@ -757,6 +757,7 @@ dependencies = [
  "jwalk",
  "rayon",
  "reqwest",
+ "rpassword",
  "serde",
  "serde_json",
  "sha2",
@@ -899,6 +900,18 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winreg",
+]
+
+[[package]]
+name = "rpassword"
+version = "6.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bf099a1888612545b683d2661a1940089f6c2e5a8e38979b2159da876bfd956"
+dependencies = [
+ "libc",
+ "serde",
+ "serde_json",
+ "winapi",
 ]
 
 [[package]]

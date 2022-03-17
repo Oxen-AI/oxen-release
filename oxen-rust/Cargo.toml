@@ -18,3 +18,12 @@ sha2 = "0.10.1"
 toml = "0.5.8"
 futures = "0.3"
 signal-hook = "0.3.13"
+rpassword = "6.0"
+
+[lib]
+name = "liboxen"
+path = "src/lib.rs"
+
+[[bin]]
+name = "oxen"
+path = "src/oxen.rs"
