@@ -77,7 +77,7 @@ fn main() {
             match ext {
                 "login" => dispatch::login(),
                 "commit" => dispatch::commit(args),
-                // "create" => dispatch::create(args),
+                "create" => dispatch::create(args),
                 // "status" => dispatch::status(),
                 _ => Ok({
                     println!("Unknown command {}", ext)

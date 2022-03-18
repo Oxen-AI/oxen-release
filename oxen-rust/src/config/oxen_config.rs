@@ -40,6 +40,21 @@ impl OxenConfig {
         }
     }
 
+    pub fn default() -> Result<OxenConfig, OxenError> {
+        let err = String::from("OxenConfig::default() not configuration found, run `oxen login` to configure.");
+        if let Some(home_dir) = dirs::home_dir() {
+            let oxen_dir = home_dir.join(Path::new(".oxen"));
+            let config_file = oxen_dir.join(Path::new("config.toml"));
+            if config_file.exists() {
+                Ok(OxenConfig::from(&config_file))
+            } else {
+                Err(OxenError::Basic(err))
+            }
+        } else {
+            Err(OxenError::Basic(err))
+        }
+    }
+
     pub fn add_user(&mut self, user: &User) -> OxenConfig {
         OxenConfig {
             remote_ip: self.remote_ip.clone(),
@@ -68,7 +83,6 @@ impl OxenConfig {
 
     pub fn from(path: &Path) -> OxenConfig {
         let contents = FileUtil::read_from_path(path);
-        println!("OxenConfig read from {:?} -> {:?}", path, contents);
         toml::from_str(&contents).unwrap()
     }
 

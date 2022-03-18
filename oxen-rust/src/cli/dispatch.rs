@@ -101,16 +101,17 @@ pub fn list_datasets() {
     }
 }
 
-pub fn create(args: Vec<&std::ffi::OsStr>) {
+pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        println!("{}", NO_REPO_MSG);
-        return;
+        return Err(OxenError::Basic(String::from(NO_REPO_MSG)));
     }
+
+    let config = OxenConfig::default()?;
 
     let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
     if args.len() != 2 {
-        eprintln!("{}", err_str)
+        return Err(OxenError::Basic(String::from(err_str)));
     } else {
         let flag = args[0];
         match flag.to_str().unwrap() {
@@ -120,14 +121,32 @@ pub fn create(args: Vec<&std::ffi::OsStr>) {
                     Some(name) => {
                         println!("Creating dataset name [{}]", name);
                         println!("TODO!!");
+                        return Err(OxenError::Basic(String::from("TODO: create dataset")));
                     }
                     None => {
-                        eprintln!("Invalid dataset name: \"{:?}\"", name_arg)
+                        let err = format!("Invalid dataset name: \"{:?}\"", name_arg);
+                        Err(OxenError::Basic(err))
+                    }
+                }
+            }
+            "-r" => {
+                let name_arg = args[1];
+                match name_arg.to_str() {
+                    Some(name) => {
+                        println!("Creating repository...");
+                        let repository = api::repositories::create(&config, name)?;
+                        println!("Created repository name [{}]", repository.name);
+                        Ok(())
+                    }
+                    None => {
+                        let err = format!("Invalid dataset name: \"{:?}\"", name_arg);
+                        Err(OxenError::Basic(err))
                     }
                 }
             }
             _ => {
-                eprintln!("oxen create used with unknown flag {:?}", flag)
+                let err = format!("oxen create used with unknown flag {:?}", flag);
+                Err(OxenError::Basic(err))
             }
         }
     }

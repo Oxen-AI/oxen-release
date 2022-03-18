@@ -8,6 +8,7 @@ use reqwest::blocking::Client;
 use serde_json::json;
 
 pub mod datasets;
+pub mod repositories;
 
 pub fn login(config: &OxenConfig, email: &str, password: &str) -> Result<User, OxenError> {
     let url = format!("{}/login", config.endpoint());
