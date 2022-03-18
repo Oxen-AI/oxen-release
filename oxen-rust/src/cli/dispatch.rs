@@ -46,107 +46,72 @@ pub fn add(path: &str) {
     indexer.add_files(&directory)
 }
 
-pub fn push(directory: &str) {
+pub fn push(directory: &str) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        println!("{}", NO_REPO_MSG);
-        return;
+        let err = format!("{}", NO_REPO_MSG);
+        return Err(OxenError::from_str(&err));
     }
 
     let mut indexer = Indexer::new(&current_dir);
+    indexer.login()?;
 
-    // Must login to get access token
-    match indexer.login() {
-        Ok(_) => {
-            // Create remote dataset
-            indexer.create_dataset_if_not_exists(directory);
-            match indexer.push(directory) {
-                Ok(_) => {
-                    println!("Done.")
-                }
-                Err(err) => {
-                    eprintln!("Error: {}", err)
-                }
-            }
-        }
-        Err(err) => {
-            eprintln!("Error: {}", err)
-        }
-    }
+    indexer.create_dataset_if_not_exists(directory)?;
+    indexer.push(directory)
 }
 
-pub fn list_datasets() {
+pub fn list_datasets() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        println!("{}", NO_REPO_MSG);
-        return;
+        let err = format!("{}", NO_REPO_MSG);
+        return Err(OxenError::from_str(&err));
     }
 
+    // TODO: make login a new constructor that is like "Indexer::auth -> Indexer" or something
     let mut indexer = Indexer::new(&current_dir);
-    match indexer.login() {
-        Ok(_) => match indexer.list_datasets() {
-            Ok(datasets) => {
-                for dataset in datasets.iter() {
-                    println!("{}", dataset.name);
-                }
-            }
-            Err(err) => {
-                eprintln!("Indexer couldn't list datasets: {}", err)
-            }
-        },
-        Err(err) => {
-            eprintln!("Indexer couldn't log in: {}", err)
-        }
+    indexer.login()?;
+
+    let datasets = indexer.list_datasets()?;
+    for dataset in datasets.iter() {
+        println!("{}", dataset.name);
     }
+    Ok(())
 }
 
 pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        return Err(OxenError::Basic(String::from(NO_REPO_MSG)));
+        return Err(OxenError::from_str(NO_REPO_MSG));
     }
 
     let config = OxenConfig::default()?;
-
     let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
     if args.len() != 2 {
-        Err(OxenError::Basic(String::from(err_str)))
+        Err(OxenError::from_str(err_str))
     } else {
         let flag = args[0];
-        match flag.to_str().unwrap() {
-            "-d" => {
-                let name_arg = args[1];
-                match name_arg.to_str() {
-                    Some(name) => {
-                        println!("Creating dataset name [{}]", name);
-                        println!("TODO!!");
-                        Err(OxenError::Basic(String::from("TODO: create dataset")))
-                    }
-                    None => {
-                        let err = format!("Invalid dataset name: \"{:?}\"", name_arg);
-                        Err(OxenError::Basic(err))
-                    }
-                }
-            }
-            "-r" => {
-                let name_arg = args[1];
-                match name_arg.to_str() {
-                    Some(name) => {
-                        println!("Creating repository...");
-                        let repository = api::repositories::create(&config, name)?;
-                        println!("Created repository name [{}]", repository.name);
-                        Ok(())
-                    }
-                    None => {
-                        let err = format!("Invalid dataset name: \"{:?}\"", name_arg);
-                        Err(OxenError::Basic(err))
-                    }
-                }
-            }
-            _ => {
-                let err = format!("oxen create used with unknown flag {:?}", flag);
-                Err(OxenError::Basic(err))
-            }
+        let value = args[1];
+        p_create(&config, flag, value)
+    }
+}
+
+fn p_create(config: &OxenConfig, flag: &std::ffi::OsStr, value: &std::ffi::OsStr) -> Result<(), OxenError> {
+    match flag.to_str().unwrap() {
+        "-d" => {
+            let name = value.to_str().unwrap_or_default();
+            println!("Creating dataset name [{}]", name);
+            println!("TODO!!");
+            Ok(())
+        }
+        "-r" => {
+            let name = value.to_str().unwrap_or_default();
+            let repository = api::repositories::create(&config, name)?;
+            println!("Created repository name [{}]", repository.name);
+            Ok(())
+        }
+        _ => {
+            let err = format!("oxen create used with unknown flag {:?}", flag);
+            Err(OxenError::Basic(err))
         }
     }
 }
@@ -155,44 +120,38 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
         println!("{}", NO_REPO_MSG);
-        return Err(OxenError::Basic(String::from(NO_REPO_MSG)));
+        return Err(OxenError::from_str(NO_REPO_MSG));
     }
 
     let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
     if args.len() != 2 {
         let err = err_str.to_string();
-        Err(OxenError::Basic(err))
-    } else {
-        let flag = args[0];
-        match flag.to_str().unwrap() {
-            "-m" => {
-                let msg_arg = args[1];
-                match msg_arg.to_str() {
-                    Some(message) => {
-                        println!("Committing with msg [{}]", message);
-                        let indexer = Indexer::new(&current_dir);
-                        indexer.commit(message);
-                        Ok(())
-                    }
-                    None => {
-                        let err = format!("Invalid commit message: \"{:?}\"", msg_arg);
-                        Err(OxenError::Basic(err))
-                    }
-                }
-            }
-            _ => {
-                eprintln!("{}", err_str);
-                Err(OxenError::Basic(String::from(err_str)))
-            }
+        return Err(OxenError::Basic(err));
+    }
+
+    let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
+    let flag = args[0];
+    let value = args[1];
+    match flag.to_str().unwrap() {
+        "-m" => {
+            let message = value.to_str().unwrap_or_default();
+            println!("Committing with msg [{}]", message);
+            let indexer = Indexer::new(&current_dir);
+            indexer.commit(message)?;
+            Ok(())
+        }
+        _ => {
+            eprintln!("{}", err_str);
+            Err(OxenError::from_str(err_str))
         }
     }
 }
 
-pub fn status() {
+pub fn status() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
         println!("{}", NO_REPO_MSG);
-        return;
+        return Err(OxenError::from_str(NO_REPO_MSG));
     }
 
     let indexer = Indexer::new(&current_dir);

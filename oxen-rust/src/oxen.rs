@@ -53,14 +53,29 @@ fn main() {
         }
         Some(("push", sub_matches)) => {
             let directory = sub_matches.value_of("DIRECTORY").expect("required");
-            dispatch::push(directory)
+            match dispatch::push(directory) {
+                Ok(_) => {},
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+
         }
         Some(("ls", sub_matches)) => {
-            let object_type = sub_matches.value_of("OBJECT").expect("required");
-            match object_type {
+            let object_type = sub_matches.value_of("OBJECT").unwrap_or_default();
+            let result = match object_type {
                 "remote" => dispatch::list_datasets(),
                 _ => {
-                    println!("Unknown object type: {}", object_type)
+                    println!("Unknown object type: {}", object_type);
+                    Ok(())
+                }
+            };
+            match result {
+                Ok(result) => {
+                    println!("Success: {:?}", result)
+                },
+                Err(err) => {
+                    println!("Err: {}", err)
                 }
             }
         }
@@ -78,11 +93,9 @@ fn main() {
                 "login" => dispatch::login(),
                 "commit" => dispatch::commit(args),
                 "create" => dispatch::create(args),
-                // "status" => dispatch::status(),
+                "status" => dispatch::status(),
                 _ => {
-                    {
-                        println!("Unknown command {}", ext)
-                    };
+                    println!("Unknown command {}", ext);
                     Ok(())
                 }
             }

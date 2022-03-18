@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
+use crate::error::OxenError;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -10,7 +11,7 @@ pub fn hash_buffer(buffer: &[u8]) -> String {
     format!("{:X}", hasher.finalize())
 }
 
-pub fn hash_file_contents(path: &Path) -> Result<String, String> {
+pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
     match File::open(path) {
         Ok(file) => {
             let mut reader = BufReader::new(file);
@@ -23,13 +24,13 @@ pub fn hash_file_contents(path: &Path) -> Result<String, String> {
                 }
                 Err(_) => {
                     eprintln!("Could not read file to end {:?}", path);
-                    Err(String::from("Could not read file to end"))
+                    Err(OxenError::from_str("Could not read file to end"))
                 }
             }
         }
         Err(_) => {
             //   eprintln!("Could not open file {:?}", path);
-            Err(String::from("Could not open file"))
+            Err(OxenError::from_str("Could not open file"))
         }
     }
 }

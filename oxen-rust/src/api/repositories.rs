@@ -22,19 +22,19 @@ pub fn create(config: &OxenConfig, name: &str) -> Result<Repository, OxenError> 
             if let Ok(j_res) = res.json::<RepositoryResponse>() {
                 Ok(j_res.repository)
             } else {
-                Err(OxenError::Basic(String::from(
+                Err(OxenError::from_str(
                     "api::repositories::create() Could not serialize repository",
-                )))
+                ))
             }
         } else {
-            Err(OxenError::Basic(String::from(
+            Err(OxenError::from_str(
                 "api::repositories::create() Request failed",
-            )))
+            ))
         }
     } else {
-        Err(OxenError::Basic(String::from(
+        Err(OxenError::from_str(
             "api::repositories::create() User is not logged in.",
-        )))
+        ))
     }
 }
 
@@ -51,19 +51,19 @@ pub fn delete(config: &OxenConfig, id: &str) -> Result<StatusMessage, OxenError>
             if let Ok(status) = res.json::<StatusMessage>() {
                 Ok(status)
             } else {
-                Err(OxenError::Basic(String::from(
+                Err(OxenError::from_str(
                     "api::repositories::delete() Could not serialize status_message",
-                )))
+                ))
             }
         } else {
-            Err(OxenError::Basic(String::from(
+            Err(OxenError::from_str(
                 "api::repositories::delete() Request failed",
-            )))
+            ))
         }
     } else {
-        Err(OxenError::Basic(String::from(
+        Err(OxenError::from_str(
             "api::repositories::delete() User is not logged in.",
-        )))
+        ))
     }
 }
 

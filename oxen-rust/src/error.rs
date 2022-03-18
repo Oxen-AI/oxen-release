@@ -9,9 +9,19 @@ pub enum OxenError {
     TOML(toml::ser::Error),
 }
 
+impl OxenError {
+    pub fn from_str(s: &str) -> OxenError {
+        OxenError::Basic(String::from(s))
+    }
+}
+
 impl fmt::Display for OxenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        if let OxenError::Basic(err) = self {
+            write!(f, "{:?}", err)
+        } else {
+            write!(f, "{:?}", self)
+        }
     }
 }
 

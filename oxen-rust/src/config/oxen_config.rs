@@ -35,9 +35,9 @@ impl OxenConfig {
                 user: None,
             })
         } else {
-            Err(OxenError::Basic(String::from(
+            Err(OxenError::from_str(
                 "OxenConfig::new() Could not find home dir",
-            )))
+            ))
         }
     }
 
@@ -74,9 +74,9 @@ impl OxenConfig {
             println!("Saving config to {:?}", config_file);
             self.save(&config_file)
         } else {
-            Err(OxenError::Basic(String::from(
+            Err(OxenError::from_str(
                 "OxenConfig::save_default() Could not find home dir",
-            )))
+            ))
         }
     }
 

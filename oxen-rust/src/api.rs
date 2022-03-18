@@ -35,7 +35,7 @@ pub fn login(config: &OxenConfig, email: &str, password: &str) -> Result<User, O
     }
 }
 
-pub fn get_user(config: &RepoConfig) -> Result<User, String> {
+pub fn get_user(config: &RepoConfig) -> Result<User, OxenError> {
     let url = format!("{}/login", config.endpoint());
     let params = json!({
       "user": {
@@ -49,14 +49,14 @@ pub fn get_user(config: &RepoConfig) -> Result<User, String> {
         if let Ok(user_res) = res.json::<UserResponse>() {
             Ok(user_res.user)
         } else {
-            Err(format!("status_code[{}], check email and password", status))
+            Err(OxenError::from_str(&format!("status_code[{}], check email and password", status)))
         }
     } else {
-        Err(String::from("api::get_user() API failed"))
+        Err(OxenError::from_str("api::get_user() API failed"))
     }
 }
 
-pub fn entry_from_hash(config: &RepoConfig, hash: &str) -> Result<Entry, String> {
+pub fn entry_from_hash(config: &RepoConfig, hash: &str) -> Result<Entry, OxenError> {
     if let Some(user) = &config.user {
         let url = format!("{}/entries/search?hash={}", config.endpoint(), hash);
         let client = reqwest::blocking::Client::new();
@@ -68,18 +68,18 @@ pub fn entry_from_hash(config: &RepoConfig, hash: &str) -> Result<Entry, String>
             if let Ok(entry_res) = res.json::<EntryResponse>() {
                 Ok(entry_res.entry)
             } else {
-                Err(String::from("Could not serialize entry"))
+                Err(OxenError::from_str("Could not serialize entry"))
             }
         } else {
             println!("hash_exists request failed..");
-            Err(String::from("Request failed"))
+            Err(OxenError::from_str("Request failed"))
         }
     } else {
-        Err(String::from("User is not logged in."))
+        Err(OxenError::from_str("User is not logged in."))
     }
 }
 
-pub fn create_dataset(config: &RepoConfig, name: &str) -> Result<Dataset, String> {
+pub fn create_dataset(config: &RepoConfig, name: &str) -> Result<Dataset, OxenError> {
     if let (Some(user), Some(repository_id)) = (&config.user, &config.repository_id) {
         let url = format!(
             "{}/repositories/{}/datasets",
@@ -100,12 +100,12 @@ pub fn create_dataset(config: &RepoConfig, name: &str) -> Result<Dataset, String
             if let Ok(user_res) = res.json::<DatasetResponse>() {
                 Ok(user_res.dataset)
             } else {
-                Err(format!("status_code[{}], could not create dataset", status))
+                Err(OxenError::from_str(&format!("status_code[{}], could not create dataset", status)))
             }
         } else {
-            Err(String::from("api::create_dataset() API failed"))
+            Err(OxenError::from_str("api::create_dataset() API failed"))
         }
     } else {
-        Err(String::from("User is not logged in."))
+        Err(OxenError::from_str("User is not logged in."))
     }
 }

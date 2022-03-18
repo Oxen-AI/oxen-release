@@ -15,6 +15,7 @@ use crate::api;
 use crate::config::repo_config::RepoConfig;
 use crate::model::dataset::Dataset;
 use crate::model::user::User;
+use crate::error::OxenError;
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -93,7 +94,7 @@ impl Indexer {
         }
     }
 
-    pub fn login(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn login(&mut self) -> Result<(), OxenError> {
         let user = api::get_user(&self.config)?;
         self.config.user = Some(user);
         Ok(())
@@ -134,7 +135,7 @@ impl Indexer {
             .collect()
     }
 
-    pub fn commit_staged(&self) {
+    pub fn commit_staged(&self) -> Result<(), OxenError> {
         let paths = self.list_paths_from_staged();
         let utc: DateTime<Utc> = Utc::now();
         // year_month_day_timestamp
@@ -175,14 +176,15 @@ impl Indexer {
         match fs::remove_file(&self.staging_file) {
             Ok(_file) => {
                 println!("🐂 commited {} files", paths.len());
+                Ok(())
             }
             Err(err) => {
-                eprintln!("Could not remove staged file: {}", err)
+                Err(OxenError::from_str(&format!("Could not remove staged file: {}", err)))
             }
         }
     }
 
-    fn p_sync_commit(&self, commit: &str, dataset_id: &str, user: &User) {
+    fn p_sync_commit(&self, commit: &str, dataset_id: &str, user: &User) -> Result<(), OxenError> {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
         // println!("Sync commit file: {:?}", file_name);
         let path = file_name.as_path();
@@ -246,32 +248,33 @@ impl Indexer {
         match fs::remove_file(path) {
             Ok(_file) => {
                 println!("Synced {} files", paths.len());
+                Ok(())
             }
             Err(err) => {
-                eprintln!("Could not remove commit file: {}", err)
+                Err(OxenError::from_str(&format!("Could not remove commit file: {}", err)))
             }
         }
     }
 
-    fn sync_commit(&self, commit: &str, dataset_id: &str) {
+    fn sync_commit(&self, commit: &str, dataset_id: &str) -> Result<(), OxenError> {
         if let Some(user) = &self.config.user {
             self.p_sync_commit(commit, dataset_id, user)
         } else {
-            eprintln!("Error sync_commit called before logged in.");
+            Err(OxenError::from_str(&format!("Error sync_commit called before logged in.")))
         }
     }
 
-    fn dataset_id_from_name(&self, name: &str) -> Result<String, String> {
+    fn dataset_id_from_name(&self, name: &str) -> Result<String, OxenError> {
         let datasets = api::datasets::list(&self.config)?;
         let result = datasets.iter().find(|&x| x.name == name);
 
         match result {
             Some(dataset) => Ok(dataset.id.clone()),
-            None => Err(format!("Couldn't find dataset \"{}\"", name)),
+            None => Err(OxenError::from_str(&format!("Couldn't find dataset \"{}\"", name))),
         }
     }
 
-    pub fn push(&self, dataset_name: &str) -> Result<(), String> {
+    pub fn push(&self, dataset_name: &str) -> Result<(), OxenError> {
         let id = self.dataset_id_from_name(dataset_name)?;
 
         // list all commit files
@@ -303,20 +306,19 @@ impl Indexer {
 
             for commit in difference.iter() {
                 // println!("Need to sync: {:?}", commit);
-                self.sync_commit(commit, &id);
+                self.sync_commit(commit, &id)?
             }
         }
         Ok(())
     }
 
-    pub fn list_datasets(&self) -> Result<Vec<Dataset>, String> {
+    pub fn list_datasets(&self) -> Result<Vec<Dataset>, OxenError> {
         api::datasets::list(&self.config)
     }
 
-    pub fn status(&self) {
+    pub fn status(&self) -> Result<(), OxenError> {
         if !self.staging_file.exists() {
-            println!("No files staged.");
-            return;
+            return Err(OxenError::from_str("No files staged."));
         }
 
         println!("🐂 status\n");
@@ -354,30 +356,23 @@ impl Indexer {
         if num_text > 0 {
             println!("{} text files", num_text)
         }
+
+        Ok(())
     }
 
-    pub fn commit(&self, _status: &str) {
+    pub fn commit(&self, _status: &str) -> Result<(), OxenError> {
         if !self.staging_file.exists() {
-            println!("No files staged.");
-            return;
+            return Err(OxenError::from_str("No files staged."));
         }
 
         self.commit_staged()
     }
 
-    pub fn create_dataset_if_not_exists(&self, name: &str) {
+    pub fn create_dataset_if_not_exists(&self, name: &str) -> Result<Dataset, OxenError> {
         if !self.commits_dir.exists() {
-            println!("No data committed yet. Run `oxen commit -m 'your message'`.");
-            return;
+            return Err(OxenError::from_str("No data committed yet. Run `oxen commit -m 'your message'`."));
         }
 
-        match api::create_dataset(&self.config, name) {
-            Ok(dataset) => {
-                println!("🐂 created remote directory {}", dataset.name);
-            }
-            Err(err) => {
-                eprintln!("Error creating dataset: {:?}", err);
-            }
-        };
+        api::create_dataset(&self.config, name)
     }
 }

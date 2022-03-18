@@ -1,7 +1,8 @@
 use crate::config::repo_config::RepoConfig;
+use crate::error::OxenError;
 use crate::model::dataset::{Dataset, ListDatasetsResponse};
 
-pub fn list(config: &RepoConfig) -> Result<Vec<Dataset>, String> {
+pub fn list(config: &RepoConfig) -> Result<Vec<Dataset>, OxenError> {
     if let (Some(user), Some(repository_id)) = (&config.user, &config.repository_id) {
         let url = format!(
             "{}/repositories/{}/datasets",
@@ -17,13 +18,13 @@ pub fn list(config: &RepoConfig) -> Result<Vec<Dataset>, String> {
             if let Ok(datasets_res) = res.json::<ListDatasetsResponse>() {
                 Ok(datasets_res.datasets)
             } else {
-                Err(String::from("Could not serialize entry"))
+                Err(OxenError::from_str("Could not serialize entry"))
             }
         } else {
             println!("hash_exists request failed..");
-            Err(String::from("Request failed"))
+            Err(OxenError::from_str("Could not serialize entry"))
         }
     } else {
-        Err(String::from("User is not logged in."))
+        Err(OxenError::from_str("Could not serialize entry"))
     }
 }
