@@ -54,12 +54,11 @@ fn main() {
         Some(("push", sub_matches)) => {
             let directory = sub_matches.value_of("DIRECTORY").expect("required");
             match dispatch::push(directory) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
                 }
             }
-
         }
         Some(("ls", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").unwrap_or_default();
@@ -73,7 +72,7 @@ fn main() {
             match result {
                 Ok(result) => {
                     println!("Success: {:?}", result)
-                },
+                }
                 Err(err) => {
                     println!("Err: {}", err)
                 }

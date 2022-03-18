@@ -1,9 +1,9 @@
+use crate::error::OxenError;
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
-use crate::error::OxenError;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
     let mut hasher = Sha256::new();

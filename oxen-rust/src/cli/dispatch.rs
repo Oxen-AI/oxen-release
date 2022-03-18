@@ -95,7 +95,11 @@ pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     }
 }
 
-fn p_create(config: &OxenConfig, flag: &std::ffi::OsStr, value: &std::ffi::OsStr) -> Result<(), OxenError> {
+fn p_create(
+    config: &OxenConfig,
+    flag: &std::ffi::OsStr,
+    value: &std::ffi::OsStr,
+) -> Result<(), OxenError> {
     match flag.to_str().unwrap() {
         "-d" => {
             let name = value.to_str().unwrap_or_default();

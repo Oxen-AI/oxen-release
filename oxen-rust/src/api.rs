@@ -49,7 +49,10 @@ pub fn get_user(config: &RepoConfig) -> Result<User, OxenError> {
         if let Ok(user_res) = res.json::<UserResponse>() {
             Ok(user_res.user)
         } else {
-            Err(OxenError::basic_str(&format!("status_code[{}], check email and password", status)))
+            Err(OxenError::basic_str(&format!(
+                "status_code[{}], check email and password",
+                status
+            )))
         }
     } else {
         Err(OxenError::basic_str("api::get_user() API failed"))
@@ -100,7 +103,10 @@ pub fn create_dataset(config: &RepoConfig, name: &str) -> Result<Dataset, OxenEr
             if let Ok(user_res) = res.json::<DatasetResponse>() {
                 Ok(user_res.dataset)
             } else {
-                Err(OxenError::basic_str(&format!("status_code[{}], could not create dataset", status)))
+                Err(OxenError::basic_str(&format!(
+                    "status_code[{}], could not create dataset",
+                    status
+                )))
             }
         } else {
             Err(OxenError::basic_str("api::create_dataset() API failed"))
