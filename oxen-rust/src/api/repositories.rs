@@ -34,15 +34,14 @@ pub fn create(config: &AuthConfig, name: &str) -> Result<Repository, OxenError> 
 }
 
 pub fn get_by_url(config: &AuthConfig, url: &str) -> Result<Repository, OxenError> {
-    let params = json!({
-        "url": url
-    });
-
     let encoded_url = encode(url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
-        .get(format!("{}/repositories/get_by_url?url={}", config.endpoint(), encoded_url))
-        .json(&params)
+        .get(format!(
+            "{}/repositories/get_by_url?url={}",
+            config.endpoint(),
+            encoded_url
+        ))
         .header(reqwest::header::AUTHORIZATION, &config.user.token)
         .send()
     {
