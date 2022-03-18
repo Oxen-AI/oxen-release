@@ -49,10 +49,10 @@ pub fn get_user(config: &RepoConfig) -> Result<User, OxenError> {
         if let Ok(user_res) = res.json::<UserResponse>() {
             Ok(user_res.user)
         } else {
-            Err(OxenError::from_str(&format!("status_code[{}], check email and password", status)))
+            Err(OxenError::basic_str(&format!("status_code[{}], check email and password", status)))
         }
     } else {
-        Err(OxenError::from_str("api::get_user() API failed"))
+        Err(OxenError::basic_str("api::get_user() API failed"))
     }
 }
 
@@ -68,14 +68,14 @@ pub fn entry_from_hash(config: &RepoConfig, hash: &str) -> Result<Entry, OxenErr
             if let Ok(entry_res) = res.json::<EntryResponse>() {
                 Ok(entry_res.entry)
             } else {
-                Err(OxenError::from_str("Could not serialize entry"))
+                Err(OxenError::basic_str("Could not serialize entry"))
             }
         } else {
             println!("hash_exists request failed..");
-            Err(OxenError::from_str("Request failed"))
+            Err(OxenError::basic_str("Request failed"))
         }
     } else {
-        Err(OxenError::from_str("User is not logged in."))
+        Err(OxenError::basic_str("User is not logged in."))
     }
 }
 
@@ -100,12 +100,12 @@ pub fn create_dataset(config: &RepoConfig, name: &str) -> Result<Dataset, OxenEr
             if let Ok(user_res) = res.json::<DatasetResponse>() {
                 Ok(user_res.dataset)
             } else {
-                Err(OxenError::from_str(&format!("status_code[{}], could not create dataset", status)))
+                Err(OxenError::basic_str(&format!("status_code[{}], could not create dataset", status)))
             }
         } else {
-            Err(OxenError::from_str("api::create_dataset() API failed"))
+            Err(OxenError::basic_str("api::create_dataset() API failed"))
         }
     } else {
-        Err(OxenError::from_str("User is not logged in."))
+        Err(OxenError::basic_str("User is not logged in."))
     }
 }

@@ -18,13 +18,13 @@ pub fn list(config: &RepoConfig) -> Result<Vec<Dataset>, OxenError> {
             if let Ok(datasets_res) = res.json::<ListDatasetsResponse>() {
                 Ok(datasets_res.datasets)
             } else {
-                Err(OxenError::from_str("Could not serialize entry"))
+                Err(OxenError::basic_str("Could not serialize entry"))
             }
         } else {
             println!("hash_exists request failed..");
-            Err(OxenError::from_str("Could not serialize entry"))
+            Err(OxenError::basic_str("Could not serialize entry"))
         }
     } else {
-        Err(OxenError::from_str("Could not serialize entry"))
+        Err(OxenError::basic_str("Could not serialize entry"))
     }
 }

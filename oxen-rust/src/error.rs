@@ -10,7 +10,7 @@ pub enum OxenError {
 }
 
 impl OxenError {
-    pub fn from_str(s: &str) -> OxenError {
+    pub fn basic_str(s: &str) -> Self {
         OxenError::Basic(String::from(s))
     }
 }

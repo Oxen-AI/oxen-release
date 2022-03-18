@@ -179,7 +179,7 @@ impl Indexer {
                 Ok(())
             }
             Err(err) => {
-                Err(OxenError::from_str(&format!("Could not remove staged file: {}", err)))
+                Err(OxenError::basic_str(&format!("Could not remove staged file: {}", err)))
             }
         }
     }
@@ -251,7 +251,7 @@ impl Indexer {
                 Ok(())
             }
             Err(err) => {
-                Err(OxenError::from_str(&format!("Could not remove commit file: {}", err)))
+                Err(OxenError::basic_str(&format!("Could not remove commit file: {}", err)))
             }
         }
     }
@@ -260,7 +260,7 @@ impl Indexer {
         if let Some(user) = &self.config.user {
             self.p_sync_commit(commit, dataset_id, user)
         } else {
-            Err(OxenError::from_str(&format!("Error sync_commit called before logged in.")))
+            Err(OxenError::basic_str("Error sync_commit called before logged in."))
         }
     }
 
@@ -270,7 +270,7 @@ impl Indexer {
 
         match result {
             Some(dataset) => Ok(dataset.id.clone()),
-            None => Err(OxenError::from_str(&format!("Couldn't find dataset \"{}\"", name))),
+            None => Err(OxenError::basic_str(&format!("Couldn't find dataset \"{}\"", name))),
         }
     }
 
@@ -318,7 +318,7 @@ impl Indexer {
 
     pub fn status(&self) -> Result<(), OxenError> {
         if !self.staging_file.exists() {
-            return Err(OxenError::from_str("No files staged."));
+            return Err(OxenError::basic_str("No files staged."));
         }
 
         println!("🐂 status\n");
@@ -362,7 +362,7 @@ impl Indexer {
 
     pub fn commit(&self, _status: &str) -> Result<(), OxenError> {
         if !self.staging_file.exists() {
-            return Err(OxenError::from_str("No files staged."));
+            return Err(OxenError::basic_str("No files staged."));
         }
 
         self.commit_staged()
@@ -370,7 +370,7 @@ impl Indexer {
 
     pub fn create_dataset_if_not_exists(&self, name: &str) -> Result<Dataset, OxenError> {
         if !self.commits_dir.exists() {
-            return Err(OxenError::from_str("No data committed yet. Run `oxen commit -m 'your message'`."));
+            return Err(OxenError::basic_str("No data committed yet. Run `oxen commit -m 'your message'`."));
         }
 
         api::create_dataset(&self.config, name)

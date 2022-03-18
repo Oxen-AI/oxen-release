@@ -49,8 +49,8 @@ pub fn add(path: &str) {
 pub fn push(directory: &str) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        let err = format!("{}", NO_REPO_MSG);
-        return Err(OxenError::from_str(&err));
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
     }
 
     let mut indexer = Indexer::new(&current_dir);
@@ -63,8 +63,8 @@ pub fn push(directory: &str) -> Result<(), OxenError> {
 pub fn list_datasets() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        let err = format!("{}", NO_REPO_MSG);
-        return Err(OxenError::from_str(&err));
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
     }
 
     // TODO: make login a new constructor that is like "Indexer::auth -> Indexer" or something
@@ -81,13 +81,13 @@ pub fn list_datasets() -> Result<(), OxenError> {
 pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        return Err(OxenError::from_str(NO_REPO_MSG));
+        return Err(OxenError::basic_str(NO_REPO_MSG));
     }
 
     let config = OxenConfig::default()?;
     let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
     if args.len() != 2 {
-        Err(OxenError::from_str(err_str))
+        Err(OxenError::basic_str(err_str))
     } else {
         let flag = args[0];
         let value = args[1];
@@ -105,7 +105,7 @@ fn p_create(config: &OxenConfig, flag: &std::ffi::OsStr, value: &std::ffi::OsStr
         }
         "-r" => {
             let name = value.to_str().unwrap_or_default();
-            let repository = api::repositories::create(&config, name)?;
+            let repository = api::repositories::create(config, name)?;
             println!("Created repository name [{}]", repository.name);
             Ok(())
         }
@@ -120,7 +120,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
         println!("{}", NO_REPO_MSG);
-        return Err(OxenError::from_str(NO_REPO_MSG));
+        return Err(OxenError::basic_str(NO_REPO_MSG));
     }
 
     let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
@@ -142,7 +142,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         }
         _ => {
             eprintln!("{}", err_str);
-            Err(OxenError::from_str(err_str))
+            Err(OxenError::basic_str(err_str))
         }
     }
 }
@@ -151,7 +151,7 @@ pub fn status() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
         println!("{}", NO_REPO_MSG);
-        return Err(OxenError::from_str(NO_REPO_MSG));
+        return Err(OxenError::basic_str(NO_REPO_MSG));
     }
 
     let indexer = Indexer::new(&current_dir);

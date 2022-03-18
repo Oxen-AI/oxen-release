@@ -24,13 +24,13 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
                 }
                 Err(_) => {
                     eprintln!("Could not read file to end {:?}", path);
-                    Err(OxenError::from_str("Could not read file to end"))
+                    Err(OxenError::basic_str("Could not read file to end"))
                 }
             }
         }
         Err(_) => {
             //   eprintln!("Could not open file {:?}", path);
-            Err(OxenError::from_str("Could not open file"))
+            Err(OxenError::basic_str("Could not open file"))
         }
     }
 }
