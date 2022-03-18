@@ -1,7 +1,7 @@
+use crate::config::endpoint;
 use crate::error::OxenError;
 use crate::model::User;
 use crate::util::file_util::FileUtil;
-use crate::config::endpoint;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -31,9 +31,9 @@ impl AuthConfig {
             let config_str = format!("host = \"{}\"", default_ip);
 
             FileUtil::write_to_path(&oxen_config, &config_str);
-            Ok(AuthConfig{
-              host: String::from(""),
-              user: user.clone()
+            Ok(AuthConfig {
+                host: String::from(""),
+                user: user.clone(),
             })
         } else {
             Err(OxenError::basic_str(
@@ -108,7 +108,7 @@ mod tests {
     fn test_save() -> Result<(), OxenError> {
         let final_path = Path::new("/tmp/auth_config.toml");
         let orig_config = AuthConfig::from(test::auth_cfg_file());
-        
+
         orig_config.save(final_path)?;
 
         let config = AuthConfig::from(final_path);

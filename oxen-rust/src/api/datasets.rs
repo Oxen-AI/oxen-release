@@ -1,8 +1,8 @@
 use crate::config::repo_config::RepoConfig;
 use crate::error::OxenError;
 use crate::model::dataset::{Dataset, DatasetResponse, ListDatasetsResponse};
-use serde_json::json;
 use reqwest::blocking::Client;
+use serde_json::json;
 
 pub fn list(config: &RepoConfig) -> Result<Vec<Dataset>, OxenError> {
     let url = format!(

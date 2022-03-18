@@ -19,14 +19,11 @@ pub fn create(config: &AuthConfig, name: &str) -> Result<Repository, OxenError> 
         .send()
     {
         match res.json::<RepositoryResponse>() {
-            Ok(j_res) => {
-                Ok(j_res.repository)
-            },
-            Err(err) => {
-                Err(OxenError::basic_str(
-                    &format!("api::repositories::create() Could not serialize repository [{}]", err),
-                ))
-            }
+            Ok(j_res) => Ok(j_res.repository),
+            Err(err) => Err(OxenError::basic_str(&format!(
+                "api::repositories::create() Could not serialize repository [{}]",
+                err
+            ))),
         }
     } else {
         Err(OxenError::basic_str(
@@ -36,27 +33,26 @@ pub fn create(config: &AuthConfig, name: &str) -> Result<Repository, OxenError> 
 }
 
 pub fn delete(config: &AuthConfig, id: &str) -> Result<StatusMessage, OxenError> {
+    let url = format!("{}/repositories/{}", config.endpoint(), id);
 
-      let url = format!("{}/repositories/{}", config.endpoint(), id);
-
-      let client = reqwest::blocking::Client::new();
-      if let Ok(res) = client
-          .delete(url)
-          .header(reqwest::header::AUTHORIZATION, &config.user.token)
-          .send()
-      {
-          if let Ok(status) = res.json::<StatusMessage>() {
-              Ok(status)
-          } else {
-              Err(OxenError::basic_str(
-                  "api::repositories::delete() Could not serialize status_message",
-              ))
-          }
-      } else {
-          Err(OxenError::basic_str(
-              "api::repositories::delete() Request failed",
-          ))
-      }
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .delete(url)
+        .header(reqwest::header::AUTHORIZATION, &config.user.token)
+        .send()
+    {
+        if let Ok(status) = res.json::<StatusMessage>() {
+            Ok(status)
+        } else {
+            Err(OxenError::basic_str(
+                "api::repositories::delete() Could not serialize status_message",
+            ))
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::repositories::delete() Request failed",
+        ))
+    }
 }
 
 #[cfg(test)]

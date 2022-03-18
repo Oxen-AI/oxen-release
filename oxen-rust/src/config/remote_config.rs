@@ -1,7 +1,7 @@
-use crate::error::OxenError;
-use crate::config::AuthConfig;
-use crate::model::User;
 use crate::config::endpoint;
+use crate::config::AuthConfig;
+use crate::error::OxenError;
+use crate::model::User;
 use crate::util::file_util::FileUtil;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -9,7 +9,7 @@ use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RemoteConfig {
-    pub host: String
+    pub host: String,
 }
 
 impl PartialEq for RemoteConfig {
@@ -32,7 +32,7 @@ impl RemoteConfig {
 
             FileUtil::write_to_path(&oxen_config, &config_str);
             Ok(RemoteConfig {
-                host: String::from(default_host)
+                host: String::from(default_host),
             })
         } else {
             Err(OxenError::basic_str(

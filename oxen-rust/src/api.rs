@@ -1,12 +1,12 @@
-use crate::config::{RemoteConfig};
+use crate::config::RemoteConfig;
 use crate::error::OxenError;
 use crate::model::{User, UserResponse};
 use reqwest::blocking::Client;
 use serde_json::json;
 
 pub mod datasets;
-pub mod repositories;
 pub mod entries;
+pub mod repositories;
 
 pub fn login(config: &RemoteConfig, email: &str, password: &str) -> Result<User, OxenError> {
     let url = format!("{}/login", config.endpoint());
