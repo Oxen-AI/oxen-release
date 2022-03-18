@@ -1,54 +1,63 @@
-use crate::model::user::User;
+use crate::model::User;
 use crate::util::file_util::FileUtil;
+use crate::config::AuthConfig;
+use crate::model::Repository;
 use serde::Deserialize;
 use std::path::Path;
 
 #[derive(Deserialize)]
-pub struct OxenConfig {
-    pub remote_ip: String,
-}
-
-#[derive(Deserialize)]
 pub struct RepoConfig {
-    pub remote_ip: String,
-    pub repository_id: Option<String>,
-    pub repository_url: Option<String>,
-    pub token: Option<String>,
-    pub user: Option<User>,
+    pub host: String,
+    pub repository: Repository,
+    pub user: User,
 }
 
 impl RepoConfig {
-    pub fn create(path: &Path) {
-        FileUtil::write_to_path(
-            path,
-            r#"
-remote_ip = 'oxenai.com'
-repository_id = 'f398e01c-e8dc-4e35-830d-df1eb97abcc4'
-email = 'greg@oxen.ai'
-password = 'password'
-    "#,
-        )
-    }
-
     pub fn from(path: &Path) -> RepoConfig {
         let contents = FileUtil::read_from_path(path);
         toml::from_str(&contents).unwrap()
     }
 
+    pub fn new(config: &AuthConfig, repository: &Repository) -> RepoConfig {
+        RepoConfig {
+            host: config.host.clone(),
+            repository: repository.clone(),
+            user: config.user.clone(),
+        }
+    }
+
+    pub fn to_auth(&self) -> AuthConfig {
+        AuthConfig {
+            host: self.host.clone(),
+            user: self.user.clone(),
+        }
+    }
+
     pub fn endpoint(&self) -> String {
-        format!("http://{}/api/v1", self.remote_ip)
+        format!("http://{}/api/v1", self.host)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::repo_config::RepoConfig;
-    use std::path::Path;
+    use crate::config::RepoConfig;
+    use crate::error::OxenError;
+    use crate::api;
+    use crate::test;
 
     #[test]
-    fn test_read_test() {
-        let path = Path::new("config/oxen_config_test.toml");
+    fn test_read_cfg() {
+        let path = test::repo_cfg_file();
         let config = RepoConfig::from(path);
         assert_eq!(config.endpoint(), "http://localhost:4000/api/v1");
+    }
+
+    #[test]
+    fn test_create_repo_cfg() -> Result<(), OxenError> {
+        let name: &str = "Test Repo";
+        let cfg = test::create_repo_cfg(name)?;
+        assert_eq!(cfg.repository.name, name);
+        api::repositories::delete(&cfg.to_auth(), &cfg.repository.id)?;
+        Ok(())
     }
 }

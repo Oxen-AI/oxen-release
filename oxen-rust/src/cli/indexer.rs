@@ -53,25 +53,6 @@ impl Indexer {
         let synced_file = PathBuf::from(&hidden_dir).join(Path::new("synced"));
         let config_file = PathBuf::from(&hidden_dir).join(Path::new("config.toml"));
 
-        if !config_file.exists() {
-            match fs::create_dir_all(&hidden_dir) {
-                Ok(_) => {
-                    println!("🐂 init {:?}", hidden_dir);
-                    RepoConfig::create(&config_file)
-                }
-                Err(err) => {
-                    eprintln!("Error initializing repo {}", err)
-                }
-            }
-
-            match fs::create_dir_all(&commits_dir) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("Error initializing repo {}", err)
-                }
-            }
-        }
-
         Indexer {
             root_dir: PathBuf::from(&hidden_dir.parent().unwrap()),
             hidden_dir,
@@ -92,12 +73,6 @@ impl Indexer {
         } else {
             println!("Repository initialized.")
         }
-    }
-
-    pub fn login(&mut self) -> Result<(), OxenError> {
-        let user = api::get_user(&self.config)?;
-        self.config.user = Some(user);
-        Ok(())
     }
 
     fn list_image_files_from_dir(&self, dirname: &Path) -> Vec<PathBuf> {
@@ -214,7 +189,7 @@ impl Indexer {
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
             if let Ok(hash) = hasher::hash_file_contents(path) {
-                if api::entry_from_hash(&self.config, &hash).is_ok() {
+                if api::entries::from_hash(&self.config, &hash).is_ok() {
                     // println!("Already have entry {:?}", entry);
                 } else {
                     // Only upload file if it's hash doesn't already exist
@@ -259,13 +234,7 @@ impl Indexer {
     }
 
     fn sync_commit(&self, commit: &str, dataset_id: &str) -> Result<(), OxenError> {
-        if let Some(user) = &self.config.user {
-            self.p_sync_commit(commit, dataset_id, user)
-        } else {
-            Err(OxenError::basic_str(
-                "Error sync_commit called before logged in.",
-            ))
-        }
+        self.p_sync_commit(commit, dataset_id, &self.config.user)
     }
 
     fn dataset_id_from_name(&self, name: &str) -> Result<String, OxenError> {
@@ -382,6 +351,6 @@ impl Indexer {
             ));
         }
 
-        api::create_dataset(&self.config, name)
+        api::datasets::create(&self.config, name)
     }
 }

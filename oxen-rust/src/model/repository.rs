@@ -1,9 +1,10 @@
 use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Repository {
     pub id: String,
     pub name: String,
+    pub url: String,
 }
 
 #[derive(Deserialize, Debug)]

@@ -82,6 +82,7 @@ fn main() {
             let url = sub_matches.value_of("URL").expect("required");
             dispatch::clone(url);
         }
+        // TODO: Get these in the help command instead of just falling back
         Some((ext, sub_matches)) => {
             let args = sub_matches
                 .values_of_os("")

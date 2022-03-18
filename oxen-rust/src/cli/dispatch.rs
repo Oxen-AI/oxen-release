@@ -4,7 +4,7 @@ use std::io::{self, BufRead};
 use std::path::PathBuf;
 
 use crate::cli::indexer::Indexer;
-use crate::config::oxen_config::OxenConfig;
+use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
@@ -17,9 +17,13 @@ pub fn login() -> Result<(), OxenError> {
     println!("Enter your password:");
     let password = rpassword::read_password().unwrap();
 
-    let mut config = OxenConfig::new()?;
-    let user = api::login(&config, email.trim(), password.trim())?;
-    config.add_user(&user).save_default()?;
+    // RemoteConfig tells us where to login
+    let remote_config = RemoteConfig::new()?;
+    let user = api::login(&remote_config, email.trim(), password.trim())?;
+    
+    // AuthConfig is saved next to it with user token
+    let auth_config = AuthConfig::new(&user)?;
+    auth_config.save_default()?;
 
     Ok(())
 }
@@ -53,9 +57,7 @@ pub fn push(directory: &str) -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let mut indexer = Indexer::new(&current_dir);
-    indexer.login()?;
-
+    let indexer = Indexer::new(&current_dir);
     indexer.create_dataset_if_not_exists(directory)?;
     indexer.push(directory)
 }
@@ -67,10 +69,7 @@ pub fn list_datasets() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    // TODO: make login a new constructor that is like "Indexer::auth -> Indexer" or something
-    let mut indexer = Indexer::new(&current_dir);
-    indexer.login()?;
-
+    let indexer = Indexer::new(&current_dir);
     let datasets = indexer.list_datasets()?;
     for dataset in datasets.iter() {
         println!("{}", dataset.name);
@@ -84,7 +83,7 @@ pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         return Err(OxenError::basic_str(NO_REPO_MSG));
     }
 
-    let config = OxenConfig::default()?;
+    let config = AuthConfig::default()?;
     let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
     if args.len() != 2 {
         Err(OxenError::basic_str(err_str))
@@ -96,7 +95,7 @@ pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 }
 
 fn p_create(
-    config: &OxenConfig,
+    config: &AuthConfig,
     flag: &std::ffi::OsStr,
     value: &std::ffi::OsStr,
 ) -> Result<(), OxenError> {
