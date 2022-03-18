@@ -57,6 +57,7 @@ mod tests {
         let name: &str = "Test Repo";
         let cfg = test::create_repo_cfg(name)?;
         assert_eq!(cfg.repository.name, name);
+        // cleanup
         api::repositories::delete(&cfg.to_auth(), &cfg.repository.id)?;
         Ok(())
     }

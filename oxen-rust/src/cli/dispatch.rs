@@ -35,7 +35,7 @@ pub fn init(path: &str) {
 }
 
 pub fn clone(url: &str) {
-    let _indexer = Indexer::clone(url);
+    println!("Clone url: {}", url);
 }
 
 pub fn add(path: &str) {

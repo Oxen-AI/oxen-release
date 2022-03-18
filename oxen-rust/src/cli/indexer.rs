@@ -29,23 +29,6 @@ pub struct Indexer {
 }
 
 impl Indexer {
-    pub fn repo_exists(dirname: &Path) -> bool {
-        let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
-        hidden_dir.exists()
-    }
-
-    pub fn clone(_url: &str) -> Indexer {
-        let config_file = PathBuf::from("").join(Path::new("config.toml"));
-        Indexer {
-            root_dir: PathBuf::from(""),
-            hidden_dir: PathBuf::from(""),
-            staging_file: PathBuf::from(""),
-            commits_dir: PathBuf::from(""),
-            synced_file: PathBuf::from(""),
-            config: RepoConfig::from(&config_file),
-        }
-    }
-
     pub fn new(dirname: &Path) -> Indexer {
         let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
         let staging_file = PathBuf::from(&hidden_dir).join(Path::new("staging"));
@@ -61,6 +44,11 @@ impl Indexer {
             synced_file,
             config: RepoConfig::from(&config_file),
         }
+    }
+
+    pub fn repo_exists(dirname: &Path) -> bool {
+        let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
+        hidden_dir.exists()
     }
 
     pub fn is_initialized(&self) -> bool {
