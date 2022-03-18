@@ -1,15 +1,74 @@
 use crate::util::file_util::FileUtil;
-use serde::Deserialize;
-use std::path::Path;
+use crate::error::OxenError;
+use crate::model::user::User;
+use serde::{Serialize, Deserialize};
+use std::path::{Path};
+use std::fs;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OxenConfig {
     pub remote_ip: String,
+    pub user: Option<User>,
 }
 
+impl PartialEq for OxenConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.remote_ip == other.remote_ip &&
+        self.user == other.user
+    }
+}
+
+impl Eq for OxenConfig {}
+
 impl OxenConfig {
+    pub fn new() -> Result<OxenConfig, OxenError> {
+        if let Some(home_dir) = dirs::home_dir() {
+            let oxen_dir = home_dir.join(Path::new(".oxen"));
+
+            fs::create_dir_all(&oxen_dir)?;
+            let default_ip = "localhost:4000";
+            let oxen_config = oxen_dir.join(Path::new("config.toml"));
+            let config_str = format!("remote_ip = \"{}\"", default_ip);
+
+            FileUtil::write_to_path(&oxen_config, &config_str);
+            Ok(OxenConfig {
+                remote_ip: String::from(default_ip),
+                user: None
+            })
+        } else {
+            Err(OxenError::Basic(String::from("OxenConfig::new() Could not find home dir")))
+        }
+    }
+
+    pub fn add_user(&mut self, user: &User) -> OxenConfig {
+        OxenConfig {
+            remote_ip: self.remote_ip.clone(),
+            user: Some(user.clone())
+        }
+    }
+
+    pub fn save_default(&self) -> Result<(), OxenError> {
+        if let Some(home_dir) = dirs::home_dir() {
+            let oxen_dir = home_dir.join(Path::new(".oxen"));
+
+            fs::create_dir_all(&oxen_dir)?;
+            let config_file = oxen_dir.join(Path::new("config.toml"));
+            println!("Saving config to {:?}", config_file);
+            self.save(&config_file)
+        } else {
+            Err(OxenError::Basic(String::from("OxenConfig::save_default() Could not find home dir")))
+        }
+    }
+
+    pub fn save(&self, path: &Path) -> Result<(), OxenError> {
+        let toml = toml::to_string(&self)?;
+        FileUtil::write_to_path(path, &toml);
+        Ok(())
+    }
+
     pub fn from(path: &Path) -> OxenConfig {
         let contents = FileUtil::read_from_path(path);
+        println!("OxenConfig read from {:?} -> {:?}", path, contents);
         toml::from_str(&contents).unwrap()
     }
 
@@ -22,11 +81,48 @@ impl OxenConfig {
 mod tests {
     use crate::config::oxen_config::OxenConfig;
     use std::path::Path;
+    use crate::model::user::User;
+    use crate::error::OxenError;
 
     #[test]
     fn test_read_test() {
         let path = Path::new("config/oxen_config_test.toml");
         let config = OxenConfig::from(path);
         assert_eq!(config.endpoint(), "http://localhost:4000/api/v1");
+    }
+
+    #[test]
+    fn test_add_user() -> Result<(), OxenError> {
+        let user = User::dummy();
+        let path = Path::new("config/oxen_config_test.toml");
+        let config = OxenConfig::from(path)
+            .add_user(&user);
+
+        let config_user = config.user.unwrap();
+        assert_eq!(config_user.token, user.token);
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_user_save() -> Result<(), OxenError> {
+        let user = User::dummy();
+        let orig_path = Path::new("config/oxen_config_test.toml");
+        let final_path = Path::new("/tmp/test_config.toml");
+        
+        let orig_config = OxenConfig::from(orig_path);
+        let mut new_config = orig_config.clone();
+
+        new_config
+            .add_user(&user)
+            .save(&final_path)?;
+
+        let config = OxenConfig::from(&final_path);
+        if let Some(new_user) = config.user {
+            assert_eq!(user.token, new_user.token);
+        } else {
+            panic!("Config does not have user");
+        }
+
+        Ok(())
     }
 }

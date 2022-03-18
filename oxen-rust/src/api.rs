@@ -1,4 +1,5 @@
 use crate::config::repo_config::RepoConfig;
+use crate::config::oxen_config::OxenConfig;
 use crate::error::OxenError;
 use crate::model::dataset::*;
 use crate::model::entry::*;
@@ -8,7 +9,7 @@ use serde_json::json;
 
 pub mod datasets;
 
-pub fn login(config: &RepoConfig, email: &str, password: &str) -> Result<User, OxenError> {
+pub fn login(config: &OxenConfig, email: &str, password: &str) -> Result<User, OxenError> {
     let url = format!("{}/login", config.endpoint());
     let params = json!({
       "user": {

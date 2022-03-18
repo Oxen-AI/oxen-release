@@ -75,13 +75,14 @@ fn main() {
                 .collect::<Vec<_>>();
 
             match ext {
+                "login" => dispatch::login(),
                 "commit" => dispatch::commit(args),
-                "create" => dispatch::create(args),
-                "status" => dispatch::status(),
-                _ => {
+                // "create" => dispatch::create(args),
+                // "status" => dispatch::status(),
+                _ => Ok({
                     println!("Unknown command {}", ext)
-                }
-            }
+                })
+            }.unwrap();
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachabe!()
     }

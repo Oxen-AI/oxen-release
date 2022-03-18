@@ -1,9 +1,29 @@
 use std::env;
 use std::path::PathBuf;
+use std::io::{self, BufRead};
+use crate::api;
 
 use crate::cli::indexer::Indexer;
+use crate::config::oxen_config::OxenConfig;
+use crate::error::OxenError;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
+
+pub fn login() -> Result<(), OxenError> {
+    println!("🐂 Login\n\nEnter your email:");
+    let mut email = String::new();
+    let stdin = io::stdin();
+    stdin.lock().read_line(&mut email).unwrap();
+    println!("Enter your password:");
+    let password = rpassword::read_password().unwrap();
+
+    let mut config = OxenConfig::new()?;
+    let user = api::login(&config, &email.trim(), &password.trim())?;
+    config.add_user(&user)
+        .save_default()?;
+
+    Ok(())
+}
 
 pub fn init(path: &str) {
     let directory = PathBuf::from(&path);
@@ -113,16 +133,17 @@ pub fn create(args: Vec<&std::ffi::OsStr>) {
     }
 }
 
-pub fn commit(args: Vec<&std::ffi::OsStr>) {
+pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
         println!("{}", NO_REPO_MSG);
-        return;
+        return Err(OxenError::Basic(String::from(NO_REPO_MSG)));
     }
 
     let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
     if args.len() != 2 {
-        eprintln!("{}", err_str)
+        let err = format!("{}", err_str);
+        Err(OxenError::Basic(String::from(err)))
     } else {
         let flag = args[0];
         match flag.to_str().unwrap() {
@@ -133,14 +154,17 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) {
                         println!("Committing with msg [{}]", message);
                         let indexer = Indexer::new(&current_dir);
                         indexer.commit(message);
+                        Ok(())
                     }
                     None => {
-                        eprintln!("Invalid commit message: \"{:?}\"", msg_arg)
+                        let err = format!("Invalid commit message: \"{:?}\"", msg_arg);
+                        Err(OxenError::Basic(String::from(err)))
                     }
                 }
             }
             _ => {
-                eprintln!("{}", err_str)
+                eprintln!("{}", err_str);
+                Err(OxenError::Basic(String::from(err_str)))
             }
         }
     }
