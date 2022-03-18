@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
@@ -15,10 +15,10 @@ pub struct UserResponse {
 
 impl PartialEq for User {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id &&
-        self.token == other.token &&
-        self.email == other.email &&
-        self.name == other.name
+        self.id == other.id
+            && self.token == other.token
+            && self.email == other.email
+            && self.name == other.name
     }
 }
 

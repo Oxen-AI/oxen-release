@@ -1,7 +1,7 @@
-use std::env;
-use std::path::PathBuf;
-use std::io::{self, BufRead};
 use crate::api;
+use std::env;
+use std::io::{self, BufRead};
+use std::path::PathBuf;
 
 use crate::cli::indexer::Indexer;
 use crate::config::oxen_config::OxenConfig;
@@ -18,9 +18,8 @@ pub fn login() -> Result<(), OxenError> {
     let password = rpassword::read_password().unwrap();
 
     let mut config = OxenConfig::new()?;
-    let user = api::login(&config, &email.trim(), &password.trim())?;
-    config.add_user(&user)
-        .save_default()?;
+    let user = api::login(&config, email.trim(), password.trim())?;
+    config.add_user(&user).save_default()?;
 
     Ok(())
 }
@@ -111,7 +110,7 @@ pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 
     let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
     if args.len() != 2 {
-        return Err(OxenError::Basic(String::from(err_str)));
+        Err(OxenError::Basic(String::from(err_str)))
     } else {
         let flag = args[0];
         match flag.to_str().unwrap() {
@@ -121,7 +120,7 @@ pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
                     Some(name) => {
                         println!("Creating dataset name [{}]", name);
                         println!("TODO!!");
-                        return Err(OxenError::Basic(String::from("TODO: create dataset")));
+                        Err(OxenError::Basic(String::from("TODO: create dataset")))
                     }
                     None => {
                         let err = format!("Invalid dataset name: \"{:?}\"", name_arg);
@@ -161,8 +160,8 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 
     let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
     if args.len() != 2 {
-        let err = format!("{}", err_str);
-        Err(OxenError::Basic(String::from(err)))
+        let err = err_str.to_string();
+        Err(OxenError::Basic(err))
     } else {
         let flag = args[0];
         match flag.to_str().unwrap() {
@@ -177,7 +176,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
                     }
                     None => {
                         let err = format!("Invalid commit message: \"{:?}\"", msg_arg);
-                        Err(OxenError::Basic(String::from(err)))
+                        Err(OxenError::Basic(err))
                     }
                 }
             }

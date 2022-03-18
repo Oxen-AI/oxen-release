@@ -1,5 +1,5 @@
-use crate::config::repo_config::RepoConfig;
 use crate::config::oxen_config::OxenConfig;
+use crate::config::repo_config::RepoConfig;
 use crate::error::OxenError;
 use crate::model::dataset::*;
 use crate::model::entry::*;

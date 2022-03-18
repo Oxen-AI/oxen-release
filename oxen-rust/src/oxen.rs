@@ -79,10 +79,14 @@ fn main() {
                 "commit" => dispatch::commit(args),
                 "create" => dispatch::create(args),
                 // "status" => dispatch::status(),
-                _ => Ok({
-                    println!("Unknown command {}", ext)
-                })
-            }.unwrap();
+                _ => {
+                    {
+                        println!("Unknown command {}", ext)
+                    };
+                    Ok(())
+                }
+            }
+            .unwrap();
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachabe!()
     }
