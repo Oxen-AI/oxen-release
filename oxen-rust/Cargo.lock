@@ -785,6 +785,7 @@ dependencies = [
  "clap",
  "dirs",
  "futures",
+ "http",
  "indicatif",
  "jwalk",
  "rayon",

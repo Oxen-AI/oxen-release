@@ -80,7 +80,12 @@ fn main() {
         }
         Some(("clone", sub_matches)) => {
             let url = sub_matches.value_of("URL").expect("required");
-            dispatch::clone(url);
+            match dispatch::clone(url) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Err: {}", err)
+                }
+            }
         }
         // TODO: Get these in the help command instead of just falling back
         Some((ext, sub_matches)) => {

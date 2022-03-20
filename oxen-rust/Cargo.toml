@@ -21,6 +21,7 @@ signal-hook = "0.3.13"
 rpassword = "6.0"
 dirs = "4.0.0"
 urlencoding = "2.1.0"
+http = "0.2.6"
 
 [profile.release]
 codegen-units = 1

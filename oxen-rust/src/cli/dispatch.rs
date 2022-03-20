@@ -3,6 +3,7 @@ use std::env;
 use std::io::{self, BufRead};
 use std::path::PathBuf;
 
+use crate::model::Repository;
 use crate::cli::indexer::Indexer;
 use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
@@ -34,8 +35,10 @@ pub fn init(path: &str) {
     indexer.init()
 }
 
-pub fn clone(url: &str) {
-    println!("Clone url: {}", url);
+pub fn clone(url: &str) -> Result<(), OxenError> {
+    let auth_cfg = AuthConfig::default()?;
+    Repository::clone_remote(&auth_cfg, url)?;
+    Ok(())
 }
 
 pub fn add(path: &str) {

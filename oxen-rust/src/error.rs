@@ -7,6 +7,7 @@ pub enum OxenError {
     IO(io::Error),
     Basic(String),
     TOML(toml::ser::Error),
+    URI(http::uri::InvalidUri)
 }
 
 impl OxenError {
@@ -44,5 +45,11 @@ impl From<String> for OxenError {
 impl From<toml::ser::Error> for OxenError {
     fn from(error: toml::ser::Error) -> Self {
         OxenError::TOML(error)
+    }
+}
+
+impl From<http::uri::InvalidUri> for OxenError {
+    fn from(error: http::uri::InvalidUri) -> Self {
+        OxenError::URI(error)
     }
 }

@@ -27,7 +27,7 @@ impl AuthConfig {
 
             fs::create_dir_all(&oxen_dir)?;
             let default_ip = "localhost:4000";
-            let oxen_config = oxen_dir.join(Path::new("config.toml"));
+            let oxen_config = oxen_dir.join(Path::new("auth_config.toml"));
             let config_str = format!("host = \"{}\"", default_ip);
 
             FileUtil::write_to_path(&oxen_config, &config_str);
@@ -48,7 +48,7 @@ impl AuthConfig {
         );
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = home_dir.join(Path::new(".oxen"));
-            let config_file = oxen_dir.join(Path::new("config.toml"));
+            let config_file = oxen_dir.join(Path::new("auth_config.toml"));
             if config_file.exists() {
                 Ok(AuthConfig::from(&config_file))
             } else {
