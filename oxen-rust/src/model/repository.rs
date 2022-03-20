@@ -1,8 +1,8 @@
 use crate::api;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use serde::{Serialize, Deserialize};
 use http::Uri;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -25,9 +25,7 @@ pub struct ListRepositoriesResponse {
 impl Repository {
     pub fn clone_remote(config: &AuthConfig, url: &str) -> Result<RepoConfig, OxenError> {
         match api::repositories::get_by_url(config, url) {
-            Ok(repository) => {
-                Repository::clone_repo(&config, &repository)
-            },
+            Ok(repository) => Repository::clone_repo(&config, &repository),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -73,14 +71,13 @@ impl Repository {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::model::Repository;
-    use crate::error::OxenError;
-    use crate::config::AuthConfig;
-    use crate::test;
     use crate::api;
+    use crate::config::AuthConfig;
+    use crate::error::OxenError;
+    use crate::model::Repository;
+    use crate::test;
 
     use std::path::Path;
 
@@ -91,7 +88,6 @@ mod tests {
         assert_eq!(dirname, "OxenData");
         Ok(())
     }
-
 
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
@@ -108,7 +104,7 @@ mod tests {
         assert_eq!(path.exists(), true);
         assert_eq!(repo_config.repository.name, repository.name);
         assert_eq!(repo_config.repository.id, repository.id);
-        
+
         // cleanup
         api::repositories::delete(&repo_config.to_auth(), &repo_config.repository.id)?;
         std::fs::remove_dir_all(name)?;
@@ -116,4 +112,3 @@ mod tests {
         Ok(())
     }
 }
-

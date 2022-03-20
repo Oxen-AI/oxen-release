@@ -3,10 +3,10 @@ use std::env;
 use std::io::{self, BufRead};
 use std::path::PathBuf;
 
-use crate::model::Repository;
 use crate::cli::indexer::Indexer;
 use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
+use crate::model::Repository;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
 

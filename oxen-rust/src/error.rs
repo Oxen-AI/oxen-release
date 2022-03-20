@@ -7,7 +7,7 @@ pub enum OxenError {
     IO(io::Error),
     Basic(String),
     TOML(toml::ser::Error),
-    URI(http::uri::InvalidUri)
+    URI(http::uri::InvalidUri),
 }
 
 impl OxenError {

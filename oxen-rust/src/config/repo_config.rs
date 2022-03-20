@@ -1,8 +1,8 @@
 use crate::config::AuthConfig;
+use crate::error::OxenError;
 use crate::model::Repository;
 use crate::model::User;
 use crate::util::file_util::FileUtil;
-use crate::error::OxenError;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -48,7 +48,7 @@ impl RepoConfig {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::config::{RepoConfig};
+    use crate::config::RepoConfig;
     use crate::error::OxenError;
     use crate::test;
 
