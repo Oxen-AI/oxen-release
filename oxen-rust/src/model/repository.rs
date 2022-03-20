@@ -25,7 +25,7 @@ pub struct ListRepositoriesResponse {
 impl Repository {
     pub fn clone_remote(config: &AuthConfig, url: &str) -> Result<RepoConfig, OxenError> {
         match api::repositories::get_by_url(config, url) {
-            Ok(repository) => Repository::clone_repo(&config, &repository),
+            Ok(repository) => Repository::clone_repo(config, &repository),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -53,7 +53,7 @@ impl Repository {
 
         // save RepoConfig in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
-        let repo_config = RepoConfig::new(config, &repo);
+        let repo_config = RepoConfig::new(config, repo);
         repo_config.save(&repo_config_file)?;
 
         println!("🐂 cloned {} to {}", repo.url, dir_name);
@@ -63,7 +63,7 @@ impl Repository {
 
     pub fn dirname_from_url(url: &str) -> Result<String, OxenError> {
         let uri = url.parse::<Uri>()?;
-        if let Some(dirname) = uri.path().split("/").last() {
+        if let Some(dirname) = uri.path().split('/').last() {
             Ok(String::from(dirname))
         } else {
             Err(OxenError::basic_str(""))
@@ -101,7 +101,7 @@ mod tests {
 
         let cfg_path = format!("{}/.oxen/config.toml", name);
         let path = Path::new(&cfg_path);
-        assert_eq!(path.exists(), true);
+        assert!(path.exists());
         assert_eq!(repo_config.repository.name, repository.name);
         assert_eq!(repo_config.repository.id, repository.id);
 
