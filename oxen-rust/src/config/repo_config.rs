@@ -54,7 +54,7 @@ impl RepoConfig {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::config::{RepoConfig, HTTPConfig};
+    use crate::config::{HTTPConfig, RepoConfig};
     use crate::error::OxenError;
     use crate::test;
 

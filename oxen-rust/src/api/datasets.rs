@@ -1,7 +1,7 @@
-use crate::config::{RepoConfig, HTTPConfig};
+use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::StatusMessage;
 use crate::model::dataset::{Dataset, DatasetResponse, ListDatasetsResponse};
+use crate::model::StatusMessage;
 use reqwest::blocking::Client;
 use serde_json::json;
 
@@ -48,16 +48,11 @@ pub fn create(config: &RepoConfig, name: &str) -> Result<Dataset, OxenError> {
         let body = res.text()?;
         let response: Result<DatasetResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(val) => {
-                Ok(val.dataset)
-            },
-            Err(_) => {
-                Err(OxenError::basic_str(&format!(
-                    "status_code[{}], could not create dataset \n\n{}",
-                    status,
-                    body
-                )))
-            }
+            Ok(val) => Ok(val.dataset),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "status_code[{}], could not create dataset \n\n{}",
+                status, body
+            ))),
         }
     } else {
         Err(OxenError::basic_str("api::create_dataset() API failed"))
@@ -65,7 +60,12 @@ pub fn create(config: &RepoConfig, name: &str) -> Result<Dataset, OxenError> {
 }
 
 pub fn delete(config: &RepoConfig, dataset: &Dataset) -> Result<StatusMessage, OxenError> {
-    let url = format!("http://{}/api/v1/repositories/{}/datasets/{}", config.host(), config.repository.id, dataset.id);
+    let url = format!(
+        "http://{}/api/v1/repositories/{}/datasets/{}",
+        config.host(),
+        config.repository.id,
+        dataset.id
+    );
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -77,16 +77,11 @@ pub fn delete(config: &RepoConfig, dataset: &Dataset) -> Result<StatusMessage, O
         let body = res.text()?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(val) => {
-                Ok(val)
-            },
-            Err(_) => {
-                Err(OxenError::basic_str(&format!(
-                    "status_code[{}], could not delete repository \n\n{}",
-                    status,
-                    body
-                )))
-            }
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "status_code[{}], could not delete repository \n\n{}",
+                status, body
+            ))),
         }
     } else {
         Err(OxenError::basic_str(
@@ -99,8 +94,8 @@ pub fn delete(config: &RepoConfig, dataset: &Dataset) -> Result<StatusMessage, O
 mod tests {
     use crate::api;
     use crate::config::{AuthConfig, RepoConfig};
-    use crate::test;
     use crate::error::OxenError;
+    use crate::test;
 
     #[test]
     fn test_create_delete_dataset() -> Result<(), OxenError> {

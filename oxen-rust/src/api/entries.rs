@@ -3,7 +3,11 @@ use crate::error::OxenError;
 use crate::model::{Entry, EntryResponse};
 
 pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry, OxenError> {
-    let url = format!("http://{}/api/v1/entries/search?hash={}", config.host(), hash);
+    let url = format!(
+        "http://{}/api/v1/entries/search?hash={}",
+        config.host(),
+        hash
+    );
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -21,8 +25,12 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
     }
 }
 
-pub fn list_page(_config: &dyn HTTPConfig, _dataset_id: &str, _page_num: i64, _page_size: i32) -> Result<Vec<Entry>, OxenError> {
-
+pub fn list_page(
+    _config: &dyn HTTPConfig,
+    _dataset_id: &str,
+    _page_num: i64,
+    _page_size: i32,
+) -> Result<Vec<Entry>, OxenError> {
     Ok(vec![])
 }
 
@@ -32,7 +40,6 @@ mod tests {
 
     #[test]
     fn test_list_page() -> Result<(), OxenError> {
-        
         Ok(())
     }
 }

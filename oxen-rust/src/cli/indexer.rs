@@ -12,7 +12,7 @@ use std::path::PathBuf;
 // use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::api;
-use crate::config::{RepoConfig, HTTPConfig};
+use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::Dataset;
 use crate::model::User;

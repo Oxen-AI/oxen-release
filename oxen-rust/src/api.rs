@@ -22,6 +22,8 @@ pub fn login(config: &RemoteConfig, email: &str, password: &str) -> Result<User,
         let user: UserResponse = serde_json::from_str(&body)?;
         Ok(user.user)
     } else {
-        Err(OxenError::basic_str("login failed, invalid email or password"))
+        Err(OxenError::basic_str(
+            "login failed, invalid email or password",
+        ))
     }
 }

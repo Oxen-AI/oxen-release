@@ -1,4 +1,4 @@
-use crate::config::{HTTPConfig};
+use crate::config::HTTPConfig;
 use crate::error::OxenError;
 use crate::model::repository::{Repository, RepositoryResponse};
 use crate::model::status_message::StatusMessage;
@@ -23,16 +23,11 @@ pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<Reposito
         let body = res.text()?;
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(val) => {
-                Ok(val.repository)
-            },
-            Err(_) => {
-                Err(OxenError::basic_str(&format!(
-                    "status_code[{}], could not create repository \n\n{}",
-                    status,
-                    body
-                )))
-            }
+            Ok(val) => Ok(val.repository),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "status_code[{}], could not create repository \n\n{}",
+                status, body
+            ))),
         }
     } else {
         Err(OxenError::basic_str(
@@ -67,8 +62,15 @@ pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<Repos
     }
 }
 
-pub fn delete<'a>(config: &'a dyn HTTPConfig<'a>, repository: &Repository) -> Result<StatusMessage, OxenError> {
-    let url = format!("http://{}/api/v1/repositories/{}", config.host(), repository.id);
+pub fn delete<'a>(
+    config: &'a dyn HTTPConfig<'a>,
+    repository: &Repository,
+) -> Result<StatusMessage, OxenError> {
+    let url = format!(
+        "http://{}/api/v1/repositories/{}",
+        config.host(),
+        repository.id
+    );
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -80,16 +82,11 @@ pub fn delete<'a>(config: &'a dyn HTTPConfig<'a>, repository: &Repository) -> Re
         let body = res.text()?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(val) => {
-                Ok(val)
-            },
-            Err(_) => {
-                Err(OxenError::basic_str(&format!(
-                    "status_code[{}], could not delete repository \n\n{}",
-                    status,
-                    body
-                )))
-            }
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "status_code[{}], could not delete repository \n\n{}",
+                status, body
+            ))),
         }
     } else {
         Err(OxenError::basic_str(
@@ -102,7 +99,7 @@ pub fn delete<'a>(config: &'a dyn HTTPConfig<'a>, repository: &Repository) -> Re
 mod tests {
 
     use crate::api;
-    use crate::config::{AuthConfig};
+    use crate::config::AuthConfig;
     use crate::error::OxenError;
     use crate::test;
 

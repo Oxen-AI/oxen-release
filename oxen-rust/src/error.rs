@@ -9,7 +9,7 @@ pub enum OxenError {
     TOML(toml::ser::Error),
     URI(http::uri::InvalidUri),
     JSON(serde_json::Error),
-    HTTP(reqwest::Error)
+    HTTP(reqwest::Error),
 }
 
 impl OxenError {
