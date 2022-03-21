@@ -1,4 +1,4 @@
-use crate::config::AuthConfig;
+use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::Repository;
 use crate::model::User;
@@ -11,6 +11,16 @@ pub struct RepoConfig {
     pub host: String,
     pub repository: Repository,
     pub user: User,
+}
+
+impl<'a> HTTPConfig<'a> for RepoConfig {
+    fn host(&'a self) -> &'a str {
+        &self.host
+    }
+
+    fn auth_token(&'a self) -> &'a str {
+        &self.user.token
+    }
 }
 
 impl RepoConfig {
@@ -39,16 +49,12 @@ impl RepoConfig {
         FileUtil::write_to_path(path, &toml);
         Ok(())
     }
-
-    pub fn endpoint(&self) -> String {
-        format!("http://{}/api/v1", self.host)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::config::RepoConfig;
+    use crate::config::{RepoConfig, HTTPConfig};
     use crate::error::OxenError;
     use crate::test;
 
@@ -58,7 +64,7 @@ mod tests {
     fn test_read_cfg() {
         let path = test::repo_cfg_file();
         let config = RepoConfig::from(path);
-        assert_eq!(config.endpoint(), "http://localhost:4000/api/v1");
+        assert_eq!(config.host(), "localhost:4000");
     }
 
     #[test]
@@ -67,7 +73,7 @@ mod tests {
         let cfg = test::create_repo_cfg(name)?;
         assert_eq!(cfg.repository.name, name);
         // cleanup
-        api::repositories::delete(&cfg.to_auth(), &cfg.repository.id)?;
+        api::repositories::delete(&cfg, &cfg.repository)?;
         Ok(())
     }
 

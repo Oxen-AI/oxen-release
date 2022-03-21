@@ -22,6 +22,8 @@ rpassword = "6.0"
 dirs = "4.0.0"
 urlencoding = "2.1.0"
 http = "0.2.6"
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
+
 
 [profile.release]
 codegen-units = 1

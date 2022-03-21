@@ -18,17 +18,10 @@ pub fn login(config: &RemoteConfig, email: &str, password: &str) -> Result<User,
     });
 
     if let Ok(res) = Client::new().post(&url).json(&params).send() {
-        let status = res.status();
-        if let Ok(user_res) = res.json::<UserResponse>() {
-            Ok(user_res.user)
-        } else {
-            let err = format!(
-                "login failed status_code[{}], check email and password",
-                status
-            );
-            Err(OxenError::Basic(err))
-        }
+        let body = res.text()?;
+        let user: UserResponse = serde_json::from_str(&body)?;
+        Ok(user.user)
     } else {
-        Err(OxenError::Basic(format!("login failed [{}]", &url)))
+        Err(OxenError::basic_str("login failed, invalid email or password"))
     }
 }

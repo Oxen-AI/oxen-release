@@ -8,6 +8,8 @@ pub enum OxenError {
     Basic(String),
     TOML(toml::ser::Error),
     URI(http::uri::InvalidUri),
+    JSON(serde_json::Error),
+    HTTP(reqwest::Error)
 }
 
 impl OxenError {
@@ -51,5 +53,17 @@ impl From<toml::ser::Error> for OxenError {
 impl From<http::uri::InvalidUri> for OxenError {
     fn from(error: http::uri::InvalidUri) -> Self {
         OxenError::URI(error)
+    }
+}
+
+impl From<serde_json::Error> for OxenError {
+    fn from(error: serde_json::Error) -> Self {
+        OxenError::JSON(error)
+    }
+}
+
+impl From<reqwest::Error> for OxenError {
+    fn from(error: reqwest::Error) -> Self {
+        OxenError::HTTP(error)
     }
 }

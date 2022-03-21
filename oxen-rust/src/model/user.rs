@@ -34,3 +34,30 @@ impl User {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::error::OxenError;
+    use crate::model::UserResponse;
+
+    #[test]
+    fn test_deserialze() -> Result<(), OxenError> {
+        let data = r#"
+            {
+                "user": {
+                    "id": "1234",
+                    "name": "Ox",
+                    "email": "ox@oxen.ai",
+                    "token": "super_secret"
+                }
+            }
+        "#;
+        let user: UserResponse = serde_json::from_str(&data)?;
+        
+        assert_eq!("1234", user.user.id);
+        assert_eq!("Ox", user.user.name);
+        assert_eq!("ox@oxen.ai", user.user.email);
+        assert_eq!("super_secret", user.user.token);
+        Ok(())
+    }
+}

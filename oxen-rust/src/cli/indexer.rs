@@ -12,10 +12,10 @@ use std::path::PathBuf;
 // use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::api;
-use crate::config::repo_config::RepoConfig;
+use crate::config::{RepoConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::dataset::Dataset;
-use crate::model::user::User;
+use crate::model::Dataset;
+use crate::model::User;
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -184,8 +184,8 @@ impl Indexer {
                     if let Ok(form) = reqwest::blocking::multipart::Form::new().file("file", path) {
                         let client = reqwest::blocking::Client::new();
                         let url = format!(
-                            "{}/repositories/{}/datasets/{}/entries",
-                            self.config.endpoint(),
+                            "http://{}/api/v1/repositories/{}/datasets/{}/entries",
+                            self.config.host(),
                             "NOPE",
                             dataset_id
                         );

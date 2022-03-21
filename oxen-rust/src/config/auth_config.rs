@@ -1,4 +1,5 @@
 use crate::config::endpoint;
+use crate::config::HTTPConfig;
 use crate::error::OxenError;
 use crate::model::User;
 use crate::util::file_util::FileUtil;
@@ -20,6 +21,16 @@ impl PartialEq for AuthConfig {
 
 impl Eq for AuthConfig {}
 
+impl<'a> HTTPConfig<'a> for AuthConfig {
+    fn host(&'a self) -> &'a str {
+        &self.host
+    }
+
+    fn auth_token(&'a self) -> &'a str {
+        &self.user.token
+    }
+}
+
 impl AuthConfig {
     pub fn new(user: &User) -> Result<AuthConfig, OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
@@ -32,7 +43,7 @@ impl AuthConfig {
 
             FileUtil::write_to_path(&oxen_config, &config_str);
             Ok(AuthConfig {
-                host: String::from(""),
+                host: endpoint::http_endpoint(default_ip),
                 user: user.clone(),
             })
         } else {
@@ -84,15 +95,11 @@ impl AuthConfig {
         let contents = FileUtil::read_from_path(path);
         toml::from_str(&contents).unwrap()
     }
-
-    pub fn endpoint(&self) -> String {
-        endpoint::http_endpoint(&self.host)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::AuthConfig;
+    use crate::config::{AuthConfig, HTTPConfig};
     use crate::error::OxenError;
     use crate::test;
     use std::path::Path;
@@ -100,7 +107,7 @@ mod tests {
     #[test]
     fn test_read() {
         let config = AuthConfig::from(test::auth_cfg_file());
-        assert_eq!(config.endpoint(), "http://localhost:4000/api/v1");
+        assert_eq!(config.host(), "localhost:4000");
         assert_eq!(config.user.name, "Greg");
     }
 

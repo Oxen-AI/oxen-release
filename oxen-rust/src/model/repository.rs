@@ -106,7 +106,7 @@ mod tests {
         assert_eq!(repo_config.repository.id, repository.id);
 
         // cleanup
-        api::repositories::delete(&repo_config.to_auth(), &repo_config.repository.id)?;
+        api::repositories::delete(&repo_config, &repo_config.repository)?;
         std::fs::remove_dir_all(name)?;
 
         Ok(())
