@@ -1,10 +1,6 @@
 use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{
-    Dataset,
-    Entry,
-    EntryResponse
-};
+use crate::model::{Dataset, Entry, EntryResponse};
 
 use std::path::Path;
 
@@ -62,10 +58,14 @@ pub fn create(config: &RepoConfig, dataset: &Dataset, path: &Path) -> Result<Ent
                 ))),
             }
         } else {
-            Err(OxenError::basic_str("api::entries::create error sending data from file"))
+            Err(OxenError::basic_str(
+                "api::entries::create error sending data from file",
+            ))
         }
     } else {
-        Err(OxenError::basic_str("api::entries::create Could not create form"))
+        Err(OxenError::basic_str(
+            "api::entries::create Could not create form",
+        ))
     }
 }
 
@@ -91,7 +91,7 @@ mod tests {
         let repo_cfg = test::create_repo_cfg("test entry repo")?;
         let dataset = api::datasets::create(&repo_cfg, "dataset_1")?;
         let hash = hasher::hash_file_contents(img_path)?;
-        let entry = api::entries::create(&repo_cfg, &dataset, &img_path)?;
+        let entry = api::entries::create(&repo_cfg, &dataset, img_path)?;
 
         assert_eq!("image", entry.data_type);
         assert_eq!(hash, entry.hash);
