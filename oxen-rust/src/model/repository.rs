@@ -53,7 +53,7 @@ impl Repository {
 
         // save RepoConfig in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
-        let repo_config = RepoConfig::new(config, repo);
+        let repo_config = RepoConfig::from(config, repo);
         repo_config.save(&repo_config_file)?;
 
         println!("🐂 cloned {} to {}", repo.url, dir_name);
@@ -92,11 +92,11 @@ mod tests {
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
         let name = "OxenDataTest";
-        let config = AuthConfig::from(test::auth_cfg_file());
+        let config = AuthConfig::new(test::auth_cfg_file());
         let repository = api::repositories::create(&config, name)?;
         let url = repository.url;
 
-        let auth_config = AuthConfig::from(test::auth_cfg_file());
+        let auth_config = AuthConfig::new(test::auth_cfg_file());
         let repo_config = Repository::clone_remote(&auth_config, &url)?;
 
         let cfg_path = format!("{}/.oxen/config.toml", name);

@@ -32,7 +32,13 @@ impl<'a> HTTPConfig<'a> for AuthConfig {
 }
 
 impl AuthConfig {
-    pub fn new(user: &User) -> Result<AuthConfig, OxenError> {
+
+    pub fn new(path: &Path) -> AuthConfig {
+        let contents = FileUtil::read_from_path(path);
+        toml::from_str(&contents).unwrap()
+    }
+
+    pub fn from(user: &User) -> Result<AuthConfig, OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = home_dir.join(Path::new(".oxen"));
 
@@ -61,7 +67,7 @@ impl AuthConfig {
             let oxen_dir = home_dir.join(Path::new(".oxen"));
             let config_file = oxen_dir.join(Path::new("auth_config.toml"));
             if config_file.exists() {
-                Ok(AuthConfig::from(&config_file))
+                Ok(AuthConfig::new(&config_file))
             } else {
                 Err(OxenError::Basic(err))
             }
@@ -90,11 +96,6 @@ impl AuthConfig {
         FileUtil::write_to_path(path, &toml);
         Ok(())
     }
-
-    pub fn from(path: &Path) -> AuthConfig {
-        let contents = FileUtil::read_from_path(path);
-        toml::from_str(&contents).unwrap()
-    }
 }
 
 #[cfg(test)]
@@ -106,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_read() {
-        let config = AuthConfig::from(test::auth_cfg_file());
+        let config = AuthConfig::new(test::auth_cfg_file());
         assert_eq!(config.host(), "localhost:4000");
         assert_eq!(config.user.name, "Greg");
     }
@@ -114,11 +115,11 @@ mod tests {
     #[test]
     fn test_save() -> Result<(), OxenError> {
         let final_path = Path::new("/tmp/auth_config.toml");
-        let orig_config = AuthConfig::from(test::auth_cfg_file());
+        let orig_config = AuthConfig::new(test::auth_cfg_file());
 
         orig_config.save(final_path)?;
 
-        let config = AuthConfig::from(final_path);
+        let config = AuthConfig::new(final_path);
         assert_eq!(config.user.name, "Greg");
         Ok(())
     }

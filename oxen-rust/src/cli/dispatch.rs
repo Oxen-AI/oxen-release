@@ -23,7 +23,7 @@ pub fn login() -> Result<(), OxenError> {
     let user = api::login(&remote_config, email.trim(), password.trim())?;
 
     // AuthConfig is saved next to it with user token
-    let auth_config = AuthConfig::new(&user)?;
+    let auth_config = AuthConfig::from(&user)?;
     auth_config.save_default()?;
 
     Ok(())

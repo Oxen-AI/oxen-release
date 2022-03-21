@@ -99,14 +99,13 @@ mod tests {
 
     #[test]
     fn test_create_delete_dataset() -> Result<(), OxenError> {
-        let path = test::auth_cfg_file();
-        let auth_cfg = AuthConfig::from(path);
+        let auth_cfg = AuthConfig::new(test::auth_cfg_file());
         let repo_name = uuid::Uuid::new_v4();
 
         let repository = api::repositories::create(&auth_cfg, &format!("{}", repo_name))?;
         let name: &str = "test dataset";
 
-        let repo_cfg = RepoConfig::new(&auth_cfg, &repository);
+        let repo_cfg = RepoConfig::from(&auth_cfg, &repository);
         let dataset = api::datasets::create(&repo_cfg, name)?;
         assert_eq!(dataset.name, name);
 

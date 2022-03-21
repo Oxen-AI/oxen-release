@@ -42,7 +42,7 @@ impl Indexer {
             staging_file,
             commits_dir,
             synced_file,
-            config: RepoConfig::from(&config_file),
+            config: RepoConfig::new(&config_file),
         }
     }
 

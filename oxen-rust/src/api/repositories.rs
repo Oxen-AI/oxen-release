@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn test_create_repository() -> Result<(), OxenError> {
         let path = test::auth_cfg_file();
-        let config = AuthConfig::from(path);
+        let config = AuthConfig::new(path);
         let name: &str = "test_create_repository";
 
         let repository = api::repositories::create(&config, name)?;
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn test_get_by_url() -> Result<(), OxenError> {
         let path = test::auth_cfg_file();
-        let config = AuthConfig::from(path);
+        let config = AuthConfig::new(path);
         let name: &str = "test_get_by_url";
 
         let repository = api::repositories::create(&config, name)?;

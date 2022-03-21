@@ -1,0 +1,7 @@
+host = "localhost:4000"
+
+[user]
+id = "41d7a278-1eb8-4ab3-a23c-ae854cdf3f7f"
+token = "SFMyNTY.g2gDbQAAACQ0MWQ3YTI3OC0xZWI4LTRhYjMtYTIzYy1hZTg1NGNkZjNmN2ZuBgBrkZ2afwFiAAFRgA.6SXt8ZUKFrmF9T2_kUB1HrmpnMmfi686JwI4Jz_rsJk"
+email = "greg@oxen.ai"
+name = "Greg"

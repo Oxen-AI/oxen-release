@@ -24,12 +24,12 @@ impl<'a> HTTPConfig<'a> for RepoConfig {
 }
 
 impl RepoConfig {
-    pub fn from(path: &Path) -> RepoConfig {
+    pub fn new(path: &Path) -> RepoConfig {
         let contents = FileUtil::read_from_path(path);
         toml::from_str(&contents).unwrap()
     }
 
-    pub fn new(config: &AuthConfig, repository: &Repository) -> RepoConfig {
+    pub fn from(config: &AuthConfig, repository: &Repository) -> RepoConfig {
         RepoConfig {
             host: config.host.clone(),
             repository: repository.clone(),
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn test_read_cfg() {
         let path = test::repo_cfg_file();
-        let config = RepoConfig::from(path);
+        let config = RepoConfig::new(path);
         assert_eq!(config.host(), "localhost:4000");
     }
 
@@ -80,11 +80,11 @@ mod tests {
     #[test]
     fn test_save() -> Result<(), OxenError> {
         let final_path = Path::new("/tmp/repo_config.toml");
-        let orig_config = RepoConfig::from(test::repo_cfg_file());
+        let orig_config = RepoConfig::new(test::repo_cfg_file());
 
         orig_config.save(final_path)?;
 
-        let config = RepoConfig::from(final_path);
+        let config = RepoConfig::new(final_path);
         assert_eq!(config.user.name, "Greg");
         assert_eq!(config.repository.name, "Test Repo");
         Ok(())
