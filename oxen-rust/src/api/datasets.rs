@@ -64,7 +64,7 @@ pub fn create(config: &RepoConfig, name: &str) -> Result<Dataset, OxenError> {
     }
 }
 
-pub fn delete<'a>(config: &'a RepoConfig, dataset: &Dataset) -> Result<StatusMessage, OxenError> {
+pub fn delete(config: &RepoConfig, dataset: &Dataset) -> Result<StatusMessage, OxenError> {
     let url = format!("http://{}/api/v1/repositories/{}/datasets/{}", config.host(), config.repository.id, dataset.id);
 
     let client = reqwest::blocking::Client::new();

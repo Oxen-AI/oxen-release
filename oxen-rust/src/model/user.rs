@@ -52,7 +52,7 @@ mod tests {
                 }
             }
         "#;
-        let user: UserResponse = serde_json::from_str(&data)?;
+        let user: UserResponse = serde_json::from_str(data)?;
         
         assert_eq!("1234", user.user.id);
         assert_eq!("Ox", user.user.name);
