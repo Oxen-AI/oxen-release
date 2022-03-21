@@ -12,10 +12,9 @@ use std::path::PathBuf;
 // use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::api;
-use crate::config::{HTTPConfig, RepoConfig};
+use crate::config::RepoConfig;
 use crate::error::OxenError;
 use crate::model::Dataset;
-use crate::model::User;
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -148,7 +147,7 @@ impl Indexer {
         }
     }
 
-    fn p_sync_commit(&self, commit: &str, dataset_id: &str, user: &User) -> Result<(), OxenError> {
+    fn p_sync_commit(&self, commit: &str, dataset: &Dataset) -> Result<(), OxenError> {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
         // println!("Sync commit file: {:?}", file_name);
         let path = file_name.as_path();
@@ -181,24 +180,10 @@ impl Indexer {
                     // println!("Already have entry {:?}", entry);
                 } else {
                     // Only upload file if it's hash doesn't already exist
-                    if let Ok(form) = reqwest::blocking::multipart::Form::new().file("file", path) {
-                        let client = reqwest::blocking::Client::new();
-                        let url = format!(
-                            "http://{}/api/v1/repositories/{}/datasets/{}/entries",
-                            self.config.host(),
-                            "NOPE",
-                            dataset_id
-                        );
-                        println!("Getting data from {}", url);
-                        if let Ok(res) = client
-                            .post(url)
-                            .header(reqwest::header::AUTHORIZATION, &user.token)
-                            .multipart(form)
-                            .send()
-                        {
-                            if res.status() != reqwest::StatusCode::OK {
-                                eprintln!("Error {:?}", res.text());
-                            }
+                    match api::entries::create(&self.config, &dataset, &path) {
+                        Ok(_entry) => {},
+                        Err(err) => {
+                            eprintln!("Error uploading {:?} {}", path, err)
                         }
                     }
                 }
@@ -221,16 +206,16 @@ impl Indexer {
         }
     }
 
-    fn sync_commit(&self, commit: &str, dataset_id: &str) -> Result<(), OxenError> {
-        self.p_sync_commit(commit, dataset_id, &self.config.user)
+    fn sync_commit(&self, commit: &str, dataset: &Dataset) -> Result<(), OxenError> {
+        self.p_sync_commit(commit, dataset)
     }
 
-    fn dataset_id_from_name(&self, name: &str) -> Result<String, OxenError> {
+    fn dataset_from_name(&self, name: &str) -> Result<Dataset, OxenError> {
         let datasets = api::datasets::list(&self.config)?;
         let result = datasets.iter().find(|&x| x.name == name);
 
         match result {
-            Some(dataset) => Ok(dataset.id.clone()),
+            Some(dataset) => Ok(dataset.clone()),
             None => Err(OxenError::basic_str(&format!(
                 "Couldn't find dataset \"{}\"",
                 name
@@ -239,7 +224,7 @@ impl Indexer {
     }
 
     pub fn push(&self, dataset_name: &str) -> Result<(), OxenError> {
-        let id = self.dataset_id_from_name(dataset_name)?;
+        let dataset = self.dataset_from_name(dataset_name)?;
 
         // list all commit files
         let commits: Vec<String> = FileUtil::list_files_in_dir(&self.commits_dir)
@@ -270,7 +255,7 @@ impl Indexer {
 
             for commit in difference.iter() {
                 // println!("Need to sync: {:?}", commit);
-                self.sync_commit(commit, &id)?
+                self.sync_commit(commit, &dataset)?
             }
         }
         Ok(())
