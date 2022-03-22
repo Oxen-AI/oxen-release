@@ -21,4 +21,3 @@ pub struct PaginatedEntries {
     pub total_pages: usize,
     pub total_entries: usize,
 }
-

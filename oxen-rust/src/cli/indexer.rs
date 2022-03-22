@@ -180,8 +180,8 @@ impl Indexer {
                     // println!("Already have entry {:?}", entry);
                 } else {
                     // Only upload file if it's hash doesn't already exist
-                    match api::entries::create(&self.config, &dataset, &path) {
-                        Ok(_entry) => {},
+                    match api::entries::create(&self.config, dataset, path) {
+                        Ok(_entry) => {}
                         Err(err) => {
                             eprintln!("Error uploading {:?} {}", path, err)
                         }

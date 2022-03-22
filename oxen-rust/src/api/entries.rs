@@ -1,11 +1,6 @@
 use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{
-    Dataset,
-    Entry,
-    EntryResponse,
-    PaginatedEntries,
-};
+use crate::model::{Dataset, Entry, EntryResponse, PaginatedEntries};
 
 use std::path::Path;
 
@@ -68,7 +63,10 @@ pub fn create(config: &RepoConfig, dataset: &Dataset, path: &Path) -> Result<Ent
             ))
         }
     } else {
-        let err = format!("api::entries::create Could not create form for file {:?}", path);
+        let err = format!(
+            "api::entries::create Could not create form for file {:?}",
+            path
+        );
         Err(OxenError::basic_str(&err))
     }
 }
@@ -76,7 +74,7 @@ pub fn create(config: &RepoConfig, dataset: &Dataset, path: &Path) -> Result<Ent
 pub fn list_page(
     config: &RepoConfig,
     dataset: &Dataset,
-    page_num: i64
+    page_num: i64,
 ) -> Result<PaginatedEntries, OxenError> {
     let url = format!(
         "http://{}/api/v1/repositories/{}/datasets/{}/entries?page={}",
