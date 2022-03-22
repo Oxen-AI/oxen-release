@@ -12,3 +12,13 @@ pub struct Entry {
 pub struct EntryResponse {
     pub entry: Entry,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct PaginatedEntries {
+    pub entries: Vec<Entry>,
+    pub page_size: usize,
+    pub page_number: usize,
+    pub total_pages: usize,
+    pub total_entries: usize,
+}
+
