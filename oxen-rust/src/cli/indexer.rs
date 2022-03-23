@@ -312,6 +312,7 @@ impl Indexer {
         for page in 0..*num_pages {
             let entry_page = api::entries::list_page(&self.config, dataset, page)?;
             for entry in entry_page.entries {
+                
                 self.download_url(dataset, &entry)?;
                 progress.inc(1);
             }
@@ -320,14 +321,15 @@ impl Indexer {
     }
 
     fn download_url(&self, dataset: &Dataset, entry: &Entry) -> Result<(), OxenError> {
-        let mut response = reqwest::blocking::get(&entry.url)?;
-        let mut dest = {
-            let fname = &entry.filename;
-            let path = Path::new(&dataset.name);
-            let fname = path.join(fname);
-            File::create(fname)?
-        };
-        response.copy_to(&mut dest)?;
+        let path = Path::new(&dataset.name);
+        let fname = path.join(&entry.filename);
+        if !fname.exists() {
+            let mut response = reqwest::blocking::get(&entry.url)?;
+            let mut dest = {
+                File::create(fname)?
+            };
+            response.copy_to(&mut dest)?;
+        }
         Ok(())
     }
 
