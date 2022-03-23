@@ -74,7 +74,7 @@ pub fn create(config: &RepoConfig, dataset: &Dataset, path: &Path) -> Result<Ent
 pub fn list_page(
     config: &RepoConfig,
     dataset: &Dataset,
-    page_num: i64,
+    page_num: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let url = format!(
         "http://{}/api/v1/repositories/{}/datasets/{}/entries?page={}",

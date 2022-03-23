@@ -3,6 +3,8 @@ use clap::{arg, Command};
 use liboxen::cli::dispatch;
 
 fn main() {
+    // Here is another example with set of commands
+    // https://github.com/rust-in-action/code/blob/1st-edition/ch9/ch9-clock1/src/main.rs
     let matches = Command::new("oxen")
         .version("0.0.1")
         .about("Data management toolchain")
@@ -40,6 +42,12 @@ fn main() {
                 .arg_required_else_help(true)
                 .arg(arg!(<DIRECTORY> "Name of directory to push to")),
         )
+        .subcommand(
+            Command::new("pull")
+                .about("Pull the files up from a remote branch")
+                // .arg(arg!(<REMOTE_OR_BRANCH> "Name of remote or branch to pull from"))
+                // .arg(arg!(<BRANCH> "Name of branch to pull from")),
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -59,6 +67,23 @@ fn main() {
                     eprintln!("{}", err)
                 }
             }
+        }
+        Some(("pull", _sub_matches)) => {
+            // if let Some(remote_or_branch) = sub_matches.value_of("REMOTE_OR_BRANCH") {
+            //     match dispatch::pull_remote(remote_or_branch) {
+            //         Ok(_) => {}
+            //         Err(err) => {
+            //             eprintln!("{}", err)
+            //         }
+            //     }
+            // } else {
+            match dispatch::pull() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+            // }
         }
         Some(("ls", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").unwrap_or_default();

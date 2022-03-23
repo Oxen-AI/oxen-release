@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use crate::api;
 use crate::config::RepoConfig;
 use crate::error::OxenError;
-use crate::model::Dataset;
+use crate::model::{Dataset, Entry};
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
@@ -263,6 +263,66 @@ impl Indexer {
 
     pub fn list_datasets(&self) -> Result<Vec<Dataset>, OxenError> {
         api::datasets::list(&self.config)
+    }
+
+    pub fn pull(&self) -> Result<(), OxenError> {
+        let datasets = self.list_datasets()?;
+        // Compute the total entries from the first pages, and make appropriate directories
+        let mut total = 0;
+        let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
+        for dataset in datasets.iter() {
+            let entry_page = api::entries::list_page(&self.config, &dataset, 1)?;
+            let path = Path::new(&dataset.name);
+            if !path.exists() {
+                std::fs::create_dir(&path)?;
+            }
+            dataset_pages.insert(dataset, entry_page.total_pages);
+            total += entry_page.total_entries;
+        }
+
+        println!("🐂 pulling {} entries", total);
+        let size: u64 = unsafe { std::mem::transmute(total) };
+        let bar = ProgressBar::new(size);
+        dataset_pages.par_iter().for_each(|dataset_pages| {
+            let (dataset, num_pages) = dataset_pages;
+            match self.pull_dataset(&dataset, num_pages, &bar) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("Error pulling dataset: {}", err)
+                }
+            }
+        });
+        bar.finish();
+        Ok(())
+    }
+
+    fn pull_dataset(
+        &self,
+        dataset: &Dataset,
+        num_pages: &usize,
+        progress: &ProgressBar,
+    ) -> Result<(), OxenError> {
+        for page in 0..*num_pages {
+            let entry_page = api::entries::list_page(&self.config, &dataset, page)?;
+            for entry in entry_page.entries {
+                self.download_url(&dataset, &entry)?;
+                progress.inc(1);
+            }
+        }
+        Ok(())
+    }
+
+    fn download_url(&self, dataset: &Dataset, entry: &Entry) -> Result<(), OxenError> {
+        let response = reqwest::blocking::get(entry.clone().url);
+        let mut dest = {
+            let fname = entry.clone().id;
+            let path = Path::new(&dataset.name);
+            let fname = path.join(fname);
+            File::create(fname)?
+        };
+        let content = response?.text()?;
+        std::io::copy(&mut content.as_bytes(), &mut dest)?;
+        Ok(())
     }
 
     pub fn status(&self) -> Result<(), OxenError> {

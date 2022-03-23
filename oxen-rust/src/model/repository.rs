@@ -56,7 +56,10 @@ impl Repository {
         let repo_config = RepoConfig::from(config, repo);
         repo_config.save(&repo_config_file)?;
 
-        println!("🐂 cloned {} to {}", repo.url, dir_name);
+        println!(
+            "🐂 cloned {} to {}\n\ncd {}\noxen pull",
+            repo.url, dir_name, dir_name
+        );
 
         Ok(repo_config)
     }

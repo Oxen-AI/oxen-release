@@ -65,6 +65,43 @@ pub fn push(directory: &str) -> Result<(), OxenError> {
     indexer.push(directory)
 }
 
+pub fn pull() -> Result<(), OxenError> {
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
+    }
+
+    let indexer = Indexer::new(&current_dir);
+    indexer.pull()
+}
+
+pub fn pull_remote(remote: &str) -> Result<(), OxenError> {
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
+    }
+
+    Err(OxenError::basic_str(&format!(
+        "TODO: Implement pull_remote {}",
+        remote
+    )))
+}
+
+pub fn pull_remote_branch(remote: &str, branch: &str) -> Result<(), OxenError> {
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
+    }
+
+    Err(OxenError::basic_str(&format!(
+        "TODO: Implement pull_remote_branch {} {}",
+        remote, branch
+    )))
+}
+
 pub fn list_datasets() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
