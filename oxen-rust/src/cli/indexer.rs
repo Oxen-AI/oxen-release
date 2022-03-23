@@ -313,15 +313,14 @@ impl Indexer {
     }
 
     fn download_url(&self, dataset: &Dataset, entry: &Entry) -> Result<(), OxenError> {
-        let response = reqwest::blocking::get(entry.clone().url);
+        let mut response = reqwest::blocking::get(&entry.url)?;
         let mut dest = {
-            let fname = entry.clone().id;
+            let fname = &entry.filename;
             let path = Path::new(&dataset.name);
             let fname = path.join(fname);
             File::create(fname)?
         };
-        let content = response?.text()?;
-        std::io::copy(&mut content.as_bytes(), &mut dest)?;
+        response.copy_to(&mut dest)?;
         Ok(())
     }
 

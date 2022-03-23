@@ -5,6 +5,7 @@ pub struct Entry {
     pub id: String,
     pub data_type: String,
     pub url: String,
+    pub filename: String,
     pub hash: String,
 }
 
