@@ -1,4 +1,4 @@
-use crate::config::endpoint;
+
 use crate::config::HTTPConfig;
 use crate::error::OxenError;
 use crate::model::User;
@@ -37,27 +37,6 @@ impl AuthConfig {
         toml::from_str(&contents).unwrap()
     }
 
-    pub fn from(user: &User) -> Result<AuthConfig, OxenError> {
-        if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(".oxen"));
-
-            fs::create_dir_all(&oxen_dir)?;
-            let default_ip = "localhost:4000";
-            let oxen_config = oxen_dir.join(Path::new("auth_config.toml"));
-            let config_str = format!("host = \"{}\"", default_ip);
-
-            FileUtil::write_to_path(&oxen_config, &config_str);
-            Ok(AuthConfig {
-                host: endpoint::http_endpoint(default_ip),
-                user: user.clone(),
-            })
-        } else {
-            Err(OxenError::basic_str(
-                "AuthConfig::new() Could not find home dir",
-            ))
-        }
-    }
-
     pub fn default() -> Result<AuthConfig, OxenError> {
         let err = String::from(
             "AuthConfig::default() not configuration found, run `oxen login` to configure.",
@@ -80,7 +59,7 @@ impl AuthConfig {
             let oxen_dir = home_dir.join(Path::new(".oxen"));
 
             fs::create_dir_all(&oxen_dir)?;
-            let config_file = oxen_dir.join(Path::new("config.toml"));
+            let config_file = oxen_dir.join(Path::new("auth_config.toml"));
             println!("Saving config to {:?}", config_file);
             self.save(&config_file)
         } else {
@@ -99,8 +78,9 @@ impl AuthConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{AuthConfig, HTTPConfig};
+    use crate::config::{RemoteConfig, AuthConfig, HTTPConfig};
     use crate::error::OxenError;
+    use crate::model::User;
     use crate::test;
     use std::path::Path;
 
@@ -119,7 +99,23 @@ mod tests {
         orig_config.save(final_path)?;
 
         let config = AuthConfig::new(final_path);
+        assert_eq!(config.host, "localhost:4000");
         assert_eq!(config.user.name, "Greg");
+        Ok(())
+    }
+
+
+    #[test]
+    fn test_remote_to_auth_save() -> Result<(), OxenError> {
+        let final_path = Path::new("/tmp/auth_config.toml");
+        let orig_config = RemoteConfig::from(test::auth_cfg_file());
+        let user = User::dummy();
+        let auth_config = orig_config.to_auth(&user);
+        auth_config.save(final_path)?;
+
+        let config = AuthConfig::new(final_path);
+        assert_eq!(config.host, "localhost:4000");
+        assert_eq!(config.user.name, user.name);
         Ok(())
     }
 }

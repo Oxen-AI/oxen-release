@@ -58,7 +58,7 @@ impl RemoteConfig {
         }
     }
 
-    pub fn to_auth(&mut self, user: &User) -> AuthConfig {
+    pub fn to_auth(&self, user: &User) -> AuthConfig {
         AuthConfig {
             host: self.host.clone(),
             user: user.clone(),

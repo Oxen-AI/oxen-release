@@ -95,9 +95,7 @@ fn main() {
                 }
             };
             match result {
-                Ok(result) => {
-                    println!("Success: {:?}", result)
-                }
+                Ok(_) => {}
                 Err(err) => {
                     println!("Err: {}", err)
                 }

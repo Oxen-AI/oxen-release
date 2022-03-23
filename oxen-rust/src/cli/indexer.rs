@@ -108,6 +108,11 @@ impl Indexer {
             utc.day(),
             utc.timestamp()
         );
+
+        if !&self.commits_dir.exists() {
+            fs::create_dir(&self.commits_dir)?;
+        }
+
         let commit_path = PathBuf::from(&self.commits_dir).join(Path::new(&commit_filename));
         match File::create(&commit_path) {
             Ok(file) => {
@@ -147,7 +152,7 @@ impl Indexer {
         }
     }
 
-    fn p_sync_commit(&self, commit: &str, dataset: &Dataset) -> Result<(), OxenError> {
+    fn p_push_commit(&self, commit: &str, dataset: &Dataset) -> Result<(), OxenError> {
         let file_name = PathBuf::from(&self.commits_dir).join(Path::new(commit));
         // println!("Sync commit file: {:?}", file_name);
         let path = file_name.as_path();
@@ -155,6 +160,7 @@ impl Indexer {
             .into_iter()
             .map(PathBuf::from)
             .collect();
+
         // let processed: Vec<AtomicBool> = Vec::with_capacity(paths.len());
 
         // if let Ok(mut s) = signal_hook::iterator::Signals::new(signal_hook::consts::TERM_SIGNALS) {
@@ -170,7 +176,8 @@ impl Indexer {
         // }
 
         // IF WE SPLIT INTO N THREADS, THEN INSIDE EACH THREAD CHECK FOR SIG, THEN MAYBE WE CAN GET ALL THE ONES IN PROGRESS
-
+        
+        println!("🐂 push {} files", paths.len());
         // len is usize and progressbar requires u64, I don't think we'll overflow...
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
@@ -196,7 +203,7 @@ impl Indexer {
         // Remove committed file for now (TODO: mark as synced or something)
         match fs::remove_file(path) {
             Ok(_file) => {
-                println!("Synced {} files", paths.len());
+                println!("Pushed {} files", paths.len());
                 Ok(())
             }
             Err(err) => Err(OxenError::basic_str(&format!(
@@ -206,8 +213,8 @@ impl Indexer {
         }
     }
 
-    fn sync_commit(&self, commit: &str, dataset: &Dataset) -> Result<(), OxenError> {
-        self.p_sync_commit(commit, dataset)
+    fn push_commit(&self, commit: &str, dataset: &Dataset) -> Result<(), OxenError> {
+        self.p_push_commit(commit, dataset)
     }
 
     fn dataset_from_name(&self, name: &str) -> Result<Dataset, OxenError> {
@@ -255,7 +262,7 @@ impl Indexer {
 
             for commit in difference.iter() {
                 // println!("Need to sync: {:?}", commit);
-                self.sync_commit(commit, &dataset)?
+                self.push_commit(commit, &dataset)?
             }
         }
         Ok(())
