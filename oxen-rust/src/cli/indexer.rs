@@ -271,7 +271,7 @@ impl Indexer {
         let mut total = 0;
         let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
         for dataset in datasets.iter() {
-            let entry_page = api::entries::list_page(&self.config, &dataset, 1)?;
+            let entry_page = api::entries::list_page(&self.config, dataset, 1)?;
             let path = Path::new(&dataset.name);
             if !path.exists() {
                 std::fs::create_dir(&path)?;
@@ -285,7 +285,7 @@ impl Indexer {
         let bar = ProgressBar::new(size);
         dataset_pages.par_iter().for_each(|dataset_pages| {
             let (dataset, num_pages) = dataset_pages;
-            match self.pull_dataset(&dataset, num_pages, &bar) {
+            match self.pull_dataset(dataset, num_pages, &bar) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("Error pulling dataset: {}", err)
@@ -303,9 +303,9 @@ impl Indexer {
         progress: &ProgressBar,
     ) -> Result<(), OxenError> {
         for page in 0..*num_pages {
-            let entry_page = api::entries::list_page(&self.config, &dataset, page)?;
+            let entry_page = api::entries::list_page(&self.config, dataset, page)?;
             for entry in entry_page.entries {
-                self.download_url(&dataset, &entry)?;
+                self.download_url(dataset, &entry)?;
                 progress.inc(1);
             }
         }
