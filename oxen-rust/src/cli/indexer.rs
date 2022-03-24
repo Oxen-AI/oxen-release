@@ -182,10 +182,11 @@ impl Indexer {
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
-            if let Ok(hash) = hasher::hash_file_contents(path) {
-                if api::entries::from_hash(&self.config, &hash).is_ok() {
-                    // println!("Already have entry {:?}", entry);
-                } else {
+            if path.is_file() {
+            // if let Ok(hash) = hasher::hash_file_contents(path) {
+            //     if api::entries::from_hash(&self.config, &hash).is_ok() {
+            //         // println!("Already have entry {:?}", entry);
+            //     } else {
                     // Only upload file if it's hash doesn't already exist
                     match api::entries::create(&self.config, dataset, path) {
                         Ok(_entry) => {}
@@ -193,7 +194,8 @@ impl Indexer {
                             eprintln!("Error uploading {:?} {}", path, err)
                         }
                     }
-                }
+            //     }
+            // }
             }
 
             bar.inc(1);
@@ -392,6 +394,9 @@ impl Indexer {
             ));
         }
 
-        api::datasets::create(&self.config, name)
+        // Remove trailing slash from directory names
+        let mut name_str = String::from(name);
+        if name_str.ends_with('/') { name_str.pop(); }
+        api::datasets::create(&self.config, &name_str)
     }
 }

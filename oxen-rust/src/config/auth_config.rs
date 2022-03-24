@@ -33,7 +33,8 @@ impl<'a> HTTPConfig<'a> for AuthConfig {
 
 impl AuthConfig {
     pub fn new(path: &Path) -> AuthConfig {
-        let contents = FileUtil::read_from_path(path);
+        let contents = FileUtil::read_from_path(&path);
+        println!("Reading auth config from {:?}", path);
         toml::from_str(&contents).unwrap()
     }
 
@@ -93,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_save() -> Result<(), OxenError> {
-        let final_path = Path::new("/tmp/auth_config.toml");
+        let final_path = Path::new("/tmp/test_save_auth_config.toml");
         let orig_config = AuthConfig::new(test::auth_cfg_file());
 
         orig_config.save(final_path)?;
@@ -107,8 +108,8 @@ mod tests {
 
     #[test]
     fn test_remote_to_auth_save() -> Result<(), OxenError> {
-        let final_path = Path::new("/tmp/auth_config.toml");
-        let orig_config = RemoteConfig::from(test::auth_cfg_file());
+        let final_path = Path::new("/tmp/test_remote_to_auth_save_auth_config.toml");
+        let orig_config = RemoteConfig::from(test::remote_cfg_file());
         let user = User::dummy();
         let auth_config = orig_config.to_auth(&user);
         auth_config.save(final_path)?;
