@@ -67,9 +67,19 @@ impl Indexer {
         FileUtil::recursive_files_with_extensions(dirname, &img_ext)
     }
 
+    fn list_text_files_from_dir(&self, dirname: &Path) -> Vec<PathBuf> {
+        let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
+        FileUtil::recursive_files_with_extensions(dirname, &img_ext)
+    }
+
     pub fn add_files(&self, dir: &Path) {
         println!("Adding files in: {}", dir.display());
-        let paths = self.list_image_files_from_dir(dir);
+        let mut paths: Vec<PathBuf> = vec![];
+        let mut img_paths = self.list_image_files_from_dir(dir);
+        let mut txt_paths = self.list_text_files_from_dir(dir);
+        paths.append(&mut img_paths);
+        paths.append(&mut txt_paths);
+
         match File::create(&self.staging_file) {
             Ok(file) => {
                 for path in paths.iter() {
@@ -159,6 +169,7 @@ impl Indexer {
         let paths: Vec<PathBuf> = FileUtil::read_lines(path)
             .into_iter()
             .map(PathBuf::from)
+            .filter(|path| path.is_file())
             .collect();
 
         // let processed: Vec<AtomicBool> = Vec::with_capacity(paths.len());
@@ -182,7 +193,6 @@ impl Indexer {
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
-            if path.is_file() {
             // if let Ok(hash) = hasher::hash_file_contents(path) {
             //     if api::entries::from_hash(&self.config, &hash).is_ok() {
             //         // println!("Already have entry {:?}", entry);
@@ -196,7 +206,6 @@ impl Indexer {
                     }
             //     }
             // }
-            }
 
             bar.inc(1);
         });
@@ -394,9 +403,6 @@ impl Indexer {
             ));
         }
 
-        // Remove trailing slash from directory names
-        let mut name_str = String::from(name);
-        if name_str.ends_with('/') { name_str.pop(); }
-        api::datasets::create(&self.config, &name_str)
+        api::datasets::create(&self.config, name)
     }
 }

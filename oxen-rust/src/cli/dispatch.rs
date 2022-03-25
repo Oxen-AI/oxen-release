@@ -61,8 +61,12 @@ pub fn push(directory: &str) -> Result<(), OxenError> {
     }
 
     let indexer = Indexer::new(&current_dir);
-    indexer.create_dataset_if_not_exists(directory)?;
-    indexer.push(directory)
+
+    // Remove trailing slash from directory names
+    let mut name = String::from(directory);
+    if name.ends_with('/') { name.pop(); }
+    indexer.create_dataset_if_not_exists(&name)?;
+    indexer.push(&name)
 }
 
 pub fn pull() -> Result<(), OxenError> {
