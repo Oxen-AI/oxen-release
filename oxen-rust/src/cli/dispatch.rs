@@ -64,7 +64,9 @@ pub fn push(directory: &str) -> Result<(), OxenError> {
 
     // Remove trailing slash from directory names
     let mut name = String::from(directory);
-    if name.ends_with('/') { name.pop(); }
+    if name.ends_with('/') {
+        name.pop();
+    }
     indexer.create_dataset_if_not_exists(&name)?;
     indexer.push(&name)
 }

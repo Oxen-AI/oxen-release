@@ -1,4 +1,3 @@
-
 use crate::config::HTTPConfig;
 use crate::error::OxenError;
 use crate::model::User;
@@ -33,7 +32,7 @@ impl<'a> HTTPConfig<'a> for AuthConfig {
 
 impl AuthConfig {
     pub fn new(path: &Path) -> AuthConfig {
-        let contents = FileUtil::read_from_path(&path);
+        let contents = FileUtil::read_from_path(path);
         println!("Reading auth config from {:?}", path);
         toml::from_str(&contents).unwrap()
     }
@@ -79,7 +78,7 @@ impl AuthConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{RemoteConfig, AuthConfig, HTTPConfig};
+    use crate::config::{AuthConfig, HTTPConfig, RemoteConfig};
     use crate::error::OxenError;
     use crate::model::User;
     use crate::test;
@@ -104,7 +103,6 @@ mod tests {
         assert_eq!(config.user.name, "Greg");
         Ok(())
     }
-
 
     #[test]
     fn test_remote_to_auth_save() -> Result<(), OxenError> {

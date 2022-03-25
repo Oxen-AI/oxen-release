@@ -187,7 +187,7 @@ impl Indexer {
         // }
 
         // IF WE SPLIT INTO N THREADS, THEN INSIDE EACH THREAD CHECK FOR SIG, THEN MAYBE WE CAN GET ALL THE ONES IN PROGRESS
-        
+
         println!("🐂 push {} files", paths.len());
         // len is usize and progressbar requires u64, I don't think we'll overflow...
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
@@ -197,13 +197,13 @@ impl Indexer {
             //     if api::entries::from_hash(&self.config, &hash).is_ok() {
             //         // println!("Already have entry {:?}", entry);
             //     } else {
-                    // Only upload file if it's hash doesn't already exist
-                    match api::entries::create(&self.config, dataset, path) {
-                        Ok(_entry) => {}
-                        Err(err) => {
-                            eprintln!("Error uploading {:?} {}", path, err)
-                        }
-                    }
+            // Only upload file if it's hash doesn't already exist
+            match api::entries::create(&self.config, dataset, path) {
+                Ok(_entry) => {}
+                Err(err) => {
+                    eprintln!("Error uploading {:?} {}", path, err)
+                }
+            }
             //     }
             // }
 
@@ -323,7 +323,6 @@ impl Indexer {
         for page in 0..*num_pages {
             let entry_page = api::entries::list_page(&self.config, dataset, page)?;
             for entry in entry_page.entries {
-                
                 self.download_url(dataset, &entry)?;
                 progress.inc(1);
             }
@@ -336,9 +335,7 @@ impl Indexer {
         let fname = path.join(&entry.filename);
         if !fname.exists() {
             let mut response = reqwest::blocking::get(&entry.url)?;
-            let mut dest = {
-                File::create(fname)?
-            };
+            let mut dest = { File::create(fname)? };
             response.copy_to(&mut dest)?;
         }
         Ok(())
