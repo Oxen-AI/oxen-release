@@ -193,14 +193,17 @@ mod tests {
 
     #[test]
     fn test_add_file() -> Result<(), OxenError> {
-        let dbname = uuid::Uuid::new_v4();
-        let db_dir = format!("/tmp/{}", dbname);
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
+        
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
+        std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
         
         // Make sure we have a valid file
-        let hello_file = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
+        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
         file.write_all(b"Hello, world!")?;
 
@@ -218,25 +221,29 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
-        std::fs::remove_file(hello_file)?;
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(data_dirpath)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_file_twice_only_adds_once() -> Result<(), OxenError> {
-        let dbname = uuid::Uuid::new_v4();
-        let db_dir = format!("/tmp/{}", dbname);
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
+        
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
+        std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
         
         // Make sure we have a valid file
-        let hello_file = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
+        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
         file.write_all(b"Hello, world!")?;
 
+        // Add it twice
         stager.add_file(&hello_file)?;
         stager.add_file(&hello_file)?;
 
@@ -244,20 +251,23 @@ mod tests {
         assert_eq!(files.len(), 1);
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
-        std::fs::remove_file(hello_file)?;
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(data_dirpath)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_non_existant_file() -> Result<(), OxenError> {
-        let dbname = uuid::Uuid::new_v4();
-        let db_dir = format!("/tmp/{}", dbname);
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
         
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
+        std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
+
         let hello_file = PathBuf::from("non-existant.txt");
         match stager.add_file(&hello_file) {
             Ok(_) => {
@@ -269,22 +279,22 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
+        std::fs::remove_dir_all(db_dir)?;
+        std::fs::remove_dir_all(data_dirpath)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_directory() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/{}", uuid::Uuid::new_v4());
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
         
-        // Make sure we have a valid directory with files
-        let data_dirname = format!("/tmp/{}", uuid::Uuid::new_v4());
-        let data_dirpath = Path::new(&data_dirname);
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
 
         // Write two files to directories
         let file_1 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
@@ -305,7 +315,7 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
+        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(data_dirpath)?;
 
         Ok(())
@@ -313,13 +323,16 @@ mod tests {
 
     #[test]
     fn test_list_files() -> Result<(), OxenError> {
-        let dbname = uuid::Uuid::new_v4();
-        let db_dir = format!("/tmp/{}", dbname);
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
         
-        let hello_file = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
+        let data_dirname = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dirname);
+        std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
+        
+        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
         file.write_all(b"Hello, world!")?;
 
@@ -332,23 +345,22 @@ mod tests {
         assert_eq!(files[0], hello_file.canonicalize()?);
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
-        std::fs::remove_file(hello_file)?;
+        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(db_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_list_directories() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/{}", uuid::Uuid::new_v4());
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
         
-        // Make sure we have a valid directory with files
-        let data_dirname = format!("/tmp/{}", uuid::Uuid::new_v4());
-        let data_dirpath = Path::new(&data_dirname);
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
 
         // Write two files to directories
         let file_1 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
@@ -371,7 +383,7 @@ mod tests {
         assert_eq!(files[0].1, 2);
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
+        std::fs::remove_dir_all(db_dir)?;
         std::fs::remove_dir_all(data_dirpath)?;
 
         Ok(())
@@ -379,11 +391,14 @@ mod tests {
 
     #[test]
     fn test_list_untracked_files() -> Result<(), OxenError> {
-        let dbname = uuid::Uuid::new_v4();
-        let db_dir = format!("/tmp/{}", dbname);
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        let stager_path = PathBuf::from("./");
-        let stager = Stager::new(&db_path, &stager_path)?;
+        
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
+        std::fs::create_dir(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
 
         let data_dirname = format!("/tmp/{}", uuid::Uuid::new_v4());
         let data_dirpath = Path::new(&data_dirname);
@@ -399,9 +414,8 @@ mod tests {
         assert_eq!(files[0], hello_file.canonicalize()?);
 
         // cleanup
-        std::fs::remove_dir_all(stager_path)?;
+        std::fs::remove_dir_all(db_dir)?;
         std::fs::remove_dir_all(data_dirpath)?;
-        std::fs::remove_file(hello_file)?;
 
         Ok(())
     }
