@@ -322,22 +322,20 @@ impl Indexer {
     ) -> Result<(), OxenError> {
         // println!("Pulling {} pages from dataset {}", num_pages, dataset.name);
         // Pages start at index 1, ie: 0 and 1 are the same
-        (1..*num_pages+1).into_par_iter().for_each(|page| {
+        (1..*num_pages + 1).into_par_iter().for_each(|page| {
             match api::entries::list_page(&self.config, dataset, page) {
                 Ok(entry_page) => {
                     // println!("Got page {}/{}, from {} with {} entries", page, num_pages, dataset.name, entry_page.page_size);
                     for entry in entry_page.entries {
                         match self.download_url(dataset, &entry) {
-                            Ok(_) => {
-        
-                            },
+                            Ok(_) => {}
                             Err(error) => {
                                 println!("Err downloading file: {}", error)
                             }
                         }
                         progress.inc(1);
                     }
-                },
+                }
                 Err(error) => {
                     println!("Err listing page [{}]: {}", page, error)
                 }

@@ -1,15 +1,15 @@
 use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use std::path::{Path, PathBuf};
-use rocksdb::{DB, IteratorMode};
-use std::str;
-use std::collections::{HashSet};
+use rocksdb::{IteratorMode, DB};
+use std::collections::HashSet;
 use std::convert::TryFrom;
+use std::path::{Path, PathBuf};
+use std::str;
 
 pub struct Stager {
     db: DB,
-    repo_path: PathBuf
+    repo_path: PathBuf,
 }
 
 impl Stager {
@@ -24,18 +24,21 @@ impl Stager {
         if path.is_dir() {
             match self.add_dir(path) {
                 Ok(_) => Ok(()),
-                Err(err) => Err(err)
+                Err(err) => Err(err),
             }
         } else {
             match self.add_file(path) {
                 Ok(_) => Ok(()),
-                Err(err) => Err(err)
+                Err(err) => Err(err),
             }
         }
     }
 
     fn list_image_files_from_dir(&self, dirname: &Path) -> Vec<PathBuf> {
-        let img_ext: HashSet<String> = vec!["jpg", "jpeg", "png"].into_iter().map(String::from).collect();
+        let img_ext: HashSet<String> = vec!["jpg", "jpeg", "png"]
+            .into_iter()
+            .map(String::from)
+            .collect();
         FileUtil::recursive_files_with_extensions(dirname, &img_ext)
     }
 
@@ -43,7 +46,7 @@ impl Stager {
         let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
         FileUtil::recursive_files_with_extensions(dirname, &img_ext)
     }
-    
+
     fn count_files_in_dir(&self, dir: &Path) -> usize {
         let img_paths = self.list_image_files_from_dir(dir);
         let txt_paths = self.list_text_files_from_dir(dir);
@@ -133,9 +136,12 @@ impl Stager {
                 match self.convert_usize_slice(&*value) {
                     Ok(size) => {
                         paths.push((path, size));
-                    },
+                    }
                     Err(err) => {
-                        eprintln!("Could not convert data attached to: {:?}\nErr:{}", path, err)
+                        eprintln!(
+                            "Could not convert data attached to: {:?}\nErr:{}",
+                            path, err
+                        )
                     }
                 }
             }
@@ -158,17 +164,17 @@ impl Stager {
                         Ok(Some(_value)) => {
                             // already added
                             // println!("got value: {:?}", value);
-                        },
+                        }
                         Ok(None) => {
                             // did not get val
                             // println!("untracked! {:?}", path);
                             paths.push(path);
-                        },
+                        }
                         Err(err) => {
                             eprintln!("{}", err);
                         }
                     }
-                } 
+                }
             }
         }
 
@@ -193,18 +199,18 @@ impl Stager {
                         Ok(Some(_value)) => {
                             // already added
                             // println!("got value: {:?}", value);
-                        },
+                        }
                         Ok(None) => {
                             // did not get val
                             // println!("untracked! {:?}", path);
                             let count = self.count_files_in_dir(&path);
                             paths.push((path, count));
-                        },
+                        }
                         Err(err) => {
                             eprintln!("{}", err);
                         }
                     }
-                } 
+                }
             }
         }
 
@@ -216,12 +222,11 @@ impl Stager {
             Ok(data) => {
                 let size: usize = usize::from_le_bytes(data);
                 Ok(size)
-            },
+            }
             Err(err) => {
                 let err = format!("Unable to convert data to usize: {:?}\nErr: {}", slice, err);
                 Err(OxenError::basic_str(&err))
             }
-            
         }
     }
 }
@@ -230,21 +235,21 @@ impl Stager {
 mod tests {
     use crate::cli::stager::Stager;
     use crate::error::OxenError;
-    use std::path::{PathBuf, Path};
     use std::fs::File;
     use std::io::prelude::*;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn test_add_file() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
-        
+
         // Make sure we have a valid file
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
@@ -257,7 +262,7 @@ mod tests {
                 } else {
                     panic!("test_add_file() Did not return full path")
                 }
-            },
+            }
             Err(err) => {
                 panic!("test_add_file() Should have returned path... {}", err)
             }
@@ -274,13 +279,13 @@ mod tests {
     fn test_add_file_twice_only_adds_once() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
-        
+
         // Make sure we have a valid file
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
@@ -304,7 +309,7 @@ mod tests {
     fn test_add_non_existant_file() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
@@ -315,7 +320,7 @@ mod tests {
         match stager.add_file(&hello_file) {
             Ok(_) => {
                 panic!("test_add_non_existant_file() Cannot stage non-existant file")
-            },
+            }
             Err(_) => {
                 // we want an error
             }
@@ -332,7 +337,7 @@ mod tests {
     fn test_add_directory() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
@@ -351,7 +356,7 @@ mod tests {
         match stager.add_dir(&data_dirpath) {
             Ok(num_files) => {
                 assert_eq!(2, num_files);
-            },
+            }
             Err(err) => {
                 panic!("test_add_directory() Should have returned path... {}", err)
             }
@@ -368,13 +373,13 @@ mod tests {
     fn test_list_files() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dirname = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dirname);
         std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
-        
+
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
         file.write_all(b"Hello, world!")?;
@@ -398,7 +403,7 @@ mod tests {
     fn test_list_directories() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
@@ -421,7 +426,7 @@ mod tests {
 
         // List files
         let files = stager.list_added_directories()?;
-        
+
         // There is one directory
         assert_eq!(files.len(), 1);
 
@@ -439,7 +444,7 @@ mod tests {
     fn test_list_untracked_files() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
@@ -468,7 +473,7 @@ mod tests {
     fn test_list_untracked_directories() -> Result<(), OxenError> {
         let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
         let db_path = Path::new(&db_dir);
-        
+
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
@@ -491,7 +496,7 @@ mod tests {
 
         // List files
         let files = stager.list_untracked_directories()?;
-        
+
         // There is one directory
         assert_eq!(files.len(), 1);
 

@@ -57,7 +57,7 @@ fn main() {
         }
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            
+
             match dispatch::add(path) {
                 Ok(_) => {}
                 Err(err) => {

@@ -1,8 +1,8 @@
 use crate::api;
+use colored::Colorize;
 use std::env;
 use std::io::{self, BufRead};
-use std::path::{PathBuf, Path};
-use colored::Colorize;
+use std::path::{Path, PathBuf};
 
 use crate::cli::Indexer;
 use crate::cli::Stager;
@@ -218,19 +218,17 @@ pub fn status() -> Result<(), OxenError> {
     let untracked_directories = stager.list_untracked_directories()?;
     let untracked_files = stager.list_untracked_files()?;
 
-    if added_directories.is_empty() &&
-       added_files.is_empty() &&
-       untracked_files.is_empty() &&
-       untracked_directories.is_empty()
+    if added_directories.is_empty()
+        && added_files.is_empty()
+        && untracked_files.is_empty()
+        && untracked_directories.is_empty()
     {
         println!("nothing to commit, working tree clean");
         return Ok(());
     }
-    
+
     // List added files
-    if !added_directories.is_empty() ||
-       !added_files.is_empty()
-    {
+    if !added_directories.is_empty() || !added_files.is_empty() {
         println!("Changes to be committed:");
         for (dir, count) in added_directories.iter() {
             let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
@@ -244,7 +242,8 @@ pub fn status() -> Result<(), OxenError> {
                 if parent == current_dir {
                     // Make sure we can grab the filename
                     if let Some(filename) = file.file_name() {
-                        let added_file_str = format!("  added:  {}", filename.to_str().unwrap()).green();
+                        let added_file_str =
+                            format!("  added:  {}", filename.to_str().unwrap()).green();
                         println!("{}", added_file_str);
                     }
                 }
@@ -254,9 +253,7 @@ pub fn status() -> Result<(), OxenError> {
         print!("\n");
     }
 
-    if !untracked_directories.is_empty() ||
-       !untracked_files.is_empty()
-    {
+    if !untracked_directories.is_empty() || !untracked_files.is_empty() {
         println!("Untracked files:");
         println!("  (use \"oxen add <file>...\" to update what will be committed)");
 
@@ -268,12 +265,11 @@ pub fn status() -> Result<(), OxenError> {
                 let num_files_str = match count {
                     1 => {
                         format!("with {} file", count)
-                    },
+                    }
                     _ => {
                         format!("with {} files", count)
                     }
                 };
-
 
                 println!("{} {}", added_file_str, num_files_str);
             }
