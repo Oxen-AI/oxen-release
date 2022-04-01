@@ -32,16 +32,30 @@ pub fn login() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn init(path: &str) {
+pub fn init(path: &str) -> Result<(), OxenError> {
     let directory = PathBuf::from(&path);
+
     let indexer = Indexer::new(&directory);
-    indexer.init()
+    indexer.init()?;
+
+    Ok(())
 }
 
 pub fn clone(url: &str) -> Result<(), OxenError> {
     let auth_cfg = AuthConfig::default()?;
     Repository::clone_remote(&auth_cfg, url)?;
     Ok(())
+}
+
+pub fn set_remote(url: &str) -> Result<(), OxenError> {
+    let current_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&current_dir) {
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
+    }
+
+    let mut indexer = Indexer::new(&current_dir);
+    indexer.set_remote(url)
 }
 
 pub fn add(path: &str) -> Result<(), OxenError> {

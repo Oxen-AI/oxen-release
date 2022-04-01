@@ -19,6 +19,16 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("set-remote")
+                .about("Sets remote url for repository")
+                .arg(arg!(<URL> "The remote url"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("status")
+                .about("See at what files are ready to be added or committed")
+        )
+        .subcommand(
             Command::new("add")
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
@@ -53,7 +63,31 @@ fn main() {
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            dispatch::init(path)
+            
+            match dispatch::init(path) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("set-remote", sub_matches)) => {
+            let url = sub_matches.value_of("URL").expect("required");
+
+            match dispatch::set_remote(url) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("status", _sub_matches)) => {
+            match dispatch::status() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
         }
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
@@ -75,21 +109,12 @@ fn main() {
             }
         }
         Some(("pull", _sub_matches)) => {
-            // if let Some(remote_or_branch) = sub_matches.value_of("REMOTE_OR_BRANCH") {
-            //     match dispatch::pull_remote(remote_or_branch) {
-            //         Ok(_) => {}
-            //         Err(err) => {
-            //             eprintln!("{}", err)
-            //         }
-            //     }
-            // } else {
             match dispatch::pull() {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
                 }
             }
-            // }
         }
         Some(("ls", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").unwrap_or_default();
@@ -127,7 +152,6 @@ fn main() {
                 "login" => dispatch::login(),
                 "commit" => dispatch::commit(args),
                 "create" => dispatch::create(args),
-                "status" => dispatch::status(),
                 _ => {
                     println!("Unknown command {}", ext);
                     Ok(())

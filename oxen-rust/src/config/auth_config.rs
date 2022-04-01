@@ -33,7 +33,6 @@ impl<'a> HTTPConfig<'a> for AuthConfig {
 impl AuthConfig {
     pub fn new(path: &Path) -> AuthConfig {
         let contents = FileUtil::read_from_path(path);
-        println!("Reading auth config from {:?}", path);
         toml::from_str(&contents).unwrap()
     }
 

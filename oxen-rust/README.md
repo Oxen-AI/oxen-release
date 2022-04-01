@@ -20,13 +20,30 @@ A tool to stage, commit, and push data to our servers
 ## File Structure
 
 ```
-.indexer/
-  staged
-  synced
-  commits/
-    2022_02_10_3214312
-    2022_02_10_3214332
-    2022_02_10_3214541
+.oxen/
+  head
+    - file that contains hash of current commit
+
+  staged/ (created from `oxen add <file>` command)
+    key,value db of:
+
+    filenames -> ""
+    dirnames -> count
+
+  commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
+    key,value of:
+
+    COMMIT_HASH -> message
+
+  history/ (list of commits)
+    COMMIT_HASH_1/
+      key,value of:
+
+      filename -> "" (if not synced)
+      filename -> hash (if has been synced, since hash takes time)
+
+    COMMIT_HASH_2/
+    COMMIT_HASH_3/
   
 ```
 

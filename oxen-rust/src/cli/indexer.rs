@@ -12,7 +12,7 @@ use std::path::PathBuf;
 // use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::api;
-use crate::config::RepoConfig;
+use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{Dataset, Entry};
 use crate::util::file_util::FileUtil;
@@ -22,9 +22,11 @@ pub struct Indexer {
     pub root_dir: PathBuf,
     pub hidden_dir: PathBuf,
     staging_file: PathBuf,
+    config_file: PathBuf,
     commits_dir: PathBuf,
     synced_file: PathBuf,
-    config: RepoConfig,
+    auth_config: AuthConfig,
+    repo_config: Option<RepoConfig>,
 }
 
 impl Indexer {
@@ -34,14 +36,26 @@ impl Indexer {
         let commits_dir = PathBuf::from(&hidden_dir).join(Path::new("commits"));
         let synced_file = PathBuf::from(&hidden_dir).join(Path::new("synced"));
         let config_file = PathBuf::from(&hidden_dir).join(Path::new("config.toml"));
+        let auth_config = AuthConfig::default().unwrap();
 
+        // Load repo config if exists
+        let repo_config: Option<RepoConfig> = match config_file.exists() {
+            true => {
+                Some(RepoConfig::new(&config_file))
+            },
+            false => {
+                None
+            }
+        };
         Indexer {
             root_dir: PathBuf::from(&hidden_dir.parent().unwrap()),
             hidden_dir,
             staging_file,
+            config_file,
             commits_dir,
             synced_file,
-            config: RepoConfig::new(&config_file),
+            auth_config: auth_config,
+            repo_config: repo_config,
         }
     }
 
@@ -54,12 +68,23 @@ impl Indexer {
         Indexer::repo_exists(&self.hidden_dir)
     }
 
-    pub fn init(&self) {
+    pub fn init(&self) -> Result<(), OxenError> {
         if self.is_initialized() {
             println!("Repository already exists for: {:?}", self.root_dir);
+            Ok(())
         } else {
-            println!("Repository initialized.")
+            std::fs::create_dir(&self.hidden_dir)?;
+            println!("Repository initialized at {:?}", self.hidden_dir);
+            Ok(())
         }
+    }
+
+    pub fn set_remote(&mut self, url: &str) -> Result<(), OxenError> {
+        let repository = api::repositories::get_by_url(&self.auth_config, url)?;
+        self.repo_config = Some(RepoConfig::from(&self.auth_config, &repository));
+        self.repo_config.as_ref().unwrap().save(Path::new(&self.config_file))?;
+        println!("Remote set: {}", url);
+        Ok(())
     }
 
     fn list_image_files_from_dir(&self, dirname: &Path) -> Vec<PathBuf> {
@@ -198,7 +223,7 @@ impl Indexer {
             //         // println!("Already have entry {:?}", entry);
             //     } else {
             // Only upload file if it's hash doesn't already exist
-            match api::entries::create(&self.config, dataset, path) {
+            match api::entries::create(&self.repo_config.as_ref().unwrap(), dataset, path) {
                 Ok(_entry) => {}
                 Err(err) => {
                     eprintln!("Error uploading {:?} {}", path, err)
@@ -229,7 +254,7 @@ impl Indexer {
     }
 
     fn dataset_from_name(&self, name: &str) -> Result<Dataset, OxenError> {
-        let datasets = api::datasets::list(&self.config)?;
+        let datasets = api::datasets::list(&self.repo_config.as_ref().unwrap())?;
         let result = datasets.iter().find(|&x| x.name == name);
 
         match result {
@@ -280,7 +305,7 @@ impl Indexer {
     }
 
     pub fn list_datasets(&self) -> Result<Vec<Dataset>, OxenError> {
-        api::datasets::list(&self.config)
+        api::datasets::list(&self.repo_config.as_ref().unwrap())
     }
 
     pub fn pull(&self) -> Result<(), OxenError> {
@@ -289,7 +314,7 @@ impl Indexer {
         let mut total = 0;
         let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
         for dataset in datasets.iter() {
-            let entry_page = api::entries::list_page(&self.config, dataset, 1)?;
+            let entry_page = api::entries::list_page(&self.repo_config.as_ref().unwrap(), dataset, 1)?;
             let path = Path::new(&dataset.name);
             if !path.exists() {
                 std::fs::create_dir(&path)?;
@@ -323,7 +348,7 @@ impl Indexer {
         // println!("Pulling {} pages from dataset {}", num_pages, dataset.name);
         // Pages start at index 1, ie: 0 and 1 are the same
         (1..*num_pages + 1).into_par_iter().for_each(|page| {
-            match api::entries::list_page(&self.config, dataset, page) {
+            match api::entries::list_page(&self.repo_config.as_ref().unwrap(), dataset, page) {
                 Ok(entry_page) => {
                     // println!("Got page {}/{}, from {} with {} entries", page, num_pages, dataset.name, entry_page.page_size);
                     for entry in entry_page.entries {
@@ -416,6 +441,7 @@ impl Indexer {
             ));
         }
 
-        api::datasets::create(&self.config, name)
+        let config = self.repo_config.as_ref().unwrap();
+        api::datasets::create(&config, name)
     }
 }
