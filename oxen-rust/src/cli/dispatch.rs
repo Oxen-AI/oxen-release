@@ -47,7 +47,7 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
 pub fn add(path: &str) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        let err = format!("{}", NO_REPO_MSG);
+        let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
@@ -205,7 +205,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 pub fn status() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        let err = format!("{}", NO_REPO_MSG);
+        let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
@@ -250,7 +250,7 @@ pub fn status() -> Result<(), OxenError> {
             }
         }
 
-        print!("\n");
+        println!();
     }
 
     if !untracked_directories.is_empty() || !untracked_files.is_empty() {
@@ -283,13 +283,13 @@ pub fn status() -> Result<(), OxenError> {
                 if parent == current_dir {
                     // Make sure we can grab the filename
                     if let Some(filename) = file.file_name() {
-                        let added_file_str = format!("{}", filename.to_str().unwrap()).red();
+                        let added_file_str = filename.to_str().unwrap().to_string().red();
                         println!("  {}", added_file_str);
                     }
                 }
             }
         }
-        print!("\n");
+        println!();
     }
 
     Ok(())

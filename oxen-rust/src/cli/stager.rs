@@ -13,10 +13,10 @@ pub struct Stager {
 }
 
 impl Stager {
-    pub fn new(dbpath: &Path, repo_path: &PathBuf) -> Result<Stager, OxenError> {
+    pub fn new(dbpath: &Path, repo_path: &Path) -> Result<Stager, OxenError> {
         Ok(Stager {
             db: DB::open_default(dbpath)?,
-            repo_path: repo_path.clone(),
+            repo_path: repo_path.to_path_buf(),
         })
     }
 
@@ -50,7 +50,7 @@ impl Stager {
     fn count_files_in_dir(&self, dir: &Path) -> usize {
         let img_paths = self.list_image_files_from_dir(dir);
         let txt_paths = self.list_text_files_from_dir(dir);
-        return img_paths.len() + txt_paths.len();
+        img_paths.len() + txt_paths.len()
     }
 
     pub fn add_dir(&self, path: &Path) -> Result<usize, OxenError> {
@@ -77,7 +77,7 @@ impl Stager {
             paths.append(&mut txt_paths);
 
             for path in paths.iter() {
-                self.add_file(&path)?;
+                self.add_file(path)?;
             }
 
             // TODO: Find dirs and recursively add
@@ -248,7 +248,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         // Make sure we have a valid file
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
@@ -284,7 +284,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         // Make sure we have a valid file
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
@@ -314,16 +314,12 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         let hello_file = PathBuf::from("non-existant.txt");
-        match stager.add_file(&hello_file) {
-            Ok(_) => {
-                panic!("test_add_non_existant_file() Cannot stage non-existant file")
-            }
-            Err(_) => {
-                // we want an error
-            }
+        if let Ok(_) = stager.add_file(&hello_file) {
+            // we don't want to be able to add this file
+            panic!("test_add_non_existant_file() Cannot stage non-existant file")
         }
 
         // cleanup
@@ -342,7 +338,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         // Write two files to directories
         let file_1 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
@@ -378,7 +374,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dirname);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
@@ -408,7 +404,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         // Write two files to a sub directory
         let sub_data_dirpath = data_dirpath.join("training_data");
@@ -449,7 +445,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
@@ -478,7 +474,7 @@ mod tests {
         let data_dirpath = PathBuf::from(&data_dir);
         std::fs::create_dir_all(&data_dirpath)?;
 
-        let stager = Stager::new(&db_path, &data_dirpath)?;
+        let stager = Stager::new(db_path, &data_dirpath)?;
 
         // Write two files to a sub directory
         let sub_data_dirpath = data_dirpath.join("training_data");
