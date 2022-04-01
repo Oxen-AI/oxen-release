@@ -198,7 +198,7 @@ mod tests {
         
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
         
@@ -234,7 +234,7 @@ mod tests {
         
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
         
@@ -264,7 +264,7 @@ mod tests {
         
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
 
@@ -292,7 +292,7 @@ mod tests {
         
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
 
@@ -328,7 +328,7 @@ mod tests {
         
         let data_dirname = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dirname);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
         
@@ -358,7 +358,7 @@ mod tests {
         
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
 
@@ -396,12 +396,10 @@ mod tests {
         
         let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
         let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir(&data_dirpath)?;
+        std::fs::create_dir_all(&data_dirpath)?;
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
 
-        let data_dirname = format!("/tmp/{}", uuid::Uuid::new_v4());
-        let data_dirpath = Path::new(&data_dirname);
         let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&hello_file)?;
         file.write_all(b"Hello, world!")?;
