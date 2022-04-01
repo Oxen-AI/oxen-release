@@ -317,7 +317,7 @@ mod tests {
         let stager = Stager::new(db_path, &data_dirpath)?;
 
         let hello_file = PathBuf::from("non-existant.txt");
-        if let Ok(_) = stager.add_file(&hello_file) {
+        if stager.add_file(&hello_file).is_ok() {
             // we don't want to be able to add this file
             panic!("test_add_non_existant_file() Cannot stage non-existant file")
         }
