@@ -231,9 +231,12 @@ pub fn status() -> Result<(), OxenError> {
     if !added_directories.is_empty() || !added_files.is_empty() {
         println!("Changes to be committed:");
         for (dir, count) in added_directories.iter() {
-            let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
-            let num_files_str = format!("with {} files", count);
-            println!("{} {}", added_file_str, num_files_str);
+            // Make sure we can grab the filename
+            if let Some(filename) = dir.file_name() {
+                let added_file_str = format!("  added:  {}/", filename.to_str().unwrap()).green();
+                let num_files_str = format!("with {} files", count);
+                println!("{} {}", added_file_str, num_files_str);
+            }
         }
 
         for file in added_files.iter() {
