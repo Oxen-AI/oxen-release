@@ -43,8 +43,15 @@ impl Stager {
         let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
         FileUtil::recursive_files_with_extensions(dirname, &img_ext)
     }
+    
+    fn count_files_in_dir(&self, dir: &Path) -> usize {
+        let img_paths = self.list_image_files_from_dir(dir);
+        let txt_paths = self.list_text_files_from_dir(dir);
+        return img_paths.len() + txt_paths.len();
+    }
 
     pub fn add_dir(&self, path: &Path) -> Result<usize, OxenError> {
+        let path = path.canonicalize()?;
         if let Some(file_str) = path.to_str() {
             if !path.exists() {
                 let err = format!("Cannot stage non-existant file: {:?}", path);
@@ -57,8 +64,8 @@ impl Stager {
 
             // Add all files, and get a count
             let mut paths: Vec<PathBuf> = vec![];
-            let mut img_paths = self.list_image_files_from_dir(path);
-            let mut txt_paths = self.list_text_files_from_dir(path);
+            let mut img_paths = self.list_image_files_from_dir(&path);
+            let mut txt_paths = self.list_text_files_from_dir(&path);
 
             println!("Found {} images", img_paths.len());
             println!("Found {} text files", txt_paths.len());
@@ -156,6 +163,42 @@ impl Stager {
                             // did not get val
                             // println!("untracked! {:?}", path);
                             paths.push(path);
+                        },
+                        Err(err) => {
+                            eprintln!("{}", err);
+                        }
+                    }
+                } 
+            }
+        }
+
+        Ok(paths)
+    }
+
+    pub fn list_untracked_directories(&self) -> Result<Vec<(PathBuf, usize)>, OxenError> {
+        let dir_entries = std::fs::read_dir(&self.repo_path)?;
+
+        let mut paths: Vec<(PathBuf, usize)> = vec![];
+        for entry in dir_entries {
+            let path = entry?.path();
+            if path.is_dir() {
+                let path = path.canonicalize()?;
+                // println!("checking path: {:?}", path);
+                if let Some(path_str) = path.to_str() {
+                    if path_str.contains(".oxen") {
+                        continue;
+                    }
+                    let bytes = path_str.as_bytes();
+                    match self.db.get(bytes) {
+                        Ok(Some(_value)) => {
+                            // already added
+                            // println!("got value: {:?}", value);
+                        },
+                        Ok(None) => {
+                            // did not get val
+                            // println!("untracked! {:?}", path);
+                            let count = self.count_files_in_dir(&path);
+                            paths.push((path, count));
                         },
                         Err(err) => {
                             eprintln!("{}", err);
@@ -362,16 +405,19 @@ mod tests {
 
         let stager = Stager::new(&db_path, &data_dirpath)?;
 
-        // Write two files to directories
-        let file_1 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
+        // Write two files to a sub directory
+        let sub_data_dirpath = data_dirpath.join("training_data");
+        std::fs::create_dir_all(&sub_data_dirpath)?;
+
+        let file_1 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&file_1)?;
         file.write_all(b"Hello 1")?;
 
-        let file_2 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
+        let file_2 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
         let mut file = File::create(&file_2)?;
         file.write_all(b"Hello 2")?;
 
-        stager.add_dir(&data_dirpath)?;
+        stager.add_dir(&sub_data_dirpath)?;
 
         // List files
         let files = stager.list_added_directories()?;
@@ -410,6 +456,47 @@ mod tests {
         let files = stager.list_untracked_files()?;
         assert_eq!(files.len(), 1);
         assert_eq!(files[0], hello_file.canonicalize()?);
+
+        // cleanup
+        std::fs::remove_dir_all(db_dir)?;
+        std::fs::remove_dir_all(data_dirpath)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_list_untracked_directories() -> Result<(), OxenError> {
+        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
+        let db_path = Path::new(&db_dir);
+        
+        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
+        let data_dirpath = PathBuf::from(&data_dir);
+        std::fs::create_dir_all(&data_dirpath)?;
+
+        let stager = Stager::new(&db_path, &data_dirpath)?;
+
+        // Write two files to a sub directory
+        let sub_data_dirpath = data_dirpath.join("training_data");
+        std::fs::create_dir_all(&sub_data_dirpath)?;
+
+        let file_1 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
+        let mut file = File::create(&file_1)?;
+        file.write_all(b"Hello 1")?;
+
+        let file_2 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
+        let mut file = File::create(&file_2)?;
+        file.write_all(b"Hello 2")?;
+
+        // Do not add...
+
+        // List files
+        let files = stager.list_untracked_directories()?;
+        
+        // There is one directory
+        assert_eq!(files.len(), 1);
+
+        // With two files
+        assert_eq!(files[0].1, 2);
 
         // cleanup
         std::fs::remove_dir_all(db_dir)?;

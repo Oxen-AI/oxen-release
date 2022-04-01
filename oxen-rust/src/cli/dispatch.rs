@@ -215,12 +215,13 @@ pub fn status() -> Result<(), OxenError> {
 
     let added_directories = stager.list_added_directories()?;
     let added_files = stager.list_added_files()?;
-    let untracked_directories: Vec<(PathBuf, usize)> = vec![];
+    let untracked_directories = stager.list_untracked_directories()?;
     let untracked_files = stager.list_untracked_files()?;
 
     if added_directories.is_empty() &&
        added_files.is_empty() &&
-       untracked_files.is_empty()
+       untracked_files.is_empty() &&
+       untracked_directories.is_empty()
     {
         println!("nothing to commit, working tree clean");
         return Ok(());
@@ -232,7 +233,7 @@ pub fn status() -> Result<(), OxenError> {
     {
         println!("Changes to be committed:");
         for (dir, count) in added_directories.iter() {
-            let added_file_str = format!("  added:\t{}/", dir.to_str().unwrap()).green();
+            let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
             let num_files_str = format!("with {} files", count);
             println!("{} {}", added_file_str, num_files_str);
         }
@@ -260,6 +261,23 @@ pub fn status() -> Result<(), OxenError> {
         println!("  (use \"oxen add <file>...\" to update what will be committed)");
 
         // List untracked directories
+        for (dir, count) in untracked_directories.iter() {
+            // Make sure we can grab the filename
+            if let Some(filename) = dir.file_name() {
+                let added_file_str = format!("  {}/", filename.to_str().unwrap()).red();
+                let num_files_str = match count {
+                    1 => {
+                        format!("with {} file", count)
+                    },
+                    _ => {
+                        format!("with {} files", count)
+                    }
+                };
+
+
+                println!("{} {}", added_file_str, num_files_str);
+            }
+        }
 
         // List untracked files
         for file in untracked_files.iter() {
@@ -270,7 +288,7 @@ pub fn status() -> Result<(), OxenError> {
                     // Make sure we can grab the filename
                     if let Some(filename) = file.file_name() {
                         let added_file_str = format!("{}", filename.to_str().unwrap()).red();
-                        println!("    {}", added_file_str);
+                        println!("  {}", added_file_str);
                     }
                 }
             }
