@@ -57,7 +57,13 @@ fn main() {
         }
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            dispatch::add(path)
+            
+            match dispatch::add(path) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
         }
         Some(("push", sub_matches)) => {
             let directory = sub_matches.value_of("DIRECTORY").expect("required");

@@ -19,8 +19,8 @@ use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
 pub struct Indexer {
-    root_dir: PathBuf,
-    hidden_dir: PathBuf,
+    pub root_dir: PathBuf,
+    pub hidden_dir: PathBuf,
     staging_file: PathBuf,
     commits_dir: PathBuf,
     synced_file: PathBuf,

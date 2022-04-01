@@ -10,6 +10,8 @@ pub enum OxenError {
     URI(http::uri::InvalidUri),
     JSON(serde_json::Error),
     HTTP(reqwest::Error),
+    Encoding(std::str::Utf8Error),
+    DB(rocksdb::Error),
 }
 
 impl OxenError {
@@ -62,8 +64,20 @@ impl From<serde_json::Error> for OxenError {
     }
 }
 
+impl From<std::str::Utf8Error> for OxenError {
+    fn from(error: std::str::Utf8Error) -> Self {
+        OxenError::Encoding(error)
+    }
+}
+
 impl From<reqwest::Error> for OxenError {
     fn from(error: reqwest::Error) -> Self {
         OxenError::HTTP(error)
+    }
+}
+
+impl From<rocksdb::Error> for OxenError {
+    fn from(error: rocksdb::Error) -> Self {
+        OxenError::DB(error)
     }
 }

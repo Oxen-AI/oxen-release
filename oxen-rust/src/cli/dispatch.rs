@@ -1,14 +1,17 @@
 use crate::api;
 use std::env;
 use std::io::{self, BufRead};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
+use colored::Colorize;
 
-use crate::cli::indexer::Indexer;
+use crate::cli::Indexer;
+use crate::cli::Stager;
 use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
 use crate::model::Repository;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
+const STAGED_DB_DIR: &str = "staged";
 
 pub fn login() -> Result<(), OxenError> {
     println!("🐂 Login\n\nEnter your email:");
@@ -41,16 +44,19 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn add(path: &str) {
+pub fn add(path: &str) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        println!("{}", NO_REPO_MSG);
-        return;
+        let err = format!("{}", NO_REPO_MSG);
+        return Err(OxenError::basic_str(&err));
     }
 
     let indexer = Indexer::new(&current_dir);
-    let directory = PathBuf::from(&path);
-    indexer.add_files(&directory)
+    let stage_index_dir = Path::new(&indexer.hidden_dir).join(Path::new(STAGED_DB_DIR));
+    let stager = Stager::new(&stage_index_dir, &current_dir)?;
+    stager.add(Path::new(path))?;
+
+    Ok(())
 }
 
 pub fn push(directory: &str) -> Result<(), OxenError> {
@@ -199,10 +205,78 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 pub fn status() -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&current_dir) {
-        println!("{}", NO_REPO_MSG);
-        return Err(OxenError::basic_str(NO_REPO_MSG));
+        let err = format!("{}", NO_REPO_MSG);
+        return Err(OxenError::basic_str(&err));
     }
 
     let indexer = Indexer::new(&current_dir);
-    indexer.status()
+    let stage_index_dir = Path::new(&indexer.hidden_dir).join(Path::new(STAGED_DB_DIR));
+    let stager = Stager::new(&stage_index_dir, &current_dir)?;
+
+    let added_directories = stager.list_added_directories()?;
+    let added_files = stager.list_added_files()?;
+    let untracked_directories: Vec<(PathBuf, usize)> = vec![];
+    let untracked_files = stager.list_untracked_files()?;
+
+    if added_directories.is_empty() &&
+       added_files.is_empty() &&
+       untracked_files.is_empty()
+    {
+        println!("nothing to commit, working tree clean");
+        return Ok(());
+    }
+    
+    // List added files
+    if !added_directories.is_empty() ||
+       !added_files.is_empty()
+    {
+        println!("Changes to be committed:");
+        for (dir, count) in added_directories.iter() {
+            let added_file_str = format!("  added:\t{}/", dir.to_str().unwrap()).green();
+            let num_files_str = format!("with {} files", count);
+            println!("{} {}", added_file_str, num_files_str);
+        }
+
+        for file in added_files.iter() {
+            if let Some(parent) = file.parent() {
+                // If it is a top level file
+                if parent == current_dir {
+                    // Make sure we can grab the filename
+                    if let Some(filename) = file.file_name() {
+                        let added_file_str = format!("  added:  {}", filename.to_str().unwrap()).green();
+                        println!("{}", added_file_str);
+                    }
+                }
+            }
+        }
+
+        print!("\n");
+    }
+
+    if !untracked_directories.is_empty() ||
+       !untracked_files.is_empty()
+    {
+        println!("Untracked files:");
+        println!("  (use \"oxen add <file>...\" to update what will be committed)");
+
+        // List untracked directories
+
+        // List untracked files
+        for file in untracked_files.iter() {
+            // Make sure it has a parent (it should... unless you are tracking an entire OS from /)
+            if let Some(parent) = file.parent() {
+                // If it is a top level file
+                if parent == current_dir {
+                    // Make sure we can grab the filename
+                    if let Some(filename) = file.file_name() {
+                        let added_file_str = format!("{}", filename.to_str().unwrap()).red();
+                        println!("    {}", added_file_str);
+                    }
+                }
+            }
+        }
+        print!("\n");
+    }
+
+    Ok(())
 }
