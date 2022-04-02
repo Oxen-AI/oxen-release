@@ -294,16 +294,10 @@ pub fn status() -> Result<(), OxenError> {
 
         // List untracked files
         for file in untracked_files.iter() {
-            // Make sure it has a parent (it should... unless you are tracking an entire OS from /)
-            if let Some(parent) = file.parent() {
-                // If it is a top level file
-                if parent == current_dir {
-                    // Make sure we can grab the filename
-                    if let Some(filename) = file.file_name() {
-                        let added_file_str = filename.to_str().unwrap().to_string().red();
-                        println!("  {}", added_file_str);
-                    }
-                }
+            // Make sure we can grab the filename
+            if let Some(filename) = file.file_name() {
+                let added_file_str = filename.to_str().unwrap().to_string().red();
+                println!("  {}", added_file_str);
             }
         }
         println!();

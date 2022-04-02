@@ -39,10 +39,27 @@ pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf, PathBuf), OxenE
     Ok((Stager::new(&db_path, &repo_dir)?, repo_dir, db_path))
 }
 
-pub fn add_txt_file_to_dir(repo_path: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+    // Generate random name, because tests run in parallel, then return that name
     let file_path = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
-    let full_path = repo_path.join(&file_path);
+    let full_path = dir.join(&file_path);
     let mut file = File::create(&full_path)?;
     file.write_all(contents.as_bytes())?;
+
     Ok(full_path)
+}
+
+pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, OxenError> {
+    if let Some(ext) = file_path.extension() {
+        // Generate random name with same extension, because tests run in parallel, then return that name
+        let new_path = PathBuf::from(format!("{}.{}", uuid::Uuid::new_v4(), ext.to_str().unwrap()));
+        let full_new_path = dir.join(&new_path);
+        
+        // println!("COPY FILE FROM {:?} => {:?}", file_path, full_new_path);
+        std::fs::copy(&file_path, &full_new_path)?;
+        Ok(full_new_path)
+    } else {
+        let err = format!("Unknown extension file: {:?}", file_path);
+        Err(OxenError::basic_str(&err))
+    }
 }

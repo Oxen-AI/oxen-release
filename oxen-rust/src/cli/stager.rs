@@ -54,75 +54,68 @@ impl Stager {
     }
 
     pub fn add_dir(&self, path: &Path) -> Result<usize, OxenError> {
-        // TODO: We actually want the relative path compared to data_dirpath, not absolute canonical
-        // This way we are uniq per directory, but can move the entire directory around
-        if let Some(file_str) = path.to_str() {
-            if !path.exists() {
-                let err = format!("Cannot stage non-existant file: {:?}", path);
-                return Err(OxenError::basic_str(&err));
-            }
-
-            println!("Staging dir {:?}", path);
-            // Key is the directory name
-            let key = file_str.as_bytes();
-
-            // Add all files, and get a count
-            let mut paths: Vec<PathBuf> = vec![];
-            let mut img_paths = self.list_image_files_from_dir(&path);
-            let mut txt_paths = self.list_text_files_from_dir(&path);
-
-            println!("Found {} images", img_paths.len());
-            println!("Found {} text files", txt_paths.len());
-
-            paths.append(&mut img_paths);
-            paths.append(&mut txt_paths);
-
-            for path in paths.iter() {
-                self.add_file(path)?;
-            }
-
-            // TODO: Find dirs and recursively add
-            // store count in little endian
-            let count: usize = paths.len();
-            println!("Staged {} files", count);
-            self.db.put(key, count.to_le_bytes()).unwrap();
-
-            Ok(count)
-        } else {
-            let err = format!("Could not stage file {:?}", &path);
-            Err(OxenError::basic_str(&err))
-        }
-    }
-
-    pub fn add_file(&self, path: &Path) -> Result<PathBuf, OxenError> {
-        println!("Adding file {:?}", path);
+        // if path is relative, and name doesn't exist
         if !path.exists() {
             let err = format!("Cannot stage non-existant file: {:?}", path);
             return Err(OxenError::basic_str(&err));
         }
 
-        // Key is the filename
-        if let Some(file_str) = path.to_str() {
-            let key = file_str.as_bytes();
+        let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
+        let key = relative_path.to_str().unwrap().as_bytes();
 
-            // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
-            // Then when we push, we hash the file contents and save it back in here to keep track of progress
-            self.db.put(key, b"")?;
+        // Add all files, and get a count
+        let mut paths: Vec<PathBuf> = vec![];
+        let mut img_paths = self.list_image_files_from_dir(&path);
+        let mut txt_paths = self.list_text_files_from_dir(&path);
 
-            Ok(PathBuf::from(file_str))
-        } else {
-            let err = format!("Could not convert file path to string {:?}", &path);
-            Err(OxenError::basic_str(&err))
+        // println!("Found {} images", img_paths.len());
+        // println!("Found {} text files", txt_paths.len());
+
+        paths.append(&mut img_paths);
+        paths.append(&mut txt_paths);
+
+        for path in paths.iter() {
+            self.add_file(path)?;
         }
+
+        // TODO: Find dirs and recursively add
+        // store count in little endian
+        let count: usize = paths.len();
+        println!("Staged {} files", count);
+        self.db.put(key, count.to_le_bytes()).unwrap();
+
+        Ok(count)
+    }
+
+    pub fn add_file(&self, path: &Path) -> Result<PathBuf, OxenError> {
+        if !path.exists() {
+            let err = format!("Cannot stage non-existant file: {:?}", path);
+            return Err(OxenError::basic_str(&err));
+        }
+
+        // Key is the filename relative to the repository
+        // if repository: /Users/username/Datasets/MyRepo
+        //   /Users/username/Datasets/MyRepo/train -> train
+        //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
+        let path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
+        let key = path.to_str().unwrap().as_bytes();
+
+        // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
+        // Then when we push, we hash the file contents and save it back in here to keep track of progress
+        self.db.put(&key, b"")?;
+
+        Ok(path)
+    
     }
 
     pub fn list_added_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let iter = self.db.iterator(IteratorMode::Start);
         let mut paths: Vec<PathBuf> = vec![];
         for (key, _) in iter {
-            let path = PathBuf::from(String::from(str::from_utf8(&*key)?));
-            if path.is_file() {
-                paths.push(path);
+            let local_path = PathBuf::from(String::from(str::from_utf8(&*key)?));
+            let full_path = self.repo_path.join(local_path);
+            if full_path.is_file() {
+                paths.push(full_path);
             }
         }
         Ok(paths)
@@ -132,16 +125,17 @@ impl Stager {
         let iter = self.db.iterator(IteratorMode::Start);
         let mut paths: Vec<(PathBuf, usize)> = vec![];
         for (key, value) in iter {
-            let path = PathBuf::from(String::from(str::from_utf8(&*key)?));
-            if path.is_dir() {
+            let local_path = PathBuf::from(String::from(str::from_utf8(&*key)?));
+            let full_path = self.repo_path.join(local_path);
+            if full_path.is_dir() {
                 match self.convert_usize_slice(&*value) {
                     Ok(size) => {
-                        paths.push((path, size));
+                        paths.push((full_path, size));
                     }
                     Err(err) => {
                         eprintln!(
                             "Could not convert data attached to: {:?}\nErr:{}",
-                            path, err
+                            full_path, err
                         )
                     }
                 }
@@ -152,13 +146,16 @@ impl Stager {
 
     pub fn list_untracked_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let dir_entries = std::fs::read_dir(&self.repo_path)?;
+        // println!("Listing untracked files from {:?}", dir_entries);
 
         let mut paths: Vec<PathBuf> = vec![];
         for entry in dir_entries {
-            let path = entry?.path();
-            if path.is_file() {
-                // println!("checking path: {:?}", path);
-                if let Some(path_str) = path.to_str() {
+            let local_path = entry?.path();
+            if local_path.is_file() {
+                // Return relative path with respect to the repo
+                let relative_path = FileUtil::path_relative_to_dir(&local_path, &self.repo_path)?;
+                // println!("Checking if we have the key? {:?}", relative_path);
+                if let Some(path_str) = relative_path.to_str() {
                     let bytes = path_str.as_bytes();
                     match self.db.get(bytes) {
                         Ok(Some(_value)) => {
@@ -167,8 +164,8 @@ impl Stager {
                         }
                         Ok(None) => {
                             // did not get val
-                            // println!("untracked! {:?}", path);
-                            paths.push(path);
+                            // println!("untracked! {:?}", relative_path);
+                            paths.push(relative_path);
                         }
                         Err(err) => {
                             eprintln!("{}", err);
@@ -188,11 +185,13 @@ impl Stager {
         for entry in dir_entries {
             let path = entry?.path();
             if path.is_dir() {
-                // println!("checking path: {:?}", path);
-                if let Some(path_str) = path.to_str() {
+                let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
+
+                if let Some(path_str) = relative_path.to_str() {
                     if path_str.contains(".oxen") {
                         continue;
                     }
+
                     let bytes = path_str.as_bytes();
                     match self.db.get(bytes) {
                         Ok(Some(_value)) => {
@@ -234,8 +233,9 @@ impl Stager {
 mod tests {
     use crate::error::OxenError;
     use crate::test;
+    use crate::util::FileUtil;
 
-    use std::path::{PathBuf};
+    use std::path::{PathBuf, Path};
 
     const BASE_DIR: &str = "data/test/runs";
 
@@ -246,7 +246,8 @@ mod tests {
 
         match stager.add_file(&hello_file) {
             Ok(path) => {
-                assert_eq!(path, hello_file);
+                let relative_path = FileUtil::path_relative_to_dir(&hello_file, &repo_path)?;
+                assert_eq!(path, relative_path);
             }
             Err(err) => {
                 panic!("test_add_file() Should have returned path... {}", err)
@@ -261,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_file_twice_only_adds_once() -> Result<(), OxenError> {
+    fn test_add_twice_only_adds_once() -> Result<(), OxenError> {
         let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Make sure we have a valid file
@@ -303,10 +304,12 @@ mod tests {
         let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to directories
-        let _ = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
-        let _ = test::add_txt_file_to_dir(&repo_path, "Hello 2")?;
+        let sub_dir = repo_path.join("training_data");
+        std::fs::create_dir_all(&sub_dir)?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-        match stager.add_dir(&repo_path) {
+        match stager.add_dir(&sub_dir) {
             Ok(num_files) => {
                 assert_eq!(2, num_files);
             }
@@ -381,7 +384,8 @@ mod tests {
         // List files
         let files = stager.list_untracked_files()?;
         assert_eq!(files.len(), 1);
-        assert_eq!(files[0], hello_file);
+        let relative_path = FileUtil::path_relative_to_dir(&hello_file, &repo_path)?;
+        assert_eq!(files[0], relative_path);
 
         // cleanup
         std::fs::remove_dir_all(db_path)?;
@@ -391,7 +395,26 @@ mod tests {
     }
 
     #[test]
-    fn test_list_untracked_directories() -> Result<(), OxenError> {
+    fn test_list_untracked_dirs() -> Result<(), OxenError> {
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let sub_dir = repo_path.join("training_data");
+        std::fs::create_dir_all(&sub_dir)?;
+
+        // Do not add...
+
+        // List files
+        let files = stager.list_untracked_directories()?;
+        assert_eq!(files.len(), 1);
+
+        // cleanup
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(repo_path)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_list_one_untracked_directory() -> Result<(), OxenError> {
         let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
@@ -424,22 +447,50 @@ mod tests {
         let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Create 2 sub directories, one with  Write two files to a sub directory
-        let sub_dir = repo_path.join("training_data");
-        std::fs::create_dir_all(&sub_dir)?;
+        let train_dir = repo_path.join("train");
+        std::fs::create_dir_all(&train_dir)?;
+        let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_1.jpg"))?;
+        let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_1.jpg"))?;
+        let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/cat_2.jpg"))?;
+        let _ = test::add_img_file_to_dir(&train_dir, Path::new("data/test/images/dog_2.jpg"))?;
 
-        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
-        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
+        let test_dir = repo_path.join("test");
+        std::fs::create_dir_all(&test_dir)?;
+        let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/cat_3.jpg"))?;
+        let _ = test::add_img_file_to_dir(&test_dir, Path::new("data/test/images/dog_3.jpg"))?;
 
-        // Do not add...
+        let valid_dir = repo_path.join("valid");
+        std::fs::create_dir_all(&valid_dir)?;
+        let _ = test::add_img_file_to_dir(&valid_dir, Path::new("data/test/images/dog_4.jpg"))?;
 
-        // List files
-        let files = stager.list_untracked_directories()?;
+        let base_file_1 = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
+        let _base_file_2 = test::add_txt_file_to_dir(&repo_path, "Hello 2")?;
+        let _base_file_3 = test::add_txt_file_to_dir(&repo_path, "Hello 3")?;
 
-        // There is one directory
-        assert_eq!(files.len(), 1);
+        // At first there should be 3 untracked
+        let untracked_dirs = stager.list_untracked_directories()?;
+        assert_eq!(untracked_dirs.len(), 3);
 
-        // With two files
-        assert_eq!(files[0].1, 2);
+        // Add the directory
+        let _ = stager.add_dir(&train_dir)?;
+        // Add one file
+        let _ = stager.add_file(&base_file_1)?;
+
+        // List the files
+        let add_files = stager.list_added_files()?;
+        let untracked_files = stager.list_untracked_files()?;
+
+        // There is 5 recursively added files and two untracked files
+        assert_eq!(add_files.len(), 5);
+        assert_eq!(untracked_files.len(), 2);
+
+        // List directories
+        let added_dirs = stager.list_added_directories()?;
+        let untracked_dirs = stager.list_untracked_directories()?;
+
+        // There is one tracked directory and two untracked
+        assert_eq!(added_dirs.len(), 1);
+        assert_eq!(untracked_dirs.len(), 2);
 
         // cleanup
         std::fs::remove_dir_all(repo_path)?;

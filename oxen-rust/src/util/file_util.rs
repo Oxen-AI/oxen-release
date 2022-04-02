@@ -7,6 +7,8 @@ use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::error::OxenError;
+
 pub struct FileUtil {}
 
 impl FileUtil {
@@ -127,4 +129,117 @@ impl FileUtil {
         }
         files
     }
+
+    pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenError> {
+        let mut mut_path = path.to_path_buf();
+        
+        let mut components: Vec<PathBuf> = vec![];
+        while let Some(_) = mut_path.parent() {
+            // println!("Comparing {:?} => {:?} => {:?}", path, mut_path, dir);
+            if let Some(filename) = mut_path.file_name() {
+                if mut_path != dir {
+                    components.push(PathBuf::from(filename));
+                } else {
+                    break;
+                }
+            } else {
+                let err = format!("Invalid filename {:?}", mut_path);
+                return Err(OxenError::basic_str(&err));
+            }
+
+            mut_path.pop();
+        }
+        components.reverse();
+
+        let mut result = PathBuf::new();
+        for component in components.iter() {
+            result = result.join(component);
+        }
+
+        // println!("{:?}", components);
+        return Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::error::OxenError;
+    use crate::util::FileUtil;
+
+    use std::path::{Path};
+
+
+    #[test]
+    fn file_path_relative_to_dir() -> Result<(), OxenError> {
+
+        let file = Path::new("data/test/other/file.txt");
+        let dir = Path::new("data/test/");
+
+        let relative = FileUtil::path_relative_to_dir(file, dir)?;
+        assert_eq!(relative, Path::new("other/file.txt"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn file_path_2_relative_to_dir() -> Result<(), OxenError> {
+
+        let file = Path::new("data/test/other/file.txt");
+        let dir = Path::new("data/test/other");
+
+        let relative = FileUtil::path_relative_to_dir(file, dir)?;
+        assert_eq!(relative, Path::new("file.txt"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn file_path_3_relative_to_dir() -> Result<(), OxenError> {
+        let file = Path::new("data/test/runs/54321/file.txt");
+        let dir = Path::new("data/test/runs/54321");
+
+        let relative = FileUtil::path_relative_to_dir(file, dir)?;
+        assert_eq!(relative, Path::new("file.txt"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn full_file_path_relative_to_dir() -> Result<(), OxenError> {
+
+        let file = Path::new("/tmp/data/test/other/file.txt");
+        let dir = Path::new("/tmp/data/test/other");
+
+        let relative = FileUtil::path_relative_to_dir(file, dir)?;
+        assert_eq!(relative, Path::new("file.txt"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn dir_path_relative_to_dir() -> Result<(), OxenError> {
+
+        let file = Path::new("data/test/other");
+        let dir = Path::new("data/test/");
+
+        let relative = FileUtil::path_relative_to_dir(file, dir)?;
+        assert_eq!(relative, Path::new("other"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn dir_path_relative_to_another_dir() -> Result<(), OxenError> {
+
+        let file = Path::new("data/test/other/dir");
+        let dir = Path::new("data/test/");
+
+        let relative = FileUtil::path_relative_to_dir(file, dir)?;
+        assert_eq!(relative, Path::new("other/dir"));
+
+        Ok(())
+    }
+
+    // "data/test/runs/data_14d0853f-bcdd-4f8b-9f74-82102b264968/9b0ac0fb-68e4-48c6-817a-24c2256a3efd.txt" => 
+    // "data/test/runs/data_14d0853f-bcdd-4f8b-9f74-82102b264968"
 }
