@@ -54,7 +54,8 @@ impl Stager {
     }
 
     pub fn add_dir(&self, path: &Path) -> Result<usize, OxenError> {
-        let path = path.canonicalize()?;
+        // TODO: We actually want the relative path compared to data_dirpath, not absolute canonical
+        // This way we are uniq per directory, but can move the entire directory around
         if let Some(file_str) = path.to_str() {
             if !path.exists() {
                 let err = format!("Cannot stage non-existant file: {:?}", path);
@@ -93,22 +94,22 @@ impl Stager {
         }
     }
 
-    pub fn add_file(&self, path: &Path) -> Result<String, OxenError> {
-        let full_path = path.canonicalize()?;
+    pub fn add_file(&self, path: &Path) -> Result<PathBuf, OxenError> {
+        println!("Adding file {:?}", path);
         if !path.exists() {
             let err = format!("Cannot stage non-existant file: {:?}", path);
             return Err(OxenError::basic_str(&err));
         }
 
         // Key is the filename
-        if let Some(file_str) = full_path.to_str() {
+        if let Some(file_str) = path.to_str() {
             let key = file_str.as_bytes();
 
             // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
             // Then when we push, we hash the file contents and save it back in here to keep track of progress
             self.db.put(key, b"")?;
 
-            Ok(String::from(file_str))
+            Ok(PathBuf::from(file_str))
         } else {
             let err = format!("Could not convert file path to string {:?}", &path);
             Err(OxenError::basic_str(&err))
@@ -156,7 +157,6 @@ impl Stager {
         for entry in dir_entries {
             let path = entry?.path();
             if path.is_file() {
-                let path = path.canonicalize()?;
                 // println!("checking path: {:?}", path);
                 if let Some(path_str) = path.to_str() {
                     let bytes = path_str.as_bytes();
@@ -188,7 +188,6 @@ impl Stager {
         for entry in dir_entries {
             let path = entry?.path();
             if path.is_dir() {
-                let path = path.canonicalize()?;
                 // println!("checking path: {:?}", path);
                 if let Some(path_str) = path.to_str() {
                     if path_str.contains(".oxen") {
@@ -233,35 +232,21 @@ impl Stager {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::stager::Stager;
     use crate::error::OxenError;
-    use std::fs::File;
-    use std::io::prelude::*;
-    use std::path::{Path, PathBuf};
+    use crate::test;
+
+    use std::path::{PathBuf};
+
+    const BASE_DIR: &str = "data/test/runs";
 
     #[test]
     fn test_add_file() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
-
-        // Make sure we have a valid file
-        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&hello_file)?;
-        file.write_all(b"Hello, world!")?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
 
         match stager.add_file(&hello_file) {
             Ok(path) => {
-                if let Some(full_path) = hello_file.canonicalize()?.to_str() {
-                    assert_eq!(path, full_path);
-                } else {
-                    panic!("test_add_file() Did not return full path")
-                }
+                assert_eq!(path, hello_file);
             }
             Err(err) => {
                 panic!("test_add_file() Should have returned path... {}", err)
@@ -270,26 +255,17 @@ mod tests {
 
         // cleanup
         std::fs::remove_dir_all(db_path)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_file_twice_only_adds_once() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Make sure we have a valid file
-        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&hello_file)?;
-        file.write_all(b"Hello, world!")?;
+        let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
 
         // Add it twice
         stager.add_file(&hello_file)?;
@@ -300,21 +276,14 @@ mod tests {
 
         // cleanup
         std::fs::remove_dir_all(db_path)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_non_existant_file() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         let hello_file = PathBuf::from("non-existant.txt");
         if stager.add_file(&hello_file).is_ok() {
@@ -323,33 +292,21 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(db_dir)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_directory() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to directories
-        let file_1 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&file_1)?;
-        file.write_all(b"Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&repo_path, "Hello 2")?;
 
-        let file_2 = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&file_2)?;
-        file.write_all(b"Hello 2")?;
-
-        match stager.add_dir(&data_dirpath) {
+        match stager.add_dir(&repo_path) {
             Ok(num_files) => {
                 assert_eq!(2, num_files);
             }
@@ -360,25 +317,15 @@ mod tests {
 
         // cleanup
         std::fs::remove_dir_all(db_path)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_list_files() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dirname = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dirname);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
-
-        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&hello_file)?;
-        file.write_all(b"Hello, world!")?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
 
         // Stage file
         stager.add_file(&hello_file)?;
@@ -386,10 +333,10 @@ mod tests {
         // List files
         let files = stager.list_added_files()?;
         assert_eq!(files.len(), 1);
-        assert_eq!(files[0], hello_file.canonicalize()?);
+        assert_eq!(files[0], hello_file);
 
         // cleanup
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(repo_path)?;
         std::fs::remove_dir_all(db_path)?;
 
         Ok(())
@@ -397,28 +344,16 @@ mod tests {
 
     #[test]
     fn test_list_directories() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
-        let sub_data_dirpath = data_dirpath.join("training_data");
-        std::fs::create_dir_all(&sub_data_dirpath)?;
+        let sub_dir = repo_path.join("training_data");
+        std::fs::create_dir_all(&sub_dir)?;
 
-        let file_1 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&file_1)?;
-        file.write_all(b"Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-        let file_2 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&file_2)?;
-        file.write_all(b"Hello 2")?;
-
-        stager.add_dir(&sub_data_dirpath)?;
+        stager.add_dir(&sub_dir)?;
 
         // List files
         let files = stager.list_added_directories()?;
@@ -430,63 +365,41 @@ mod tests {
         assert_eq!(files[0].1, 2);
 
         // cleanup
-        std::fs::remove_dir_all(db_dir)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_list_untracked_files() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
-
-        let hello_file = data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&hello_file)?;
-        file.write_all(b"Hello, world!")?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
 
         // Do not add...
 
         // List files
         let files = stager.list_untracked_files()?;
         assert_eq!(files.len(), 1);
-        assert_eq!(files[0], hello_file.canonicalize()?);
+        assert_eq!(files[0], hello_file);
 
         // cleanup
-        std::fs::remove_dir_all(db_dir)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_list_untracked_directories() -> Result<(), OxenError> {
-        let db_dir = format!("/tmp/oxen/db_{}", uuid::Uuid::new_v4());
-        let db_path = Path::new(&db_dir);
-
-        let data_dir = format!("/tmp/oxen/data_{}", uuid::Uuid::new_v4());
-        let data_dirpath = PathBuf::from(&data_dir);
-        std::fs::create_dir_all(&data_dirpath)?;
-
-        let stager = Stager::new(db_path, &data_dirpath)?;
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
-        let sub_data_dirpath = data_dirpath.join("training_data");
-        std::fs::create_dir_all(&sub_data_dirpath)?;
+        let sub_dir = repo_path.join("training_data");
+        std::fs::create_dir_all(&sub_dir)?;
 
-        let file_1 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&file_1)?;
-        file.write_all(b"Hello 1")?;
-
-        let file_2 = sub_data_dirpath.join(PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4())));
-        let mut file = File::create(&file_2)?;
-        file.write_all(b"Hello 2")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
         // Do not add...
 
@@ -500,8 +413,37 @@ mod tests {
         assert_eq!(files[0].1, 2);
 
         // cleanup
-        std::fs::remove_dir_all(db_dir)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(db_path)?;
+        std::fs::remove_dir_all(repo_path)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_list_untracked_directories_after_add() -> Result<(), OxenError> {
+        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+
+        // Create 2 sub directories, one with  Write two files to a sub directory
+        let sub_dir = repo_path.join("training_data");
+        std::fs::create_dir_all(&sub_dir)?;
+
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
+
+        // Do not add...
+
+        // List files
+        let files = stager.list_untracked_directories()?;
+
+        // There is one directory
+        assert_eq!(files.len(), 1);
+
+        // With two files
+        assert_eq!(files[0].1, 2);
+
+        // cleanup
+        std::fs::remove_dir_all(repo_path)?;
+        std::fs::remove_dir_all(db_path)?;
 
         Ok(())
     }
