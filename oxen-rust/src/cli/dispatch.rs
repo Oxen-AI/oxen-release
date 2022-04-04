@@ -276,8 +276,7 @@ pub fn status() -> Result<(), OxenError> {
                 continue;
             }
 
-            let added_file_str =
-                format!("  added:  {}", file.to_str().unwrap()).green();
+            let added_file_str = format!("  added:  {}", file.to_str().unwrap()).green();
             println!("{}", added_file_str);
         }
 

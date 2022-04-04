@@ -40,12 +40,8 @@ impl Indexer {
 
         // Load repo config if exists
         let repo_config: Option<RepoConfig> = match config_file.exists() {
-            true => {
-                Some(RepoConfig::new(&config_file))
-            },
-            false => {
-                None
-            }
+            true => Some(RepoConfig::new(&config_file)),
+            false => None,
         };
         Indexer {
             root_dir: PathBuf::from(&hidden_dir.parent().unwrap()),
@@ -54,8 +50,8 @@ impl Indexer {
             config_file,
             commits_dir,
             synced_file,
-            auth_config: auth_config,
-            repo_config: repo_config,
+            auth_config,
+            repo_config,
         }
     }
 
@@ -82,7 +78,10 @@ impl Indexer {
     pub fn set_remote(&mut self, url: &str) -> Result<(), OxenError> {
         let repository = api::repositories::get_by_url(&self.auth_config, url)?;
         self.repo_config = Some(RepoConfig::from(&self.auth_config, &repository));
-        self.repo_config.as_ref().unwrap().save(Path::new(&self.config_file))?;
+        self.repo_config
+            .as_ref()
+            .unwrap()
+            .save(Path::new(&self.config_file))?;
         println!("Remote set: {}", url);
         Ok(())
     }
@@ -223,7 +222,7 @@ impl Indexer {
             //         // println!("Already have entry {:?}", entry);
             //     } else {
             // Only upload file if it's hash doesn't already exist
-            match api::entries::create(&self.repo_config.as_ref().unwrap(), dataset, path) {
+            match api::entries::create(self.repo_config.as_ref().unwrap(), dataset, path) {
                 Ok(_entry) => {}
                 Err(err) => {
                     eprintln!("Error uploading {:?} {}", path, err)
@@ -254,7 +253,7 @@ impl Indexer {
     }
 
     fn dataset_from_name(&self, name: &str) -> Result<Dataset, OxenError> {
-        let datasets = api::datasets::list(&self.repo_config.as_ref().unwrap())?;
+        let datasets = api::datasets::list(self.repo_config.as_ref().unwrap())?;
         let result = datasets.iter().find(|&x| x.name == name);
 
         match result {
@@ -305,7 +304,7 @@ impl Indexer {
     }
 
     pub fn list_datasets(&self) -> Result<Vec<Dataset>, OxenError> {
-        api::datasets::list(&self.repo_config.as_ref().unwrap())
+        api::datasets::list(self.repo_config.as_ref().unwrap())
     }
 
     pub fn pull(&self) -> Result<(), OxenError> {
@@ -314,7 +313,8 @@ impl Indexer {
         let mut total = 0;
         let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
         for dataset in datasets.iter() {
-            let entry_page = api::entries::list_page(&self.repo_config.as_ref().unwrap(), dataset, 1)?;
+            let entry_page =
+                api::entries::list_page(self.repo_config.as_ref().unwrap(), dataset, 1)?;
             let path = Path::new(&dataset.name);
             if !path.exists() {
                 std::fs::create_dir(&path)?;
@@ -348,7 +348,7 @@ impl Indexer {
         // println!("Pulling {} pages from dataset {}", num_pages, dataset.name);
         // Pages start at index 1, ie: 0 and 1 are the same
         (1..*num_pages + 1).into_par_iter().for_each(|page| {
-            match api::entries::list_page(&self.repo_config.as_ref().unwrap(), dataset, page) {
+            match api::entries::list_page(self.repo_config.as_ref().unwrap(), dataset, page) {
                 Ok(entry_page) => {
                     // println!("Got page {}/{}, from {} with {} entries", page, num_pages, dataset.name, entry_page.page_size);
                     for entry in entry_page.entries {
@@ -442,6 +442,6 @@ impl Indexer {
         }
 
         let config = self.repo_config.as_ref().unwrap();
-        api::datasets::create(&config, name)
+        api::datasets::create(config, name)
     }
 }

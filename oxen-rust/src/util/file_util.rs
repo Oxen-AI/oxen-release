@@ -119,7 +119,7 @@ impl FileUtil {
         if !dir.is_dir() {
             return files;
         }
-        
+
         for entry in WalkDir::new(dir) {
             match entry {
                 Ok(val) => {
@@ -128,7 +128,10 @@ impl FileUtil {
                         files.push(path);
                     }
                 }
-                Err(err) => eprintln!("recursive_files_with_extensions Could not iterate over dir... {}", err),
+                Err(err) => eprintln!(
+                    "recursive_files_with_extensions Could not iterate over dir... {}",
+                    err
+                ),
             }
         }
         files
@@ -136,9 +139,9 @@ impl FileUtil {
 
     pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenError> {
         let mut mut_path = path.to_path_buf();
-        
+
         let mut components: Vec<PathBuf> = vec![];
-        while let Some(_) = mut_path.parent() {
+        while mut_path.parent().is_some() {
             // println!("Comparing {:?} => {:?} => {:?}", path, mut_path, dir);
             if let Some(filename) = mut_path.file_name() {
                 if mut_path != dir {
@@ -161,7 +164,7 @@ impl FileUtil {
         }
 
         // println!("{:?}", components);
-        return Ok(result)
+        Ok(result)
     }
 }
 
@@ -170,12 +173,10 @@ mod tests {
     use crate::error::OxenError;
     use crate::util::FileUtil;
 
-    use std::path::{Path};
-
+    use std::path::Path;
 
     #[test]
     fn file_path_relative_to_dir() -> Result<(), OxenError> {
-
         let file = Path::new("data/test/other/file.txt");
         let dir = Path::new("data/test/");
 
@@ -187,7 +188,6 @@ mod tests {
 
     #[test]
     fn file_path_2_relative_to_dir() -> Result<(), OxenError> {
-
         let file = Path::new("data/test/other/file.txt");
         let dir = Path::new("data/test/other");
 
@@ -210,7 +210,6 @@ mod tests {
 
     #[test]
     fn full_file_path_relative_to_dir() -> Result<(), OxenError> {
-
         let file = Path::new("/tmp/data/test/other/file.txt");
         let dir = Path::new("/tmp/data/test/other");
 
@@ -222,7 +221,6 @@ mod tests {
 
     #[test]
     fn dir_path_relative_to_dir() -> Result<(), OxenError> {
-
         let file = Path::new("data/test/other");
         let dir = Path::new("data/test/");
 
@@ -234,7 +232,6 @@ mod tests {
 
     #[test]
     fn dir_path_relative_to_another_dir() -> Result<(), OxenError> {
-
         let file = Path::new("data/test/other/dir");
         let dir = Path::new("data/test/");
 
@@ -244,6 +241,6 @@ mod tests {
         Ok(())
     }
 
-    // "data/test/runs/data_14d0853f-bcdd-4f8b-9f74-82102b264968/9b0ac0fb-68e4-48c6-817a-24c2256a3efd.txt" => 
+    // "data/test/runs/data_14d0853f-bcdd-4f8b-9f74-82102b264968/9b0ac0fb-68e4-48c6-817a-24c2256a3efd.txt" =>
     // "data/test/runs/data_14d0853f-bcdd-4f8b-9f74-82102b264968"
 }

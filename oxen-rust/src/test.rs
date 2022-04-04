@@ -1,10 +1,10 @@
 use crate::api;
+use crate::cli::Stager;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::cli::Stager;
-use std::path::{Path, PathBuf};
 use std::fs::File;
-use std::io::prelude::*; // for write_all
+use std::io::prelude::*;
+use std::path::{Path, PathBuf}; // for write_all
 
 pub fn remote_cfg_file() -> &'static Path {
     Path::new("data/test/config/remote_cfg.toml")
@@ -52,9 +52,13 @@ pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
 pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, OxenError> {
     if let Some(ext) = file_path.extension() {
         // Generate random name with same extension, because tests run in parallel, then return that name
-        let new_path = PathBuf::from(format!("{}.{}", uuid::Uuid::new_v4(), ext.to_str().unwrap()));
+        let new_path = PathBuf::from(format!(
+            "{}.{}",
+            uuid::Uuid::new_v4(),
+            ext.to_str().unwrap()
+        ));
         let full_new_path = dir.join(&new_path);
-        
+
         // println!("COPY FILE FROM {:?} => {:?}", file_path, full_new_path);
         std::fs::copy(&file_path, &full_new_path)?;
         Ok(full_new_path)

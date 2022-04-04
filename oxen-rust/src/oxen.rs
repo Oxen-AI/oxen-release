@@ -63,7 +63,7 @@ fn main() {
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            
+
             match dispatch::init(path) {
                 Ok(_) => {}
                 Err(err) => {
@@ -81,14 +81,12 @@ fn main() {
                 }
             }
         }
-        Some(("status", _sub_matches)) => {
-            match dispatch::status() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
-                }
+        Some(("status", _sub_matches)) => match dispatch::status() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{}", err)
             }
-        }
+        },
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
 
@@ -108,14 +106,12 @@ fn main() {
                 }
             }
         }
-        Some(("pull", _sub_matches)) => {
-            match dispatch::pull() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
-                }
+        Some(("pull", _sub_matches)) => match dispatch::pull() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{}", err)
             }
-        }
+        },
         Some(("ls", sub_matches)) => {
             let object_type = sub_matches.value_of("OBJECT").unwrap_or_default();
             let result = match object_type {

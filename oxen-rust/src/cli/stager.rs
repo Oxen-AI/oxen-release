@@ -39,31 +39,31 @@ impl Stager {
             .into_iter()
             .map(String::from)
             .collect();
-        FileUtil::recursive_files_with_extensions(&dir, &img_ext)
+        FileUtil::recursive_files_with_extensions(dir, &img_ext)
             .into_iter()
-            .map(|file| FileUtil::path_relative_to_dir(&file, &self.repo_path).unwrap() )
-            .filter(|file| !self.file_is_in_index(file) )
+            .map(|file| FileUtil::path_relative_to_dir(&file, &self.repo_path).unwrap())
+            .filter(|file| !self.file_is_in_index(file))
             .collect()
     }
 
     fn list_text_files_from_dir(&self, dir: &Path) -> Vec<PathBuf> {
         let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
-        FileUtil::recursive_files_with_extensions(&dir, &img_ext)
+        FileUtil::recursive_files_with_extensions(dir, &img_ext)
             .into_iter()
-            .map(|file| FileUtil::path_relative_to_dir(&file, &self.repo_path).unwrap() )
-            .filter(|file| !self.file_is_in_index(file) )
+            .map(|file| FileUtil::path_relative_to_dir(&file, &self.repo_path).unwrap())
+            .filter(|file| !self.file_is_in_index(file))
             .collect()
     }
 
     fn count_untracked_files_in_dir(&self, dir: &Path) -> usize {
-        let files = self.list_untracked_files_in_dir(&dir);
+        let files = self.list_untracked_files_in_dir(dir);
         files.len()
     }
 
     fn list_untracked_files_in_dir(&self, path: &Path) -> Vec<PathBuf> {
         let mut paths: Vec<PathBuf> = vec![];
-        let mut img_paths = self.list_image_files_from_dir(&path);
-        let mut txt_paths = self.list_text_files_from_dir(&path);
+        let mut img_paths = self.list_image_files_from_dir(path);
+        let mut txt_paths = self.list_text_files_from_dir(path);
 
         // println!("Found {} images", img_paths.len());
         // println!("Found {} text files", txt_paths.len());
@@ -79,24 +79,22 @@ impl Stager {
             return Err(OxenError::basic_str(&err));
         }
 
-        let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
+        let relative_path = FileUtil::path_relative_to_dir(path, &self.repo_path)?;
         let key = relative_path.to_str().unwrap().as_bytes();
 
         // Add all files, and get a count
-        let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(&path);
+        let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path);
 
         // TODO: Find dirs and recursively add
         let count: usize = paths.len();
 
-        self.add_dir_count(&key, count)
+        self.add_dir_count(key, count)
     }
 
     fn add_dir_count(&self, key: &[u8], count: usize) -> Result<usize, OxenError> {
         // store count in little endian
         match self.db.put(key, count.to_le_bytes()) {
-            Ok(_) => {
-                Ok(count)
-            },
+            Ok(_) => Ok(count),
             Err(err) => {
                 let err = format!("Error adding key {}", err);
                 Err(OxenError::basic_str(&err))
@@ -116,7 +114,7 @@ impl Stager {
         // if repository: /Users/username/Datasets/MyRepo
         //   /Users/username/Datasets/MyRepo/train -> train
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
-        let path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
+        let path = FileUtil::path_relative_to_dir(path, &self.repo_path)?;
         let key = path.to_str().unwrap().as_bytes();
 
         // println!("Adding key {}", path.to_str().unwrap());
@@ -124,7 +122,7 @@ impl Stager {
         // Then when we push, we hash the file contents and save it back in here to keep track of progress
         self.db.put(&key, b"")?;
 
-        // Check if we have added the full directory, 
+        // Check if we have added the full directory,
         // if we have, remove all the individual keys
         // and add the full directory
         // println!("Checking parent of file: {:?}", path);
@@ -143,7 +141,7 @@ impl Stager {
                         match self.db.delete(key) {
                             Ok(_) => {
                                 // println!("Deleted key: {}", key);
-                            },
+                            }
                             Err(err) => {
                                 eprintln!("Unable to delete key [{}] err: {}", key, err);
                             }
@@ -151,7 +149,7 @@ impl Stager {
                     }
 
                     let key = parent.to_str().unwrap().as_bytes();
-                    self.add_dir_count(&key, count)?;
+                    self.add_dir_count(key, count)?;
                 }
             }
         }
@@ -326,7 +324,7 @@ mod tests {
     use crate::test;
     use crate::util::FileUtil;
 
-    use std::path::{PathBuf, Path};
+    use std::path::{Path, PathBuf};
 
     const BASE_DIR: &str = "data/test/runs";
 
@@ -517,7 +515,7 @@ mod tests {
         let sub_file_3 = test::add_txt_file_to_dir(&sub_dir, "Hello 3")?;
 
         let dirs = stager.list_untracked_directories()?;
-        
+
         // There is one directory
         assert_eq!(dirs.len(), 1);
         // With three untracked files
