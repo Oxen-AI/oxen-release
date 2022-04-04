@@ -1,8 +1,8 @@
+use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::config::HTTPConfig;
 use crate::error::OxenError;
 use crate::model::User;
 use crate::util::file_util::FileUtil;
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;

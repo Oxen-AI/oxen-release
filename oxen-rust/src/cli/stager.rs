@@ -1,6 +1,6 @@
+use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::util::FileUtil;
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
 
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
