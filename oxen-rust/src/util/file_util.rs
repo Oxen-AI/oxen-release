@@ -115,7 +115,11 @@ impl FileUtil {
     }
 
     pub fn recursive_files_with_extensions(dir: &Path, exts: &HashSet<String>) -> Vec<PathBuf> {
-        let mut files: Vec<PathBuf> = Vec::new();
+        let mut files: Vec<PathBuf> = vec![];
+        if !dir.is_dir() {
+            return files;
+        }
+        
         for entry in WalkDir::new(dir) {
             match entry {
                 Ok(val) => {
@@ -124,7 +128,7 @@ impl FileUtil {
                         files.push(path);
                     }
                 }
-                Err(err) => eprintln!("Could not iterate over dir... {}", err),
+                Err(err) => eprintln!("recursive_files_with_extensions Could not iterate over dir... {}", err),
             }
         }
         files

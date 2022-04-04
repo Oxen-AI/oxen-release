@@ -246,25 +246,39 @@ pub fn status() -> Result<(), OxenError> {
         println!("Changes to be committed:");
         for (dir, count) in added_directories.iter() {
             // Make sure we can grab the filename
-            if let Some(filename) = dir.file_name() {
-                let added_file_str = format!("  added:  {}/", filename.to_str().unwrap()).green();
-                let num_files_str = format!("with {} files", count);
-                println!("{} {}", added_file_str, num_files_str);
-            }
+            let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
+            let num_files_str = match count {
+                1 => {
+                    format!("with untracked {} file\n", count)
+                }
+                0 => {
+                    // Skip since we don't have any untracked files in this dir
+                    String::from("")
+                }
+                _ => {
+                    format!("with untracked {} files\n", count)
+                }
+            };
+            print!("{} {}", added_file_str, num_files_str);
         }
 
         for file in added_files.iter() {
-            if let Some(parent) = file.parent() {
-                // If it is a top level file
-                if parent == current_dir {
-                    // Make sure we can grab the filename
-                    if let Some(filename) = file.file_name() {
-                        let added_file_str =
-                            format!("  added:  {}", filename.to_str().unwrap()).green();
-                        println!("{}", added_file_str);
-                    }
+            let mut break_both = false;
+            for (dir, _size) in added_directories.iter() {
+                // println!("checking if file {:?} starts with {:?}", file, dir);
+                if file.starts_with(&dir) {
+                    break_both = true;
+                    continue;
                 }
             }
+
+            if break_both {
+                continue;
+            }
+
+            let added_file_str =
+                format!("  added:  {}", file.to_str().unwrap()).green();
+            println!("{}", added_file_str);
         }
 
         println!();
@@ -281,24 +295,40 @@ pub fn status() -> Result<(), OxenError> {
                 let added_file_str = format!("  {}/", filename.to_str().unwrap()).red();
                 let num_files_str = match count {
                     1 => {
-                        format!("with {} file", count)
+                        format!("with untracked {} file\n", count)
+                    }
+                    0 => {
+                        // Skip since we don't have any untracked files in this dir
+                        String::from("")
                     }
                     _ => {
-                        format!("with {} files", count)
+                        format!("with untracked {} files\n", count)
                     }
                 };
 
-                println!("{} {}", added_file_str, num_files_str);
+                if !num_files_str.is_empty() {
+                    print!("{} {}", added_file_str, num_files_str);
+                }
             }
         }
 
         // List untracked files
         for file in untracked_files.iter() {
-            // Make sure we can grab the filename
-            if let Some(filename) = file.file_name() {
-                let added_file_str = filename.to_str().unwrap().to_string().red();
-                println!("  {}", added_file_str);
+            let mut break_both = false;
+            for (dir, _size) in untracked_directories.iter() {
+                // println!("checking if file {:?} starts with {:?}", file, dir);
+                if file.starts_with(&dir) {
+                    break_both = true;
+                    continue;
+                }
             }
+
+            if break_both {
+                continue;
+            }
+
+            let added_file_str = file.to_str().unwrap().to_string().red();
+            println!("  {}", added_file_str);
         }
         println!();
     }
