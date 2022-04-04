@@ -1,6 +1,7 @@
 use crate::api;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
+use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -48,7 +49,7 @@ impl Repository {
         std::fs::create_dir(&repo_path)?;
 
         // if create successful, create .oxen directory
-        let oxen_hidden_path = repo_path.join(Path::new(".oxen"));
+        let oxen_hidden_path = repo_path.join(Path::new(OXEN_HIDDEN_DIR));
         std::fs::create_dir(&oxen_hidden_path)?;
 
         // save RepoConfig in .oxen directory

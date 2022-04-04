@@ -1,5 +1,6 @@
 use crate::error::OxenError;
 use crate::util::FileUtil;
+use crate::cli::indexer::OXEN_HIDDEN_DIR;
 
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
@@ -7,13 +8,17 @@ use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::str;
 
+pub const STAGED_DIR: &str = "staged";
+
 pub struct Stager {
     db: DB,
     repo_path: PathBuf,
 }
 
 impl Stager {
-    pub fn new(dbpath: &Path, repo_path: &Path) -> Result<Stager, OxenError> {
+    pub fn new(repo_path: &Path) -> Result<Stager, OxenError> {
+        let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
+        std::fs::create_dir_all(&dbpath)?;
         Ok(Stager {
             db: DB::open_default(dbpath)?,
             repo_path: repo_path.to_path_buf(),
@@ -104,8 +109,8 @@ impl Stager {
 
     pub fn add_file(&self, path: &Path) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
-        let full_path = self.repo_path.join(path);
-        if !path.exists() && !full_path.exists() {
+        // println!("Add file: {:?} to {:?}", path, self.repo_path);
+        if !path.exists() {
             let err = format!("Stage.add_file({:?}) cannot stage non-existant file", path);
             return Err(OxenError::basic_str(&err));
         }
@@ -277,7 +282,7 @@ impl Stager {
                 // println!("list_untracked_directories relative {:?}", relative_path);
 
                 if let Some(path_str) = relative_path.to_str() {
-                    if path_str.contains(".oxen") {
+                    if path_str.contains(OXEN_HIDDEN_DIR) {
                         continue;
                     }
 
@@ -330,7 +335,7 @@ mod tests {
 
     #[test]
     fn test_1_add_file() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
         let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
 
         match stager.add_file(&hello_file) {
@@ -344,7 +349,6 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -352,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_add_twice_only_adds_once() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Make sure we have a valid file
         let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
@@ -365,7 +369,6 @@ mod tests {
         assert_eq!(files.len(), 1);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -373,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_add_non_existant_file() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         let hello_file = PathBuf::from("non-existant.txt");
         if stager.add_file(&hello_file).is_ok() {
@@ -382,7 +385,6 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -390,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_add_directory() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to directories
         let sub_dir = repo_path.join("training_data");
@@ -408,7 +410,6 @@ mod tests {
         }
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -416,7 +417,7 @@ mod tests {
 
     #[test]
     fn test_list_files() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
         let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
 
         // Stage file
@@ -430,14 +431,13 @@ mod tests {
 
         // cleanup
         std::fs::remove_dir_all(repo_path)?;
-        std::fs::remove_dir_all(db_path)?;
 
         Ok(())
     }
 
     #[test]
     fn test_add_file_in_sub_dir() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
         let sub_dir = repo_path.join("training_data");
@@ -457,7 +457,6 @@ mod tests {
         assert_eq!(files[0], relative_path);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -465,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_add_file_in_sub_dir_updates_untracked_count() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
         let sub_dir = repo_path.join("training_data");
@@ -496,7 +495,6 @@ mod tests {
         assert_eq!(dirs[0].1, 2);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -504,7 +502,7 @@ mod tests {
 
     #[test]
     fn test_add_all_files_in_sub_dir() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
         let sub_dir = repo_path.join("training_data");
@@ -536,7 +534,6 @@ mod tests {
         assert_eq!(added_dirs[0].1, 3);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -544,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_list_directories() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
         let sub_dir = repo_path.join("training_data");
@@ -566,7 +563,6 @@ mod tests {
         assert_eq!(dirs[0].1, 2);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -574,7 +570,7 @@ mod tests {
 
     #[test]
     fn test_list_untracked_files() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
         let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
 
         // Do not add...
@@ -586,7 +582,6 @@ mod tests {
         assert_eq!(files[0], relative_path);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -594,7 +589,7 @@ mod tests {
 
     #[test]
     fn test_list_untracked_dirs() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
         let sub_dir = repo_path.join("training_data");
         std::fs::create_dir_all(&sub_dir)?;
 
@@ -605,7 +600,6 @@ mod tests {
         assert_eq!(files.len(), 1);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -613,7 +607,7 @@ mod tests {
 
     #[test]
     fn test_list_one_untracked_directory() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Write two files to a sub directory
         let sub_dir = repo_path.join("training_data");
@@ -634,7 +628,6 @@ mod tests {
         assert_eq!(files[0].1, 2);
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
         std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
@@ -642,7 +635,7 @@ mod tests {
 
     #[test]
     fn test_list_untracked_directories_after_add() -> Result<(), OxenError> {
-        let (stager, repo_path, db_path) = test::create_stager(BASE_DIR)?;
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
 
         // Create 2 sub directories, one with  Write two files to a sub directory
         let train_dir = repo_path.join("train");
@@ -704,7 +697,6 @@ mod tests {
 
         // cleanup
         std::fs::remove_dir_all(repo_path)?;
-        std::fs::remove_dir_all(db_path)?;
 
         Ok(())
     }

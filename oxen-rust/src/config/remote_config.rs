@@ -3,6 +3,7 @@ use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::model::User;
 use crate::util::file_util::FileUtil;
+use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -23,7 +24,7 @@ impl Eq for RemoteConfig {}
 impl RemoteConfig {
     pub fn new() -> Result<RemoteConfig, OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(".oxen"));
+            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
 
             fs::create_dir_all(&oxen_dir)?;
             let default_host = "localhost:4000";
@@ -46,7 +47,7 @@ impl RemoteConfig {
             "RemoteConfig::default() not configuration found, run `oxen login` to configure.",
         );
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(".oxen"));
+            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
             let config_file = oxen_dir.join(Path::new("remote_config.toml"));
             if config_file.exists() {
                 Ok(RemoteConfig::from(&config_file))
@@ -67,7 +68,7 @@ impl RemoteConfig {
 
     pub fn save_default(&self) -> Result<(), OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(".oxen"));
+            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
 
             fs::create_dir_all(&oxen_dir)?;
             let config_file = oxen_dir.join(Path::new("remote_config.toml"));

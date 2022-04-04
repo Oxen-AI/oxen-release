@@ -29,13 +29,16 @@ mod tests {
     use std::io::prelude::*;
     use std::path::{Path, PathBuf};
 
+    const STAGED_REPO_DIR: &str = "data/test/repos/.oxen_staged";
+
     #[test]
     fn test_commit_staged() -> Result<(), OxenError> {
-        
+        let stager = Stager::new(&db_path, &repo_dir)?;
+
+        let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
 
         // cleanup
-        std::fs::remove_dir_all(db_path)?;
-        std::fs::remove_dir_all(data_dirpath)?;
+        std::fs::remove_dir_all(repo_path)?;
 
         Ok(())
     }

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::cli::Stager;
+use crate::cli::{Indexer, Stager};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use std::fs::File;
@@ -28,21 +28,23 @@ pub fn create_repo_cfg(name: &str) -> Result<RepoConfig, OxenError> {
     Ok(RepoConfig::from(&config, &repository))
 }
 
-pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf, PathBuf), OxenError> {
-    let db_dir = format!("{}/db_{}", base_dir, uuid::Uuid::new_v4());
-    let db_path = PathBuf::from(&db_dir);
+pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
+    let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
+    let repo_dir = PathBuf::from(&repo_name);
 
-    let data_dir = format!("{}/data_{}", base_dir, uuid::Uuid::new_v4());
-    let repo_dir = PathBuf::from(&data_dir);
-    std::fs::create_dir_all(&repo_dir)?;
+    std::fs::create_dir_all(&repo_name)?;
+    let indexer = Indexer::new(&repo_dir);
+    indexer.init()?;
 
-    Ok((Stager::new(&db_path, &repo_dir)?, repo_dir, db_path))
+    Ok((Stager::new(&indexer.root_dir)?, repo_dir))
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
     // Generate random name, because tests run in parallel, then return that name
     let file_path = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
     let full_path = dir.join(&file_path);
+    // println!("add_txt_file_to_dir: {:?} to {:?}", file_path, full_path);
+
     let mut file = File::create(&full_path)?;
     file.write_all(contents.as_bytes())?;
 

@@ -11,7 +11,6 @@ use crate::error::OxenError;
 use crate::model::Repository;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
-const STAGED_DB_DIR: &str = "staged";
 
 pub fn login() -> Result<(), OxenError> {
     println!("🐂 Login\n\nEnter your email:");
@@ -66,8 +65,7 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     }
 
     let indexer = Indexer::new(&current_dir);
-    let stage_index_dir = Path::new(&indexer.hidden_dir).join(Path::new(STAGED_DB_DIR));
-    let stager = Stager::new(&stage_index_dir, &current_dir)?;
+    let stager = Stager::new(&indexer.root_dir)?;
     stager.add(Path::new(path))?;
 
     Ok(())
@@ -224,8 +222,7 @@ pub fn status() -> Result<(), OxenError> {
     }
 
     let indexer = Indexer::new(&current_dir);
-    let stage_index_dir = Path::new(&indexer.hidden_dir).join(Path::new(STAGED_DB_DIR));
-    let stager = Stager::new(&stage_index_dir, &current_dir)?;
+    let stager = Stager::new(&indexer.root_dir)?;
 
     let added_directories = stager.list_added_directories()?;
     let added_files = stager.list_added_files()?;

@@ -18,6 +18,8 @@ use crate::model::{Dataset, Entry};
 use crate::util::file_util::FileUtil;
 use crate::util::hasher;
 
+pub const OXEN_HIDDEN_DIR: &str = ".oxen";
+
 pub struct Indexer {
     pub root_dir: PathBuf,
     pub hidden_dir: PathBuf,
@@ -31,7 +33,7 @@ pub struct Indexer {
 
 impl Indexer {
     pub fn new(dirname: &Path) -> Indexer {
-        let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
+        let hidden_dir = PathBuf::from(dirname).join(Path::new(OXEN_HIDDEN_DIR));
         let staging_file = PathBuf::from(&hidden_dir).join(Path::new("staging"));
         let commits_dir = PathBuf::from(&hidden_dir).join(Path::new("commits"));
         let synced_file = PathBuf::from(&hidden_dir).join(Path::new("synced"));
@@ -56,7 +58,7 @@ impl Indexer {
     }
 
     pub fn repo_exists(dirname: &Path) -> bool {
-        let hidden_dir = PathBuf::from(dirname).join(Path::new(".oxen"));
+        let hidden_dir = PathBuf::from(dirname).join(Path::new(OXEN_HIDDEN_DIR));
         hidden_dir.exists()
     }
 

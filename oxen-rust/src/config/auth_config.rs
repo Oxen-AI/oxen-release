@@ -2,6 +2,7 @@ use crate::config::HTTPConfig;
 use crate::error::OxenError;
 use crate::model::User;
 use crate::util::file_util::FileUtil;
+use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -41,7 +42,7 @@ impl AuthConfig {
             "AuthConfig::default() not configuration found, run `oxen login` to configure.",
         );
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(".oxen"));
+            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
             let config_file = oxen_dir.join(Path::new("auth_config.toml"));
             if config_file.exists() {
                 Ok(AuthConfig::new(&config_file))
@@ -55,7 +56,7 @@ impl AuthConfig {
 
     pub fn save_default(&self) -> Result<(), OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(".oxen"));
+            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
 
             fs::create_dir_all(&oxen_dir)?;
             let config_file = oxen_dir.join(Path::new("auth_config.toml"));
