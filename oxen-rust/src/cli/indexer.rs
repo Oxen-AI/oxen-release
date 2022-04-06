@@ -1,7 +1,6 @@
-
 use indicatif::ProgressBar;
 use rayon::prelude::*;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
@@ -12,7 +11,7 @@ use crate::api;
 use crate::cli::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{Dataset, CommitMsg};
+use crate::model::{CommitMsg, Dataset};
 use crate::util::hasher;
 
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
@@ -93,7 +92,7 @@ impl Indexer {
                     match datasets_to_files.entry(key) {
                         std::collections::hash_map::Entry::Vacant(e) => {
                             e.insert(vec![value]);
-                        },
+                        }
                         std::collections::hash_map::Entry::Occupied(mut e) => {
                             e.get_mut().push(value);
                         }
@@ -107,13 +106,10 @@ impl Indexer {
         let config = self.repo_config.as_ref().unwrap();
         let mut names_to_datasets: HashMap<String, Dataset> = HashMap::new();
         for (name, _files) in datasets_to_files.iter() {
-            let dataset = match api::datasets::get_by_name(self.repo_config.as_ref().unwrap(), &name) {
-                Ok(dataset) => {
-                    dataset
-                },
-                Err(_) => {
-                    api::datasets::create(config, &name)?
-                }
+            let dataset = match api::datasets::get_by_name(self.repo_config.as_ref().unwrap(), name)
+            {
+                Ok(dataset) => dataset,
+                Err(_) => api::datasets::create(config, name)?,
             };
             names_to_datasets.insert(name.clone(), dataset);
         }
@@ -127,7 +123,7 @@ impl Indexer {
                 let dataset = &names_to_datasets[name];
                 if let Ok(hash) = hasher::hash_file_contents(path) {
                     // Only upload file if it's hash doesn't already exist
-                    match api::entries::create(self.repo_config.as_ref().unwrap(), &dataset, path) {
+                    match api::entries::create(self.repo_config.as_ref().unwrap(), dataset, path) {
                         Ok(_entry) => {
                             println!("Created entry! Save hash {:?} => {}", path, hash);
                         }
@@ -141,7 +137,7 @@ impl Indexer {
             });
         }
         bar.finish();
-        
+
         Ok(())
     }
 
@@ -155,7 +151,7 @@ impl Indexer {
         // for now just push one
         for commit in commits.iter() {
             println!("Pushing commit: {:?}", commit);
-            self.push_commit(&committer, &commit)?;
+            self.push_commit(committer, commit)?;
             break;
         }
 
@@ -229,7 +225,11 @@ impl Indexer {
         Ok(())
     }
 
-    fn download_url(&self, dataset: &Dataset, entry: &crate::model::Entry) -> Result<(), OxenError> {
+    fn download_url(
+        &self,
+        dataset: &Dataset,
+        entry: &crate::model::Entry,
+    ) -> Result<(), OxenError> {
         let path = Path::new(&dataset.name);
         let fname = path.join(&entry.filename);
         // println!("Downloading file {:?}", &fname);

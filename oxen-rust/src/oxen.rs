@@ -97,14 +97,12 @@ fn main() {
                 }
             }
         }
-        Some(("push", _sub_matches)) => {
-            match dispatch::push() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
-                }
+        Some(("push", _sub_matches)) => match dispatch::push() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{}", err)
             }
-        }
+        },
         Some(("pull", _sub_matches)) => match dispatch::pull() {
             Ok(_) => {}
             Err(err) => {

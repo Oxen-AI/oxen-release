@@ -4,7 +4,7 @@ use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 
-use crate::cli::{Indexer, Stager, Committer};
+use crate::cli::{Committer, Indexer, Stager};
 
 use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
@@ -203,10 +203,8 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
                 Ok(commit_id) => {
                     println!("Successfully committed id {}", commit_id);
                     Ok(())
-                },
-                Err(err) => {
-                    Err(err)
                 }
+                Err(err) => Err(err),
             }
         }
         _ => {

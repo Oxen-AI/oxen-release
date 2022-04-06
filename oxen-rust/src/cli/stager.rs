@@ -311,7 +311,7 @@ impl Stager {
         Ok(paths)
     }
 
-    pub fn unstage(&self) -> Result<(), OxenError>{
+    pub fn unstage(&self) -> Result<(), OxenError> {
         let iter = self.db.iterator(IteratorMode::Start);
         for (key, _) in iter {
             self.db.delete(key)?;

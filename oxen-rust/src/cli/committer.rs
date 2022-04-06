@@ -1,14 +1,14 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
 
-use crate::error::OxenError;
 use crate::cli::Stager;
-use crate::util::FileUtil;
+use crate::error::OxenError;
 use crate::model::CommitMsg;
+use crate::util::FileUtil;
 
 use rocksdb::{IteratorMode, DB};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::collections::HashSet;
 
 pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DB: &str = "commits";
@@ -30,7 +30,7 @@ impl Committer {
 
         Ok(Committer {
             commits_db: DB::open_default(&commits_dir)?,
-            history_dir: history_dir,
+            history_dir,
             repo_dir: repo_dir.to_path_buf(),
         })
     }
@@ -105,8 +105,11 @@ impl Committer {
         println!("Stager found {} dirs", added_dirs.len());
         for (dir, _) in added_dirs.iter() {
             let full_path = self.repo_dir.join(dir);
-            println!("Committer.commit({:?}) list_files_in_dir for dir {:?}", dir, full_path);
-            
+            println!(
+                "Committer.commit({:?}) list_files_in_dir for dir {:?}",
+                dir, full_path
+            );
+
             for path in self.list_files_in_dir(&full_path) {
                 let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_dir)?;
                 let key = relative_path.to_str().unwrap().as_bytes();
@@ -137,7 +140,7 @@ impl Committer {
         for (key, value) in iter {
             let commit_id = String::from(str::from_utf8(&*key)?);
             let commit_message = String::from(str::from_utf8(&*value)?);
-            commit_msgs.push(CommitMsg { 
+            commit_msgs.push(CommitMsg {
                 id: commit_id,
                 message: commit_message,
             });
@@ -146,7 +149,10 @@ impl Committer {
         Ok(commit_msgs)
     }
 
-    pub fn list_unsynced_files_for_commit(&self, commit_id: &str) -> Result<Vec<PathBuf>, OxenError> {
+    pub fn list_unsynced_files_for_commit(
+        &self,
+        commit_id: &str,
+    ) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
         let commit_db_path = self.history_dir.join(Path::new(&commit_id));
         let commit_db = DB::open_default(&commit_db_path)?;
@@ -184,7 +190,7 @@ mod tests {
         let _ = test::add_txt_file_to_dir(&sub_dir, "Train Ex 1")?;
         let _ = test::add_txt_file_to_dir(&sub_dir, "Train Ex 2")?;
         let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
-    
+
         // Add a file and a directory
         stager.add_file(&hello_file)?;
         stager.add_dir(&sub_dir)?;
