@@ -20,11 +20,35 @@ pub fn list(config: &RepoConfig) -> Result<Vec<Dataset>, OxenError> {
         if let Ok(datasets_res) = res.json::<ListDatasetsResponse>() {
             Ok(datasets_res.datasets)
         } else {
-            Err(OxenError::basic_str("Could not serialize entry"))
+            Err(OxenError::basic_str("Could not serialize datasets"))
         }
     } else {
         println!("hash_exists request failed..");
-        Err(OxenError::basic_str("Could not serialize entry"))
+        Err(OxenError::basic_str("Could not serialize datasets"))
+    }
+}
+
+pub fn get_by_name(config: &RepoConfig, name: &str) -> Result<Dataset, OxenError> {
+    let encoded = urlencoding::encode(name);
+    let url = format!(
+        "http://{}/api/v1/repositories/{}/datasets?name={}",
+        config.host(),
+        config.repository.id,
+        encoded
+    );
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(reqwest::header::AUTHORIZATION, &config.user.token)
+        .send()
+    {
+        if let Ok(datasets_res) = res.json::<DatasetResponse>() {
+            Ok(datasets_res.dataset)
+        } else {
+            Err(OxenError::basic_str("Could not serialize dataset"))
+        }
+    } else {
+        Err(OxenError::basic_str("Could not serialize dataset"))
     }
 }
 
@@ -55,7 +79,7 @@ pub fn create(config: &RepoConfig, name: &str) -> Result<Dataset, OxenError> {
             ))),
         }
     } else {
-        Err(OxenError::basic_str("api::create_dataset() API failed"))
+        Err(OxenError::basic_str("api::datasets::create() API failed"))
     }
 }
 
@@ -79,13 +103,13 @@ pub fn delete(config: &RepoConfig, dataset: &Dataset) -> Result<StatusMessage, O
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(&format!(
-                "status_code[{}], could not delete repository \n\n{}",
+                "status_code[{}], could not delete dataset \n\n{}",
                 status, body
             ))),
         }
     } else {
         Err(OxenError::basic_str(
-            "api::repositories::delete() Request failed",
+            "api::datasets::delete() Request failed",
         ))
     }
 }

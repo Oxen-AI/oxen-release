@@ -4,8 +4,8 @@ use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 
-use crate::cli::Indexer;
-use crate::cli::Stager;
+use crate::cli::{Indexer, Stager, Committer};
+
 use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
 use crate::model::Repository;
@@ -58,35 +58,29 @@ pub fn set_remote(url: &str) -> Result<(), OxenError> {
 }
 
 pub fn add(path: &str) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
+    let repo_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&current_dir);
-    let stager = Stager::new(&indexer.root_dir)?;
+    let stager = Stager::new(&repo_dir)?;
     stager.add(Path::new(path))?;
 
     Ok(())
 }
 
-pub fn push(directory: &str) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
+pub fn push() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&current_dir);
+    let indexer = Indexer::new(&repo_dir);
+    let committer = Committer::new(&repo_dir)?;
 
-    // Remove trailing slash from directory names
-    let mut name = String::from(directory);
-    if name.ends_with('/') {
-        name.pop();
-    }
-    indexer.create_dataset_if_not_exists(&name)?;
-    indexer.push(&name)
+    indexer.push(&committer)
 }
 
 pub fn pull() -> Result<(), OxenError> {
@@ -184,8 +178,8 @@ fn p_create(
 }
 
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
+    let repo_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&repo_dir) {
         println!("{}", NO_REPO_MSG);
         return Err(OxenError::basic_str(NO_REPO_MSG));
     }
@@ -203,9 +197,17 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with msg [{}]", message);
-            let indexer = Indexer::new(&current_dir);
-            indexer.commit(message)?;
-            Ok(())
+            let stager = Stager::new(&repo_dir)?;
+            let committer = Committer::new(&repo_dir)?;
+            match committer.commit(&stager, message) {
+                Ok(commit_id) => {
+                    println!("Successfully committed id {}", commit_id);
+                    Ok(())
+                },
+                Err(err) => {
+                    Err(err)
+                }
+            }
         }
         _ => {
             eprintln!("{}", err_str);
@@ -215,14 +217,13 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 }
 
 pub fn status() -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
+    let repo_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&current_dir);
-    let stager = Stager::new(&indexer.root_dir)?;
+    let stager = Stager::new(&repo_dir)?;
 
     let added_directories = stager.list_added_directories()?;
     let added_files = stager.list_added_files()?;

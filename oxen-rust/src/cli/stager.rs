@@ -123,8 +123,10 @@ impl Stager {
         let key = path.to_str().unwrap().as_bytes();
 
         // println!("Adding key {}", path.to_str().unwrap());
-        // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
-        // Then when we push, we hash the file contents and save it back in here to keep track of progress
+        // Value is empty because there is nothing we really need to track...
+        // In the future it could be the hash, so that we know if it changed
+        // but hashing takes a long time with sha256 and we want to add
+        // a ton of files at once
         self.db.put(&key, b"")?;
 
         // Check if we have added the full directory,
@@ -309,6 +311,14 @@ impl Stager {
         Ok(paths)
     }
 
+    pub fn unstage(&self) -> Result<(), OxenError>{
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (key, _) in iter {
+            self.db.delete(key)?;
+        }
+        Ok(())
+    }
+
     fn convert_usize_slice(&self, slice: &[u8]) -> Result<usize, OxenError> {
         match <[u8; 8]>::try_from(slice) {
             Ok(data) => {
@@ -347,6 +357,41 @@ mod tests {
                 panic!("test_add_file() Should have returned path... {}", err)
             }
         }
+
+        // cleanup
+        std::fs::remove_dir_all(repo_path)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unstage() -> Result<(), OxenError> {
+        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
+        let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
+
+        let sub_dir = repo_path.join("training_data");
+        std::fs::create_dir_all(&sub_dir)?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
+        let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
+
+        // Add a file and a directory
+        stager.add_file(&hello_file)?;
+        stager.add_dir(&sub_dir)?;
+
+        // Make sure the counts start as 1
+        let files = stager.list_added_files()?;
+        assert_eq!(files.len(), 1);
+        let dirs = stager.list_added_directories()?;
+        assert_eq!(dirs.len(), 1);
+
+        // Unstage
+        stager.unstage()?;
+
+        // There should no longer be any added files
+        let files = stager.list_added_files()?;
+        assert_eq!(files.len(), 0);
+        let dirs = stager.list_added_directories()?;
+        assert_eq!(dirs.len(), 0);
 
         // cleanup
         std::fs::remove_dir_all(repo_path)?;

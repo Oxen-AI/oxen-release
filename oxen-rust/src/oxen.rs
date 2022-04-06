@@ -97,9 +97,8 @@ fn main() {
                 }
             }
         }
-        Some(("push", sub_matches)) => {
-            let directory = sub_matches.value_of("DIRECTORY").expect("required");
-            match dispatch::push(directory) {
+        Some(("push", _sub_matches)) => {
+            match dispatch::push() {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
