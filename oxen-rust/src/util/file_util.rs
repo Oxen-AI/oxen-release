@@ -1,6 +1,6 @@
 use jwalk::WalkDir;
 use std::collections::HashSet;
-use std::fs;
+use std::{io, fs};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -81,6 +81,20 @@ impl FileUtil {
         }
 
         files
+    }
+
+    pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
+        fs::create_dir_all(&dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let ty = entry.file_type()?;
+            if ty.is_dir() {
+                FileUtil::copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            } else {
+                fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            }
+        }
+        Ok(())
     }
 
     pub fn is_image(path: &Path) -> bool {

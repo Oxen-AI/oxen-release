@@ -54,6 +54,10 @@ impl Referencer {
         }
     }
 
+    pub fn head_commit_id(&self) -> Result<String, OxenError> {
+        self.get_commit_id(&self.read_head()?)
+    }
+
     pub fn read_head(&self) -> Result<String, OxenError> {
         FileUtil::read_from_path(&self.head_file)
     } 
@@ -87,6 +91,21 @@ mod tests {
         referencer.set_head(branch_name, &commit_id)?;
         assert_eq!(referencer.read_head()?, branch_name);
         assert_eq!(referencer.get_commit_id(branch_name)?, commit_id);
+
+        // Cleanup
+        std::fs::remove_dir_all(&repo_path)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_head_commit_id() -> Result<(), OxenError> {
+        let (referencer, repo_path) = test::create_referencer(BASE_DIR)?;
+
+        let branch_name = "experiment/cat-dog";
+        let commit_id = format!("{}", uuid::Uuid::new_v4());
+        referencer.set_head(branch_name, &commit_id)?;
+        assert_eq!(referencer.head_commit_id()?, commit_id);
 
         // Cleanup
         std::fs::remove_dir_all(&repo_path)?;
