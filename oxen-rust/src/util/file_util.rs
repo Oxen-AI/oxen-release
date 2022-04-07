@@ -12,17 +12,16 @@ use crate::error::OxenError;
 pub struct FileUtil {}
 
 impl FileUtil {
-    pub fn read_from_path(path: &Path) -> String {
-        let mut result = String::from("");
+    pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
         match fs::read_to_string(path) {
             Ok(contents) => {
-                result = contents;
+                Ok(contents)
             }
             Err(_) => {
-                eprintln!("Could not open staging file {}", path.display())
+                let err = format!("Could not open staging file {}", path.display());
+                Err(OxenError::basic_str(&err))
             }
         }
-        result
     }
 
     pub fn write_to_path(path: &Path, value: &str) {

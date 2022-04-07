@@ -1,5 +1,5 @@
 use crate::api;
-use crate::cli::{Indexer, Stager};
+use crate::cli::{Indexer, Stager, Referencer};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use std::fs::File;
@@ -28,15 +28,28 @@ pub fn create_repo_cfg(name: &str) -> Result<RepoConfig, OxenError> {
     Ok(RepoConfig::from(&config, &repository))
 }
 
-pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
+pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
     let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
-    let repo_dir = PathBuf::from(&repo_name);
-
     std::fs::create_dir_all(&repo_name)?;
+    Ok(PathBuf::from(&repo_name))
+}
+
+pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
+    let repo_dir = create_repo_dir(&base_dir)?;
+
     let indexer = Indexer::new(&repo_dir);
     indexer.init()?;
 
     Ok((Stager::new(&indexer.root_dir)?, repo_dir))
+}
+
+pub fn create_referencer(base_dir: &str) -> Result<(Referencer, PathBuf), OxenError> {
+    let repo_dir = create_repo_dir(&base_dir)?;
+
+    let indexer = Indexer::new(&repo_dir);
+    indexer.init()?;
+
+    Ok((Referencer::new(&indexer.root_dir)?, repo_dir))
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {

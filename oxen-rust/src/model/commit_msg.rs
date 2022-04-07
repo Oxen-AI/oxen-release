@@ -1,8 +1,9 @@
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommitMsg {
     pub id: String,
+    pub parent_id: Option<String>,
     pub message: String,
 }
 

@@ -21,8 +21,21 @@ A tool to stage, commit, and push data to our servers
 
 ```
 .oxen/
-  head
-    - file that contains hash of current commit
+  HEAD (file that contains name of current "ref")
+
+    ex) heads/main
+
+  refs/ (keeps track of branch heads, remote names and their current commits)
+    key,value db of:
+
+    # Local heads
+    heads/main -> COMMIT_ID
+    heads/feature/add_cats -> COMMIT_ID
+    heads/experiment/add_dogs -> COMMIT_ID
+
+    # What has been pushed in these branches
+    remotes/experiment/add_dogs -> COMMIT_ID
+
 
   staged/ (created from `oxen add <file>` command)
     key,value db of:
@@ -33,7 +46,13 @@ A tool to stage, commit, and push data to our servers
   commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
     key,value of:
 
-    COMMIT_HASH -> message
+    COMMIT_HASH -> CommitMsg
+
+    A CommitMsg is an object that contains, can use parent for ordering the commit logs
+      - Message
+      - Parent Commit ID
+      - Author
+      - Timestamp
 
   history/ (list of commits)
     COMMIT_HASH_1/

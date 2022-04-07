@@ -3,6 +3,7 @@ use colored::Colorize;
 use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::cli::{Committer, Indexer, Stager};
 
@@ -197,8 +198,11 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with msg [{}]", message);
-            let stager = Stager::new(&repo_dir)?;
-            let committer = Committer::new(&repo_dir)?;
+            // We might need a higher level coordinater so that 
+            // Stager and committer don't have a circular dependency
+            let committer = Arc::new(Committer::new(&repo_dir)?);
+            let stager = Stager::from(Arc::clone(&committer))?;
+            
             match committer.commit(&stager, message) {
                 Ok(commit_id) => {
                     println!("Successfully committed id {}", commit_id);
@@ -221,7 +225,8 @@ pub fn status() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let stager = Stager::new(&repo_dir)?;
+    let committer = Arc::new(Committer::new(&repo_dir)?);
+    let stager = Stager::from(Arc::clone(&committer))?;
 
     let added_directories = stager.list_added_directories()?;
     let added_files = stager.list_added_files()?;

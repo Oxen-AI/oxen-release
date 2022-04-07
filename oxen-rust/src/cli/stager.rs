@@ -1,17 +1,20 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::util::FileUtil;
+use crate::cli::Committer;
 
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::sync::Arc;
 
 pub const STAGED_DIR: &str = "staged";
 
 pub struct Stager {
     db: DB,
+    committer: Option<Arc<Committer>>,
     repo_path: PathBuf,
 }
 
@@ -21,7 +24,19 @@ impl Stager {
         std::fs::create_dir_all(&dbpath)?;
         Ok(Stager {
             db: DB::open_default(dbpath)?,
+            committer: None,
             repo_path: repo_path.to_path_buf(),
+        })
+    }
+
+    pub fn from(committer: Arc<Committer>) -> Result<Stager, OxenError> {
+        let repo_path = committer.repo_dir.to_path_buf();
+        let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
+        std::fs::create_dir_all(&dbpath)?;
+        Ok(Stager {
+            db: DB::open_default(dbpath)?,
+            committer: Some(committer),
+            repo_path: repo_path,
         })
     }
 
@@ -224,6 +239,10 @@ impl Stager {
             if local_path.is_file() {
                 // Return relative path with respect to the repo
                 let relative_path = FileUtil::path_relative_to_dir(&local_path, &self.repo_path)?;
+                if self.file_is_committed(&relative_path) {
+                    continue;
+                }
+
                 // println!("Checking if we have the key? {:?}", relative_path);
                 if let Some(path_str) = relative_path.to_str() {
                     let bytes = path_str.as_bytes();
@@ -258,7 +277,7 @@ impl Stager {
                 }
                 Ok(None) => {
                     // did not get val
-                    false
+                    self.file_is_committed(path)
                 }
                 Err(err) => {
                     eprintln!("could not fetch value from db: {}", err);
@@ -267,6 +286,22 @@ impl Stager {
             }
         } else {
             eprintln!("could not convert path to str: {:?}", path);
+            false
+        }
+    }
+
+    fn file_is_committed(&self, path: &Path) -> bool {
+        if let Some(committer) = &self.committer {
+            match committer.head_contains_file(path) {
+                Ok(val) => {
+                    val
+                },
+                Err(_err) => {
+                    // eprintln!("Stager.file_is_committed err: {}", err);
+                    false
+                }
+            }
+        } else {
             false
         }
     }
@@ -283,10 +318,16 @@ impl Stager {
                 let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
                 // println!("list_untracked_directories relative {:?}", relative_path);
 
+                if self.file_is_committed(&relative_path) {
+                    continue;
+                }
+
                 if let Some(path_str) = relative_path.to_str() {
                     if path_str.contains(OXEN_HIDDEN_DIR) {
                         continue;
                     }
+
+                    
 
                     let bytes = path_str.as_bytes();
                     match self.db.get(bytes) {

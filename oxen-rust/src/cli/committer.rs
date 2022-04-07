@@ -1,6 +1,6 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
 
-use crate::cli::Stager;
+use crate::cli::{Stager, Referencer};
 use crate::error::OxenError;
 use crate::model::CommitMsg;
 use crate::util::FileUtil;
@@ -15,22 +15,24 @@ pub const COMMITS_DB: &str = "commits";
 
 pub struct Committer {
     commits_db: DB,
+    referencer: Referencer,
     history_dir: PathBuf,
-    repo_dir: PathBuf,
+    pub repo_dir: PathBuf,
 }
 
 impl Committer {
     pub fn new(repo_dir: &Path) -> Result<Committer, OxenError> {
-        let history_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
-        let commits_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(COMMITS_DB)));
+        let history_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
+        let commits_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(COMMITS_DB)));
 
-        if !history_dir.exists() {
-            std::fs::create_dir_all(&history_dir)?;
+        if !history_path.exists() {
+            std::fs::create_dir_all(&history_path)?;
         }
 
         Ok(Committer {
-            commits_db: DB::open_default(&commits_dir)?,
-            history_dir,
+            commits_db: DB::open_default(&commits_path)?,
+            referencer: Referencer::new(&repo_dir)?,
+            history_dir: history_path,
             repo_dir: repo_dir.to_path_buf(),
         })
     }
@@ -121,12 +123,39 @@ impl Committer {
             }
         }
 
-        // Create an entry in the commits_db that is the id -> message
-        // TODO: Make a json struct with more info
-        //  - Message
-        //  - UTC date
-        //  - Author
-        self.commits_db.put(&id_str, message.as_bytes())?;
+        // Get last commit from the referencer
+        let ref_name = self.referencer.read_head()?;
+
+        // Create an entry in the commits_db that is the id -> CommitMsg
+        //  - parent_commit_id (can be empty if root)
+        //  - message
+        //  - date
+        //  - author
+        let commit = match self.referencer.get_commit_id(&ref_name) {
+            Ok(parent_id) => {
+                // We have a parent
+                CommitMsg {
+                    id: id_str.clone(),
+                    parent_id: Some(parent_id),
+                    message: String::from(message),
+                }
+            },
+            Err(_) => {
+                // We are creating initial commit, no parent
+                CommitMsg {
+                    id: id_str.clone(),
+                    parent_id: None,
+                    message: String::from(message),
+                }
+            }
+        };
+        
+        // Update head
+        self.referencer.set_head(&ref_name, &commit.id)?;
+
+        // Write commit json to db
+        let commit_json = serde_json::to_string(&commit)?;
+        self.commits_db.put(&id_str, commit_json.as_bytes())?;
 
         // Unstage all the files at the end
         stager.unstage()?;
@@ -137,13 +166,9 @@ impl Committer {
     pub fn list_commits(&self) -> Result<Vec<CommitMsg>, OxenError> {
         let mut commit_msgs: Vec<CommitMsg> = vec![];
         let iter = self.commits_db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            let commit_id = String::from(str::from_utf8(&*key)?);
-            let commit_message = String::from(str::from_utf8(&*value)?);
-            commit_msgs.push(CommitMsg {
-                id: commit_id,
-                message: commit_message,
-            });
+        for (_key, value) in iter {
+            let commit: CommitMsg = serde_json::from_str(str::from_utf8(&*value)?)?;
+            commit_msgs.push(commit);
         }
 
         Ok(commit_msgs)
@@ -170,6 +195,34 @@ impl Committer {
 
         Ok(paths)
     }
+
+    pub fn head_contains_file(&self, path: &Path) -> Result<bool, OxenError> {
+        
+        // Grab current head from referencer
+        let ref_name = self.referencer.read_head()?;
+
+        // Get commit db that contains all files
+        let commit_id = self.referencer.get_commit_id(&ref_name)?;
+        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
+        let commit_db = DB::open_default(&commit_db_path)?;
+        // println!("head_contains_file path: {:?}\ndb: {:?}", path, commit_db_path);
+
+        // Check if path is in this commit
+        let key = path.to_str().unwrap();
+        let bytes = key.as_bytes();
+        match commit_db.get(bytes) {
+            Ok(Some(_value)) => {
+                Ok(true)
+            }
+            Ok(None) => {
+                Ok(false)
+            }
+            Err(err) => {
+                let err = format!("Error reading db {:?}\nErr: {}", commit_db_path, err);
+                Err(OxenError::basic_str(&err))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -177,6 +230,7 @@ mod tests {
     use crate::cli::Committer;
     use crate::error::OxenError;
     use crate::test;
+    use crate::util::FileUtil;
 
     const BASE_DIR: &str = "data/test/runs";
 
@@ -213,6 +267,10 @@ mod tests {
         let files = committer.list_unsynced_files_for_commit(&commit_id)?;
         // Two files in training_data and one at base level
         assert_eq!(files.len(), 3);
+
+        // Verify that the current commit contains the hello file
+        let relative_path = FileUtil::path_relative_to_dir(&hello_file, &repo_path)?;
+        assert_eq!(committer.head_contains_file(&relative_path)?, true);
 
         // Push some of them
 

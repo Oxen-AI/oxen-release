@@ -25,7 +25,7 @@ impl<'a> HTTPConfig<'a> for RepoConfig {
 
 impl RepoConfig {
     pub fn new(path: &Path) -> RepoConfig {
-        let contents = FileUtil::read_from_path(path);
+        let contents = FileUtil::read_from_path(path).unwrap();
         toml::from_str(&contents).unwrap()
     }
 

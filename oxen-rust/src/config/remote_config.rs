@@ -88,7 +88,7 @@ impl RemoteConfig {
     }
 
     pub fn from(path: &Path) -> RemoteConfig {
-        let contents = FileUtil::read_from_path(path);
+        let contents = FileUtil::read_from_path(path).unwrap();
         toml::from_str(&contents).unwrap()
     }
 
