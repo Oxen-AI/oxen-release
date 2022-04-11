@@ -4,11 +4,13 @@ use crate::cli::{Stager, Referencer};
 use crate::error::OxenError;
 use crate::model::CommitMsg;
 use crate::util::FileUtil;
+use crate::config::AuthConfig;
 
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
+use chrono::{Utc};
 
 pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DB: &str = "commits";
@@ -17,6 +19,7 @@ pub struct Committer {
     commits_db: DB,
     referencer: Referencer,
     history_dir: PathBuf,
+    auth_cfg: AuthConfig,
     pub repo_dir: PathBuf,
 }
 
@@ -33,6 +36,7 @@ impl Committer {
             commits_db: DB::open_default(&commits_path)?,
             referencer: Referencer::new(&repo_dir)?,
             history_dir: history_path,
+            auth_cfg: AuthConfig::default().unwrap(),
             repo_dir: repo_dir.to_path_buf(),
         })
     }
@@ -153,6 +157,8 @@ impl Committer {
                     id: id_str.clone(),
                     parent_id: Some(parent_id),
                     message: String::from(message),
+                    author: self.auth_cfg.user.name.clone(),
+                    date: Utc::now(),
                 }
             },
             Err(_) => {
@@ -161,6 +167,8 @@ impl Committer {
                     id: id_str.clone(),
                     parent_id: None,
                     message: String::from(message),
+                    author: self.auth_cfg.user.name.clone(),
+                    date: Utc::now(),
                 }
             }
         };

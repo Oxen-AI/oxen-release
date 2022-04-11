@@ -29,6 +29,10 @@ fn main() {
                 .about("See at what files are ready to be added or committed")
         )
         .subcommand(
+            Command::new("log")
+                .about("See log of commits")
+        )
+        .subcommand(
             Command::new("add")
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
@@ -82,6 +86,12 @@ fn main() {
             }
         }
         Some(("status", _sub_matches)) => match dispatch::status() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{}", err)
+            }
+        },
+        Some(("log", _sub_matches)) => match dispatch::log_commits() {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{}", err)
@@ -150,7 +160,7 @@ fn main() {
                     Ok(())
                 }
             }
-            .unwrap();
+            .unwrap_or_default()
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachabe!()
     }

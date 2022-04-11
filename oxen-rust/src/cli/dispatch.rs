@@ -12,6 +12,7 @@ use crate::error::OxenError;
 use crate::model::Repository;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
+const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
 
 pub fn login() -> Result<(), OxenError> {
     println!("🐂 Login\n\nEnter your email:");
@@ -179,6 +180,11 @@ fn p_create(
 }
 
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
+    if AuthConfig::default().is_err() {
+        println!("{}", RUN_LOGIN_MSG);
+        return Err(OxenError::basic_str(RUN_LOGIN_MSG));
+    }
+
     let repo_dir = env::current_dir().unwrap();
     if !Indexer::repo_exists(&repo_dir) {
         println!("{}", NO_REPO_MSG);
@@ -216,6 +222,25 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
             Err(OxenError::basic_str(err_str))
         }
     }
+}
+
+pub fn log_commits() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    if !Indexer::repo_exists(&repo_dir) {
+        let err = NO_REPO_MSG.to_string();
+        return Err(OxenError::basic_str(&err));
+    }
+
+    let committer = Arc::new(Committer::new(&repo_dir)?);
+    
+    for commit in committer.list_commits()? {
+        let commit_id_str = format!("commit {}", commit.id).yellow();
+        println!("{}\n", commit_id_str);
+        println!("Author: {}", commit.author);
+        println!("    {}\n", commit.message);
+    }
+
+    Ok(())
 }
 
 pub fn status() -> Result<(), OxenError> {
