@@ -1,12 +1,17 @@
 
 extern crate dotenv;
 
+use liboxen::api::local::RepositoryAPI;
 use liboxen::api;
 use liboxen::model::{HTTPErrorMsg, RepositoryNew};
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 
+use std::path::Path;
+
 async fn repositories_index() -> impl Responder {
-    let repositories = api::local::repositories::list();
+    let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
+    let api = RepositoryAPI::new(Path::new(&sync_dir));
+    let repositories = api.list();
     match repositories {
         Ok(repositories) => {
             HttpResponse::Ok().json(repositories)
@@ -19,10 +24,12 @@ async fn repositories_index() -> impl Responder {
 }
 
 async fn repositories_create(body: String) -> impl Responder {
+    let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
     let repository: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match repository {
         Ok(repository) => {
-            let repository = api::local::repositories::create(&repository);
+            let api = RepositoryAPI::new(Path::new(&sync_dir));
+            let repository = api.create(&repository);
             match repository {
                 Ok(repository) => {
                     HttpResponse::Ok().json(repository)
