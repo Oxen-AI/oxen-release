@@ -14,6 +14,7 @@ rayon = "1.5.1"
 reqwest = { version = "0.11.9", features = ["blocking", "multipart", "json"] }
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.78"
+serde_derive = "1.0"
 sha2 = "0.10.1"
 toml = "0.5.8"
 futures = "0.3"
@@ -25,6 +26,11 @@ http = "0.2.6"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 colored = "2.0.0"
 rocksdb = { version = "0.18.0", default-features = false, features = ["lz4"] }
+actix-web = { version = "4", features = ["openssl"] }
+openssl = { version = "0.10" }
+dotenv = "0.9.0"
+flate2 = "1.0.23"
+tar = "0.4.38"
 
 [profile.release]
 codegen-units = 1
@@ -36,3 +42,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "oxen"
 path = "src/oxen.rs"
+
+[[bin]]
+name = "oxen-server"
+path = "src/server.rs"

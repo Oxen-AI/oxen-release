@@ -13,12 +13,17 @@ pub struct Repository {
     pub url: String,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct RepositoryNew {
+    pub name: String,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct RepositoryResponse {
     pub repository: Repository,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ListRepositoriesResponse {
     pub repositories: Vec<Repository>,
 }

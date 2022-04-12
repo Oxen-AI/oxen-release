@@ -12,6 +12,7 @@ pub enum OxenError {
     HTTP(reqwest::Error),
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
+    ENV(std::env::VarError),
 }
 
 impl OxenError {
@@ -79,5 +80,11 @@ impl From<reqwest::Error> for OxenError {
 impl From<rocksdb::Error> for OxenError {
     fn from(error: rocksdb::Error) -> Self {
         OxenError::DB(error)
+    }
+}
+
+impl From<std::env::VarError> for OxenError {
+    fn from(error: std::env::VarError) -> Self {
+        OxenError::ENV(error)
     }
 }

@@ -7,6 +7,8 @@ use serde_json::json;
 pub mod datasets;
 pub mod entries;
 pub mod repositories;
+pub mod local;
+pub mod endpoint;
 
 pub fn login(config: &RemoteConfig, email: &str, password: &str) -> Result<User, OxenError> {
     let url = format!("{}/login", config.endpoint());
