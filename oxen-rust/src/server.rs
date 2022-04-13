@@ -1,17 +1,17 @@
 extern crate dotenv;
 
-use actix_web::{web, App, HttpResponse, HttpServer, Responder, Error};
+use actix_web::{web, App, Error, HttpResponse, HttpServer, Responder};
 
-use serde::Deserialize;
 use futures_util::stream::StreamExt as _;
+use serde::Deserialize;
 use std::io::Write;
 
+use chrono::{DateTime, NaiveDateTime, Utc};
 use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
-use liboxen::model::{HTTPStatusMsg, RepositoryNew, CommitMsg};
 use liboxen::cli::indexer::OXEN_HIDDEN_DIR;
 use liboxen::cli::Committer;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use liboxen::model::{CommitMsg, HTTPStatusMsg, RepositoryNew};
 
 use actix_web::middleware::Logger;
 use env_logger::Env;
@@ -91,10 +91,13 @@ struct CommitQuery {
     date: String,
 }
 
-// TODO: API to create commit, given a commit object, and a zipped rocksdb file, 
+// TODO: API to create commit, given a commit object, and a zipped rocksdb file,
 // create the proper dirs, unzip to the history dir, and add an entry to the commits db
-async fn commit_upload(path_param: web::Path<String>, mut body: web::Payload, data: web::Query<CommitQuery>) -> Result<HttpResponse, Error>
-{
+async fn commit_upload(
+    path_param: web::Path<String>,
+    mut body: web::Payload,
+    data: web::Query<CommitQuery>,
+) -> Result<HttpResponse, Error> {
     let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
     let api = RepositoryAPI::new(Path::new(&sync_dir));
 
@@ -112,7 +115,8 @@ async fn commit_upload(path_param: web::Path<String>, mut body: web::Payload, da
             // Create Commit
             match Committer::new(&repo_dir) {
                 Ok(committer) => {
-                    let no_timezone = NaiveDateTime::parse_from_str(&data.date, "%Y-%m-%d %H:%M:%S").unwrap();
+                    let no_timezone =
+                        NaiveDateTime::parse_from_str(&data.date, "%Y-%m-%d %H:%M:%S").unwrap();
 
                     let commit = CommitMsg {
                         id: data.commit_id.clone(),
@@ -124,12 +128,12 @@ async fn commit_upload(path_param: web::Path<String>, mut body: web::Payload, da
                     match committer.add_commit_to_db(&commit) {
                         Ok(_) => {
                             println!("Added commit to db!");
-                        },
+                        }
                         Err(err) => {
                             eprintln!("Error adding commit to db: {:?}", err);
                         }
                     }
-                },
+                }
                 Err(err) => {
                     eprintln!("Error creating committer: {:?}", err);
                 }
@@ -148,14 +152,13 @@ async fn commit_upload(path_param: web::Path<String>, mut body: web::Payload, da
             while let Some(item) = body.next().await {
                 // bytes.extend_from_slice(&item?);
                 let bytes = &item?;
-                total_bytes += bytes.len();
-                file.write(bytes)?;
+                total_bytes += file.write(bytes)?;
             }
 
             let response_str = format!("Wrote {:?} bytes to {:?}", total_bytes, outfile);
 
             Ok(HttpResponse::Ok().json(HTTPStatusMsg::success(&response_str)))
-        },
+        }
         Err(err) => {
             let msg = format!("Err: {}", err);
             Ok(HttpResponse::Ok().json(HTTPStatusMsg::error(&msg)))
@@ -175,14 +178,11 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .service(
-                web::resource("/repositories/{name}")
-                    .route(web::get().to(repository_show))
-            )
+            .service(web::resource("/repositories/{name}").route(web::get().to(repository_show)))
             .service(
                 web::resource("/repositories/{name}/commits")
                     .route(web::get().to(commit_list))
-                    .route(web::post().to(commit_upload))
+                    .route(web::post().to(commit_upload)),
             )
             .route("/repositories", web::get().to(repositories_index))
             .route("/repositories", web::post().to(repositories_create))
