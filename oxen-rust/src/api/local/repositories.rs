@@ -30,6 +30,23 @@ impl RepositoryAPI {
         Ok(PathBuf::from(sync_dir))
     }
 
+    pub fn get_by_path(&self, path: &Path) -> Result<RepositoryResponse, OxenError> {
+        let sync_dir = self.get_sync_dir()?;
+        let repo_path = sync_dir.join(path);
+
+        if !repo_path.exists() {
+            let err = format!("Repo does not exist: {:?}", repo_path);
+            return Err(OxenError::basic_str(&err));
+        }
+
+        let repo = Repository::from(&repo_path);
+        Ok(RepositoryResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_FOUND),
+            repository: repo,
+        })
+    }
+
     pub fn list(&self) -> Result<ListRepositoriesResponse, OxenError> {
         let mut repos: Vec<Repository> = vec![];
         let sync_dir = self.get_sync_dir()?;
@@ -72,7 +89,7 @@ impl RepositoryAPI {
 
         std::fs::create_dir_all(&repo_dir)?;
         let indexer = Indexer::new(&repo_dir);
-        indexer.init()?;
+        indexer.init_with_name(&repo.name)?;
 
         let repository = Repository {
             id,
@@ -213,6 +230,27 @@ mod tests {
                 assert_eq!(err.to_string(), msg);
             }
         };
+
+        // cleanup
+        fs::remove_dir_all(sync_dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_6_create_get_repository_by_path() -> Result<(), OxenError> {
+        let sync_dir = get_sync_dir();
+        test::setup_env();
+
+        let name: &str = "testing/My-Repo";
+        let repo = RepositoryNew {
+            name: String::from(name),
+        };
+
+        let api = RepositoryAPI::new(Path::new(&sync_dir));
+        api.create(&repo)?;
+
+        let response = api.get_by_path(Path::new(name))?;
+        assert_eq!(response.repository.name, name);
 
         // cleanup
         fs::remove_dir_all(sync_dir)?;

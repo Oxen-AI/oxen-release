@@ -57,26 +57,38 @@ impl Indexer {
     pub fn init(&self) -> Result<(), OxenError> {
         if self.is_initialized() {
             println!("Repository already exists for: {:?}", self.root_dir);
-            Ok(())
-        } else {
-            std::fs::create_dir(&self.hidden_dir)?;
-
-            let name = self.root_dir.file_name().unwrap().to_str().unwrap();
-            let url = api::endpoint::url_from(name);
-            println!("Creating repo with name: {} and url: {}", name, url);
-
-            let auth_cfg = AuthConfig::default()?;
-            let repository = Repository {
-                id: format!("{}", uuid::Uuid::new_v4()),
-                name: String::from(name),
-                url,
-            };
-            let repo_config = RepoConfig::from(&auth_cfg, &repository);
-            let repo_config_file = self.hidden_dir.join(REPO_CONFIG_FILE);
-            repo_config.save(&repo_config_file)?;
-            println!("Repository initialized at {:?}", self.hidden_dir);
-            Ok(())
+            return Ok(());
         }
+
+        // Get name from current directory name
+        let name = self.root_dir.file_name().unwrap().to_str().unwrap();
+        self.init_with_name(name)
+    }
+
+    pub fn init_with_name(&self, name: &str) -> Result<(), OxenError> {
+        if self.is_initialized() {
+            println!("Repository already exists for: {:?}", self.root_dir);
+            return Ok(());
+        }
+
+        // Make hidden .oxen dir
+        std::fs::create_dir(&self.hidden_dir)?;
+
+        // Get setup config and url etc
+        let url = api::endpoint::url_from(name);
+        println!("Creating repo with name: {} and url: {}", name, url);
+
+        let auth_cfg = AuthConfig::default()?;
+        let repository = Repository {
+            id: format!("{}", uuid::Uuid::new_v4()),
+            name: String::from(name),
+            url,
+        };
+        let repo_config = RepoConfig::from(&auth_cfg, &repository);
+        let repo_config_file = self.hidden_dir.join(REPO_CONFIG_FILE);
+        repo_config.save(&repo_config_file)?;
+        println!("Repository initialized at {:?}", self.hidden_dir);
+        Ok(())
     }
 
     pub fn set_remote(&mut self, url: &str) -> Result<(), OxenError> {
@@ -279,6 +291,29 @@ mod tests {
         assert!(hidden_dir.exists());
         assert!(!repository.id.is_empty());
         let name = repo_dir.file_name().unwrap().to_str().unwrap();
+        assert_eq!(repository.name, name);
+        assert_eq!(repository.url, format!("http://0.0.0.0:2000/{}", name));
+
+        // cleanup
+        std::fs::remove_dir_all(repo_dir)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_1_indexer_init_with_name() -> Result<(), OxenError> {
+        test::setup_env();
+
+        let repo_dir = test::create_repo_dir(BASE_DIR)?;
+        let indexer = Indexer::new(&repo_dir);
+
+        let name = "gschoeni/Repo-Name";
+        indexer.init_with_name(name)?;
+
+        let repository = Repository::from(&repo_dir);
+        let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
+        assert!(hidden_dir.exists());
+        assert!(!repository.id.is_empty());
         assert_eq!(repository.name, name);
         assert_eq!(repository.url, format!("http://0.0.0.0:2000/{}", name));
 
