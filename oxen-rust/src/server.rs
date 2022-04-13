@@ -5,9 +5,9 @@ use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
 use liboxen::model::{HTTPErrorMsg, RepositoryNew};
 
-use std::path::Path;
-use env_logger::Env;
 use actix_web::middleware::Logger;
+use env_logger::Env;
+use std::path::Path;
 
 async fn repositories_index() -> impl Responder {
     let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
@@ -42,7 +42,6 @@ async fn repositories_create(body: String) -> impl Responder {
 }
 
 async fn repository_show(path_param: web::Path<String>) -> impl Responder {
-
     let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
     let api = RepositoryAPI::new(Path::new(&sync_dir));
 
@@ -73,10 +72,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .service(
-                web::resource("/repositories/{name}")
-                    .route(web::get().to(repository_show))
-            )
+            .service(web::resource("/repositories/{name}").route(web::get().to(repository_show)))
             .route("/repositories", web::get().to(repositories_index))
             .route("/repositories", web::post().to(repositories_create))
             .wrap(Logger::default())
