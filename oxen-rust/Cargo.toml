@@ -33,6 +33,8 @@ flate2 = "1.0.23"
 tar = "0.4.38"
 walkdir = "2"
 env_logger = "0.9.0"
+actix-multipart = "0.4.0"
+futures-util = "0.3.21"
 
 [profile.release]
 codegen-units = 1

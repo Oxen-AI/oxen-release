@@ -173,17 +173,24 @@ impl Committer {
             }
         };
 
-        // Update head
-        self.referencer.set_head(&ref_name, &commit.id)?;
-
-        // Write commit json to db
-        let commit_json = serde_json::to_string(&commit)?;
-        self.commits_db.put(&id_str, commit_json.as_bytes())?;
+        // Add to commits db
+        self.add_commit_to_db(&commit)?;
 
         // Unstage all the files at the end
         stager.unstage()?;
 
         Ok(id_str)
+    }
+
+    pub fn add_commit_to_db(&self, commit: &CommitMsg) -> Result<(), OxenError> {
+        // Set head db
+        let ref_name = self.referencer.read_head()?;
+        self.referencer.set_head(&ref_name, &commit.id)?;
+
+        // Write commit json to db
+        let commit_json = serde_json::to_string(&commit)?;
+        self.commits_db.put(&commit.id, commit_json.as_bytes())?;
+        Ok(())
     }
 
     pub fn list_commits(&self) -> Result<Vec<CommitMsg>, OxenError> {
