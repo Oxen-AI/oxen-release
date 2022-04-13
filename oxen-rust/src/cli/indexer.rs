@@ -69,7 +69,7 @@ impl Indexer {
             let repository = Repository {
                 id: format!("{}", uuid::Uuid::new_v4()),
                 name: String::from(name),
-                url: url,
+                url,
             };
             let repo_config = RepoConfig::from(&auth_cfg, &repository);
             let repo_config_file = self.hidden_dir.join(REPO_CONFIG_FILE);
@@ -167,7 +167,6 @@ impl Indexer {
         for commit in commits.iter() {
             println!("Pushing commit: {:?}", commit);
             self.push_commit(committer, commit)?;
-            break;
         }
 
         Ok(())

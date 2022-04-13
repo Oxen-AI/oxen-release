@@ -27,7 +27,7 @@ impl Referencer {
 
         Ok(Referencer {
             refs_db: DB::open_default(&refs_dir)?,
-            head_file: head_file,
+            head_file,
         })
     }
 

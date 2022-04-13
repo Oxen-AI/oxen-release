@@ -34,7 +34,7 @@ impl Committer {
 
         Ok(Committer {
             commits_db: DB::open_default(&commits_path)?,
-            referencer: Referencer::new(&repo_dir)?,
+            referencer: Referencer::new(repo_dir)?,
             history_dir: history_path,
             auth_cfg: AuthConfig::default().unwrap(),
             repo_dir: repo_dir.to_path_buf(),
@@ -198,12 +198,12 @@ impl Committer {
     fn p_list_commits(&self, commit_id: &str, messages: &mut Vec<CommitMsg>) -> Result<(), OxenError> {
         // println!("p_list_commits commit_id {}", commit_id);
         
-        if let Some(commit) = self.get_commit_by_id(&commit_id)? {
+        if let Some(commit) = self.get_commit_by_id(commit_id)? {
             // println!("p_list_commits got commit {}", commit.message);
             messages.push(commit.clone());
             if let Some(parent_id) = &commit.parent_id {
                 // println!("p_list_commits got parent {}", parent_id);
-                self.p_list_commits(&parent_id, messages)?;
+                self.p_list_commits(parent_id, messages)?;
             }
         } else {
             // println!("p_list_commits could not get commit id... {}", commit_id);
@@ -330,7 +330,7 @@ mod tests {
 
         // Verify that the current commit contains the hello file
         let relative_annotation_path = FileUtil::path_relative_to_dir(&annotation_file, &repo_path)?;
-        assert_eq!(committer.head_contains_file(&relative_annotation_path)?, true);
+        assert!(committer.head_contains_file(&relative_annotation_path)?);
 
         // Add more files and commit again, make sure the commit copied over the last one
         stager.add_dir(&test_dir)?;
@@ -341,7 +341,7 @@ mod tests {
         assert_eq!(commit_history.len(), 2);
         assert_eq!(commit_history[0].id, commit_id);
         assert_eq!(commit_history[0].message, message_2);
-        assert_eq!(committer.head_contains_file(&relative_annotation_path)?, true);
+        assert!(committer.head_contains_file(&relative_annotation_path)?);
 
         // Push some of them
 

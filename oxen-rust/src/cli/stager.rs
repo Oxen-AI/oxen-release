@@ -36,7 +36,7 @@ impl Stager {
         Ok(Stager {
             db: DB::open_default(dbpath)?,
             committer: Some(committer),
-            repo_path: repo_path,
+            repo_path,
         })
     }
 

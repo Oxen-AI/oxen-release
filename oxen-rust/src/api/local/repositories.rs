@@ -45,11 +45,11 @@ impl RepositoryAPI {
                 // TODO: get actual ID, and loop until the oxen dir
                 let id = format!("{}", uuid::Uuid::new_v4());
 
-                let name = FileUtil::path_relative_to_dir(&local_path, &sync_dir)?;
+                let name = FileUtil::path_relative_to_dir(local_path, &sync_dir)?;
                 if let Some(name) = name.to_str() {
-                    let url = api::endpoint::url_from(&name);
+                    let url = api::endpoint::url_from(name);
                     repos.push(Repository {
-                        id: id,
+                        id,
                         name: name.to_string(),
                         url: url.clone(),
                     });
@@ -79,14 +79,14 @@ impl RepositoryAPI {
         indexer.init()?;
 
         let repository = Repository {
-            id: id,
+            id,
             name: String::from(&repo.name),
-            url: url,
+            url,
         };
         Ok(RepositoryResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),
-            repository: repository
+            repository
         })
     }
 
@@ -120,7 +120,7 @@ mod tests {
         assert_eq!(response.repository.name, name);
 
         let repo_path = Path::new(&sync_dir).join(Path::new(name));
-        assert_eq!(repo_path.exists(), true);
+        assert!(repo_path.exists());
 
         // TODO: test that we can load a repository config from that dir
 
@@ -143,7 +143,7 @@ mod tests {
         assert_eq!(response.repository.name, name);
 
         let repo_path = Path::new(&sync_dir).join(Path::new(name));
-        assert_eq!(repo_path.exists(), true);
+        assert!(repo_path.exists());
 
         // cleanup
         fs::remove_dir_all(sync_dir)?;

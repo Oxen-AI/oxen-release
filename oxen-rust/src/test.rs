@@ -41,7 +41,7 @@ pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 }
 
 pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
-    let repo_dir = create_repo_dir(&base_dir)?;
+    let repo_dir = create_repo_dir(base_dir)?;
 
     let indexer = Indexer::new(&repo_dir);
     indexer.init()?;
@@ -50,7 +50,7 @@ pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
 }
 
 pub fn create_referencer(base_dir: &str) -> Result<(Referencer, PathBuf), OxenError> {
-    let repo_dir = create_repo_dir(&base_dir)?;
+    let repo_dir = create_repo_dir(base_dir)?;
 
     let indexer = Indexer::new(&repo_dir);
     indexer.init()?;
