@@ -35,7 +35,7 @@ async fn repositories_create(body: String) -> impl Responder {
                     HttpResponse::Ok().json(repository)
                 },
                 Err(err) => {
-                    let msg = format!("Could not create repository. Err: {}", err);
+                    let msg = format!("Error: {:?}", err);
                     HttpResponse::Ok().json(HTTPErrorMsg::with_message(&msg))
                 }
             }

@@ -11,10 +11,11 @@ use crate::api;
 use crate::cli::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{CommitMsg, Dataset};
+use crate::model::{CommitMsg, Dataset, Repository};
 use crate::util::hasher;
 
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
+pub const REPO_CONFIG_FILE: &str = "config.toml";
 
 pub struct Indexer {
     pub root_dir: PathBuf,
@@ -27,7 +28,7 @@ pub struct Indexer {
 impl Indexer {
     pub fn new(root_dir: &Path) -> Indexer {
         let hidden_dir = PathBuf::from(&root_dir).join(Path::new(OXEN_HIDDEN_DIR));
-        let config_file = PathBuf::from(&hidden_dir).join(Path::new("config.toml"));
+        let config_file = PathBuf::from(&hidden_dir).join(Path::new(REPO_CONFIG_FILE));
         let auth_config = AuthConfig::default().unwrap();
 
         // Load repo config if exists
@@ -59,6 +60,20 @@ impl Indexer {
             Ok(())
         } else {
             std::fs::create_dir(&self.hidden_dir)?;
+
+            let name = self.root_dir.file_name().unwrap().to_str().unwrap();
+            let url = api::endpoint::url_from(name);
+            println!("Creating repo with name: {} and url: {}", name, url);
+
+            let auth_cfg = AuthConfig::default()?;
+            let repository = Repository {
+                id: format!("{}", uuid::Uuid::new_v4()),
+                name: String::from(name),
+                url: url,
+            };
+            let repo_config = RepoConfig::from(&auth_cfg, &repository);
+            let repo_config_file = self.hidden_dir.join(REPO_CONFIG_FILE);
+            repo_config.save(&repo_config_file)?;
             println!("Repository initialized at {:?}", self.hidden_dir);
             Ok(())
         }
@@ -238,6 +253,40 @@ impl Indexer {
             let mut dest = { File::create(fname)? };
             response.copy_to(&mut dest)?;
         }
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::error::OxenError;
+    use crate::cli::Indexer;
+    use crate::cli::indexer::OXEN_HIDDEN_DIR;
+    use crate::model::Repository;
+    use crate::test;
+
+    const BASE_DIR: &str = "data/test/runs";
+
+    #[test]
+    fn test_1_indexer_init() -> Result<(), OxenError> {
+        test::setup_env();
+
+        let repo_dir = test::create_repo_dir(BASE_DIR)?;
+        let indexer = Indexer::new(&repo_dir);
+        indexer.init()?;
+
+        let repository = Repository::from(&repo_dir);
+        let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
+        assert_eq!(hidden_dir.exists(), true);
+        assert_ne!(repository.id, "");
+        let name = repo_dir.file_name().unwrap().to_str().unwrap();
+        assert_eq!(repository.name, name);
+        assert_eq!(repository.url, format!("http://0.0.0.0:2000/{}", name));
+
+        // cleanup
+        std::fs::remove_dir_all(repo_dir)?;
+
         Ok(())
     }
 }

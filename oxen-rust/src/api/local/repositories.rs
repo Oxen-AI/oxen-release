@@ -1,9 +1,16 @@
 
-use crate::model::{Repository, RepositoryNew, ListRepositoriesResponse};
+use crate::model::{Repository, RepositoryResponse, RepositoryNew, ListRepositoriesResponse};
+use crate::cli::{Indexer};
 use crate::api;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::model::http_response::{
+    STATUS_SUCCESS,
+    MSG_RESOURCE_CREATED,
+    MSG_RESOURCE_FOUND,
+    MSG_RESOURCE_ALREADY_EXISTS
+};
 
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -51,28 +58,35 @@ impl RepositoryAPI {
         }
 
         Ok(ListRepositoriesResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_FOUND),
             repositories: repos
         })
     }
 
-    pub fn create(&self, repo: &RepositoryNew) -> Result<Repository, OxenError> {
+    pub fn create(&self, repo: &RepositoryNew) -> Result<RepositoryResponse, OxenError> {
         let id = format!("{}", uuid::Uuid::new_v4());
         let url = api::endpoint::url_from(&repo.name);
 
         let sync_dir = self.get_sync_dir()?;
         let repo_dir = sync_dir.join(Path::new(&repo.name));
-        if !repo_dir.exists() {
-            std::fs::create_dir_all(&repo_dir)?;
-
-            // TODO: create simple config file with ID etc that we can read
-            let oxen_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR));
-            std::fs::create_dir_all(&oxen_dir)?;
+        if repo_dir.exists() {
+            return Err(OxenError::basic_str(MSG_RESOURCE_ALREADY_EXISTS));
         }
 
-        Ok(Repository {
+        std::fs::create_dir_all(&repo_dir)?;
+        let indexer = Indexer::new(&repo_dir);
+        indexer.init()?;
+
+        let repository = Repository {
             id: id,
             name: String::from(&repo.name),
             url: url,
+        };
+        Ok(RepositoryResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_CREATED),
+            repository: repository
         })
     }
 
@@ -83,14 +97,10 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::RepositoryNew;
     use crate::api::local::RepositoryAPI;
-    use std::env;
+    use crate::test;
     use std::fs;
     use std::path::Path;
-
-    fn setup_env() {
-        env::set_var("HOST", "0.0.0.0");
-        env::set_var("PORT", "2000");
-    }
+    use crate::model::http_response::{MSG_RESOURCE_ALREADY_EXISTS};
 
     fn get_sync_dir() -> String {
         format!("/tmp/oxen/test_sync_dir/{}", uuid::Uuid::new_v4())
@@ -99,15 +109,15 @@ mod tests {
     #[test]
     fn test_1_create_repository() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
-        setup_env();
+        test::setup_env();
 
         let name: &str = "testing";
         let repo = RepositoryNew {
             name: String::from(name)
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
-        let repository = api.create(&repo)?;
-        assert_eq!(repository.name, name);
+        let response = api.create(&repo)?;
+        assert_eq!(response.repository.name, name);
 
         let repo_path = Path::new(&sync_dir).join(Path::new(name));
         assert_eq!(repo_path.exists(), true);
@@ -122,15 +132,15 @@ mod tests {
     #[test]
     fn test_2_create_repository_path() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
-        setup_env();
+        test::setup_env();
 
         let name: &str = "gschoeni/CatsVsDogs";
         let repo = RepositoryNew {
             name: String::from(name)
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
-        let repository = api.create(&repo)?;
-        assert_eq!(repository.name, name);
+        let response = api.create(&repo)?;
+        assert_eq!(response.repository.name, name);
 
         let repo_path = Path::new(&sync_dir).join(Path::new(name));
         assert_eq!(repo_path.exists(), true);
@@ -143,7 +153,7 @@ mod tests {
     #[test]
     fn test_3_create_list_repository() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
-        setup_env();
+        test::setup_env();
 
         let name: &str = "testing";
         let repo = RepositoryNew {
@@ -151,8 +161,8 @@ mod tests {
         };
         
         let api = RepositoryAPI::new(Path::new(&sync_dir));
-        let repository = api.create(&repo)?;
-        assert_eq!(repository.name, name);
+        let response = api.create(&repo)?;
+        assert_eq!(response.repository.name, name);
 
         let api = RepositoryAPI::new(Path::new(&sync_dir));
         let response = api.list()?;
@@ -167,22 +177,47 @@ mod tests {
     #[test]
     fn test_4_create_multidir_list_repository() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
-        setup_env();
+        test::setup_env();
 
         let name: &str = "gschoeni/CatsVsDogs";
         let repo = RepositoryNew {
             name: String::from(name)
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
-        let repository = api.create(&repo)?;
-        assert_eq!(repository.name, name);
+        let response = api.create(&repo)?;
+        assert_eq!(response.repository.name, name);
 
         let response = api.list()?;
-        for repository in response.repositories.iter() {
-            println!("REPOSITORY {}", repository.name)
-        }
         assert_eq!(response.repositories.len(), 1);
         assert_eq!(response.repositories[0].name, name);
+
+        // cleanup
+        fs::remove_dir_all(sync_dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_5_cannot_create_repository_twice() -> Result<(), OxenError> {
+        let sync_dir = get_sync_dir();
+        test::setup_env();
+
+        let name: &str = "gschoeni/CatsVsDogs";
+        let repo = RepositoryNew {
+            name: String::from(name)
+        };
+        let api = RepositoryAPI::new(Path::new(&sync_dir));
+        let response = api.create(&repo)?;
+        assert_eq!(response.repository.name, name);
+
+        match api.create(&repo) {
+            Ok(_) => {
+                panic!("Do not allow creation of same repo twice")
+            },
+            Err(err) => {
+                let msg = format!("\"{}\"", MSG_RESOURCE_ALREADY_EXISTS);
+                assert_eq!(err.to_string(), msg);
+            }
+        };
 
         // cleanup
         fs::remove_dir_all(sync_dir)?;

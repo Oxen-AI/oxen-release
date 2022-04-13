@@ -2,6 +2,7 @@ use crate::api;
 use crate::cli::{Indexer, Stager, Referencer};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf}; // for write_all
@@ -20,6 +21,11 @@ pub fn repo_cfg_file() -> &'static Path {
 
 pub fn test_jpeg_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
+}
+
+pub fn setup_env() {
+    env::set_var("HOST", "0.0.0.0");
+    env::set_var("PORT", "2000");
 }
 
 pub fn create_repo_cfg(name: &str) -> Result<RepoConfig, OxenError> {

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::cli::indexer::{REPO_CONFIG_FILE, OXEN_HIDDEN_DIR};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use http::Uri;
@@ -18,17 +18,27 @@ pub struct RepositoryNew {
     pub name: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RepositoryResponse {
+    pub status: String,
+    pub status_message: String,
     pub repository: Repository,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListRepositoriesResponse {
+    pub status: String,
+    pub status_message: String,
     pub repositories: Vec<Repository>,
 }
 
 impl Repository {
+    pub fn from(repo_dir: &Path) -> Repository {
+        let config_file = repo_dir.join(OXEN_HIDDEN_DIR).join(REPO_CONFIG_FILE);
+        let config = RepoConfig::new(&config_file);
+        config.repository
+    }
+
     pub fn clone_remote(config: &AuthConfig, url: &str) -> Result<RepoConfig, OxenError> {
         match api::repositories::get_by_url(config, url) {
             Ok(repository) => Repository::clone_repo(config, &repository),
