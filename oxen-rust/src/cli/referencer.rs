@@ -3,7 +3,7 @@ use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::{DB};
+use rocksdb::DB;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -19,7 +19,7 @@ pub struct Referencer {
 impl Referencer {
     pub fn new(repo_dir: &Path) -> Result<Referencer, OxenError> {
         let refs_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(REFS_DIR)));
-        let head_file = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HEAD_FILE))); 
+        let head_file = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HEAD_FILE)));
 
         if !head_file.exists() {
             FileUtil::write_to_path(&head_file, DEFAULT_BRANCH);
@@ -40,9 +40,7 @@ impl Referencer {
     pub fn get_commit_id(&self, name: &str) -> Result<String, OxenError> {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {
-            Ok(Some(value)) => {
-                Ok(String::from(str::from_utf8(&*value)?))
-            }
+            Ok(Some(value)) => Ok(String::from(str::from_utf8(&*value)?)),
             Ok(None) => {
                 let err = format!("ref not found: {}", name);
                 Err(OxenError::basic_str(&err))
@@ -60,7 +58,7 @@ impl Referencer {
 
     pub fn read_head(&self) -> Result<String, OxenError> {
         FileUtil::read_from_path(&self.head_file)
-    } 
+    }
 }
 
 #[cfg(test)]
@@ -74,7 +72,10 @@ mod tests {
     fn test_default_head() -> Result<(), OxenError> {
         let (referencer, repo_path) = test::create_referencer(BASE_DIR)?;
 
-        assert_eq!(referencer.read_head()?, crate::cli::referencer::DEFAULT_BRANCH);
+        assert_eq!(
+            referencer.read_head()?,
+            crate::cli::referencer::DEFAULT_BRANCH
+        );
 
         // Cleanup
         std::fs::remove_dir_all(&repo_path)?;

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::cli::{Indexer, Stager, Referencer};
+use crate::cli::{Indexer, Referencer, Stager};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use std::env;

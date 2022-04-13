@@ -1,11 +1,11 @@
 use jwalk::WalkDir;
 use std::collections::HashSet;
-use std::{io, fs};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
+use std::{fs, io};
 
 use crate::error::OxenError;
 
@@ -14,9 +14,7 @@ pub struct FileUtil {}
 impl FileUtil {
     pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
         match fs::read_to_string(path) {
-            Ok(contents) => {
-                Ok(contents)
-            }
+            Ok(contents) => Ok(contents),
             Err(_) => {
                 let err = format!("Could not open staging file {}", path.display());
                 Err(OxenError::basic_str(&err))

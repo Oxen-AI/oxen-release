@@ -1,16 +1,16 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
 
-use crate::cli::{Stager, Referencer};
+use crate::cli::{Referencer, Stager};
+use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::model::CommitMsg;
 use crate::util::FileUtil;
-use crate::config::AuthConfig;
 
+use chrono::Utc;
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
-use chrono::{Utc};
 
 pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DB: &str = "commits";
@@ -95,7 +95,7 @@ impl Committer {
                 FileUtil::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
                 // return current commit path, so we can add to it
                 current_commit_db_path
-            },
+            }
             Err(_) => {
                 // We are creating initial commit, no parent
                 let commit_db_path = self.history_dir.join(Path::new(&id_str));
@@ -160,7 +160,7 @@ impl Committer {
                     author: self.auth_cfg.user.name.clone(),
                     date: Utc::now(),
                 }
-            },
+            }
             Err(_) => {
                 // We are creating initial commit, no parent
                 CommitMsg {
@@ -172,7 +172,7 @@ impl Committer {
                 }
             }
         };
-        
+
         // Update head
         self.referencer.set_head(&ref_name, &commit.id)?;
 
@@ -195,9 +195,13 @@ impl Committer {
         Ok(commit_msgs)
     }
 
-    fn p_list_commits(&self, commit_id: &str, messages: &mut Vec<CommitMsg>) -> Result<(), OxenError> {
+    fn p_list_commits(
+        &self,
+        commit_id: &str,
+        messages: &mut Vec<CommitMsg>,
+    ) -> Result<(), OxenError> {
         // println!("p_list_commits commit_id {}", commit_id);
-        
+
         if let Some(commit) = self.get_commit_by_id(commit_id)? {
             // println!("p_list_commits got commit {}", commit.message);
             messages.push(commit.clone());
@@ -241,41 +245,38 @@ impl Committer {
                 let commit: CommitMsg = serde_json::from_str(str::from_utf8(&*value)?)?;
                 Ok(Some(commit))
             }
-            Ok(None) => {
-                Ok(None)
-            }
+            Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("Error commits_db to find commit_id {:?}\nErr: {}", commit_id, err);
+                let err = format!(
+                    "Error commits_db to find commit_id {:?}\nErr: {}",
+                    commit_id, err
+                );
                 Err(OxenError::basic_str(&err))
             }
         }
     }
 
     pub fn head_contains_file(&self, path: &Path) -> Result<bool, OxenError> {
-         // Grab current head from referencer
-         let ref_name = self.referencer.read_head()?;
+        // Grab current head from referencer
+        let ref_name = self.referencer.read_head()?;
 
-         // Get commit db that contains all files
-         let commit_id = self.referencer.get_commit_id(&ref_name)?;
-         let commit_db_path = self.history_dir.join(Path::new(&commit_id));
-         let commit_db = DB::open_default(&commit_db_path)?;
-         // println!("head_contains_file path: {:?}\ndb: {:?}", path, commit_db_path);
- 
-         // Check if path is in this commit
-         let key = path.to_str().unwrap();
-         let bytes = key.as_bytes();
-         match commit_db.get(bytes) {
-             Ok(Some(_value)) => {
-                 Ok(true)
-             }
-             Ok(None) => {
-                 Ok(false)
-             }
-             Err(err) => {
-                 let err = format!("Error reading db {:?}\nErr: {}", commit_db_path, err);
-                 Err(OxenError::basic_str(&err))
-             }
-         }
+        // Get commit db that contains all files
+        let commit_id = self.referencer.get_commit_id(&ref_name)?;
+        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
+        let commit_db = DB::open_default(&commit_db_path)?;
+        // println!("head_contains_file path: {:?}\ndb: {:?}", path, commit_db_path);
+
+        // Check if path is in this commit
+        let key = path.to_str().unwrap();
+        let bytes = key.as_bytes();
+        match commit_db.get(bytes) {
+            Ok(Some(_value)) => Ok(true),
+            Ok(None) => Ok(false),
+            Err(err) => {
+                let err = format!("Error reading db {:?}\nErr: {}", commit_db_path, err);
+                Err(OxenError::basic_str(&err))
+            }
+        }
     }
 }
 
@@ -329,7 +330,8 @@ mod tests {
         assert_eq!(files.len(), 4);
 
         // Verify that the current commit contains the hello file
-        let relative_annotation_path = FileUtil::path_relative_to_dir(&annotation_file, &repo_path)?;
+        let relative_annotation_path =
+            FileUtil::path_relative_to_dir(&annotation_file, &repo_path)?;
         assert!(committer.head_contains_file(&relative_annotation_path)?);
 
         // Add more files and commit again, make sure the commit copied over the last one

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::cli::indexer::{REPO_CONFIG_FILE, OXEN_HIDDEN_DIR};
+use crate::cli::indexer::{OXEN_HIDDEN_DIR, REPO_CONFIG_FILE};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use http::Uri;

@@ -1,7 +1,7 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::cli::Committer;
 use crate::error::OxenError;
 use crate::util::FileUtil;
-use crate::cli::Committer;
 
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
@@ -293,9 +293,7 @@ impl Stager {
     fn file_is_committed(&self, path: &Path) -> bool {
         if let Some(committer) = &self.committer {
             match committer.head_contains_file(path) {
-                Ok(val) => {
-                    val
-                },
+                Ok(val) => val,
                 Err(_err) => {
                     // eprintln!("Stager.file_is_committed err: {}", err);
                     false
@@ -326,8 +324,6 @@ impl Stager {
                     if path_str.contains(OXEN_HIDDEN_DIR) {
                         continue;
                     }
-
-                    
 
                     let bytes = path_str.as_bytes();
                     match self.db.get(bytes) {

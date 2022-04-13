@@ -204,11 +204,11 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with msg [{}]", message);
-            // We might need a higher level coordinater so that 
+            // We might need a higher level coordinater so that
             // Stager and committer don't have a circular dependency
             let committer = Arc::new(Committer::new(&repo_dir)?);
             let stager = Stager::from(Arc::clone(&committer))?;
-            
+
             match committer.commit(&stager, message) {
                 Ok(commit_id) => {
                     println!("Successfully committed id {}", commit_id);
@@ -232,7 +232,7 @@ pub fn log_commits() -> Result<(), OxenError> {
     }
 
     let committer = Arc::new(Committer::new(&repo_dir)?);
-    
+
     for commit in committer.list_commits()? {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{}\n", commit_id_str);

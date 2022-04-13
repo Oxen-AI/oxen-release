@@ -1,4 +1,3 @@
-
 use serde::{Deserialize, Serialize};
 
 pub const STATUS_ERROR: &str = "error";

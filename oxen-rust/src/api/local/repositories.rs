@@ -1,28 +1,24 @@
-
-use crate::model::{Repository, RepositoryResponse, RepositoryNew, ListRepositoriesResponse};
-use crate::cli::{Indexer};
 use crate::api;
-use crate::error::OxenError;
-use crate::util::FileUtil;
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::cli::Indexer;
+use crate::error::OxenError;
 use crate::model::http_response::{
-    STATUS_SUCCESS,
-    MSG_RESOURCE_CREATED,
-    MSG_RESOURCE_FOUND,
-    MSG_RESOURCE_ALREADY_EXISTS
+    MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
+use crate::model::{ListRepositoriesResponse, Repository, RepositoryNew, RepositoryResponse};
+use crate::util::FileUtil;
 
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 pub struct RepositoryAPI {
-    sync_dir: PathBuf
+    sync_dir: PathBuf,
 }
 
 impl RepositoryAPI {
     pub fn new(path: &Path) -> RepositoryAPI {
         RepositoryAPI {
-            sync_dir: path.to_path_buf()
+            sync_dir: path.to_path_buf(),
         }
     }
 
@@ -40,7 +36,7 @@ impl RepositoryAPI {
         for entry in WalkDir::new(&sync_dir).into_iter().filter_map(|e| e.ok()) {
             let local_path = entry.path();
             let oxen_dir = local_path.join(Path::new(OXEN_HIDDEN_DIR));
-            
+
             if oxen_dir.exists() {
                 // TODO: get actual ID, and loop until the oxen dir
                 let id = format!("{}", uuid::Uuid::new_v4());
@@ -60,7 +56,7 @@ impl RepositoryAPI {
         Ok(ListRepositoriesResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
-            repositories: repos
+            repositories: repos,
         })
     }
 
@@ -86,21 +82,20 @@ impl RepositoryAPI {
         Ok(RepositoryResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),
-            repository
+            repository,
         })
     }
-
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::error::OxenError;
-    use crate::model::RepositoryNew;
     use crate::api::local::RepositoryAPI;
+    use crate::error::OxenError;
+    use crate::model::http_response::MSG_RESOURCE_ALREADY_EXISTS;
+    use crate::model::RepositoryNew;
     use crate::test;
     use std::fs;
     use std::path::Path;
-    use crate::model::http_response::{MSG_RESOURCE_ALREADY_EXISTS};
 
     fn get_sync_dir() -> String {
         format!("/tmp/oxen/test_sync_dir/{}", uuid::Uuid::new_v4())
@@ -113,7 +108,7 @@ mod tests {
 
         let name: &str = "testing";
         let repo = RepositoryNew {
-            name: String::from(name)
+            name: String::from(name),
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
         let response = api.create(&repo)?;
@@ -136,7 +131,7 @@ mod tests {
 
         let name: &str = "gschoeni/CatsVsDogs";
         let repo = RepositoryNew {
-            name: String::from(name)
+            name: String::from(name),
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
         let response = api.create(&repo)?;
@@ -157,9 +152,9 @@ mod tests {
 
         let name: &str = "testing";
         let repo = RepositoryNew {
-            name: String::from(name)
+            name: String::from(name),
         };
-        
+
         let api = RepositoryAPI::new(Path::new(&sync_dir));
         let response = api.create(&repo)?;
         assert_eq!(response.repository.name, name);
@@ -181,7 +176,7 @@ mod tests {
 
         let name: &str = "gschoeni/CatsVsDogs";
         let repo = RepositoryNew {
-            name: String::from(name)
+            name: String::from(name),
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
         let response = api.create(&repo)?;
@@ -203,7 +198,7 @@ mod tests {
 
         let name: &str = "gschoeni/CatsVsDogs";
         let repo = RepositoryNew {
-            name: String::from(name)
+            name: String::from(name),
         };
         let api = RepositoryAPI::new(Path::new(&sync_dir));
         let response = api.create(&repo)?;
@@ -212,7 +207,7 @@ mod tests {
         match api.create(&repo) {
             Ok(_) => {
                 panic!("Do not allow creation of same repo twice")
-            },
+            }
             Err(err) => {
                 let msg = format!("\"{}\"", MSG_RESOURCE_ALREADY_EXISTS);
                 assert_eq!(err.to_string(), msg);

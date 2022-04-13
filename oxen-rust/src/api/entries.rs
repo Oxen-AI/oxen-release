@@ -5,7 +5,11 @@ use crate::model::{Dataset, Entry, EntryResponse, PaginatedEntries};
 use std::path::Path;
 
 pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry, OxenError> {
-    let url = format!("http://{}/api/v1/entries/search?hash={}", config.host(), hash);
+    let url = format!(
+        "http://{}/api/v1/entries/search?hash={}",
+        config.host(),
+        hash
+    );
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -27,7 +31,6 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
         Err(OxenError::basic_str("Request failed"))
     }
 }
-
 
 pub fn create(config: &RepoConfig, dataset: &Dataset, path: &Path) -> Result<Entry, OxenError> {
     if let Ok(form) = reqwest::blocking::multipart::Form::new().file("file", &path) {

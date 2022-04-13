@@ -256,12 +256,11 @@ impl Indexer {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::error::OxenError;
-    use crate::cli::Indexer;
     use crate::cli::indexer::OXEN_HIDDEN_DIR;
+    use crate::cli::Indexer;
+    use crate::error::OxenError;
     use crate::model::Repository;
     use crate::test;
 
@@ -277,8 +276,8 @@ mod tests {
 
         let repository = Repository::from(&repo_dir);
         let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-        assert_eq!(hidden_dir.exists(), true);
-        assert_ne!(repository.id, "");
+        assert!(hidden_dir.exists());
+        assert!(!repository.id.is_empty());
         let name = repo_dir.file_name().unwrap().to_str().unwrap();
         assert_eq!(repository.name, name);
         assert_eq!(repository.url, format!("http://0.0.0.0:2000/{}", name));
