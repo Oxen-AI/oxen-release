@@ -1,5 +1,6 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
+use urlencoding::encode;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommitMsg {
@@ -9,6 +10,31 @@ pub struct CommitMsg {
     pub author: String,
     #[serde(with = "commit_date_format")]
     pub date: DateTime<Utc>,
+}
+
+impl CommitMsg {
+    pub fn to_uri_encoded(&self) -> String {
+        let message = encode(&self.message);
+        let author = encode(&self.author);
+        let date_str = self.date_to_str();
+        let date = encode(&date_str);
+        format!("commit_id={}&message={}&author={}&date={}", self.id, message, author, date)
+    }
+
+    pub fn date_to_str(&self) -> String {
+        self.date.format("%Y-%m-%d %H:%M:%S").to_string()
+    }
+
+    pub fn date_from_str(date: &str) -> DateTime<Utc> {
+        let no_timezone = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S").unwrap();
+        DateTime::<Utc>::from_utc(no_timezone, Utc)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CommitHead {
+    pub name: String,
+    pub commit_id: String,
 }
 
 #[derive(Deserialize, Debug)]

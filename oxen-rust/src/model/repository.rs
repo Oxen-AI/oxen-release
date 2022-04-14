@@ -2,6 +2,7 @@ use crate::api;
 use crate::cli::indexer::{OXEN_HIDDEN_DIR, REPO_CONFIG_FILE};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
+use crate::model::CommitHead;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -23,6 +24,14 @@ pub struct RepositoryResponse {
     pub status: String,
     pub status_message: String,
     pub repository: Repository,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RepositoryHeadResponse {
+    pub status: String,
+    pub status_message: String,
+    pub repository: Repository,
+    pub head: Option<CommitHead>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

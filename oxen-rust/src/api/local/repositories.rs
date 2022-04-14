@@ -1,11 +1,18 @@
-use crate::api;
+
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
-use crate::cli::Indexer;
+use crate::cli::{Indexer, Referencer};
 use crate::error::OxenError;
 use crate::model::http_response::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use crate::model::{ListRepositoriesResponse, Repository, RepositoryNew, RepositoryResponse};
+use crate::model::{
+    ListRepositoriesResponse,
+    Repository,
+    RepositoryNew,
+    RepositoryResponse,
+    RepositoryHeadResponse,
+    CommitHead
+};
 use crate::util::FileUtil;
 
 use std::path::{Path, PathBuf};
@@ -30,7 +37,7 @@ impl RepositoryAPI {
         Ok(PathBuf::from(sync_dir))
     }
 
-    pub fn get_by_path(&self, path: &Path) -> Result<RepositoryResponse, OxenError> {
+    pub fn get_by_path(&self, path: &Path) -> Result<RepositoryHeadResponse, OxenError> {
         let sync_dir = self.get_sync_dir()?;
         let repo_path = sync_dir.join(path);
 
@@ -40,10 +47,25 @@ impl RepositoryAPI {
         }
 
         let repo = Repository::from(&repo_path);
-        Ok(RepositoryResponse {
+        let referencer = Referencer::new(&repo_path)?;
+
+        let commit_head: Option<CommitHead> = match referencer.head_commit_id() {
+            Ok(commit_id) => {
+                Some(CommitHead {
+                    commit_id: commit_id,
+                    name: referencer.read_head()?,
+                })
+            },
+            Err(_) => {
+                None
+            }
+        };
+
+        Ok(RepositoryHeadResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
             repository: repo,
+            head: commit_head
         })
     }
 
@@ -60,11 +82,10 @@ impl RepositoryAPI {
 
                 let name = FileUtil::path_relative_to_dir(local_path, &sync_dir)?;
                 if let Some(name) = name.to_str() {
-                    let url = api::endpoint::url_from(name);
                     repos.push(Repository {
                         id,
                         name: name.to_string(),
-                        url: url.clone(),
+                        url: String::from(""),
                     });
                 }
             }
@@ -79,7 +100,6 @@ impl RepositoryAPI {
 
     pub fn create(&self, repo: &RepositoryNew) -> Result<RepositoryResponse, OxenError> {
         let id = format!("{}", uuid::Uuid::new_v4());
-        let url = api::endpoint::url_from(&repo.name);
 
         let sync_dir = self.get_sync_dir()?;
         let repo_dir = sync_dir.join(Path::new(&repo.name));
@@ -94,7 +114,7 @@ impl RepositoryAPI {
         let repository = Repository {
             id,
             name: String::from(&repo.name),
-            url,
+            url: String::from(""), // no remote to start
         };
         Ok(RepositoryResponse {
             status: String::from(STATUS_SUCCESS),

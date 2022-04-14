@@ -1,21 +1,34 @@
 extern crate dotenv;
 
-use actix_web::{web, App, Error, HttpResponse, HttpServer, Responder};
-
-use futures_util::stream::StreamExt as _;
-use serde::Deserialize;
-use std::io::Write;
-
-use chrono::{DateTime, NaiveDateTime, Utc};
 use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
 use liboxen::cli::indexer::OXEN_HIDDEN_DIR;
 use liboxen::cli::Committer;
+use liboxen::cli::committer::HISTORY_DIR;
+use liboxen::error::OxenError;
 use liboxen::model::{CommitMsg, HTTPStatusMsg, RepositoryNew};
 
 use actix_web::middleware::Logger;
 use env_logger::Env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use actix_web::{web, App, Error, HttpResponse, HttpServer, Responder};
+use futures_util::stream::StreamExt as _;
+use serde::Deserialize;
+use std::io::Write;
+use std::fs::File;
+use flate2::read::GzDecoder;
+use tar::Archive;
+
+
+#[derive(Deserialize, Debug)]
+struct CommitQuery {
+    filename: String,
+    commit_id: String,
+    parent_id: Option<String>,
+    message: String,
+    author: String,
+    date: String,
+}
 
 async fn repositories_index() -> impl Responder {
     let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
@@ -81,18 +94,6 @@ async fn commit_list(path_param: web::Path<String>) -> impl Responder {
     }
 }
 
-#[derive(Deserialize)]
-struct CommitQuery {
-    filename: String,
-    commit_id: String,
-    parent_id: Option<String>,
-    message: String,
-    author: String,
-    date: String,
-}
-
-// TODO: API to create commit, given a commit object, and a zipped rocksdb file,
-// create the proper dirs, unzip to the history dir, and add an entry to the commits db
 async fn commit_upload(
     path_param: web::Path<String>,
     mut body: web::Payload,
@@ -103,6 +104,7 @@ async fn commit_upload(
 
     let path = path_param.into_inner();
     println!("commit_upload path: {:?}", path);
+    println!("commit_upload data: {:?}", data);
     println!("commit_upload filename: {:?}", data.filename);
 
     let response = api.get_by_path(Path::new(&path));
@@ -110,20 +112,19 @@ async fn commit_upload(
         Ok(response) => {
             let repo_dir = Path::new(&sync_dir).join(response.repository.name);
             let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-            let outfile = hidden_dir.join(&data.filename);
+            // let tarball_name = hidden_dir.join(&data.filename);
 
             // Create Commit
             match Committer::new(&repo_dir) {
                 Ok(committer) => {
-                    let no_timezone =
-                        NaiveDateTime::parse_from_str(&data.date, "%Y-%m-%d %H:%M:%S").unwrap();
+                    println!("Date: {}", &data.date);
 
                     let commit = CommitMsg {
                         id: data.commit_id.clone(),
                         parent_id: data.parent_id.clone(),
                         message: data.message.clone(),
                         author: data.author.clone(),
-                        date: DateTime::<Utc>::from_utc(no_timezone, Utc),
+                        date: CommitMsg::date_from_str(&data.date),
                     };
                     match committer.add_commit_to_db(&commit) {
                         Ok(_) => {
@@ -140,22 +141,35 @@ async fn commit_upload(
             };
 
             // Write data blob to file to unzip
-            println!("Writing to file: {:?}", outfile);
-            let mut file = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(&outfile)
-                .unwrap();
+            // println!("Writing to file: {:?}", tarball_name);
+            // let mut outfile = std::fs::OpenOptions::new()
+            //     .create(true)
+            //     .write(true)
+            //     .open(&tarball_name)
+            //     .unwrap();
 
-            // let mut bytes = web::BytesMut::new();
-            let mut total_bytes = 0;
+            let mut bytes = web::BytesMut::new();
+            // let mut total_bytes = 0;
             while let Some(item) = body.next().await {
-                // bytes.extend_from_slice(&item?);
-                let bytes = &item?;
-                total_bytes += file.write(bytes)?;
+                bytes.extend_from_slice(&item?);
+                // let bytes = &item?;
+                // total_bytes += outfile.write(bytes)?;
             }
+            // outfile.sync_all()?;
 
-            let response_str = format!("Wrote {:?} bytes to {:?}", total_bytes, outfile);
+            // TODO: extract tarball to correct history directory here
+            // let tarfile = File::open(&tarball_name)?;
+            // let compressed: Vec<u8> = &bytes.to_vec();
+            println!("Got bytes {:?}", bytes.len());
+            let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+
+            println!("Extract to: {:?}", hidden_dir);
+            archive.unpack(hidden_dir)?;
+
+            let response_str = format!("Commit {} written.", data.commit_id);
+
+            // Cleanup tarball
+            // std::fs::remove_file(tarball_name)?;
 
             Ok(HttpResponse::Ok().json(HTTPStatusMsg::success(&response_str)))
         }

@@ -196,10 +196,15 @@ impl Committer {
     pub fn list_commits(&self) -> Result<Vec<CommitMsg>, OxenError> {
         let mut commit_msgs: Vec<CommitMsg> = vec![];
         // Start with head, and the get parents until there are no parents
-        let commit_id = self.referencer.head_commit_id()?;
-        // println!("list_commits start {}", commit_id);
-        self.p_list_commits(&commit_id, &mut commit_msgs)?;
-        Ok(commit_msgs)
+        match self.referencer.head_commit_id() {
+            Ok(commit_id) => {
+                self.p_list_commits(&commit_id, &mut commit_msgs)?;
+                Ok(commit_msgs)
+            },
+            Err(_) => {
+                Err(OxenError::basic_str("No commits found."))
+            }
+        }
     }
 
     fn p_list_commits(
@@ -242,6 +247,17 @@ impl Committer {
         }
 
         Ok(paths)
+    }
+
+    pub fn get_head_commit(&self) -> Result<Option<CommitMsg>, OxenError> {
+        match self.referencer.head_commit_id() {
+            Ok(commit_id) => {
+                Ok(self.get_commit_by_id(&commit_id)?)
+            },
+            Err(_) => {
+                Ok(None)
+            }
+        }
     }
 
     pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<CommitMsg>, OxenError> {

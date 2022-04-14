@@ -9,28 +9,28 @@ pub const MSG_RESOURCE_ALREADY_EXISTS: &str = "resource_already_exists";
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HTTPStatusMsg {
     pub status: String,
-    pub message: String,
+    pub status_message: String,
 }
 
 impl HTTPStatusMsg {
     pub fn success(msg: &str) -> HTTPStatusMsg {
         HTTPStatusMsg {
             status: String::from(STATUS_SUCCESS),
-            message: String::from(msg),
+            status_message: String::from(msg),
         }
     }
 
     pub fn error(msg: &str) -> HTTPStatusMsg {
         HTTPStatusMsg {
             status: String::from(STATUS_ERROR),
-            message: String::from(msg),
+            status_message: String::from(msg),
         }
     }
 
     pub fn resource_missing() -> HTTPStatusMsg {
         HTTPStatusMsg {
             status: String::from(STATUS_ERROR),
-            message: String::from("resource_not_found"),
+            status_message: String::from("resource_not_found"),
         }
     }
 }

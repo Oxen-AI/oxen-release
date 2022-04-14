@@ -2,16 +2,21 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
+use flate2::Compression;
+use flate2::write::GzEncoder;
 use std::path::Path;
 use std::path::PathBuf;
-// use std::sync::Arc;
-// use std::sync::atomic::{AtomicBool, Ordering};
+use serde_json::json;
 
 use crate::api;
 use crate::cli::Committer;
+use crate::cli::committer::HISTORY_DIR;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{CommitMsg, Dataset, Repository};
+use crate::model::{
+    CommitMsg, CommitHead, Dataset,
+    Repository, RepositoryResponse, RepositoryHeadResponse
+};
 use crate::util::hasher;
 
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
@@ -51,7 +56,7 @@ impl Indexer {
     }
 
     pub fn is_initialized(&self) -> bool {
-        Indexer::repo_exists(&self.hidden_dir)
+        Indexer::repo_exists(&self.root_dir)
     }
 
     pub fn init(&self) -> Result<(), OxenError> {
@@ -61,8 +66,12 @@ impl Indexer {
         }
 
         // Get name from current directory name
-        let name = self.root_dir.file_name().unwrap().to_str().unwrap();
-        self.init_with_name(name)
+        if let Some(name) = self.root_dir.file_name() {
+            self.init_with_name(name.to_str().unwrap())
+        } else {
+            let err = format!("Could not find parent directories name: {:?}", self.root_dir);
+            Err(OxenError::basic_str(&err))
+        }
     }
 
     pub fn init_with_name(&self, name: &str) -> Result<(), OxenError> {
@@ -71,18 +80,16 @@ impl Indexer {
             return Ok(());
         }
 
+        println!("Initializing 🐂 repository with name: {}", name);
+
         // Make hidden .oxen dir
         std::fs::create_dir(&self.hidden_dir)?;
-
-        // Get setup config and url etc
-        let url = api::endpoint::url_from(name);
-        println!("Creating repo with name: {} and url: {}", name, url);
 
         let auth_cfg = AuthConfig::default()?;
         let repository = Repository {
             id: format!("{}", uuid::Uuid::new_v4()),
             name: String::from(name),
-            url,
+            url: String::from(""), // no remote to start
         };
         let repo_config = RepoConfig::from(&auth_cfg, &repository);
         let repo_config_file = self.hidden_dir.join(REPO_CONFIG_FILE);
@@ -169,19 +176,155 @@ impl Indexer {
     }
 
     pub fn push(&self, committer: &Committer) -> Result<(), OxenError> {
-        // list all commit messages
-        let commits: Vec<CommitMsg> = committer.list_commits()?;
+        self.create_or_get_repo()?;
+        match committer.get_head_commit() {
+            Ok(Some(commit)) => {
+                // maybe_push() will recursively check commits head against remote head
+                // and sync ones that have not been synced
+                let remote_head = self.get_remote_head()?;
+                self.maybe_push(&committer, &remote_head, &commit.id)?;
+                Ok(())
+            },
+            Ok(None) => {
+                Err(OxenError::basic_str("No commits to push."))
+            },
+            Err(err) => {
+                let msg = format!("Err: {}", err);
+                Err(OxenError::basic_str(&msg))
+            }
+        }
+    }
 
-        // TODO: We should keep track of local and remote refs
-        // https://git-scm.com/book/en/v2/Git-Internals-Git-References#:~:text=Remotes,in%20the%20refs%2Fremotes%20directory.
+    pub fn create_or_get_repo(&self) -> Result<(), OxenError> {
+        // TODO move into another api class, and better error handling...just cranking this out
+        let name = &self.repo_config.as_ref().unwrap().repository.name;
+        let url = format!("http://0.0.0.0:3000/repositories");
+        let params = json!({
+            "name": name
+        });
 
-        // for now just push one
-        for commit in commits.iter() {
-            println!("Pushing commit: {:?}", commit);
-            self.push_commit(committer, commit)?;
+        let client = reqwest::blocking::Client::new();
+        if let Ok(_) = client
+            .post(url)
+            .json(&params)
+            .send()
+        {
+            Ok(())
+        } else {
+            Err(OxenError::basic_str("create_or_get_repo() Could not create repo"))
+        }
+    }
+
+    pub fn maybe_push(&self, committer: &Committer, remote_head: &Option<CommitHead>, commit_id: &str) -> Result<(), OxenError> {
+        if let Some(head) = remote_head {
+            if commit_id == head.commit_id {
+                return Ok(());
+            }
+        }
+
+        if let Some(commit) = committer.get_commit_by_id(commit_id)? {
+            self.post_commit_to_server(&commit)?;
+            if let Some(parent_id) = commit.parent_id {
+                self.maybe_push(&committer, &remote_head, &parent_id)?;
+            } else {
+                println!("No parent commit... {} -> {}", commit.id, commit.message);
+            }
+        } else {
+            eprintln!("Err: could not find commit: {}", commit_id);
         }
 
         Ok(())
+    }
+
+    pub fn get_remote_head(&self) -> Result<Option<CommitHead>, OxenError> {
+        // TODO move into another api class, need to better delineate what we call these
+        // also is this remote the one in the config? I think so, need to draw out a diagram
+        let name = &self.repo_config.as_ref().unwrap().repository.name;
+        let url = format!("http://0.0.0.0:3000/repositories/{}", name);
+        println!("Get remote repo: {}", url);
+        let client = reqwest::blocking::Client::new();
+        if let Ok(res) = client
+            .get(url)
+            .send()
+        {
+            // TODO: handle if remote repo does not exist...
+            // Do we create it then push for now? Or add separate command to create?
+            // I think we create and push, and worry about authorized keys etc later
+            match res.json::<RepositoryHeadResponse>() {
+                Ok(j_res) => Ok(j_res.head),
+                Err(err) => Err(OxenError::basic_str(&format!(
+                    "get_remote_head() Could not serialize response [{}]",
+                    err
+                ))),
+            }
+        } else {
+            Err(OxenError::basic_str(
+                "get_remote_head() Request failed",
+            ))
+        }
+    }
+
+    pub fn post_commit_to_server(&self, commit: &CommitMsg) -> Result<(), OxenError> {
+        // zip up the rocksdb in history dir, and post to server
+        let commit_dir = self.hidden_dir.join(HISTORY_DIR).join(&commit.id);
+        let path_to_compress = format!("history/{}", commit.id);
+
+        // let compressed_buffer = Vec::new();
+        let enc = GzEncoder::new(Vec::new(), Compression::default());
+        let mut tar = tar::Builder::new(enc);
+        
+        tar.append_dir_all(path_to_compress, commit_dir)?;
+        tar.finish()?;
+        let b: Vec<u8> = tar.into_inner()?.finish()?;
+
+
+        // let filepath = Path::new(&out_tarball);
+        // println!("WROTE TARBALL {:?}", filepath);
+        println!("POST TO SERVER {:?}", commit);
+        println!("POST BYTES {:?}", b.len());
+        
+        self.post_tarball_to_server(&b, &commit)?;
+
+        // cleanup tarball
+
+        // println!("Saved tarball {:?}", out_tarball);
+        // std::fs::remove_file(out_tarball)?;
+
+        Ok(())
+    }
+
+    fn post_tarball_to_server(&self, buffer: &Vec<u8>, commit: &CommitMsg) -> Result<(), OxenError> {
+        let name = &self.repo_config.as_ref().unwrap().repository.name;
+
+            
+        // println!("Got bytes with len {}", buffer.len());
+        let client = reqwest::blocking::Client::new();
+        let url = format!(
+            "http://0.0.0.0:3000/repositories/{}/commits?filename={}&{}",
+            name,
+            "test.tar.gz",
+            commit.to_uri_encoded()
+        );
+        if let Ok(res) = client
+            .post(url)
+            .body(reqwest::blocking::Body::from(buffer.clone()))
+            .send()
+        {
+            let status = res.status();
+            let body = res.text()?;
+            let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(_) => Ok(()),
+                Err(_) => Err(OxenError::basic_str(&format!(
+                    "status_code[{}] \n\n{}",
+                    status, body
+                ))),
+            }
+        } else {
+            Err(OxenError::basic_str(
+                "post_tarball_to_server error sending data from file",
+            ))
+        }
     }
 
     pub fn list_datasets(&self) -> Result<Vec<Dataset>, OxenError> {

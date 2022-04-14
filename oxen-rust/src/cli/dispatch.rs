@@ -34,7 +34,7 @@ pub fn login() -> Result<(), OxenError> {
 }
 
 pub fn init(path: &str) -> Result<(), OxenError> {
-    let directory = PathBuf::from(&path);
+    let directory = std::fs::canonicalize(PathBuf::from(&path))?;
 
     let indexer = Indexer::new(&directory);
     indexer.init()?;

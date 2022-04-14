@@ -52,9 +52,7 @@ fn main() {
         )
         .subcommand(
             Command::new("push")
-                .about("Push the files up to the remote repository, given a directory")
-                .arg_required_else_help(true)
-                .arg(arg!(<DIRECTORY> "Name of directory to push to")),
+                .about("Push the current branch up to the remote repository")
         )
         .subcommand(
             Command::new("pull")
