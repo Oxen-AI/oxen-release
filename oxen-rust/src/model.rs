@@ -8,12 +8,15 @@ pub mod user;
 
 pub use crate::model::commit::{
     CommitMsg,
-    CommitHead
+    CommitHead,
+    CommitMsgResponse
 };
 pub use crate::model::dataset::Dataset;
-pub use crate::model::entry::Entry;
-pub use crate::model::entry::EntryResponse;
-pub use crate::model::entry::PaginatedEntries;
+pub use crate::model::entry::{
+    Entry,
+    EntryResponse,
+    PaginatedEntries,
+};
 pub use crate::model::http_response::HTTPStatusMsg;
 pub use crate::model::repository::{
     ListRepositoriesResponse,

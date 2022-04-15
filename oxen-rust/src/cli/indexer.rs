@@ -14,8 +14,8 @@ use crate::cli::committer::HISTORY_DIR;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{
-    CommitMsg, CommitHead, Dataset,
-    Repository, RepositoryResponse, RepositoryHeadResponse
+    CommitMsg, CommitMsgResponse, CommitHead, Dataset,
+    Repository, RepositoryHeadResponse
 };
 use crate::util::hasher;
 
@@ -109,7 +109,7 @@ impl Indexer {
         Ok(())
     }
 
-    fn push_commit(&self, committer: &Committer, commit: &CommitMsg) -> Result<(), OxenError> {
+    fn push_entries(&self, committer: &Committer, commit: &CommitMsg) -> Result<(), OxenError> {
         let paths = committer.list_unsynced_files_for_commit(&commit.id)?;
 
         println!("🐂 push {} files", paths.len());
@@ -182,7 +182,7 @@ impl Indexer {
                 // maybe_push() will recursively check commits head against remote head
                 // and sync ones that have not been synced
                 let remote_head = self.get_remote_head()?;
-                self.maybe_push(&committer, &remote_head, &commit.id)?;
+                self.maybe_push(&committer, &remote_head, &commit.id, 0)?;
                 Ok(())
             },
             Ok(None) => {
@@ -215,20 +215,26 @@ impl Indexer {
         }
     }
 
-    pub fn maybe_push(&self, committer: &Committer, remote_head: &Option<CommitHead>, commit_id: &str) -> Result<(), OxenError> {
+    pub fn maybe_push(&self, committer: &Committer, remote_head: &Option<CommitHead>, commit_id: &str, depth: usize) -> Result<(), OxenError> {
         if let Some(head) = remote_head {
             if commit_id == head.commit_id {
+                if depth == 0 {
+                    println!("No commits to push, remote is synced.");
+                } else {
+                    println!("Done.");
+                }
                 return Ok(());
             }
         }
 
         if let Some(commit) = committer.get_commit_by_id(commit_id)? {
-            self.post_commit_to_server(&commit)?;
-            if let Some(parent_id) = commit.parent_id {
-                self.maybe_push(&committer, &remote_head, &parent_id)?;
+            if let Some(parent_id) = &commit.parent_id {
+                self.maybe_push(&committer, &remote_head, &parent_id, depth+1)?;
             } else {
                 println!("No parent commit... {} -> {}", commit.id, commit.message);
             }
+            // Unroll stack to post in reverse order
+            self.post_commit_to_server(&commit)?;
         } else {
             eprintln!("Err: could not find commit: {}", commit_id);
         }
@@ -241,7 +247,6 @@ impl Indexer {
         // also is this remote the one in the config? I think so, need to draw out a diagram
         let name = &self.repo_config.as_ref().unwrap().repository.name;
         let url = format!("http://0.0.0.0:3000/repositories/{}", name);
-        println!("Get remote repo: {}", url);
         let client = reqwest::blocking::Client::new();
         if let Ok(res) = client
             .get(url)
@@ -269,40 +274,27 @@ impl Indexer {
         let commit_dir = self.hidden_dir.join(HISTORY_DIR).join(&commit.id);
         let path_to_compress = format!("history/{}", commit.id);
 
-        // let compressed_buffer = Vec::new();
+        println!("Compressing commit {}", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());
         let mut tar = tar::Builder::new(enc);
         
         tar.append_dir_all(path_to_compress, commit_dir)?;
         tar.finish()?;
-        let b: Vec<u8> = tar.into_inner()?.finish()?;
-
-
-        // let filepath = Path::new(&out_tarball);
-        // println!("WROTE TARBALL {:?}", filepath);
-        println!("POST TO SERVER {:?}", commit);
-        println!("POST BYTES {:?}", b.len());
-        
-        self.post_tarball_to_server(&b, &commit)?;
-
-        // cleanup tarball
-
-        // println!("Saved tarball {:?}", out_tarball);
-        // std::fs::remove_file(out_tarball)?;
+        let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+        self.post_tarball_to_server(&buffer, &commit)?;
 
         Ok(())
     }
 
     fn post_tarball_to_server(&self, buffer: &Vec<u8>, commit: &CommitMsg) -> Result<(), OxenError> {
-        let name = &self.repo_config.as_ref().unwrap().repository.name;
+        println!("Syncing database {}", commit.id);
+        println!("{:?}", commit);
 
-            
-        // println!("Got bytes with len {}", buffer.len());
+        let name = &self.repo_config.as_ref().unwrap().repository.name;
         let client = reqwest::blocking::Client::new();
         let url = format!(
-            "http://0.0.0.0:3000/repositories/{}/commits?filename={}&{}",
+            "http://0.0.0.0:3000/repositories/{}/commits?{}",
             name,
-            "test.tar.gz",
             commit.to_uri_encoded()
         );
         if let Ok(res) = client
@@ -312,11 +304,11 @@ impl Indexer {
         {
             let status = res.status();
             let body = res.text()?;
-            let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<CommitMsgResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(_) => Ok(()),
                 Err(_) => Err(OxenError::basic_str(&format!(
-                    "status_code[{}] \n\n{}",
+                    "Error serializing CommitMsgResponse: status_code[{}] \n\n{}",
                     status, body
                 ))),
             }

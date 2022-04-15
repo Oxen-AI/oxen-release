@@ -1,6 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Entry {
     pub id: String,
     pub data_type: String,
@@ -9,8 +9,10 @@ pub struct Entry {
     pub hash: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct EntryResponse {
+    pub status: String,
+    pub status_message: String,
     pub entry: Entry,
 }
 

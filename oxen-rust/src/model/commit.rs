@@ -18,7 +18,11 @@ impl CommitMsg {
         let author = encode(&self.author);
         let date_str = self.date_to_str();
         let date = encode(&date_str);
-        format!("commit_id={}&message={}&author={}&date={}", self.id, message, author, date)
+        if let Some(parent_id) = &self.parent_id {
+            format!("commit_id={}&parent_id={}&message={}&author={}&date={}", self.id, parent_id, message, author, date)
+        } else {
+            format!("commit_id={}&message={}&author={}&date={}", self.id, message, author, date)
+        }
     }
 
     pub fn date_to_str(&self) -> String {
@@ -37,8 +41,10 @@ pub struct CommitHead {
     pub commit_id: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct CommitMsgResponse {
+    pub status: String,
+    pub status_message: String,
     pub commit: CommitMsg,
 }
 
