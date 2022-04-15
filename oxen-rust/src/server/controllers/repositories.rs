@@ -1,9 +1,7 @@
-
-
 use actix_web::{web, HttpResponse, Responder};
 
-use liboxen::model::{HTTPStatusMsg, RepositoryNew};
 use liboxen::api::local::RepositoryAPI;
+use liboxen::model::{HTTPStatusMsg, RepositoryNew};
 
 use std::path::Path;
 

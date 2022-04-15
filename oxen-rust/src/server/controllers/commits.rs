@@ -1,22 +1,17 @@
-
-
 use actix_web::{web, Error, HttpResponse, Responder};
 
-use liboxen::model::{CommitMsg, CommitMsgResponse, HTTPStatusMsg};
 use liboxen::api::local::RepositoryAPI;
 use liboxen::cli::indexer::OXEN_HIDDEN_DIR;
 use liboxen::cli::Committer;
-use liboxen::model::http_response::{
-    MSG_RESOURCE_CREATED, STATUS_SUCCESS,
-};
+use liboxen::model::http_response::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::model::{CommitMsg, CommitMsgResponse, HTTPStatusMsg};
 
 use std::path::Path;
 
+use flate2::read::GzDecoder;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
-use flate2::read::GzDecoder;
 use tar::Archive;
-
 
 #[derive(Deserialize, Debug)]
 pub struct CommitQuery {
@@ -67,7 +62,7 @@ pub async fn upload(
                 date: CommitMsg::date_from_str(&data.date),
             };
             create_commit(&repo_dir, &commit);
-            
+
             // Get tar.gz bytes for history/COMMIT_ID data
             let mut bytes = web::BytesMut::new();
             while let Some(item) = body.next().await {
@@ -81,7 +76,7 @@ pub async fn upload(
             Ok(HttpResponse::Ok().json(CommitMsgResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_CREATED),
-                commit: commit
+                commit,
             }))
         }
         Err(err) => {
@@ -92,15 +87,13 @@ pub async fn upload(
 }
 
 fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
-    match Committer::new(&repo_dir) {
-        Ok(committer) => {
-            match committer.add_commit_to_db(&commit) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("Error adding commit to db: {:?}", err);
-                }
+    match Committer::new(repo_dir) {
+        Ok(committer) => match committer.add_commit_to_db(commit) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("Error adding commit to db: {:?}", err);
             }
-        }
+        },
         Err(err) => {
             eprintln!("Error creating committer: {:?}", err);
         }

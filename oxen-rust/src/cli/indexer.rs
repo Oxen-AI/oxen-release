@@ -1,21 +1,20 @@
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
+use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
-use flate2::Compression;
-use flate2::write::GzEncoder;
 use std::path::Path;
 use std::path::PathBuf;
-use serde_json::json;
 
 use crate::api;
-use crate::cli::Committer;
 use crate::cli::committer::HISTORY_DIR;
+use crate::cli::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{
-    CommitMsg, CommitMsgResponse, CommitHead, Dataset,
-    Repository, RepositoryHeadResponse
+    CommitHead, CommitMsg, CommitMsgResponse, Dataset, Repository, RepositoryHeadResponse,
 };
 use crate::util::hasher;
 
@@ -69,7 +68,10 @@ impl Indexer {
         if let Some(name) = self.root_dir.file_name() {
             self.init_with_name(name.to_str().unwrap())
         } else {
-            let err = format!("Could not find parent directories name: {:?}", self.root_dir);
+            let err = format!(
+                "Could not find parent directories name: {:?}",
+                self.root_dir
+            );
             Err(OxenError::basic_str(&err))
         }
     }
@@ -182,12 +184,10 @@ impl Indexer {
                 // maybe_push() will recursively check commits head against remote head
                 // and sync ones that have not been synced
                 let remote_head = self.get_remote_head()?;
-                self.maybe_push(&committer, &remote_head, &commit.id, 0)?;
+                self.maybe_push(committer, &remote_head, &commit.id, 0)?;
                 Ok(())
-            },
-            Ok(None) => {
-                Err(OxenError::basic_str("No commits to push."))
-            },
+            }
+            Ok(None) => Err(OxenError::basic_str("No commits to push.")),
             Err(err) => {
                 let msg = format!("Err: {}", err);
                 Err(OxenError::basic_str(&msg))
@@ -198,24 +198,26 @@ impl Indexer {
     pub fn create_or_get_repo(&self) -> Result<(), OxenError> {
         // TODO move into another api class, and better error handling...just cranking this out
         let name = &self.repo_config.as_ref().unwrap().repository.name;
-        let url = format!("http://0.0.0.0:3000/repositories");
-        let params = json!({
-            "name": name
-        });
+        let url = "http://0.0.0.0:3000/repositories".to_string();
+        let params = json!({ "name": name });
 
         let client = reqwest::blocking::Client::new();
-        if let Ok(_) = client
-            .post(url)
-            .json(&params)
-            .send()
-        {
+        if let Ok(_) = client.post(url).json(&params).send() {
             Ok(())
         } else {
-            Err(OxenError::basic_str("create_or_get_repo() Could not create repo"))
+            Err(OxenError::basic_str(
+                "create_or_get_repo() Could not create repo",
+            ))
         }
     }
 
-    pub fn maybe_push(&self, committer: &Committer, remote_head: &Option<CommitHead>, commit_id: &str, depth: usize) -> Result<(), OxenError> {
+    pub fn maybe_push(
+        &self,
+        committer: &Committer,
+        remote_head: &Option<CommitHead>,
+        commit_id: &str,
+        depth: usize,
+    ) -> Result<(), OxenError> {
         if let Some(head) = remote_head {
             if commit_id == head.commit_id {
                 if depth == 0 {
@@ -229,7 +231,7 @@ impl Indexer {
 
         if let Some(commit) = committer.get_commit_by_id(commit_id)? {
             if let Some(parent_id) = &commit.parent_id {
-                self.maybe_push(&committer, &remote_head, &parent_id, depth+1)?;
+                self.maybe_push(committer, remote_head, parent_id, depth + 1)?;
             } else {
                 println!("No parent commit... {} -> {}", commit.id, commit.message);
             }
@@ -248,10 +250,7 @@ impl Indexer {
         let name = &self.repo_config.as_ref().unwrap().repository.name;
         let url = format!("http://0.0.0.0:3000/repositories/{}", name);
         let client = reqwest::blocking::Client::new();
-        if let Ok(res) = client
-            .get(url)
-            .send()
-        {
+        if let Ok(res) = client.get(url).send() {
             // TODO: handle if remote repo does not exist...
             // Do we create it then push for now? Or add separate command to create?
             // I think we create and push, and worry about authorized keys etc later
@@ -263,9 +262,7 @@ impl Indexer {
                 ))),
             }
         } else {
-            Err(OxenError::basic_str(
-                "get_remote_head() Request failed",
-            ))
+            Err(OxenError::basic_str("get_remote_head() Request failed"))
         }
     }
 
@@ -277,16 +274,20 @@ impl Indexer {
         println!("Compressing commit {}", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());
         let mut tar = tar::Builder::new(enc);
-        
+
         tar.append_dir_all(path_to_compress, commit_dir)?;
         tar.finish()?;
         let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-        self.post_tarball_to_server(&buffer, &commit)?;
+        self.post_tarball_to_server(&buffer, commit)?;
 
         Ok(())
     }
 
-    fn post_tarball_to_server(&self, buffer: &Vec<u8>, commit: &CommitMsg) -> Result<(), OxenError> {
+    fn post_tarball_to_server(
+        &self,
+        buffer: &[u8],
+        commit: &CommitMsg,
+    ) -> Result<(), OxenError> {
         println!("Syncing database {}", commit.id);
         println!("{:?}", commit);
 
@@ -299,12 +300,13 @@ impl Indexer {
         );
         if let Ok(res) = client
             .post(url)
-            .body(reqwest::blocking::Body::from(buffer.clone()))
+            .body(reqwest::blocking::Body::from(buffer.to_owned()))
             .send()
         {
             let status = res.status();
             let body = res.text()?;
-            let response: Result<CommitMsgResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<CommitMsgResponse, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
                 Ok(_) => Ok(()),
                 Err(_) => Err(OxenError::basic_str(&format!(

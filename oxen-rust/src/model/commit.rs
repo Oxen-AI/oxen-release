@@ -19,9 +19,15 @@ impl CommitMsg {
         let date_str = self.date_to_str();
         let date = encode(&date_str);
         if let Some(parent_id) = &self.parent_id {
-            format!("commit_id={}&parent_id={}&message={}&author={}&date={}", self.id, parent_id, message, author, date)
+            format!(
+                "commit_id={}&parent_id={}&message={}&author={}&date={}",
+                self.id, parent_id, message, author, date
+            )
         } else {
-            format!("commit_id={}&message={}&author={}&date={}", self.id, message, author, date)
+            format!(
+                "commit_id={}&message={}&author={}&date={}",
+                self.id, message, author, date
+            )
         }
     }
 
@@ -30,7 +36,7 @@ impl CommitMsg {
     }
 
     pub fn date_from_str(date: &str) -> DateTime<Utc> {
-        let no_timezone = NaiveDateTime::parse_from_str(&date, "%Y-%m-%d %H:%M:%S").unwrap();
+        let no_timezone = NaiveDateTime::parse_from_str(date, "%Y-%m-%d %H:%M:%S").unwrap();
         DateTime::<Utc>::from_utc(no_timezone, Utc)
     }
 }

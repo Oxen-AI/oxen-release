@@ -3,12 +3,12 @@ extern crate dotenv;
 use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
 
-use actix_web::middleware::Logger;
-use env_logger::Env;
-use actix_web::{web, App, HttpServer, HttpRequest, Result, Error};
 use actix_files::NamedFile;
+use actix_web::middleware::Logger;
+use actix_web::{web, App, Error, HttpRequest, HttpServer, Result};
+use env_logger::Env;
 
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 pub mod server;
 
@@ -26,7 +26,7 @@ async fn index(req: HttpRequest) -> Result<NamedFile, Error> {
             let repo_dir = Path::new(&sync_dir).join(result.repository.name);
             let full_path = repo_dir.join(&filepath);
             Ok(NamedFile::open(full_path)?)
-        },
+        }
         Err(_) => {
             // gives a 404
             Ok(NamedFile::open("")?)
@@ -46,14 +46,31 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(|| {
         App::new()
-            .route("/repositories/{name}/commits", web::get().to(controllers::commits::list))
-            .route("/repositories/{name}/commits", web::post().to(controllers::commits::upload))
-            .route("/repositories/{name}/entries", web::post().to(controllers::entries::create))
+            .route(
+                "/repositories/{name}/commits",
+                web::get().to(controllers::commits::list),
+            )
+            .route(
+                "/repositories/{name}/commits",
+                web::post().to(controllers::commits::upload),
+            )
+            .route(
+                "/repositories/{name}/entries",
+                web::post().to(controllers::entries::create),
+            )
             .route("/repositories/{name}/{filename:.*}", web::get().to(index))
-            .route("/repositories/{name}", web::get().to(controllers::repositories::show))
-            .route("/repositories", web::get().to(controllers::repositories::index))
-            .route("/repositories", web::post().to(controllers::repositories::create))
-            
+            .route(
+                "/repositories/{name}",
+                web::get().to(controllers::repositories::show),
+            )
+            .route(
+                "/repositories",
+                web::get().to(controllers::repositories::index),
+            )
+            .route(
+                "/repositories",
+                web::post().to(controllers::repositories::create),
+            )
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
     })

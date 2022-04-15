@@ -200,10 +200,8 @@ impl Committer {
             Ok(commit_id) => {
                 self.p_list_commits(&commit_id, &mut commit_msgs)?;
                 Ok(commit_msgs)
-            },
-            Err(_) => {
-                Err(OxenError::basic_str("No commits found."))
             }
+            Err(_) => Err(OxenError::basic_str("No commits found.")),
         }
     }
 
@@ -251,12 +249,8 @@ impl Committer {
 
     pub fn get_head_commit(&self) -> Result<Option<CommitMsg>, OxenError> {
         match self.referencer.head_commit_id() {
-            Ok(commit_id) => {
-                Ok(self.get_commit_by_id(&commit_id)?)
-            },
-            Err(_) => {
-                Ok(None)
-            }
+            Ok(commit_id) => Ok(self.get_commit_by_id(&commit_id)?),
+            Err(_) => Ok(None),
         }
     }
 

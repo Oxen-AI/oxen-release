@@ -1,18 +1,15 @@
-
-use liboxen::api::local::RepositoryAPI;
 use liboxen::api;
-use liboxen::model::{HTTPStatusMsg, EntryResponse, Entry};
+use liboxen::api::local::RepositoryAPI;
+use liboxen::model::http_response::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::model::{Entry, EntryResponse, HTTPStatusMsg};
 use serde::Deserialize;
-use liboxen::model::http_response::{
-    MSG_RESOURCE_CREATED, STATUS_SUCCESS,
-};
 
 use actix_web::{web, Error, HttpResponse};
 use futures_util::stream::StreamExt as _;
 
-use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 
 #[derive(Deserialize, Debug)]
 pub struct EntryQuery {
@@ -35,7 +32,7 @@ pub async fn create(
             let repo_dir = Path::new(&sync_dir).join(result.repository.name);
 
             let filepath = repo_dir.join(&data.filename);
-            
+
             if let Some(parent) = filepath.parent() {
                 if !parent.exists() {
                     std::fs::create_dir_all(parent)?;
@@ -48,7 +45,10 @@ pub async fn create(
                 total_bytes += file.write(&item?)?;
             }
             if let Some(extension) = filepath.extension() {
-                println!("Wrote {} bytes to {:?} with extension", total_bytes, filepath, );
+                println!(
+                    "Wrote {} bytes to {:?} with extension",
+                    total_bytes, filepath,
+                );
                 let url = format!("{}/{}", api::endpoint::url_from(&path), &data.filename);
 
                 Ok(HttpResponse::Ok().json(EntryResponse {
@@ -57,16 +57,15 @@ pub async fn create(
                     entry: Entry {
                         id: format!("{}", uuid::Uuid::new_v4()), // generate a new one on the server for now
                         data_type: data_type_from_ext(extension.to_str().unwrap()),
-                        url: url,
+                        url,
                         filename: data.filename.clone(),
                         hash: data.hash.clone(),
-                    }
+                    },
                 }))
             } else {
                 let msg = format!("Invalid file extension: {:?}", &data.filename);
                 Ok(HttpResponse::BadRequest().json(HTTPStatusMsg::error(&msg)))
             }
-            
         }
         Err(err) => {
             let msg = format!("Err: {}", err);
@@ -77,14 +76,8 @@ pub async fn create(
 
 fn data_type_from_ext(ext: &str) -> String {
     match ext {
-        "jpg" | "png" => {
-            String::from("image")
-        },
-        "txt" => {
-            String::from("text")
-        },
-        _ => {
-            String::from("binary")
-        }
+        "jpg" | "png" => String::from("image"),
+        "txt" => String::from("text"),
+        _ => String::from("binary"),
     }
 }

@@ -1,4 +1,3 @@
-
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::cli::{Indexer, Referencer};
 use crate::error::OxenError;
@@ -6,12 +5,8 @@ use crate::model::http_response::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
 use crate::model::{
-    ListRepositoriesResponse,
-    Repository,
-    RepositoryNew,
+    CommitHead, ListRepositoriesResponse, Repository, RepositoryHeadResponse, RepositoryNew,
     RepositoryResponse,
-    RepositoryHeadResponse,
-    CommitHead
 };
 use crate::util::FileUtil;
 
@@ -50,22 +45,18 @@ impl RepositoryAPI {
         let referencer = Referencer::new(&repo_path)?;
 
         let commit_head: Option<CommitHead> = match referencer.head_commit_id() {
-            Ok(commit_id) => {
-                Some(CommitHead {
-                    commit_id: commit_id,
-                    name: referencer.read_head()?,
-                })
-            },
-            Err(_) => {
-                None
-            }
+            Ok(commit_id) => Some(CommitHead {
+                commit_id,
+                name: referencer.read_head()?,
+            }),
+            Err(_) => None,
         };
 
         Ok(RepositoryHeadResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
             repository: repo,
-            head: commit_head
+            head: commit_head,
         })
     }
 
