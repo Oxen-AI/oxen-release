@@ -2,8 +2,8 @@ use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{Entry, EntryResponse, PaginatedEntries};
 
-use std::path::Path;
 use std::fs::File;
+use std::path::Path;
 
 pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry, OxenError> {
     let url = format!(
@@ -33,7 +33,7 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
     }
 }
 
-pub fn create(config: &RepoConfig, path: &Path, hash: &String) -> Result<Entry, OxenError> {
+pub fn create(config: &RepoConfig, path: &Path, hash: &str) -> Result<Entry, OxenError> {
     let file = File::open(path)?;
     let client = reqwest::blocking::Client::new();
     let url = format!(
@@ -42,15 +42,10 @@ pub fn create(config: &RepoConfig, path: &Path, hash: &String) -> Result<Entry, 
         path.to_str().unwrap(),
         hash
     );
-    if let Ok(res) = client
-        .post(url)
-        .body(file)
-        .send()
-    {
+    if let Ok(res) = client.post(url).body(file).send() {
         let status = res.status();
         let body = res.text()?;
-        let response: Result<EntryResponse, serde_json::Error> =
-            serde_json::from_str(&body);
+        let response: Result<EntryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(result) => Ok(result.entry),
             Err(_) => Err(OxenError::basic_str(&format!(
@@ -65,10 +60,7 @@ pub fn create(config: &RepoConfig, path: &Path, hash: &String) -> Result<Entry, 
     }
 }
 
-pub fn list_page(
-    config: &RepoConfig,
-    page_num: usize,
-) -> Result<PaginatedEntries, OxenError> {
+pub fn list_page(config: &RepoConfig, page_num: usize) -> Result<PaginatedEntries, OxenError> {
     let url = format!(
         "http://{}/api/v1/repositories/{}/entries?page={}",
         config.host(),

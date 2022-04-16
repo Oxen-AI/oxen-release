@@ -14,8 +14,8 @@ use crate::cli::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{
-    CommitHead, CommitMsg, CommitMsgResponse, Dataset,
-    Repository, RepositoryResponse, RepositoryHeadResponse,
+    CommitHead, CommitMsg, CommitMsgResponse, Dataset, Repository, RepositoryHeadResponse,
+    RepositoryResponse,
 };
 use crate::util::{hasher, FileUtil};
 
@@ -125,7 +125,8 @@ impl Indexer {
             if let Ok(hash) = hasher::hash_file_contents(path) {
                 match FileUtil::path_relative_to_dir(path, &self.root_dir) {
                     Ok(path) => {
-                        match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash) {
+                        match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash)
+                        {
                             Ok(_entry) => {
                                 // TODO: save the hash in DB so that we can quickly resume sync
                                 println!("Created entry! Save hash {:?} => {}", path, hash);
@@ -134,7 +135,7 @@ impl Indexer {
                                 eprintln!("Error uploading {:?} {}", path, err)
                             }
                         }
-                    },
+                    }
                     Err(_) => {
                         eprintln!("Could not get relative path...");
                     }
@@ -176,7 +177,8 @@ impl Indexer {
         if let Ok(res) = client.post(url).json(&params).send() {
             let status = res.status();
             let body = res.text()?;
-            let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<RepositoryResponse, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
                 Ok(_) => Ok(()),
                 Err(_) => Err(OxenError::basic_str(&format!(
@@ -184,7 +186,6 @@ impl Indexer {
                     status, body
                 ))),
             }
-            
         } else {
             Err(OxenError::basic_str(
                 "create_or_get_repo() Could not create repo",
@@ -218,7 +219,7 @@ impl Indexer {
             }
             // Unroll stack to post in reverse order
             self.post_commit_to_server(&commit)?;
-            self.push_entries(&committer, &commit)?;
+            self.push_entries(committer, &commit)?;
         } else {
             eprintln!("Err: could not find commit: {}", commit_id);
         }
@@ -237,13 +238,13 @@ impl Indexer {
             // Do we create it then push for now? Or add separate command to create?
             // I think we create and push, and worry about authorized keys etc later
             let body = res.text()?;
-            let response: Result<RepositoryHeadResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<RepositoryHeadResponse, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
                 Ok(j_res) => Ok(j_res.head),
                 Err(err) => Err(OxenError::basic_str(&format!(
                     "get_remote_head() Could not serialize response [{}]\n{}",
-                    err,
-                    body
+                    err, body
                 ))),
             }
         } else {
@@ -268,11 +269,7 @@ impl Indexer {
         Ok(())
     }
 
-    fn post_tarball_to_server(
-        &self,
-        buffer: &[u8],
-        commit: &CommitMsg,
-    ) -> Result<(), OxenError> {
+    fn post_tarball_to_server(&self, buffer: &[u8], commit: &CommitMsg) -> Result<(), OxenError> {
         println!("Syncing database {}", commit.id);
         println!("{:?}", commit);
 
@@ -316,8 +313,7 @@ impl Indexer {
         let mut total = 0;
         let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
         for dataset in datasets.iter() {
-            let entry_page =
-                api::entries::list_page(self.repo_config.as_ref().unwrap(), 1)?;
+            let entry_page = api::entries::list_page(self.repo_config.as_ref().unwrap(), 1)?;
             let path = Path::new(&dataset.name);
             if !path.exists() {
                 std::fs::create_dir(&path)?;

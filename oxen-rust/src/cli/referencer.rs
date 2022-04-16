@@ -3,7 +3,7 @@ use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::{DB, Options};
+use rocksdb::{Options, DB};
 use std::path::{Path, PathBuf};
 use std::str;
 
