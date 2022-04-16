@@ -3,7 +3,7 @@ use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::DB;
+use rocksdb::{DB, Options};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -27,6 +27,22 @@ impl Referencer {
 
         Ok(Referencer {
             refs_db: DB::open_default(&refs_dir)?,
+            head_file,
+        })
+    }
+
+    pub fn new_read_only(repo_dir: &Path) -> Result<Referencer, OxenError> {
+        let refs_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(REFS_DIR)));
+        let head_file = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HEAD_FILE)));
+
+        if !head_file.exists() {
+            FileUtil::write_to_path(&head_file, DEFAULT_BRANCH);
+        }
+
+        let error_if_log_file_exist = false;
+        let opts = Options::default();
+        Ok(Referencer {
+            refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
             head_file,
         })
     }

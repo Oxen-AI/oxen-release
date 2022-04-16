@@ -42,13 +42,16 @@ impl RepositoryAPI {
         }
 
         let repo = Repository::from(&repo_path);
-        let referencer = Referencer::new(&repo_path)?;
-
-        let commit_head: Option<CommitHead> = match referencer.head_commit_id() {
-            Ok(commit_id) => Some(CommitHead {
-                commit_id,
-                name: referencer.read_head()?,
-            }),
+        let commit_head: Option<CommitHead> = match Referencer::new_read_only(&repo_path) {
+            Ok(referencer) => {
+                match referencer.head_commit_id() {
+                    Ok(commit_id) => Some(CommitHead {
+                        commit_id,
+                        name: referencer.read_head()?,
+                    }),
+                    Err(_) => None,
+                }
+            },
             Err(_) => None,
         };
 

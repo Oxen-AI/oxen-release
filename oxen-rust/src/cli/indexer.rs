@@ -14,9 +14,10 @@ use crate::cli::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{
-    CommitHead, CommitMsg, CommitMsgResponse, Dataset, Repository, RepositoryHeadResponse,
+    CommitHead, CommitMsg, CommitMsgResponse, Dataset,
+    Repository, RepositoryResponse, RepositoryHeadResponse,
 };
-use crate::util::hasher;
+use crate::util::{hasher, FileUtil};
 
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
 pub const REPO_CONFIG_FILE: &str = "config.toml";
@@ -116,62 +117,32 @@ impl Indexer {
 
         println!("🐂 push {} files", paths.len());
 
-        // first get directories and create dataset if not exists
-        // TODO: recursive
-        let mut datasets_to_files: HashMap<String, Vec<PathBuf>> = HashMap::new();
-        for path in paths.iter() {
-            if let Some(parent) = path.parent() {
-                if parent != Path::new("") {
-                    let key = String::from(parent.to_str().unwrap());
-                    let value = path.to_path_buf();
-
-                    match datasets_to_files.entry(key) {
-                        std::collections::hash_map::Entry::Vacant(e) => {
-                            e.insert(vec![value]);
-                        }
-                        std::collections::hash_map::Entry::Occupied(mut e) => {
-                            e.get_mut().push(value);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Have to pass dataset objects to create entries, so lets create
-        // the datasets if they dont exist
-        let config = self.repo_config.as_ref().unwrap();
-        let mut names_to_datasets: HashMap<String, Dataset> = HashMap::new();
-        for (name, _files) in datasets_to_files.iter() {
-            let dataset = match api::datasets::get_by_name(self.repo_config.as_ref().unwrap(), name)
-            {
-                Ok(dataset) => dataset,
-                Err(_) => api::datasets::create(config, name)?,
-            };
-            names_to_datasets.insert(name.clone(), dataset);
-        }
-
         // len is usize and progressbar requires u64, I don't think we'll overflow...
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
 
-        for (name, files) in datasets_to_files.iter() {
-            files.par_iter().for_each(|path| {
-                let dataset = &names_to_datasets[name];
-                if let Ok(hash) = hasher::hash_file_contents(path) {
-                    // Only upload file if it's hash doesn't already exist
-                    match api::entries::create(self.repo_config.as_ref().unwrap(), dataset, path) {
-                        Ok(_entry) => {
-                            println!("Created entry! Save hash {:?} => {}", path, hash);
+        paths.par_iter().for_each(|path| {
+            if let Ok(hash) = hasher::hash_file_contents(path) {
+                match FileUtil::path_relative_to_dir(path, &self.root_dir) {
+                    Ok(path) => {
+                        match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash) {
+                            Ok(_entry) => {
+                                // TODO: save the hash in DB so that we can quickly resume sync
+                                println!("Created entry! Save hash {:?} => {}", path, hash);
+                            }
+                            Err(err) => {
+                                eprintln!("Error uploading {:?} {}", path, err)
+                            }
                         }
-                        Err(err) => {
-                            eprintln!("Error uploading {:?} {}", path, err)
-                        }
+                    },
+                    Err(_) => {
+                        eprintln!("Could not get relative path...");
                     }
                 }
+            }
 
-                bar.inc(1);
-            });
-        }
+            bar.inc(1);
+        });
         bar.finish();
 
         Ok(())
@@ -202,8 +173,18 @@ impl Indexer {
         let params = json!({ "name": name });
 
         let client = reqwest::blocking::Client::new();
-        if let Ok(_) = client.post(url).json(&params).send() {
-            Ok(())
+        if let Ok(res) = client.post(url).json(&params).send() {
+            let status = res.status();
+            let body = res.text()?;
+            let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(_) => Ok(()),
+                Err(_) => Err(OxenError::basic_str(&format!(
+                    "status_code[{}] \n\n{}",
+                    status, body
+                ))),
+            }
+            
         } else {
             Err(OxenError::basic_str(
                 "create_or_get_repo() Could not create repo",
@@ -237,6 +218,7 @@ impl Indexer {
             }
             // Unroll stack to post in reverse order
             self.post_commit_to_server(&commit)?;
+            self.push_entries(&committer, &commit)?;
         } else {
             eprintln!("Err: could not find commit: {}", commit_id);
         }
@@ -254,11 +236,14 @@ impl Indexer {
             // TODO: handle if remote repo does not exist...
             // Do we create it then push for now? Or add separate command to create?
             // I think we create and push, and worry about authorized keys etc later
-            match res.json::<RepositoryHeadResponse>() {
+            let body = res.text()?;
+            let response: Result<RepositoryHeadResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
                 Ok(j_res) => Ok(j_res.head),
                 Err(err) => Err(OxenError::basic_str(&format!(
-                    "get_remote_head() Could not serialize response [{}]",
-                    err
+                    "get_remote_head() Could not serialize response [{}]\n{}",
+                    err,
+                    body
                 ))),
             }
         } else {
@@ -332,7 +317,7 @@ impl Indexer {
         let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
         for dataset in datasets.iter() {
             let entry_page =
-                api::entries::list_page(self.repo_config.as_ref().unwrap(), dataset, 1)?;
+                api::entries::list_page(self.repo_config.as_ref().unwrap(), 1)?;
             let path = Path::new(&dataset.name);
             if !path.exists() {
                 std::fs::create_dir(&path)?;
@@ -366,7 +351,7 @@ impl Indexer {
         // println!("Pulling {} pages from dataset {}", num_pages, dataset.name);
         // Pages start at index 1, ie: 0 and 1 are the same
         (1..*num_pages + 1).into_par_iter().for_each(|page| {
-            match api::entries::list_page(self.repo_config.as_ref().unwrap(), dataset, page) {
+            match api::entries::list_page(self.repo_config.as_ref().unwrap(), page) {
                 Ok(entry_page) => {
                     // println!("Got page {}/{}, from {} with {} entries", page, num_pages, dataset.name, entry_page.page_size);
                     for entry in entry_page.entries {

@@ -1,8 +1,9 @@
 use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{Dataset, Entry, EntryResponse, PaginatedEntries};
+use crate::model::{Entry, EntryResponse, PaginatedEntries};
 
 use std::path::Path;
+use std::fs::File;
 
 pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry, OxenError> {
     let url = format!(
@@ -32,55 +33,46 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
     }
 }
 
-pub fn create(config: &RepoConfig, dataset: &Dataset, path: &Path) -> Result<Entry, OxenError> {
-    if let Ok(form) = reqwest::blocking::multipart::Form::new().file("file", &path) {
-        let client = reqwest::blocking::Client::new();
-        let url = format!(
-            "http://{}/api/v1/repositories/{}/datasets/{}/entries",
-            config.host(),
-            config.repository.id,
-            dataset.id
-        );
-        if let Ok(res) = client
-            .post(url)
-            .header(reqwest::header::AUTHORIZATION, config.auth_token())
-            .multipart(form)
-            .send()
-        {
-            let status = res.status();
-            let body = res.text()?;
-            let response: Result<EntryResponse, serde_json::Error> = serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.entry),
-                Err(_) => Err(OxenError::basic_str(&format!(
-                    "status_code[{}] \n\n{}",
-                    status, body
-                ))),
-            }
-        } else {
-            Err(OxenError::basic_str(
-                "api::entries::create error sending data from file",
-            ))
+pub fn create(config: &RepoConfig, path: &Path, hash: &String) -> Result<Entry, OxenError> {
+    let file = File::open(path)?;
+    let client = reqwest::blocking::Client::new();
+    let url = format!(
+        "http://0.0.0.0:3000/repositories/{}/entries?filename={}&hash={}",
+        config.repository.name,
+        path.to_str().unwrap(),
+        hash
+    );
+    if let Ok(res) = client
+        .post(url)
+        .body(file)
+        .send()
+    {
+        let status = res.status();
+        let body = res.text()?;
+        let response: Result<EntryResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(result) => Ok(result.entry),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "Error serializing EntryResponse: status_code[{}] \n\n{}",
+                status, body
+            ))),
         }
     } else {
-        let err = format!(
-            "api::entries::create Could not create form for file {:?}",
-            path
-        );
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(
+            "api::entries::create error sending data from file",
+        ))
     }
 }
 
 pub fn list_page(
     config: &RepoConfig,
-    dataset: &Dataset,
     page_num: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let url = format!(
-        "http://{}/api/v1/repositories/{}/datasets/{}/entries?page={}",
+        "http://{}/api/v1/repositories/{}/entries?page={}",
         config.host(),
         config.repository.id,
-        dataset.id,
         page_num
     );
     let client = reqwest::blocking::Client::new();
@@ -119,15 +111,13 @@ mod tests {
         let img_path = test::test_jpeg_file();
         let repo_name = format!("{}", uuid::Uuid::new_v4());
         let repo_cfg = test::create_repo_cfg(&repo_name)?;
-        let dataset = api::datasets::create(&repo_cfg, "dataset_1")?;
         let hash = hasher::hash_file_contents(img_path)?;
-        let entry = api::entries::create(&repo_cfg, &dataset, img_path)?;
+        let entry = api::entries::create(&repo_cfg, img_path, &hash)?;
 
         assert_eq!("image", entry.data_type);
         assert_eq!(hash, entry.hash);
 
         // cleanup
-        api::datasets::delete(&repo_cfg, &dataset)?;
         api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
         Ok(())
     }
@@ -136,7 +126,6 @@ mod tests {
     fn test_list_entries() -> Result<(), OxenError> {
         let repo_name = format!("{}", uuid::Uuid::new_v4());
         let repo_cfg = test::create_repo_cfg(&repo_name)?;
-        let dataset = api::datasets::create(&repo_cfg, "dataset_1")?;
 
         let paths = vec![
             Path::new("data/test/images/cole_anthony.jpeg"),
@@ -145,16 +134,16 @@ mod tests {
         ];
 
         for path in paths.iter() {
-            api::entries::create(&repo_cfg, &dataset, path)?;
+            let hash = hasher::hash_file_contents(path)?;
+            api::entries::create(&repo_cfg, path, &hash)?;
         }
 
-        let page = api::entries::list_page(&repo_cfg, &dataset, 1)?;
+        let page = api::entries::list_page(&repo_cfg, 1)?;
         assert_eq!(page.page_number, 1);
         assert_eq!(page.total_entries, paths.len());
         assert_eq!(page.total_pages, 1);
 
         // cleanup
-        api::datasets::delete(&repo_cfg, &dataset)?;
         api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
         Ok(())
     }
