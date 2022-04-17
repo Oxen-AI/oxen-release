@@ -3,7 +3,7 @@ use crate::cli::Committer;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::{IteratorMode, DB};
+use rocksdb::{IteratorMode, DB, LogLevel, Options};
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
@@ -22,8 +22,11 @@ impl Stager {
     pub fn new(repo_path: &Path) -> Result<Stager, OxenError> {
         let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
         std::fs::create_dir_all(&dbpath)?;
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Warn);
+        opts.create_if_missing(true);
         Ok(Stager {
-            db: DB::open_default(dbpath)?,
+            db: DB::open(&opts, &dbpath)?,
             committer: None,
             repo_path: repo_path.to_path_buf(),
         })
@@ -33,8 +36,11 @@ impl Stager {
         let repo_path = committer.repo_dir.to_path_buf();
         let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
         std::fs::create_dir_all(&dbpath)?;
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Warn);
+        opts.create_if_missing(true);
         Ok(Stager {
-            db: DB::open_default(dbpath)?,
+            db: DB::open(&opts, &dbpath)?,
             committer: Some(committer),
             repo_path,
         })
@@ -334,6 +340,9 @@ impl Stager {
                         Ok(None) => {
                             // did not get val
                             // println!("list_untracked_directories get file count in: {:?}", path);
+
+                            // TODO: Speed this up, maybe we are opening and closing the db too many times
+                            // example: adding and committing a 12500 files, then checking status
                             let count = self.count_untracked_files_in_dir(&path);
                             paths.push((relative_path, count));
                         }

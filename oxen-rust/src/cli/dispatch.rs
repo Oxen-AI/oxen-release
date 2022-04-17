@@ -80,7 +80,7 @@ pub fn push() -> Result<(), OxenError> {
     }
 
     let indexer = Indexer::new(&repo_dir);
-    let committer = Committer::new(&repo_dir)?;
+    let committer = Arc::new(Committer::new(&repo_dir)?);
 
     indexer.push(&committer)
 }
@@ -251,12 +251,18 @@ pub fn status() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
+    println!("create committer!");
     let committer = Arc::new(Committer::new(&repo_dir)?);
+    println!("create stager!");
     let stager = Stager::from(Arc::clone(&committer))?;
 
+    println!("stager.list_added_directories()");
     let added_directories = stager.list_added_directories()?;
+    println!("stager.list_added_files()");
     let added_files = stager.list_added_files()?;
+    println!("stager.list_untracked_directories()");
     let untracked_directories = stager.list_untracked_directories()?;
+    println!("stager.list_untracked_files()");
     let untracked_files = stager.list_untracked_files()?;
 
     if added_directories.is_empty()

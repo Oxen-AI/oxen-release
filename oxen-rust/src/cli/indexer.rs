@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::api;
 use crate::cli::committer::HISTORY_DIR;
@@ -112,7 +113,7 @@ impl Indexer {
         Ok(())
     }
 
-    fn push_entries(&self, committer: &Committer, commit: &CommitMsg) -> Result<(), OxenError> {
+    fn push_entries(&self, committer: &Arc<Committer>, commit: &CommitMsg) -> Result<(), OxenError> {
         let paths = committer.list_unsynced_files_for_commit(&commit.id)?;
 
         println!("🐂 push {} files", paths.len());
@@ -121,15 +122,42 @@ impl Indexer {
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
 
-        paths.par_iter().for_each(|path| {
+        // find the entry in the history commit db
+        // compare it to the last hash
+        // if it is different, upload it, and mark it as being changed?
+        // Maybe on the server we make a linked list of the changes with the commit id?
+        // if it is the same, don't re-upload
+        // Update the hash for this specific commit for this path
+        let commit_db = &committer.head_commit_db;
+
+        // Since there are a lot of paths, this might open a lot of requests at once...
+        // Maybe try a threadpool with n workers
+        // https://docs.rs/threadpool/latest/threadpool/
+
+        paths.iter().for_each(|path| {
             if let Ok(hash) = hasher::hash_file_contents(path) {
                 match FileUtil::path_relative_to_dir(path, &self.root_dir) {
                     Ok(path) => {
+                        let old_hash = committer.get_path_hash(&commit_db, &path).unwrap();
+                        // println!("COMPARING HASH {:?} old: {} new: {}", path, old_hash, hash);
+                        if old_hash == hash {
+                            // we don't need to upload if hash is the same
+                            // println!("Hash is the same! don't upload again {:?}", path);
+                            return;
+                        }
+
                         match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash)
                         {
                             Ok(_entry) => {
-                                // TODO: save the hash in DB so that we can quickly resume sync
-                                println!("Created entry! Save hash {:?} => {}", path, hash);
+                                // println!("Created entry! Save hash {:?} => {}", path, hash);
+                                match committer.update_path_hash(&commit_db, &path, &hash) {
+                                    Ok(_) => {
+                                        // println!("Updated hash! {:?} => {}", path, hash);
+                                    }
+                                    Err(err) => {
+                                        eprintln!("Error updating hash {:?} {}", path, err)
+                                    }
+                                }
                             }
                             Err(err) => {
                                 eprintln!("Error uploading {:?} {}", path, err)
@@ -149,7 +177,7 @@ impl Indexer {
         Ok(())
     }
 
-    pub fn push(&self, committer: &Committer) -> Result<(), OxenError> {
+    pub fn push(&self, committer: &Arc<Committer>) -> Result<(), OxenError> {
         self.create_or_get_repo()?;
         match committer.get_head_commit() {
             Ok(Some(commit)) => {
@@ -175,16 +203,12 @@ impl Indexer {
 
         let client = reqwest::blocking::Client::new();
         if let Ok(res) = client.post(url).json(&params).send() {
-            let status = res.status();
             let body = res.text()?;
             let response: Result<RepositoryResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(_) => Ok(()),
-                Err(_) => Err(OxenError::basic_str(&format!(
-                    "status_code[{}] \n\n{}",
-                    status, body
-                ))),
+                Err(_) => Ok(()), // we are just assuming this error is already exists for now
             }
         } else {
             Err(OxenError::basic_str(
@@ -193,9 +217,9 @@ impl Indexer {
         }
     }
 
-    pub fn maybe_push(
+    fn maybe_push(
         &self,
-        committer: &Committer,
+        committer: &Arc<Committer>,
         remote_head: &Option<CommitHead>,
         commit_id: &str,
         depth: usize,
@@ -218,8 +242,13 @@ impl Indexer {
                 println!("No parent commit... {} -> {}", commit.id, commit.message);
             }
             // Unroll stack to post in reverse order
+            
+            // TODO: enable pushing of entries first, then final step push the commit..?
+            // or somehow be able to resume pushing the commit? Like check # of synced files on the server
+            // and compare
             self.post_commit_to_server(&commit)?;
             self.push_entries(committer, &commit)?;
+            
         } else {
             eprintln!("Err: could not find commit: {}", commit_id);
         }

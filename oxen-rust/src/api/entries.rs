@@ -42,21 +42,23 @@ pub fn create(config: &RepoConfig, path: &Path, hash: &str) -> Result<Entry, Oxe
         path.to_str().unwrap(),
         hash
     );
-    if let Ok(res) = client.post(url).body(file).send() {
-        let status = res.status();
-        let body = res.text()?;
-        let response: Result<EntryResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(result) => Ok(result.entry),
-            Err(_) => Err(OxenError::basic_str(&format!(
-                "Error serializing EntryResponse: status_code[{}] \n\n{}",
-                status, body
-            ))),
+    match client.post(url).body(file).send() {
+        Ok(res) => {
+            let status = res.status();
+            let body = res.text()?;
+            let response: Result<EntryResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(result) => Ok(result.entry),
+                Err(_) => Err(OxenError::basic_str(&format!(
+                    "Error serializing EntryResponse: status_code[{}] \n\n{}",
+                    status, body
+                ))),
+            }
+        }, 
+        Err(err) => {
+            let err = format!("api::entries::create err: {}", err);
+            Err(OxenError::basic_str(&err))
         }
-    } else {
-        Err(OxenError::basic_str(
-            "api::entries::create error sending data from file",
-        ))
     }
 }
 

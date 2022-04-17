@@ -3,7 +3,7 @@ use crate::cli::indexer::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::{Options, DB};
+use rocksdb::{Options, DB, LogLevel};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -25,8 +25,11 @@ impl Referencer {
             FileUtil::write_to_path(&head_file, DEFAULT_BRANCH);
         }
 
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Warn);
+        opts.create_if_missing(true);
         Ok(Referencer {
-            refs_db: DB::open_default(&refs_dir)?,
+            refs_db: DB::open(&opts, &refs_dir)?,
             head_file,
         })
     }
@@ -40,7 +43,9 @@ impl Referencer {
         }
 
         let error_if_log_file_exist = false;
-        let opts = Options::default();
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Warn);
+        opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
             head_file,

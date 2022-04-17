@@ -7,7 +7,7 @@ use crate::model::CommitMsg;
 use crate::util::FileUtil;
 
 use chrono::Utc;
-use rocksdb::{IteratorMode, DB};
+use rocksdb::{IteratorMode, DB, DBWithThreadMode, MultiThreaded, Options, LogLevel};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -17,6 +17,7 @@ pub const COMMITS_DB: &str = "commits";
 
 pub struct Committer {
     commits_db: DB,
+    pub head_commit_db: Option<DBWithThreadMode<MultiThreaded>>,
     referencer: Referencer,
     history_dir: PathBuf,
     auth_cfg: AuthConfig,
@@ -24,6 +25,13 @@ pub struct Committer {
 }
 
 impl Committer {
+    pub fn db_opts() -> Options {
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Warn);
+        opts.create_if_missing(true);
+        opts
+    }
+
     pub fn new(repo_dir: &Path) -> Result<Committer, OxenError> {
         let history_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
         let commits_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(COMMITS_DB)));
@@ -32,9 +40,27 @@ impl Committer {
             std::fs::create_dir_all(&history_path)?;
         }
 
+        // If there is no head commit, we cannot open the commit db
+        let opts = Committer::db_opts();
+        let referencer = Referencer::new(repo_dir)?;
+        let head_commit_db = match referencer.read_head() {
+            Ok(ref_name) => {
+                match referencer.get_commit_id(&ref_name) {
+                    Ok(commit_id) => {
+                        let commit_db_path = history_path.join(Path::new(&commit_id));
+                        Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
+                    },
+                    Err(_) => None
+                }
+            }
+            Err(_) => None,
+        };
+
+        
         Ok(Committer {
-            commits_db: DB::open_default(&commits_path)?,
-            referencer: Referencer::new(repo_dir)?,
+            commits_db: DB::open(&opts, &commits_path)?,
+            head_commit_db: head_commit_db,
+            referencer: referencer,
             history_dir: history_path,
             auth_cfg: AuthConfig::default().unwrap(),
             repo_dir: repo_dir.to_path_buf(),
@@ -108,7 +134,8 @@ impl Committer {
         };
 
         // println!("Saving commit in {:?}", commit_db_path);
-        let commit_db = DB::open_default(&commit_db_path)?;
+        let opts = Committer::db_opts();
+        let commit_db = DB::open(&opts, &commit_db_path)?;
 
         // List all files that are staged, and write them to this db
         let added_files = stager.list_added_files()?;
@@ -182,6 +209,47 @@ impl Committer {
         Ok(id_str)
     }
 
+    pub fn get_commit_db(&self, commit_id: &str) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Warn);
+        let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
+        Ok(db)
+    }
+
+    pub fn get_path_hash(&self, db: &Option<DBWithThreadMode<MultiThreaded>>, path: &Path) -> Result<String, OxenError> {
+        if let Some(db) = db {
+            let key = path.to_str().unwrap();
+            let bytes = key.as_bytes();
+            match db.get(bytes) {
+                Ok(Some(value)) => Ok(String::from(str::from_utf8(&*value)?)),
+                Ok(None) => Ok(String::from("")), // no hash, empty string
+                Err(err) => {
+                    let err = format!("get_path_hash() Err: {}", err);
+                    Err(OxenError::basic_str(&err))
+                }
+            }
+        } else {
+            Err(OxenError::basic_str("Committer.get_path_hash() no commit db."))
+        }
+    }
+
+    pub fn update_path_hash(&self, db: &Option<DBWithThreadMode<MultiThreaded>>, path: &Path, hash: &str) -> Result<(), OxenError> {
+        if let Some(db) = db {
+            let key = path.to_str().unwrap();
+            let bytes = key.as_bytes();
+            match db.put(bytes, hash) {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    let err = format!("get_path_hash() Err: {}", err);
+                    Err(OxenError::basic_str(&err))
+                }
+            }
+        } else {
+            Err(OxenError::basic_str("Committer.update_path_hash() no commit db."))
+        }
+    }
+
     pub fn add_commit_to_db(&self, commit: &CommitMsg) -> Result<(), OxenError> {
         // Set head db
         let ref_name = self.referencer.read_head()?;
@@ -230,21 +298,46 @@ impl Committer {
         commit_id: &str,
     ) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
-        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
-        let commit_db = DB::open_default(&commit_db_path)?;
-        let iter = commit_db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            let key_str = str::from_utf8(&*key)?;
-            let value_str = str::from_utf8(&*value)?;
-            let filepath = PathBuf::from(String::from(key_str));
-            println!("list_unsynced_files_for_commit ({},{})", key_str, value_str);
-            // If we don't have a hash for the file as the value, it means we haven't pushed it.
-            if value.is_empty() {
-                paths.push(filepath);
+
+        match self.get_head_commit() {
+            Ok(Some(head_commit)) => {
+                if head_commit.id == commit_id {
+                    if let Some(db) = &self.head_commit_db {
+                        self.p_add_untracked_files_from_commit(&mut paths, db)
+                    }
+                } else {
+                    let db = self.get_commit_db(&commit_id)?;
+                    self.p_add_untracked_files_from_commit(&mut paths, &db);
+                }
+            },
+            _ => {
+                let db = self.get_commit_db(&commit_id)?;
+                self.p_add_untracked_files_from_commit(&mut paths, &db);
             }
-        }
+        };
+
 
         Ok(paths)
+    }
+
+    fn p_add_untracked_files_from_commit(&self, paths: &mut Vec<PathBuf>, db: &DBWithThreadMode<MultiThreaded>) {
+        let iter = db.iterator(IteratorMode::Start);
+        for (key, value) in iter {
+            match str::from_utf8(&*key) {
+                Ok(key_str) => {
+                    let filepath = PathBuf::from(String::from(key_str));
+                    // let value_str = str::from_utf8(&*value)?;
+                    // println!("list_unsynced_files_for_commit ({},{})", key_str, value_str);
+                    // If we don't have a hash for the file as the value, it means we haven't pushed it.
+                    if value.is_empty() {
+                        paths.push(filepath);
+                    }
+                },
+                Err(_) => {
+                    eprintln!("Could not read utf8 val...")
+                }
+            }
+        }
     }
 
     pub fn get_head_commit(&self) -> Result<Option<CommitMsg>, OxenError> {
@@ -274,25 +367,20 @@ impl Committer {
     }
 
     pub fn head_contains_file(&self, path: &Path) -> Result<bool, OxenError> {
-        // Grab current head from referencer
-        let ref_name = self.referencer.read_head()?;
-
-        // Get commit db that contains all files
-        let commit_id = self.referencer.get_commit_id(&ref_name)?;
-        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
-        let commit_db = DB::open_default(&commit_db_path)?;
-        // println!("head_contains_file path: {:?}\ndb: {:?}", path, commit_db_path);
-
-        // Check if path is in this commit
-        let key = path.to_str().unwrap();
-        let bytes = key.as_bytes();
-        match commit_db.get(bytes) {
-            Ok(Some(_value)) => Ok(true),
-            Ok(None) => Ok(false),
-            Err(err) => {
-                let err = format!("Error reading db {:?}\nErr: {}", commit_db_path, err);
-                Err(OxenError::basic_str(&err))
+        if let Some(db) = self.head_commit_db.as_ref() {
+            // Check if path is in this commit
+            let key = path.to_str().unwrap();
+            let bytes = key.as_bytes();
+            match db.get(bytes) {
+                Ok(Some(_value)) => Ok(true),
+                Ok(None) => Ok(false),
+                Err(err) => {
+                    let err = format!("head_contains_file Error reading db\nErr: {}", err);
+                    Err(OxenError::basic_str(&err))
+                }
             }
+        } else {
+            Ok(false)
         }
     }
 }
