@@ -325,7 +325,6 @@ impl Committer {
 
         match self.get_head_commit() {
             Ok(Some(head_commit)) => {
-                println!("GOT HEAD COMMIT {:?}", head_commit);
                 if head_commit.id == commit_id {
                     if let Some(db) = &self.head_commit_db {
                         self.p_add_untracked_files_from_commit(&mut paths, db)

@@ -9,8 +9,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use threadpool::ThreadPool;
-use std::sync::mpsc::channel;
 
 use crate::api;
 use crate::cli::committer::HISTORY_DIR;
@@ -130,31 +128,6 @@ impl Indexer {
         // Create threadpool with N workers
         // https://docs.rs/threadpool/latest/threadpool/
 
-        // let n_workers = 8; // TODO: grab from config?
-        // let n_jobs = paths.len();
-        // let pool = ThreadPool::new(n_workers);
-
-        // // We create a channel and just send the index of the file we want to send
-        // let (tx, rx) = channel();
-        // for i in 0..n_jobs {
-        //     let tx = tx.clone();
-        //     pool.execute(move|| {
-        //         match tx.send(i) {
-        //             Ok(_) => {},
-        //             Err(err) => {
-        //                 eprintln!("Channel send err: {:?}", err);
-        //             }
-        //         }
-        //     });
-        // }
-        
-        // // Then as the indexes come in the channel we hash and push the file
-        // let _ = rx.iter().take(n_jobs).map(|idx| {
-        //     // self.hash_and_push(&committer, &commit_db, &paths[idx]);
-        //     println!("SYNC FILE IDX {}", idx);
-        //     bar.inc(1);
-        // });
-
         paths.par_iter().for_each(|path| {
             self.hash_and_push(&committer, &commit_db, &path);
             bar.inc(1);
@@ -258,20 +231,18 @@ impl Indexer {
     ) -> Result<(), OxenError> {
         if let Some(head) = remote_head {
             if commit_id == head.commit_id {
-                if depth == 0 {
+                if depth == 0 && head.is_synced() {
                     println!("No commits to push, remote is synced.");
-                } else {
-                    println!("Done.");
+                    return Ok(());
+                } else if head.is_synced() {
+                    return Ok(());
                 }
-                return Ok(());
             }
         }
 
         if let Some(commit) = committer.get_commit_by_id(commit_id)? {
             if let Some(parent_id) = &commit.parent_id {
                 self.maybe_push(committer, remote_head, parent_id, depth + 1)?;
-            } else {
-                println!("No parent commit... {} -> {}", commit.id, commit.message);
             }
             // Unroll stack to post in reverse order
             
@@ -318,7 +289,7 @@ impl Indexer {
         let commit_dir = self.hidden_dir.join(HISTORY_DIR).join(&commit.id);
         let path_to_compress = format!("history/{}", commit.id);
 
-        println!("Compressing commit {}", commit.id);
+        println!("Compressing commit {}...", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());
         let mut tar = tar::Builder::new(enc);
 
@@ -331,8 +302,7 @@ impl Indexer {
     }
 
     fn post_tarball_to_server(&self, buffer: &[u8], commit: &CommitMsg) -> Result<(), OxenError> {
-        println!("Syncing database {}", commit.id);
-        println!("{:?}", commit);
+        println!("Syncing commit {}...", commit.id);
 
         let name = &self.repo_config.as_ref().unwrap().repository.name;
         let client = reqwest::blocking::Client::new();

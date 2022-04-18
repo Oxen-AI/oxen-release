@@ -48,6 +48,12 @@ pub struct CommitHead {
     pub sync_info: CommmitSyncInfo,
 }
 
+impl CommitHead {
+    pub fn is_synced(&self) -> bool {
+        self.sync_info.num_entries == self.sync_info.num_synced_files
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommmitSyncInfo {
     pub num_entries: usize, // this is how many entries are in our commit db
