@@ -125,6 +125,30 @@ impl FileUtil {
         }
     }
 
+    // recursive count files with extension
+    pub fn rcount_files_with_extension(dir: &Path, exts: &HashSet<String>) -> usize {
+        let mut count = 0;
+        if !dir.is_dir() {
+            return count;
+        }
+
+        for entry in WalkDir::new(dir) {
+            match entry {
+                Ok(val) => {
+                    let path = val.path();
+                    if FileUtil::contains_ext(&path, exts) {
+                        count += 1
+                    }
+                }
+                Err(err) => eprintln!(
+                    "recursive_files_with_extensions Could not iterate over dir... {}",
+                    err
+                ),
+            }
+        }
+        count
+    }
+
     pub fn recursive_files_with_extensions(dir: &Path, exts: &HashSet<String>) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = vec![];
         if !dir.is_dir() {

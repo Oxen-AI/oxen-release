@@ -45,6 +45,11 @@ impl CommitMsg {
 pub struct CommitHead {
     pub name: String,
     pub commit_id: String,
+    pub sync_info: CommmitSyncInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CommmitSyncInfo {
     pub num_entries: usize, // this is how many entries are in our commit db
     pub num_synced_files: usize, // this is how many files are actually synced (in case we killed)
 }

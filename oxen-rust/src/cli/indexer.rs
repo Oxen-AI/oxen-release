@@ -130,22 +130,33 @@ impl Indexer {
         // Create threadpool with N workers
         // https://docs.rs/threadpool/latest/threadpool/
 
-        let n_workers = 8; // TODO: grab from config?
-        let n_jobs = paths.len();
-        let pool = ThreadPool::new(n_workers);
+        // let n_workers = 8; // TODO: grab from config?
+        // let n_jobs = paths.len();
+        // let pool = ThreadPool::new(n_workers);
 
-        // We create a channel and just send the index of the file we want to send
-        let (tx, rx) = channel();
-        for i in 0..n_jobs {
-            let tx = tx.clone();
-            pool.execute(move|| {
-                tx.send(i).expect("channel will be there waiting for the pool");
-            });
-        }
+        // // We create a channel and just send the index of the file we want to send
+        // let (tx, rx) = channel();
+        // for i in 0..n_jobs {
+        //     let tx = tx.clone();
+        //     pool.execute(move|| {
+        //         match tx.send(i) {
+        //             Ok(_) => {},
+        //             Err(err) => {
+        //                 eprintln!("Channel send err: {:?}", err);
+        //             }
+        //         }
+        //     });
+        // }
         
-        // Then as the indexes come in the channel we hash and push the file
-        let _ = rx.iter().take(n_jobs).map(|path| {
-            self.hash_and_push(&committer, &commit_db, &paths[path]);
+        // // Then as the indexes come in the channel we hash and push the file
+        // let _ = rx.iter().take(n_jobs).map(|idx| {
+        //     // self.hash_and_push(&committer, &commit_db, &paths[idx]);
+        //     println!("SYNC FILE IDX {}", idx);
+        //     bar.inc(1);
+        // });
+
+        paths.par_iter().for_each(|path| {
+            self.hash_and_push(&committer, &commit_db, &path);
             bar.inc(1);
         });
 

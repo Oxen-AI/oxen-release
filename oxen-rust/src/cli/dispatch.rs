@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc};
 
 use crate::cli::{Committer, Indexer, Stager};
 
@@ -204,14 +204,15 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with msg [{}]", message);
-            // We might need a higher level coordinater so that
+            // TODO Create a higher level coordinater so that
             // Stager and committer don't have a circular dependency
-            let committer = Arc::new(Committer::new(&repo_dir)?);
-            let stager = Stager::from(Arc::clone(&committer))?;
+            let committer = Committer::new(&repo_dir)?;
+            let mut stager = Stager::from(committer)?;
 
-            match committer.commit(&stager, message) {
+            match stager.commit(&message) {
                 Ok(commit_id) => {
                     println!("Successfully committed id {}", commit_id);
+                    stager.unstage()?;
                     Ok(())
                 }
                 Err(err) => Err(err),
@@ -251,18 +252,12 @@ pub fn status() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    println!("create committer!");
-    let committer = Arc::new(Committer::new(&repo_dir)?);
-    println!("create stager!");
-    let stager = Stager::from(Arc::clone(&committer))?;
+    let committer = Committer::new(&repo_dir)?;
+    let stager = Stager::from(committer)?;
 
-    println!("stager.list_added_directories()");
     let added_directories = stager.list_added_directories()?;
-    println!("stager.list_added_files()");
     let added_files = stager.list_added_files()?;
-    println!("stager.list_untracked_directories()");
     let untracked_directories = stager.list_untracked_directories()?;
-    println!("stager.list_untracked_files()");
     let untracked_files = stager.list_untracked_files()?;
 
     if added_directories.is_empty()

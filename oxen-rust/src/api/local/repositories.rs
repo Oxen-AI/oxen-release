@@ -1,11 +1,11 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
-use crate::cli::{Indexer, Referencer};
+use crate::cli::{Indexer, Committer};
 use crate::error::OxenError;
 use crate::model::http_response::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
 use crate::model::{
-    CommitHead, ListRepositoriesResponse, Repository, RepositoryHeadResponse, RepositoryNew,
+    CommitHead, CommmitSyncInfo, ListRepositoriesResponse, Repository, RepositoryHeadResponse, RepositoryNew,
     RepositoryResponse,
 };
 use crate::util::FileUtil;
@@ -42,18 +42,7 @@ impl RepositoryAPI {
         }
 
         let repo = Repository::from(&repo_path);
-        let commit_head: Option<CommitHead> = match Referencer::new_read_only(&repo_path) {
-            Ok(referencer) => match referencer.head_commit_id() {
-                Ok(commit_id) => Some(CommitHead {
-                    commit_id,
-                    name: referencer.read_head()?,
-                    num_entries: 0,
-                    num_synced_files: 0,
-                }),
-                Err(_) => None,
-            },
-            Err(_) => None,
-        };
+        let commit_head: Option<CommitHead> = self.get_commit_head(&repo_path)?;
 
         Ok(RepositoryHeadResponse {
             status: String::from(STATUS_SUCCESS),
@@ -61,6 +50,27 @@ impl RepositoryAPI {
             repository: repo,
             head: commit_head,
         })
+    }
+
+    pub fn get_commit_head(&self, repo_path: &Path) -> Result<Option<CommitHead>, OxenError> {
+        match Committer::new(&repo_path) {
+            Ok(committer) => {
+                match committer.referencer.head_commit_id() {
+                    Ok(commit_id) => {
+                        Ok(Some(CommitHead {
+                            commit_id: commit_id.clone(),
+                            name: committer.referencer.read_head()?,
+                            sync_info: CommmitSyncInfo {
+                                num_entries: committer.get_num_entries_in_head()?,
+                                num_synced_files: committer.count_files_from_dir(&repo_path),
+                            }
+                        }))
+                    },
+                    Err(_) => Ok(None),
+                }
+            },
+            Err(_) => Ok(None),
+        }
     }
 
     pub fn list(&self) -> Result<ListRepositoriesResponse, OxenError> {

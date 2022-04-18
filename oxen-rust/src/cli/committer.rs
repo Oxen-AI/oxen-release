@@ -1,6 +1,6 @@
 use crate::cli::indexer::OXEN_HIDDEN_DIR;
 
-use crate::cli::{Referencer, Stager};
+use crate::cli::{Referencer};
 use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::model::CommitMsg;
@@ -17,8 +17,9 @@ pub const COMMITS_DB: &str = "commits";
 
 pub struct Committer {
     commits_db: DB,
+    // TODO: have map of ref names to dbs so that we can have different ones open besides HEAD
     pub head_commit_db: Option<DBWithThreadMode<MultiThreaded>>,
-    referencer: Referencer,
+    pub referencer: Referencer,
     history_dir: PathBuf,
     auth_cfg: AuthConfig,
     pub repo_dir: PathBuf,
@@ -43,7 +44,31 @@ impl Committer {
         // If there is no head commit, we cannot open the commit db
         let opts = Committer::db_opts();
         let referencer = Referencer::new(repo_dir)?;
-        let head_commit_db = match referencer.read_head() {
+        let head_commit_db = Committer::head_commit_db(&repo_dir, &referencer);
+
+        Ok(Committer {
+            commits_db: DB::open(&opts, &commits_path)?,
+            head_commit_db: head_commit_db,
+            referencer: referencer,
+            history_dir: history_path,
+            auth_cfg: AuthConfig::default().unwrap(),
+            repo_dir: repo_dir.to_path_buf(),
+        })
+    }
+
+    pub fn count_files_from_dir(&self, dir: &Path) -> usize {
+        // TODO: Make more common util to collect files with extensions
+        let exts: HashSet<String> = vec!["jpg", "jpeg", "png", "txt"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        FileUtil::rcount_files_with_extension(&dir, &exts)
+    }
+
+    fn head_commit_db(repo_dir: &Path, referencer: &Referencer) -> Option<DBWithThreadMode<MultiThreaded>>  {
+        let history_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
+        let opts = Committer::db_opts();
+        match referencer.read_head() {
             Ok(ref_name) => {
                 match referencer.get_commit_id(&ref_name) {
                     Ok(commit_id) => {
@@ -54,17 +79,7 @@ impl Committer {
                 }
             }
             Err(_) => None,
-        };
-
-        
-        Ok(Committer {
-            commits_db: DB::open(&opts, &commits_path)?,
-            head_commit_db: head_commit_db,
-            referencer: referencer,
-            history_dir: history_path,
-            auth_cfg: AuthConfig::default().unwrap(),
-            repo_dir: repo_dir.to_path_buf(),
-        })
+        }
     }
 
     fn list_image_files_from_dir(&self, dir: &Path) -> Vec<PathBuf> {
@@ -105,7 +120,7 @@ impl Committer {
     //     train/image_1.png -> b""
     //     train/image_2.png -> b""
     //     test/image_2.png -> b""
-    pub fn commit(&self, stager: &Stager, message: &str) -> Result<String, OxenError> {
+    pub fn commit(&mut self, added_files: &Vec<PathBuf>, added_dirs: &Vec<(PathBuf, usize)>, message: &str) -> Result<String, OxenError> {
         // Generate uniq id for this commit
         let commit_id = uuid::Uuid::new_v4();
         let id_str = format!("{}", commit_id);
@@ -135,10 +150,9 @@ impl Committer {
 
         // println!("Saving commit in {:?}", commit_db_path);
         let opts = Committer::db_opts();
-        let commit_db = DB::open(&opts, &commit_db_path)?;
+        let commit_db = DBWithThreadMode::open(&opts, &commit_db_path)?; //DB::open(&opts, &commit_db_path)?;
 
-        // List all files that are staged, and write them to this db
-        let added_files = stager.list_added_files()?;
+        // Commit all staged files from db
         // println!("Stager found {} files", added_files.len());
         for path in added_files.iter() {
             let path_str = path.to_str().unwrap();
@@ -150,8 +164,7 @@ impl Committer {
             commit_db.put(&key, b"")?;
         }
 
-        // List all the dirs that are staged, and recursively add all the files
-        let added_dirs = stager.list_added_directories()?;
+        // Commit all staged dirs from db, and recursively add all the files
         // println!("Stager found {} dirs", added_dirs.len());
         for (dir, _) in added_dirs.iter() {
             let full_path = self.repo_dir.join(dir);
@@ -202,11 +215,22 @@ impl Committer {
 
         // Add to commits db
         self.add_commit_to_db(&commit)?;
-
-        // Unstage all the files at the end
-        stager.unstage()?;
+        self.head_commit_db = Some(commit_db);
 
         Ok(id_str)
+    }
+
+    pub fn get_num_entries_in_head(&self) -> Result<usize, OxenError> {
+        if let Some(db) = &self.head_commit_db {
+            Ok(db.iterator(IteratorMode::Start).count())
+        } else {
+            Ok(0)
+        }
+    }
+
+    pub fn get_num_entries_in_commit(&self, commit_id: &str) -> Result<usize, OxenError> {
+        let db = self.get_commit_db(commit_id)?;
+        Ok(db.iterator(IteratorMode::Start).count())
     }
 
     pub fn get_commit_db(&self, commit_id: &str) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
@@ -250,7 +274,7 @@ impl Committer {
         }
     }
 
-    pub fn add_commit_to_db(&self, commit: &CommitMsg) -> Result<(), OxenError> {
+    pub fn add_commit_to_db(&mut self, commit: &CommitMsg) -> Result<(), OxenError> {
         // Set head db
         let ref_name = self.referencer.read_head()?;
         self.referencer.set_head(&ref_name, &commit.id)?;
@@ -301,9 +325,12 @@ impl Committer {
 
         match self.get_head_commit() {
             Ok(Some(head_commit)) => {
+                println!("GOT HEAD COMMIT {:?}", head_commit);
                 if head_commit.id == commit_id {
                     if let Some(db) = &self.head_commit_db {
                         self.p_add_untracked_files_from_commit(&mut paths, db)
+                    } else {
+                        eprintln!("list_unsynced_files_for_commit Err: Could not get head commit db");
                     }
                 } else {
                     let db = self.get_commit_db(&commit_id)?;
@@ -397,7 +424,7 @@ mod tests {
     #[test]
     fn test_commit_staged() -> Result<(), OxenError> {
         let (stager, repo_path) = test::create_stager(BASE_DIR)?;
-        let committer = Committer::new(&repo_path)?;
+        let mut committer = Committer::new(&repo_path)?;
 
         let train_dir = repo_path.join("training_data");
         std::fs::create_dir_all(&train_dir)?;
@@ -416,8 +443,14 @@ mod tests {
         stager.add_dir(&train_dir)?;
 
         let message = "Adding training data to 🐂";
-        let commit_id = committer.commit(&stager, message)?;
+        let added_files = stager.list_added_files()?;
+        let added_dirs = stager.list_added_directories()?;
+        let commit_id = committer.commit(&added_files, &added_dirs, message)?;
+        stager.unstage()?;
         let commit_history = committer.list_commits()?;
+
+        let head = committer.get_head_commit()?;
+        assert!(head.is_some());
 
         assert_eq!(commit_history.len(), 1);
         assert_eq!(commit_history[0].id, commit_id);
@@ -442,9 +475,17 @@ mod tests {
         // Add more files and commit again, make sure the commit copied over the last one
         stager.add_dir(&test_dir)?;
         let message_2 = "Adding test data to 🐂";
-        let commit_id = committer.commit(&stager, message_2)?;
+        let added_files = stager.list_added_files()?;
+        let added_dirs = stager.list_added_directories()?;
+        let commit_id = committer.commit(&added_files, &added_dirs, message_2)?;
+        stager.unstage()?;
         let commit_history = committer.list_commits()?;
 
+        for commit in commit_history.iter() {
+            println!("{:?}", commit);
+        }
+
+        // The messages come out LIFO
         assert_eq!(commit_history.len(), 2);
         assert_eq!(commit_history[0].id, commit_id);
         assert_eq!(commit_history[0].message, message_2);

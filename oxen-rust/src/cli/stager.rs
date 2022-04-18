@@ -8,13 +8,12 @@ use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::sync::Arc;
 
 pub const STAGED_DIR: &str = "staged";
 
 pub struct Stager {
     db: DB,
-    committer: Option<Arc<Committer>>,
+    committer: Option<Committer>,
     repo_path: PathBuf,
 }
 
@@ -32,7 +31,7 @@ impl Stager {
         })
     }
 
-    pub fn from(committer: Arc<Committer>) -> Result<Stager, OxenError> {
+    pub fn from(committer: Committer) -> Result<Stager, OxenError> {
         let repo_path = committer.repo_dir.to_path_buf();
         let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
         std::fs::create_dir_all(&dbpath)?;
@@ -57,6 +56,17 @@ impl Stager {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
+        }
+    }
+
+    pub fn commit(&mut self, message: &str) -> Result<String, OxenError> {
+        let added_files = self.list_added_files()?;
+        let added_dirs = self.list_added_directories()?;
+
+        if let Some(committer) = &mut self.committer {
+            committer.commit(&added_files, &added_dirs, &message)
+        } else {
+            panic!("TODO: move to higher level coordinator... stager should not be holding committer");
         }
     }
 

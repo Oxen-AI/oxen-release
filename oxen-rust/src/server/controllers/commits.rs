@@ -87,8 +87,9 @@ pub async fn upload(
 }
 
 fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
-    match Committer::new(repo_dir) {
-        Ok(committer) => match committer.add_commit_to_db(commit) {
+    let result = Committer::new(repo_dir);
+    match result {
+        Ok(mut committer) => match committer.add_commit_to_db(commit) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("Error adding commit to db: {:?}", err);
