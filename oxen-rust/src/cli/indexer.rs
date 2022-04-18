@@ -441,7 +441,6 @@ mod tests {
         assert!(!repository.id.is_empty());
         let name = repo_dir.file_name().unwrap().to_str().unwrap();
         assert_eq!(repository.name, name);
-        assert_eq!(repository.url, format!("http://0.0.0.0:2000/{}", name));
 
         // cleanup
         std::fs::remove_dir_all(repo_dir)?;
@@ -464,7 +463,6 @@ mod tests {
         assert!(hidden_dir.exists());
         assert!(!repository.id.is_empty());
         assert_eq!(repository.name, name);
-        assert_eq!(repository.url, format!("http://0.0.0.0:2000/{}", name));
 
         // cleanup
         std::fs::remove_dir_all(repo_dir)?;

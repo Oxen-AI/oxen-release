@@ -100,6 +100,8 @@ mod tests {
 
     use std::path::Path;
 
+    // TODO: Make these tests for oxen-server not oxen-hub
+/*
     #[test]
     fn test_create_image_entry() -> Result<(), OxenError> {
         let img_path = test::test_jpeg_file();
@@ -141,4 +143,5 @@ mod tests {
         api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
         Ok(())
     }
+*/
 }
