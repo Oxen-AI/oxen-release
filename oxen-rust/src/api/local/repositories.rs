@@ -47,6 +47,8 @@ impl RepositoryAPI {
                 Ok(commit_id) => Some(CommitHead {
                     commit_id,
                     name: referencer.read_head()?,
+                    num_entries: 0,
+                    num_synced_files: 0,
                 }),
                 Err(_) => None,
             },

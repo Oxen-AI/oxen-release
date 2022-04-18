@@ -8,6 +8,9 @@ use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
+use threadpool::ThreadPool;
+use std::sync::mpsc::channel;
 
 use crate::api;
 use crate::cli::committer::HISTORY_DIR;
@@ -122,59 +125,77 @@ impl Indexer {
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
 
-        // find the entry in the history commit db
-        // compare it to the last hash
-        // if it is different, upload it, and mark it as being changed?
-        // Maybe on the server we make a linked list of the changes with the commit id?
-        // if it is the same, don't re-upload
-        // Update the hash for this specific commit for this path
         let commit_db = &committer.head_commit_db;
 
-        // Since there are a lot of paths, this might open a lot of requests at once...
-        // Maybe try a threadpool with n workers
+        // Create threadpool with N workers
         // https://docs.rs/threadpool/latest/threadpool/
 
-        paths.iter().for_each(|path| {
-            if let Ok(hash) = hasher::hash_file_contents(path) {
-                match FileUtil::path_relative_to_dir(path, &self.root_dir) {
-                    Ok(path) => {
-                        let old_hash = committer.get_path_hash(&commit_db, &path).unwrap();
-                        // println!("COMPARING HASH {:?} old: {} new: {}", path, old_hash, hash);
-                        if old_hash == hash {
-                            // we don't need to upload if hash is the same
-                            // println!("Hash is the same! don't upload again {:?}", path);
-                            return;
-                        }
+        let n_workers = 8; // TODO: grab from config?
+        let n_jobs = paths.len();
+        let pool = ThreadPool::new(n_workers);
 
-                        match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash)
-                        {
-                            Ok(_entry) => {
-                                // println!("Created entry! Save hash {:?} => {}", path, hash);
-                                match committer.update_path_hash(&commit_db, &path, &hash) {
-                                    Ok(_) => {
-                                        // println!("Updated hash! {:?} => {}", path, hash);
-                                    }
-                                    Err(err) => {
-                                        eprintln!("Error updating hash {:?} {}", path, err)
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                eprintln!("Error uploading {:?} {}", path, err)
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        eprintln!("Could not get relative path...");
-                    }
-                }
-            }
-
+        // We create a channel and just send the index of the file we want to send
+        let (tx, rx) = channel();
+        for i in 0..n_jobs {
+            let tx = tx.clone();
+            pool.execute(move|| {
+                tx.send(i).expect("channel will be there waiting for the pool");
+            });
+        }
+        
+        // Then as the indexes come in the channel we hash and push the file
+        let _ = rx.iter().take(n_jobs).map(|path| {
+            self.hash_and_push(&committer, &commit_db, &paths[path]);
             bar.inc(1);
         });
+
         bar.finish();
 
         Ok(())
+    }
+
+    fn hash_and_push(&self, committer: &Arc<Committer>, db: &Option<DBWithThreadMode<MultiThreaded>>, path: &Path) {
+        // hash the file
+        // find the entry in the history commit db
+        // compare it to the last hash
+        // TODO: if it is different, upload it, and mark it as being changed?
+        //       maybe on the server we make a linked list of the changes with the commit id?
+        // if it is the same, don't re-upload
+        // Update the hash for this specific commit for this path
+        if let Ok(hash) = hasher::hash_file_contents(path) {
+            match FileUtil::path_relative_to_dir(path, &self.root_dir) {
+                Ok(path) => {
+                    let old_hash = committer.get_path_hash(&db, &path).unwrap();
+                    // println!("COMPARING HASH {:?} old: {} new: {}", path, old_hash, hash);
+                    if old_hash == hash {
+                        // we don't need to upload if hash is the same
+                        // println!("Hash is the same! don't upload again {:?}", path);
+                        return;
+                    }
+
+                    match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash)
+                    {
+                        Ok(_entry) => {
+                            // println!("Created entry! Save hash {:?} => {}", path, hash);
+                            match committer.update_path_hash(&db, &path, &hash) {
+                                Ok(_) => {
+                                    // println!("Updated hash! {:?} => {}", path, hash);
+                                }
+                                Err(err) => {
+                                    eprintln!("Error updating hash {:?} {}", path, err)
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Error uploading {:?} {}", path, err)
+                        }
+                    }
+                }
+                Err(_) => {
+                    eprintln!("Could not get relative path...");
+                }
+            }
+        }
     }
 
     pub fn push(&self, committer: &Arc<Committer>) -> Result<(), OxenError> {
