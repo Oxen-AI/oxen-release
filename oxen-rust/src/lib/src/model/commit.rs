@@ -42,6 +42,12 @@ impl CommitMsg {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CommmitSyncInfo {
+    pub num_entries: usize, // this is how many entries are in our commit db
+    pub num_synced_files: usize, // this is how many files are actually synced (in case we killed)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CommitHead {
     pub name: String,
     pub commit_id: String,
@@ -52,35 +58,6 @@ impl CommitHead {
     pub fn is_synced(&self) -> bool {
         self.sync_info.num_entries == self.sync_info.num_synced_files
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CommmitSyncInfo {
-    pub num_entries: usize, // this is how many entries are in our commit db
-    pub num_synced_files: usize, // this is how many files are actually synced (in case we killed)
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct CommitMsgResponse {
-    pub status: String,
-    pub status_message: String,
-    pub commit: CommitMsg,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct ListCommitMsgResponse {
-    pub status: String,
-    pub status_message: String,
-    pub commits: Vec<CommitMsg>,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct PaginatedCommitMsgs {
-    pub entries: Vec<CommitMsg>,
-    pub page_size: usize,
-    pub page_number: usize,
-    pub total_pages: usize,
-    pub total_entries: usize,
 }
 
 mod commit_date_format {

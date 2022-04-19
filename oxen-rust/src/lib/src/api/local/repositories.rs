@@ -1,13 +1,23 @@
 use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::index::{Indexer, Committer};
 use crate::error::OxenError;
-use crate::model::http_response::{
+use crate::http::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use crate::model::{
-    CommitHead, CommmitSyncInfo, ListRepositoriesResponse, Repository, RepositoryHeadResponse, RepositoryNew,
-    RepositoryResponse,
+
+use crate::http::response::{
+    ListRepositoriesResponse,
+    RepositoryHeadResponse,
+    RepositoryResponse
 };
+
+use crate::model::{
+    CommitHead,
+    CommmitSyncInfo,
+    Repository,
+    RepositoryNew,
+};
+
 use crate::util::FileUtil;
 
 use std::path::{Path, PathBuf};
@@ -132,7 +142,7 @@ impl RepositoryAPI {
 mod tests {
     use crate::api::local::RepositoryAPI;
     use crate::error::OxenError;
-    use crate::model::http_response::MSG_RESOURCE_ALREADY_EXISTS;
+    use crate::http::MSG_RESOURCE_ALREADY_EXISTS;
     use crate::model::RepositoryNew;
     use crate::test;
     use std::fs;

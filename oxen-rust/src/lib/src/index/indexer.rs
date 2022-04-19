@@ -14,9 +14,10 @@ use crate::index::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{
-    CommitHead, CommitMsg, CommitMsgResponse, Dataset, Repository, RepositoryHeadResponse,
-    RepositoryResponse,
+    CommitHead, CommitMsg, Dataset, Repository
 };
+use crate::http::response::{RepositoryHeadResponse, RepositoryResponse, CommitMsgResponse};
+
 use crate::util::{hasher, FileUtil};
 
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";

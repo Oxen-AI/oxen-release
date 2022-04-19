@@ -1,50 +1,72 @@
 use actix_web::{HttpResponse, HttpRequest};
 
-use liboxen::model::{HTTPStatusMsg, RepositoryNew, SyncDir};
+use liboxen::model::{RepositoryNew};
+use liboxen::http;
 use liboxen::api::local::RepositoryAPI;
 
+use crate::app_data::SyncDir;
+
+use actix_files::NamedFile;
+use std::path::{Path, PathBuf};
+
 pub async fn index(req: HttpRequest) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>();
-    if let Some(dir) = sync_dir {
-        let api = RepositoryAPI::new(&dir.path);
-        let repositories = api.list();
-        match repositories {
-            Ok(repositories) => HttpResponse::Ok().json(repositories),
-            Err(err) => {
-                let msg = format!("Unable to list repositories. Err: {}", err);
-                HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
-            }
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let api = RepositoryAPI::new(&sync_dir.path);
+    let repositories = api.list();
+    match repositories {
+        Ok(repositories) => HttpResponse::Ok().json(repositories),
+        Err(err) => {
+            let msg = format!("Unable to list repositories. Err: {}", err);
+            HttpResponse::Ok().json(http::StatusMessage::error(&msg))
         }
-    } else {
-        let msg = format!("Sync dir not in data: {:?}", sync_dir);
-        HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
     }
 }
 
-/*
-pub async fn create(body: String) -> HttpResponse {
-    let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
+pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
+
+    let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
+    let repo_path: PathBuf = req.match_info().query("name").parse().unwrap();
+
+    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
+    match api.get_by_path(Path::new(&repo_path)) {
+        Ok(result) => {
+            let repo_dir = Path::new(&sync_dir.path).join(result.repository.name);
+            let full_path = repo_dir.join(&filepath);
+            Ok(NamedFile::open(full_path)?)
+        }
+        Err(_) => {
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
+    }
+}
+
+
+pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
+
     let repository: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match repository {
         Ok(repository) => {
-            let api = RepositoryAPI::new(Path::new(&sync_dir));
+            let api = RepositoryAPI::new(Path::new(&sync_dir.path));
             let repository = api.create(&repository);
             match repository {
                 Ok(repository) => HttpResponse::Ok().json(repository),
                 Err(err) => {
                     let msg = format!("Error: {:?}", err);
-                    HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
+                    HttpResponse::Ok().json(http::StatusMessage::error(&msg))
                 }
             }
         }
-        Err(_) => HttpResponse::Ok().json(HTTPStatusMsg::error("Invalid body.")),
+        Err(_) => HttpResponse::Ok().json(http::StatusMessage::error("Invalid body.")),
     }
 }
 
 pub async fn show(req: HttpRequest) -> HttpResponse {
-    let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
-    let api = RepositoryAPI::new(Path::new(&sync_dir));
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
 
+    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
     let path: Option<&str> = req.match_info().get("name");
     if let Some(path) = path {
         let response = api.get_by_path(Path::new(&path));
@@ -52,15 +74,14 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("Err: {}", err);
-                HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
+                HttpResponse::Ok().json(http::StatusMessage::error(&msg))
             }
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
+        HttpResponse::Ok().json(http::StatusMessage::error(&msg))
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {
@@ -71,20 +92,20 @@ mod tests {
     };
     
     use actix_web::body::to_bytes;
+
     use liboxen::error::OxenError;
-    use liboxen::model::{RepositoryNew, ListRepositoriesResponse, RepositoryResponse, SyncDir};
-    use liboxen::model::http_response::{
-        STATUS_SUCCESS,
-    };
+    use liboxen::model::{RepositoryNew};
+    use liboxen::http::{STATUS_SUCCESS};
+    use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
     use liboxen::api::local::repositories::RepositoryAPI;
 
     use crate::controllers;
+    use crate::app_data::SyncDir;
 
     use std::path::{PathBuf};
 
     fn get_sync_dir() -> PathBuf {
         let sync_dir = PathBuf::from(format!("/tmp/oxen/tests/{}", uuid::Uuid::new_v4()));
-        std::env::set_var("SYNC_DIR", sync_dir.to_str().unwrap());
         sync_dir
     }
 
@@ -109,7 +130,6 @@ mod tests {
         Ok(())
     }
 
-    /*
     #[actix_web::test]
     async fn test_respository_show() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
@@ -120,7 +140,9 @@ mod tests {
         api.create(&repo)?;
 
         let uri = format!("/repositories/{}", name);
-        let req = test::TestRequest::with_uri(&uri).param("name", name).to_http_request();
+        let req = test::TestRequest::with_uri(&uri)
+                    .app_data(SyncDir{ path: sync_dir.clone() })
+                    .param("name", name).to_http_request();
         
         let resp = controllers::repositories::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -136,5 +158,4 @@ mod tests {
 
         Ok(())
     }
-    */
 }

@@ -2,7 +2,6 @@ use crate::api;
 use crate::index::indexer::{OXEN_HIDDEN_DIR, REPO_CONFIG_FILE};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::CommitHead;
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -17,28 +16,6 @@ pub struct Repository {
 #[derive(Deserialize, Debug, Clone)]
 pub struct RepositoryNew {
     pub name: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RepositoryResponse {
-    pub status: String,
-    pub status_message: String,
-    pub repository: Repository,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RepositoryHeadResponse {
-    pub status: String,
-    pub status_message: String,
-    pub repository: Repository,
-    pub head: Option<CommitHead>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ListRepositoriesResponse {
-    pub status: String,
-    pub status_message: String,
-    pub repositories: Vec<Repository>,
 }
 
 impl Repository {

@@ -1357,6 +1357,7 @@ dependencies = [
 name = "my-server"
 version = "0.1.0"
 dependencies = [
+ "actix-files",
  "actix-web",
  "dotenv",
  "env_logger",
