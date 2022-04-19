@@ -1,7 +1,7 @@
 use actix_web::{HttpResponse, HttpRequest};
 
 use liboxen::model::{HTTPStatusMsg, RepositoryNew, SyncDir};
-use crate::api::local::RepositoryAPI;
+use liboxen::api::local::RepositoryAPI;
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>();
@@ -20,6 +20,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
     }
 }
+
 /*
 pub async fn create(body: String) -> HttpResponse {
     let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
@@ -59,6 +60,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
         HttpResponse::Ok().json(HTTPStatusMsg::error(&msg))
     }
 }
+*/
 
 #[cfg(test)]
 mod tests {
@@ -69,13 +71,14 @@ mod tests {
     };
     
     use actix_web::body::to_bytes;
-    use crate::error::OxenError;
-    use crate::server::controllers::RepositoryController;
-    use crate::model::{RepositoryNew, ListRepositoriesResponse, RepositoryResponse};
-    use crate::model::http_response::{
+    use liboxen::error::OxenError;
+    use liboxen::model::{RepositoryNew, ListRepositoriesResponse, RepositoryResponse, SyncDir};
+    use liboxen::model::http_response::{
         STATUS_SUCCESS,
     };
-    use crate::api::local::repositories::RepositoryAPI;
+    use liboxen::api::local::repositories::RepositoryAPI;
+
+    use crate::controllers;
 
     use std::path::{PathBuf};
 
@@ -88,12 +91,15 @@ mod tests {
     #[actix_web::test]
     async fn test_respository_index_empty() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
-        let controller = RepositoryController::new(&sync_dir);
 
-        let resp = controllers::repositories::index().await;
+        let req = test::TestRequest::with_uri("/repositories")
+                    .app_data(SyncDir{ path: sync_dir.clone() })
+                    .to_http_request();
+        let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
+        println!("GOT RESPONSE {}", text);
         let list: ListRepositoriesResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 0);
 
@@ -103,6 +109,7 @@ mod tests {
         Ok(())
     }
 
+    /*
     #[actix_web::test]
     async fn test_respository_show() -> Result<(), OxenError> {
         let sync_dir = get_sync_dir();
@@ -129,4 +136,5 @@ mod tests {
 
         Ok(())
     }
-}*/
+    */
+}

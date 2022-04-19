@@ -1170,8 +1170,37 @@ dependencies = [
 name = "liboxen"
 version = "0.1.0"
 dependencies = [
+ "actix-files",
+ "actix-multipart",
+ "actix-web",
+ "chrono",
+ "clap",
+ "colored",
+ "dirs",
+ "dotenv",
+ "env_logger",
+ "flate2",
+ "futures",
+ "futures-util",
+ "http",
+ "indicatif",
+ "jwalk",
+ "openssl",
+ "rayon",
+ "reqwest",
+ "rocksdb",
+ "rpassword",
  "serde",
+ "serde_derive",
  "serde_json",
+ "sha2",
+ "signal-hook",
+ "tar",
+ "threadpool",
+ "toml",
+ "urlencoding",
+ "uuid",
+ "walkdir",
 ]
 
 [[package]]
@@ -1329,9 +1358,12 @@ name = "my-server"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "dotenv",
+ "env_logger",
  "liboxen",
  "serde",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]

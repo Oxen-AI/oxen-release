@@ -4,6 +4,8 @@ use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
 use liboxen::model::{HTTPStatusMsg, SyncDir};
 
+pub mod controllers;
+
 use actix_files::NamedFile;
 use actix_web::middleware::Logger;
 
@@ -80,7 +82,7 @@ async fn main() -> std::io::Result<()> {
             // )
             .route(
                 "/repositories",
-                web::get().to(test_app_data),
+                web::get().to(controllers::repositories::index),
             )
             // .route(
             //     "/repositories",
