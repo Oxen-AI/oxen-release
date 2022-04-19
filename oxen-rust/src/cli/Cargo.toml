@@ -1,0 +1,13 @@
+[package]
+name = "oxen-cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+liboxen = { path = "../lib" }
+clap = { version = "3.1.0", features = ["cargo"] }
+colored = "2.0.0"
+
+[[bin]]
+name = "oxen"
+path = "src/main.rs"
