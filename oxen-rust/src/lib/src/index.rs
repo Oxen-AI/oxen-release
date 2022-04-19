@@ -1,5 +1,4 @@
 pub mod committer;
-pub mod dispatch;
 pub mod indexer;
 pub mod referencer;
 pub mod stager;

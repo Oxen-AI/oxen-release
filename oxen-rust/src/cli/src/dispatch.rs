@@ -1,15 +1,14 @@
-use crate::api;
+use liboxen::api;
+use liboxen::index::{Committer, Indexer, Stager};
+use liboxen::config::{AuthConfig, RemoteConfig};
+use liboxen::error::OxenError;
+use liboxen::model::Repository;
+
 use colored::Colorize;
 use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc};
-
-use crate::index::{Committer, Indexer, Stager};
-
-use crate::config::{AuthConfig, RemoteConfig};
-use crate::error::OxenError;
-use crate::model::Repository;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
 const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
