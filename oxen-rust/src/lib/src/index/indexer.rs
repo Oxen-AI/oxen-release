@@ -3,16 +3,14 @@ use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use serde_json::json;
-use std::collections::HashMap;
-use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::api;
-use crate::cli::committer::HISTORY_DIR;
-use crate::cli::Committer;
+use crate::index::committer::HISTORY_DIR;
+use crate::index::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
 use crate::model::{
@@ -149,18 +147,22 @@ impl Indexer {
         if let Ok(hash) = hasher::hash_file_contents(path) {
             match FileUtil::path_relative_to_dir(path, &self.root_dir) {
                 Ok(path) => {
+                    // Compare last hash to new one
                     let old_hash = committer.get_path_hash(&db, &path).unwrap();
-                    // println!("COMPARING HASH {:?} old: {} new: {}", path, old_hash, hash);
                     if old_hash == hash {
                         // we don't need to upload if hash is the same
                         // println!("Hash is the same! don't upload again {:?}", path);
                         return;
                     }
 
+                    // Upload entry to server
                     match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash)
                     {
                         Ok(_entry) => {
-                            // println!("Created entry! Save hash {:?} => {}", path, hash);
+                            // The last thing we do is update the hash in the local db
+                            // after it has been posted to the server, so that even if the process
+                            // is killed, and we don't get here, the worst thing that can happen
+                            // is we re-upload it.
                             match committer.update_path_hash(&db, &path, &hash) {
                                 Ok(_) => {
                                     // println!("Updated hash! {:?} => {}", path, hash);
@@ -339,67 +341,31 @@ impl Indexer {
     }
 
     pub fn pull(&self) -> Result<(), OxenError> {
-        let datasets = self.list_datasets()?;
-        // Compute the total entries from the first pages, and make appropriate directories
-        let mut total = 0;
-        let mut dataset_pages: HashMap<&Dataset, usize> = HashMap::new();
-        for dataset in datasets.iter() {
-            let entry_page = api::entries::list_page(self.repo_config.as_ref().unwrap(), 1)?;
-            let path = Path::new(&dataset.name);
-            if !path.exists() {
-                std::fs::create_dir(&path)?;
-            }
-            dataset_pages.insert(dataset, entry_page.total_pages);
-            total += entry_page.total_entries;
-        }
 
+        // Get list of commits we have to pull
+
+        // For each commit
+        // - pull dbs
+        // - pull entries given the db
+
+        let total: usize = 0;
         println!("🐂 pulling {} entries", total);
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
-        dataset_pages.par_iter().for_each(|dataset_pages| {
-            let (dataset, num_pages) = dataset_pages;
-            match self.pull_dataset(dataset, num_pages, &bar) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("Error pulling dataset: {}", err)
-                }
-            }
-        });
+        // dataset_pages.par_iter().for_each(|dataset_pages| {
+        //     let (dataset, num_pages) = dataset_pages;
+        //     match self.pull_dataset(dataset, num_pages, &bar) {
+        //         Ok(_) => {}
+        //         Err(err) => {
+        //             eprintln!("Error pulling dataset: {}", err)
+        //         }
+        //     }
+        // });
         bar.finish();
         Ok(())
     }
 
-    fn pull_dataset(
-        &self,
-        dataset: &Dataset,
-        num_pages: &usize,
-        progress: &ProgressBar,
-    ) -> Result<(), OxenError> {
-        // println!("Pulling {} pages from dataset {}", num_pages, dataset.name);
-        // Pages start at index 1, ie: 0 and 1 are the same
-        (1..*num_pages + 1).into_par_iter().for_each(|page| {
-            match api::entries::list_page(self.repo_config.as_ref().unwrap(), page) {
-                Ok(entry_page) => {
-                    // println!("Got page {}/{}, from {} with {} entries", page, num_pages, dataset.name, entry_page.page_size);
-                    for entry in entry_page.entries {
-                        match self.download_url(dataset, &entry) {
-                            Ok(_) => {}
-                            Err(error) => {
-                                println!("Err downloading file: {}", error)
-                            }
-                        }
-                        progress.inc(1);
-                    }
-                }
-                Err(error) => {
-                    println!("Err listing page [{}]: {}", page, error)
-                }
-            }
-        });
-        // println!("Done pulling {} pages from dataset {}", num_pages, dataset.name);
-        Ok(())
-    }
-
+    /*
     fn download_url(
         &self,
         dataset: &Dataset,
@@ -415,12 +381,13 @@ impl Indexer {
         }
         Ok(())
     }
+    */
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::indexer::OXEN_HIDDEN_DIR;
-    use crate::cli::Indexer;
+    use crate::index::indexer::OXEN_HIDDEN_DIR;
+    use crate::index::Indexer;
     use crate::error::OxenError;
     use crate::model::Repository;
     use crate::test;

@@ -1,6 +1,6 @@
 use clap::{arg, Command};
 
-use liboxen::cli::dispatch;
+use liboxen::index::dispatch;
 
 fn main() {
     // Here is another example with set of commands

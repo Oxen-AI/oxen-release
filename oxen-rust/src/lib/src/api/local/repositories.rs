@@ -1,5 +1,5 @@
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
-use crate::cli::{Indexer, Committer};
+use crate::index::indexer::OXEN_HIDDEN_DIR;
+use crate::index::{Indexer, Committer};
 use crate::error::OxenError;
 use crate::model::http_response::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,

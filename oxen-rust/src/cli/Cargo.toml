@@ -1,0 +1,11 @@
+[package]
+name = "oxen-cli"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+liboxen = { path = "../lib" }
+
+[[bin]]
+name = "oxen"
+path = "src/main.rs"

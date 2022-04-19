@@ -1,5 +1,5 @@
 [package]
-name = "oxen"
+name = "Oxen"
 version = "0.1.0"
 edition = "2018"
 
@@ -38,17 +38,20 @@ actix-multipart = "0.4.0"
 futures-util = "0.3.21"
 threadpool = "1.8.1"
 
+[workspace]
+members = ["src/cli", "src/lib", "src/server"]
+
 [profile.release]
 codegen-units = 1
 
 [lib]
 name = "liboxen"
-path = "src/lib.rs"
+path = "src/lib/src/lib.rs"
 
 [[bin]]
 name = "oxen"
-path = "src/oxen.rs"
+path = "src/server/src/main.rs"
 
 [[bin]]
 name = "oxen-server"
-path = "src/oxen-server.rs"
+path = "src/cli/src/main.rs"

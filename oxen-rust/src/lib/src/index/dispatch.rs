@@ -5,7 +5,7 @@ use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc};
 
-use crate::cli::{Committer, Indexer, Stager};
+use crate::index::{Committer, Indexer, Stager};
 
 use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::OxenError;
@@ -94,32 +94,6 @@ pub fn pull() -> Result<(), OxenError> {
 
     let indexer = Indexer::new(&current_dir);
     indexer.pull()
-}
-
-pub fn pull_remote(remote: &str) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
-
-    Err(OxenError::basic_str(&format!(
-        "TODO: Implement pull_remote {}",
-        remote
-    )))
-}
-
-pub fn pull_remote_branch(remote: &str, branch: &str) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
-
-    Err(OxenError::basic_str(&format!(
-        "TODO: Implement pull_remote_branch {} {}",
-        remote, branch
-    )))
 }
 
 pub fn list_datasets() -> Result<(), OxenError> {

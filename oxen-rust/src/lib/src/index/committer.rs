@@ -1,6 +1,6 @@
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::index::indexer::OXEN_HIDDEN_DIR;
 
-use crate::cli::{Referencer};
+use crate::index::{Referencer};
 use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::model::CommitMsg;
@@ -413,7 +413,7 @@ impl Committer {
 
 #[cfg(test)]
 mod tests {
-    use crate::cli::Committer;
+    use crate::index::Committer;
     use crate::error::OxenError;
     use crate::test;
     use crate::util::FileUtil;

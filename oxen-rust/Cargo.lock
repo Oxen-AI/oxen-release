@@ -3,6 +3,43 @@
 version = 3
 
 [[package]]
+name = "Oxen"
+version = "0.1.0"
+dependencies = [
+ "actix-files",
+ "actix-multipart",
+ "actix-web",
+ "chrono",
+ "clap",
+ "colored",
+ "dirs",
+ "dotenv",
+ "env_logger",
+ "flate2",
+ "futures",
+ "futures-util",
+ "http",
+ "indicatif",
+ "jwalk",
+ "openssl",
+ "rayon",
+ "reqwest",
+ "rocksdb",
+ "rpassword",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "sha2",
+ "signal-hook",
+ "tar",
+ "threadpool",
+ "toml",
+ "urlencoding",
+ "uuid",
+ "walkdir",
+]
+
+[[package]]
 name = "actix-codec"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1130,6 +1167,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "liboxen"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "librocksdb-sys"
 version = "0.6.1+6.28.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1280,6 +1325,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "my-server"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "liboxen",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1409,40 +1464,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "oxen"
+name = "oxen-cli"
 version = "0.1.0"
 dependencies = [
- "actix-files",
- "actix-multipart",
- "actix-web",
- "chrono",
- "clap",
- "colored",
- "dirs",
- "dotenv",
- "env_logger",
- "flate2",
- "futures",
- "futures-util",
- "http",
- "indicatif",
- "jwalk",
- "openssl",
- "rayon",
- "reqwest",
- "rocksdb",
- "rpassword",
- "serde",
- "serde_derive",
- "serde_json",
- "sha2",
- "signal-hook",
- "tar",
- "threadpool",
- "toml",
- "urlencoding",
- "uuid",
- "walkdir",
+ "liboxen",
 ]
 
 [[package]]

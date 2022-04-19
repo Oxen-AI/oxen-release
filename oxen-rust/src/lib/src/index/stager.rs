@@ -1,5 +1,5 @@
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
-use crate::cli::Committer;
+use crate::index::indexer::OXEN_HIDDEN_DIR;
+use crate::index::Committer;
 use crate::error::OxenError;
 use crate::util::FileUtil;
 

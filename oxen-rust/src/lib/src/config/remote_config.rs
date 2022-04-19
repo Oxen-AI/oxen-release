@@ -1,4 +1,4 @@
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::config::endpoint;
 use crate::config::AuthConfig;
 use crate::error::OxenError;

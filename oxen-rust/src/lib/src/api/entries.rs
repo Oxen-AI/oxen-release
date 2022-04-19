@@ -93,6 +93,7 @@ pub fn list_page(config: &RepoConfig, page_num: usize) -> Result<PaginatedEntrie
 
 #[cfg(test)]
 mod tests {
+/*
     use crate::api;
     use crate::error::OxenError;
     use crate::test;
@@ -101,7 +102,7 @@ mod tests {
     use std::path::Path;
 
     // TODO: Make these tests for oxen-server not oxen-hub
-/*
+
     #[test]
     fn test_create_image_entry() -> Result<(), OxenError> {
         let img_path = test::test_jpeg_file();

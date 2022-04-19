@@ -1,4 +1,4 @@
-use crate::cli::indexer::OXEN_HIDDEN_DIR;
+use crate::index::indexer::OXEN_HIDDEN_DIR;
 
 use crate::error::OxenError;
 use crate::util::FileUtil;
@@ -95,7 +95,7 @@ mod tests {
 
         assert_eq!(
             referencer.read_head()?,
-            crate::cli::referencer::DEFAULT_BRANCH
+            crate::index::referencer::DEFAULT_BRANCH
         );
 
         // Cleanup
