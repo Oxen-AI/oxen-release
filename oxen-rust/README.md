@@ -21,8 +21,21 @@ A tool to stage, commit, and push data to our servers
 
 ```
 .oxen/
-  head
-    - file that contains hash of current commit
+  HEAD (file that contains name of current "ref")
+
+    ex) heads/main
+
+  refs/ (keeps track of branch heads, remote names and their current commits)
+    key,value db of:
+
+    # Local heads
+    heads/main -> COMMIT_ID
+    heads/feature/add_cats -> COMMIT_ID
+    heads/experiment/add_dogs -> COMMIT_ID
+
+    # What has been pushed in these branches
+    remotes/experiment/add_dogs -> COMMIT_ID
+
 
   staged/ (created from `oxen add <file>` command)
     key,value db of:
@@ -33,7 +46,13 @@ A tool to stage, commit, and push data to our servers
   commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
     key,value of:
 
-    COMMIT_HASH -> message
+    COMMIT_HASH -> CommitMsg
+
+    A CommitMsg is an object that contains, can use parent for ordering the commit logs
+      - Message
+      - Parent Commit ID
+      - Author
+      - Timestamp
 
   history/ (list of commits)
     COMMIT_HASH_1/
@@ -47,37 +66,17 @@ A tool to stage, commit, and push data to our servers
   
 ```
 
-## staged file
+# Oxen Server
 
-Line delimited list of files we want to commit
+## Structure
 
-```
-/Users/gregschoeninger/data/images/img1.png
-/Users/gregschoeninger/data/images/img2.jpg
-/Users/gregschoeninger/data/text/1.txt
-/Users/gregschoeninger/data/text/2.txt
-```
+Directories with repository names to simply sync data to
 
-## synced file
+## APIs
 
-Ordered & line delimited file of which commits have been synced. 
+set SERVER 0.0.0.0:3000
+
+`curl "http://$SERVER/repositories"`
 
 ```
-2022_02_10_3214312
-2022_02_10_3214332
-2022_02_10_3214541
-```
-
-## Commit file
-
-A commit is a set of files we want to add to a dataset. 
-Filename is the local timestamp the commit was made. 
-
-2022_02_10_3214312
-```
-424582A0F3E753A9453BFAB1A67B7F3F25392AC7546AE0FC52FBE616A89B154B
-/Users/gregschoeninger/data/images/img1.png
-/Users/gregschoeninger/data/images/img2.jpg
-/Users/gregschoeninger/data/text/1.txt
-/Users/gregschoeninger/data/text/2.txt
 ```
