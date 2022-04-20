@@ -25,15 +25,16 @@ async fn main() -> std::io::Result<()> {
 
     let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
     env_logger::init_from_env(Env::default().default_filter_or("info"));
+    println!("Syncing to directory: {}", sync_dir);
 
     let data = app_data::SyncDir::from(&sync_dir);
     HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
-            // .route(
-            //     "/repositories/{name}/commits",
-            //     web::get().to(controllers::commits::index),
-            // )
+            .route(
+                "/repositories/{name}/commits",
+                web::get().to(controllers::commits::index),
+            )
             .route(
                 "/repositories/{name}/commits",
                 web::post().to(controllers::commits::upload),
