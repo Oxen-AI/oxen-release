@@ -42,7 +42,6 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     }
 }
 
-
 pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
@@ -102,11 +101,18 @@ mod tests {
     use crate::controllers;
     use crate::app_data::SyncDir;
 
-    use std::path::{PathBuf};
+    use std::path::{PathBuf, Path};
 
     fn get_sync_dir() -> PathBuf {
         let sync_dir = PathBuf::from(format!("/tmp/oxen/tests/{}", uuid::Uuid::new_v4()));
         sync_dir
+    }
+
+    fn create_repo(sync_dir: &Path, name: &str) -> Result<RepositoryNew, OxenError> {
+        let api = RepositoryAPI::new(&sync_dir);
+        let repo = RepositoryNew {name: String::from(name)};
+        api.create(&repo)?;
+        Ok(repo)
     }
 
     #[actix_web::test]
@@ -120,9 +126,31 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("GOT RESPONSE {}", text);
         let list: ListRepositoriesResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 0);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
+        let sync_dir = get_sync_dir();
+
+        create_repo(&sync_dir, "Testing-1")?;
+        create_repo(&sync_dir, "Testing-2")?;
+
+        let req = test::TestRequest::with_uri("/repositories")
+                    .app_data(SyncDir{ path: sync_dir.clone() })
+                    .to_http_request();
+        let resp = controllers::repositories::index(req).await;
+        assert_eq!(resp.status(), http::StatusCode::OK);
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let list: ListRepositoriesResponse = serde_json::from_str(text)?;
+        assert_eq!(list.repositories.len(), 2);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
@@ -135,9 +163,7 @@ mod tests {
         let sync_dir = get_sync_dir();
 
         let name = "Testing-Name";
-        let api = RepositoryAPI::new(&sync_dir);
-        let repo = RepositoryNew {name: String::from(name)};
-        api.create(&repo)?;
+        create_repo(&sync_dir, &name)?;
 
         let uri = format!("/repositories/{}", name);
         let req = test::TestRequest::with_uri(&uri)
@@ -148,7 +174,6 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("RESPONSE {}", text);
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status, STATUS_SUCCESS);
         assert_eq!(repo_response.repository.name, name);

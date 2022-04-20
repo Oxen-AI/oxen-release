@@ -1,6 +1,10 @@
-# OxenCLI
+# Oxen 🐂
 
-A tool to stage, commit, and push data to our servers
+Libraries and tools to manage Oxen repositories.
+
+# Components
+
+oxen, oxen-server, liboxen
 
 ## Commands
 
