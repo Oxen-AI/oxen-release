@@ -1,6 +1,5 @@
-
-pub mod status_message;
 pub mod response;
+pub mod status_message;
 
 pub const STATUS_ERROR: &str = "error";
 pub const STATUS_SUCCESS: &str = "success";

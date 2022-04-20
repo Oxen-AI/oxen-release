@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::http;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StatusMessage {

@@ -1,7 +1,7 @@
 use crate::api;
-use crate::index::indexer::{OXEN_HIDDEN_DIR, REPO_CONFIG_FILE};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
+use crate::index::indexer::{OXEN_HIDDEN_DIR, REPO_CONFIG_FILE};
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::Path;

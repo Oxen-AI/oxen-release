@@ -1,5 +1,3 @@
-
-
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -10,8 +8,7 @@ pub struct SyncDir {
 impl SyncDir {
     pub fn from(path: &str) -> SyncDir {
         SyncDir {
-            path: PathBuf::from(path)
+            path: PathBuf::from(path),
         }
     }
 }
-

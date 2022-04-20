@@ -1,5 +1,4 @@
-
-use crate::model::{Repository, CommitHead};
+use crate::model::{CommitHead, Repository};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]

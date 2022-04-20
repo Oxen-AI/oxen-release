@@ -1,10 +1,8 @@
 use crate::config::HTTPConfig;
 use crate::error::OxenError;
-use crate::model::repository::{Repository};
+use crate::http::response::RepositoryResponse;
 use crate::http::StatusMessage;
-use crate::http::response::{
-    RepositoryResponse
-};
+use crate::model::repository::Repository;
 use serde_json::json;
 use urlencoding::encode;
 
