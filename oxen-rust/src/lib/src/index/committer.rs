@@ -22,7 +22,7 @@ pub struct Committer {
     pub referencer: Referencer,
     history_dir: PathBuf,
     auth_cfg: AuthConfig,
-    pub repo_dir: PathBuf,
+    repo_dir: PathBuf,
 }
 
 impl Committer {
@@ -44,16 +44,20 @@ impl Committer {
         // If there is no head commit, we cannot open the commit db
         let opts = Committer::db_opts();
         let referencer = Referencer::new(repo_dir)?;
-        let head_commit_db = Committer::head_commit_db(&repo_dir, &referencer);
+        let head_commit_db = Committer::head_commit_db(repo_dir, &referencer);
 
         Ok(Committer {
             commits_db: DB::open(&opts, &commits_path)?,
-            head_commit_db: head_commit_db,
-            referencer: referencer,
+            head_commit_db,
+            referencer,
             history_dir: history_path,
             auth_cfg: AuthConfig::default().unwrap(),
             repo_dir: repo_dir.to_path_buf(),
         })
+    }
+
+    pub fn get_repo_dir(&self) -> PathBuf {
+        self.repo_dir.clone()
     }
 
     pub fn count_files_from_dir(&self, dir: &Path) -> usize {
@@ -62,7 +66,7 @@ impl Committer {
             .into_iter()
             .map(String::from)
             .collect();
-        FileUtil::rcount_files_with_extension(&dir, &exts)
+        FileUtil::rcount_files_with_extension(dir, &exts)
     }
 
     fn head_commit_db(
@@ -123,8 +127,8 @@ impl Committer {
     //     test/image_2.png -> b""
     pub fn commit(
         &mut self,
-        added_files: &Vec<PathBuf>,
-        added_dirs: &Vec<(PathBuf, usize)>,
+        added_files: &[PathBuf],
+        added_dirs: &[(PathBuf, usize)],
         message: &str,
     ) -> Result<String, OxenError> {
         // Generate uniq id for this commit
@@ -356,12 +360,12 @@ impl Committer {
                         );
                     }
                 } else {
-                    let db = self.get_commit_db(&commit_id)?;
+                    let db = self.get_commit_db(commit_id)?;
                     self.p_add_untracked_files_from_commit(&mut paths, &db);
                 }
             }
             _ => {
-                let db = self.get_commit_db(&commit_id)?;
+                let db = self.get_commit_db(commit_id)?;
                 self.p_add_untracked_files_from_commit(&mut paths, &db);
             }
         };

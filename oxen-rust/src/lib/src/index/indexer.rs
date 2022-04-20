@@ -130,7 +130,7 @@ impl Indexer {
         // https://docs.rs/threadpool/latest/threadpool/
 
         paths.par_iter().for_each(|path| {
-            self.hash_and_push(&committer, &commit_db, &path);
+            self.hash_and_push(committer, commit_db, path);
             bar.inc(1);
         });
 
@@ -156,7 +156,7 @@ impl Indexer {
             match FileUtil::path_relative_to_dir(path, &self.root_dir) {
                 Ok(path) => {
                     // Compare last hash to new one
-                    let old_hash = committer.get_path_hash(&db, &path).unwrap();
+                    let old_hash = committer.get_path_hash(db, &path).unwrap();
                     if old_hash == hash {
                         // we don't need to upload if hash is the same
                         // println!("Hash is the same! don't upload again {:?}", path);
@@ -170,7 +170,7 @@ impl Indexer {
                             // after it has been posted to the server, so that even if the process
                             // is killed, and we don't get here, the worst thing that can happen
                             // is we re-upload it.
-                            match committer.update_path_hash(&db, &path, &hash) {
+                            match committer.update_path_hash(db, &path, &hash) {
                                 Ok(_) => {
                                     // println!("Updated hash! {:?} => {}", path, hash);
                                 }

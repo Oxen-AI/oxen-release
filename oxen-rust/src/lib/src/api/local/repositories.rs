@@ -54,14 +54,14 @@ impl RepositoryAPI {
     }
 
     pub fn get_commit_head(&self, repo_path: &Path) -> Result<Option<CommitHead>, OxenError> {
-        match Committer::new(&repo_path) {
+        match Committer::new(repo_path) {
             Ok(committer) => match committer.referencer.head_commit_id() {
                 Ok(commit_id) => Ok(Some(CommitHead {
-                    commit_id: commit_id.clone(),
+                    commit_id,
                     name: committer.referencer.read_head()?,
                     sync_info: CommmitSyncInfo {
                         num_entries: committer.get_num_entries_in_head()?,
-                        num_synced_files: committer.count_files_from_dir(&repo_path),
+                        num_synced_files: committer.count_files_from_dir(repo_path),
                     },
                 })),
                 Err(_) => Ok(None),

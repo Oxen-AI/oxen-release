@@ -7,6 +7,7 @@ edition = "2018"
 liboxen = { path = "../lib" }
 clap = { version = "3.1.0", features = ["cargo"] }
 colored = "2.0.0"
+rpassword = "6.0"
 
 [[bin]]
 name = "oxen"

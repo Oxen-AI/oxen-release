@@ -21,7 +21,7 @@ impl ListCommitMsgResponse {
         ListCommitMsgResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
-            commits: commits,
+            commits,
         }
     }
 }
