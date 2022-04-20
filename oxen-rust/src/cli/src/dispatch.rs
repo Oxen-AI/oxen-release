@@ -1,14 +1,14 @@
 use liboxen::api;
-use liboxen::index::{Committer, Indexer, Stager};
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
+use liboxen::index::{Committer, Indexer, Stager};
 use liboxen::model::Repository;
 
 use colored::Colorize;
 use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc};
+use std::sync::Arc;
 
 const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
 const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
@@ -182,7 +182,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
             let committer = Committer::new(&repo_dir)?;
             let mut stager = Stager::from(committer)?;
 
-            match stager.commit(&message) {
+            match stager.commit(message) {
                 Ok(commit_id) => {
                     println!("Successfully committed id {}", commit_id);
                     stager.unstage()?;

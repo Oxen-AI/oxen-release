@@ -1,9 +1,9 @@
+use crate::error::OxenError;
 use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::index::Committer;
-use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::{IteratorMode, DB, LogLevel, Options};
+use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
@@ -32,8 +32,8 @@ impl Stager {
     }
 
     pub fn from(committer: Committer) -> Result<Stager, OxenError> {
-        let repo_path = committer.repo_dir.to_path_buf();
-        let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
+        let repo_dir = committer.get_repo_dir();
+        let dbpath = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
         std::fs::create_dir_all(&dbpath)?;
         let mut opts = Options::default();
         opts.set_log_level(LogLevel::Warn);
@@ -41,7 +41,7 @@ impl Stager {
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
             committer: Some(committer),
-            repo_path,
+            repo_path: repo_dir,
         })
     }
 
@@ -64,9 +64,11 @@ impl Stager {
         let added_dirs = self.list_added_directories()?;
 
         if let Some(committer) = &mut self.committer {
-            committer.commit(&added_files, &added_dirs, &message)
+            committer.commit(&added_files, &added_dirs, message)
         } else {
-            panic!("TODO: move to higher level coordinator... stager should not be holding committer");
+            panic!(
+                "TODO: move to higher level coordinator... stager should not be holding committer"
+            );
         }
     }
 
