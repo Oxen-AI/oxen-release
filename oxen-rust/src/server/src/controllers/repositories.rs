@@ -78,7 +78,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::Ok().json(http::StatusMessage::error(&msg))
+        HttpResponse::Ok().json(http::StatusMessage::error(msg))
     }
 }
 
@@ -149,7 +149,7 @@ mod tests {
         let sync_dir = test_helper::get_sync_dir();
 
         let name = "Testing-Name";
-        test_helper::create_repo(&sync_dir, &name)?;
+        test_helper::create_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}", name);
         let req = test::TestRequest::with_uri(&uri)

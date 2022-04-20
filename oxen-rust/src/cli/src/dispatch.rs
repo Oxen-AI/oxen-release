@@ -182,7 +182,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
             let committer = Committer::new(&repo_dir)?;
             let mut stager = Stager::from(committer)?;
 
-            match stager.commit(&message) {
+            match stager.commit(message) {
                 Ok(commit_id) => {
                     println!("Successfully committed id {}", commit_id);
                     stager.unstage()?;

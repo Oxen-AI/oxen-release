@@ -46,12 +46,12 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::NotFound().json(http::StatusMessage::error(&msg))
+        HttpResponse::NotFound().json(http::StatusMessage::error(msg))
     }
 }
 
 fn p_index(repo_dir: &Path) -> Result<ListCommitMsgResponse, OxenError> {
-    let committer = Committer::new(&repo_dir)?;
+    let committer = Committer::new(repo_dir)?;
     let commits = committer.list_commits()?;
     Ok(ListCommitMsgResponse::success(commits))
 }

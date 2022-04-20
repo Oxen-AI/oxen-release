@@ -11,7 +11,7 @@ pub fn get_sync_dir() -> PathBuf {
 }
 
 pub fn create_repo(sync_dir: &Path, name: &str) -> Result<RepositoryNew, OxenError> {
-    let api = RepositoryAPI::new(&sync_dir);
+    let api = RepositoryAPI::new(sync_dir);
     let repo = RepositoryNew {name: String::from(name)};
     api.create(&repo)?;
     Ok(repo)
