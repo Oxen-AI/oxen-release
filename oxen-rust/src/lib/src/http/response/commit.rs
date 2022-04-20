@@ -1,5 +1,6 @@
 
 use crate::model::CommitMsg;
+use crate::http::{STATUS_SUCCESS, MSG_RESOURCE_FOUND};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -14,6 +15,16 @@ pub struct ListCommitMsgResponse {
     pub status: String,
     pub status_message: String,
     pub commits: Vec<CommitMsg>,
+}
+
+impl ListCommitMsgResponse {
+    pub fn success(commits: Vec<CommitMsg>) -> ListCommitMsgResponse {
+        ListCommitMsgResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_FOUND),
+            commits: commits
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]

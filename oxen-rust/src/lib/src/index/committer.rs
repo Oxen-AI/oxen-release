@@ -293,7 +293,7 @@ impl Committer {
                 self.p_list_commits(&commit_id, &mut commit_msgs)?;
                 Ok(commit_msgs)
             }
-            Err(_) => Err(OxenError::basic_str("No commits found.")),
+            Err(_) => Ok(commit_msgs),
         }
     }
 

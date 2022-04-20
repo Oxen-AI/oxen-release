@@ -93,31 +93,17 @@ mod tests {
     use actix_web::body::to_bytes;
 
     use liboxen::error::OxenError;
-    use liboxen::model::{RepositoryNew};
+    
     use liboxen::http::{STATUS_SUCCESS};
     use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
-    use liboxen::api::local::repositories::RepositoryAPI;
 
     use crate::controllers;
     use crate::app_data::SyncDir;
-
-    use std::path::{PathBuf, Path};
-
-    fn get_sync_dir() -> PathBuf {
-        let sync_dir = PathBuf::from(format!("/tmp/oxen/tests/{}", uuid::Uuid::new_v4()));
-        sync_dir
-    }
-
-    fn create_repo(sync_dir: &Path, name: &str) -> Result<RepositoryNew, OxenError> {
-        let api = RepositoryAPI::new(&sync_dir);
-        let repo = RepositoryNew {name: String::from(name)};
-        api.create(&repo)?;
-        Ok(repo)
-    }
+    use crate::test_helper;
 
     #[actix_web::test]
     async fn test_respository_index_empty() -> Result<(), OxenError> {
-        let sync_dir = get_sync_dir();
+        let sync_dir = test_helper::get_sync_dir();
 
         let req = test::TestRequest::with_uri("/repositories")
                     .app_data(SyncDir{ path: sync_dir.clone() })
@@ -137,10 +123,10 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
-        let sync_dir = get_sync_dir();
+        let sync_dir = test_helper::get_sync_dir();
 
-        create_repo(&sync_dir, "Testing-1")?;
-        create_repo(&sync_dir, "Testing-2")?;
+        test_helper::create_repo(&sync_dir, "Testing-1")?;
+        test_helper::create_repo(&sync_dir, "Testing-2")?;
 
         let req = test::TestRequest::with_uri("/repositories")
                     .app_data(SyncDir{ path: sync_dir.clone() })
@@ -160,10 +146,10 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_show() -> Result<(), OxenError> {
-        let sync_dir = get_sync_dir();
+        let sync_dir = test_helper::get_sync_dir();
 
         let name = "Testing-Name";
-        create_repo(&sync_dir, &name)?;
+        test_helper::create_repo(&sync_dir, &name)?;
 
         let uri = format!("/repositories/{}", name);
         let req = test::TestRequest::with_uri(&uri)

@@ -50,8 +50,8 @@ path = "src/lib/src/lib.rs"
 
 [[bin]]
 name = "oxen"
-path = "src/server/src/main.rs"
+path = "src/cli/src/main.rs"
 
 [[bin]]
 name = "oxen-server"
-path = "src/cli/src/main.rs"
+path = "src/server/src/main.rs"

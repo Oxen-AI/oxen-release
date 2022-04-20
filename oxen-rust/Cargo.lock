@@ -1361,9 +1361,12 @@ dependencies = [
  "actix-web",
  "dotenv",
  "env_logger",
+ "flate2",
+ "futures-util",
  "liboxen",
  "serde",
  "serde_json",
+ "tar",
  "uuid",
 ]
 

@@ -5,6 +5,7 @@ use liboxen::api;
 pub mod controllers;
 pub mod app_data;
 pub mod http;
+pub mod test_helper;
 
 use actix_web::middleware::Logger;
 
@@ -33,27 +34,27 @@ async fn main() -> std::io::Result<()> {
             //     "/repositories/{name}/commits",
             //     web::get().to(controllers::commits::index),
             // )
-            // .route(
-            //     "/repositories/{name}/commits",
-            //     web::post().to(controllers::commits::upload),
-            // )
-            // .route(
-            //     "/repositories/{name}/entries",
-            //     web::post().to(controllers::entries::create),
-            // )
+            .route(
+                "/repositories/{name}/commits",
+                web::post().to(controllers::commits::upload),
+            )
+            .route(
+                "/repositories/{name}/entries",
+                web::post().to(controllers::entries::create),
+            )
             .route("/repositories/{name}/{filename:.*}", web::get().to(controllers::repositories::get_file))
-            // .route(
-            //     "/repositories/{name}",
-            //     web::get().to(controllers::repositories::show),
-            // )
+            .route(
+                "/repositories/{name}",
+                web::get().to(controllers::repositories::show),
+            )
             .route(
                 "/repositories",
                 web::get().to(controllers::repositories::index),
             )
-            // .route(
-            //     "/repositories",
-            //     web::post().to(controllers::repositories::create),
-            // )
+            .route(
+                "/repositories",
+                web::post().to(controllers::repositories::create),
+            )
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
     })

@@ -1,6 +1,7 @@
 use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{Entry, EntryResponse, PaginatedEntries};
+use crate::model::{Entry};
+use crate::http::response::{EntryResponse, PaginatedEntries};
 
 use std::fs::File;
 use std::path::Path;

@@ -12,7 +12,10 @@ env_logger = "0.9.0"
 dotenv = "0.9.0"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 actix-files = "0.6.0"
+futures-util = "0.3.21"
+flate2 = "1.0.23"
+tar = "0.4.38"
 
 [[bin]]
-name = "my-server"
+name = "oxen-server"
 path = "src/main.rs"

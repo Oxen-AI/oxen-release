@@ -16,9 +16,7 @@ pub use crate::model::repository::{
 };
 
 pub use crate::model::entry::{
-    Entry,
-    EntryResponse,
-    PaginatedEntries
+    Entry
 };
 
 pub use crate::model::dataset::Dataset;
