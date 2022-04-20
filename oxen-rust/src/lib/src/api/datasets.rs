@@ -1,7 +1,7 @@
 use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::dataset::{Dataset, DatasetResponse, ListDatasetsResponse};
 use crate::http::StatusMessage;
+use crate::model::dataset::{Dataset, DatasetResponse, ListDatasetsResponse};
 use reqwest::blocking::Client;
 use serde_json::json;
 

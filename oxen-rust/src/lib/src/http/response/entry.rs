@@ -1,5 +1,4 @@
-
-use crate::model::{Entry};
+use crate::model::Entry;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]

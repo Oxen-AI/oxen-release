@@ -1,8 +1,8 @@
-use actix_web::{HttpResponse, HttpRequest};
+use actix_web::{HttpRequest, HttpResponse};
 
-use liboxen::model::{RepositoryNew};
-use liboxen::http;
 use liboxen::api::local::RepositoryAPI;
+use liboxen::http;
+use liboxen::model::RepositoryNew;
 
 use crate::app_data::SyncDir;
 
@@ -84,21 +84,21 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 
 #[cfg(test)]
 mod tests {
-    
+
     use actix_web::{
         http::{self},
         test,
     };
-    
+
     use actix_web::body::to_bytes;
 
     use liboxen::error::OxenError;
-    
-    use liboxen::http::{STATUS_SUCCESS};
-    use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
 
-    use crate::controllers;
+    use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
+    use liboxen::http::STATUS_SUCCESS;
+
     use crate::app_data::SyncDir;
+    use crate::controllers;
     use crate::test_helper;
 
     #[actix_web::test]
@@ -106,8 +106,10 @@ mod tests {
         let sync_dir = test_helper::get_sync_dir();
 
         let req = test::TestRequest::with_uri("/repositories")
-                    .app_data(SyncDir{ path: sync_dir.clone() })
-                    .to_http_request();
+            .app_data(SyncDir {
+                path: sync_dir.clone(),
+            })
+            .to_http_request();
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -129,8 +131,10 @@ mod tests {
         test_helper::create_repo(&sync_dir, "Testing-2")?;
 
         let req = test::TestRequest::with_uri("/repositories")
-                    .app_data(SyncDir{ path: sync_dir.clone() })
-                    .to_http_request();
+            .app_data(SyncDir {
+                path: sync_dir.clone(),
+            })
+            .to_http_request();
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -153,9 +157,12 @@ mod tests {
 
         let uri = format!("/repositories/{}", name);
         let req = test::TestRequest::with_uri(&uri)
-                    .app_data(SyncDir{ path: sync_dir.clone() })
-                    .param("name", name).to_http_request();
-        
+            .app_data(SyncDir {
+                path: sync_dir.clone(),
+            })
+            .param("name", name)
+            .to_http_request();
+
         let resp = controllers::repositories::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();

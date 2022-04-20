@@ -2,18 +2,15 @@ extern crate dotenv;
 
 use liboxen::api;
 
-pub mod controllers;
 pub mod app_data;
+pub mod controllers;
 pub mod http;
 pub mod test_helper;
 
 use actix_web::middleware::Logger;
 
-use actix_web::{
-    web, App, HttpServer,
-};
+use actix_web::{web, App, HttpServer};
 use env_logger::Env;
-
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -43,7 +40,10 @@ async fn main() -> std::io::Result<()> {
                 "/repositories/{name}/entries",
                 web::post().to(controllers::entries::create),
             )
-            .route("/repositories/{name}/{filename:.*}", web::get().to(controllers::repositories::get_file))
+            .route(
+                "/repositories/{name}/{filename:.*}",
+                web::get().to(controllers::repositories::get_file),
+            )
             .route(
                 "/repositories/{name}",
                 web::get().to(controllers::repositories::show),

@@ -1,13 +1,13 @@
 use crate::index::indexer::OXEN_HIDDEN_DIR;
 
-use crate::index::{Referencer};
 use crate::config::AuthConfig;
 use crate::error::OxenError;
+use crate::index::Referencer;
 use crate::model::CommitMsg;
 use crate::util::FileUtil;
 
 use chrono::Utc;
-use rocksdb::{IteratorMode, DB, DBWithThreadMode, MultiThreaded, Options, LogLevel};
+use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -65,19 +65,20 @@ impl Committer {
         FileUtil::rcount_files_with_extension(&dir, &exts)
     }
 
-    fn head_commit_db(repo_dir: &Path, referencer: &Referencer) -> Option<DBWithThreadMode<MultiThreaded>>  {
+    fn head_commit_db(
+        repo_dir: &Path,
+        referencer: &Referencer,
+    ) -> Option<DBWithThreadMode<MultiThreaded>> {
         let history_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
         let opts = Committer::db_opts();
         match referencer.read_head() {
-            Ok(ref_name) => {
-                match referencer.get_commit_id(&ref_name) {
-                    Ok(commit_id) => {
-                        let commit_db_path = history_path.join(Path::new(&commit_id));
-                        Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
-                    },
-                    Err(_) => None
+            Ok(ref_name) => match referencer.get_commit_id(&ref_name) {
+                Ok(commit_id) => {
+                    let commit_db_path = history_path.join(Path::new(&commit_id));
+                    Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
                 }
-            }
+                Err(_) => None,
+            },
             Err(_) => None,
         }
     }
@@ -120,7 +121,12 @@ impl Committer {
     //     train/image_1.png -> b""
     //     train/image_2.png -> b""
     //     test/image_2.png -> b""
-    pub fn commit(&mut self, added_files: &Vec<PathBuf>, added_dirs: &Vec<(PathBuf, usize)>, message: &str) -> Result<String, OxenError> {
+    pub fn commit(
+        &mut self,
+        added_files: &Vec<PathBuf>,
+        added_dirs: &Vec<(PathBuf, usize)>,
+        message: &str,
+    ) -> Result<String, OxenError> {
         // Generate uniq id for this commit
         let commit_id = uuid::Uuid::new_v4();
         let id_str = format!("{}", commit_id);
@@ -233,7 +239,10 @@ impl Committer {
         Ok(db.iterator(IteratorMode::Start).count())
     }
 
-    pub fn get_commit_db(&self, commit_id: &str) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+    pub fn get_commit_db(
+        &self,
+        commit_id: &str,
+    ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
         let commit_db_path = self.history_dir.join(Path::new(&commit_id));
         let mut opts = Options::default();
         opts.set_log_level(LogLevel::Warn);
@@ -241,7 +250,11 @@ impl Committer {
         Ok(db)
     }
 
-    pub fn get_path_hash(&self, db: &Option<DBWithThreadMode<MultiThreaded>>, path: &Path) -> Result<String, OxenError> {
+    pub fn get_path_hash(
+        &self,
+        db: &Option<DBWithThreadMode<MultiThreaded>>,
+        path: &Path,
+    ) -> Result<String, OxenError> {
         if let Some(db) = db {
             let key = path.to_str().unwrap();
             let bytes = key.as_bytes();
@@ -254,11 +267,18 @@ impl Committer {
                 }
             }
         } else {
-            Err(OxenError::basic_str("Committer.get_path_hash() no commit db."))
+            Err(OxenError::basic_str(
+                "Committer.get_path_hash() no commit db.",
+            ))
         }
     }
 
-    pub fn update_path_hash(&self, db: &Option<DBWithThreadMode<MultiThreaded>>, path: &Path, hash: &str) -> Result<(), OxenError> {
+    pub fn update_path_hash(
+        &self,
+        db: &Option<DBWithThreadMode<MultiThreaded>>,
+        path: &Path,
+        hash: &str,
+    ) -> Result<(), OxenError> {
         if let Some(db) = db {
             let key = path.to_str().unwrap();
             let bytes = key.as_bytes();
@@ -270,7 +290,9 @@ impl Committer {
                 }
             }
         } else {
-            Err(OxenError::basic_str("Committer.update_path_hash() no commit db."))
+            Err(OxenError::basic_str(
+                "Committer.update_path_hash() no commit db.",
+            ))
         }
     }
 
@@ -329,24 +351,29 @@ impl Committer {
                     if let Some(db) = &self.head_commit_db {
                         self.p_add_untracked_files_from_commit(&mut paths, db)
                     } else {
-                        eprintln!("list_unsynced_files_for_commit Err: Could not get head commit db");
+                        eprintln!(
+                            "list_unsynced_files_for_commit Err: Could not get head commit db"
+                        );
                     }
                 } else {
                     let db = self.get_commit_db(&commit_id)?;
                     self.p_add_untracked_files_from_commit(&mut paths, &db);
                 }
-            },
+            }
             _ => {
                 let db = self.get_commit_db(&commit_id)?;
                 self.p_add_untracked_files_from_commit(&mut paths, &db);
             }
         };
 
-
         Ok(paths)
     }
 
-    fn p_add_untracked_files_from_commit(&self, paths: &mut Vec<PathBuf>, db: &DBWithThreadMode<MultiThreaded>) {
+    fn p_add_untracked_files_from_commit(
+        &self,
+        paths: &mut Vec<PathBuf>,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) {
         let iter = db.iterator(IteratorMode::Start);
         for (key, value) in iter {
             match str::from_utf8(&*key) {
@@ -358,7 +385,7 @@ impl Committer {
                     if value.is_empty() {
                         paths.push(filepath);
                     }
-                },
+                }
                 Err(_) => {
                     eprintln!("Could not read utf8 val...")
                 }
@@ -413,8 +440,8 @@ impl Committer {
 
 #[cfg(test)]
 mod tests {
-    use crate::index::Committer;
     use crate::error::OxenError;
+    use crate::index::Committer;
     use crate::test;
     use crate::util::FileUtil;
 

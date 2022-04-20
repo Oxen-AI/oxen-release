@@ -1,22 +1,13 @@
-use crate::index::indexer::OXEN_HIDDEN_DIR;
-use crate::index::{Indexer, Committer};
 use crate::error::OxenError;
 use crate::http::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
+use crate::index::indexer::OXEN_HIDDEN_DIR;
+use crate::index::{Committer, Indexer};
 
-use crate::http::response::{
-    ListRepositoriesResponse,
-    RepositoryHeadResponse,
-    RepositoryResponse
-};
+use crate::http::response::{ListRepositoriesResponse, RepositoryHeadResponse, RepositoryResponse};
 
-use crate::model::{
-    CommitHead,
-    CommmitSyncInfo,
-    Repository,
-    RepositoryNew,
-};
+use crate::model::{CommitHead, CommmitSyncInfo, Repository, RepositoryNew};
 
 use crate::util::FileUtil;
 
@@ -64,20 +55,16 @@ impl RepositoryAPI {
 
     pub fn get_commit_head(&self, repo_path: &Path) -> Result<Option<CommitHead>, OxenError> {
         match Committer::new(&repo_path) {
-            Ok(committer) => {
-                match committer.referencer.head_commit_id() {
-                    Ok(commit_id) => {
-                        Ok(Some(CommitHead {
-                            commit_id: commit_id.clone(),
-                            name: committer.referencer.read_head()?,
-                            sync_info: CommmitSyncInfo {
-                                num_entries: committer.get_num_entries_in_head()?,
-                                num_synced_files: committer.count_files_from_dir(&repo_path),
-                            }
-                        }))
+            Ok(committer) => match committer.referencer.head_commit_id() {
+                Ok(commit_id) => Ok(Some(CommitHead {
+                    commit_id: commit_id.clone(),
+                    name: committer.referencer.read_head()?,
+                    sync_info: CommmitSyncInfo {
+                        num_entries: committer.get_num_entries_in_head()?,
+                        num_synced_files: committer.count_files_from_dir(&repo_path),
                     },
-                    Err(_) => Ok(None),
-                }
+                })),
+                Err(_) => Ok(None),
             },
             Err(_) => Ok(None),
         }

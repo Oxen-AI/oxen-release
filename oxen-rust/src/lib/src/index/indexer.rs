@@ -2,21 +2,19 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde_json::json;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::api;
-use crate::index::committer::HISTORY_DIR;
-use crate::index::Committer;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{
-    CommitHead, CommitMsg, Dataset, Repository
-};
-use crate::http::response::{RepositoryHeadResponse, RepositoryResponse, CommitMsgResponse};
+use crate::http::response::{CommitMsgResponse, RepositoryHeadResponse, RepositoryResponse};
+use crate::index::committer::HISTORY_DIR;
+use crate::index::Committer;
+use crate::model::{CommitHead, CommitMsg, Dataset, Repository};
 
 use crate::util::{hasher, FileUtil};
 
@@ -113,7 +111,11 @@ impl Indexer {
         Ok(())
     }
 
-    fn push_entries(&self, committer: &Arc<Committer>, commit: &CommitMsg) -> Result<(), OxenError> {
+    fn push_entries(
+        &self,
+        committer: &Arc<Committer>,
+        commit: &CommitMsg,
+    ) -> Result<(), OxenError> {
         let paths = committer.list_unsynced_files_for_commit(&commit.id)?;
 
         println!("🐂 push {} files", paths.len());
@@ -137,7 +139,12 @@ impl Indexer {
         Ok(())
     }
 
-    fn hash_and_push(&self, committer: &Arc<Committer>, db: &Option<DBWithThreadMode<MultiThreaded>>, path: &Path) {
+    fn hash_and_push(
+        &self,
+        committer: &Arc<Committer>,
+        db: &Option<DBWithThreadMode<MultiThreaded>>,
+        path: &Path,
+    ) {
         // hash the file
         // find the entry in the history commit db
         // compare it to the last hash
@@ -157,8 +164,7 @@ impl Indexer {
                     }
 
                     // Upload entry to server
-                    match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash)
-                    {
+                    match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash) {
                         Ok(_entry) => {
                             // The last thing we do is update the hash in the local db
                             // after it has been posted to the server, so that even if the process
@@ -248,13 +254,12 @@ impl Indexer {
                 self.maybe_push(committer, remote_head, parent_id, depth + 1)?;
             }
             // Unroll stack to post in reverse order
-            
+
             // TODO: enable pushing of entries first, then final step push the commit..?
             // or somehow be able to resume pushing the commit? Like check # of synced files on the server
             // and compare
             self.post_commit_to_server(&commit)?;
             self.push_entries(committer, &commit)?;
-            
         } else {
             eprintln!("Err: could not find commit: {}", commit_id);
         }
@@ -342,7 +347,6 @@ impl Indexer {
     }
 
     pub fn pull(&self) -> Result<(), OxenError> {
-
         // Get list of commits we have to pull
 
         // For each commit
@@ -387,9 +391,9 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
+    use crate::error::OxenError;
     use crate::index::indexer::OXEN_HIDDEN_DIR;
     use crate::index::Indexer;
-    use crate::error::OxenError;
     use crate::model::Repository;
     use crate::test;
 

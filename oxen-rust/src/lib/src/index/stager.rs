@@ -1,9 +1,9 @@
+use crate::error::OxenError;
 use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::index::Committer;
-use crate::error::OxenError;
 use crate::util::FileUtil;
 
-use rocksdb::{IteratorMode, DB, LogLevel, Options};
+use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
@@ -66,7 +66,9 @@ impl Stager {
         if let Some(committer) = &mut self.committer {
             committer.commit(&added_files, &added_dirs, &message)
         } else {
-            panic!("TODO: move to higher level coordinator... stager should not be holding committer");
+            panic!(
+                "TODO: move to higher level coordinator... stager should not be holding committer"
+            );
         }
     }
 

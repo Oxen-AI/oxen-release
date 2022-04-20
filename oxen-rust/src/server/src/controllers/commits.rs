@@ -1,22 +1,20 @@
-
-
 use liboxen::api::local::RepositoryAPI;
+use liboxen::error::OxenError;
+use liboxen::http;
+use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
+use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::index::indexer::OXEN_HIDDEN_DIR;
 use liboxen::index::Committer;
-use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::model::{CommitMsg};
-use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
-use liboxen::http;
-use liboxen::error::OxenError;
+use liboxen::model::CommitMsg;
 
 use crate::app_data::SyncDir;
 
-use actix_web::{web, Error, HttpResponse, HttpRequest};
+use actix_web::{web, Error, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
-use tar::Archive;
 use std::path::Path;
+use tar::Archive;
 
 #[derive(Deserialize, Debug)]
 pub struct CommitQuery {
@@ -31,14 +29,12 @@ pub struct CommitQuery {
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
     let path: Option<&str> = req.match_info().get("name");
-    
+
     if let Some(path) = path {
         let repo_dir = sync_dir.path.join(path);
         // TODO do less matching and take care of flow in subroutine and propigate up error
         match p_index(&repo_dir) {
-            Ok(response) => {
-                HttpResponse::Ok().json(response)
-            },
+            Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {}", err);
                 HttpResponse::NotFound().json(http::StatusMessage::error(&msg))
@@ -58,7 +54,7 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitMsgResponse, OxenError> {
 
 pub async fn upload(
     req: HttpRequest,
-    mut body: web::Payload, // the actual file body
+    mut body: web::Payload,        // the actual file body
     data: web::Query<CommitQuery>, // these are the query params -> struct
 ) -> Result<HttpResponse, Error> {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
@@ -121,17 +117,15 @@ fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::{
-        test,
-    };
-    
+    use actix_web::test;
+
     use actix_web::body::to_bytes;
     use liboxen::error::OxenError;
     use liboxen::http::response::ListCommitMsgResponse;
 
+    use crate::app_data::SyncDir;
     use crate::controllers;
     use crate::test_helper;
-    use crate::app_data::SyncDir;
 
     #[actix_web::test]
     async fn test_respository_commits_index_empty() -> Result<(), OxenError> {
@@ -142,11 +136,14 @@ mod tests {
 
         let uri = format!("/repositories/{}/commits", name);
         let req = test::TestRequest::with_uri(&uri)
-                    .app_data(SyncDir{ path: sync_dir.clone() })
-                    .param("name", name).to_http_request();
-        
+            .app_data(SyncDir {
+                path: sync_dir.clone(),
+            })
+            .param("name", name)
+            .to_http_request();
+
         let resp = controllers::commits::index(req).await;
-        
+
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         println!("GOT TEXT: {}", text);

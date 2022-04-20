@@ -1,11 +1,9 @@
 use crate::api;
 use crate::api::local::RepositoryAPI;
-use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::model::{Entry};
-use liboxen::http::response::{
-    EntryResponse
-};
 use liboxen::http;
+use liboxen::http::response::EntryResponse;
+use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::model::Entry;
 use serde::Deserialize;
 
 use actix_web::{web, Error, HttpResponse};

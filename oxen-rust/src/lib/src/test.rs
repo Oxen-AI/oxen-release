@@ -1,7 +1,7 @@
 use crate::api;
-use crate::index::{Indexer, Referencer, Stager};
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
+use crate::index::{Indexer, Referencer, Stager};
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;

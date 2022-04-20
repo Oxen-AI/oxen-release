@@ -1,21 +1,13 @@
-
-pub mod repository;
 pub mod commit;
 pub mod entry;
+pub mod repository;
 
 pub use crate::http::response::repository::{
-    RepositoryResponse,
-    RepositoryHeadResponse,
-    ListRepositoriesResponse,
+    ListRepositoriesResponse, RepositoryHeadResponse, RepositoryResponse,
 };
 
-pub use crate::http::response::entry::{
-    EntryResponse,
-    PaginatedEntries,
-};
+pub use crate::http::response::entry::{EntryResponse, PaginatedEntries};
 
 pub use crate::http::response::commit::{
-    CommitMsgResponse,
-    ListCommitMsgResponse,
-    PaginatedCommitMsgs,
+    CommitMsgResponse, ListCommitMsgResponse, PaginatedCommitMsgs,
 };

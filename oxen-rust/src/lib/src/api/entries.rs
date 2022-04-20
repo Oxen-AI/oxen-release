@@ -1,7 +1,7 @@
 use crate::config::{HTTPConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::model::{Entry};
 use crate::http::response::{EntryResponse, PaginatedEntries};
+use crate::model::Entry;
 
 use std::fs::File;
 use std::path::Path;
@@ -55,7 +55,7 @@ pub fn create(config: &RepoConfig, path: &Path, hash: &str) -> Result<Entry, Oxe
                     status, body
                 ))),
             }
-        }, 
+        }
         Err(err) => {
             let err = format!("api::entries::create err: {}", err);
             Err(OxenError::basic_str(&err))
@@ -94,56 +94,56 @@ pub fn list_page(config: &RepoConfig, page_num: usize) -> Result<PaginatedEntrie
 
 #[cfg(test)]
 mod tests {
-/*
-    use crate::api;
-    use crate::error::OxenError;
-    use crate::test;
-    use crate::util::hasher;
+    /*
+        use crate::api;
+        use crate::error::OxenError;
+        use crate::test;
+        use crate::util::hasher;
 
-    use std::path::Path;
+        use std::path::Path;
 
-    // TODO: Make these tests for oxen-server not oxen-hub
+        // TODO: Make these tests for oxen-server not oxen-hub
 
-    #[test]
-    fn test_create_image_entry() -> Result<(), OxenError> {
-        let img_path = test::test_jpeg_file();
-        let repo_name = format!("{}", uuid::Uuid::new_v4());
-        let repo_cfg = test::create_repo_cfg(&repo_name)?;
-        let hash = hasher::hash_file_contents(img_path)?;
-        let entry = api::entries::create(&repo_cfg, img_path, &hash)?;
+        #[test]
+        fn test_create_image_entry() -> Result<(), OxenError> {
+            let img_path = test::test_jpeg_file();
+            let repo_name = format!("{}", uuid::Uuid::new_v4());
+            let repo_cfg = test::create_repo_cfg(&repo_name)?;
+            let hash = hasher::hash_file_contents(img_path)?;
+            let entry = api::entries::create(&repo_cfg, img_path, &hash)?;
 
-        assert_eq!("image", entry.data_type);
-        assert_eq!(hash, entry.hash);
+            assert_eq!("image", entry.data_type);
+            assert_eq!(hash, entry.hash);
 
-        // cleanup
-        api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
-        Ok(())
-    }
-
-    #[test]
-    fn test_list_entries() -> Result<(), OxenError> {
-        let repo_name = format!("{}", uuid::Uuid::new_v4());
-        let repo_cfg = test::create_repo_cfg(&repo_name)?;
-
-        let paths = vec![
-            Path::new("data/test/images/cole_anthony.jpeg"),
-            Path::new("data/test/images/dwight_vince.jpeg"),
-            Path::new("data/test/images/ignas_brazdeikis.jpeg"),
-        ];
-
-        for path in paths.iter() {
-            let hash = hasher::hash_file_contents(path)?;
-            api::entries::create(&repo_cfg, path, &hash)?;
+            // cleanup
+            api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
+            Ok(())
         }
 
-        let page = api::entries::list_page(&repo_cfg, 1)?;
-        assert_eq!(page.page_number, 1);
-        assert_eq!(page.total_entries, paths.len());
-        assert_eq!(page.total_pages, 1);
+        #[test]
+        fn test_list_entries() -> Result<(), OxenError> {
+            let repo_name = format!("{}", uuid::Uuid::new_v4());
+            let repo_cfg = test::create_repo_cfg(&repo_name)?;
 
-        // cleanup
-        api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
-        Ok(())
-    }
-*/
+            let paths = vec![
+                Path::new("data/test/images/cole_anthony.jpeg"),
+                Path::new("data/test/images/dwight_vince.jpeg"),
+                Path::new("data/test/images/ignas_brazdeikis.jpeg"),
+            ];
+
+            for path in paths.iter() {
+                let hash = hasher::hash_file_contents(path)?;
+                api::entries::create(&repo_cfg, path, &hash)?;
+            }
+
+            let page = api::entries::list_page(&repo_cfg, 1)?;
+            assert_eq!(page.page_number, 1);
+            assert_eq!(page.total_entries, paths.len());
+            assert_eq!(page.total_pages, 1);
+
+            // cleanup
+            api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
+            Ok(())
+        }
+    */
 }

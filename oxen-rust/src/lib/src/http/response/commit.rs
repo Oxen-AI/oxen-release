@@ -1,6 +1,5 @@
-
+use crate::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use crate::model::CommitMsg;
-use crate::http::{STATUS_SUCCESS, MSG_RESOURCE_FOUND};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -22,7 +21,7 @@ impl ListCommitMsgResponse {
         ListCommitMsgResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
-            commits: commits
+            commits: commits,
         }
     }
 }
