@@ -5,7 +5,7 @@ use liboxen::api;
 pub mod app_data;
 pub mod controllers;
 pub mod http;
-pub mod test_helper;
+pub mod test;
 
 use actix_web::middleware::Logger;
 
