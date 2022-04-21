@@ -1,7 +1,7 @@
 use crate::app_data::SyncDir;
 use liboxen::api::local::repositories::RepositoryAPI;
 use liboxen::error::OxenError;
-use liboxen::model::{RepositoryNew, Repository};
+use liboxen::model::{Repository, RepositoryNew};
 use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -60,7 +60,7 @@ pub fn request_with_payload_and_entry(
     uri: &str,
     filename: impl Into<Cow<'static, str>>,
     hash: impl Into<Cow<'static, str>>,
-    data: impl Into<actix_web::web::Bytes>
+    data: impl Into<actix_web::web::Bytes>,
 ) -> (actix_web::HttpRequest, actix_web::dev::Payload) {
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(SyncDir {
