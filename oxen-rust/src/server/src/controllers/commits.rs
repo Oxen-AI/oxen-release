@@ -118,22 +118,22 @@ fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
 #[cfg(test)]
 mod tests {
 
-    use actix_web::{App, web};
     use actix_web::body::to_bytes;
+    use actix_web::{web, App};
     use chrono::Utc;
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::path::Path;
 
-    use liboxen::index::indexer::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
+    use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
+    use liboxen::index::indexer::OXEN_HIDDEN_DIR;
     use liboxen::model::CommitMsg;
     use liboxen::util::FileUtil;
-    use liboxen::http::response::{ListCommitMsgResponse, CommitMsgResponse};
 
+    use crate::app_data::SyncDir;
     use crate::controllers;
     use crate::test;
-    use crate::app_data::SyncDir;
 
     #[actix_web::test]
     async fn test_respository_commits_index_empty() -> Result<(), OxenError> {
@@ -221,7 +221,11 @@ mod tests {
         assert_eq!(resp.commit.parent_id, commit.parent_id);
 
         // Make sure we unzipped the tar ball
-        let uploaded_file = sync_dir.join(repo.name).join(OXEN_HIDDEN_DIR).join(path_to_compress).join("blah.txt");
+        let uploaded_file = sync_dir
+            .join(repo.name)
+            .join(OXEN_HIDDEN_DIR)
+            .join(path_to_compress)
+            .join("blah.txt");
         assert!(uploaded_file.exists());
         assert_eq!(FileUtil::read_from_path(&uploaded_file)?, "sup");
 
