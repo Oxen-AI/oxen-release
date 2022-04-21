@@ -1,4 +1,3 @@
-
 use crate::app_data::SyncDir;
 
 use liboxen::api;
@@ -35,9 +34,7 @@ pub async fn create(
     // path to the repo
     let path: &str = req.match_info().get("name").unwrap();
     match api.get_by_path(Path::new(&path)) {
-        Ok(result) => {
-            create_entry(&sync_dir.path, result.repository, body, data).await
-        }
+        Ok(result) => create_entry(&sync_dir.path, result.repository, body, data).await,
         Err(err) => {
             let msg = format!("Err: {}", err);
             Ok(HttpResponse::BadRequest().json(http::StatusMessage::error(&msg)))
@@ -71,7 +68,11 @@ async fn create_entry(
             "Wrote {} bytes to {:?} with extension",
             total_bytes, filepath,
         );
-        let url = format!("{}/{}", api::endpoint::url_from(&repository.name), &data.filename);
+        let url = format!(
+            "{}/{}",
+            api::endpoint::url_from(&repository.name),
+            &data.filename
+        );
 
         Ok(HttpResponse::Ok().json(EntryResponse {
             status: String::from(STATUS_SUCCESS),
@@ -101,15 +102,15 @@ fn data_type_from_ext(ext: &str) -> String {
 #[cfg(test)]
 mod tests {
 
-    use actix_web::{App, web};
+    use actix_web::{web, App};
 
     use liboxen::error::OxenError;
-    use liboxen::http::response::{EntryResponse};
+    use liboxen::http::response::EntryResponse;
     use liboxen::util::FileUtil;
 
+    use crate::app_data::SyncDir;
     use crate::controllers;
     use crate::test;
-    use crate::app_data::SyncDir;
 
     #[actix_web::test]
     async fn test_entries_create_text_file() -> Result<(), OxenError> {
@@ -121,21 +122,30 @@ mod tests {
         let filename = "test.txt";
         let hash = "1234";
         let payload = "🐂 💨";
-        let uri = format!("/repositories/Testing-Name/entries?filename={}&hash={}", filename, hash);
-        let mut app = actix_web::test::init_service(
+        let uri = format!(
+            "/repositories/Testing-Name/entries?filename={}&hash={}",
+            filename, hash
+        );
+        let app = actix_web::test::init_service(
             App::new()
-                .app_data(SyncDir { path: sync_dir.clone() })
-                .route("/repositories/{name}/entries", web::post().to(controllers::entries::create))
-        ).await;
+                .app_data(SyncDir {
+                    path: sync_dir.clone(),
+                })
+                .route(
+                    "/repositories/{name}/entries",
+                    web::post().to(controllers::entries::create),
+                ),
+        )
+        .await;
 
         let req = actix_web::test::TestRequest::post()
             .uri(&uri)
             .set_payload(payload)
             .to_request();
-        let resp = actix_web::test::call_service(&mut app, req).await;
+        let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        let entry_resp: EntryResponse = serde_json::from_str(&body)?;
+        let entry_resp: EntryResponse = serde_json::from_str(body)?;
 
         // Make sure entry gets populated
         assert_eq!(entry_resp.entry.filename, filename);
