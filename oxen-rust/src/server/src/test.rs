@@ -20,6 +20,21 @@ pub fn create_repo(sync_dir: &Path, name: &str) -> Result<Repository, OxenError>
     Ok(resp.repository)
 }
 
+// Don't fully understand this insane syntax to get these two libraries (serde and actix) to work with eachother
+// pub async fn struct_from_app_and_req<'a, T, R, S, B, E>(app: &S, req: R) -> Result<T, serde_json::Error> where
+//     T: serde::Deserialize<'a>,
+//     S: actix_web::dev::Service<R, Response = actix_web::dev::ServiceResponse<B>, Error = E>,
+//     E: std::fmt::Debug,
+//     B: actix_web::body::MessageBody<Error = E> {
+//     let resp = actix_web::test::call_service(&app, req).await;
+//     let body = actix_web::test::read_body(resp).await;
+
+//     // let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+//     // let bytes: Vec<u8> = Vec::from(bytes);
+//     let body = std::str::from_utf8(&body).unwrap();
+//     serde_json::from_str(body)
+// }
+
 pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(SyncDir {

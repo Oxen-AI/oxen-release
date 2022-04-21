@@ -123,8 +123,8 @@ mod tests {
         let hash = "1234";
         let payload = "🐂 💨";
         let uri = format!(
-            "/repositories/Testing-Name/entries?filename={}&hash={}",
-            filename, hash
+            "/repositories/{}/entries?filename={}&hash={}",
+            name, filename, hash
         );
         let app = actix_web::test::init_service(
             App::new()

@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 liboxen = { path = "../lib" }
+chrono = "0.4.19"
 actix-web = { version = "4", features = ["openssl"] }
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.78"
