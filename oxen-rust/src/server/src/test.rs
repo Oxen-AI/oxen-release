@@ -1,7 +1,7 @@
 use crate::app_data::SyncDir;
 use liboxen::api::local::repositories::RepositoryAPI;
 use liboxen::error::OxenError;
-use liboxen::model::RepositoryNew;
+use liboxen::model::{RepositoryNew, Repository};
 use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -11,13 +11,13 @@ pub fn get_sync_dir() -> PathBuf {
     sync_dir
 }
 
-pub fn create_repo(sync_dir: &Path, name: &str) -> Result<RepositoryNew, OxenError> {
+pub fn create_repo(sync_dir: &Path, name: &str) -> Result<Repository, OxenError> {
     let api = RepositoryAPI::new(sync_dir);
     let repo = RepositoryNew {
         name: String::from(name),
     };
-    api.create(&repo)?;
-    Ok(repo)
+    let resp = api.create(&repo)?;
+    Ok(resp.repository)
 }
 
 pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
