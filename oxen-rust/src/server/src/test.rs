@@ -1,10 +1,10 @@
+use crate::app_data::SyncDir;
 use liboxen::api::local::repositories::RepositoryAPI;
 use liboxen::error::OxenError;
 use liboxen::model::RepositoryNew;
-use crate::app_data::SyncDir;
-use std::path::{Path, PathBuf};
-use std::borrow::Cow;
 use serde::Serialize;
+use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 
 pub fn get_sync_dir() -> PathBuf {
     let sync_dir = PathBuf::from(format!("/tmp/oxen/tests/{}", uuid::Uuid::new_v4()));
@@ -21,7 +21,7 @@ pub fn create_repo(sync_dir: &Path, name: &str) -> Result<RepositoryNew, OxenErr
 }
 
 pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
-    actix_web::test::TestRequest::with_uri(&uri)
+    actix_web::test::TestRequest::with_uri(uri)
         .app_data(SyncDir {
             path: sync_dir.to_path_buf(),
         })
@@ -29,12 +29,12 @@ pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
 }
 
 pub fn request_with_param(
-    sync_dir: &Path, 
-    uri: &str, 
-    key: impl Into<Cow<'static, str>>, 
-    val: impl Into<Cow<'static, str>>
+    sync_dir: &Path,
+    uri: &str,
+    key: impl Into<Cow<'static, str>>,
+    val: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
-    actix_web::test::TestRequest::with_uri(&uri)
+    actix_web::test::TestRequest::with_uri(uri)
         .app_data(SyncDir {
             path: sync_dir.to_path_buf(),
         })
@@ -43,11 +43,11 @@ pub fn request_with_param(
 }
 
 pub fn request_with_json(
-    sync_dir: &Path, 
-    uri: &str, 
-    data: impl Serialize
+    sync_dir: &Path,
+    uri: &str,
+    data: impl Serialize,
 ) -> actix_web::HttpRequest {
-    actix_web::test::TestRequest::with_uri(&uri)
+    actix_web::test::TestRequest::with_uri(uri)
         .app_data(SyncDir {
             path: sync_dir.to_path_buf(),
         })
