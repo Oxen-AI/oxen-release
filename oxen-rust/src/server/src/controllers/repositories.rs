@@ -42,26 +42,6 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     }
 }
 
-pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
-
-    let repository: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
-    match repository {
-        Ok(repository) => {
-            let api = RepositoryAPI::new(Path::new(&sync_dir.path));
-            let repository = api.create(&repository);
-            match repository {
-                Ok(repository) => HttpResponse::Ok().json(repository),
-                Err(err) => {
-                    let msg = format!("Error: {:?}", err);
-                    HttpResponse::Ok().json(http::StatusMessage::error(&msg))
-                }
-            }
-        }
-        Err(_) => HttpResponse::Ok().json(http::StatusMessage::error("Invalid body.")),
-    }
-}
-
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
@@ -82,12 +62,31 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     }
 }
 
+pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
+
+    let repository: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
+    match repository {
+        Ok(repository) => {
+            let api = RepositoryAPI::new(Path::new(&sync_dir.path));
+            let repository = api.create(&repository);
+            match repository {
+                Ok(repository) => HttpResponse::Ok().json(repository),
+                Err(err) => {
+                    let msg = format!("Error: {:?}", err);
+                    HttpResponse::Ok().json(http::StatusMessage::error(&msg))
+                }
+            }
+        }
+        Err(_) => HttpResponse::Ok().json(http::StatusMessage::error("Invalid body.")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use actix_web::{
         http::{self},
-        test,
     };
 
     use actix_web::body::to_bytes;
@@ -97,19 +96,15 @@ mod tests {
     use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
     use liboxen::http::STATUS_SUCCESS;
 
-    use crate::app_data::SyncDir;
     use crate::controllers;
-    use crate::test_helper;
+    use crate::test;
 
     #[actix_web::test]
     async fn test_respository_index_empty() -> Result<(), OxenError> {
-        let sync_dir = test_helper::get_sync_dir();
+        let sync_dir = test::get_sync_dir();
 
-        let req = test::TestRequest::with_uri("/repositories")
-            .app_data(SyncDir {
-                path: sync_dir.clone(),
-            })
-            .to_http_request();
+        let req = test::request(&sync_dir, "/repositories");
+            
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -125,16 +120,12 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
-        let sync_dir = test_helper::get_sync_dir();
+        let sync_dir = test::get_sync_dir();
 
-        test_helper::create_repo(&sync_dir, "Testing-1")?;
-        test_helper::create_repo(&sync_dir, "Testing-2")?;
+        test::create_repo(&sync_dir, "Testing-1")?;
+        test::create_repo(&sync_dir, "Testing-2")?;
 
-        let req = test::TestRequest::with_uri("/repositories")
-            .app_data(SyncDir {
-                path: sync_dir.clone(),
-            })
-            .to_http_request();
+        let req = test::request(&sync_dir, "/repositories");
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -150,18 +141,13 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_show() -> Result<(), OxenError> {
-        let sync_dir = test_helper::get_sync_dir();
+        let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        test_helper::create_repo(&sync_dir, name)?;
+        test::create_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}", name);
-        let req = test::TestRequest::with_uri(&uri)
-            .app_data(SyncDir {
-                path: sync_dir.clone(),
-            })
-            .param("name", name)
-            .to_http_request();
+        let req = test::request_with_param(&sync_dir, &uri, "name", name);
 
         let resp = controllers::repositories::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -170,6 +156,31 @@ mod tests {
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status, STATUS_SUCCESS);
         assert_eq!(repo_response.repository.name, name);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_respository_create() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir();
+        let data = r#"
+        {
+            "name": "Testing-Name"
+        }"#;
+        let req = test::request(&sync_dir, "/repositories");
+
+        let resp = controllers::repositories::create(req, String::from(data)).await;
+        assert_eq!(resp.status(), http::StatusCode::OK);
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        println!("GOT RESPONSE {}", text);
+
+        let repo_response: RepositoryResponse = serde_json::from_str(text)?;
+        assert_eq!(repo_response.status, STATUS_SUCCESS);
+        assert_eq!(repo_response.repository.name, "Testing-Name");
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

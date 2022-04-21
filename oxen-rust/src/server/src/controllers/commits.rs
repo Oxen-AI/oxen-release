@@ -117,30 +117,23 @@ fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::test;
 
     use actix_web::body::to_bytes;
     use liboxen::error::OxenError;
     use liboxen::http::response::ListCommitMsgResponse;
 
-    use crate::app_data::SyncDir;
     use crate::controllers;
-    use crate::test_helper;
+    use crate::test;
 
     #[actix_web::test]
     async fn test_respository_commits_index_empty() -> Result<(), OxenError> {
-        let sync_dir = test_helper::get_sync_dir();
+        let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        test_helper::create_repo(&sync_dir, name)?;
+        test::create_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}/commits", name);
-        let req = test::TestRequest::with_uri(&uri)
-            .app_data(SyncDir {
-                path: sync_dir.clone(),
-            })
-            .param("name", name)
-            .to_http_request();
+        let req = test::request_with_param(&sync_dir, &uri, "name", name);
 
         let resp = controllers::commits::index(req).await;
 
