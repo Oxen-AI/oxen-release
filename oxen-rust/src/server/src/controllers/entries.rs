@@ -101,38 +101,52 @@ fn data_type_from_ext(ext: &str) -> String {
 #[cfg(test)]
 mod tests {
 
-    use actix_web::http::{self};
     use actix_web::{App, web};
-    use actix_web::http::{header, StatusCode};
-
-    use actix_web::body::to_bytes;
 
     use liboxen::error::OxenError;
-
-    use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
-    use liboxen::http::STATUS_SUCCESS;
+    use liboxen::http::response::{EntryResponse};
+    use liboxen::util::FileUtil;
 
     use crate::controllers;
     use crate::test;
     use crate::app_data::SyncDir;
 
     #[actix_web::test]
-    async fn test_entries_create() -> Result<(), OxenError> {
+    async fn test_entries_create_text_file() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir();
 
+        let name = "Testing-Name";
+        let repo = test::create_repo(&sync_dir, name)?;
+
+        let filename = "test.txt";
+        let hash = "1234";
+        let payload = "🐂 💨";
+        let uri = format!("/repositories/Testing-Name/entries?filename={}&hash={}", filename, hash);
         let mut app = actix_web::test::init_service(
             App::new()
                 .app_data(SyncDir { path: sync_dir.clone() })
                 .route("/repositories/{name}/entries", web::post().to(controllers::entries::create))
         ).await;
+
         let req = actix_web::test::TestRequest::post()
-            .uri("/repositories/test/entries?filename=test.txt&hash=1234")
+            .uri(&uri)
+            .set_payload(payload)
             .to_request();
-        let mut resp = actix_web::test::call_service(&mut app, req).await;
-        let body = resp.into_body();
-        println!("GOT BODY {:?}", body);
-        // assert!(resp.status().is_success());
-        assert!(false);
+        let resp = actix_web::test::call_service(&mut app, req).await;
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        let entry_resp: EntryResponse = serde_json::from_str(&body)?;
+
+        // Make sure entry gets populated
+        assert_eq!(entry_resp.entry.filename, filename);
+        assert_eq!(entry_resp.entry.hash, hash);
+
+        // Make sure file actually exists on disk
+        let repo_dir = sync_dir.join(repo.name);
+        let uploaded_file = repo_dir.join(filename);
+        assert!(uploaded_file.exists());
+        // Make sure file contents are the same as the payload
+        assert_eq!(FileUtil::read_from_path(&uploaded_file)?, payload);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

@@ -28,6 +28,7 @@ colored = "2.0.0"
 rocksdb = { version = "0.18.0", default-features = false, features = ["lz4"] }
 actix-web = { version = "4", features = ["openssl"] }
 actix-files = "0.6.0"
+actix-http = "3.0.4"
 openssl = { version = "0.10" }
 dotenv = "0.9.0"
 flate2 = "1.0.23"

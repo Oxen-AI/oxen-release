@@ -7,6 +7,7 @@ name = "Oxen"
 version = "0.1.0"
 dependencies = [
  "actix-files",
+ "actix-http",
  "actix-multipart",
  "actix-web",
  "chrono",
@@ -1358,6 +1359,7 @@ name = "my-server"
 version = "0.1.0"
 dependencies = [
  "actix-files",
+ "actix-http",
  "actix-web",
  "dotenv",
  "env_logger",
