@@ -22,26 +22,6 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
-
-    let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
-    let repo_path: PathBuf = req.match_info().query("name").parse().unwrap();
-
-    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
-    match api.get_by_path(Path::new(&repo_path)) {
-        Ok(result) => {
-            let repo_dir = Path::new(&sync_dir.path).join(result.repository.name);
-            let full_path = repo_dir.join(&filepath);
-            Ok(NamedFile::open(full_path)?)
-        }
-        Err(_) => {
-            // gives a 404
-            Ok(NamedFile::open("")?)
-        }
-    }
-}
-
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
@@ -79,6 +59,26 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
             }
         }
         Err(_) => HttpResponse::Ok().json(http::StatusMessage::error("Invalid body.")),
+    }
+}
+
+pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
+
+    let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
+    let repo_path: PathBuf = req.match_info().query("name").parse().unwrap();
+
+    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
+    match api.get_by_path(Path::new(&repo_path)) {
+        Ok(result) => {
+            let repo_dir = Path::new(&sync_dir.path).join(result.repository.name);
+            let full_path = repo_dir.join(&filepath);
+            Ok(NamedFile::open(full_path)?)
+        }
+        Err(_) => {
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
     }
 }
 
@@ -174,7 +174,6 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("GOT RESPONSE {}", text);
 
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status, STATUS_SUCCESS);

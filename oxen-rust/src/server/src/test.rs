@@ -54,3 +54,20 @@ pub fn request_with_json(
         .set_json(data)
         .to_http_request()
 }
+
+pub fn request_with_payload_and_entry(
+    sync_dir: &Path,
+    uri: &str,
+    filename: impl Into<Cow<'static, str>>,
+    hash: impl Into<Cow<'static, str>>,
+    data: impl Into<actix_web::web::Bytes>
+) -> (actix_web::HttpRequest, actix_web::dev::Payload) {
+    actix_web::test::TestRequest::with_uri(uri)
+        .app_data(SyncDir {
+            path: sync_dir.to_path_buf(),
+        })
+        .param("filename", filename)
+        .param("hash", hash)
+        .set_payload(data)
+        .to_http_parts()
+}
