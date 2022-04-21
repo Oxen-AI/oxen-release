@@ -118,12 +118,22 @@ fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
 #[cfg(test)]
 mod tests {
 
+    use actix_web::{App, web};
     use actix_web::body::to_bytes;
+    use chrono::Utc;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
+    use std::path::Path;
+
+    use liboxen::index::indexer::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
-    use liboxen::http::response::ListCommitMsgResponse;
+    use liboxen::model::CommitMsg;
+    use liboxen::util::FileUtil;
+    use liboxen::http::response::{ListCommitMsgResponse, CommitMsgResponse};
 
     use crate::controllers;
     use crate::test;
+    use crate::app_data::SyncDir;
 
     #[actix_web::test]
     async fn test_respository_commits_index_empty() -> Result<(), OxenError> {
@@ -145,6 +155,79 @@ mod tests {
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_commits_upload() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir();
+
+        let name = "Testing-Name";
+        let repo = test::create_repo(&sync_dir, name)?;
+        let commit = CommitMsg {
+            id: format!("{}", uuid::Uuid::new_v4()),
+            parent_id: None,
+            message: String::from("Hello"),
+            author: String::from("Greg"),
+            date: Utc::now(),
+        };
+
+        // create random tarball to post.. currently no validation that it is a valid commit dir
+        let path_to_compress = format!("history/{}", commit.id);
+        let commit_dir_name = format!("/tmp/oxen/commit/{}", commit.id);
+        let commit_dir = Path::new(&commit_dir_name);
+        std::fs::create_dir_all(commit_dir)?;
+        let random_file = commit_dir.join("blah.txt");
+
+        FileUtil::write_to_path(&random_file, "sup");
+
+        println!("Compressing commit {}...", commit.id);
+        let enc = GzEncoder::new(Vec::new(), Compression::default());
+        let mut tar = tar::Builder::new(enc);
+
+        tar.append_dir_all(&path_to_compress, &commit_dir)?;
+        tar.finish()?;
+        let payload: Vec<u8> = tar.into_inner()?.finish()?;
+
+        let commit_query = CommitMsg::to_uri_encoded(&commit);
+        let uri = format!("/repositories/{}/commits?{}", name, commit_query);
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(SyncDir {
+                    path: sync_dir.clone(),
+                })
+                .route(
+                    "/repositories/{name}/commits",
+                    web::post().to(controllers::commits::upload),
+                ),
+        )
+        .await;
+
+        let req = actix_web::test::TestRequest::post()
+            .uri(&uri)
+            .set_payload(payload)
+            .to_request();
+
+        let resp = actix_web::test::call_service(&app, req).await;
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        let resp: CommitMsgResponse = serde_json::from_str(body)?;
+
+        // Make sure commit gets populated
+        assert_eq!(resp.commit.id, commit.id);
+        assert_eq!(resp.commit.message, commit.message);
+        assert_eq!(resp.commit.author, commit.author);
+        assert_eq!(resp.commit.parent_id, commit.parent_id);
+
+        // Make sure we unzipped the tar ball
+        let uploaded_file = sync_dir.join(repo.name).join(OXEN_HIDDEN_DIR).join(path_to_compress).join("blah.txt");
+        assert!(uploaded_file.exists());
+        assert_eq!(FileUtil::read_from_path(&uploaded_file)?, "sup");
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+        std::fs::remove_dir_all(commit_dir)?;
 
         Ok(())
     }
