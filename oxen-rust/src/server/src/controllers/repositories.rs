@@ -85,9 +85,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
 #[cfg(test)]
 mod tests {
 
-    use actix_web::{
-        http::{self},
-    };
+    use actix_web::http::{self};
 
     use actix_web::body::to_bytes;
 
@@ -104,7 +102,7 @@ mod tests {
         let sync_dir = test::get_sync_dir();
 
         let req = test::request(&sync_dir, "/repositories");
-            
+
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
