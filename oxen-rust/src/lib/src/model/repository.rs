@@ -51,7 +51,7 @@ impl Repository {
         let url = &repo
             .url
             .as_ref()
-            .ok_or(OxenError::basic_str("s: &str"))?
+            .ok_or_else(|| OxenError::basic_str("Could not get url from repo."))?
             .clone();
 
         // get last part of URL for directory name
@@ -117,7 +117,9 @@ mod tests {
         let name = "OxenDataTest";
         let config = AuthConfig::new(test::auth_cfg_file());
         let repository = api::repositories::create(&config, name)?;
-        let url = repository.url.ok_or(OxenError::basic_str("Invalid URL"))?;
+        let url = repository
+            .url
+            .ok_or_else(|| OxenError::basic_str("Invalid URL"))?;
 
         let auth_config = AuthConfig::new(test::auth_cfg_file());
         let repo_config = Repository::clone_remote(auth_config, &url)?;

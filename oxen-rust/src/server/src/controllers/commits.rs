@@ -174,7 +174,7 @@ mod tests {
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListCommitMsgResponse = serde_json::from_str(text)?;
+        let _list: ListCommitMsgResponse = serde_json::from_str(text)?;
         // assert_eq!(list.commits.len(), 2);
 
         // cleanup
