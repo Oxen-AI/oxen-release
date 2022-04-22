@@ -1,3 +1,6 @@
+//! Helpers for our unit and integration tests
+//!
+
 use crate::api;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
@@ -5,7 +8,85 @@ use crate::index::{Indexer, Referencer, Stager};
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::{Path, PathBuf}; // for write_all
+use std::path::{Path, PathBuf};
+
+const TEST_RUN_DIR: &str = "data/test/runs";
+
+/// # Create a directory for a repo to run tests in
+///
+/// ```
+/// # use liboxen::test::create_repo_dir;
+/// # use liboxen::error::OxenError;
+/// # fn main() -> Result<(), OxenError> {
+/// 
+/// let base_dir = "/tmp/base_dir";
+/// let repo_dir = create_repo_dir(base_dir)?;
+/// assert!(repo_dir.exists());
+/// 
+/// # std::fs::remove_dir_all(repo_dir)?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
+    let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
+    std::fs::create_dir_all(&repo_name)?;
+    Ok(PathBuf::from(&repo_name))
+}
+
+// 
+/// # Run a unit test on a test repo directory
+///
+/// This function will create a directory with a uniq name
+/// and take care of cleaning it up afterwards
+/// 
+/// ```
+/// # use liboxen::test;
+/// test::run_repo_test(|repo_dir| {
+///   // do your fancy testing here
+///   assert!(true);
+///   Ok(())
+/// });
+/// ```
+pub fn run_repo_test<T>(test: T) -> ()
+    where T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe
+{
+    match create_repo_dir(TEST_RUN_DIR) {
+        Ok(repo_dir) => {
+            // Run test to see if it panic'd
+            let result = std::panic::catch_unwind(|| {
+                match test(&repo_dir) {
+                    Ok(_) => {},
+                    Err(err) => {
+                        eprintln!("Error running test. Err: {}", err);
+                    }
+                }
+            });
+
+            // Remove repo dir
+            match std::fs::remove_dir_all(&repo_dir) {
+                Ok(_) => {},
+                Err(err) => {
+                    eprintln!("Could not remove test dir. Err: {}", err);
+                }
+            }
+
+            // Assert everything okay after we cleanup the repo dir
+            assert!(result.is_ok());
+        },
+        Err(_) => {
+            panic!("Could not create repo dir for test!");
+        }
+    }
+}
+
+pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
+    let repo_dir = create_repo_dir(base_dir)?;
+
+    let indexer = Indexer::new(&repo_dir)?;
+    indexer.init()?;
+
+    Ok((Stager::new(&indexer.repo_dir)?, repo_dir))
+}
 
 pub fn remote_cfg_file() -> &'static Path {
     Path::new("data/test/config/remote_cfg.toml")
@@ -32,21 +113,6 @@ pub fn create_repo_cfg(name: &str) -> Result<RepoConfig, OxenError> {
     let config = AuthConfig::new(auth_cfg_file());
     let repository = api::repositories::create(&config, name)?;
     Ok(RepoConfig::from(config, repository))
-}
-
-pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
-    let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
-    std::fs::create_dir_all(&repo_name)?;
-    Ok(PathBuf::from(&repo_name))
-}
-
-pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
-    let repo_dir = create_repo_dir(base_dir)?;
-
-    let indexer = Indexer::new(&repo_dir)?;
-    indexer.init()?;
-
-    Ok((Stager::new(&indexer.repo_dir)?, repo_dir))
 }
 
 pub fn create_referencer(base_dir: &str) -> Result<(Referencer, PathBuf), OxenError> {

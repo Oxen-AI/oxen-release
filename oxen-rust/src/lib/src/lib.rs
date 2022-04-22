@@ -1,3 +1,14 @@
+//! liboxen
+//!
+//! Library to interact with Oxen Repositories
+//! - `oxen init .`
+//! - `oxen status`
+//! - `oxen add <file>`
+//! - `oxen commit -m "my first commit"`
+//! - `oxen push`
+//!
+
+/// api to do stuff
 pub mod api;
 pub mod command;
 pub mod config;

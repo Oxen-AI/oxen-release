@@ -11,8 +11,9 @@ use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
-const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
+// CLI Messages
+pub const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
+pub const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
 
 pub fn login() -> Result<(), OxenError> {
     println!("🐂 Login\n\nEnter your email:");
@@ -160,118 +161,22 @@ pub fn log_commits() -> Result<(), OxenError> {
 }
 
 pub fn status() -> Result<(), OxenError> {
+    // Should we let user call this from any directory and look up for parent?
     let repo_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&repo_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
+    let repo_status = command::status(&repo_dir)?;
 
-    let committer = Committer::new(&repo_dir)?;
-    let stager = Stager::from(committer)?;
-
-    let added_directories = stager.list_added_directories()?;
-    let added_files = stager.list_added_files()?;
-    let untracked_directories = stager.list_untracked_directories()?;
-    let untracked_files = stager.list_untracked_files()?;
-
-    if added_directories.is_empty()
-        && added_files.is_empty()
-        && untracked_files.is_empty()
-        && untracked_directories.is_empty()
-    {
+    if repo_status.is_clean(){
         println!("nothing to commit, working tree clean");
         return Ok(());
     }
 
     // List added files
-    if !added_directories.is_empty() || !added_files.is_empty() {
-        println!("Changes to be committed:");
-        for (dir, count) in added_directories.iter() {
-            // Make sure we can grab the filename
-            let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
-            let num_files_str = match count {
-                1 => {
-                    format!("with untracked {} file\n", count)
-                }
-                0 => {
-                    // Skip since we don't have any untracked files in this dir
-                    String::from("")
-                }
-                _ => {
-                    format!("with untracked {} files\n", count)
-                }
-            };
-            print!("{} {}", added_file_str, num_files_str);
-        }
-
-        for file in added_files.iter() {
-            let mut break_both = false;
-            for (dir, _size) in added_directories.iter() {
-                // println!("checking if file {:?} starts with {:?}", file, dir);
-                if file.starts_with(&dir) {
-                    break_both = true;
-                    continue;
-                }
-            }
-
-            if break_both {
-                continue;
-            }
-
-            let added_file_str = format!("  added:  {}", file.to_str().unwrap()).green();
-            println!("{}", added_file_str);
-        }
-
-        println!();
+    if repo_status.has_added_entries() {
+        repo_status.print_added();
     }
 
-    if !untracked_directories.is_empty() || !untracked_files.is_empty() {
-        println!("Untracked files:");
-        println!("  (use \"oxen add <file>...\" to update what will be committed)");
-
-        // List untracked directories
-        for (dir, count) in untracked_directories.iter() {
-            // Make sure we can grab the filename
-            if let Some(filename) = dir.file_name() {
-                let added_file_str = format!("  {}/", filename.to_str().unwrap()).red();
-                let num_files_str = match count {
-                    1 => {
-                        format!("with untracked {} file\n", count)
-                    }
-                    0 => {
-                        // Skip since we don't have any untracked files in this dir
-                        String::from("")
-                    }
-                    _ => {
-                        format!("with untracked {} files\n", count)
-                    }
-                };
-
-                if !num_files_str.is_empty() {
-                    print!("{} {}", added_file_str, num_files_str);
-                }
-            }
-        }
-
-        // List untracked files
-        for file in untracked_files.iter() {
-            let mut break_both = false;
-            for (dir, _size) in untracked_directories.iter() {
-                // println!("checking if file {:?} starts with {:?}", file, dir);
-                if file.starts_with(&dir) {
-                    break_both = true;
-                    continue;
-                }
-            }
-
-            if break_both {
-                continue;
-            }
-
-            let added_file_str = file.to_str().unwrap().to_string().red();
-            println!("  {}", added_file_str);
-        }
-        println!();
+    if repo_status.has_untracked_entries() {
+        repo_status.print_untracked();
     }
 
     Ok(())
