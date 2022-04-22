@@ -1,4 +1,2 @@
-pub mod file_util;
+pub mod fs;
 pub mod hasher;
-
-pub use crate::util::file_util::FileUtil;

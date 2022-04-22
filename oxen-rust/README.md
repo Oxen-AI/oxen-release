@@ -12,13 +12,13 @@ oxen, oxen-server, liboxen
 
 `oxen status`
 
-`oxen list datasets`
-
 `oxen add images/`
 
 `oxen status`
 
-`oxen push dataset_name`
+`oxen commit -m "added images"`
+
+`oxen push`
 
 
 ## File Structure

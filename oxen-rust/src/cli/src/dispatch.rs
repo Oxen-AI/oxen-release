@@ -1,4 +1,5 @@
 use liboxen::api;
+use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
 use liboxen::index::{Committer, Indexer, Stager};
@@ -34,16 +35,13 @@ pub fn login() -> Result<(), OxenError> {
 
 pub fn init(path: &str) -> Result<(), OxenError> {
     let directory = std::fs::canonicalize(PathBuf::from(&path))?;
-
-    let indexer = Indexer::new(&directory);
-    indexer.init()?;
-
+    command::init(&directory)?;
     Ok(())
 }
 
 pub fn clone(url: &str) -> Result<(), OxenError> {
     let auth_cfg = AuthConfig::default()?;
-    Repository::clone_remote(&auth_cfg, url)?;
+    Repository::clone_remote(auth_cfg, url)?;
     Ok(())
 }
 
@@ -54,7 +52,7 @@ pub fn set_remote(url: &str) -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let mut indexer = Indexer::new(&current_dir);
+    let mut indexer = Indexer::new(&current_dir)?;
     indexer.set_remote(url)
 }
 
@@ -78,7 +76,7 @@ pub fn push() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&repo_dir);
+    let indexer = Indexer::new(&repo_dir)?;
     let committer = Arc::new(Committer::new(&repo_dir)?);
 
     indexer.push(&committer)
@@ -91,65 +89,8 @@ pub fn pull() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&current_dir);
+    let indexer = Indexer::new(&current_dir)?;
     indexer.pull()
-}
-
-pub fn list_datasets() -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
-
-    let indexer = Indexer::new(&current_dir);
-    let datasets = indexer.list_datasets()?;
-    for dataset in datasets.iter() {
-        println!("{}", dataset.name);
-    }
-    Ok(())
-}
-
-pub fn create(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
-        return Err(OxenError::basic_str(NO_REPO_MSG));
-    }
-
-    let config = AuthConfig::default()?;
-    let err_str = "Must supply create with a type. Ex:\n\noxen create -d \"my_dataset\"";
-    if args.len() != 2 {
-        Err(OxenError::basic_str(err_str))
-    } else {
-        let flag = args[0];
-        let value = args[1];
-        p_create(&config, flag, value)
-    }
-}
-
-fn p_create(
-    config: &AuthConfig,
-    flag: &std::ffi::OsStr,
-    value: &std::ffi::OsStr,
-) -> Result<(), OxenError> {
-    match flag.to_str().unwrap() {
-        "-d" => {
-            let name = value.to_str().unwrap_or_default();
-            println!("Creating dataset name [{}]", name);
-            println!("TODO!!");
-            Ok(())
-        }
-        "-r" => {
-            let name = value.to_str().unwrap_or_default();
-            let repository = api::repositories::create(config, name)?;
-            println!("Created repository name [{}]", repository.name);
-            Ok(())
-        }
-        _ => {
-            let err = format!("oxen create used with unknown flag {:?}", flag);
-            Err(OxenError::Basic(err))
-        }
-    }
 }
 
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {

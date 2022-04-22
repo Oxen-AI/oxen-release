@@ -106,7 +106,7 @@ mod tests {
 
     use liboxen::error::OxenError;
     use liboxen::http::response::EntryResponse;
-    use liboxen::util::FileUtil;
+    use liboxen::util;
 
     use crate::app_data::SyncDir;
     use crate::controllers;
@@ -156,7 +156,7 @@ mod tests {
         let uploaded_file = repo_dir.join(filename);
         assert!(uploaded_file.exists());
         // Make sure file contents are the same as the payload
-        assert_eq!(FileUtil::read_from_path(&uploaded_file)?, payload);
+        assert_eq!(util::fs::read_from_path(&uploaded_file)?, payload);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

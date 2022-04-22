@@ -2,7 +2,7 @@ use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::Repository;
 use crate::model::User;
-use crate::util::file_util::FileUtil;
+use crate::util;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -24,15 +24,16 @@ impl<'a> HTTPConfig<'a> for RepoConfig {
 }
 
 impl RepoConfig {
-    pub fn new(path: &Path) -> RepoConfig {
-        let contents = FileUtil::read_from_path(path).unwrap();
-        toml::from_str(&contents).unwrap()
+    pub fn new(path: &Path) -> Result<RepoConfig, OxenError> {
+        let contents = util::fs::read_from_path(path)?;
+        let config: RepoConfig = toml::from_str(&contents)?;
+        Ok(config)
     }
 
-    pub fn from(config: &AuthConfig, repository: &Repository) -> RepoConfig {
+    pub fn from(config: AuthConfig, repository: Repository) -> RepoConfig {
         RepoConfig {
             host: config.host.clone(),
-            repository: repository.clone(),
+            repository: repository,
             user: config.user.clone(),
         }
     }
@@ -46,7 +47,7 @@ impl RepoConfig {
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let toml = toml::to_string(&self)?;
-        FileUtil::write_to_path(path, &toml);
+        util::fs::write_to_path(path, &toml);
         Ok(())
     }
 }
@@ -61,10 +62,11 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_read_cfg() {
+    fn test_read_cfg() -> Result<(), OxenError> {
         let path = test::repo_cfg_file();
-        let config = RepoConfig::new(path);
+        let config = RepoConfig::new(path)?;
         assert_eq!(config.host(), "localhost:4000");
+        Ok(())
     }
 
     #[test]
@@ -80,13 +82,16 @@ mod tests {
     #[test]
     fn test_save() -> Result<(), OxenError> {
         let final_path = Path::new("/tmp/repo_config.toml");
-        let orig_config = RepoConfig::new(test::repo_cfg_file());
+        let orig_config = RepoConfig::new(test::repo_cfg_file())?;
 
         orig_config.save(final_path)?;
 
-        let config = RepoConfig::new(final_path);
+        let config = RepoConfig::new(final_path)?;
         assert_eq!(config.user.name, "Greg");
         assert_eq!(config.repository.name, "Test Repo");
+
+        std::fs::remove_file(final_path)?;
+
         Ok(())
     }
 }

@@ -1,12 +1,14 @@
 use crate::config::endpoint;
 use crate::config::AuthConfig;
 use crate::error::OxenError;
-use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::model::User;
-use crate::util::file_util::FileUtil;
+use crate::util;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+
+pub const REMOTE_CONFIG_FILENAME: &str = "remote_config.toml";
+pub const DEFAULT_HOST: &str = "localhost:4000";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RemoteConfig {
@@ -24,16 +26,15 @@ impl Eq for RemoteConfig {}
 impl RemoteConfig {
     pub fn new() -> Result<RemoteConfig, OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
+            let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
 
             fs::create_dir_all(&oxen_dir)?;
-            let default_host = "localhost:4000";
-            let oxen_config = oxen_dir.join(Path::new("remote_config.toml"));
-            let config_str = format!("host = \"{}\"", default_host);
+            let oxen_config = oxen_dir.join(Path::new(REMOTE_CONFIG_FILENAME));
+            let config_str = format!("host = \"{}\"", DEFAULT_HOST);
 
-            FileUtil::write_to_path(&oxen_config, &config_str);
+            util::fs::write_to_path(&oxen_config, &config_str);
             Ok(RemoteConfig {
-                host: String::from(default_host),
+                host: String::from(DEFAULT_HOST),
             })
         } else {
             Err(OxenError::basic_str(
@@ -47,8 +48,8 @@ impl RemoteConfig {
             "RemoteConfig::default() not configuration found, run `oxen login` to configure.",
         );
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
-            let config_file = oxen_dir.join(Path::new("remote_config.toml"));
+            let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
+            let config_file = oxen_dir.join(Path::new(REMOTE_CONFIG_FILENAME));
             if config_file.exists() {
                 Ok(RemoteConfig::from(&config_file))
             } else {
@@ -68,10 +69,9 @@ impl RemoteConfig {
 
     pub fn save_default(&self) -> Result<(), OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
-
-            fs::create_dir_all(&oxen_dir)?;
-            let config_file = oxen_dir.join(Path::new("remote_config.toml"));
+            let hidden_dir = util::fs::oxen_hidden_dir(&home_dir);
+            fs::create_dir_all(&hidden_dir)?;
+            let config_file = hidden_dir.join(Path::new(REMOTE_CONFIG_FILENAME));
             println!("Saving config to {:?}", config_file);
             self.save(&config_file)
         } else {
@@ -83,12 +83,12 @@ impl RemoteConfig {
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let toml = toml::to_string(&self)?;
-        FileUtil::write_to_path(path, &toml);
+        util::fs::write_to_path(path, &toml);
         Ok(())
     }
 
     pub fn from(path: &Path) -> RemoteConfig {
-        let contents = FileUtil::read_from_path(path).unwrap();
+        let contents = util::fs::read_from_path(path).unwrap();
         toml::from_str(&contents).unwrap()
     }
 
@@ -99,7 +99,7 @@ impl RemoteConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::RemoteConfig;
+    use crate::config::{remote_config::DEFAULT_HOST, RemoteConfig};
     use crate::error::OxenError;
     use crate::test;
 
@@ -108,13 +108,13 @@ mod tests {
     #[test]
     fn test_read() {
         let config = RemoteConfig::from(test::remote_cfg_file());
-        assert_eq!(config.endpoint(), "http://localhost:4000/api/v1");
+        assert_eq!(config.endpoint(), format!("http://{}/api/v1", DEFAULT_HOST));
     }
 
     #[test]
     fn test_save() -> Result<(), OxenError> {
         let config = RemoteConfig::new()?;
-        assert_eq!(config.endpoint(), "http://localhost:4000/api/v1");
+        assert_eq!(config.endpoint(), format!("http://{}/api/v1", DEFAULT_HOST));
 
         let export_path = Path::new("/tmp/remote_cfg.toml");
         config.save(export_path)?;
