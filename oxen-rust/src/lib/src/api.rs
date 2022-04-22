@@ -4,7 +4,6 @@ use crate::model::{User, UserResponse};
 use reqwest::blocking::Client;
 use serde_json::json;
 
-pub mod datasets;
 pub mod endpoint;
 pub mod entries;
 pub mod local;

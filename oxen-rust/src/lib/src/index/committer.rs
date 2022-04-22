@@ -1,10 +1,8 @@
-use crate::index::indexer::OXEN_HIDDEN_DIR;
-
 use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::index::Referencer;
 use crate::model::CommitMsg;
-use crate::util::FileUtil;
+use crate::util;
 
 use chrono::Utc;
 use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
@@ -26,16 +24,24 @@ pub struct Committer {
 }
 
 impl Committer {
-    pub fn db_opts() -> Options {
+    fn db_opts() -> Options {
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Warn);
+        opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
         opts
     }
 
+    fn history_dir(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(HISTORY_DIR))
+    }
+
+    fn commits_dir(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
+    }
+
     pub fn new(repo_dir: &Path) -> Result<Committer, OxenError> {
-        let history_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
-        let commits_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(COMMITS_DB)));
+        let history_path = Committer::history_dir(repo_dir);
+        let commits_path = Committer::commits_dir(repo_dir);
 
         if !history_path.exists() {
             std::fs::create_dir_all(&history_path)?;
@@ -66,14 +72,14 @@ impl Committer {
             .into_iter()
             .map(String::from)
             .collect();
-        FileUtil::rcount_files_with_extension(dir, &exts)
+        util::fs::rcount_files_with_extension(dir, &exts)
     }
 
     fn head_commit_db(
         repo_dir: &Path,
         referencer: &Referencer,
     ) -> Option<DBWithThreadMode<MultiThreaded>> {
-        let history_path = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HISTORY_DIR)));
+        let history_path = Committer::history_dir(repo_dir);
         let opts = Committer::db_opts();
         match referencer.read_head() {
             Ok(ref_name) => match referencer.get_commit_id(&ref_name) {
@@ -92,14 +98,14 @@ impl Committer {
             .into_iter()
             .map(String::from)
             .collect();
-        FileUtil::recursive_files_with_extensions(dir, &img_ext)
+        util::fs::recursive_files_with_extensions(dir, &img_ext)
             .into_iter()
             .collect()
     }
 
     fn list_text_files_from_dir(&self, dir: &Path) -> Vec<PathBuf> {
         let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
-        FileUtil::recursive_files_with_extensions(dir, &img_ext)
+        util::fs::recursive_files_with_extensions(dir, &img_ext)
             .into_iter()
             .collect()
     }
@@ -143,7 +149,7 @@ impl Committer {
                 // We have a parent, we have to copy over last db, and continue
                 let parent_commit_db_path = self.history_dir.join(Path::new(&parent_id));
                 let current_commit_db_path = self.history_dir.join(Path::new(&id_str));
-                FileUtil::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
+                util::fs::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
                 // return current commit path, so we can add to it
                 current_commit_db_path
             }
@@ -184,7 +190,7 @@ impl Committer {
             // );
 
             for path in self.list_files_in_dir(&full_path) {
-                let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_dir)?;
+                let relative_path = util::fs::path_relative_to_dir(&path, &self.repo_dir)?;
                 let key = relative_path.to_str().unwrap().as_bytes();
 
                 // println!("Adding key {}", path.to_str().unwrap());
@@ -249,7 +255,7 @@ impl Committer {
     ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
         let commit_db_path = self.history_dir.join(Path::new(&commit_id));
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Warn);
+        opts.set_log_level(LogLevel::Error);
         let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
         Ok(db)
     }
@@ -447,7 +453,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::index::Committer;
     use crate::test;
-    use crate::util::FileUtil;
+    use crate::util;
 
     const BASE_DIR: &str = "data/test/runs";
 
@@ -499,7 +505,7 @@ mod tests {
 
         // Verify that the current commit contains the hello file
         let relative_annotation_path =
-            FileUtil::path_relative_to_dir(&annotation_file, &repo_path)?;
+            util::fs::path_relative_to_dir(&annotation_file, &repo_path)?;
         assert!(committer.head_contains_file(&relative_annotation_path)?);
 
         // Add more files and commit again, make sure the commit copied over the last one

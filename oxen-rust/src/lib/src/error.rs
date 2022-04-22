@@ -6,7 +6,8 @@ use std::io;
 pub enum OxenError {
     IO(io::Error),
     Basic(String),
-    TOML(toml::ser::Error),
+    TomlSer(toml::ser::Error),
+    TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
     JSON(serde_json::Error),
     HTTP(reqwest::Error),
@@ -49,7 +50,13 @@ impl From<String> for OxenError {
 
 impl From<toml::ser::Error> for OxenError {
     fn from(error: toml::ser::Error) -> Self {
-        OxenError::TOML(error)
+        OxenError::TomlSer(error)
+    }
+}
+
+impl From<toml::de::Error> for OxenError {
+    fn from(error: toml::de::Error) -> Self {
+        OxenError::TomlDe(error)
     }
 }
 

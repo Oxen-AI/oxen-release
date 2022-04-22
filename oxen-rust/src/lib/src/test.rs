@@ -31,7 +31,7 @@ pub fn setup_env() {
 pub fn create_repo_cfg(name: &str) -> Result<RepoConfig, OxenError> {
     let config = AuthConfig::new(auth_cfg_file());
     let repository = api::repositories::create(&config, name)?;
-    Ok(RepoConfig::from(&config, &repository))
+    Ok(RepoConfig::from(config, repository))
 }
 
 pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
@@ -43,19 +43,19 @@ pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
     let repo_dir = create_repo_dir(base_dir)?;
 
-    let indexer = Indexer::new(&repo_dir);
+    let indexer = Indexer::new(&repo_dir)?;
     indexer.init()?;
 
-    Ok((Stager::new(&indexer.root_dir)?, repo_dir))
+    Ok((Stager::new(&indexer.repo_dir)?, repo_dir))
 }
 
 pub fn create_referencer(base_dir: &str) -> Result<(Referencer, PathBuf), OxenError> {
     let repo_dir = create_repo_dir(base_dir)?;
 
-    let indexer = Indexer::new(&repo_dir);
+    let indexer = Indexer::new(&repo_dir)?;
     indexer.init()?;
 
-    Ok((Referencer::new(&indexer.root_dir)?, repo_dir))
+    Ok((Referencer::new(&indexer.repo_dir)?, repo_dir))
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {

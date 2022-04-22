@@ -1,11 +1,12 @@
 use crate::config::HTTPConfig;
 use crate::error::OxenError;
-use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::model::User;
-use crate::util::file_util::FileUtil;
+use crate::util;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+
+pub const AUTH_CONFIG_FILENAME: &str = "auth_config.toml";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AuthConfig {
@@ -33,7 +34,7 @@ impl<'a> HTTPConfig<'a> for AuthConfig {
 
 impl AuthConfig {
     pub fn new(path: &Path) -> AuthConfig {
-        let contents = FileUtil::read_from_path(path).unwrap();
+        let contents = util::fs::read_from_path(path).unwrap();
         toml::from_str(&contents).unwrap()
     }
 
@@ -42,8 +43,8 @@ impl AuthConfig {
             "AuthConfig::default() not configuration found, run `oxen login` to configure.",
         );
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
-            let config_file = oxen_dir.join(Path::new("auth_config.toml"));
+            let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
+            let config_file = oxen_dir.join(Path::new(AUTH_CONFIG_FILENAME));
             if config_file.exists() {
                 Ok(AuthConfig::new(&config_file))
             } else {
@@ -56,10 +57,10 @@ impl AuthConfig {
 
     pub fn save_default(&self) -> Result<(), OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = home_dir.join(Path::new(OXEN_HIDDEN_DIR));
+            let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
 
             fs::create_dir_all(&oxen_dir)?;
-            let config_file = oxen_dir.join(Path::new("auth_config.toml"));
+            let config_file = oxen_dir.join(Path::new(AUTH_CONFIG_FILENAME));
             println!("Saving config to {:?}", config_file);
             self.save(&config_file)
         } else {
@@ -71,14 +72,14 @@ impl AuthConfig {
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let toml = toml::to_string(&self)?;
-        FileUtil::write_to_path(path, &toml);
+        util::fs::write_to_path(path, &toml);
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{AuthConfig, HTTPConfig, RemoteConfig};
+    use crate::config::{remote_config::DEFAULT_HOST, AuthConfig, HTTPConfig, RemoteConfig};
     use crate::error::OxenError;
     use crate::model::User;
     use crate::test;
@@ -87,7 +88,7 @@ mod tests {
     #[test]
     fn test_read() {
         let config = AuthConfig::new(test::auth_cfg_file());
-        assert_eq!(config.host(), "localhost:4000");
+        assert_eq!(config.host(), DEFAULT_HOST);
         assert_eq!(config.user.name, "Greg");
     }
 
@@ -99,7 +100,7 @@ mod tests {
         orig_config.save(final_path)?;
 
         let config = AuthConfig::new(final_path);
-        assert_eq!(config.host, "localhost:4000");
+        assert_eq!(config.host, DEFAULT_HOST);
         assert_eq!(config.user.name, "Greg");
         Ok(())
     }
@@ -113,7 +114,7 @@ mod tests {
         auth_config.save(final_path)?;
 
         let config = AuthConfig::new(final_path);
-        assert_eq!(config.host, "localhost:4000");
+        assert_eq!(config.host, DEFAULT_HOST);
         assert_eq!(config.user.name, user.name);
         Ok(())
     }

@@ -1,7 +1,5 @@
-use crate::index::indexer::OXEN_HIDDEN_DIR;
-
 use crate::error::OxenError;
-use crate::util::FileUtil;
+use crate::util;
 
 use rocksdb::{LogLevel, Options, DB};
 use std::path::{Path, PathBuf};
@@ -17,16 +15,24 @@ pub struct Referencer {
 }
 
 impl Referencer {
+    pub fn refs_dir(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(REFS_DIR))
+    }
+
+    pub fn head_file(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(HEAD_FILE))
+    }
+
     pub fn new(repo_dir: &Path) -> Result<Referencer, OxenError> {
-        let refs_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(REFS_DIR)));
-        let head_file = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HEAD_FILE)));
+        let refs_dir = Referencer::refs_dir(repo_dir);
+        let head_file = Referencer::head_file(repo_dir);
 
         if !head_file.exists() {
-            FileUtil::write_to_path(&head_file, DEFAULT_BRANCH);
+            util::fs::write_to_path(&head_file, DEFAULT_BRANCH);
         }
 
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Warn);
+        opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open(&opts, &refs_dir)?,
@@ -35,16 +41,16 @@ impl Referencer {
     }
 
     pub fn new_read_only(repo_dir: &Path) -> Result<Referencer, OxenError> {
-        let refs_dir = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(REFS_DIR)));
-        let head_file = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(HEAD_FILE)));
+        let refs_dir = Referencer::refs_dir(repo_dir);
+        let head_file = Referencer::head_file(repo_dir);
 
         if !head_file.exists() {
-            FileUtil::write_to_path(&head_file, DEFAULT_BRANCH);
+            util::fs::write_to_path(&head_file, DEFAULT_BRANCH);
         }
 
         let error_if_log_file_exist = false;
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Warn);
+        opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
@@ -53,7 +59,7 @@ impl Referencer {
     }
 
     pub fn set_head(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
-        FileUtil::write_to_path(&self.head_file, name);
+        util::fs::write_to_path(&self.head_file, name);
         self.refs_db.put(name, commit_id)?;
         Ok(())
     }
@@ -78,7 +84,7 @@ impl Referencer {
     }
 
     pub fn read_head(&self) -> Result<String, OxenError> {
-        FileUtil::read_from_path(&self.head_file)
+        util::fs::read_from_path(&self.head_file)
     }
 }
 

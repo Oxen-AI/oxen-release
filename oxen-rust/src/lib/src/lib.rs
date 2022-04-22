@@ -1,5 +1,7 @@
 pub mod api;
+pub mod command;
 pub mod config;
+pub mod constants;
 pub mod error;
 pub mod http;
 pub mod index;

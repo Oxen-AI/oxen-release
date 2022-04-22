@@ -1,7 +1,7 @@
+use crate::constants;
 use crate::error::OxenError;
-use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::index::Committer;
-use crate::util::FileUtil;
+use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::collections::HashSet;
@@ -18,25 +18,29 @@ pub struct Stager {
 }
 
 impl Stager {
-    pub fn new(repo_path: &Path) -> Result<Stager, OxenError> {
-        let dbpath = repo_path.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
+    pub fn staging_dir(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(STAGED_DIR))
+    }
+
+    pub fn new(path: &Path) -> Result<Stager, OxenError> {
+        let dbpath = Stager::staging_dir(path);
         std::fs::create_dir_all(&dbpath)?;
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Warn);
+        opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
             committer: None,
-            repo_path: repo_path.to_path_buf(),
+            repo_path: path.to_path_buf(),
         })
     }
 
     pub fn from(committer: Committer) -> Result<Stager, OxenError> {
         let repo_dir = committer.get_repo_dir();
-        let dbpath = repo_dir.join(Path::new(OXEN_HIDDEN_DIR).join(Path::new(STAGED_DIR)));
+        let dbpath = Stager::staging_dir(&repo_dir);
         std::fs::create_dir_all(&dbpath)?;
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Warn);
+        opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
@@ -77,18 +81,18 @@ impl Stager {
             .into_iter()
             .map(String::from)
             .collect();
-        FileUtil::recursive_files_with_extensions(dir, &img_ext)
+        util::fs::recursive_files_with_extensions(dir, &img_ext)
             .into_iter()
-            .map(|file| FileUtil::path_relative_to_dir(&file, &self.repo_path).unwrap())
+            .map(|file| util::fs::path_relative_to_dir(&file, &self.repo_path).unwrap())
             .filter(|file| !self.file_is_in_index(file))
             .collect()
     }
 
     fn list_text_files_from_dir(&self, dir: &Path) -> Vec<PathBuf> {
         let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
-        FileUtil::recursive_files_with_extensions(dir, &img_ext)
+        util::fs::recursive_files_with_extensions(dir, &img_ext)
             .into_iter()
-            .map(|file| FileUtil::path_relative_to_dir(&file, &self.repo_path).unwrap())
+            .map(|file| util::fs::path_relative_to_dir(&file, &self.repo_path).unwrap())
             .filter(|file| !self.file_is_in_index(file))
             .collect()
     }
@@ -117,7 +121,7 @@ impl Stager {
             return Err(OxenError::basic_str(&err));
         }
 
-        let relative_path = FileUtil::path_relative_to_dir(path, &self.repo_path)?;
+        let relative_path = util::fs::path_relative_to_dir(path, &self.repo_path)?;
         let key = relative_path.to_str().unwrap().as_bytes();
 
         // Add all files, and get a count
@@ -152,7 +156,7 @@ impl Stager {
         // if repository: /Users/username/Datasets/MyRepo
         //   /Users/username/Datasets/MyRepo/train -> train
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
-        let path = FileUtil::path_relative_to_dir(path, &self.repo_path)?;
+        let path = util::fs::path_relative_to_dir(path, &self.repo_path)?;
         let key = path.to_str().unwrap().as_bytes();
 
         // println!("Adding key {}", path.to_str().unwrap());
@@ -256,7 +260,7 @@ impl Stager {
             let local_path = entry?.path();
             if local_path.is_file() {
                 // Return relative path with respect to the repo
-                let relative_path = FileUtil::path_relative_to_dir(&local_path, &self.repo_path)?;
+                let relative_path = util::fs::path_relative_to_dir(&local_path, &self.repo_path)?;
                 if self.file_is_committed(&relative_path) {
                     continue;
                 }
@@ -331,7 +335,7 @@ impl Stager {
             let path = entry?.path();
             // println!("list_untracked_directories considering {:?}", path);
             if path.is_dir() {
-                let relative_path = FileUtil::path_relative_to_dir(&path, &self.repo_path)?;
+                let relative_path = util::fs::path_relative_to_dir(&path, &self.repo_path)?;
                 // println!("list_untracked_directories relative {:?}", relative_path);
 
                 if self.file_is_committed(&relative_path) {
@@ -339,7 +343,7 @@ impl Stager {
                 }
 
                 if let Some(path_str) = relative_path.to_str() {
-                    if path_str.contains(OXEN_HIDDEN_DIR) {
+                    if path_str.contains(constants::OXEN_HIDDEN_DIR) {
                         continue;
                     }
 
@@ -395,7 +399,7 @@ impl Stager {
 mod tests {
     use crate::error::OxenError;
     use crate::test;
-    use crate::util::FileUtil;
+    use crate::util;
 
     use std::path::{Path, PathBuf};
 
@@ -408,7 +412,7 @@ mod tests {
 
         match stager.add_file(&hello_file) {
             Ok(path) => {
-                let relative_path = FileUtil::path_relative_to_dir(&hello_file, &repo_path)?;
+                let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
                 assert_eq!(path, relative_path);
             }
             Err(err) => {
@@ -529,7 +533,7 @@ mod tests {
         // List files
         let files = stager.list_added_files()?;
         assert_eq!(files.len(), 1);
-        let relative_path = FileUtil::path_relative_to_dir(&hello_file, &repo_path)?;
+        let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
         assert_eq!(files[0], relative_path);
 
         // cleanup
@@ -556,7 +560,7 @@ mod tests {
 
         // There is one file
         assert_eq!(files.len(), 1);
-        let relative_path = FileUtil::path_relative_to_dir(&sub_file, &repo_path)?;
+        let relative_path = util::fs::path_relative_to_dir(&sub_file, &repo_path)?;
         assert_eq!(files[0], relative_path);
 
         // cleanup
@@ -580,7 +584,7 @@ mod tests {
         let dirs = stager.list_untracked_directories()?;
         // There is one directory
         assert_eq!(dirs.len(), 1);
-        let relative_path = FileUtil::path_relative_to_dir(&sub_dir, &repo_path)?;
+        let relative_path = util::fs::path_relative_to_dir(&sub_dir, &repo_path)?;
         assert_eq!(dirs[0].0, relative_path);
 
         // With three untracked files
@@ -681,7 +685,7 @@ mod tests {
         // List files
         let files = stager.list_untracked_files()?;
         assert_eq!(files.len(), 1);
-        let relative_path = FileUtil::path_relative_to_dir(&hello_file, &repo_path)?;
+        let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
         assert_eq!(files[0], relative_path);
 
         // cleanup

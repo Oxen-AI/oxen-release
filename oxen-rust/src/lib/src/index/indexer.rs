@@ -14,15 +14,11 @@ use crate::error::OxenError;
 use crate::http::response::{CommitMsgResponse, RepositoryHeadResponse, RepositoryResponse};
 use crate::index::committer::HISTORY_DIR;
 use crate::index::Committer;
-use crate::model::{CommitHead, CommitMsg, Dataset, Repository};
-
-use crate::util::{hasher, FileUtil};
-
-pub const OXEN_HIDDEN_DIR: &str = ".oxen";
-pub const REPO_CONFIG_FILE: &str = "config.toml";
+use crate::model::{CommitHead, CommitMsg, Repository};
+use crate::util;
 
 pub struct Indexer {
-    pub root_dir: PathBuf,
+    pub repo_dir: PathBuf,
     pub hidden_dir: PathBuf,
     config_file: PathBuf,
     auth_config: AuthConfig,
@@ -30,47 +26,48 @@ pub struct Indexer {
 }
 
 impl Indexer {
-    pub fn new(root_dir: &Path) -> Indexer {
-        let hidden_dir = PathBuf::from(&root_dir).join(Path::new(OXEN_HIDDEN_DIR));
-        let config_file = PathBuf::from(&hidden_dir).join(Path::new(REPO_CONFIG_FILE));
+    pub fn new(repo_dir: &Path) -> Result<Indexer, OxenError> {
+        let hidden_dir = util::fs::oxen_hidden_dir(repo_dir);
+        let config_file = util::fs::config_filepath(repo_dir);
         let auth_config = AuthConfig::default().unwrap();
 
         // Load repo config if exists
         let repo_config: Option<RepoConfig> = match config_file.exists() {
-            true => Some(RepoConfig::new(&config_file)),
+            true => Some(RepoConfig::new(&config_file)?),
             false => None,
         };
-        Indexer {
-            root_dir: root_dir.to_path_buf(),
+
+        Ok(Indexer {
+            repo_dir: repo_dir.to_path_buf(),
             hidden_dir,
             config_file,
             auth_config,
             repo_config,
-        }
+        })
     }
 
-    pub fn repo_exists(dirname: &Path) -> bool {
-        let hidden_dir = PathBuf::from(dirname).join(Path::new(OXEN_HIDDEN_DIR));
+    pub fn repo_exists(path: &Path) -> bool {
+        let hidden_dir = util::fs::oxen_hidden_dir(path);
         hidden_dir.exists()
     }
 
     pub fn is_initialized(&self) -> bool {
-        Indexer::repo_exists(&self.root_dir)
+        Indexer::repo_exists(&self.repo_dir)
     }
 
     pub fn init(&self) -> Result<(), OxenError> {
         if self.is_initialized() {
-            println!("Repository already exists for: {:?}", self.root_dir);
+            println!("Repository already exists for: {:?}", self.repo_dir);
             return Ok(());
         }
 
         // Get name from current directory name
-        if let Some(name) = self.root_dir.file_name() {
+        if let Some(name) = self.repo_dir.file_name() {
             self.init_with_name(name.to_str().unwrap())
         } else {
             let err = format!(
                 "Could not find parent directories name: {:?}",
-                self.root_dir
+                self.repo_dir
             );
             Err(OxenError::basic_str(&err))
         }
@@ -78,7 +75,7 @@ impl Indexer {
 
     pub fn init_with_name(&self, name: &str) -> Result<(), OxenError> {
         if self.is_initialized() {
-            println!("Repository already exists for: {:?}", self.root_dir);
+            println!("Repository already exists for: {:?}", self.repo_dir);
             return Ok(());
         }
 
@@ -91,18 +88,18 @@ impl Indexer {
         let repository = Repository {
             id: format!("{}", uuid::Uuid::new_v4()),
             name: String::from(name),
-            url: String::from(""), // no remote to start
+            url: None,
         };
-        let repo_config = RepoConfig::from(&auth_cfg, &repository);
-        let repo_config_file = self.hidden_dir.join(REPO_CONFIG_FILE);
-        repo_config.save(&repo_config_file)?;
+        let repo_config = RepoConfig::from(auth_cfg, repository);
+        let config_filepath = util::fs::config_filepath(&self.repo_dir);
+        repo_config.save(&config_filepath)?;
         println!("Repository initialized at {:?}", self.hidden_dir);
         Ok(())
     }
 
     pub fn set_remote(&mut self, url: &str) -> Result<(), OxenError> {
         let repository = api::repositories::get_by_url(&self.auth_config, url)?;
-        self.repo_config = Some(RepoConfig::from(&self.auth_config, &repository));
+        self.repo_config = Some(RepoConfig::from(self.auth_config.clone(), repository));
         self.repo_config
             .as_ref()
             .unwrap()
@@ -152,8 +149,8 @@ impl Indexer {
         //       maybe on the server we make a linked list of the changes with the commit id?
         // if it is the same, don't re-upload
         // Update the hash for this specific commit for this path
-        if let Ok(hash) = hasher::hash_file_contents(path) {
-            match FileUtil::path_relative_to_dir(path, &self.root_dir) {
+        if let Ok(hash) = util::hasher::hash_file_contents(path) {
+            match util::fs::path_relative_to_dir(path, &self.repo_dir) {
                 Ok(path) => {
                     // Compare last hash to new one
                     let old_hash = committer.get_path_hash(db, &path).unwrap();
@@ -342,10 +339,6 @@ impl Indexer {
         }
     }
 
-    pub fn list_datasets(&self) -> Result<Vec<Dataset>, OxenError> {
-        api::datasets::list(self.repo_config.as_ref().unwrap())
-    }
-
     pub fn pull(&self) -> Result<(), OxenError> {
         // Get list of commits we have to pull
 
@@ -357,15 +350,7 @@ impl Indexer {
         println!("🐂 pulling {} entries", total);
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
-        // dataset_pages.par_iter().for_each(|dataset_pages| {
-        //     let (dataset, num_pages) = dataset_pages;
-        //     match self.pull_dataset(dataset, num_pages, &bar) {
-        //         Ok(_) => {}
-        //         Err(err) => {
-        //             eprintln!("Error pulling dataset: {}", err)
-        //         }
-        //     }
-        // });
+
         bar.finish();
         Ok(())
     }
@@ -373,10 +358,8 @@ impl Indexer {
     /*
     fn download_url(
         &self,
-        dataset: &Dataset,
         entry: &crate::model::Entry,
     ) -> Result<(), OxenError> {
-        let path = Path::new(&dataset.name);
         let fname = path.join(&entry.filename);
         // println!("Downloading file {:?}", &fname);
         if !fname.exists() {
@@ -392,10 +375,10 @@ impl Indexer {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::indexer::OXEN_HIDDEN_DIR;
     use crate::index::Indexer;
     use crate::model::Repository;
     use crate::test;
+    use crate::util;
 
     const BASE_DIR: &str = "data/test/runs";
 
@@ -404,11 +387,11 @@ mod tests {
         test::setup_env();
 
         let repo_dir = test::create_repo_dir(BASE_DIR)?;
-        let indexer = Indexer::new(&repo_dir);
+        let indexer = Indexer::new(&repo_dir)?;
         indexer.init()?;
 
-        let repository = Repository::from(&repo_dir);
-        let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
+        let repository = Repository::from_existing(&repo_dir)?;
+        let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
         assert!(hidden_dir.exists());
         assert!(!repository.id.is_empty());
         let name = repo_dir.file_name().unwrap().to_str().unwrap();
@@ -425,13 +408,13 @@ mod tests {
         test::setup_env();
 
         let repo_dir = test::create_repo_dir(BASE_DIR)?;
-        let indexer = Indexer::new(&repo_dir);
+        let indexer = Indexer::new(&repo_dir)?;
 
         let name = "gschoeni/Repo-Name";
         indexer.init_with_name(name)?;
 
-        let repository = Repository::from(&repo_dir);
-        let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
+        let repository = Repository::from_existing(&repo_dir)?;
+        let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
         assert!(hidden_dir.exists());
         assert!(!repository.id.is_empty());
         assert_eq!(repository.name, name);

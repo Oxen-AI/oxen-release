@@ -3,9 +3,9 @@ use liboxen::error::OxenError;
 use liboxen::http;
 use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
 use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::index::indexer::OXEN_HIDDEN_DIR;
 use liboxen::index::Committer;
 use liboxen::model::CommitMsg;
+use liboxen::util;
 
 use crate::app_data::SyncDir;
 
@@ -60,12 +60,12 @@ pub async fn upload(
     let sync_dir = req.app_data::<SyncDir>().unwrap();
     let api = RepositoryAPI::new(Path::new(&sync_dir.path));
 
-    // path to the repo
+    // path to the repo, should be in url path so okay to unwap
     let path: &str = req.match_info().get("name").unwrap();
     match api.get_by_path(Path::new(&path)) {
         Ok(result) => {
             let repo_dir = Path::new(&sync_dir.path).join(result.repository.name);
-            let hidden_dir = repo_dir.join(OXEN_HIDDEN_DIR);
+            let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
 
             // Create Commit
             let commit = CommitMsg {
@@ -125,11 +125,11 @@ mod tests {
     use flate2::Compression;
     use std::path::Path;
 
+    use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
     use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
-    use liboxen::index::indexer::OXEN_HIDDEN_DIR;
     use liboxen::model::CommitMsg;
-    use liboxen::util::FileUtil;
+    use liboxen::util;
 
     use crate::app_data::SyncDir;
     use crate::controllers;
@@ -149,9 +149,33 @@ mod tests {
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("GOT TEXT: {}", text);
         let list: ListCommitMsgResponse = serde_json::from_str(text)?;
         assert_eq!(list.commits.len(), 0);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_respository_list_two_commits() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir();
+
+        let name = "Testing-Name";
+        test::create_repo(&sync_dir, name)?;
+
+        // TODO: quick commands to add files and create commits
+
+        let uri = format!("/repositories/{}/commits", name);
+        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+
+        let resp = controllers::commits::index(req).await;
+
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let list: ListCommitMsgResponse = serde_json::from_str(text)?;
+        // assert_eq!(list.commits.len(), 2);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
@@ -178,9 +202,9 @@ mod tests {
         let commit_dir_name = format!("/tmp/oxen/commit/{}", commit.id);
         let commit_dir = Path::new(&commit_dir_name);
         std::fs::create_dir_all(commit_dir)?;
+        // Write a random file to it
         let random_file = commit_dir.join("blah.txt");
-
-        FileUtil::write_to_path(&random_file, "sup");
+        util::fs::write_to_path(&random_file, "sup");
 
         println!("Compressing commit {}...", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -227,7 +251,7 @@ mod tests {
             .join(path_to_compress)
             .join("blah.txt");
         assert!(uploaded_file.exists());
-        assert_eq!(FileUtil::read_from_path(&uploaded_file)?, "sup");
+        assert_eq!(util::fs::read_from_path(&uploaded_file)?, "sup");
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

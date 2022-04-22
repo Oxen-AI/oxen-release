@@ -39,12 +39,6 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
-            Command::new("ls")
-                .about("Lists the directories within a repo")
-                .arg_required_else_help(true)
-                .arg(arg!(<OBJECT> "Run ls locally or remote (remote, local)")),
-        )
-        .subcommand(
             Command::new("clone")
                 .about("Clone a repository by its URL")
                 .arg_required_else_help(true)
@@ -117,22 +111,6 @@ fn main() {
                 eprintln!("{}", err)
             }
         },
-        Some(("ls", sub_matches)) => {
-            let object_type = sub_matches.value_of("OBJECT").unwrap_or_default();
-            let result = match object_type {
-                "remote" => dispatch::list_datasets(),
-                _ => {
-                    println!("Unknown object type: {}", object_type);
-                    Ok(())
-                }
-            };
-            match result {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("Err: {}", err)
-                }
-            }
-        }
         Some(("clone", sub_matches)) => {
             let url = sub_matches.value_of("URL").expect("required");
             match dispatch::clone(url) {
@@ -152,7 +130,6 @@ fn main() {
             match ext {
                 "login" => dispatch::login(),
                 "commit" => dispatch::commit(args),
-                "create" => dispatch::create(args),
                 _ => {
                     println!("Unknown command {}", ext);
                     Ok(())

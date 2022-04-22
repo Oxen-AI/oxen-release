@@ -1,15 +1,11 @@
 use crate::error::OxenError;
+use crate::http::response::{ListRepositoriesResponse, RepositoryHeadResponse, RepositoryResponse};
 use crate::http::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use crate::index::indexer::OXEN_HIDDEN_DIR;
 use crate::index::{Committer, Indexer};
-
-use crate::http::response::{ListRepositoriesResponse, RepositoryHeadResponse, RepositoryResponse};
-
 use crate::model::{CommitHead, CommmitSyncInfo, Repository, RepositoryNew};
-
-use crate::util::FileUtil;
+use crate::util;
 
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -42,7 +38,7 @@ impl RepositoryAPI {
             return Err(OxenError::basic_str(&err));
         }
 
-        let repo = Repository::from(&repo_path);
+        let repo = Repository::from_existing(&repo_path)?;
         let commit_head: Option<CommitHead> = self.get_commit_head(&repo_path)?;
 
         Ok(RepositoryHeadResponse {
@@ -74,21 +70,13 @@ impl RepositoryAPI {
         let mut repos: Vec<Repository> = vec![];
         let sync_dir = self.get_sync_dir()?;
         for entry in WalkDir::new(&sync_dir).into_iter().filter_map(|e| e.ok()) {
+            // if the directory has a .oxen dir, let's add it, otherwise ignore
             let local_path = entry.path();
-            let oxen_dir = local_path.join(Path::new(OXEN_HIDDEN_DIR));
+            let oxen_dir = util::fs::oxen_hidden_dir(local_path);
 
             if oxen_dir.exists() {
-                // TODO: get actual ID, and loop until the oxen dir
-                let id = format!("{}", uuid::Uuid::new_v4());
-
-                let name = FileUtil::path_relative_to_dir(local_path, &sync_dir)?;
-                if let Some(name) = name.to_str() {
-                    repos.push(Repository {
-                        id,
-                        name: name.to_string(),
-                        url: String::from(""),
-                    });
-                }
+                let repository = Repository::from_existing(local_path)?;
+                repos.push(repository);
             }
         }
 
@@ -109,13 +97,13 @@ impl RepositoryAPI {
         }
 
         std::fs::create_dir_all(&repo_dir)?;
-        let indexer = Indexer::new(&repo_dir);
+        let indexer = Indexer::new(&repo_dir)?;
         indexer.init_with_name(&repo.name)?;
 
         let repository = Repository {
             id,
             name: String::from(&repo.name),
-            url: String::from(""), // no remote to start
+            url: None,
         };
         Ok(RepositoryResponse {
             status: String::from(STATUS_SUCCESS),

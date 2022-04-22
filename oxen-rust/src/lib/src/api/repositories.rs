@@ -125,7 +125,7 @@ mod tests {
         let name: &str = "test_get_by_url";
 
         let repository = api::repositories::create(&config, name)?;
-        let url_repo = api::repositories::get_by_url(&config, &repository.url)?;
+        let url_repo = api::repositories::get_by_url(&config, &repository.url.as_ref().unwrap())?;
 
         assert_eq!(repository.id, url_repo.id);
 

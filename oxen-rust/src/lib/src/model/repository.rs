@@ -1,33 +1,45 @@
 use crate::api;
 use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::index::indexer::{OXEN_HIDDEN_DIR, REPO_CONFIG_FILE};
+use crate::util;
+
 use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Repository {
-    pub id: String,
-    pub name: String,
-    pub url: String,
-}
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RepositoryNew {
     pub name: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Repository {
+    pub id: String,
+    pub name: String,
+    pub url: Option<String>, // local repos might not have remote set
+}
+
 impl Repository {
-    pub fn from(repo_dir: &Path) -> Repository {
-        let config_file = repo_dir.join(OXEN_HIDDEN_DIR).join(REPO_CONFIG_FILE);
-        let config = RepoConfig::new(&config_file);
-        config.repository
+    pub fn new(path: &Path) -> Repository {
+        // we're assuming the path is valid...
+        let name = path.file_name().unwrap().to_str().unwrap();
+        Repository {
+            // generate new uuid locally
+            id: format!("{}", uuid::Uuid::new_v4()),
+            name: String::from(name),
+            url: None,
+        }
     }
 
-    pub fn clone_remote(config: &AuthConfig, url: &str) -> Result<RepoConfig, OxenError> {
-        match api::repositories::get_by_url(config, url) {
-            Ok(repository) => Repository::clone_repo(config, &repository),
+    pub fn from_existing(repo_dir: &Path) -> Result<Repository, OxenError> {
+        let config_path = util::fs::config_filepath(repo_dir);
+        let config = RepoConfig::new(&config_path)?;
+        Ok(config.repository)
+    }
+
+    pub fn clone_remote(config: AuthConfig, url: &str) -> Result<RepoConfig, OxenError> {
+        match api::repositories::get_by_url(&config, url) {
+            Ok(repository) => Repository::clone_repo(config, repository),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -35,9 +47,15 @@ impl Repository {
         }
     }
 
-    fn clone_repo(config: &AuthConfig, repo: &Repository) -> Result<RepoConfig, OxenError> {
+    fn clone_repo(config: AuthConfig, repo: Repository) -> Result<RepoConfig, OxenError> {
+        let url = &repo
+            .url
+            .as_ref()
+            .ok_or(OxenError::basic_str("s: &str"))?
+            .clone();
+
         // get last part of URL for directory name
-        let dir_name = Repository::dirname_from_url(&repo.url)?;
+        let dir_name = Repository::dirname_from_url(url)?;
 
         // if directory already exists -> return Err
         let repo_path = Path::new(&dir_name);
@@ -50,7 +68,7 @@ impl Repository {
         std::fs::create_dir(&repo_path)?;
 
         // if create successful, create .oxen directory
-        let oxen_hidden_path = repo_path.join(Path::new(OXEN_HIDDEN_DIR));
+        let oxen_hidden_path = util::fs::oxen_hidden_dir(repo_path);
         std::fs::create_dir(&oxen_hidden_path)?;
 
         // save RepoConfig in .oxen directory
@@ -60,7 +78,7 @@ impl Repository {
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull",
-            repo.url, dir_name, dir_name
+            url, dir_name, dir_name
         );
 
         Ok(repo_config)
@@ -99,10 +117,10 @@ mod tests {
         let name = "OxenDataTest";
         let config = AuthConfig::new(test::auth_cfg_file());
         let repository = api::repositories::create(&config, name)?;
-        let url = repository.url;
+        let url = repository.url.ok_or(OxenError::basic_str("Invalid URL"))?;
 
         let auth_config = AuthConfig::new(test::auth_cfg_file());
-        let repo_config = Repository::clone_remote(&auth_config, &url)?;
+        let repo_config = Repository::clone_remote(auth_config, &url)?;
 
         let cfg_path = format!("{}/.oxen/config.toml", name);
         let path = Path::new(&cfg_path);
