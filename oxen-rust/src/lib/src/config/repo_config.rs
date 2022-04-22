@@ -33,8 +33,8 @@ impl RepoConfig {
     pub fn from(config: AuthConfig, repository: Repository) -> RepoConfig {
         RepoConfig {
             host: config.host.clone(),
-            repository: repository,
-            user: config.user.clone(),
+            repository,
+            user: config.user,
         }
     }
 
