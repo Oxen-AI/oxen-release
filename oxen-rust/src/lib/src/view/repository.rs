@@ -45,14 +45,14 @@ impl RepositoryView {
     pub fn from_local(repository: LocalRepository) -> RepositoryView {
         RepositoryView {
             id: repository.id.clone(),
-            name: repository.name.clone()
+            name: repository.name,
         }
     }
 
     pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
         RepositoryView {
             id: repository.id.clone(),
-            name: repository.name.clone()
+            name: repository.name,
         }
     }
 }

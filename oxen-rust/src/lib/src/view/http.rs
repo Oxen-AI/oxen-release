@@ -1,4 +1,3 @@
-
 pub const STATUS_ERROR: &str = "error";
 pub const STATUS_SUCCESS: &str = "success";
 pub const MSG_RESOURCE_CREATED: &str = "resource_created";

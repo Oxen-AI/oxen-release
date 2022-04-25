@@ -2,9 +2,9 @@ use crate::app_data::SyncDir;
 
 use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
-use liboxen::view::{EntryResponse, StatusMessage};
-use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::model::{Entry, LocalRepository};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::view::{EntryResponse, StatusMessage};
 use serde::Deserialize;
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -33,15 +33,11 @@ pub async fn create(
     // path to the repo
     let path: &str = req.match_info().get("name").unwrap();
     match api.get_by_path(Path::new(&path)) {
-        Ok(result) => {
-            match LocalRepository::from_remote(result.repository) {
-                Ok(local_repo) => {
-                    create_entry(&sync_dir.path, &local_repo, body, data).await
-                },
-                Err(err) => {
-                    let msg = format!("Error converting repo\nErr: {}", err);
-                    Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
-                }
+        Ok(result) => match LocalRepository::from_remote(result.repository) {
+            Ok(local_repo) => create_entry(&sync_dir.path, &local_repo, body, data).await,
+            Err(err) => {
+                let msg = format!("Error converting repo\nErr: {}", err);
+                Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
             }
         },
         Err(err) => {
@@ -114,8 +110,8 @@ mod tests {
     use actix_web::{web, App};
 
     use liboxen::error::OxenError;
-    use liboxen::view::EntryResponse;
     use liboxen::util;
+    use liboxen::view::EntryResponse;
 
     use crate::app_data::SyncDir;
     use crate::controllers;

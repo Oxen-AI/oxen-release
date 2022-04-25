@@ -2,11 +2,11 @@
 //!
 
 use crate::api;
-use crate::config::{AuthConfig};
+use crate::command;
+use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::index::{Referencer, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
-use crate::command;
 
 use std::env;
 use std::fs::File;
@@ -21,11 +21,11 @@ const TEST_RUN_DIR: &str = "data/test/runs";
 /// # use liboxen::test::create_repo_dir;
 /// # use liboxen::error::OxenError;
 /// # fn main() -> Result<(), OxenError> {
-/// 
+///
 /// let base_dir = "/tmp/base_dir";
 /// let repo_dir = create_repo_dir(base_dir)?;
 /// assert!(repo_dir.exists());
-/// 
+///
 /// # std::fs::remove_dir_all(repo_dir)?;
 /// # Ok(())
 /// # }
@@ -36,12 +36,12 @@ pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
     Ok(PathBuf::from(&repo_name))
 }
 
-// 
+//
 /// # Run a unit test on a test repo directory
 ///
 /// This function will create a directory with a uniq name
 /// and take care of cleaning it up afterwards
-/// 
+///
 /// ```
 /// # use liboxen::test;
 /// test::run_empty_repo_dir_test(|repo_dir| {
@@ -50,24 +50,23 @@ pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 ///   Ok(())
 /// });
 /// ```
-pub fn run_empty_repo_dir_test<T>(test: T) -> ()
-    where T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe
+pub fn run_empty_repo_dir_test<T>(test: T)
+where
+    T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     match create_repo_dir(TEST_RUN_DIR) {
         Ok(repo_dir) => {
             // Run test to see if it panic'd
-            let result = std::panic::catch_unwind(|| {
-                match test(&repo_dir) {
-                    Ok(_) => {},
-                    Err(err) => {
-                        eprintln!("Error running test. Err: {}", err);
-                    }
+            let result = std::panic::catch_unwind(|| match test(&repo_dir) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("Error running test. Err: {}", err);
                 }
             });
 
             // Remove repo dir
             match std::fs::remove_dir_all(&repo_dir) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(err) => {
                     eprintln!("Could not remove test dir. Err: {}", err);
                 }
@@ -75,33 +74,32 @@ pub fn run_empty_repo_dir_test<T>(test: T) -> ()
 
             // Assert everything okay after we cleanup the repo dir
             assert!(result.is_ok());
-        },
+        }
         Err(_) => {
             panic!("Could not create repo dir for test!");
         }
     }
 }
 
-pub fn run_empty_repo_test<T>(test: T) -> ()
-    where T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe
+pub fn run_empty_repo_test<T>(test: T)
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     match create_repo_dir(TEST_RUN_DIR) {
         Ok(repo_dir) => {
             match command::init(&repo_dir) {
                 Ok(repo) => {
                     // Run test to see if it panic'd
-                    let result = std::panic::catch_unwind(|| {
-                        match test(repo) {
-                            Ok(_) => {},
-                            Err(err) => {
-                                eprintln!("Error running test. Err: {}", err);
-                            }
+                    let result = std::panic::catch_unwind(|| match test(repo) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("Error running test. Err: {}", err);
                         }
                     });
 
                     // Remove repo dir
                     match std::fs::remove_dir_all(&repo_dir) {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(err) => {
                             eprintln!("Could not remove test dir. Err: {}", err);
                         }
@@ -109,12 +107,12 @@ pub fn run_empty_repo_test<T>(test: T) -> ()
 
                     // Assert everything okay after we cleanup the repo dir
                     assert!(result.is_ok());
-                },
+                }
                 Err(_) => {
                     panic!("Could not instantiate repository object for test!");
                 }
             }
-        },
+        }
         Err(_) => {
             panic!("Could not create repo dir for test!");
         }

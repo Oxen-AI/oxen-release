@@ -1,5 +1,5 @@
-use crate::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use crate::model::Commit;
+use crate::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -1,10 +1,10 @@
 use liboxen::api::local::RepositoryAPI;
 use liboxen::error::OxenError;
-use liboxen::view::{CommitResponse, ListCommitResponse, StatusMessage};
-use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::index::Committer;
 use liboxen::model::Commit;
 use liboxen::util;
+use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::view::{CommitResponse, ListCommitResponse, StatusMessage};
 
 use crate::app_data::SyncDir;
 
@@ -126,9 +126,9 @@ mod tests {
 
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
-    use liboxen::view::{CommitResponse, ListCommitResponse};
     use liboxen::model::Commit;
     use liboxen::util;
+    use liboxen::view::{CommitResponse, ListCommitResponse};
 
     use crate::app_data::SyncDir;
     use crate::controllers;

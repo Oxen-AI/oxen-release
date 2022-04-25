@@ -1,15 +1,16 @@
-use crate::config::{HTTPConfig, AuthConfig};
+use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::view::{StatusMessage, RemoteRepositoryResponse};
 use crate::model::RemoteRepository;
+use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 use urlencoding::encode;
 
-pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<RemoteRepository, OxenError> {
+pub fn create<'a>(
+    config: &'a dyn HTTPConfig<'a>,
+    name: &str,
+) -> Result<RemoteRepository, OxenError> {
     let url = format!("http://{}/api/v1/repositories", config.host());
-    let params = json!({
-        "name": name
-    });
+    let params = json!({ "name": name });
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -20,7 +21,8 @@ pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<RemoteRe
     {
         let status = res.status();
         let body = res.text()?;
-        let response: Result<RemoteRepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RemoteRepositoryResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val.repository),
             Err(_) => Err(OxenError::basic_str(&format!(
@@ -35,7 +37,10 @@ pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<RemoteRe
     }
 }
 
-pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<RemoteRepository, OxenError> {
+pub fn get_by_url<'a>(
+    config: &'a dyn HTTPConfig<'a>,
+    url: &str,
+) -> Result<RemoteRepository, OxenError> {
     let encoded_url = encode(url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -61,9 +66,7 @@ pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<Remot
     }
 }
 
-pub fn delete(
-    repository: RemoteRepository,
-) -> Result<StatusMessage, OxenError> {
+pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
     let url = format!(
         "http://{}/api/v1/repositories/{}",

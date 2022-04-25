@@ -1,10 +1,10 @@
 use liboxen::api;
 use liboxen::command;
-use liboxen::util;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
 use liboxen::index::{Committer, Indexer, Stager};
-use liboxen::model::{LocalRepository};
+use liboxen::model::LocalRepository;
+use liboxen::util;
 
 use colored::Colorize;
 use std::env;
@@ -172,7 +172,7 @@ pub fn status() -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let repo_status = command::status(&repository)?;
 
-    if repo_status.is_clean(){
+    if repo_status.is_clean() {
         println!("nothing to commit, working tree clean");
         return Ok(());
     }

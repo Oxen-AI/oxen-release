@@ -1,7 +1,7 @@
 use crate::app_data::SyncDir;
 use liboxen::command;
 use liboxen::error::OxenError;
-use liboxen::model::{LocalRepository};
+use liboxen::model::LocalRepository;
 use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};

@@ -1,9 +1,9 @@
 use crate::api;
-use crate::config::{AuthConfig};
+use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
-use crate::view::RepositoryView;
 use crate::util;
+use crate::view::RepositoryView;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ impl LocalRepository {
             name: String::from(name),
             path: path.to_path_buf(),
             remotes: vec![],
-            remote_name: None
+            remote_name: None,
         })
     }
 
@@ -45,7 +45,7 @@ impl LocalRepository {
             name: view.name.clone(),
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![],
-            remote_name: None
+            remote_name: None,
         })
     }
 
@@ -56,7 +56,7 @@ impl LocalRepository {
             name: view.name.clone(),
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![],
-            remote_name: None
+            remote_name: None,
         })
     }
 
@@ -86,9 +86,7 @@ impl LocalRepository {
 
     pub fn clone_remote(config: AuthConfig, url: &str) -> Result<LocalRepository, OxenError> {
         match api::remote::repositories::get_by_url(&config, url) {
-            Ok(remote_repo) => {
-                LocalRepository::clone_repo(remote_repo)
-            },
+            Ok(remote_repo) => LocalRepository::clone_repo(remote_repo),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -121,7 +119,7 @@ impl LocalRepository {
                 return true;
             }
         }
-        return false;
+        false
     }
 
     pub fn remote(&self) -> Option<Remote> {
@@ -131,16 +129,16 @@ impl LocalRepository {
                     return Some(remote.clone());
                 }
             }
-            return None;
+            None
         } else {
-            return None;
+            None
         }
-    } 
+    }
 
     fn clone_repo(repo: RemoteRepository) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
         let url = &repo.url;
-        let dir_name = LocalRepository::dirname_from_url(&url)?;
+        let dir_name = LocalRepository::dirname_from_url(url)?;
 
         // if directory already exists -> return Err
         let repo_path = Path::new(&dir_name);
@@ -171,9 +169,9 @@ impl LocalRepository {
             name: repo.name.clone(),
             path: repo_path.to_path_buf(),
             remotes: vec![],
-            remote_name: None
+            remote_name: None,
         };
-        local_repo.set_remote("origin", &url);
+        local_repo.set_remote("origin", url);
         Ok(local_repo)
     }
 
@@ -213,7 +211,7 @@ mod tests {
         let url = &remote_repo.url;
 
         let auth_config = AuthConfig::new(test::auth_cfg_file());
-        let local_repo = LocalRepository::clone_remote(auth_config, &url)?;
+        let local_repo = LocalRepository::clone_remote(auth_config, url)?;
 
         let cfg_path = format!("{}/.oxen/config.toml", name);
         let path = Path::new(&cfg_path);

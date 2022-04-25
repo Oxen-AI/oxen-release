@@ -1,7 +1,7 @@
-use crate::config::{HTTPConfig, AuthConfig};
+use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::view::{EntryResponse, PaginatedEntries};
 use crate::model::{Entry, RemoteRepository};
+use crate::view::{EntryResponse, PaginatedEntries};
 
 use std::fs::File;
 use std::path::Path;
@@ -63,7 +63,10 @@ pub fn create(repository: &RemoteRepository, path: &Path, hash: &str) -> Result<
     }
 }
 
-pub fn list_page(repository: &RemoteRepository, page_num: usize) -> Result<PaginatedEntries, OxenError> {
+pub fn list_page(
+    repository: &RemoteRepository,
+    page_num: usize,
+) -> Result<PaginatedEntries, OxenError> {
     let auth = AuthConfig::default()?;
     let url = format!(
         "http://{}/api/v1/repositories/{}/entries?page={}",

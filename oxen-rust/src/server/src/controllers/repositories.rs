@@ -90,8 +90,8 @@ mod tests {
 
     use liboxen::error::OxenError;
 
-    use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
     use liboxen::view::http::STATUS_SUCCESS;
+    use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
 
     use crate::controllers;
     use crate::test;
