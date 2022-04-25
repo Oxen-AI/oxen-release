@@ -92,8 +92,8 @@ pub fn status(repository: &LocalRepository) -> Result<RepoStatus, OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let committer = Committer::new(&repository)?;
-    let stager = Stager::new(&repository)?;
+    let committer = Committer::new(repository)?;
+    let stager = Stager::new(repository)?;
 
     let added_dirs = stager.list_added_directories()?;
     let added_files = stager.list_added_files()?;
@@ -114,8 +114,8 @@ pub fn add(_repo: &LocalRepository, _path: &Path) -> Result<(), OxenError> {
 }
 
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<String, OxenError> {
-    let stager = Stager::new(&repo)?;
-    let mut committer = Committer::new(&repo)?;
+    let stager = Stager::new(repo)?;
+    let mut committer = Committer::new(repo)?;
     let added_files = stager.list_added_files()?;
     let added_dirs = stager.list_added_directories()?;
 
@@ -126,9 +126,9 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<String, OxenError
 mod tests {
 
     use crate::command;
+    use crate::error::OxenError;
     use crate::test;
     use crate::util;
-    use crate::error::OxenError;
 
     #[test]
     fn test_command_init() -> Result<(), OxenError> {
