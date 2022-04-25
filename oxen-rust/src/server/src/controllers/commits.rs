@@ -1,7 +1,7 @@
 use liboxen::api::local::RepositoryAPI;
 use liboxen::error::OxenError;
 use liboxen::index::Committer;
-use liboxen::model::Commit;
+use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::view::{CommitResponse, ListCommitResponse, StatusMessage};
@@ -46,7 +46,8 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
-    let committer = Committer::new(repo_dir)?;
+    let repo = LocalRepository::from_dir(repo_dir)?;
+    let committer = Committer::new(&repo)?;
     let commits = committer.list_commits()?;
     Ok(ListCommitResponse::success(commits))
 }
@@ -74,7 +75,10 @@ pub async fn upload(
                 author: data.author.clone(),
                 date: Commit::date_from_str(&data.date),
             };
-            create_commit(&repo_dir, &commit);
+
+            // TODO: error handle and use command api for this
+            let result = create_commit(&repo_dir, &commit);
+            println!("Commit result {:?}", result);
 
             // Get tar.gz bytes for history/COMMIT_ID data
             let mut bytes = web::BytesMut::new();
@@ -99,8 +103,9 @@ pub async fn upload(
     }
 }
 
-fn create_commit(repo_dir: &Path, commit: &Commit) {
-    let result = Committer::new(repo_dir);
+fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
+    let repo = LocalRepository::from_dir(repo_dir)?;
+    let result = Committer::new(&repo);
     match result {
         Ok(mut committer) => match committer.add_commit_to_db(commit) {
             Ok(_) => {}
@@ -112,6 +117,7 @@ fn create_commit(repo_dir: &Path, commit: &Commit) {
             eprintln!("Error creating committer: {:?}", err);
         }
     };
+    Ok(())
 }
 
 #[cfg(test)]

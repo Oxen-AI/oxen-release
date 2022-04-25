@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
-use liboxen::index::{Committer, Indexer, Stager};
+use liboxen::index::{Committer, Indexer};
 use liboxen::model::LocalRepository;
 use liboxen::util;
 
@@ -68,8 +68,8 @@ pub fn add(path: &str) -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let stager = Stager::new(&repo_dir)?;
-    stager.add(Path::new(path))?;
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::add(&repository, Path::new(path))?;
 
     Ok(())
 }
@@ -83,7 +83,7 @@ pub fn push() -> Result<(), OxenError> {
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let indexer = Indexer::new(&repository)?;
-    let committer = Arc::new(Committer::new(&repo_dir)?);
+    let committer = Arc::new(Committer::new(&repository)?);
 
     indexer.push(&committer)
 }
@@ -125,19 +125,10 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with msg [{}]", message);
-            // TODO Create a higher level coordinater so that
-            // Stager and committer don't have a circular dependency
-            let committer = Committer::new(&repo_dir)?;
-            let mut stager = Stager::from(committer)?;
-
-            match stager.commit(message) {
-                Ok(commit_id) => {
-                    println!("Successfully committed id {}", commit_id);
-                    stager.unstage()?;
-                    Ok(())
-                }
-                Err(err) => Err(err),
-            }
+            let repo = LocalRepository::from_dir(&repo_dir)?;
+            let result = command::commit(&repo, message)?;
+            println!("Successfully committed [{}]", result);
+            Ok(())
         }
         _ => {
             eprintln!("{}", err_str);
@@ -153,7 +144,8 @@ pub fn log_commits() -> Result<(), OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let committer = Arc::new(Committer::new(&repo_dir)?);
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+    let committer = Arc::new(Committer::new(&repo)?);
 
     for commit in committer.list_commits()? {
         let commit_id_str = format!("commit {}", commit.id).yellow();

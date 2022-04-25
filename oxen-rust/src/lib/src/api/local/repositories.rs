@@ -14,6 +14,7 @@ use crate::view::{
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
+// TODO: do we need this sync dir here? Or can we pass in somehow else? Would be nice if local and remote APIs were the same
 pub struct RepositoryAPI {
     sync_dir: PathBuf,
 }
@@ -43,7 +44,7 @@ impl RepositoryAPI {
         }
 
         let repo = LocalRepository::from_dir(&repo_dir)?;
-        let commit_head: Option<CommitHead> = self.get_commit_head(&repo_dir)?;
+        let commit_head: Option<CommitHead> = self.get_commit_head(&repo)?;
 
         Ok(RemoteRepositoryHeadResponse {
             status: String::from(STATUS_SUCCESS),
@@ -53,15 +54,15 @@ impl RepositoryAPI {
         })
     }
 
-    pub fn get_commit_head(&self, repo_path: &Path) -> Result<Option<CommitHead>, OxenError> {
-        match Committer::new(repo_path) {
+    pub fn get_commit_head(&self, repo: &LocalRepository) -> Result<Option<CommitHead>, OxenError> {
+        match Committer::new(repo) {
             Ok(committer) => match committer.referencer.head_commit_id() {
                 Ok(commit_id) => Ok(Some(CommitHead {
                     commit_id,
                     name: committer.referencer.read_head()?,
                     sync_info: CommmitSyncInfo {
                         num_entries: committer.get_num_entries_in_head()?,
-                        num_synced_files: committer.count_files_from_dir(repo_path),
+                        num_synced_files: committer.count_files_from_dir(&repo.path),
                     },
                 })),
                 Err(_) => Ok(None),
@@ -241,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test_6_create_get_repository_by_path() {
+    fn test_6_create_get_repository_by_path() -> Result<(), OxenError> {
         // TODO: create test function to create/cleanup sync dir
 
         test::run_empty_repo_test(|_repo| {
@@ -250,6 +251,6 @@ mod tests {
             // let response = api.get_by_path(Path::new(name))?;
             // assert_eq!(response.repository.name, name);
             Ok(())
-        });
+        })
     }
 }

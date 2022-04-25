@@ -69,6 +69,10 @@ pub fn read_lines(path: &Path) -> Vec<String> {
     lines
 }
 
+pub fn list_eligible_files_from_dir() {
+
+}
+
 pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
     match fs::read_dir(dir) {
@@ -180,6 +184,40 @@ pub fn recursive_files_with_extensions(dir: &Path, exts: &HashSet<String>) -> Ve
         }
     }
     files
+}
+
+pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = vec![];
+    if !dir.is_dir() {
+        return files;
+    }
+
+    for entry in WalkDir::new(dir) {
+        match entry {
+            Ok(val) => {
+                let path = val.path();
+                // if it's not the hidden oxen dir and is not a directory
+                if !is_in_oxen_hidden_dir(&path) && !path.is_dir() {
+                    files.push(path);
+                }
+            }
+            Err(err) => eprintln!(
+                "recursive_files_with_extensions Could not iterate over dir... {}",
+                err
+            ),
+        }
+    }
+    files
+}
+
+
+fn is_in_oxen_hidden_dir(path: &Path) -> bool {
+    if let Some(path_str) = path.to_str() {
+        if path_str.starts_with(constants::OXEN_HIDDEN_DIR) {
+            return true;
+        }
+    }
+    return false;
 }
 
 pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenError> {
