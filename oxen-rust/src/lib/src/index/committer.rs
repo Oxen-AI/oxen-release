@@ -1,7 +1,7 @@
 use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::index::Referencer;
-use crate::model::CommitMsg;
+use crate::model::Commit;
 use crate::util;
 
 use chrono::Utc;
@@ -200,7 +200,7 @@ impl Committer {
             }
         }
 
-        // Create an entry in the commits_db that is the id -> CommitMsg
+        // Create an entry in the commits_db that is the id -> Commit
         //  - parent_commit_id (can be empty if root)
         //  - message
         //  - date
@@ -209,7 +209,7 @@ impl Committer {
         let commit = match self.referencer.get_commit_id(&ref_name) {
             Ok(parent_id) => {
                 // We have a parent
-                CommitMsg {
+                Commit {
                     id: id_str.clone(),
                     parent_id: Some(parent_id),
                     message: String::from(message),
@@ -219,7 +219,7 @@ impl Committer {
             }
             Err(_) => {
                 // We are creating initial commit, no parent
-                CommitMsg {
+                Commit {
                     id: id_str.clone(),
                     parent_id: None,
                     message: String::from(message),
@@ -306,7 +306,7 @@ impl Committer {
         }
     }
 
-    pub fn add_commit_to_db(&mut self, commit: &CommitMsg) -> Result<(), OxenError> {
+    pub fn add_commit_to_db(&mut self, commit: &Commit) -> Result<(), OxenError> {
         // Set head db
         let ref_name = self.referencer.read_head()?;
         self.referencer.set_head(&ref_name, &commit.id)?;
@@ -317,8 +317,8 @@ impl Committer {
         Ok(())
     }
 
-    pub fn list_commits(&self) -> Result<Vec<CommitMsg>, OxenError> {
-        let mut commit_msgs: Vec<CommitMsg> = vec![];
+    pub fn list_commits(&self) -> Result<Vec<Commit>, OxenError> {
+        let mut commit_msgs: Vec<Commit> = vec![];
         // Start with head, and the get parents until there are no parents
         match self.referencer.head_commit_id() {
             Ok(commit_id) => {
@@ -332,7 +332,7 @@ impl Committer {
     fn p_list_commits(
         &self,
         commit_id: &str,
-        messages: &mut Vec<CommitMsg>,
+        messages: &mut Vec<Commit>,
     ) -> Result<(), OxenError> {
         // println!("p_list_commits commit_id {}", commit_id);
 
@@ -403,19 +403,19 @@ impl Committer {
         }
     }
 
-    pub fn get_head_commit(&self) -> Result<Option<CommitMsg>, OxenError> {
+    pub fn get_head_commit(&self) -> Result<Option<Commit>, OxenError> {
         match self.referencer.head_commit_id() {
             Ok(commit_id) => Ok(self.get_commit_by_id(&commit_id)?),
             Err(_) => Ok(None),
         }
     }
 
-    pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<CommitMsg>, OxenError> {
+    pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<Commit>, OxenError> {
         // Check if the id is in the DB
         let key = commit_id.as_bytes();
         match self.commits_db.get(key) {
             Ok(Some(value)) => {
-                let commit: CommitMsg = serde_json::from_str(str::from_utf8(&*value)?)?;
+                let commit: Commit = serde_json::from_str(str::from_utf8(&*value)?)?;
                 Ok(Some(commit))
             }
             Ok(None) => Ok(None),

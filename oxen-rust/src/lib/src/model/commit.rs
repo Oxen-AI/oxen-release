@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use urlencoding::encode;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CommitMsg {
+pub struct Commit {
     pub id: String,
     pub parent_id: Option<String>,
     pub message: String,
@@ -12,7 +12,7 @@ pub struct CommitMsg {
     pub date: DateTime<Utc>,
 }
 
-impl CommitMsg {
+impl Commit {
     pub fn to_uri_encoded(&self) -> String {
         let message = encode(&self.message);
         let author = encode(&self.author);

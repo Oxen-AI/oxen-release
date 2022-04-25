@@ -1,16 +1,14 @@
-use crate::config::HTTPConfig;
+use crate::config::{HTTPConfig, AuthConfig};
 use crate::error::OxenError;
-use crate::http::response::RepositoryResponse;
-use crate::http::StatusMessage;
-use crate::model::repository::Repository;
+use crate::view::{StatusMessage, RemoteRepositoryResponse};
+use crate::model::RemoteRepository;
 use serde_json::json;
 use urlencoding::encode;
 
-pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<Repository, OxenError> {
+pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<RemoteRepository, OxenError> {
     let url = format!("http://{}/api/v1/repositories", config.host());
     let params = json!({
-        "name": name,
-        "is_public": true
+        "name": name
     });
 
     let client = reqwest::blocking::Client::new();
@@ -22,7 +20,7 @@ pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<Reposito
     {
         let status = res.status();
         let body = res.text()?;
-        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RemoteRepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val.repository),
             Err(_) => Err(OxenError::basic_str(&format!(
@@ -37,7 +35,7 @@ pub fn create<'a>(config: &'a dyn HTTPConfig<'a>, name: &str) -> Result<Reposito
     }
 }
 
-pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<Repository, OxenError> {
+pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<RemoteRepository, OxenError> {
     let encoded_url = encode(url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -49,7 +47,7 @@ pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<Repos
         .header(reqwest::header::AUTHORIZATION, config.auth_token())
         .send()
     {
-        match res.json::<RepositoryResponse>() {
+        match res.json::<RemoteRepositoryResponse>() {
             Ok(j_res) => Ok(j_res.repository),
             Err(err) => Err(OxenError::basic_str(&format!(
                 "api::repositories::get_by_url() Could not serialize repository [{}]",
@@ -63,10 +61,10 @@ pub fn get_by_url<'a>(config: &'a dyn HTTPConfig<'a>, url: &str) -> Result<Repos
     }
 }
 
-pub fn delete<'a>(
-    config: &'a dyn HTTPConfig<'a>,
-    repository: &Repository,
+pub fn delete(
+    repository: RemoteRepository,
 ) -> Result<StatusMessage, OxenError> {
+    let config = AuthConfig::default()?;
     let url = format!(
         "http://{}/api/v1/repositories/{}",
         config.host(),
@@ -110,11 +108,11 @@ mod tests {
         let config = AuthConfig::new(path);
         let name: &str = "test_create_repository";
 
-        let repository = api::repositories::create(&config, name)?;
+        let repository = api::remote::repositories::create(&config, name)?;
         assert_eq!(repository.name, name);
 
         // cleanup
-        api::repositories::delete(&config, &repository)?;
+        api::remote::repositories::delete(repository)?;
         Ok(())
     }
 
@@ -124,13 +122,13 @@ mod tests {
         let config = AuthConfig::new(path);
         let name: &str = "test_get_by_url";
 
-        let repository = api::repositories::create(&config, name)?;
-        let url_repo = api::repositories::get_by_url(&config, repository.url.as_ref().unwrap())?;
+        let repository = api::remote::repositories::create(&config, name)?;
+        let url_repo = api::remote::repositories::get_by_url(&config, &repository.url)?;
 
         assert_eq!(repository.id, url_repo.id);
 
         // cleanup
-        api::repositories::delete(&config, &repository)?;
+        api::remote::repositories::delete(repository)?;
         Ok(())
     }
 }

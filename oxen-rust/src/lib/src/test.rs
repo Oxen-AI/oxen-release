@@ -2,9 +2,12 @@
 //!
 
 use crate::api;
-use crate::config::{AuthConfig, RepoConfig};
+use crate::config::{AuthConfig};
 use crate::error::OxenError;
-use crate::index::{Indexer, Referencer, Stager};
+use crate::index::{Referencer, Stager};
+use crate::model::{LocalRepository, RemoteRepository};
+use crate::command;
+
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
@@ -41,13 +44,13 @@ pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 /// 
 /// ```
 /// # use liboxen::test;
-/// test::run_repo_test(|repo_dir| {
+/// test::run_empty_repo_dir_test(|repo_dir| {
 ///   // do your fancy testing here
 ///   assert!(true);
 ///   Ok(())
 /// });
 /// ```
-pub fn run_repo_test<T>(test: T) -> ()
+pub fn run_empty_repo_dir_test<T>(test: T) -> ()
     where T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe
 {
     match create_repo_dir(TEST_RUN_DIR) {
@@ -79,13 +82,49 @@ pub fn run_repo_test<T>(test: T) -> ()
     }
 }
 
+pub fn run_empty_repo_test<T>(test: T) -> ()
+    where T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe
+{
+    match create_repo_dir(TEST_RUN_DIR) {
+        Ok(repo_dir) => {
+            match command::init(&repo_dir) {
+                Ok(repo) => {
+                    // Run test to see if it panic'd
+                    let result = std::panic::catch_unwind(|| {
+                        match test(repo) {
+                            Ok(_) => {},
+                            Err(err) => {
+                                eprintln!("Error running test. Err: {}", err);
+                            }
+                        }
+                    });
+
+                    // Remove repo dir
+                    match std::fs::remove_dir_all(&repo_dir) {
+                        Ok(_) => {},
+                        Err(err) => {
+                            eprintln!("Could not remove test dir. Err: {}", err);
+                        }
+                    }
+
+                    // Assert everything okay after we cleanup the repo dir
+                    assert!(result.is_ok());
+                },
+                Err(_) => {
+                    panic!("Could not instantiate repository object for test!");
+                }
+            }
+        },
+        Err(_) => {
+            panic!("Could not create repo dir for test!");
+        }
+    }
+}
+
 pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
     let repo_dir = create_repo_dir(base_dir)?;
-
-    let indexer = Indexer::new(&repo_dir)?;
-    indexer.init()?;
-
-    Ok((Stager::new(&indexer.repo_dir)?, repo_dir))
+    command::init(&repo_dir)?;
+    Ok((Stager::new(&repo_dir)?, repo_dir))
 }
 
 pub fn remote_cfg_file() -> &'static Path {
@@ -109,19 +148,16 @@ pub fn setup_env() {
     env::set_var("PORT", "2000");
 }
 
-pub fn create_repo_cfg(name: &str) -> Result<RepoConfig, OxenError> {
+pub fn create_remote_repo(name: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::new(auth_cfg_file());
-    let repository = api::repositories::create(&config, name)?;
-    Ok(RepoConfig::from(config, repository))
+    let repository = api::remote::repositories::create(&config, name)?;
+    Ok(repository)
 }
 
 pub fn create_referencer(base_dir: &str) -> Result<(Referencer, PathBuf), OxenError> {
     let repo_dir = create_repo_dir(base_dir)?;
-
-    let indexer = Indexer::new(&repo_dir)?;
-    indexer.init()?;
-
-    Ok((Referencer::new(&indexer.repo_dir)?, repo_dir))
+    command::init(&repo_dir)?;
+    Ok((Referencer::new(&repo_dir)?, repo_dir))
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {

@@ -1,24 +1,24 @@
-use crate::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use crate::model::CommitMsg;
+use crate::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use crate::model::Commit;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct CommitMsgResponse {
+pub struct CommitResponse {
     pub status: String,
     pub status_message: String,
-    pub commit: CommitMsg,
+    pub commit: Commit,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ListCommitMsgResponse {
+pub struct ListCommitResponse {
     pub status: String,
     pub status_message: String,
-    pub commits: Vec<CommitMsg>,
+    pub commits: Vec<Commit>,
 }
 
-impl ListCommitMsgResponse {
-    pub fn success(commits: Vec<CommitMsg>) -> ListCommitMsgResponse {
-        ListCommitMsgResponse {
+impl ListCommitResponse {
+    pub fn success(commits: Vec<Commit>) -> ListCommitResponse {
+        ListCommitResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
             commits,
@@ -27,8 +27,8 @@ impl ListCommitMsgResponse {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct PaginatedCommitMsgs {
-    pub entries: Vec<CommitMsg>,
+pub struct PaginatedCommits {
+    pub entries: Vec<Commit>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,

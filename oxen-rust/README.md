@@ -50,9 +50,9 @@ oxen, oxen-server, liboxen
   commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
     key,value of:
 
-    COMMIT_HASH -> CommitMsg
+    COMMIT_HASH -> Commit
 
-    A CommitMsg is an object that contains, can use parent for ordering the commit logs
+    A Commit is an object that contains, can use parent for ordering the commit logs
       - Message
       - Parent Commit ID
       - Author

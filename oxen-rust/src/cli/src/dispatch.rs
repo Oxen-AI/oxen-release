@@ -1,9 +1,10 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::util;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
 use liboxen::index::{Committer, Indexer, Stager};
-use liboxen::model::Repository;
+use liboxen::model::{LocalRepository};
 
 use colored::Colorize;
 use std::env;
@@ -37,29 +38,32 @@ pub fn login() -> Result<(), OxenError> {
 pub fn init(path: &str) -> Result<(), OxenError> {
     let directory = std::fs::canonicalize(PathBuf::from(&path))?;
     command::init(&directory)?;
+    println!("🐂 repository initialized at: {:?}", directory);
     Ok(())
 }
 
 pub fn clone(url: &str) -> Result<(), OxenError> {
     let auth_cfg = AuthConfig::default()?;
-    Repository::clone_remote(auth_cfg, url)?;
+    LocalRepository::clone_remote(auth_cfg, url)?;
     Ok(())
 }
 
 pub fn set_remote(url: &str) -> Result<(), OxenError> {
     let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
+    if !util::fs::repo_exists(&current_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
-    let mut indexer = Indexer::new(&current_dir)?;
-    indexer.set_remote(url)
+    let mut repo = LocalRepository::from_dir(&current_dir)?;
+    repo.set_remote("origin", url);
+    repo.save_default()?;
+    Ok(())
 }
 
 pub fn add(path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&repo_dir) {
+    if !util::fs::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
@@ -72,25 +76,27 @@ pub fn add(path: &str) -> Result<(), OxenError> {
 
 pub fn push() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&repo_dir) {
+    if !util::fs::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&repo_dir)?;
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let indexer = Indexer::new(&repository)?;
     let committer = Arc::new(Committer::new(&repo_dir)?);
 
     indexer.push(&committer)
 }
 
 pub fn pull() -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&current_dir) {
+    let repo_dir = env::current_dir().unwrap();
+    if !util::fs::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
 
-    let indexer = Indexer::new(&current_dir)?;
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let indexer = Indexer::new(&repository)?;
     indexer.pull()
 }
 
@@ -101,7 +107,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     }
 
     let repo_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&repo_dir) {
+    if !util::fs::repo_exists(&repo_dir) {
         println!("{}", NO_REPO_MSG);
         return Err(OxenError::basic_str(NO_REPO_MSG));
     }
@@ -142,7 +148,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 
 pub fn log_commits() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !Indexer::repo_exists(&repo_dir) {
+    if !util::fs::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
         return Err(OxenError::basic_str(&err));
     }
@@ -163,7 +169,8 @@ pub fn log_commits() -> Result<(), OxenError> {
 pub fn status() -> Result<(), OxenError> {
     // Should we let user call this from any directory and look up for parent?
     let repo_dir = env::current_dir().unwrap();
-    let repo_status = command::status(&repo_dir)?;
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let repo_status = command::status(&repository)?;
 
     if repo_status.is_clean(){
         println!("nothing to commit, working tree clean");
