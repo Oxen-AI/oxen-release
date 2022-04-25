@@ -5,9 +5,8 @@ use reqwest::blocking::Client;
 use serde_json::json;
 
 pub mod endpoint;
-pub mod entries;
 pub mod local;
-pub mod repositories;
+pub mod remote;
 
 pub fn login(config: &RemoteConfig, email: &str, password: &str) -> Result<User, OxenError> {
     let url = format!("{}/login", config.endpoint());

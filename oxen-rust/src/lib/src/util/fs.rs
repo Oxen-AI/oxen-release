@@ -18,6 +18,10 @@ pub fn config_filepath(repo_path: &Path) -> PathBuf {
     oxen_hidden_dir(repo_path).join(constants::REPO_CONFIG_FILENAME)
 }
 
+pub fn repo_exists(repo_path: &Path) -> bool {
+    oxen_hidden_dir(repo_path).exists()
+}
+
 pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
     match fs::read_to_string(path) {
         Ok(contents) => Ok(contents),

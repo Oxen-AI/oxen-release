@@ -1,7 +1,7 @@
 use crate::app_data::SyncDir;
-use liboxen::api::local::repositories::RepositoryAPI;
+use liboxen::command;
 use liboxen::error::OxenError;
-use liboxen::model::{Repository, RepositoryNew};
+use liboxen::model::{LocalRepository};
 use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -11,13 +11,10 @@ pub fn get_sync_dir() -> PathBuf {
     sync_dir
 }
 
-pub fn create_repo(sync_dir: &Path, name: &str) -> Result<Repository, OxenError> {
-    let api = RepositoryAPI::new(sync_dir);
-    let repo = RepositoryNew {
-        name: String::from(name),
-    };
-    let resp = api.create(&repo)?;
-    Ok(resp.repository)
+pub fn create_local_repo(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
+    let repo_dir = sync_dir.join(name);
+    let repo = command::init(&repo_dir)?;
+    Ok(repo)
 }
 
 // Don't fully understand this insane syntax to get these two libraries (serde and actix) to work with eachother

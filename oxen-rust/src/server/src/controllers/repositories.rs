@@ -1,8 +1,7 @@
 use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::api::local::RepositoryAPI;
-use liboxen::http;
-use liboxen::model::RepositoryNew;
+use liboxen::view::{RepositoryNew, StatusMessage};
 
 use crate::app_data::SyncDir;
 
@@ -17,7 +16,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         Ok(repositories) => HttpResponse::Ok().json(repositories),
         Err(err) => {
             let msg = format!("Unable to list repositories. Err: {}", err);
-            HttpResponse::Ok().json(http::StatusMessage::error(&msg))
+            HttpResponse::Ok().json(StatusMessage::error(&msg))
         }
     }
 }
@@ -33,12 +32,12 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("Err: {}", err);
-                HttpResponse::Ok().json(http::StatusMessage::error(&msg))
+                HttpResponse::Ok().json(StatusMessage::error(&msg))
             }
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::Ok().json(http::StatusMessage::error(msg))
+        HttpResponse::Ok().json(StatusMessage::error(msg))
     }
 }
 
@@ -54,11 +53,11 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
                 Ok(repository) => HttpResponse::Ok().json(repository),
                 Err(err) => {
                     let msg = format!("Error: {:?}", err);
-                    HttpResponse::Ok().json(http::StatusMessage::error(&msg))
+                    HttpResponse::Ok().json(StatusMessage::error(&msg))
                 }
             }
         }
-        Err(_) => HttpResponse::Ok().json(http::StatusMessage::error("Invalid body.")),
+        Err(_) => HttpResponse::Ok().json(StatusMessage::error("Invalid body.")),
     }
 }
 
@@ -91,8 +90,8 @@ mod tests {
 
     use liboxen::error::OxenError;
 
-    use liboxen::http::response::{ListRepositoriesResponse, RepositoryResponse};
-    use liboxen::http::STATUS_SUCCESS;
+    use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
+    use liboxen::view::http::STATUS_SUCCESS;
 
     use crate::controllers;
     use crate::test;
@@ -107,7 +106,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListRepositoriesResponse = serde_json::from_str(text)?;
+        let list: ListRepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 0);
 
         // cleanup
@@ -120,15 +119,15 @@ mod tests {
     async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir();
 
-        test::create_repo(&sync_dir, "Testing-1")?;
-        test::create_repo(&sync_dir, "Testing-2")?;
+        test::create_local_repo(&sync_dir, "Testing-1")?;
+        test::create_local_repo(&sync_dir, "Testing-2")?;
 
         let req = test::request(&sync_dir, "/repositories");
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListRepositoriesResponse = serde_json::from_str(text)?;
+        let list: ListRepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 2);
 
         // cleanup
@@ -142,7 +141,7 @@ mod tests {
         let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        test::create_repo(&sync_dir, name)?;
+        test::create_local_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}", name);
         let req = test::request_with_param(&sync_dir, &uri, "name", name);

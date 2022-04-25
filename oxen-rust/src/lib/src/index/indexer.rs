@@ -5,113 +5,30 @@ use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde_json::json;
 use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::api;
-use crate::config::{AuthConfig, RepoConfig};
 use crate::error::OxenError;
-use crate::http::response::{CommitMsgResponse, RepositoryHeadResponse, RepositoryResponse};
-use crate::index::committer::HISTORY_DIR;
+use crate::view::{CommitResponse, RemoteRepositoryHeadResponse, RepositoryResponse};
 use crate::index::Committer;
-use crate::model::{CommitHead, CommitMsg, Repository};
+use crate::model::{CommitHead, Commit, LocalRepository, RemoteRepository};
 use crate::util;
 
 pub struct Indexer {
-    pub repo_dir: PathBuf,
-    pub hidden_dir: PathBuf,
-    config_file: PathBuf,
-    auth_config: AuthConfig,
-    repo_config: Option<RepoConfig>,
+    pub repository: LocalRepository,
 }
 
 impl Indexer {
-    pub fn new(repo_dir: &Path) -> Result<Indexer, OxenError> {
-        let hidden_dir = util::fs::oxen_hidden_dir(repo_dir);
-        let config_file = util::fs::config_filepath(repo_dir);
-        let auth_config = AuthConfig::default().unwrap();
-
-        // Load repo config if exists
-        let repo_config: Option<RepoConfig> = match config_file.exists() {
-            true => Some(RepoConfig::new(&config_file)?),
-            false => None,
-        };
-
+    pub fn new(repository: &LocalRepository) -> Result<Indexer, OxenError> {
         Ok(Indexer {
-            repo_dir: repo_dir.to_path_buf(),
-            hidden_dir,
-            config_file,
-            auth_config,
-            repo_config,
+            repository: repository.clone()
         })
-    }
-
-    pub fn repo_exists(path: &Path) -> bool {
-        let hidden_dir = util::fs::oxen_hidden_dir(path);
-        hidden_dir.exists()
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        Indexer::repo_exists(&self.repo_dir)
-    }
-
-    pub fn init(&self) -> Result<(), OxenError> {
-        if self.is_initialized() {
-            println!("Repository already exists for: {:?}", self.repo_dir);
-            return Ok(());
-        }
-
-        // Get name from current directory name
-        if let Some(name) = self.repo_dir.file_name() {
-            self.init_with_name(name.to_str().unwrap())
-        } else {
-            let err = format!(
-                "Could not find parent directories name: {:?}",
-                self.repo_dir
-            );
-            Err(OxenError::basic_str(&err))
-        }
-    }
-
-    pub fn init_with_name(&self, name: &str) -> Result<(), OxenError> {
-        if self.is_initialized() {
-            println!("Repository already exists for: {:?}", self.repo_dir);
-            return Ok(());
-        }
-
-        println!("Initializing 🐂 repository with name: {}", name);
-
-        // Make hidden .oxen dir
-        std::fs::create_dir(&self.hidden_dir)?;
-
-        let auth_cfg = AuthConfig::default()?;
-        let repository = Repository {
-            id: format!("{}", uuid::Uuid::new_v4()),
-            name: String::from(name),
-            url: None,
-        };
-        let repo_config = RepoConfig::from(auth_cfg, repository);
-        let config_filepath = util::fs::config_filepath(&self.repo_dir);
-        repo_config.save(&config_filepath)?;
-        println!("Repository initialized at {:?}", self.hidden_dir);
-        Ok(())
-    }
-
-    pub fn set_remote(&mut self, url: &str) -> Result<(), OxenError> {
-        let repository = api::repositories::get_by_url(&self.auth_config, url)?;
-        self.repo_config = Some(RepoConfig::from(self.auth_config.clone(), repository));
-        self.repo_config
-            .as_ref()
-            .unwrap()
-            .save(Path::new(&self.config_file))?;
-        println!("Remote set: {}", url);
-        Ok(())
     }
 
     fn push_entries(
         &self,
         committer: &Arc<Committer>,
-        commit: &CommitMsg,
+        commit: &Commit,
     ) -> Result<(), OxenError> {
         let paths = committer.list_unsynced_files_for_commit(&commit.id)?;
 
@@ -122,12 +39,13 @@ impl Indexer {
         let bar = ProgressBar::new(size);
 
         let commit_db = &committer.head_commit_db;
-
-        // Create threadpool with N workers
-        // https://docs.rs/threadpool/latest/threadpool/
-
         paths.par_iter().for_each(|path| {
-            self.hash_and_push(committer, commit_db, path);
+            match self.hash_and_push(committer, commit_db, path) {
+                Ok(_) => {},
+                Err(err) => {
+                    eprintln!("Error pushing entry {:?} Err {}", path, err)
+                }
+            }
             bar.inc(1);
         });
 
@@ -141,7 +59,7 @@ impl Indexer {
         committer: &Arc<Committer>,
         db: &Option<DBWithThreadMode<MultiThreaded>>,
         path: &Path,
-    ) {
+    ) -> Result<(), OxenError> {
         // hash the file
         // find the entry in the history commit db
         // compare it to the last hash
@@ -150,18 +68,19 @@ impl Indexer {
         // if it is the same, don't re-upload
         // Update the hash for this specific commit for this path
         if let Ok(hash) = util::hasher::hash_file_contents(path) {
-            match util::fs::path_relative_to_dir(path, &self.repo_dir) {
+            match util::fs::path_relative_to_dir(path, &self.repository.path) {
                 Ok(path) => {
                     // Compare last hash to new one
                     let old_hash = committer.get_path_hash(db, &path).unwrap();
                     if old_hash == hash {
                         // we don't need to upload if hash is the same
                         // println!("Hash is the same! don't upload again {:?}", path);
-                        return;
+                        return Ok(());
                     }
 
                     // Upload entry to server
-                    match api::entries::create(self.repo_config.as_ref().unwrap(), &path, &hash) {
+                    let remote_repo = RemoteRepository::from_local(&self.repository)?;
+                    match api::remote::entries::create(&remote_repo, &path, &hash) {
                         Ok(_entry) => {
                             // The last thing we do is update the hash in the local db
                             // after it has been posted to the server, so that even if the process
@@ -170,21 +89,28 @@ impl Indexer {
                             match committer.update_path_hash(db, &path, &hash) {
                                 Ok(_) => {
                                     // println!("Updated hash! {:?} => {}", path, hash);
+                                    Ok(())
                                 }
                                 Err(err) => {
-                                    eprintln!("Error updating hash {:?} {}", path, err)
+                                    let err = format!("Error updating hash path: {:?} Err: {}", path, err);
+                                    Err(OxenError::basic_str(&err))
                                 }
                             }
                         }
                         Err(err) => {
-                            eprintln!("Error uploading {:?} {}", path, err)
+                            let err = format!("Error uploading {:?} {}", path, err);
+                            return Err(OxenError::basic_str(&err))
                         }
                     }
                 }
-                Err(_) => {
-                    eprintln!("Could not get relative path...");
+                Err(err) => {
+                    let err = format!("Could not get relative path... Err: {}", err);
+                    return Err(OxenError::basic_str(&err))
                 }
             }
+        } else {
+            let err = format!("Error computing hash for path: {:?}", path);
+            Err(OxenError::basic_str(&err))
         }
     }
 
@@ -208,7 +134,7 @@ impl Indexer {
 
     pub fn create_or_get_repo(&self) -> Result<(), OxenError> {
         // TODO move into another api class, and better error handling...just cranking this out
-        let name = &self.repo_config.as_ref().unwrap().repository.name;
+        let name = &self.repository.name;
         let url = "http://0.0.0.0:3000/repositories".to_string();
         let params = json!({ "name": name });
 
@@ -267,7 +193,7 @@ impl Indexer {
     pub fn get_remote_head(&self) -> Result<Option<CommitHead>, OxenError> {
         // TODO move into another api class, need to better delineate what we call these
         // also is this remote the one in the config? I think so, need to draw out a diagram
-        let name = &self.repo_config.as_ref().unwrap().repository.name;
+        let name = &self.repository.name;
         let url = format!("http://0.0.0.0:3000/repositories/{}", name);
         let client = reqwest::blocking::Client::new();
         if let Ok(res) = client.get(url).send() {
@@ -275,7 +201,7 @@ impl Indexer {
             // Do we create it then push for now? Or add separate command to create?
             // I think we create and push, and worry about authorized keys etc later
             let body = res.text()?;
-            let response: Result<RepositoryHeadResponse, serde_json::Error> =
+            let response: Result<RemoteRepositoryHeadResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(j_res) => Ok(j_res.head),
@@ -289,9 +215,10 @@ impl Indexer {
         }
     }
 
-    pub fn post_commit_to_server(&self, commit: &CommitMsg) -> Result<(), OxenError> {
+    pub fn post_commit_to_server(&self, commit: &Commit) -> Result<(), OxenError> {
         // zip up the rocksdb in history dir, and post to server
-        let commit_dir = self.hidden_dir.join(HISTORY_DIR).join(&commit.id);
+        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+        let commit_dir = hidden_dir.join(&commit.id);
         let path_to_compress = format!("history/{}", commit.id);
 
         println!("Compressing commit {}...", commit.id);
@@ -306,10 +233,10 @@ impl Indexer {
         Ok(())
     }
 
-    fn post_tarball_to_server(&self, buffer: &[u8], commit: &CommitMsg) -> Result<(), OxenError> {
+    fn post_tarball_to_server(&self, buffer: &[u8], commit: &Commit) -> Result<(), OxenError> {
         println!("Syncing commit {}...", commit.id);
 
-        let name = &self.repo_config.as_ref().unwrap().repository.name;
+        let name = &self.repository.name;
         let client = reqwest::blocking::Client::new();
         let url = format!(
             "http://0.0.0.0:3000/repositories/{}/commits?{}",
@@ -323,12 +250,12 @@ impl Indexer {
         {
             let status = res.status();
             let body = res.text()?;
-            let response: Result<CommitMsgResponse, serde_json::Error> =
+            let response: Result<CommitResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(_) => Ok(()),
                 Err(_) => Err(OxenError::basic_str(&format!(
-                    "Error serializing CommitMsgResponse: status_code[{}] \n\n{}",
+                    "Error serializing CommitResponse: status_code[{}] \n\n{}",
                     status, body
                 ))),
             }
@@ -375,52 +302,16 @@ impl Indexer {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::Indexer;
-    use crate::model::Repository;
-    use crate::test;
-    use crate::util;
+    // use crate::index::Indexer;
+    // use crate::model::Repository;
+    // use crate::test;
+    // use crate::util;
 
-    const BASE_DIR: &str = "data/test/runs";
+    // const BASE_DIR: &str = "data/test/runs";
 
-    #[test]
-    fn test_1_indexer_init() -> Result<(), OxenError> {
-        test::setup_env();
-
-        let repo_dir = test::create_repo_dir(BASE_DIR)?;
-        let indexer = Indexer::new(&repo_dir)?;
-        indexer.init()?;
-
-        let repository = Repository::from_existing(&repo_dir)?;
-        let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
-        assert!(hidden_dir.exists());
-        assert!(!repository.id.is_empty());
-        let name = repo_dir.file_name().unwrap().to_str().unwrap();
-        assert_eq!(repository.name, name);
-
-        // cleanup
-        std::fs::remove_dir_all(repo_dir)?;
-
-        Ok(())
-    }
 
     #[test]
-    fn test_1_indexer_init_with_name() -> Result<(), OxenError> {
-        test::setup_env();
-
-        let repo_dir = test::create_repo_dir(BASE_DIR)?;
-        let indexer = Indexer::new(&repo_dir)?;
-
-        let name = "gschoeni/Repo-Name";
-        indexer.init_with_name(name)?;
-
-        let repository = Repository::from_existing(&repo_dir)?;
-        let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
-        assert!(hidden_dir.exists());
-        assert!(!repository.id.is_empty());
-        assert_eq!(repository.name, name);
-
-        // cleanup
-        std::fs::remove_dir_all(repo_dir)?;
+    fn test_indexer_push() -> Result<(), OxenError> {
 
         Ok(())
     }

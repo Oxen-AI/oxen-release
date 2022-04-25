@@ -1,7 +1,7 @@
-use crate::config::{HTTPConfig, RepoConfig};
+use crate::config::{HTTPConfig, AuthConfig};
 use crate::error::OxenError;
-use crate::http::response::{EntryResponse, PaginatedEntries};
-use crate::model::Entry;
+use crate::view::{EntryResponse, PaginatedEntries};
+use crate::model::{Entry, RemoteRepository};
 
 use std::fs::File;
 use std::path::Path;
@@ -34,12 +34,12 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
     }
 }
 
-pub fn create(config: &RepoConfig, path: &Path, hash: &str) -> Result<Entry, OxenError> {
+pub fn create(repository: &RemoteRepository, path: &Path, hash: &str) -> Result<Entry, OxenError> {
     let file = File::open(path)?;
     let client = reqwest::blocking::Client::new();
     let url = format!(
         "http://0.0.0.0:3000/repositories/{}/entries?filename={}&hash={}",
-        config.repository.name,
+        repository.name,
         path.to_str().unwrap(),
         hash
     );
@@ -63,17 +63,18 @@ pub fn create(config: &RepoConfig, path: &Path, hash: &str) -> Result<Entry, Oxe
     }
 }
 
-pub fn list_page(config: &RepoConfig, page_num: usize) -> Result<PaginatedEntries, OxenError> {
+pub fn list_page(repository: &RemoteRepository, page_num: usize) -> Result<PaginatedEntries, OxenError> {
+    let auth = AuthConfig::default()?;
     let url = format!(
         "http://{}/api/v1/repositories/{}/entries?page={}",
-        config.host(),
-        config.repository.id,
+        auth.host(),
+        repository.id,
         page_num
     );
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(&url)
-        .header(reqwest::header::AUTHORIZATION, config.auth_token())
+        .header(reqwest::header::AUTHORIZATION, auth.auth_token())
         .send()
     {
         let status = res.status();

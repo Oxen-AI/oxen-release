@@ -2,6 +2,6 @@ host = "localhost:4000"
 
 [user]
 id = "41d7a278-1eb8-4ab3-a23c-ae854cdf3f7f"
-token = "SFMyNTY.g2gDbQAAACQ0MWQ3YTI3OC0xZWI4LTRhYjMtYTIzYy1hZTg1NGNkZjNmN2ZuBgCO0323fwFiAAFRgA.Hnpz7fuOQxwVFP4V8SA-i0WosRyfD9F6GuZ1b0wdBOI"
-email = "greg@oxen.ai"
-name = "Greg"
+token = "SFMyNTY.g2gDbQAAACQ0ZWQ1NTUzNi1mOGIyLTRjODItYWNjNy1hYzBlN2Y2MzRmYmNuBgAgND1egAFiAAFRgA.IIqxL13SaSD9ERc6WJ2HfGmUQaUHRMw5Q4vd6ldp-HU"
+email = "ox@oxen.ai"
+name = "Ox"

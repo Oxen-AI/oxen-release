@@ -2,10 +2,9 @@ use crate::app_data::SyncDir;
 
 use liboxen::api;
 use liboxen::api::local::RepositoryAPI;
-use liboxen::http;
-use liboxen::http::response::EntryResponse;
-use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::model::{Entry, Repository};
+use liboxen::view::{EntryResponse, StatusMessage};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::model::{Entry, LocalRepository};
 use serde::Deserialize;
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -34,17 +33,27 @@ pub async fn create(
     // path to the repo
     let path: &str = req.match_info().get("name").unwrap();
     match api.get_by_path(Path::new(&path)) {
-        Ok(result) => create_entry(&sync_dir.path, result.repository, body, data).await,
+        Ok(result) => {
+            match LocalRepository::from_remote(result.repository) {
+                Ok(local_repo) => {
+                    create_entry(&sync_dir.path, &local_repo, body, data).await
+                },
+                Err(err) => {
+                    let msg = format!("Error converting repo\nErr: {}", err);
+                    Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
+                }
+            }
+        },
         Err(err) => {
-            let msg = format!("Err: {}", err);
-            Ok(HttpResponse::BadRequest().json(http::StatusMessage::error(&msg)))
+            let msg = format!("Could not find repo at path\nErr: {}", err);
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
         }
     }
 }
 
 async fn create_entry(
     sync_dir: &Path,
-    repository: Repository,
+    repository: &LocalRepository,
     mut body: web::Payload,
     data: web::Query<EntryQuery>,
 ) -> Result<HttpResponse, actix_web::Error> {
@@ -87,7 +96,7 @@ async fn create_entry(
         }))
     } else {
         let msg = format!("Invalid file extension: {:?}", &data.filename);
-        Ok(HttpResponse::BadRequest().json(http::StatusMessage::error(&msg)))
+        Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
     }
 }
 
@@ -105,7 +114,7 @@ mod tests {
     use actix_web::{web, App};
 
     use liboxen::error::OxenError;
-    use liboxen::http::response::EntryResponse;
+    use liboxen::view::EntryResponse;
     use liboxen::util;
 
     use crate::app_data::SyncDir;
@@ -117,7 +126,7 @@ mod tests {
         let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        let repo = test::create_repo(&sync_dir, name)?;
+        let repo = test::create_local_repo(&sync_dir, name)?;
 
         let filename = "test.txt";
         let hash = "1234";

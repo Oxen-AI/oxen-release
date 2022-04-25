@@ -1,11 +1,15 @@
 use crate::error::OxenError;
-use crate::http::response::{ListRepositoriesResponse, RepositoryHeadResponse, RepositoryResponse};
-use crate::http::{
+use crate::view::{
+    ListRepositoryResponse, RemoteRepositoryHeadResponse, RepositoryResponse,
+    RepositoryView, RepositoryNew
+};
+use crate::view::http::{
     MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use crate::index::{Committer, Indexer};
-use crate::model::{CommitHead, CommmitSyncInfo, Repository, RepositoryNew};
+use crate::index::Committer;
+use crate::model::{CommitHead, CommmitSyncInfo, LocalRepository, RemoteRepository};
 use crate::util;
+use crate::command;
 
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -29,22 +33,22 @@ impl RepositoryAPI {
         Ok(PathBuf::from(sync_dir))
     }
 
-    pub fn get_by_path(&self, path: &Path) -> Result<RepositoryHeadResponse, OxenError> {
+    pub fn get_by_path(&self, path: &Path) -> Result<RemoteRepositoryHeadResponse, OxenError> {
         let sync_dir = self.get_sync_dir()?;
-        let repo_path = sync_dir.join(path);
+        let repo_dir = sync_dir.join(path);
 
-        if !repo_path.exists() {
-            let err = format!("Repo does not exist: {:?}", repo_path);
+        if !repo_dir.exists() {
+            let err = format!("Repo does not exist: {:?}", repo_dir);
             return Err(OxenError::basic_str(&err));
         }
 
-        let repo = Repository::from_existing(&repo_path)?;
-        let commit_head: Option<CommitHead> = self.get_commit_head(&repo_path)?;
+        let repo = LocalRepository::from_dir(&repo_dir)?;
+        let commit_head: Option<CommitHead> = self.get_commit_head(&repo_dir)?;
 
-        Ok(RepositoryHeadResponse {
+        Ok(RemoteRepositoryHeadResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
-            repository: repo,
+            repository: RemoteRepository::from_local(&repo)?,
             head: commit_head,
         })
     }
@@ -66,21 +70,21 @@ impl RepositoryAPI {
         }
     }
 
-    pub fn list(&self) -> Result<ListRepositoriesResponse, OxenError> {
-        let mut repos: Vec<Repository> = vec![];
+    pub fn list(&self) -> Result<ListRepositoryResponse, OxenError> {
+        let mut repos: Vec<RepositoryView> = vec![];
         let sync_dir = self.get_sync_dir()?;
         for entry in WalkDir::new(&sync_dir).into_iter().filter_map(|e| e.ok()) {
             // if the directory has a .oxen dir, let's add it, otherwise ignore
-            let local_path = entry.path();
-            let oxen_dir = util::fs::oxen_hidden_dir(local_path);
+            let local_dir = entry.path();
+            let oxen_dir = util::fs::oxen_hidden_dir(local_dir);
 
             if oxen_dir.exists() {
-                let repository = Repository::from_existing(local_path)?;
-                repos.push(repository);
+                let repository = LocalRepository::from_dir(local_dir)?;
+                repos.push(RepositoryView::from_local(repository));
             }
         }
 
-        Ok(ListRepositoriesResponse {
+        Ok(ListRepositoryResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_FOUND),
             repositories: repos,
@@ -88,8 +92,6 @@ impl RepositoryAPI {
     }
 
     pub fn create(&self, repo: &RepositoryNew) -> Result<RepositoryResponse, OxenError> {
-        let id = format!("{}", uuid::Uuid::new_v4());
-
         let sync_dir = self.get_sync_dir()?;
         let repo_dir = sync_dir.join(Path::new(&repo.name));
         if repo_dir.exists() {
@@ -97,18 +99,11 @@ impl RepositoryAPI {
         }
 
         std::fs::create_dir_all(&repo_dir)?;
-        let indexer = Indexer::new(&repo_dir)?;
-        indexer.init_with_name(&repo.name)?;
-
-        let repository = Repository {
-            id,
-            name: String::from(&repo.name),
-            url: None,
-        };
+        let repository = command::init(&repo_dir)?;
         Ok(RepositoryResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),
-            repository,
+            repository: RepositoryView::from_local(repository),
         })
     }
 }
@@ -117,8 +112,8 @@ impl RepositoryAPI {
 mod tests {
     use crate::api::local::RepositoryAPI;
     use crate::error::OxenError;
-    use crate::http::MSG_RESOURCE_ALREADY_EXISTS;
-    use crate::model::RepositoryNew;
+    use crate::view::http::MSG_RESOURCE_ALREADY_EXISTS;
+    use crate::view::RepositoryNew;
     use crate::test;
     use std::fs;
     use std::path::Path;
@@ -155,7 +150,7 @@ mod tests {
         let sync_dir = get_sync_dir();
         test::setup_env();
 
-        let name: &str = "gschoeni/CatsVsDogs";
+        let name: &str = "CatsVsDogs";
         let repo = RepositoryNew {
             name: String::from(name),
         };
@@ -200,7 +195,7 @@ mod tests {
         let sync_dir = get_sync_dir();
         test::setup_env();
 
-        let name: &str = "gschoeni/CatsVsDogs";
+        let name: &str = "CatsVsDogs";
         let repo = RepositoryNew {
             name: String::from(name),
         };
@@ -222,7 +217,7 @@ mod tests {
         let sync_dir = get_sync_dir();
         test::setup_env();
 
-        let name: &str = "gschoeni/CatsVsDogs";
+        let name: &str = "CatsVsDogs";
         let repo = RepositoryNew {
             name: String::from(name),
         };
@@ -246,23 +241,15 @@ mod tests {
     }
 
     #[test]
-    fn test_6_create_get_repository_by_path() -> Result<(), OxenError> {
-        let sync_dir = get_sync_dir();
-        test::setup_env();
+    fn test_6_create_get_repository_by_path() {
+        // TODO: create test function to create/cleanup sync dir
 
-        let name: &str = "testing/My-Repo";
-        let repo = RepositoryNew {
-            name: String::from(name),
-        };
-
-        let api = RepositoryAPI::new(Path::new(&sync_dir));
-        api.create(&repo)?;
-
-        let response = api.get_by_path(Path::new(name))?;
-        assert_eq!(response.repository.name, name);
-
-        // cleanup
-        fs::remove_dir_all(sync_dir)?;
-        Ok(())
+        test::run_empty_repo_test(|repo| {
+            // let sync_dir = get_sync_dir();
+            // let api = RepositoryAPI::new(sync_dir);
+            // let response = api.get_by_path(Path::new(name))?;
+            // assert_eq!(response.repository.name, name);
+            Ok(())
+        });
     }
 }

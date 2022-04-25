@@ -1,10 +1,9 @@
 use liboxen::api::local::RepositoryAPI;
 use liboxen::error::OxenError;
-use liboxen::http;
-use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
-use liboxen::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::view::{CommitResponse, ListCommitResponse, StatusMessage};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::index::Committer;
-use liboxen::model::CommitMsg;
+use liboxen::model::Commit;
 use liboxen::util;
 
 use crate::app_data::SyncDir;
@@ -37,19 +36,19 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {}", err);
-                HttpResponse::NotFound().json(http::StatusMessage::error(&msg))
+                HttpResponse::NotFound().json(StatusMessage::error(&msg))
             }
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::NotFound().json(http::StatusMessage::error(msg))
+        HttpResponse::NotFound().json(StatusMessage::error(msg))
     }
 }
 
-fn p_index(repo_dir: &Path) -> Result<ListCommitMsgResponse, OxenError> {
+fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     let committer = Committer::new(repo_dir)?;
     let commits = committer.list_commits()?;
-    Ok(ListCommitMsgResponse::success(commits))
+    Ok(ListCommitResponse::success(commits))
 }
 
 pub async fn upload(
@@ -68,12 +67,12 @@ pub async fn upload(
             let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
 
             // Create Commit
-            let commit = CommitMsg {
+            let commit = Commit {
                 id: data.commit_id.clone(),
                 parent_id: data.parent_id.clone(),
                 message: data.message.clone(),
                 author: data.author.clone(),
-                date: CommitMsg::date_from_str(&data.date),
+                date: Commit::date_from_str(&data.date),
             };
             create_commit(&repo_dir, &commit);
 
@@ -87,7 +86,7 @@ pub async fn upload(
             let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
             archive.unpack(hidden_dir)?;
 
-            Ok(HttpResponse::Ok().json(CommitMsgResponse {
+            Ok(HttpResponse::Ok().json(CommitResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_CREATED),
                 commit,
@@ -95,12 +94,12 @@ pub async fn upload(
         }
         Err(err) => {
             let msg = format!("Err: {}", err);
-            Ok(HttpResponse::Ok().json(http::StatusMessage::error(&msg)))
+            Ok(HttpResponse::Ok().json(StatusMessage::error(&msg)))
         }
     }
 }
 
-fn create_commit(repo_dir: &Path, commit: &CommitMsg) {
+fn create_commit(repo_dir: &Path, commit: &Commit) {
     let result = Committer::new(repo_dir);
     match result {
         Ok(mut committer) => match committer.add_commit_to_db(commit) {
@@ -127,8 +126,8 @@ mod tests {
 
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
-    use liboxen::http::response::{CommitMsgResponse, ListCommitMsgResponse};
-    use liboxen::model::CommitMsg;
+    use liboxen::view::{CommitResponse, ListCommitResponse};
+    use liboxen::model::Commit;
     use liboxen::util;
 
     use crate::app_data::SyncDir;
@@ -140,7 +139,7 @@ mod tests {
         let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        test::create_repo(&sync_dir, name)?;
+        test::create_local_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}/commits", name);
         let req = test::request_with_param(&sync_dir, &uri, "name", name);
@@ -149,7 +148,7 @@ mod tests {
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListCommitMsgResponse = serde_json::from_str(text)?;
+        let list: ListCommitResponse = serde_json::from_str(text)?;
         assert_eq!(list.commits.len(), 0);
 
         // cleanup
@@ -163,7 +162,7 @@ mod tests {
         let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        test::create_repo(&sync_dir, name)?;
+        test::create_local_repo(&sync_dir, name)?;
 
         // TODO: quick commands to add files and create commits
 
@@ -174,7 +173,7 @@ mod tests {
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let _list: ListCommitMsgResponse = serde_json::from_str(text)?;
+        let _list: ListCommitResponse = serde_json::from_str(text)?;
         // assert_eq!(list.commits.len(), 2);
 
         // cleanup
@@ -188,8 +187,8 @@ mod tests {
         let sync_dir = test::get_sync_dir();
 
         let name = "Testing-Name";
-        let repo = test::create_repo(&sync_dir, name)?;
-        let commit = CommitMsg {
+        let repo = test::create_local_repo(&sync_dir, name)?;
+        let commit = Commit {
             id: format!("{}", uuid::Uuid::new_v4()),
             parent_id: None,
             message: String::from("Hello"),
@@ -214,7 +213,7 @@ mod tests {
         tar.finish()?;
         let payload: Vec<u8> = tar.into_inner()?.finish()?;
 
-        let commit_query = CommitMsg::to_uri_encoded(&commit);
+        let commit_query = Commit::to_uri_encoded(&commit);
         let uri = format!("/repositories/{}/commits?{}", name, commit_query);
         let app = actix_web::test::init_service(
             App::new()
@@ -236,7 +235,8 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        let resp: CommitMsgResponse = serde_json::from_str(body)?;
+        println!("GOT BODY: {}", body);
+        let resp: CommitResponse = serde_json::from_str(body)?;
 
         // Make sure commit gets populated
         assert_eq!(resp.commit.id, commit.id);
