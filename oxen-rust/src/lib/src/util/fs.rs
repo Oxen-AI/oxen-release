@@ -69,9 +69,7 @@ pub fn read_lines(path: &Path) -> Vec<String> {
     lines
 }
 
-pub fn list_eligible_files_from_dir() {
-
-}
+pub fn list_eligible_files_from_dir() {}
 
 pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
@@ -210,14 +208,13 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-
 fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     if let Some(path_str) = path.to_str() {
         if path_str.starts_with(constants::OXEN_HIDDEN_DIR) {
             return true;
         }
     }
-    return false;
+    false
 }
 
 pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenError> {

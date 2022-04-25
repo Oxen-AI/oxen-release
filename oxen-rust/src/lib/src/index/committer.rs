@@ -426,9 +426,7 @@ impl Committer {
     pub fn file_is_committed(&self, path: &Path) -> bool {
         match self.head_contains_file(path) {
             Ok(val) => val,
-            Err(_err) => {
-                false
-            }
+            Err(_err) => false,
         }
     }
 
@@ -464,13 +462,13 @@ mod tests {
             // Create committer with no commits
             let repo_path = &stager.repository.path;
             let mut committer = Committer::new(&stager.repository)?;
-            
+
             let train_dir = repo_path.join("training_data");
             std::fs::create_dir_all(&train_dir)?;
             let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
             let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
             let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
-            let annotation_file = test::add_txt_file_to_dir(&repo_path, "some annotations...")?;
+            let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
 
             let test_dir = repo_path.join("test_data");
             std::fs::create_dir_all(&test_dir)?;
@@ -508,7 +506,7 @@ mod tests {
 
             // Verify that the current commit contains the hello file
             let relative_annotation_path =
-                util::fs::path_relative_to_dir(&annotation_file, &repo_path)?;
+                util::fs::path_relative_to_dir(&annotation_file, repo_path)?;
             assert!(committer.head_contains_file(&relative_annotation_path)?);
 
             // Add more files and commit again, make sure the commit copied over the last one

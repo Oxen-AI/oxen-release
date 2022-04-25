@@ -55,7 +55,6 @@ impl Stager {
             .collect()
     }
 
-
     fn count_untracked_files_in_dir(&self, dir: &Path, committer: &Committer) -> usize {
         let files = self.list_untracked_files_in_dir(dir, committer);
         files.len()
@@ -206,7 +205,8 @@ impl Stager {
             let local_path = entry?.path();
             if local_path.is_file() {
                 // Return relative path with respect to the repo
-                let relative_path = util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
+                let relative_path =
+                    util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
                 if committer.file_is_committed(&relative_path) {
                     continue;
                 }
@@ -237,7 +237,6 @@ impl Stager {
 
     fn file_is_in_index(&self, path: &Path, committer: &Committer) -> bool {
         if let Some(path_str) = path.to_str() {
-            
             let bytes = path_str.as_bytes();
             match self.db.get(bytes) {
                 Ok(Some(_value)) => {
@@ -259,7 +258,10 @@ impl Stager {
         }
     }
 
-    pub fn list_untracked_directories(&self, committer: &Committer) -> Result<Vec<(PathBuf, usize)>, OxenError> {
+    pub fn list_untracked_directories(
+        &self,
+        committer: &Committer,
+    ) -> Result<Vec<(PathBuf, usize)>, OxenError> {
         // println!("list_untracked_directories {:?}", self.repository.path);
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
 
@@ -342,18 +344,18 @@ mod tests {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
-            
+
             // Write a file to disk
             let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add the file
             let path = stager.add_file(&hello_file, &committer)?;
 
             // Make sure we saved the relative path
-            let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             assert_eq!(path, relative_path);
-    
+
             Ok(())
         })
     }
@@ -365,7 +367,7 @@ mod tests {
             let committer = Committer::new(&stager.repository)?;
 
             let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             let sub_dir = repo_path.join("training_data");
             std::fs::create_dir_all(&sub_dir)?;
@@ -391,7 +393,6 @@ mod tests {
             let dirs = stager.list_added_directories()?;
             assert_eq!(dirs.len(), 0);
 
-      
             Ok(())
         })
     }
@@ -404,7 +405,7 @@ mod tests {
 
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add it twice
             stager.add_file(&hello_file, &committer)?;
@@ -467,7 +468,7 @@ mod tests {
             let committer = Committer::new(&stager.repository)?;
 
             let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello World")?;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Stage file
             stager.add_file(&hello_file, &committer)?;
@@ -475,7 +476,7 @@ mod tests {
             // List files
             let files = stager.list_added_files()?;
             assert_eq!(files.len(), 1);
-            let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             assert_eq!(files[0], relative_path);
 
             Ok(())
@@ -503,7 +504,7 @@ mod tests {
 
             // There is one file
             assert_eq!(files.len(), 1);
-            let relative_path = util::fs::path_relative_to_dir(&sub_file, &repo_path)?;
+            let relative_path = util::fs::path_relative_to_dir(&sub_file, repo_path)?;
             assert_eq!(files[0], relative_path);
 
             Ok(())
@@ -528,7 +529,7 @@ mod tests {
             let dirs = stager.list_untracked_directories(&committer)?;
             // There is one directory
             assert_eq!(dirs.len(), 1);
-            let relative_path = util::fs::path_relative_to_dir(&sub_dir, &repo_path)?;
+            let relative_path = util::fs::path_relative_to_dir(&sub_dir, repo_path)?;
             assert_eq!(dirs[0].0, relative_path);
 
             // With three untracked files
@@ -624,14 +625,14 @@ mod tests {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
             let repo_path = &stager.repository.path;
-            let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
 
             // Do not add...
 
             // List files
             let files = stager.list_untracked_files(&committer)?;
             assert_eq!(files.len(), 1);
-            let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             assert_eq!(files[0], relative_path);
 
             Ok(())
@@ -710,9 +711,9 @@ mod tests {
             std::fs::create_dir_all(&valid_dir)?;
             let _ = test::add_img_file_to_dir(&valid_dir, Path::new("data/test/images/dog_4.jpg"))?;
 
-            let base_file_1 = test::add_txt_file_to_dir(&repo_path, "Hello 1")?;
-            let _base_file_2 = test::add_txt_file_to_dir(&repo_path, "Hello 2")?;
-            let _base_file_3 = test::add_txt_file_to_dir(&repo_path, "Hello 3")?;
+            let base_file_1 = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
+            let _base_file_2 = test::add_txt_file_to_dir(repo_path, "Hello 2")?;
+            let _base_file_3 = test::add_txt_file_to_dir(repo_path, "Hello 3")?;
 
             // At first there should be 3 untracked
             let untracked_dirs = stager.list_untracked_directories(&committer)?;
@@ -737,7 +738,6 @@ mod tests {
             assert_eq!(untracked_files.len(), 2);
             // There are 2 untracked dirs at the top level
             assert_eq!(untracked_dirs.len(), 2);
-
 
             Ok(())
         })
