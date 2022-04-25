@@ -15,28 +15,12 @@ use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
 
-/// # Create a directory for a repo to run tests in
-///
-/// ```
-/// # use liboxen::test::create_repo_dir;
-/// # use liboxen::error::OxenError;
-/// # fn main() -> Result<(), OxenError> {
-///
-/// let base_dir = "/tmp/base_dir";
-/// let repo_dir = create_repo_dir(base_dir)?;
-/// assert!(repo_dir.exists());
-///
-/// # std::fs::remove_dir_all(repo_dir)?;
-/// # Ok(())
-/// # }
-/// ```
-pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
+fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
     let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
     std::fs::create_dir_all(&repo_name)?;
     Ok(PathBuf::from(&repo_name))
 }
 
-//
 /// # Run a unit test on a test repo directory
 ///
 /// This function will create a directory with a uniq name
@@ -50,79 +34,74 @@ pub fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 ///   Ok(())
 /// });
 /// ```
-pub fn run_empty_repo_dir_test<T>(test: T)
+pub fn run_empty_repo_dir_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
-    match create_repo_dir(TEST_RUN_DIR) {
-        Ok(repo_dir) => {
-            // Run test to see if it panic'd
-            let result = std::panic::catch_unwind(|| match test(&repo_dir) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("Error running test. Err: {}", err);
-                }
-            });
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
 
-            // Remove repo dir
-            match std::fs::remove_dir_all(&repo_dir) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("Could not remove test dir. Err: {}", err);
-                }
-            }
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(&repo_dir) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+        }
+    });
 
-            // Assert everything okay after we cleanup the repo dir
-            assert!(result.is_ok());
-        }
-        Err(_) => {
-            panic!("Could not create repo dir for test!");
-        }
-    }
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+
+    Ok(())
 }
 
-pub fn run_empty_repo_test<T>(test: T)
+pub fn run_empty_repo_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
-    match create_repo_dir(TEST_RUN_DIR) {
-        Ok(repo_dir) => {
-            match command::init(&repo_dir) {
-                Ok(repo) => {
-                    // Run test to see if it panic'd
-                    let result = std::panic::catch_unwind(|| match test(repo) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            eprintln!("Error running test. Err: {}", err);
-                        }
-                    });
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
 
-                    // Remove repo dir
-                    match std::fs::remove_dir_all(&repo_dir) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            eprintln!("Could not remove test dir. Err: {}", err);
-                        }
-                    }
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+        }
+    });
 
-                    // Assert everything okay after we cleanup the repo dir
-                    assert!(result.is_ok());
-                }
-                Err(_) => {
-                    panic!("Could not instantiate repository object for test!");
-                }
-            }
-        }
-        Err(_) => {
-            panic!("Could not create repo dir for test!");
-        }
-    }
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
 }
 
-pub fn create_stager(base_dir: &str) -> Result<(Stager, PathBuf), OxenError> {
-    let repo_dir = create_repo_dir(base_dir)?;
-    command::init(&repo_dir)?;
-    Ok((Stager::new(&repo_dir)?, repo_dir))
+pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(Stager) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
+    let stager = Stager::new(&repo)?;
+
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(stager) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
 }
 
 pub fn remote_cfg_file() -> &'static Path {

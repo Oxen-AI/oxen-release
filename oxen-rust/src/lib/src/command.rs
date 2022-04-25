@@ -92,13 +92,13 @@ pub fn status(repository: &LocalRepository) -> Result<RepoStatus, OxenError> {
         return Err(OxenError::basic_str(&err));
     }
 
-    let committer = Committer::new(&repository.path)?;
-    let stager = Stager::from(committer)?;
+    let committer = Committer::new(&repository)?;
+    let stager = Stager::new(&repository)?;
 
     let added_dirs = stager.list_added_directories()?;
     let added_files = stager.list_added_files()?;
-    let untracked_dirs = stager.list_untracked_directories()?;
-    let untracked_files = stager.list_untracked_files()?;
+    let untracked_dirs = stager.list_untracked_directories(&committer)?;
+    let untracked_files = stager.list_untracked_files(&committer)?;
     let status = RepoStatus {
         added_dirs,
         added_files,
@@ -109,7 +109,18 @@ pub fn status(repository: &LocalRepository) -> Result<RepoStatus, OxenError> {
 }
 
 /// # Get status of files in repository
-pub fn add(_repo: &LocalRepository, _path: &Path) {}
+pub fn add(_repo: &LocalRepository, _path: &Path) -> Result<(), OxenError> {
+    Ok(())
+}
+
+pub fn commit(repo: &LocalRepository, message: &str) -> Result<String, OxenError> {
+    let stager = Stager::new(&repo)?;
+    let mut committer = Committer::new(&repo)?;
+    let added_files = stager.list_added_files()?;
+    let added_dirs = stager.list_added_directories()?;
+
+    committer.commit(&added_files, &added_dirs, message)
+}
 
 #[cfg(test)]
 mod tests {
@@ -117,9 +128,10 @@ mod tests {
     use crate::command;
     use crate::test;
     use crate::util;
+    use crate::error::OxenError;
 
     #[test]
-    fn test_command_init() {
+    fn test_command_init() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|repo_dir| {
             // Init repo
             let repository = command::init(repo_dir)?;
@@ -134,11 +146,11 @@ mod tests {
             assert!(!repository.name.is_empty());
 
             Ok(())
-        });
+        })
     }
 
     #[test]
-    fn test_command_status_empty() {
+    fn test_command_status_empty() -> Result<(), OxenError> {
         test::run_empty_repo_test(|repo| {
             let repo_status = command::status(&repo)?;
 
@@ -148,11 +160,11 @@ mod tests {
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
             Ok(())
-        });
+        })
     }
 
     #[test]
-    fn test_command_status_has_txt_file() {
+    fn test_command_status_has_txt_file() -> Result<(), OxenError> {
         test::run_empty_repo_test(|repo| {
             // Write to file
             let hello_file = repo.path.join("hello.txt");
@@ -166,6 +178,6 @@ mod tests {
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
             Ok(())
-        });
+        })
     }
 }

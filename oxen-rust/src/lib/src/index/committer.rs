@@ -10,6 +10,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
+use crate::model::LocalRepository;
+
 pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DB: &str = "commits";
 
@@ -20,7 +22,7 @@ pub struct Committer {
     pub referencer: Referencer,
     history_dir: PathBuf,
     auth_cfg: AuthConfig,
-    repo_dir: PathBuf,
+    repository: LocalRepository,
 }
 
 impl Committer {
@@ -39,9 +41,9 @@ impl Committer {
         util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
     }
 
-    pub fn new(repo_dir: &Path) -> Result<Committer, OxenError> {
-        let history_path = Committer::history_dir(repo_dir);
-        let commits_path = Committer::commits_dir(repo_dir);
+    pub fn new(repository: &LocalRepository) -> Result<Committer, OxenError> {
+        let history_path = Committer::history_dir(&repository.path);
+        let commits_path = Committer::commits_dir(&repository.path);
 
         if !history_path.exists() {
             std::fs::create_dir_all(&history_path)?;
@@ -49,8 +51,8 @@ impl Committer {
 
         // If there is no head commit, we cannot open the commit db
         let opts = Committer::db_opts();
-        let referencer = Referencer::new(repo_dir)?;
-        let head_commit_db = Committer::head_commit_db(repo_dir, &referencer);
+        let referencer = Referencer::new(&repository.path)?;
+        let head_commit_db = Committer::head_commit_db(&repository.path, &referencer);
 
         Ok(Committer {
             commits_db: DB::open(&opts, &commits_path)?,
@@ -58,12 +60,8 @@ impl Committer {
             referencer,
             history_dir: history_path,
             auth_cfg: AuthConfig::default().unwrap(),
-            repo_dir: repo_dir.to_path_buf(),
+            repository: repository.clone(),
         })
-    }
-
-    pub fn get_repo_dir(&self) -> PathBuf {
-        self.repo_dir.clone()
     }
 
     pub fn count_files_from_dir(&self, dir: &Path) -> usize {
@@ -183,14 +181,14 @@ impl Committer {
         // Commit all staged dirs from db, and recursively add all the files
         // println!("Stager found {} dirs", added_dirs.len());
         for (dir, _) in added_dirs.iter() {
-            let full_path = self.repo_dir.join(dir);
+            let full_path = self.repository.path.join(dir);
             // println!(
             //     "Committer.commit({:?}) list_files_in_dir for dir {:?}",
             //     dir, full_path
             // );
 
             for path in self.list_files_in_dir(&full_path) {
-                let relative_path = util::fs::path_relative_to_dir(&path, &self.repo_dir)?;
+                let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
                 let key = relative_path.to_str().unwrap().as_bytes();
 
                 // println!("Adding key {}", path.to_str().unwrap());
@@ -425,7 +423,16 @@ impl Committer {
         }
     }
 
-    pub fn head_contains_file(&self, path: &Path) -> Result<bool, OxenError> {
+    pub fn file_is_committed(&self, path: &Path) -> bool {
+        match self.head_contains_file(path) {
+            Ok(val) => val,
+            Err(_err) => {
+                false
+            }
+        }
+    }
+
+    fn head_contains_file(&self, path: &Path) -> Result<bool, OxenError> {
         if let Some(db) = self.head_commit_db.as_ref() {
             // Check if path is in this commit
             let key = path.to_str().unwrap();
@@ -451,93 +458,91 @@ mod tests {
     use crate::test;
     use crate::util;
 
-    const BASE_DIR: &str = "data/test/runs";
-
     #[test]
     fn test_commit_staged() -> Result<(), OxenError> {
-        let (stager, repo_path) = test::create_stager(BASE_DIR)?;
-        let mut committer = Committer::new(&repo_path)?;
+        test::run_empty_stager_test(|stager| {
+            // Create committer with no commits
+            let repo_path = &stager.repository.path;
+            let mut committer = Committer::new(&stager.repository)?;
+            
+            let train_dir = repo_path.join("training_data");
+            std::fs::create_dir_all(&train_dir)?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
+            let annotation_file = test::add_txt_file_to_dir(&repo_path, "some annotations...")?;
 
-        let train_dir = repo_path.join("training_data");
-        std::fs::create_dir_all(&train_dir)?;
-        let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
-        let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
-        let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
-        let annotation_file = test::add_txt_file_to_dir(&repo_path, "some annotations...")?;
+            let test_dir = repo_path.join("test_data");
+            std::fs::create_dir_all(&test_dir)?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
 
-        let test_dir = repo_path.join("test_data");
-        std::fs::create_dir_all(&test_dir)?;
-        let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
-        let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
+            // Add a file and a directory
+            stager.add_file(&annotation_file, &committer)?;
+            stager.add_dir(&train_dir, &committer)?;
 
-        // Add a file and a directory
-        stager.add_file(&annotation_file)?;
-        stager.add_dir(&train_dir)?;
+            let message = "Adding training data to 🐂";
+            let added_files = stager.list_added_files()?;
+            let added_dirs = stager.list_added_directories()?;
+            let commit_id = committer.commit(&added_files, &added_dirs, message)?;
+            stager.unstage()?;
+            let commit_history = committer.list_commits()?;
 
-        let message = "Adding training data to 🐂";
-        let added_files = stager.list_added_files()?;
-        let added_dirs = stager.list_added_directories()?;
-        let commit_id = committer.commit(&added_files, &added_dirs, message)?;
-        stager.unstage()?;
-        let commit_history = committer.list_commits()?;
+            let head = committer.get_head_commit()?;
+            assert!(head.is_some());
 
-        let head = committer.get_head_commit()?;
-        assert!(head.is_some());
+            assert_eq!(commit_history.len(), 1);
+            assert_eq!(commit_history[0].id, commit_id);
+            assert_eq!(commit_history[0].message, message);
 
-        assert_eq!(commit_history.len(), 1);
-        assert_eq!(commit_history[0].id, commit_id);
-        assert_eq!(commit_history[0].message, message);
+            // Check that the files are no longer staged
+            let files = stager.list_added_files()?;
+            assert_eq!(files.len(), 0);
+            let dirs = stager.list_added_directories()?;
+            assert_eq!(dirs.len(), 0);
 
-        // Check that the files are no longer staged
-        let files = stager.list_added_files()?;
-        assert_eq!(files.len(), 0);
-        let dirs = stager.list_added_directories()?;
-        assert_eq!(dirs.len(), 0);
+            // List files in commit to be pushed
+            let files = committer.list_unsynced_files_for_commit(&commit_id)?;
+            // Two files in training_data and one at base level
+            assert_eq!(files.len(), 4);
 
-        // List files in commit to be pushed
-        let files = committer.list_unsynced_files_for_commit(&commit_id)?;
-        // Two files in training_data and one at base level
-        assert_eq!(files.len(), 4);
+            // Verify that the current commit contains the hello file
+            let relative_annotation_path =
+                util::fs::path_relative_to_dir(&annotation_file, &repo_path)?;
+            assert!(committer.head_contains_file(&relative_annotation_path)?);
 
-        // Verify that the current commit contains the hello file
-        let relative_annotation_path =
-            util::fs::path_relative_to_dir(&annotation_file, &repo_path)?;
-        assert!(committer.head_contains_file(&relative_annotation_path)?);
+            // Add more files and commit again, make sure the commit copied over the last one
+            stager.add_dir(&test_dir, &committer)?;
+            let message_2 = "Adding test data to 🐂";
+            let added_files = stager.list_added_files()?;
+            let added_dirs = stager.list_added_directories()?;
+            let commit_id = committer.commit(&added_files, &added_dirs, message_2)?;
+            stager.unstage()?;
+            let commit_history = committer.list_commits()?;
 
-        // Add more files and commit again, make sure the commit copied over the last one
-        stager.add_dir(&test_dir)?;
-        let message_2 = "Adding test data to 🐂";
-        let added_files = stager.list_added_files()?;
-        let added_dirs = stager.list_added_directories()?;
-        let commit_id = committer.commit(&added_files, &added_dirs, message_2)?;
-        stager.unstage()?;
-        let commit_history = committer.list_commits()?;
+            for commit in commit_history.iter() {
+                println!("{:?}", commit);
+            }
 
-        for commit in commit_history.iter() {
-            println!("{:?}", commit);
-        }
+            // The messages come out LIFO
+            assert_eq!(commit_history.len(), 2);
+            assert_eq!(commit_history[0].id, commit_id);
+            assert_eq!(commit_history[0].message, message_2);
+            assert!(committer.head_contains_file(&relative_annotation_path)?);
 
-        // The messages come out LIFO
-        assert_eq!(commit_history.len(), 2);
-        assert_eq!(commit_history[0].id, commit_id);
-        assert_eq!(commit_history[0].message, message_2);
-        assert!(committer.head_contains_file(&relative_annotation_path)?);
+            // Push some of them
 
-        // Push some of them
+            // List remaining
 
-        // List remaining
+            // Push rest
 
-        // Push rest
+            // Confirm none left to be pushed
 
-        // Confirm none left to be pushed
+            // List all files in commit
 
-        // List all files in commit
+            // List pushed files in commit
 
-        // List pushed files in commit
-
-        // cleanup
-        std::fs::remove_dir_all(repo_path)?;
-
-        Ok(())
+            Ok(())
+        })
     }
 }
