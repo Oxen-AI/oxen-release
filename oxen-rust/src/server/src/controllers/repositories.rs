@@ -1,19 +1,28 @@
-use actix_web::{HttpRequest, HttpResponse};
-
-use liboxen::api::local::RepositoryAPI;
-use liboxen::view::{RepositoryNew, StatusMessage};
-
 use crate::app_data::SyncDir;
 
+use liboxen::api;
+
+use liboxen::view::{RepositoryNew, RepositoryView, RepositoryResponse, StatusMessage, ListRepositoryResponse};
+use liboxen::view::http::{STATUS_SUCCESS, MSG_RESOURCE_FOUND, MSG_RESOURCE_CREATED};
+
+use actix_web::{HttpRequest, HttpResponse};
 use actix_files::NamedFile;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
-    let api = RepositoryAPI::new(&sync_dir.path);
-    let repositories = api.list();
-    match repositories {
-        Ok(repositories) => HttpResponse::Ok().json(repositories),
+    match api::local::repositories::list(&sync_dir.path) {
+        Ok(repos) => {
+            let repos: Vec<RepositoryView> = repos.iter()
+                .map(|repo| { RepositoryView::from_local(repo.clone()) })
+                .collect();
+            let view = ListRepositoryResponse {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_FOUND),
+                repositories: repos
+            };
+            HttpResponse::Ok().json(view)
+        },
         Err(err) => {
             let msg = format!("Unable to list repositories. Err: {}", err);
             HttpResponse::Ok().json(StatusMessage::error(&msg))
@@ -24,12 +33,16 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
-    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
-    let path: Option<&str> = req.match_info().get("name");
-    if let Some(path) = path {
-        let response = api.get_by_path(Path::new(&path));
-        match response {
-            Ok(response) => HttpResponse::Ok().json(response),
+    let name: Option<&str> = req.match_info().get("name");
+    if let Some(name) = name {
+        match api::local::repositories::get_by_name(&sync_dir.path, name) {
+            Ok(repository) => {
+                HttpResponse::Ok().json(RepositoryResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    repository: RepositoryView::from_local(repository)
+                })
+            },
             Err(err) => {
                 let msg = format!("Err: {}", err);
                 HttpResponse::Ok().json(StatusMessage::error(&msg))
@@ -44,13 +57,17 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
-    let repository: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
-    match repository {
-        Ok(repository) => {
-            let api = RepositoryAPI::new(Path::new(&sync_dir.path));
-            let repository = api.create(&repository);
-            match repository {
-                Ok(repository) => HttpResponse::Ok().json(repository),
+    let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
+    match data {
+        Ok(data) => {
+            match api::local::repositories::create(&sync_dir.path, &data.name) {
+                Ok(repository) => {
+                    HttpResponse::Ok().json(RepositoryResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        repository: RepositoryView::from_local(repository)
+                    })
+                },
                 Err(err) => {
                     let msg = format!("Error: {:?}", err);
                     HttpResponse::Ok().json(StatusMessage::error(&msg))
@@ -65,13 +82,10 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
-    let repo_path: PathBuf = req.match_info().query("name").parse().unwrap();
-
-    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
-    match api.get_by_path(Path::new(&repo_path)) {
-        Ok(result) => {
-            let repo_dir = Path::new(&sync_dir.path).join(result.repository.name);
-            let full_path = repo_dir.join(&filepath);
+    let name: &str = req.match_info().get("name").unwrap();
+    match api::local::repositories::get_by_name(&sync_dir.path, name) {
+        Ok(repo) => {
+            let full_path = repo.path.join(&filepath);
             Ok(NamedFile::open(full_path)?)
         }
         Err(_) => {
@@ -97,8 +111,8 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_respository_index_empty() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+    async fn test_repository_index_empty() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
 
         let req = test::request(&sync_dir, "/repositories");
 
@@ -117,7 +131,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
 
         test::create_local_repo(&sync_dir, "Testing-1")?;
         test::create_local_repo(&sync_dir, "Testing-2")?;
@@ -138,7 +152,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_show() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, name)?;
@@ -162,7 +176,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_create() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
         let data = r#"
         {
             "name": "Testing-Name"

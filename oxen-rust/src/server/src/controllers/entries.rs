@@ -1,7 +1,6 @@
 use crate::app_data::SyncDir;
 
 use liboxen::api;
-use liboxen::api::local::RepositoryAPI;
 use liboxen::model::{Entry, LocalRepository};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::view::{EntryResponse, StatusMessage};
@@ -26,19 +25,12 @@ pub async fn create(
     data: web::Query<EntryQuery>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
-    let api = RepositoryAPI::new(&sync_dir.path);
 
-    println!("GOT REQ: {:?}\n\n\nquery: {}", req, req.query_string());
-
-    // path to the repo
-    let path: &str = req.match_info().get("name").unwrap();
-    match api.get_by_path(Path::new(&path)) {
-        Ok(result) => match LocalRepository::from_remote(result.repository) {
-            Ok(local_repo) => create_entry(&sync_dir.path, &local_repo, body, data).await,
-            Err(err) => {
-                let msg = format!("Error converting repo\nErr: {}", err);
-                Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
-            }
+    // name of the repo
+    let name: &str = req.match_info().get("name").unwrap();
+    match api::local::repositories::get_by_name(&sync_dir.path, name) {
+        Ok(local_repo) => {
+            create_entry(&sync_dir.path, &local_repo, body, data).await
         },
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {}", err);
@@ -119,7 +111,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_entries_create_text_file() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, name)?;

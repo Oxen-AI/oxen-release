@@ -1,4 +1,4 @@
-use liboxen::api::local::RepositoryAPI;
+use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::index::Committer;
 use liboxen::model::{Commit, LocalRepository};
@@ -58,16 +58,13 @@ pub async fn upload(
     data: web::Query<CommitQuery>, // these are the query params -> struct
 ) -> Result<HttpResponse, Error> {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
-    let api = RepositoryAPI::new(Path::new(&sync_dir.path));
+    // name to the repo, should be in url path so okay to unwap
+    let name: &str = req.match_info().get("name").unwrap();
+    match api::local::repositories::get_by_name(&sync_dir.path, name) {
+        Ok(repo) => {
+            let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
-    // path to the repo, should be in url path so okay to unwap
-    let path: &str = req.match_info().get("name").unwrap();
-    match api.get_by_path(Path::new(&path)) {
-        Ok(result) => {
-            let repo_dir = Path::new(&sync_dir.path).join(result.repository.name);
-            let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
-
-            // Create Commit
+            // Create Commit from uri params
             let commit = Commit {
                 id: data.commit_id.clone(),
                 parent_id: data.parent_id.clone(),
@@ -76,25 +73,29 @@ pub async fn upload(
                 date: Commit::date_from_str(&data.date),
             };
 
-            // TODO: error handle and use command api for this
-            let result = create_commit(&repo_dir, &commit);
-            println!("Commit result {:?}", result);
+            match create_commit(&repo.path, &commit) {
+                Ok(_) => {
+                    // Get tar.gz bytes for history/COMMIT_ID data
+                    let mut bytes = web::BytesMut::new();
+                    while let Some(item) = body.next().await {
+                        bytes.extend_from_slice(&item?);
+                    }
 
-            // Get tar.gz bytes for history/COMMIT_ID data
-            let mut bytes = web::BytesMut::new();
-            while let Some(item) = body.next().await {
-                bytes.extend_from_slice(&item?);
+                    // Unpack tarball to our hidden dir
+                    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+                    archive.unpack(hidden_dir)?;
+
+                    Ok(HttpResponse::Ok().json(CommitResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        commit,
+                    }))
+                },
+                Err(err) => {
+                    let msg = format!("Err: {}", err);
+                    Ok(HttpResponse::Ok().json(StatusMessage::error(&msg)))
+                }
             }
-
-            // Unpack tarball
-            let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-            archive.unpack(hidden_dir)?;
-
-            Ok(HttpResponse::Ok().json(CommitResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_CREATED),
-                commit,
-            }))
         }
         Err(err) => {
             let msg = format!("Err: {}", err);
@@ -142,7 +143,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_commits_index_empty() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, name)?;
@@ -165,7 +166,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_list_two_commits() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, name)?;
@@ -190,7 +191,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_commits_upload() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir();
+        let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, name)?;

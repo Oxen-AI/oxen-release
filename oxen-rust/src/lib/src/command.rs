@@ -233,7 +233,6 @@ mod tests {
             assert_eq!(repo_status.untracked_files.len(), 0);
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
-            // TODO: implement log
             let commits = command::log(&repo)?;
             assert_eq!(commits.len(), 1);
 
