@@ -9,10 +9,10 @@ use std::sync::Arc;
 
 use crate::api;
 use crate::error::OxenError;
-use crate::view::{CommitResponse, RemoteRepositoryHeadResponse, RepositoryResponse};
 use crate::index::Committer;
-use crate::model::{CommitHead, Commit, LocalRepository, RemoteRepository};
+use crate::model::{Commit, CommitHead, LocalRepository, RemoteRepository};
 use crate::util;
+use crate::view::{CommitResponse, RemoteRepositoryHeadResponse, RepositoryResponse};
 
 pub struct Indexer {
     pub repository: LocalRepository,
@@ -21,15 +21,11 @@ pub struct Indexer {
 impl Indexer {
     pub fn new(repository: &LocalRepository) -> Result<Indexer, OxenError> {
         Ok(Indexer {
-            repository: repository.clone()
+            repository: repository.clone(),
         })
     }
 
-    fn push_entries(
-        &self,
-        committer: &Arc<Committer>,
-        commit: &Commit,
-    ) -> Result<(), OxenError> {
+    fn push_entries(&self, committer: &Arc<Committer>, commit: &Commit) -> Result<(), OxenError> {
         let paths = committer.list_unsynced_files_for_commit(&commit.id)?;
 
         println!("🐂 push {} files", paths.len());
@@ -41,7 +37,7 @@ impl Indexer {
         let commit_db = &committer.head_commit_db;
         paths.par_iter().for_each(|path| {
             match self.hash_and_push(committer, commit_db, path) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(err) => {
                     eprintln!("Error pushing entry {:?} Err {}", path, err)
                 }
@@ -92,20 +88,23 @@ impl Indexer {
                                     Ok(())
                                 }
                                 Err(err) => {
-                                    let err = format!("Error updating hash path: {:?} Err: {}", path, err);
+                                    let err = format!(
+                                        "Error updating hash path: {:?} Err: {}",
+                                        path, err
+                                    );
                                     Err(OxenError::basic_str(&err))
                                 }
                             }
                         }
                         Err(err) => {
                             let err = format!("Error uploading {:?} {}", path, err);
-                            return Err(OxenError::basic_str(&err))
+                            Err(OxenError::basic_str(&err))
                         }
                     }
                 }
                 Err(err) => {
                     let err = format!("Could not get relative path... Err: {}", err);
-                    return Err(OxenError::basic_str(&err))
+                    Err(OxenError::basic_str(&err))
                 }
             }
         } else {
@@ -250,8 +249,7 @@ impl Indexer {
         {
             let status = res.status();
             let body = res.text()?;
-            let response: Result<CommitResponse, serde_json::Error> =
-                serde_json::from_str(&body);
+            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(_) => Ok(()),
                 Err(_) => Err(OxenError::basic_str(&format!(
@@ -309,10 +307,8 @@ mod tests {
 
     // const BASE_DIR: &str = "data/test/runs";
 
-
     #[test]
     fn test_indexer_push() -> Result<(), OxenError> {
-
         Ok(())
     }
 }

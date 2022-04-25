@@ -329,11 +329,7 @@ impl Committer {
         }
     }
 
-    fn p_list_commits(
-        &self,
-        commit_id: &str,
-        messages: &mut Vec<Commit>,
-    ) -> Result<(), OxenError> {
+    fn p_list_commits(&self, commit_id: &str, messages: &mut Vec<Commit>) -> Result<(), OxenError> {
         // println!("p_list_commits commit_id {}", commit_id);
 
         if let Some(commit) = self.get_commit_by_id(commit_id)? {

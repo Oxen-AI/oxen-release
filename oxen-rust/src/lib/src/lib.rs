@@ -10,12 +10,12 @@
 
 /// api to do stuff
 pub mod api;
-pub mod model;
-pub mod view;
 pub mod command;
 pub mod config;
 pub mod constants;
 pub mod error;
 pub mod index;
+pub mod model;
 pub mod test;
 pub mod util;
+pub mod view;

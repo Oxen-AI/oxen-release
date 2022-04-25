@@ -1,15 +1,15 @@
+use crate::command;
 use crate::error::OxenError;
-use crate::view::{
-    ListRepositoryResponse, RemoteRepositoryHeadResponse, RepositoryResponse,
-    RepositoryView, RepositoryNew
-};
-use crate::view::http::{
-    MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
-};
 use crate::index::Committer;
 use crate::model::{CommitHead, CommmitSyncInfo, LocalRepository, RemoteRepository};
 use crate::util;
-use crate::command;
+use crate::view::http::{
+    MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
+};
+use crate::view::{
+    ListRepositoryResponse, RemoteRepositoryHeadResponse, RepositoryNew, RepositoryResponse,
+    RepositoryView,
+};
 
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
@@ -112,9 +112,9 @@ impl RepositoryAPI {
 mod tests {
     use crate::api::local::RepositoryAPI;
     use crate::error::OxenError;
+    use crate::test;
     use crate::view::http::MSG_RESOURCE_ALREADY_EXISTS;
     use crate::view::RepositoryNew;
-    use crate::test;
     use std::fs;
     use std::path::Path;
 
@@ -244,7 +244,7 @@ mod tests {
     fn test_6_create_get_repository_by_path() {
         // TODO: create test function to create/cleanup sync dir
 
-        test::run_empty_repo_test(|repo| {
+        test::run_empty_repo_test(|_repo| {
             // let sync_dir = get_sync_dir();
             // let api = RepositoryAPI::new(sync_dir);
             // let response = api.get_by_path(Path::new(name))?;

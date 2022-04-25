@@ -1,6 +1,5 @@
-
-use std::path::PathBuf;
 use colored::Colorize;
+use std::path::PathBuf;
 
 pub struct RepoStatus {
     pub added_dirs: Vec<(PathBuf, usize)>,
@@ -11,20 +10,18 @@ pub struct RepoStatus {
 
 impl RepoStatus {
     pub fn is_clean(&self) -> bool {
-        self.added_dirs.is_empty() &&
-        self.added_files.is_empty() &&
-        self.untracked_files.is_empty() &&
-        self.untracked_dirs.is_empty()
+        self.added_dirs.is_empty()
+            && self.added_files.is_empty()
+            && self.untracked_files.is_empty()
+            && self.untracked_dirs.is_empty()
     }
 
     pub fn has_added_entries(&self) -> bool {
-        self.added_dirs.is_empty() &&
-        self.added_files.is_empty()
+        self.added_dirs.is_empty() && self.added_files.is_empty()
     }
 
     pub fn has_untracked_entries(&self) -> bool {
-        self.untracked_dirs.is_empty() &&
-        self.untracked_files.is_empty()
+        self.untracked_dirs.is_empty() && self.untracked_files.is_empty()
     }
 
     pub fn print_added(&self) {
