@@ -8,7 +8,6 @@ use crate::error::OxenError;
 use crate::index::{Referencer, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 
-use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
@@ -118,11 +117,6 @@ pub fn repo_cfg_file() -> &'static Path {
 
 pub fn test_jpeg_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
-}
-
-pub fn setup_env() {
-    env::set_var("HOST", "0.0.0.0");
-    env::set_var("PORT", "2000");
 }
 
 pub fn create_remote_repo(name: &str) -> Result<RemoteRepository, OxenError> {

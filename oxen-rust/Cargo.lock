@@ -1365,6 +1365,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "flate2",
+ "futures",
  "futures-util",
  "liboxen",
  "serde",

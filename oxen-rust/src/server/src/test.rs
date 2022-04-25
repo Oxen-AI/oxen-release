@@ -6,9 +6,10 @@ use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-pub fn get_sync_dir() -> PathBuf {
+pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
     let sync_dir = PathBuf::from(format!("/tmp/oxen/tests/{}", uuid::Uuid::new_v4()));
-    sync_dir
+    std::fs::create_dir_all(&sync_dir)?;
+    Ok(sync_dir)
 }
 
 pub fn create_local_repo(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
