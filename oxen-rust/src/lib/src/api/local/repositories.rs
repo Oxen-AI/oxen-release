@@ -142,14 +142,12 @@ mod tests {
     }
 
     #[test]
-    fn test_6_create_get_repository_by_path() -> Result<(), OxenError> {
-        // TODO: create test function to create/cleanup sync dir
-
-        test::run_empty_repo_test(|_repo| {
-            // let sync_dir = get_sync_dir();
-            // let api = RepositoryAPI::new(sync_dir);
-            // let response = api.get_by_path(Path::new(name))?;
-            // assert_eq!(response.repository.name, name);
+    fn test_local_repository_api_get_by_name() -> Result<(), OxenError> {
+        test::run_empty_repo_dir_test(|sync_dir| {
+            let name = "my-repo";
+            let _ = api::local::repositories::create(&sync_dir, name)?;
+            let repo = api::local::repositories::get_by_name(&sync_dir, name)?;
+            assert_eq!(repo.name, name);
             Ok(())
         })
     }
