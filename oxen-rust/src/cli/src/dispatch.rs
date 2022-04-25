@@ -126,8 +126,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with msg [{}]", message);
             let repo = LocalRepository::from_dir(&repo_dir)?;
-            let result = command::commit(&repo, message)?;
-            println!("Successfully committed [{}]", result);
+            command::commit(&repo, message)?;
             Ok(())
         }
         _ => {
