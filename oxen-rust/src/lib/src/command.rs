@@ -5,7 +5,7 @@
 
 use crate::error::OxenError;
 use crate::index::{Committer, Stager};
-use crate::model::{LocalRepository, RepoStatus};
+use crate::model::{LocalRepository, RepoStatus, Commit};
 use crate::util;
 
 use std::path::Path;
@@ -109,17 +109,30 @@ pub fn status(repository: &LocalRepository) -> Result<RepoStatus, OxenError> {
 }
 
 /// # Get status of files in repository
-pub fn add(_repo: &LocalRepository, _path: &Path) -> Result<(), OxenError> {
+pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
+    let stager = Stager::new(repo)?;
+    let committer = Committer::new(repo)?;
+    stager.add(path, &committer)?;
     Ok(())
 }
 
-pub fn commit(repo: &LocalRepository, message: &str) -> Result<String, OxenError> {
+/// # Commit the staged files in the repo
+pub fn commit(repo: &LocalRepository, message: &str) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
     let mut committer = Committer::new(repo)?;
     let added_files = stager.list_added_files()?;
     let added_dirs = stager.list_added_directories()?;
 
-    committer.commit(&added_files, &added_dirs, message)
+    committer.commit(&added_files, &added_dirs, message)?;
+    stager.unstage()?;
+    Ok(())
+}
+
+/// # Get a log of all the commits
+pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+    let committer = Committer::new(repo)?;
+    let commits = committer.list_commits()?;
+    Ok(commits)
 }
 
 #[cfg(test)]
@@ -176,6 +189,53 @@ mod tests {
             assert_eq!(repo_status.added_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 1);
             assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_add_file() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            // Write to file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello World");
+
+            // Track the file
+            command::add(&repo, &hello_file)?;
+            // Get status and make sure it is removed from the untracked, and added to the tracked
+            let repo_status = command::status(&repo)?;
+            assert_eq!(repo_status.added_dirs.len(), 0);
+            assert_eq!(repo_status.added_files.len(), 1);
+            assert_eq!(repo_status.untracked_files.len(), 0);
+            assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_commit_file() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            // Write to file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello World");
+
+            // Track the file
+            command::add(&repo, &hello_file)?;
+            // Commit the file
+            command::commit(&repo, "My message")?;
+
+            // Get status and make sure it is removed from the untracked and added
+            let repo_status = command::status(&repo)?;
+            assert_eq!(repo_status.added_dirs.len(), 0);
+            assert_eq!(repo_status.added_files.len(), 0);
+            assert_eq!(repo_status.untracked_files.len(), 0);
+            assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+            // TODO: implement log
+            let commits = command::log(&repo)?;
+            assert_eq!(commits.len(), 1);
 
             Ok(())
         })

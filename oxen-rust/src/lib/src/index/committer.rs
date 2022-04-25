@@ -138,7 +138,6 @@ impl Committer {
         // Generate uniq id for this commit
         let commit_id = uuid::Uuid::new_v4();
         let id_str = format!("{}", commit_id);
-        println!("Commit id {}", id_str);
 
         // Get last commit_id from the referencer
         // either copy over parent db as a starting point, or start new
