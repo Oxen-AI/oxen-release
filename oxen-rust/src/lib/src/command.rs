@@ -5,7 +5,7 @@
 
 use crate::error::OxenError;
 use crate::index::{Committer, Stager};
-use crate::model::{LocalRepository, RepoStatus, Commit};
+use crate::model::{Commit, LocalRepository, RepoStatus};
 use crate::util;
 
 use std::path::Path;
@@ -144,10 +144,10 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
         Ok(Some(head_commit)) => {
             committer.referencer.create_branch(name, &head_commit.id)?;
             Ok(())
-        },
-        _ => {
-            Err(OxenError::basic_str("Err: No Commits. Cannot create a branch until you make your initial commit."))
         }
+        _ => Err(OxenError::basic_str(
+            "Err: No Commits. Cannot create a branch until you make your initial commit.",
+        )),
     }
 }
 
@@ -175,10 +175,10 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), 
             committer.referencer.create_branch(name, &head_commit.id)?;
             committer.referencer.set_head(name)?;
             Ok(())
-        },
-        _ => {
-            Err(OxenError::basic_str("Err: No Commits. Cannot create a branch until you make your initial commit."))
         }
+        _ => Err(OxenError::basic_str(
+            "Err: No Commits. Cannot create a branch until you make your initial commit.",
+        )),
     }
 }
 

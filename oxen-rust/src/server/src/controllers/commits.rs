@@ -90,7 +90,7 @@ pub async fn upload(
                         status_message: String::from(MSG_RESOURCE_CREATED),
                         commit,
                     }))
-                },
+                }
                 Err(err) => {
                     let msg = format!("Err: {}", err);
                     Ok(HttpResponse::Ok().json(StatusMessage::error(&msg)))
@@ -131,11 +131,11 @@ mod tests {
     use flate2::Compression;
     use std::path::Path;
 
-    use liboxen::util;
     use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
     use liboxen::model::Commit;
+    use liboxen::util;
     use liboxen::view::{CommitResponse, ListCommitResponse};
 
     use crate::app_data::SyncDir;
@@ -227,8 +227,13 @@ mod tests {
         let uri = format!("/repositories/{}/commits?{}", name, commit_query);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(SyncDir {path: sync_dir.clone()})
-                .route("/repositories/{name}/commits", web::post().to(controllers::commits::upload))
+                .app_data(SyncDir {
+                    path: sync_dir.clone(),
+                })
+                .route(
+                    "/repositories/{name}/commits",
+                    web::post().to(controllers::commits::upload),
+                ),
         )
         .await;
 

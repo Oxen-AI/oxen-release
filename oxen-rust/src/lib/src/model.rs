@@ -1,3 +1,4 @@
+pub mod branch;
 pub mod commit;
 pub mod entry;
 pub mod local_repository;
@@ -5,7 +6,6 @@ pub mod remote;
 pub mod remote_repository;
 pub mod repo_status;
 pub mod user;
-pub mod branch;
 
 pub use crate::model::commit::{Commit, CommitHead, CommmitSyncInfo};
 

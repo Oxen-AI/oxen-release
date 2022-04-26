@@ -1,8 +1,8 @@
-use crate::util;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Branch};
+use crate::model::{Branch, LocalRepository};
+use crate::util;
 
-use rocksdb::{LogLevel, Options, DB, IteratorMode};
+use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -12,7 +12,7 @@ pub const DEFAULT_BRANCH: &str = "main";
 
 pub struct Referencer {
     refs_db: DB,
-    head_file: PathBuf
+    head_file: PathBuf,
 }
 
 impl Referencer {
@@ -37,7 +37,7 @@ impl Referencer {
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open(&opts, &refs_dir)?,
-            head_file: head_filename
+            head_file: head_filename,
         })
     }
 
@@ -55,7 +55,7 @@ impl Referencer {
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
-            head_file: head_filename
+            head_file: head_filename,
         })
     }
 
@@ -87,7 +87,7 @@ impl Referencer {
 
     pub fn set_head_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         let head_ref = self.read_head_ref()?;
-        self.set_branch_commit_id(&head_ref, &commit_id)?;
+        self.set_branch_commit_id(&head_ref, commit_id)?;
         Ok(())
     }
 
@@ -111,10 +111,7 @@ impl Referencer {
     }
 
     pub fn has_branch(&self, name: &str) -> bool {
-        match self.get_commit_id(name) {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.get_commit_id(name).is_ok()
     }
 
     pub fn get_commit_id(&self, name: &str) -> Result<String, OxenError> {
@@ -163,15 +160,10 @@ mod tests {
         test::run_referencer_test(|referencer| {
             let branch_name = "experiment/cat-dog";
             let commit_id = format!("{}", uuid::Uuid::new_v4());
-            referencer.create_branch(&branch_name, &commit_id)?;
+            referencer.create_branch(branch_name, &commit_id)?;
 
-            match referencer.head_commit_id() {
-                Ok(_) => {
-                    panic!("Should not be able to read head!")
-                }
-                Err(_) => {
-                    // si si esta bien
-                }
+            if referencer.head_commit_id().is_ok() {
+                panic!("Should not be able to read head!")
             }
 
             Ok(())
@@ -183,8 +175,8 @@ mod tests {
         test::run_referencer_test(|referencer| {
             let branch_name = "experiment/cat-dog";
             let commit_id = format!("{}", uuid::Uuid::new_v4());
-            referencer.create_branch(&branch_name, &commit_id)?;
-            referencer.set_head(&branch_name)?;
+            referencer.create_branch(branch_name, &commit_id)?;
+            referencer.set_head(branch_name)?;
             assert_eq!(referencer.head_commit_id()?, commit_id);
 
             Ok(())
@@ -233,14 +225,9 @@ mod tests {
     fn test_referencer_create_branch_same_name() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
             referencer.create_branch("name", "1")?;
-            
-            match referencer.create_branch("name", "2") {
-                Ok(_) => {
-                    panic!("Should not be able to create branch with same name")
-                },
-                Err(_) => {
-                    // we good
-                }
+
+            if referencer.create_branch("name", "2").is_ok() {
+                panic!("Should not be able to read head!")
             }
 
             // We should still only have one branch
@@ -263,6 +250,6 @@ mod tests {
     // Create branch and check it out
     // git checkout -b my_branchie_poo
 
-    // TODO on commit, make all them hard links to our mirror directory.... 
+    // TODO on commit, make all them hard links to our mirror directory....
     // maybe we compress and hash? we'll see, don't compress at the start, KISS
 }

@@ -4,7 +4,7 @@ use crate::index::Committer;
 use crate::model::{CommitHead, CommmitSyncInfo, LocalRepository};
 use crate::util;
 
-use std::path::{Path};
+use std::path::Path;
 use walkdir::WalkDir;
 
 pub fn get_by_name(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
@@ -68,16 +68,16 @@ pub fn create(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError>
 mod tests {
     use crate::api;
     use crate::error::OxenError;
-    use crate::test;
     use crate::model::LocalRepository;
+    use crate::test;
     use std::path::Path;
 
     #[test]
     fn test_local_repository_api_create() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|sync_dir| {
             let name: &str = "testing";
-            let repo = api::local::repositories::create(&sync_dir, name)?;
-            
+            let repo = api::local::repositories::create(sync_dir, name)?;
+
             assert_eq!(repo.name, name);
 
             let repo_path = Path::new(&sync_dir).join(Path::new(name));
@@ -95,8 +95,8 @@ mod tests {
     fn test_local_repository_api_create_list_one() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|sync_dir| {
             let name: &str = "testing";
-            let _ = api::local::repositories::create(&sync_dir, name)?;
-            let repos = api::local::repositories::list(&sync_dir)?;
+            let _ = api::local::repositories::create(sync_dir, name)?;
+            let repos = api::local::repositories::list(sync_dir)?;
             assert_eq!(repos.len(), 1);
             assert_eq!(repos[0].name, name);
 
@@ -104,15 +104,14 @@ mod tests {
         })
     }
 
-
     #[test]
     fn test_local_repository_api_create_list_multiple() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|sync_dir| {
-            let _ = api::local::repositories::create(&sync_dir, "testing1")?;
-            let _ = api::local::repositories::create(&sync_dir, "testing2")?;
-            let _ = api::local::repositories::create(&sync_dir, "testing3")?;
+            let _ = api::local::repositories::create(sync_dir, "testing1")?;
+            let _ = api::local::repositories::create(sync_dir, "testing2")?;
+            let _ = api::local::repositories::create(sync_dir, "testing3")?;
 
-            let repos = api::local::repositories::list(&sync_dir)?;
+            let repos = api::local::repositories::list(sync_dir)?;
             assert_eq!(repos.len(), 3);
 
             Ok(())
@@ -122,13 +121,12 @@ mod tests {
     #[test]
     fn test_local_repository_api_cannot_create_name_twice() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|sync_dir| {
-
             let name: &str = "CatsVsDogs";
             // first time is okay
-            let _ = api::local::repositories::create(&sync_dir, name)?;
+            let _ = api::local::repositories::create(sync_dir, name)?;
 
             // Second time should throw error
-            match api::local::repositories::create(&sync_dir, name) {
+            match api::local::repositories::create(sync_dir, name) {
                 Ok(_) => {
                     panic!("Do not allow creation of same repo twice")
                 }
@@ -145,8 +143,8 @@ mod tests {
     fn test_local_repository_api_get_by_name() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|sync_dir| {
             let name = "my-repo";
-            let _ = api::local::repositories::create(&sync_dir, name)?;
-            let repo = api::local::repositories::get_by_name(&sync_dir, name)?;
+            let _ = api::local::repositories::create(sync_dir, name)?;
+            let repo = api::local::repositories::get_by_name(sync_dir, name)?;
             assert_eq!(repo.name, name);
             Ok(())
         })
