@@ -93,13 +93,17 @@ impl Referencer {
 
     pub fn list_branches(&self) -> Result<Vec<Branch>, OxenError> {
         let mut branch_names: Vec<Branch> = vec![];
+        let head_ref = self.read_head_ref()?;
         let iter = self.refs_db.iterator(IteratorMode::Start);
         for (key, value) in iter {
             match (str::from_utf8(&*key), str::from_utf8(&*value)) {
                 (Ok(key_str), Ok(value)) => {
+                    let ref_name = String::from(key_str);
+                    let id = String::from(value);
                     branch_names.push(Branch {
-                        name: String::from(key_str),
-                        commit_id: String::from(value),
+                        name: ref_name.clone(),
+                        commit_id: id.clone(),
+                        is_head: (ref_name == head_ref),
                     });
                 }
                 _ => {
