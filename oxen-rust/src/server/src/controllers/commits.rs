@@ -108,7 +108,7 @@ fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(repo_dir)?;
     let result = Committer::new(&repo);
     match result {
-        Ok(mut committer) => match committer.add_commit_to_db(commit) {
+        Ok(mut committer) => match committer.add_commit(commit) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("Error adding commit to db: {:?}", err);
@@ -131,10 +131,11 @@ mod tests {
     use flate2::Compression;
     use std::path::Path;
 
+    use liboxen::util;
+    use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
     use liboxen::model::Commit;
-    use liboxen::util;
     use liboxen::view::{CommitResponse, ListCommitResponse};
 
     use crate::app_data::SyncDir;
@@ -142,7 +143,7 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_respository_commits_index_empty() -> Result<(), OxenError> {
+    async fn test_controllers_respository_commits_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
@@ -165,23 +166,25 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_respository_list_two_commits() -> Result<(), OxenError> {
+    async fn test_controllers_respository_list_two_commits() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
-        test::create_local_repo(&sync_dir, name)?;
+        let repo = test::create_local_repo(&sync_dir, name)?;
 
-        // TODO: quick commands to add files and create commits
+        liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        command::commit(&repo, "first commit")?;
+        liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        command::commit(&repo, "second commit")?;
 
         let uri = format!("/repositories/{}/commits", name);
         let req = test::request_with_param(&sync_dir, &uri, "name", name);
 
         let resp = controllers::commits::index(req).await;
-
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let _list: ListCommitResponse = serde_json::from_str(text)?;
-        // assert_eq!(list.commits.len(), 2);
+        let list: ListCommitResponse = serde_json::from_str(text)?;
+        assert_eq!(list.commits.len(), 2);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
@@ -190,7 +193,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_commits_upload() -> Result<(), OxenError> {
+    async fn test_controllers_commits_upload() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
@@ -224,13 +227,8 @@ mod tests {
         let uri = format!("/repositories/{}/commits?{}", name, commit_query);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(SyncDir {
-                    path: sync_dir.clone(),
-                })
-                .route(
-                    "/repositories/{name}/commits",
-                    web::post().to(controllers::commits::upload),
-                ),
+                .app_data(SyncDir {path: sync_dir.clone()})
+                .route("/repositories/{name}/commits", web::post().to(controllers::commits::upload))
         )
         .await;
 

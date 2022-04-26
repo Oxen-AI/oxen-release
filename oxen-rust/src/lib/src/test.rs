@@ -103,6 +103,30 @@ where
     Ok(())
 }
 
+pub fn run_referencer_test<T>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(Referencer) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
+    let referencer = Referencer::new(&repo)?;
+
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(referencer) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
 pub fn remote_cfg_file() -> &'static Path {
     Path::new("data/test/config/remote_cfg.toml")
 }
@@ -123,12 +147,6 @@ pub fn create_remote_repo(name: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::new(auth_cfg_file());
     let repository = api::remote::repositories::create(&config, name)?;
     Ok(repository)
-}
-
-pub fn create_referencer(base_dir: &str) -> Result<(Referencer, PathBuf), OxenError> {
-    let repo_dir = create_repo_dir(base_dir)?;
-    command::init(&repo_dir)?;
-    Ok((Referencer::new(&repo_dir)?, repo_dir))
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {

@@ -38,6 +38,7 @@ actix-multipart = "0.4.0"
 futures-util = "0.3.21"
 futures = "0.3.21"
 threadpool = "1.8.1"
+actix-service = "2.0.2"
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]

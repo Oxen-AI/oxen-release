@@ -135,6 +135,53 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(commits)
 }
 
+/// # Create a new branch
+/// This creates a new pointer to the current commit with a name
+/// It does not switch you to this branch, you still must call `checkout_branch`
+pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    let committer = Committer::new(repo)?;
+    match committer.get_head_commit() {
+        Ok(Some(head_commit)) => {
+            committer.referencer.create_branch(name, &head_commit.id)?;
+            Ok(())
+        },
+        _ => {
+            Err(OxenError::basic_str("Err: No Commits. Cannot create a branch until you make your initial commit."))
+        }
+    }
+}
+
+/// # Checkout a branch
+/// This switches HEAD to point to the branch name
+/// It also updates all the local files to be from the commit that this branch references
+pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    let committer = Committer::new(repo)?;
+    if committer.referencer.has_branch(name) {
+        committer.referencer.set_head(name)?;
+        Ok(())
+    } else {
+        let err = format!("Branch not found {}", name);
+        Err(OxenError::basic_str(&err))
+    }
+}
+
+/// # Create a branch and check it out in one go
+/// This creates a branch with name
+/// Then switches HEAD to point to the branch
+pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    let committer = Committer::new(repo)?;
+    match committer.get_head_commit() {
+        Ok(Some(head_commit)) => {
+            committer.referencer.create_branch(name, &head_commit.id)?;
+            committer.referencer.set_head(name)?;
+            Ok(())
+        },
+        _ => {
+            Err(OxenError::basic_str("Err: No Commits. Cannot create a branch until you make your initial commit."))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

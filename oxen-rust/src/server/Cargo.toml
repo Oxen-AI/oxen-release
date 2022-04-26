@@ -18,6 +18,7 @@ futures-util = "0.3.21"
 futures = "0.3.21"
 flate2 = "1.0.23"
 tar = "0.4.38"
+actix-service = "2.0.2"
 
 [[bin]]
 name = "oxen-server"

@@ -3,10 +3,10 @@ use crate::error::OxenError;
 use crate::index::Referencer;
 use crate::model::Commit;
 use crate::util;
+use crate::index::referencer::DEFAULT_BRANCH;
 
 use chrono::Utc;
 use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -51,7 +51,7 @@ impl Committer {
 
         // If there is no head commit, we cannot open the commit db
         let opts = Committer::db_opts();
-        let referencer = Referencer::new(&repository.path)?;
+        let referencer = Referencer::new(&repository)?;
         let head_commit_db = Committer::head_commit_db(&repository.path, &referencer);
 
         Ok(Committer {
@@ -64,22 +64,13 @@ impl Committer {
         })
     }
 
-    pub fn count_files_from_dir(&self, dir: &Path) -> usize {
-        // TODO: Make more common util to collect files with extensions
-        let exts: HashSet<String> = vec!["jpg", "jpeg", "png", "txt"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        util::fs::rcount_files_with_extension(dir, &exts)
-    }
-
     fn head_commit_db(
         repo_dir: &Path,
         referencer: &Referencer,
     ) -> Option<DBWithThreadMode<MultiThreaded>> {
         let history_path = Committer::history_dir(repo_dir);
         let opts = Committer::db_opts();
-        match referencer.read_head() {
+        match referencer.read_head_ref() {
             Ok(ref_name) => match referencer.get_commit_id(&ref_name) {
                 Ok(commit_id) => {
                     let commit_db_path = history_path.join(Path::new(&commit_id));
@@ -91,34 +82,99 @@ impl Committer {
         }
     }
 
-    fn list_image_files_from_dir(&self, dir: &Path) -> Vec<PathBuf> {
-        let img_ext: HashSet<String> = vec!["jpg", "jpeg", "png"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        util::fs::recursive_files_with_extensions(dir, &img_ext)
-            .into_iter()
-            .collect()
+    fn create_db_dir_for_commit_id(&self, id: &str) -> Result<PathBuf, OxenError> {
+        match self.referencer.head_commit_id() {
+            Ok(parent_id) => {
+                // We have a parent, we have to copy over last db, and continue
+                let parent_commit_db_path = self.history_dir.join(Path::new(&parent_id));
+                let current_commit_db_path = self.history_dir.join(Path::new(&id));
+                util::fs::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
+                // return current commit path, so we can add to it
+                Ok(current_commit_db_path)
+            }
+            Err(_) => {
+                // We are creating initial commit, no parent
+                let commit_db_path = self.history_dir.join(Path::new(&id));
+                if !commit_db_path.exists() {
+                    std::fs::create_dir_all(&commit_db_path)?;
+                }
+
+                // Set head to default name -> first commit
+                self.referencer.create_branch(DEFAULT_BRANCH, &id)?;
+                // Make sure head is pointing to that branch
+                self.referencer.set_head(DEFAULT_BRANCH)?;
+
+                // return current commit path, so we can insert into it
+                Ok(commit_db_path)
+            }
+        }
     }
 
-    fn list_text_files_from_dir(&self, dir: &Path) -> Vec<PathBuf> {
-        let img_ext: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
-        util::fs::recursive_files_with_extensions(dir, &img_ext)
-            .into_iter()
-            .collect()
+    fn add_staged_files_to_db(
+        &self,
+        added_files: &[PathBuf],
+        db: &DBWithThreadMode<MultiThreaded>
+    ) -> Result<(), OxenError> {
+        for path in added_files.iter() {
+            let path_str = path.to_str().unwrap();
+            let key = path_str.as_bytes();
+
+            // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
+            // Then when we push, we hash the file contents and save it back in here to keep track of progress
+            db.put(&key, b"")?;
+        }
+        Ok(())
     }
 
-    fn list_files_in_dir(&self, path: &Path) -> Vec<PathBuf> {
-        let mut paths: Vec<PathBuf> = vec![];
-        let mut img_paths = self.list_image_files_from_dir(path);
-        let mut txt_paths = self.list_text_files_from_dir(path);
+    fn add_staged_dirs_to_db(
+        &self,
+        added_dirs: &[(PathBuf, usize)],
+        db: &DBWithThreadMode<MultiThreaded>
+    ) -> Result<(), OxenError> {
+        for (dir, _) in added_dirs.iter() {
+            let full_path = self.repository.path.join(dir);
+            let files = util::fs::list_files_in_dir(&full_path);
+            self.add_staged_files_to_db(&files, db)?;
+        }
+        Ok(())
+    }
 
-        // println!("Found {} images", img_paths.len());
-        // println!("Found {} text files", txt_paths.len());
+    fn create_commit(&self, id_str: &String, message: &str) -> Result<Commit, OxenError> {
+        // Commit
+        //  - parent_commit_id (can be empty if root)
+        //  - message
+        //  - date
+        //  - author
+        let ref_name = self.referencer.read_head_ref()?;
+        match self.referencer.get_commit_id(&ref_name) {
+            Ok(parent_id) => {
+                // We have a parent
+                Ok(Commit {
+                    id: id_str.clone(),
+                    parent_id: Some(parent_id),
+                    message: String::from(message),
+                    author: self.auth_cfg.user.name.clone(),
+                    date: Utc::now(),
+                })
+            }
+            Err(_) => {
+                // We are creating initial commit, no parent
+                Ok(Commit {
+                    id: id_str.clone(),
+                    parent_id: None,
+                    message: String::from(message),
+                    author: self.auth_cfg.user.name.clone(),
+                    date: Utc::now(),
+                })
+            }
+        }
+    }
 
-        paths.append(&mut img_paths);
-        paths.append(&mut txt_paths);
-        paths
+    pub fn has_commits(&self) -> bool {
+        match self.referencer.head_commit_id() {
+            Ok(_) => true,
+            Err(_) => false,
+        }
     }
 
     // Create a db in the history/ dir under the id
@@ -136,101 +192,36 @@ impl Committer {
         message: &str,
     ) -> Result<String, OxenError> {
         // Generate uniq id for this commit
-        let commit_id = uuid::Uuid::new_v4();
-        let id_str = format!("{}", commit_id);
+        let commit_id = format!("{}", uuid::Uuid::new_v4());
+
+        // Create a commit object, that either points to parent or not
+        // must create this before anything else so that we know if it has parent or not. 
+        let commit = self.create_commit(&commit_id, message)?;
+        println!("CREATE COMMIT: {:?}", commit);
 
         // Get last commit_id from the referencer
         // either copy over parent db as a starting point, or start new
-        let commit_db_path = match self.referencer.head_commit_id() {
-            Ok(parent_id) => {
-                // We have a parent, we have to copy over last db, and continue
-                let parent_commit_db_path = self.history_dir.join(Path::new(&parent_id));
-                let current_commit_db_path = self.history_dir.join(Path::new(&id_str));
-                util::fs::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
-                // return current commit path, so we can add to it
-                current_commit_db_path
-            }
-            Err(_) => {
-                // We are creating initial commit, no parent
-                let commit_db_path = self.history_dir.join(Path::new(&id_str));
-                if !commit_db_path.exists() {
-                    std::fs::create_dir_all(&commit_db_path)?;
-                }
-                // return current commit path, so we can insert into it
-                commit_db_path
-            }
-        };
+        let commit_db_path = self.create_db_dir_for_commit_id(&commit_id)?;
 
-        // println!("Saving commit in {:?}", commit_db_path);
+        // Open db
         let opts = Committer::db_opts();
-        let commit_db = DBWithThreadMode::open(&opts, &commit_db_path)?; //DB::open(&opts, &commit_db_path)?;
+        let commit_db = DBWithThreadMode::open(&opts, &commit_db_path)?;
 
         // Commit all staged files from db
-        // println!("Stager found {} files", added_files.len());
-        for path in added_files.iter() {
-            let path_str = path.to_str().unwrap();
-            let key = path_str.as_bytes();
-
-            // println!("Committing key {}", path_str);
-            // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
-            // Then when we push, we hash the file contents and save it back in here to keep track of progress
-            commit_db.put(&key, b"")?;
-        }
+        self.add_staged_files_to_db(added_files, &commit_db)?;
 
         // Commit all staged dirs from db, and recursively add all the files
-        // println!("Stager found {} dirs", added_dirs.len());
-        for (dir, _) in added_dirs.iter() {
-            let full_path = self.repository.path.join(dir);
-            // println!(
-            //     "Committer.commit({:?}) list_files_in_dir for dir {:?}",
-            //     dir, full_path
-            // );
+        self.add_staged_dirs_to_db(added_dirs, &commit_db)?;
 
-            for path in self.list_files_in_dir(&full_path) {
-                let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
-                let key = relative_path.to_str().unwrap().as_bytes();
+        // Add to commits db id -> commit_json
+        self.add_commit(&commit)?;
 
-                // println!("Adding key {}", path.to_str().unwrap());
-                // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
-                // Then when we push, we hash the file contents and save it back in here to keep track of progress
-                commit_db.put(&key, b"")?;
-            }
-        }
-
-        // Create an entry in the commits_db that is the id -> Commit
-        //  - parent_commit_id (can be empty if root)
-        //  - message
-        //  - date
-        //  - author
-        let ref_name = self.referencer.read_head()?;
-        let commit = match self.referencer.get_commit_id(&ref_name) {
-            Ok(parent_id) => {
-                // We have a parent
-                Commit {
-                    id: id_str.clone(),
-                    parent_id: Some(parent_id),
-                    message: String::from(message),
-                    author: self.auth_cfg.user.name.clone(),
-                    date: Utc::now(),
-                }
-            }
-            Err(_) => {
-                // We are creating initial commit, no parent
-                Commit {
-                    id: id_str.clone(),
-                    parent_id: None,
-                    message: String::from(message),
-                    author: self.auth_cfg.user.name.clone(),
-                    date: Utc::now(),
-                }
-            }
-        };
-
-        // Add to commits db
-        self.add_commit_to_db(&commit)?;
+        // Move head to commit id
+        self.referencer.set_head_commit_id(&commit.id)?;
+        // Update our current head db to be this commit db so we can quickly find files
         self.head_commit_db = Some(commit_db);
 
-        Ok(id_str)
+        Ok(commit_id)
     }
 
     pub fn get_num_entries_in_head(&self) -> Result<usize, OxenError> {
@@ -303,11 +294,7 @@ impl Committer {
         }
     }
 
-    pub fn add_commit_to_db(&mut self, commit: &Commit) -> Result<(), OxenError> {
-        // Set head db
-        let ref_name = self.referencer.read_head()?;
-        self.referencer.set_head(&ref_name, &commit.id)?;
-
+    pub fn add_commit(&mut self, commit: &Commit) -> Result<(), OxenError> {
         // Write commit json to db
         let commit_json = serde_json::to_string(&commit)?;
         self.commits_db.put(&commit.id, commit_json.as_bytes())?;
@@ -518,7 +505,7 @@ mod tests {
             let commit_history = committer.list_commits()?;
 
             for commit in commit_history.iter() {
-                println!("{:?}", commit);
+                println!("COMMIT HISTORY {:?}", commit);
             }
 
             // The messages come out LIFO
