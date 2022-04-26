@@ -194,7 +194,6 @@ impl Committer {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit(&commit_id, message)?;
-        println!("CREATE COMMIT: {:?}", commit);
 
         // Get last commit_id from the referencer
         // either copy over parent db as a starting point, or start new

@@ -4,8 +4,8 @@
 //!
 
 use crate::error::OxenError;
-use crate::index::{Committer, Stager};
-use crate::model::{Commit, LocalRepository, RepoStatus};
+use crate::index::{Committer, Referencer, Stager};
+use crate::model::{Branch, Commit, LocalRepository, RepoStatus};
 use crate::util;
 
 use std::path::Path;
@@ -180,6 +180,13 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), 
             "Err: No Commits. Cannot create a branch until you make your initial commit.",
         )),
     }
+}
+
+/// # List branches
+pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
+    let referencer = Referencer::new(repo)?;
+    let branches = referencer.list_branches()?;
+    Ok(branches)
 }
 
 #[cfg(test)]

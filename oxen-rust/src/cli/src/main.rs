@@ -1,4 +1,4 @@
-use clap::{arg, Command};
+use clap::{arg, Arg, Command};
 
 pub mod dispatch;
 
@@ -37,6 +37,24 @@ fn main() {
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
                 .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("branch")
+                .about("Manage branches in repo")
+                .arg(
+                    Arg::new("name")
+                        .help("Name of the branch")
+                        .conflicts_with("all")
+                        .exclusive(true)
+                )
+                .arg(
+                    Arg::new("all")
+                        .long("all")
+                        .short('a')
+                        .help("List all the branches")
+                        .exclusive(true)
+                        .takes_value(false)
+                )
         )
         .subcommand(
             Command::new("clone")
@@ -95,6 +113,18 @@ fn main() {
             match dispatch::add(path) {
                 Ok(_) => {}
                 Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("branch", sub_matches)) => {
+            if sub_matches.is_present("all") {
+                if let Err(err) = dispatch::list_branches() {
+                    eprintln!("{}", err)
+                }
+            } else {
+                let name = sub_matches.value_of("name").expect("required");
+                if let Err(err) = dispatch::create_branch(name) {
                     eprintln!("{}", err)
                 }
             }

@@ -4,4 +4,5 @@ use serde::{Deserialize, Serialize};
 pub struct Branch {
     pub name: String,
     pub commit_id: String,
+    pub is_head: bool,
 }
