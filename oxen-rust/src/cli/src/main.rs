@@ -5,7 +5,7 @@ pub mod dispatch;
 fn main() {
     // Here is another example with set of commands
     // https://github.com/rust-in-action/code/blob/1st-edition/ch9/ch9-clock1/src/main.rs
-    let matches = Command::new("oxen")
+    let command = Command::new("oxen")
         .version("0.0.1")
         .about("Data management toolchain")
         .subcommand_required(true)
@@ -25,13 +25,9 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
-            Command::new("status")
-                .about("See at what files are ready to be added or committed")
+            Command::new("status").about("See at what files are ready to be added or committed"),
         )
-        .subcommand(
-            Command::new("log")
-                .about("See log of commits")
-        )
+        .subcommand(Command::new("log").about("See log of commits"))
         .subcommand(
             Command::new("add")
                 .about("Adds the specified files or directories")
@@ -40,21 +36,35 @@ fn main() {
         )
         .subcommand(
             Command::new("branch")
-                .about("Manage branches in repo")
+                .about("Manage branches in repository")
                 .arg(
                     Arg::new("name")
                         .help("Name of the branch")
                         .conflicts_with("all")
-                        .exclusive(true)
+                        .exclusive(true),
                 )
                 .arg(
                     Arg::new("all")
                         .long("all")
                         .short('a')
                         .help("List all the branches")
+                        .conflicts_with("name")
                         .exclusive(true)
-                        .takes_value(false)
-                )
+                        .takes_value(false),
+                ),
+        )
+        .subcommand(
+            Command::new("checkout")
+                .about("Checks out a branches in the repository")
+                .arg(Arg::new("name").help("Name of the branch").exclusive(true))
+                .arg(
+                    Arg::new("create")
+                        .long("branch")
+                        .short('b')
+                        .help("Create the branch and check it out")
+                        .exclusive(true)
+                        .takes_value(true),
+                ),
         )
         .subcommand(
             Command::new("clone")
@@ -63,16 +73,11 @@ fn main() {
                 .arg(arg!(<URL> "URL of the repository you want to clone")),
         )
         .subcommand(
-            Command::new("push")
-                .about("Push the current branch up to the remote repository")
+            Command::new("push").about("Push the current branch up to the remote repository"),
         )
-        .subcommand(
-            Command::new("pull")
-                .about("Pull the files up from a remote branch")
-                // .arg(arg!(<REMOTE_OR_BRANCH> "Name of remote or branch to pull from"))
-                // .arg(arg!(<BRANCH> "Name of branch to pull from")),
-        )
-        .get_matches();
+        .subcommand(Command::new("pull").about("Pull the files up from a remote branch"));
+
+    let matches = command.get_matches();
 
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
@@ -127,6 +132,21 @@ fn main() {
                 if let Err(err) = dispatch::create_branch(name) {
                     eprintln!("{}", err)
                 }
+            }
+        }
+        Some(("checkout", sub_matches)) => {
+            if sub_matches.is_present("create") {
+                let name = sub_matches.value_of("create").expect("required");
+                if let Err(err) = dispatch::create_checkout_branch(name) {
+                    eprintln!("{}", err)
+                }
+            } else if sub_matches.is_present("name") {
+                let name = sub_matches.value_of("name").expect("required");
+                if let Err(err) = dispatch::checkout_branch(name) {
+                    eprintln!("{}", err)
+                }
+            } else {
+                eprintln!("Err: Usage `oxen checkout <name>`");
             }
         }
         Some(("push", _sub_matches)) => match dispatch::push() {

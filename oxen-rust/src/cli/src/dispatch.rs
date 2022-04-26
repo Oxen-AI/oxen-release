@@ -187,6 +187,20 @@ pub fn create_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn checkout_branch(name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::checkout_branch(&repository, name)?;
+    Ok(())
+}
+
+pub fn create_checkout_branch(name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::create_checkout_branch(&repository, name)?;
+    Ok(())
+}
+
 pub fn list_branches() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

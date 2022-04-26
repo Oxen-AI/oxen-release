@@ -160,7 +160,7 @@ pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenErr
         committer.referencer.set_head(name)?;
         Ok(())
     } else {
-        let err = format!("Branch not found {}", name);
+        let err = format!("Err: Branch not found '{}'", name);
         Err(OxenError::basic_str(&err))
     }
 }
