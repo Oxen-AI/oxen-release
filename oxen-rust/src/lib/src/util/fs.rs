@@ -69,8 +69,6 @@ pub fn read_lines(path: &Path) -> Vec<String> {
     lines
 }
 
-pub fn list_eligible_files_from_dir() {}
-
 pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
     match fs::read_dir(dir) {
@@ -206,6 +204,30 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
         }
     }
     files
+}
+
+pub fn rcount_files_in_dir(dir: &Path) -> usize {
+    let mut count: usize = 0;
+    if !dir.is_dir() {
+        return count;
+    }
+
+    for entry in WalkDir::new(dir) {
+        match entry {
+            Ok(val) => {
+                let path = val.path();
+                // if it's not the hidden oxen dir and is not a directory
+                if !is_in_oxen_hidden_dir(&path) && !path.is_dir() {
+                    count += 1;
+                }
+            }
+            Err(err) => eprintln!(
+                "rcount_files_in_dir Could not iterate over dir... {}",
+                err
+            ),
+        }
+    }
+    count
 }
 
 fn is_in_oxen_hidden_dir(path: &Path) -> bool {

@@ -1,7 +1,8 @@
-use crate::error::OxenError;
 use crate::util;
+use crate::error::OxenError;
+use crate::model::{LocalRepository, Branch};
 
-use rocksdb::{LogLevel, Options, DB};
+use rocksdb::{LogLevel, Options, DB, IteratorMode};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -11,7 +12,7 @@ pub const DEFAULT_BRANCH: &str = "main";
 
 pub struct Referencer {
     refs_db: DB,
-    head_file: PathBuf,
+    head_file: PathBuf
 }
 
 impl Referencer {
@@ -23,12 +24,12 @@ impl Referencer {
         util::fs::oxen_hidden_dir(path).join(Path::new(HEAD_FILE))
     }
 
-    pub fn new(repo_dir: &Path) -> Result<Referencer, OxenError> {
-        let refs_dir = Referencer::refs_dir(repo_dir);
-        let head_file = Referencer::head_file(repo_dir);
+    pub fn new(repository: &LocalRepository) -> Result<Referencer, OxenError> {
+        let refs_dir = Referencer::refs_dir(&repository.path);
+        let head_filename = Referencer::head_file(&repository.path);
 
-        if !head_file.exists() {
-            util::fs::write_to_path(&head_file, DEFAULT_BRANCH);
+        if !head_filename.exists() {
+            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH);
         }
 
         let mut opts = Options::default();
@@ -36,16 +37,16 @@ impl Referencer {
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open(&opts, &refs_dir)?,
-            head_file,
+            head_file: head_filename
         })
     }
 
-    pub fn new_read_only(repo_dir: &Path) -> Result<Referencer, OxenError> {
-        let refs_dir = Referencer::refs_dir(repo_dir);
-        let head_file = Referencer::head_file(repo_dir);
+    pub fn new_read_only(repository: &LocalRepository) -> Result<Referencer, OxenError> {
+        let refs_dir = Referencer::refs_dir(&repository.path);
+        let head_filename = Referencer::head_file(&repository.path);
 
-        if !head_file.exists() {
-            util::fs::write_to_path(&head_file, DEFAULT_BRANCH);
+        if !head_filename.exists() {
+            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH);
         }
 
         let error_if_log_file_exist = false;
@@ -54,14 +55,66 @@ impl Referencer {
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
-            head_file,
+            head_file: head_filename
         })
     }
 
-    pub fn set_head(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
-        util::fs::write_to_path(&self.head_file, name);
+    pub fn set_head(&self, name: &str) -> Result<(), OxenError> {
+        if self.has_branch(name) {
+            util::fs::write_to_path(&self.head_file, name);
+            Ok(())
+        } else {
+            let err = format!("Cannot set head to non-existant ref: {}", name);
+            Err(OxenError::basic_str(&err))
+        }
+    }
+
+    pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
+        // Only create branch if it does not exist already
+        if self.has_branch(name) {
+            let err = format!("Branch already exists: {}", name);
+            Err(OxenError::basic_str(&err))
+        } else {
+            self.set_branch_commit_id(name, commit_id)?;
+            Ok(())
+        }
+    }
+
+    pub fn set_branch_commit_id(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
         self.refs_db.put(name, commit_id)?;
         Ok(())
+    }
+
+    pub fn set_head_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        let head_ref = self.read_head_ref()?;
+        self.set_branch_commit_id(&head_ref, &commit_id)?;
+        Ok(())
+    }
+
+    pub fn list_branches(&self) -> Result<Vec<Branch>, OxenError> {
+        let mut branch_names: Vec<Branch> = vec![];
+        let iter = self.refs_db.iterator(IteratorMode::Start);
+        for (key, value) in iter {
+            match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+                (Ok(key_str), Ok(value)) => {
+                    branch_names.push(Branch {
+                        name: String::from(key_str),
+                        commit_id: String::from(value),
+                    });
+                }
+                _ => {
+                    eprintln!("Could not read utf8 val...")
+                }
+            }
+        }
+        Ok(branch_names)
+    }
+
+    pub fn has_branch(&self, name: &str) -> bool {
+        match self.get_commit_id(name) {
+            Ok(_) => true,
+            Err(_) => false,
+        }
     }
 
     pub fn get_commit_id(&self, name: &str) -> Result<String, OxenError> {
@@ -80,10 +133,10 @@ impl Referencer {
     }
 
     pub fn head_commit_id(&self) -> Result<String, OxenError> {
-        self.get_commit_id(&self.read_head()?)
+        self.get_commit_id(&self.read_head_ref()?)
     }
 
-    pub fn read_head(&self) -> Result<String, OxenError> {
+    pub fn read_head_ref(&self) -> Result<String, OxenError> {
         util::fs::read_from_path(&self.head_file)
     }
 }
@@ -93,51 +146,123 @@ mod tests {
     use crate::error::OxenError;
     use crate::test;
 
-    const BASE_DIR: &str = "data/test/runs";
-
     #[test]
     fn test_default_head() -> Result<(), OxenError> {
-        let (referencer, repo_path) = test::create_referencer(BASE_DIR)?;
+        test::run_referencer_test(|referencer| {
+            assert_eq!(
+                referencer.read_head_ref()?,
+                crate::index::referencer::DEFAULT_BRANCH
+            );
 
-        assert_eq!(
-            referencer.read_head()?,
-            crate::index::referencer::DEFAULT_BRANCH
-        );
-
-        // Cleanup
-        std::fs::remove_dir_all(&repo_path)?;
-
-        Ok(())
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_set_read_head() -> Result<(), OxenError> {
-        let (referencer, repo_path) = test::create_referencer(BASE_DIR)?;
+    fn test_create_branch_read_no_head() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let branch_name = "experiment/cat-dog";
+            let commit_id = format!("{}", uuid::Uuid::new_v4());
+            referencer.create_branch(&branch_name, &commit_id)?;
 
-        let branch_name = "experiment/cat-dog";
-        let commit_id = format!("{}", uuid::Uuid::new_v4());
-        referencer.set_head(branch_name, &commit_id)?;
-        assert_eq!(referencer.read_head()?, branch_name);
-        assert_eq!(referencer.get_commit_id(branch_name)?, commit_id);
+            match referencer.head_commit_id() {
+                Ok(_) => {
+                    panic!("Should not be able to read head!")
+                }
+                Err(_) => {
+                    // si si esta bien
+                }
+            }
 
-        // Cleanup
-        std::fs::remove_dir_all(&repo_path)?;
-
-        Ok(())
+            Ok(())
+        })
     }
 
     #[test]
-    fn test_head_commit_id() -> Result<(), OxenError> {
-        let (referencer, repo_path) = test::create_referencer(BASE_DIR)?;
+    fn test_create_branch_set_head() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let branch_name = "experiment/cat-dog";
+            let commit_id = format!("{}", uuid::Uuid::new_v4());
+            referencer.create_branch(&branch_name, &commit_id)?;
+            referencer.set_head(&branch_name)?;
+            assert_eq!(referencer.head_commit_id()?, commit_id);
 
-        let branch_name = "experiment/cat-dog";
-        let commit_id = format!("{}", uuid::Uuid::new_v4());
-        referencer.set_head(branch_name, &commit_id)?;
-        assert_eq!(referencer.head_commit_id()?, commit_id);
-
-        // Cleanup
-        std::fs::remove_dir_all(&repo_path)?;
-
-        Ok(())
+            Ok(())
+        })
     }
+
+    #[test]
+    fn test_referencer_list_branches_empty() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let branches = referencer.list_branches()?;
+            assert_eq!(branches.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_referencer_list_branches_one() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let name = "my-branch";
+            let commit_id = format!("{}", uuid::Uuid::new_v4());
+            referencer.create_branch(name, &commit_id)?;
+            let branches = referencer.list_branches()?;
+            assert_eq!(branches.len(), 1);
+            assert_eq!(branches[0].name, name);
+            assert_eq!(branches[0].commit_id, commit_id);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_referencer_list_branches_many() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            referencer.create_branch("name_1", "1")?;
+            referencer.create_branch("name_2", "2")?;
+            referencer.create_branch("name_3", "3")?;
+            let branches = referencer.list_branches()?;
+            assert_eq!(branches.len(), 3);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_referencer_create_branch_same_name() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            referencer.create_branch("name", "1")?;
+            
+            match referencer.create_branch("name", "2") {
+                Ok(_) => {
+                    panic!("Should not be able to create branch with same name")
+                },
+                Err(_) => {
+                    // we good
+                }
+            }
+
+            // We should still only have one branch
+            let branches = referencer.list_branches()?;
+            assert_eq!(branches.len(), 1);
+
+            Ok(())
+        })
+    }
+
+    // Create branch (based on current commit, fail if no commit yet)
+    // `git branch my_branch`
+
+    // List all branches
+    // `git branch -a`
+
+    // Checkout branch (switches all files too, and reverts modifications, this the money)
+    // `git checkout my_branch`
+
+    // Create branch and check it out
+    // git checkout -b my_branchie_poo
+
+    // TODO on commit, make all them hard links to our mirror directory.... 
+    // maybe we compress and hash? we'll see, don't compress at the start, KISS
 }

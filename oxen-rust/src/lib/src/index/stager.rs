@@ -74,7 +74,6 @@ impl Stager {
 
         // TODO: Find dirs and recursively add
         let count: usize = paths.len();
-
         self.add_dir_count(key, count)
     }
 

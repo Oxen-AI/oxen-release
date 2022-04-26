@@ -173,13 +173,10 @@ impl Indexer {
 
         if let Some(commit) = committer.get_commit_by_id(commit_id)? {
             if let Some(parent_id) = &commit.parent_id {
+                // Recursive call
                 self.maybe_push(committer, remote_head, parent_id, depth + 1)?;
             }
             // Unroll stack to post in reverse order
-
-            // TODO: enable pushing of entries first, then final step push the commit..?
-            // or somehow be able to resume pushing the commit? Like check # of synced files on the server
-            // and compare
             self.post_commit_to_server(&commit)?;
             self.push_entries(committer, &commit)?;
         } else {
