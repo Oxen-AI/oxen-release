@@ -1,9 +1,9 @@
 use crate::config::AuthConfig;
 use crate::error::OxenError;
+use crate::index::referencer::DEFAULT_BRANCH;
 use crate::index::Referencer;
 use crate::model::Commit;
 use crate::util;
-use crate::index::referencer::DEFAULT_BRANCH;
 
 use chrono::Utc;
 use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
@@ -51,7 +51,7 @@ impl Committer {
 
         // If there is no head commit, we cannot open the commit db
         let opts = Committer::db_opts();
-        let referencer = Referencer::new(&repository)?;
+        let referencer = Referencer::new(repository)?;
         let head_commit_db = Committer::head_commit_db(&repository.path, &referencer);
 
         Ok(Committer {
@@ -100,7 +100,7 @@ impl Committer {
                 }
 
                 // Set head to default name -> first commit
-                self.referencer.create_branch(DEFAULT_BRANCH, &id)?;
+                self.referencer.create_branch(DEFAULT_BRANCH, id)?;
                 // Make sure head is pointing to that branch
                 self.referencer.set_head(DEFAULT_BRANCH)?;
 
@@ -113,7 +113,7 @@ impl Committer {
     fn add_staged_files_to_db(
         &self,
         added_files: &[PathBuf],
-        db: &DBWithThreadMode<MultiThreaded>
+        db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for path in added_files.iter() {
             let path_str = path.to_str().unwrap();
@@ -129,7 +129,7 @@ impl Committer {
     fn add_staged_dirs_to_db(
         &self,
         added_dirs: &[(PathBuf, usize)],
-        db: &DBWithThreadMode<MultiThreaded>
+        db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for (dir, _) in added_dirs.iter() {
             let full_path = self.repository.path.join(dir);
@@ -139,7 +139,7 @@ impl Committer {
         Ok(())
     }
 
-    fn create_commit(&self, id_str: &String, message: &str) -> Result<Commit, OxenError> {
+    fn create_commit(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
         // Commit
         //  - parent_commit_id (can be empty if root)
         //  - message
@@ -150,7 +150,7 @@ impl Committer {
             Ok(parent_id) => {
                 // We have a parent
                 Ok(Commit {
-                    id: id_str.clone(),
+                    id: String::from(id_str),
                     parent_id: Some(parent_id),
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
@@ -160,7 +160,7 @@ impl Committer {
             Err(_) => {
                 // We are creating initial commit, no parent
                 Ok(Commit {
-                    id: id_str.clone(),
+                    id: String::from(id_str),
                     parent_id: None,
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
@@ -171,10 +171,7 @@ impl Committer {
     }
 
     pub fn has_commits(&self) -> bool {
-        match self.referencer.head_commit_id() {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        self.referencer.head_commit_id().is_ok()
     }
 
     // Create a db in the history/ dir under the id
@@ -195,7 +192,7 @@ impl Committer {
         let commit_id = format!("{}", uuid::Uuid::new_v4());
 
         // Create a commit object, that either points to parent or not
-        // must create this before anything else so that we know if it has parent or not. 
+        // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit(&commit_id, message)?;
         println!("CREATE COMMIT: {:?}", commit);
 

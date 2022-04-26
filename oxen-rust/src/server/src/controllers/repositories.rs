@@ -2,27 +2,30 @@ use crate::app_data::SyncDir;
 
 use liboxen::api;
 
-use liboxen::view::{RepositoryNew, RepositoryView, RepositoryResponse, StatusMessage, ListRepositoryResponse};
-use liboxen::view::http::{STATUS_SUCCESS, MSG_RESOURCE_FOUND, MSG_RESOURCE_CREATED};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::{
+    ListRepositoryResponse, RepositoryNew, RepositoryResponse, RepositoryView, StatusMessage,
+};
 
-use actix_web::{HttpRequest, HttpResponse};
 use actix_files::NamedFile;
+use actix_web::{HttpRequest, HttpResponse};
 use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
     match api::local::repositories::list(&sync_dir.path) {
         Ok(repos) => {
-            let repos: Vec<RepositoryView> = repos.iter()
-                .map(|repo| { RepositoryView::from_local(repo.clone()) })
+            let repos: Vec<RepositoryView> = repos
+                .iter()
+                .map(|repo| RepositoryView::from_local(repo.clone()))
                 .collect();
             let view = ListRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                repositories: repos
+                repositories: repos,
             };
             HttpResponse::Ok().json(view)
-        },
+        }
         Err(err) => {
             let msg = format!("Unable to list repositories. Err: {}", err);
             HttpResponse::Ok().json(StatusMessage::error(&msg))
@@ -36,13 +39,11 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&sync_dir.path, name) {
-            Ok(repository) => {
-                HttpResponse::Ok().json(RepositoryResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    repository: RepositoryView::from_local(repository)
-                })
-            },
+            Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_FOUND),
+                repository: RepositoryView::from_local(repository),
+            }),
             Err(err) => {
                 let msg = format!("Err: {}", err);
                 HttpResponse::Ok().json(StatusMessage::error(&msg))
@@ -59,21 +60,17 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
 
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => {
-            match api::local::repositories::create(&sync_dir.path, &data.name) {
-                Ok(repository) => {
-                    HttpResponse::Ok().json(RepositoryResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
-                        repository: RepositoryView::from_local(repository)
-                    })
-                },
-                Err(err) => {
-                    let msg = format!("Error: {:?}", err);
-                    HttpResponse::Ok().json(StatusMessage::error(&msg))
-                }
+        Ok(data) => match api::local::repositories::create(&sync_dir.path, &data.name) {
+            Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_CREATED),
+                repository: RepositoryView::from_local(repository),
+            }),
+            Err(err) => {
+                let msg = format!("Error: {:?}", err);
+                HttpResponse::Ok().json(StatusMessage::error(&msg))
             }
-        }
+        },
         Err(_) => HttpResponse::Ok().json(StatusMessage::error("Invalid body.")),
     }
 }

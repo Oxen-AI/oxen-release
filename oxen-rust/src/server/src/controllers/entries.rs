@@ -29,9 +29,7 @@ pub async fn create(
     // name of the repo
     let name: &str = req.match_info().get("name").unwrap();
     match api::local::repositories::get_by_name(&sync_dir.path, name) {
-        Ok(local_repo) => {
-            create_entry(&sync_dir.path, &local_repo, body, data).await
-        },
+        Ok(local_repo) => create_entry(&sync_dir.path, &local_repo, body, data).await,
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {}", err);
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))

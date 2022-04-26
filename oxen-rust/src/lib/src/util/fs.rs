@@ -221,10 +221,7 @@ pub fn rcount_files_in_dir(dir: &Path) -> usize {
                     count += 1;
                 }
             }
-            Err(err) => eprintln!(
-                "rcount_files_in_dir Could not iterate over dir... {}",
-                err
-            ),
+            Err(err) => eprintln!("rcount_files_in_dir Could not iterate over dir... {}", err),
         }
     }
     count
