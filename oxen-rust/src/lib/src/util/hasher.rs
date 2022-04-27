@@ -32,8 +32,8 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
             }
         }
         Err(_) => {
-            //   eprintln!("Could not open file {:?}", path);
-            Err(OxenError::basic_str("Could not open file"))
+            let err = format!("util::hasher::hash_file_contents Could not open file {:?}", path);
+            Err(OxenError::basic_str(&err))
         }
     }
 }
