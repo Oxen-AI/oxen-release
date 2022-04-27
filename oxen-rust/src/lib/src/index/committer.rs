@@ -12,8 +12,12 @@ use std::str;
 
 use crate::model::LocalRepository;
 
+/// history/ dir is a list of directories named after commit ids
 pub const HISTORY_DIR: &str = "history";
+/// commits/ is a key-value database of commit ids to commit objects
 pub const COMMITS_DB: &str = "commits";
+/// mirror/ is a bunch of hard links that we can use to quickly swap between branches
+pub const MIRROR_DIR: &str = "mirror";
 
 pub struct Committer {
     commits_db: DB,
@@ -38,6 +42,10 @@ impl Committer {
     }
 
     fn commits_dir(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
+    }
+
+    fn mirror_dir(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
     }
 
@@ -367,6 +375,9 @@ impl Committer {
                     let filepath = PathBuf::from(String::from(key_str));
                     // let value_str = str::from_utf8(&*value)?;
                     // println!("list_unsynced_files_for_commit ({},{})", key_str, value_str);
+
+                    // TODO: we will have to deserialize json and check is_synced, we'll see how expensive that is...
+
                     // If we don't have a hash for the file as the value, it means we haven't pushed it.
                     if value.is_empty() {
                         paths.push(filepath);
@@ -497,30 +508,17 @@ mod tests {
             let added_files = stager.list_added_files()?;
             let added_dirs = stager.list_added_directories()?;
             let commit_id = committer.commit(&added_files, &added_dirs, message_2)?;
+            
+            // Remove from staged
             stager.unstage()?;
+
+            // Check commit history
             let commit_history = committer.list_commits()?;
-
-            for commit in commit_history.iter() {
-                println!("COMMIT HISTORY {:?}", commit);
-            }
-
             // The messages come out LIFO
             assert_eq!(commit_history.len(), 2);
             assert_eq!(commit_history[0].id, commit_id);
             assert_eq!(commit_history[0].message, message_2);
             assert!(committer.head_contains_file(&relative_annotation_path)?);
-
-            // Push some of them
-
-            // List remaining
-
-            // Push rest
-
-            // Confirm none left to be pushed
-
-            // List all files in commit
-
-            // List pushed files in commit
 
             Ok(())
         })

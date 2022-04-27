@@ -189,6 +189,13 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
     Ok(branches)
 }
 
+/// # Get the current branch
+pub fn current_branch(repo: &LocalRepository) -> Result<Branch, OxenError> {
+    let referencer = Referencer::new(repo)?;
+    let branch = referencer.get_current_branch()?;
+    Ok(branch)
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -289,6 +296,56 @@ mod tests {
 
             let commits = command::log(&repo)?;
             assert_eq!(commits.len(), 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_checkout_different_previous_branch() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            // Write the first file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello");
+
+            // Track & commit the file
+            command::add(&repo, &hello_file)?;
+            command::commit(&repo, "Added hello.txt")?;
+
+            // Get the original branch name
+            let orig_branch = command::current_branch(&repo)?;
+
+            // Create and checkout branch
+            let branch_name = "feature/world-explorer";
+            command::create_checkout_branch(&repo, branch_name)?;
+
+            // Write a second file
+            let world_file = repo.path.join("world.txt");
+            util::fs::write_to_path(&world_file, "World");
+
+            // Track & commit the second file in the branch
+            command::add(&repo, &world_file)?;
+            command::commit(&repo, "Added world.txt")?;
+
+            // Make sure we have both commits
+            let commits = command::log(&repo)?;
+            assert_eq!(commits.len(), 2);
+
+            // Make sure we have both files on disk in our repo dir
+            assert!(hello_file.exists());
+            assert!(world_file.exists());
+
+            // Go back to the main branch
+            command::checkout_branch(&repo, &orig_branch.name)?;
+
+            // The world file should no longer be there
+            assert!(hello_file.exists());
+            assert!(!world_file.exists());
+
+            // Go back to the branch
+            command::checkout_branch(&repo, &orig_branch.name)?;
+            assert!(hello_file.exists());
+            assert!(world_file.exists());
 
             Ok(())
         })
