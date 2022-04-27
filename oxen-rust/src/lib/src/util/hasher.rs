@@ -1,11 +1,11 @@
 use crate::error::OxenError;
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-use xxhash_rust::xxh3::xxh3_128;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
+use xxhash_rust::xxh3::xxh3_128;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
     let mut hasher = DefaultHasher::new();
@@ -32,7 +32,10 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
             }
         }
         Err(_) => {
-            let err = format!("util::hasher::hash_file_contents Could not open file {:?}", path);
+            let err = format!(
+                "util::hasher::hash_file_contents Could not open file {:?}",
+                path
+            );
             Err(OxenError::basic_str(&err))
         }
     }

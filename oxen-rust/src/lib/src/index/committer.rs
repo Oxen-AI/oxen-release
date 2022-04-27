@@ -5,9 +5,9 @@ use crate::index::Referencer;
 use crate::model::{Commit, LocalEntry};
 use crate::util;
 
-use rayon::prelude::*;
-use indicatif::ProgressBar;
 use chrono::Utc;
+use indicatif::ProgressBar;
+use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
 use std::path::{Path, PathBuf};
 use std::str;
@@ -123,7 +123,11 @@ impl Committer {
         }
     }
 
-    fn add_path_to_commit_db(&self, path: &Path, db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+    fn add_path_to_commit_db(
+        &self,
+        path: &Path,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
 
@@ -132,7 +136,7 @@ impl Committer {
             let file_path = self.repository.path.join(path);
             let id = format!("{}", uuid::Uuid::new_v4());
             let hash = util::hasher::hash_file_contents(&file_path)?;
-            let ext = String::from(ext.to_str().unwrap_or_else(|| {""}));
+            let ext = String::from(ext.to_str().unwrap_or(""));
 
             // Create entry object to as json
             let entry = LocalEntry {
@@ -180,15 +184,15 @@ impl Committer {
         added_files: &[PathBuf],
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        added_files.par_iter().for_each(|path| {
-            match self.add_path_to_commit_db(&path, &db) {
-                Ok(_) => {},
+        added_files
+            .par_iter()
+            .for_each(|path| match self.add_path_to_commit_db(path, db) {
+                Ok(_) => {}
                 Err(err) => {
                     let err = format!("Committer failed to commit file: {}", err);
                     eprintln!("{}", err)
                 }
-            }
-        });
+            });
         Ok(())
     }
 
@@ -200,8 +204,8 @@ impl Committer {
         let size: u64 = unsafe { std::mem::transmute(added_files.len()) };
         let bar = ProgressBar::new(size);
         added_files.par_iter().for_each(|path| {
-            match self.add_path_to_commit_db(&path, &db) {
-                Ok(_) => {},
+            match self.add_path_to_commit_db(path, db) {
+                Ok(_) => {}
                 Err(err) => {
                     let err = format!("Committer failed to commit file: {}", err);
                     eprintln!("{}", err)
@@ -223,7 +227,7 @@ impl Committer {
             let full_path = self.repository.path.join(dir);
             let files: Vec<PathBuf> = util::fs::list_files_in_dir(&full_path)
                 .into_iter()
-                .map(|path| { util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap() })
+                .map(|path| util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap())
                 .collect();
             self.add_staged_files_to_db(&files, db)?;
         }
@@ -348,7 +352,7 @@ impl Committer {
                     let value = str::from_utf8(&*value)?;
                     let entry: LocalEntry = serde_json::from_str(value)?;
                     Ok(entry.hash)
-                },
+                }
                 Ok(None) => Ok(String::from("")), // no hash, empty string
                 Err(err) => {
                     let err = format!("get_path_hash() Err: {}", err);
@@ -591,7 +595,7 @@ mod tests {
             let added_files = stager.list_added_files()?;
             let added_dirs = stager.list_added_directories()?;
             let commit_id = committer.commit(&added_files, &added_dirs, message_2)?;
-            
+
             // Remove from staged
             stager.unstage()?;
 

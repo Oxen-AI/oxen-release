@@ -120,7 +120,7 @@ impl Referencer {
         Ok(Branch {
             name: ref_name,
             commit_id: id,
-            is_head: true
+            is_head: true,
         })
     }
 

@@ -1,7 +1,7 @@
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::Committer;
-use crate::model::{LocalRepository, LocalEntry};
+use crate::model::{LocalEntry, LocalRepository};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -92,12 +92,8 @@ impl Stager {
         if let Some(path_str) = path.to_str() {
             let bytes = path_str.as_bytes();
             match self.db.get_pinned(bytes) {
-                Ok(Some(_value)) => {
-                    true
-                },
-                Ok(None) => {
-                    false
-                }
+                Ok(Some(_value)) => true,
+                Ok(None) => false,
                 Err(err) => {
                     eprintln!("Stager::get_entry err: {}", err);
                     false
@@ -118,16 +114,14 @@ impl Stager {
                     match str::from_utf8(&*value) {
                         Ok(value) => {
                             match serde_json::from_str(value) {
-                                Ok(entry) => {
-                                    Some(entry)
-                                },
+                                Ok(entry) => Some(entry),
                                 Err(err) => {
                                     // could not serialize json
                                     eprintln!("get_entry could not serialize json {}", err);
                                     None
                                 }
                             }
-                        },
+                        }
                         Err(err) => {
                             // could not convert to utf8
                             eprintln!("get_entry could not convert from utf8: {}", err);
@@ -553,7 +547,7 @@ mod tests {
             // List files
             let files = stager.list_added_files()?;
             assert_eq!(files.len(), 1);
-            
+
             assert_eq!(files[0], relative_path);
 
             Ok(())
