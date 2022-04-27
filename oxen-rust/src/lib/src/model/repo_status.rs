@@ -49,7 +49,7 @@ impl RepoStatus {
                 }
                 0 => {
                     // Skip since we don't have any untracked files in this dir
-                    String::from("")
+                    String::from("\n")
                 }
                 _ => {
                     format!("with untracked {} files\n", count)

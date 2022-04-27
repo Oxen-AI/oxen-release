@@ -14,4 +14,5 @@ pub struct LocalEntry {
     pub id: String,
     pub is_synced: bool,
     pub hash: String,
+    pub extension: String, // file extension
 }

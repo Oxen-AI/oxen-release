@@ -43,7 +43,7 @@ where
     let result = std::panic::catch_unwind(|| match test(&repo_dir) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            panic!("Error running test. Err: {}", err);
         }
     });
 
@@ -67,7 +67,7 @@ where
     let result = std::panic::catch_unwind(|| match test(repo) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            panic!("Error running test. Err: {}", err);
         }
     });
 
@@ -91,7 +91,7 @@ where
     let result = std::panic::catch_unwind(|| match test(stager) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            panic!("Error running test. Err: {}", err);
         }
     });
 
@@ -115,7 +115,7 @@ where
     let result = std::panic::catch_unwind(|| match test(referencer) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            panic!("Error running test. Err: {}", err);
         }
     });
 

@@ -91,7 +91,18 @@ impl Stager {
     pub fn has_entry(&self, path: &Path) -> bool {
         if let Some(path_str) = path.to_str() {
             let bytes = path_str.as_bytes();
-            self.db.key_may_exist(bytes)
+            match self.db.get_pinned(bytes) {
+                Ok(Some(_value)) => {
+                    true
+                },
+                Ok(None) => {
+                    false
+                }
+                Err(err) => {
+                    eprintln!("Stager::get_entry err: {}", err);
+                    false
+                }
+            }
         } else {
             false
         }
@@ -153,6 +164,7 @@ impl Stager {
             id: format!("{}", uuid::Uuid::new_v4()),
             hash: util::hasher::hash_file_contents(path)?,
             is_synced: false, // so we know to sync
+            extension: String::from(path.extension().unwrap().to_str().unwrap()),
         };
 
         // Key is the filename relative to the repository

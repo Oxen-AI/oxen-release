@@ -2,9 +2,11 @@ use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::index::referencer::DEFAULT_BRANCH;
 use crate::index::Referencer;
-use crate::model::Commit;
+use crate::model::{Commit, LocalEntry};
 use crate::util;
 
+use rayon::prelude::*;
+use indicatif::ProgressBar;
 use chrono::Utc;
 use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
 use std::path::{Path, PathBuf};
@@ -25,6 +27,7 @@ pub struct Committer {
     pub head_commit_db: Option<DBWithThreadMode<MultiThreaded>>,
     pub referencer: Referencer,
     history_dir: PathBuf,
+    mirror_dir: PathBuf,
     auth_cfg: AuthConfig,
     repository: LocalRepository,
 }
@@ -46,12 +49,13 @@ impl Committer {
     }
 
     fn mirror_dir(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
+        util::fs::oxen_hidden_dir(path).join(Path::new(MIRROR_DIR))
     }
 
     pub fn new(repository: &LocalRepository) -> Result<Committer, OxenError> {
         let history_path = Committer::history_dir(&repository.path);
         let commits_path = Committer::commits_dir(&repository.path);
+        let mirror_path = Committer::mirror_dir(&repository.path);
 
         if !history_path.exists() {
             std::fs::create_dir_all(&history_path)?;
@@ -67,6 +71,7 @@ impl Committer {
             head_commit_db,
             referencer,
             history_dir: history_path,
+            mirror_dir: mirror_path,
             auth_cfg: AuthConfig::default().unwrap(),
             repository: repository.clone(),
         })
@@ -118,19 +123,93 @@ impl Committer {
         }
     }
 
+    fn add_path_to_commit_db(&self, path: &Path, db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+        let path_str = path.to_str().unwrap();
+        let key = path_str.as_bytes();
+
+        // if we can't get the extension...not a file we want to index anyways
+        if let Some(ext) = path.extension() {
+            let file_path = self.repository.path.join(path);
+            let id = format!("{}", uuid::Uuid::new_v4());
+            let hash = util::hasher::hash_file_contents(&file_path)?;
+            let ext = String::from(ext.to_str().unwrap_or_else(|| {""}));
+
+            // Create entry object to as json
+            let entry = LocalEntry {
+                id: id.clone(),
+                hash: hash.clone(),
+                is_synced: false, // so we know to sync
+                extension: ext.clone(),
+            };
+
+            // create a hard link to our mirror directory
+            // .oxen/mirror/ENTRY_ID/HASH.ext
+            let name = format!("{}.{}", hash, ext);
+            let hard_link_entry_dir = self.mirror_dir.join(id);
+            let hard_link_path = hard_link_entry_dir.join(name);
+
+            if !hard_link_path.exists() {
+                if !hard_link_entry_dir.exists() {
+                    std::fs::create_dir_all(hard_link_entry_dir)?;
+                }
+                std::fs::hard_link(file_path, hard_link_path)?;
+            }
+
+            // Write to db
+            let entry_json = serde_json::to_string(&entry)?;
+            db.put(&key, entry_json.as_bytes())?;
+        }
+        Ok(())
+    }
+
     fn add_staged_files_to_db(
         &self,
         added_files: &[PathBuf],
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        for path in added_files.iter() {
-            let path_str = path.to_str().unwrap();
-            let key = path_str.as_bytes();
-
-            // Value is initially empty, meaning we still have to hash, but just keeping track of what is staged
-            // Then when we push, we hash the file contents and save it back in here to keep track of progress
-            db.put(&key, b"")?;
+        // len kind of arbitrary right now...just nice to see progress on big sets of files
+        if added_files.len() > 10000 {
+            self.add_staged_files_to_db_with_prog(added_files, db)
+        } else {
+            self.add_staged_files_to_db_without_prog(added_files, db)
         }
+    }
+
+    fn add_staged_files_to_db_without_prog(
+        &self,
+        added_files: &[PathBuf],
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        added_files.par_iter().for_each(|path| {
+            match self.add_path_to_commit_db(&path, &db) {
+                Ok(_) => {},
+                Err(err) => {
+                    let err = format!("Committer failed to commit file: {}", err);
+                    eprintln!("{}", err)
+                }
+            }
+        });
+        Ok(())
+    }
+
+    fn add_staged_files_to_db_with_prog(
+        &self,
+        added_files: &[PathBuf],
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        let size: u64 = unsafe { std::mem::transmute(added_files.len()) };
+        let bar = ProgressBar::new(size);
+        added_files.par_iter().for_each(|path| {
+            match self.add_path_to_commit_db(&path, &db) {
+                Ok(_) => {},
+                Err(err) => {
+                    let err = format!("Committer failed to commit file: {}", err);
+                    eprintln!("{}", err)
+                }
+            }
+            bar.inc(1);
+        });
+        bar.finish();
         Ok(())
     }
 
@@ -140,8 +219,12 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for (dir, _) in added_dirs.iter() {
+            println!("Committing files in dir: {:?}", dir);
             let full_path = self.repository.path.join(dir);
-            let files = util::fs::list_files_in_dir(&full_path);
+            let files: Vec<PathBuf> = util::fs::list_files_in_dir(&full_path)
+                .into_iter()
+                .map(|path| { util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap() })
+                .collect();
             self.add_staged_files_to_db(&files, db)?;
         }
         Ok(())
@@ -261,7 +344,11 @@ impl Committer {
             let key = path.to_str().unwrap();
             let bytes = key.as_bytes();
             match db.get(bytes) {
-                Ok(Some(value)) => Ok(String::from(str::from_utf8(&*value)?)),
+                Ok(Some(value)) => {
+                    let value = str::from_utf8(&*value)?;
+                    let entry: LocalEntry = serde_json::from_str(value)?;
+                    Ok(entry.hash)
+                },
                 Ok(None) => Ok(String::from("")), // no hash, empty string
                 Err(err) => {
                     let err = format!("get_path_hash() Err: {}", err);
@@ -343,7 +430,7 @@ impl Committer {
             Ok(Some(head_commit)) => {
                 if head_commit.id == commit_id {
                     if let Some(db) = &self.head_commit_db {
-                        self.p_add_untracked_files_from_commit(&mut paths, db)
+                        self.p_add_untracked_files_from_commit(&mut paths, db)?
                     } else {
                         eprintln!(
                             "list_unsynced_files_for_commit Err: Could not get head commit db"
@@ -351,12 +438,12 @@ impl Committer {
                     }
                 } else {
                     let db = self.get_commit_db(commit_id)?;
-                    self.p_add_untracked_files_from_commit(&mut paths, &db);
+                    self.p_add_untracked_files_from_commit(&mut paths, &db)?;
                 }
             }
             _ => {
                 let db = self.get_commit_db(commit_id)?;
-                self.p_add_untracked_files_from_commit(&mut paths, &db);
+                self.p_add_untracked_files_from_commit(&mut paths, &db)?;
             }
         };
 
@@ -367,27 +454,23 @@ impl Committer {
         &self,
         paths: &mut Vec<PathBuf>,
         db: &DBWithThreadMode<MultiThreaded>,
-    ) {
+    ) -> Result<(), OxenError> {
         let iter = db.iterator(IteratorMode::Start);
         for (key, value) in iter {
-            match str::from_utf8(&*key) {
-                Ok(key_str) => {
+            match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+                (Ok(key_str), Ok(value_str)) => {
                     let filepath = PathBuf::from(String::from(key_str));
-                    // let value_str = str::from_utf8(&*value)?;
-                    // println!("list_unsynced_files_for_commit ({},{})", key_str, value_str);
-
-                    // TODO: we will have to deserialize json and check is_synced, we'll see how expensive that is...
-
-                    // If we don't have a hash for the file as the value, it means we haven't pushed it.
-                    if value.is_empty() {
+                    let entry: LocalEntry = serde_json::from_str(value_str)?;
+                    if !entry.is_synced {
                         paths.push(filepath);
                     }
                 }
-                Err(_) => {
+                _ => {
                     eprintln!("Could not read utf8 val...")
                 }
             }
         }
+        Ok(())
     }
 
     pub fn get_head_commit(&self) -> Result<Option<Commit>, OxenError> {
