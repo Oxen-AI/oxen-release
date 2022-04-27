@@ -8,7 +8,7 @@ use crate::error::OxenError;
 use crate::index::{Referencer, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -159,6 +159,15 @@ pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
     file.write_all(contents.as_bytes())?;
 
     Ok(full_path)
+}
+
+pub fn modify_txt_file(path: PathBuf, contents: &str) -> Result<PathBuf, OxenError> {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)?;
+    file.write_all(contents.as_bytes())?;
+    Ok(path)
 }
 
 pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, OxenError> {

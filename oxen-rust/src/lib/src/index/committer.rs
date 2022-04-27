@@ -503,6 +503,34 @@ impl Committer {
         }
     }
 
+    pub fn get_entry(&self, path: &Path) -> Result<Option<LocalEntry>, OxenError> {
+        if let Some(db) = self.head_commit_db.as_ref() {
+            let key = path.to_str().unwrap();
+            let bytes = key.as_bytes();
+            match db.get(bytes) {
+                Ok(Some(value)) => {
+                    match str::from_utf8(&*value) {
+                        Ok(value) => {
+                            let entry: LocalEntry = serde_json::from_str(value)?;
+                            Ok(Some(entry))
+                        },
+                        Err(_) => {
+                            Err(OxenError::basic_str("get_local_entry_from_commit invalid entry"))
+                        }
+                    }
+                    
+                },
+                Ok(None) => Ok(None),
+                Err(err) => {
+                    let err = format!("get_local_entry_from_commit Error reading db\nErr: {}", err);
+                    Err(OxenError::basic_str(&err))
+                }
+            }
+        } else {
+            Err(OxenError::basic_str("get_local_entry_from_commit no head db"))
+        }
+    }
+
     pub fn file_is_committed(&self, path: &Path) -> bool {
         match self.head_contains_file(path) {
             Ok(val) => val,

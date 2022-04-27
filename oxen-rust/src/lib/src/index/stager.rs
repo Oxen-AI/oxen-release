@@ -91,6 +91,7 @@ impl Stager {
     pub fn has_entry(&self, path: &Path) -> bool {
         if let Some(path_str) = path.to_str() {
             let bytes = path_str.as_bytes();
+            // TODO: is there a faster way to check a key? "key_may_exist" sounds sketchy what does may mean?
             match self.db.get_pinned(bytes) {
                 Ok(Some(_value)) => true,
                 Ok(None) => false,
@@ -254,9 +255,41 @@ impl Stager {
         Ok(paths)
     }
 
-    pub fn list_untracked_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
-        // We just look at the top level here for summary..not recursively right now
+    pub fn list_modified_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
+        // TODO: We are looping multiple times to check whether file is added,modified,or removed, etc
+        //       We should do this loop once, and check each thing
+        let dir_entries = std::fs::read_dir(&self.repository.path)?;
+        // println!("Listing untracked files from {:?}", dir_entries);
 
+        let mut paths: Vec<PathBuf> = vec![];
+        for entry in dir_entries {
+            let local_path = entry?.path();
+            if local_path.is_file() {
+                // Return relative path with respect to the repo
+                let relative_path =
+                    util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
+
+                // Check if we have the entry in the head commit
+                match committer.get_entry(&relative_path) {
+                    Ok(Some(entry)) => {
+                        // Check if the entry has changed
+                        let hash = util::hasher::hash_file_contents(&local_path)?;
+                        if hash != entry.hash {
+                            paths.push(relative_path);
+                        }
+                    },
+                    _ => {
+                        // Don't have the entry so it don't matter
+                    }
+                }
+            }
+        }
+
+        Ok(paths)
+    }
+
+    pub fn list_untracked_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
+        // TODO: We just look at the top level here for summary..not recursively right now
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
         // println!("Listing untracked files from {:?}", dir_entries);
 
@@ -272,22 +305,8 @@ impl Stager {
                 }
 
                 // println!("Checking if we have the key? {:?}", relative_path);
-                if let Some(path_str) = relative_path.to_str() {
-                    let bytes = path_str.as_bytes();
-                    match self.db.get(bytes) {
-                        Ok(Some(_value)) => {
-                            // already added
-                            // println!("got value: {:?}", value);
-                        }
-                        Ok(None) => {
-                            // did not get val
-                            // println!("untracked! {:?}", relative_path);
-                            paths.push(relative_path);
-                        }
-                        Err(err) => {
-                            eprintln!("{}", err);
-                        }
-                    }
+                if !self.has_entry(&relative_path) {
+                    paths.push(relative_path);
                 }
             }
         }
@@ -705,6 +724,37 @@ mod tests {
             assert_eq!(files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             assert_eq!(files[0], relative_path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_list_modified_files() -> Result<(), OxenError> {
+        test::run_empty_stager_test(|stager| {
+            // Create committer with no commits
+            let mut committer = Committer::new(&stager.repository)?;
+            let repo_path = &stager.repository.path;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
+
+            // add the file
+            stager.add_file(&hello_file, &committer)?;
+            // commit the file
+            let added_files = stager.list_added_files()?;
+            let added_dirs = stager.list_added_directories()?;
+            committer.commit(&added_files, &added_dirs, "added hello 1")?;
+
+            let mod_files = stager.list_modified_files(&committer)?;
+            assert_eq!(mod_files.len(), 0);
+
+            // modify the file
+            let hello_file = test::modify_txt_file(hello_file, "Hello 2")?;
+
+            // List files
+            let mod_files = stager.list_modified_files(&committer)?;
+            assert_eq!(mod_files.len(), 1);
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
+            assert_eq!(mod_files[0], relative_path);
 
             Ok(())
         })
