@@ -1,14 +1,17 @@
 use crate::error::OxenError;
-use sha2::{Digest, Sha256};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use xxhash_rust::xxh3::xxh3_128;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(&buffer);
-    format!("{:X}", hasher.finalize())
+    let mut hasher = DefaultHasher::new();
+    let val = xxh3_128(buffer);
+    val.hash(&mut hasher);
+    format!("{:X}", hasher.finish())
 }
 
 pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {

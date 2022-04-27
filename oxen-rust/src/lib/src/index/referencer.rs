@@ -114,6 +114,16 @@ impl Referencer {
         Ok(branch_names)
     }
 
+    pub fn get_current_branch(&self) -> Result<Branch, OxenError> {
+        let ref_name = self.read_head_ref()?;
+        let id = self.get_commit_id(&ref_name)?;
+        Ok(Branch {
+            name: ref_name,
+            commit_id: id,
+            is_head: true
+        })
+    }
+
     pub fn has_branch(&self, name: &str) -> bool {
         self.get_commit_id(name).is_ok()
     }

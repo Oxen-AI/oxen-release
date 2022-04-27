@@ -44,7 +44,7 @@ oxen, oxen-server, liboxen
   staged/ (created from `oxen add <file>` command)
     key,value db of:
 
-    filenames -> ""
+    filenames -> {"hash" => "FILE_HASH", "id" => "UUID_V4"} (we generate a file ID and hash for each file that is added)
     dirnames -> count
 
   commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
@@ -62,11 +62,32 @@ oxen, oxen-server, liboxen
     COMMIT_HASH_1/
       key,value of:
 
-      filename -> "" (if not synced)
-      filename -> hash (if has been synced, since hash takes time)
+      filename -> { (filename is where we hard link it back to)
+        "hash" => "FILE_HASH", (use this to know what version it was, and only add new changes)
+        "id" => "UUID_V4",
+        "mirror" => "PATH/TO/DIR_UUID", (see below)
+        "is_synced" => false
+      }
 
     COMMIT_HASH_2/
     COMMIT_HASH_3/
+
+  mirror/ (hard links to original files, once 10,000 is hit, we create new dir, and update all mirror paths)
+    // START WITH ALL IN ONE DIR, THEN OPTIMIZE LATER
+
+    DIR_UUID_1/ (we can have 10,000 of these dirs)
+      FILE_UUID_1/ (with 10,000 entries in each)
+        HASH_1 (dog_1.jpg)
+        HASH_2 (dog_1.jpg version 2)
+      FILE_UUID_2/
+        HASH_1 (dog_2.jpg)
+    DIR_UUID_2/
+
+    TODO: Seems like we only need to update when the file changes...
+          Think of best way to only make minimal # of links
+          Do we have a dir that is an encoded version of the file name?
+          Then keep each iteration of the file in there?
+
   
 ```
 

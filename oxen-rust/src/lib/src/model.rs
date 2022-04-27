@@ -13,7 +13,7 @@ pub use crate::model::local_repository::LocalRepository;
 
 pub use crate::model::remote_repository::RemoteRepository;
 
-pub use crate::model::entry::Entry;
+pub use crate::model::entry::{Entry, LocalEntry};
 
 pub use crate::model::branch::Branch;
 

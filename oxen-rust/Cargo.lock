@@ -31,7 +31,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sha2",
  "signal-hook",
  "tar",
  "threadpool",
@@ -39,6 +38,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "walkdir",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -1195,7 +1195,6 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "sha2",
  "signal-hook",
  "tar",
  "threadpool",
@@ -1203,6 +1202,7 @@ dependencies = [
  "urlencoding",
  "uuid",
  "walkdir",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -1912,17 +1912,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha2"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99c3bd8169c58782adad9290a9af5939994036b76187f7b4f0e6de91dbbfc0ec"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "digest",
-]
-
-[[package]]
 name = "shlex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2501,6 +2490,12 @@ checksum = "244c3741f4240ef46274860397c7c74e50eb23624996930e484c16679633a54c"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "074914ea4eec286eb8d1fd745768504f420a1f7b7919185682a4a267bed7d2e7"
 
 [[package]]
 name = "zstd"

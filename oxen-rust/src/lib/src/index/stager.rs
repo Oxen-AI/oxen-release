@@ -1,7 +1,7 @@
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::Committer;
-use crate::model::LocalRepository;
+use crate::model::{LocalRepository, LocalEntry};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -88,6 +88,58 @@ impl Stager {
         }
     }
 
+    pub fn has_entry(&self, path: &Path) -> bool {
+        if let Some(path_str) = path.to_str() {
+            let bytes = path_str.as_bytes();
+            self.db.key_may_exist(bytes)
+        } else {
+            false
+        }
+    }
+
+    pub fn get_entry(&self, path: &Path) -> Option<LocalEntry> {
+        // I know this is ugly as shit.. long day, and to be honest all these matches should work so it's just.. i dont want to return the error. w/e fix later
+        if let Some(path_str) = path.to_str() {
+            let bytes = path_str.as_bytes();
+            match self.db.get(bytes) {
+                Ok(Some(value)) => {
+                    // found it
+                    match str::from_utf8(&*value) {
+                        Ok(value) => {
+                            match serde_json::from_str(value) {
+                                Ok(entry) => {
+                                    Some(entry)
+                                },
+                                Err(err) => {
+                                    // could not serialize json
+                                    eprintln!("get_entry could not serialize json {}", err);
+                                    None
+                                }
+                            }
+                        },
+                        Err(err) => {
+                            // could not convert to utf8
+                            eprintln!("get_entry could not convert from utf8: {}", err);
+                            None
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // did not get val
+                    // eprintln!("get_entry did not get value");
+                    None
+                }
+                Err(err) => {
+                    eprintln!("could not fetch value from db: {}", err);
+                    None
+                }
+            }
+        } else {
+            eprintln!("could not convert path to str: {:?}", path);
+            None
+        }
+    }
+
     pub fn add_file(&self, path: &Path, committer: &Committer) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
         // println!("Add file: {:?} to {:?}", path, self.repository.path);
@@ -96,6 +148,13 @@ impl Stager {
             return Err(OxenError::basic_str(&err));
         }
 
+        // create a little meta data object to attach to file path
+        let entry = LocalEntry {
+            id: format!("{}", uuid::Uuid::new_v4()),
+            hash: util::hasher::hash_file_contents(path)?,
+            is_synced: false, // so we know to sync
+        };
+
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
         //   /Users/username/Datasets/MyRepo/train -> train
@@ -103,12 +162,8 @@ impl Stager {
         let path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         let key = path.to_str().unwrap().as_bytes();
 
-        // println!("Adding key {}", path.to_str().unwrap());
-        // Value is empty because there is nothing we really need to track...
-        // In the future it could be the hash, so that we know if it changed
-        // but hashing takes a long time with sha256 and we want to add
-        // a ton of files at once
-        self.db.put(&key, b"")?;
+        let entry_json = serde_json::to_string(&entry)?;
+        self.db.put(&key, entry_json.as_bytes())?;
 
         // Check if we have added the full directory,
         // if we have, remove all the individual keys
@@ -235,25 +290,12 @@ impl Stager {
     }
 
     fn file_is_in_index(&self, path: &Path, committer: &Committer) -> bool {
-        if let Some(path_str) = path.to_str() {
-            let bytes = path_str.as_bytes();
-            match self.db.get(bytes) {
-                Ok(Some(_value)) => {
-                    // already added
-                    true
-                }
-                Ok(None) => {
-                    // did not get val
-                    committer.file_is_committed(path)
-                }
-                Err(err) => {
-                    eprintln!("could not fetch value from db: {}", err);
-                    false
-                }
-            }
+        if self.has_entry(path) {
+            // we have it in our staged db
+            true
         } else {
-            eprintln!("could not convert path to str: {:?}", path);
-            false
+            // it is committed
+            committer.file_is_committed(path)
         }
     }
 
@@ -461,13 +503,37 @@ mod tests {
     }
 
     #[test]
-    fn test_list_files() -> Result<(), OxenError> {
+    fn test_stager_get_entry() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
+
+            // Stage file
+            stager.add_file(&hello_file, &committer)?;
+
+            // we should be able to fetch this entry json
+            let entry = stager.get_entry(&relative_path).unwrap();
+            assert!(!entry.id.is_empty());
+            assert!(!entry.hash.is_empty());
+            assert!(!entry.is_synced);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_list_files() -> Result<(), OxenError> {
+        test::run_empty_stager_test(|stager| {
+            // Create committer with no commits
+            let committer = Committer::new(&stager.repository)?;
+
+            let repo_path = &stager.repository.path;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
 
             // Stage file
             stager.add_file(&hello_file, &committer)?;
@@ -475,7 +541,7 @@ mod tests {
             // List files
             let files = stager.list_added_files()?;
             assert_eq!(files.len(), 1);
-            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
+            
             assert_eq!(files[0], relative_path);
 
             Ok(())
@@ -483,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_file_in_sub_dir() -> Result<(), OxenError> {
+    fn test_stager_add_file_in_sub_dir() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -511,7 +577,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_file_in_sub_dir_updates_untracked_count() -> Result<(), OxenError> {
+    fn test_stager_add_file_in_sub_dir_updates_untracked_count() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -550,7 +616,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_all_files_in_sub_dir() -> Result<(), OxenError> {
+    fn test_stager_add_all_files_in_sub_dir() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -589,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_directories() -> Result<(), OxenError> {
+    fn test_stager_list_directories() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -619,7 +685,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_untracked_files() -> Result<(), OxenError> {
+    fn test_stager_list_untracked_files() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -639,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_untracked_dirs() -> Result<(), OxenError> {
+    fn test_stager_list_untracked_dirs() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -658,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_one_untracked_directory() -> Result<(), OxenError> {
+    fn test_stager_list_one_untracked_directory() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -687,7 +753,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_untracked_directories_after_add() -> Result<(), OxenError> {
+    fn test_stager_list_untracked_directories_after_add() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;

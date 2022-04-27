@@ -41,7 +41,7 @@ mod tests {
     use crate::model::UserResponse;
 
     #[test]
-    fn test_deserialze() -> Result<(), OxenError> {
+    fn test_deserialize() -> Result<(), OxenError> {
         let data = r#"
             {
                 "user": {
