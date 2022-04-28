@@ -5,11 +5,11 @@ use crate::index::Referencer;
 use crate::model::{Commit, LocalEntry, StagedData};
 use crate::util;
 
-use std::collections::HashSet;
 use chrono::Utc;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options, DB};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -150,7 +150,7 @@ impl Committer {
             // Create entry object to as json
             let entry = LocalEntry {
                 id: id.clone(),
-                hash: hash.clone(),
+                hash,
                 is_synced: false, // so we know to sync
                 extension: ext.clone(),
             };
@@ -193,15 +193,15 @@ impl Committer {
         added_files: &[PathBuf],
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        added_files
-            .par_iter()
-            .for_each(|path| match self.add_path_to_commit_db(commit, path, db) {
+        added_files.par_iter().for_each(|path| {
+            match self.add_path_to_commit_db(commit, path, db) {
                 Ok(_) => {}
                 Err(err) => {
                     let err = format!("Committer failed to commit file: {}", err);
                     eprintln!("{}", err)
                 }
-            });
+            }
+        });
         Ok(())
     }
 
@@ -425,7 +425,10 @@ impl Committer {
         }
     }
 
-    fn list_files_in_commit_db(&self, db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<PathBuf>, OxenError> {
+    fn list_files_in_commit_db(
+        &self,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
         let iter = db.iterator(IteratorMode::Start);
         for (key, _value) in iter {
@@ -434,7 +437,10 @@ impl Committer {
         Ok(paths)
     }
 
-    fn list_entries_in_commit_db(&self, db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<(PathBuf, LocalEntry)>, OxenError> {
+    fn list_entries_in_commit_db(
+        &self,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<Vec<(PathBuf, LocalEntry)>, OxenError> {
         let mut paths: Vec<(PathBuf, LocalEntry)> = vec![];
         let iter = db.iterator(IteratorMode::Start);
         for (key, value) in iter {
@@ -448,7 +454,7 @@ impl Committer {
     pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
         let commit_id = self.referencer.get_commit_id(name)?;
         let commit_db_path = self.commit_db_path(&commit_id);
-        
+
         if let Some(head_commit) = self.get_head_commit()? {
             if head_commit.id == commit_id {
                 // Don't do anything if we tried to switch to same commit
@@ -467,16 +473,21 @@ impl Committer {
 
         // Iterate over files in that are in *current head* and make sure they should all be there
         // if they aren't in commit db we are switching to, remove them
-        let current_entries = self.list_files_in_commit_db(&self.head_commit_db.as_ref().unwrap())?;
+        let current_entries =
+            self.list_files_in_commit_db(self.head_commit_db.as_ref().unwrap())?;
         for path in current_entries.iter() {
             let repo_path = self.repository.path.join(path);
             println!("current_entries[{:?}]", repo_path);
             if repo_path.is_file() {
-                println!("set_working_repo_to_branch[{}] commit_id {} path {:?}", name, commit_id, path);
-                
+                println!(
+                    "set_working_repo_to_branch[{}] commit_id {} path {:?}",
+                    name, commit_id, path
+                );
+
                 // Keep track of parents to see if we clear them
                 if let Some(parent) = path.parent() {
-                    if parent.parent().is_some() { // only add one directory below top level
+                    if parent.parent().is_some() {
+                        // only add one directory below top level
                         println!("CANDIDATE DIR {:?}", parent);
                         candidate_dirs_to_rm.insert(parent.to_path_buf());
                     }
@@ -487,7 +498,7 @@ impl Committer {
                     Ok(Some(_value)) => {
                         // We already have file ✅
                         println!("We already have file ✅ {:?}", repo_path);
-                    },
+                    }
                     _ => {
                         // sorry, we don't know you, bye
                         println!("see ya 💀 {:?}", repo_path);
@@ -519,7 +530,10 @@ impl Committer {
 
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
-                println!("RESTORE FILE BECAUSE IT NEW 🙏 {:?} -> {:?}", version_path, dst_path);
+                println!(
+                    "RESTORE FILE BECAUSE IT NEW 🙏 {:?} -> {:?}",
+                    version_path, dst_path
+                );
 
                 // mkdir if not exists for the parent
                 if let Some(parent) = dst_path.parent() {
@@ -536,7 +550,10 @@ impl Committer {
                 // If the hash of the file from the commit is different than the one on disk, update it
                 if entry.hash != dst_hash {
                     // we need to update working dir
-                    println!("RESTORE FILE BECAUSE IT DIFFERENT 🙏 {:?} -> {:?}", version_path, dst_path);
+                    println!(
+                        "RESTORE FILE BECAUSE IT DIFFERENT 🙏 {:?} -> {:?}",
+                        version_path, dst_path
+                    );
                     std::fs::copy(version_path, dst_path)?;
                 }
             }
@@ -652,17 +669,14 @@ impl Committer {
             let key = path.to_str().unwrap();
             let bytes = key.as_bytes();
             match db.get(bytes) {
-                Ok(Some(value)) => {
-                    match str::from_utf8(&*value) {
-                        Ok(value) => {
-                            let entry: LocalEntry = serde_json::from_str(value)?;
-                            Ok(Some(entry))
-                        },
-                        Err(_) => {
-                            Err(OxenError::basic_str("get_local_entry_from_commit invalid entry"))
-                        }
+                Ok(Some(value)) => match str::from_utf8(&*value) {
+                    Ok(value) => {
+                        let entry: LocalEntry = serde_json::from_str(value)?;
+                        Ok(Some(entry))
                     }
-                    
+                    Err(_) => Err(OxenError::basic_str(
+                        "get_local_entry_from_commit invalid entry",
+                    )),
                 },
                 Ok(None) => Ok(None),
                 Err(err) => {
@@ -671,7 +685,9 @@ impl Committer {
                 }
             }
         } else {
-            Err(OxenError::basic_str("get_local_entry_from_commit no head db"))
+            Err(OxenError::basic_str(
+                "get_local_entry_from_commit no head db",
+            ))
         }
     }
 
@@ -788,7 +804,7 @@ mod tests {
             // Create committer with no commits
             let repo_path = &stager.repository.path;
             let mut committer = Committer::new(&stager.repository)?;
-            let hello_file = test::add_txt_file_to_dir(&repo_path, "Hello")?;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello")?;
 
             // add & commit the file
             stager.add_file(&hello_file, &committer)?;
@@ -804,11 +820,13 @@ mod tests {
             stager.add_file(&hello_file, &committer)?;
             // commit the mods
             let status = stager.status(&committer)?;
-            let commit = committer.commit(&status, "modified hello to be world")?.unwrap();
+            let commit = committer
+                .commit(&status, "modified hello to be world")?
+                .unwrap();
 
-            let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
+            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             let entry = committer.get_entry(&relative_path)?.unwrap();
-            let entry_dir = Committer::versions_dir(&repo_path).join(&entry.id);
+            let entry_dir = Committer::versions_dir(repo_path).join(&entry.id);
             assert!(entry_dir.exists());
 
             let entry_file = entry_dir.join(entry.file_from_commit(&commit));
