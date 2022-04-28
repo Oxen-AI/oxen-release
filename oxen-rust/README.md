@@ -61,26 +61,23 @@ oxen, oxen-server, liboxen
     COMMIT_HASH_1/
       key,value of:
 
-      filename -> { (filename is where we hard link it back to)
-        "hash" => "FILE_HASH", (use this to know what version it was, and only add new changes)
-        "is_synced" => false
+      filename -> { (filename is where we copy the version back to)
+        "hash" => "FILE_HASH", (use this to know if a file was different)
+        "is_synced" => false (used to know if it has been synced to server yet)
       }
 
     COMMIT_HASH_2/
     COMMIT_HASH_3/
 
-  data/ (version copies of original files, once 10,000 is hit, we create new dir, and update all mirror paths)
-    // TODO: compress based on file type, maybe create watcher program to catch and intercept on write
+  versions/ (copies of original files, versioned with commit ids)
+    // TODO: once 10,000 is hit, we create new dir, and update all mirror paths
+    // TODO: use best lossless compression type based on file type, fall back to zlib or something for rest
+    // TODO: maybe create watcher program to catch and intercept on write? Is this possible?
     FILE_UUID_1/
       COMMIT_ID_1 (dog_1.jpg)
       COMMIT_ID_2 (dog_1.jpg version 2)
     FILE_UUID_2/
       COMMIT_ID_1 (dog_2.jpg)
-
-    TODO: Seems like we only need to update when the file changes...
-          Think of best way to only make minimal # of links
-          Do we have a dir that is an encoded version of the file name?
-          Then keep each iteration of the file in there?
 ```
 
 # Oxen Server

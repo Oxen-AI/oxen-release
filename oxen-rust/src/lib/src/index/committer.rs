@@ -236,7 +236,7 @@ impl Committer {
         for (dir, _) in added_dirs.iter() {
             println!("Commit [{}] files in dir: {:?}", commit.id, dir);
             let full_path = self.repository.path.join(dir);
-            let files: Vec<PathBuf> = util::fs::list_files_in_dir(&full_path)
+            let files: Vec<PathBuf> = util::fs::rlist_files_in_dir(&full_path)
                 .into_iter()
                 .map(|path| util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap())
                 .collect();
