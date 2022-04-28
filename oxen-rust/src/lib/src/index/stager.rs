@@ -1,7 +1,7 @@
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::Committer;
-use crate::model::{LocalEntry, LocalRepository};
+use crate::model::{LocalEntry, LocalRepository, StagedData};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -45,6 +45,23 @@ impl Stager {
                 Err(err) => Err(err),
             }
         }
+    }
+
+    pub fn status(&self, committer: &Committer) -> Result<StagedData, OxenError> {
+        // TODO: let's do this in a single loop and filter model
+        let added_dirs = self.list_added_directories()?;
+        let added_files = self.list_added_files()?;
+        let untracked_dirs = self.list_untracked_directories(&committer)?;
+        let untracked_files = self.list_untracked_files(&committer)?;
+        let modified_files = self.list_modified_files(&committer)?;
+        let status = StagedData {
+            added_dirs,
+            added_files,
+            untracked_dirs,
+            untracked_files,
+            modified_files,
+        };
+        Ok(status)
     }
 
     fn list_untracked_files_in_dir(&self, dir: &Path, committer: &Committer) -> Vec<PathBuf> {
@@ -155,20 +172,36 @@ impl Stager {
         }
 
         // create a little meta data object to attach to file path
-        let entry = LocalEntry {
-            id: format!("{}", uuid::Uuid::new_v4()),
-            hash: util::hasher::hash_file_contents(path)?,
-            is_synced: false, // so we know to sync
-            extension: String::from(path.extension().unwrap().to_str().unwrap()),
-        };
+        let filename_str = path.to_str().unwrap();
+        let id = util::hasher::hash_buffer(filename_str.as_bytes());
+        let hash = util::hasher::hash_file_contents(&path)?;
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
         //   /Users/username/Datasets/MyRepo/train -> train
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
         let path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-        let key = path.to_str().unwrap().as_bytes();
 
+        match committer.get_entry(&path) {
+            Ok(Some(entry)) => {
+                if entry.hash == hash {
+                    // file has not changed, don't add it
+                    return Ok(path);
+                }
+            },
+            _ => {
+                // not found, continue
+            }
+        }
+
+        let entry = LocalEntry {
+            id: id,
+            is_synced: false, // so we know to sync
+            hash: hash,
+            extension: String::from(path.extension().unwrap().to_str().unwrap()),
+        };
+
+        let key = path.to_str().unwrap();
         let entry_json = serde_json::to_string(&entry)?;
         self.db.put(&key, entry_json.as_bytes())?;
 
@@ -259,7 +292,6 @@ impl Stager {
         // TODO: We are looping multiple times to check whether file is added,modified,or removed, etc
         //       We should do this loop once, and check each thing
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
-        // println!("Listing untracked files from {:?}", dir_entries);
 
         let mut paths: Vec<PathBuf> = vec![];
         for entry in dir_entries {
@@ -269,12 +301,16 @@ impl Stager {
                 let relative_path =
                     util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
 
+                if self.has_entry(&relative_path) {
+                    continue;
+                }
+
                 // Check if we have the entry in the head commit
                 match committer.get_entry(&relative_path) {
-                    Ok(Some(entry)) => {
-                        // Check if the entry has changed
-                        let hash = util::hasher::hash_file_contents(&local_path)?;
-                        if hash != entry.hash {
+                    Ok(Some(old_entry)) => {
+                        // Check if the old_entry has changed
+                        let current_hash = util::hasher::hash_file_contents(&local_path)?;
+                        if current_hash != old_entry.hash {
                             paths.push(relative_path);
                         }
                     },
@@ -486,6 +522,35 @@ mod tests {
     }
 
     #[test]
+    fn test_cannot_add_if_no_difference_than_commit() -> Result<(), OxenError> {
+        test::run_empty_stager_test(|stager| {
+            // Create committer with no commits
+            let mut committer = Committer::new(&stager.repository)?;
+
+            // Make sure we have a valid file
+            let repo_path = &stager.repository.path;
+            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
+
+            // Add it
+            stager.add_file(&hello_file, &committer)?;
+
+            // Commit it
+            let status = stager.status(&committer)?;
+            committer.commit(&status, "Add Hello World")?;
+            stager.unstage()?;
+
+            // try to add it again
+            stager.add_file(&hello_file, &committer)?;
+
+            // make sure we don't have it added again, because the hash hadn't changed since last commit
+            let status = stager.status(&committer)?;
+            assert_eq!(status.added_files.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_add_non_existant_file() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
@@ -543,7 +608,7 @@ mod tests {
             // we should be able to fetch this entry json
             let entry = stager.get_entry(&relative_path).unwrap();
             assert!(!entry.id.is_empty());
-            assert!(!entry.hash.is_empty());
+            assert!(!entry.extension.is_empty());
             assert!(!entry.is_synced);
 
             Ok(())
@@ -739,10 +804,11 @@ mod tests {
 
             // add the file
             stager.add_file(&hello_file, &committer)?;
+
             // commit the file
-            let added_files = stager.list_added_files()?;
-            let added_dirs = stager.list_added_directories()?;
-            committer.commit(&added_files, &added_dirs, "added hello 1")?;
+            let status = stager.status(&committer)?;
+            committer.commit(&status, "added hello 1")?;
+            stager.unstage()?;
 
             let mod_files = stager.list_modified_files(&committer)?;
             assert_eq!(mod_files.len(), 0);

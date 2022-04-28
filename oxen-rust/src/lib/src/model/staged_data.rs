@@ -1,23 +1,30 @@
 use colored::Colorize;
 use std::path::PathBuf;
 
-pub struct RepoStatus {
+pub struct StagedData {
     pub added_dirs: Vec<(PathBuf, usize)>,
     pub added_files: Vec<PathBuf>,
+    // TODO: this hack might not work anymore...because we will have to track if any file changed in the directory
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
+    pub modified_files: Vec<PathBuf>,
 }
 
-impl RepoStatus {
+impl StagedData {
     pub fn is_clean(&self) -> bool {
         self.added_dirs.is_empty()
             && self.added_files.is_empty()
             && self.untracked_files.is_empty()
             && self.untracked_dirs.is_empty()
+            && self.modified_files.is_empty()
     }
 
     pub fn has_added_entries(&self) -> bool {
         !self.added_dirs.is_empty() || !self.added_files.is_empty()
+    }
+
+    pub fn has_modified_entries(&self) -> bool {
+        !self.modified_files.is_empty()
     }
 
     pub fn has_untracked_entries(&self) -> bool {
@@ -36,6 +43,13 @@ impl RepoStatus {
         println!("  (use \"oxen add <file>...\" to update what will be committed)");
         self.print_untracked_dirs();
         self.print_untracked_files();
+        println!();
+    }
+
+    pub fn print_modified(&self) {
+        println!("Modified files:");
+        println!("  (use \"oxen add <file>...\" to update what will be committed)");
+        self.print_modified_files();
         println!();
     }
 
@@ -76,6 +90,13 @@ impl RepoStatus {
             }
 
             let added_file_str = format!("  added:  {}", file.to_str().unwrap()).green();
+            println!("{}", added_file_str);
+        }
+    }
+
+    fn print_modified_files(&self) {
+        for file in self.modified_files.iter() {
+            let added_file_str = format!("  modified:  {}", file.to_str().unwrap()).yellow();
             println!("{}", added_file_str);
         }
     }

@@ -26,7 +26,7 @@ impl Indexer {
     }
 
     fn push_entries(&self, committer: &Arc<Committer>, commit: &Commit) -> Result<(), OxenError> {
-        let paths = committer.list_unsynced_files_for_commit(&commit.id)?;
+        let paths = committer.list_unsynced_files_for_commit(&commit)?;
 
         println!("🐂 push {} files", paths.len());
 

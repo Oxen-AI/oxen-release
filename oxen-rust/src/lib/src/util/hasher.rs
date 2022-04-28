@@ -14,6 +14,10 @@ pub fn hash_buffer(buffer: &[u8]) -> String {
     format!("{:X}", hasher.finish())
 }
 
+pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
+    xxh3_128(buffer)
+}
+
 pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
     match File::open(path) {
         Ok(file) => {
@@ -21,8 +25,33 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
             let mut buffer = Vec::new();
             match reader.read_to_end(&mut buffer) {
                 Ok(_) => {
-                    // read hash digest and consume hasher
                     let result = hash_buffer(&buffer);
+                    Ok(result)
+                }
+                Err(_) => {
+                    eprintln!("Could not read file to end {:?}", path);
+                    Err(OxenError::basic_str("Could not read file to end"))
+                }
+            }
+        }
+        Err(_) => {
+            let err = format!(
+                "util::hasher::hash_file_contents Could not open file {:?}",
+                path
+            );
+            Err(OxenError::basic_str(&err))
+        }
+    }
+}
+
+pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
+    match File::open(path) {
+        Ok(file) => {
+            let mut reader = BufReader::new(file);
+            let mut buffer = Vec::new();
+            match reader.read_to_end(&mut buffer) {
+                Ok(_) => {
+                    let result = hash_buffer_128bit(&buffer);
                     Ok(result)
                 }
                 Err(_) => {
