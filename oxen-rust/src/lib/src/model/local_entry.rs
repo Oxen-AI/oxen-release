@@ -1,4 +1,3 @@
-
 use crate::model::Commit;
 
 use serde::{Deserialize, Serialize};

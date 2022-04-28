@@ -63,10 +63,7 @@ async fn create_entry(
             "Wrote {} bytes to {:?} with extension",
             total_bytes, filepath,
         );
-        let url = format!(
-            "{}",
-            &data.filename
-        );
+        let url = (&data.filename).to_string();
 
         Ok(HttpResponse::Ok().json(EntryResponse {
             status: String::from(STATUS_SUCCESS),

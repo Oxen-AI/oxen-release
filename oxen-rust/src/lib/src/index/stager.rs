@@ -51,9 +51,9 @@ impl Stager {
         // TODO: let's do this in a single loop and filter model
         let added_dirs = self.list_added_directories()?;
         let added_files = self.list_added_files()?;
-        let untracked_dirs = self.list_untracked_directories(&committer)?;
-        let untracked_files = self.list_untracked_files(&committer)?;
-        let modified_files = self.list_modified_files(&committer)?;
+        let untracked_dirs = self.list_untracked_directories(committer)?;
+        let untracked_files = self.list_untracked_files(committer)?;
+        let modified_files = self.list_modified_files(committer)?;
         let status = StagedData {
             added_dirs,
             added_files,
@@ -174,7 +174,7 @@ impl Stager {
         // create a little meta data object to attach to file path
         let filename_str = path.to_str().unwrap();
         let id = util::hasher::hash_buffer(filename_str.as_bytes());
-        let hash = util::hasher::hash_file_contents(&path)?;
+        let hash = util::hasher::hash_file_contents(path)?;
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
@@ -182,22 +182,17 @@ impl Stager {
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
         let path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
 
-        match committer.get_entry(&path) {
-            Ok(Some(entry)) => {
-                if entry.hash == hash {
-                    // file has not changed, don't add it
-                    return Ok(path);
-                }
-            },
-            _ => {
-                // not found, continue
+        if let Ok(Some(entry)) = committer.get_entry(&path) {
+            if entry.hash == hash {
+                // file has not changed, don't add it
+                return Ok(path);
             }
         }
 
         let entry = LocalEntry {
-            id: id,
+            id,
             is_synced: false, // so we know to sync
-            hash: hash,
+            hash,
             extension: String::from(path.extension().unwrap().to_str().unwrap()),
         };
 
@@ -306,16 +301,11 @@ impl Stager {
                 }
 
                 // Check if we have the entry in the head commit
-                match committer.get_entry(&relative_path) {
-                    Ok(Some(old_entry)) => {
-                        // Check if the old_entry has changed
-                        let current_hash = util::hasher::hash_file_contents(&local_path)?;
-                        if current_hash != old_entry.hash {
-                            paths.push(relative_path);
-                        }
-                    },
-                    _ => {
-                        // Don't have the entry so it don't matter
+                if let Ok(Some(old_entry)) = committer.get_entry(&relative_path) {
+                    // Check if the old_entry has changed
+                    let current_hash = util::hasher::hash_file_contents(&local_path)?;
+                    if current_hash != old_entry.hash {
+                        paths.push(relative_path);
                     }
                 }
             }

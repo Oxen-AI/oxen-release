@@ -1,7 +1,7 @@
+use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
-use crate::constants::DEFAULT_BRANCH_NAME;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::{Path, PathBuf};

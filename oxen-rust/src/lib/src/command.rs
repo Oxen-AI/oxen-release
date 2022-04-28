@@ -213,10 +213,10 @@ pub fn current_branch(repo: &LocalRepository) -> Result<Branch, OxenError> {
 mod tests {
 
     use crate::command;
+    use crate::constants;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
-    use crate::constants;
 
     #[test]
     fn test_command_init() -> Result<(), OxenError> {
@@ -234,7 +234,7 @@ mod tests {
             assert!(!repo.id.is_empty());
             assert!(!repo.name.is_empty());
 
-            // We make an initial parent commit and branch called "main" 
+            // We make an initial parent commit and branch called "main"
             // just to make our lives easier down the line
             let orig_branch = command::current_branch(&repo)?;
             assert_eq!(orig_branch.name, constants::DEFAULT_BRANCH_NAME);
@@ -348,7 +348,6 @@ mod tests {
             assert_eq!(repo_status.added_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 2);
             assert_eq!(repo_status.untracked_dirs.len(), 2);
-            
 
             let commits = command::log(&repo)?;
             assert_eq!(commits.len(), 2);
@@ -356,7 +355,6 @@ mod tests {
             Ok(())
         })
     }
-
 
     #[test]
     fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
@@ -423,7 +421,7 @@ mod tests {
             assert!(!world_file.exists());
 
             // Go back to the world branch
-            command::checkout_branch(&repo, &branch_name)?;
+            command::checkout_branch(&repo, branch_name)?;
             assert!(hello_file.exists());
             assert!(world_file.exists());
 
@@ -482,7 +480,7 @@ mod tests {
             assert!(keep_file.exists());
 
             // Go back to the world branch
-            command::checkout_branch(&repo, &branch_name)?;
+            command::checkout_branch(&repo, branch_name)?;
             assert!(hello_file.exists());
             assert!(world_file.exists());
             assert!(keep_file.exists());
@@ -524,7 +522,7 @@ mod tests {
 
             // The file contents should be Hello, not World
             assert!(hello_file.exists());
-            
+
             // It should be reverted back to Hello
             assert_eq!(util::fs::read_from_path(&hello_file)?, "Hello");
 
@@ -560,7 +558,7 @@ mod tests {
             assert_eq!(og_content, updated_content);
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, &branch_name)?;
+            command::checkout_branch(&repo, branch_name)?;
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(new_contents, updated_content);
 
@@ -590,7 +588,7 @@ mod tests {
             assert!(!train_path.exists());
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, &branch_name)?;
+            command::checkout_branch(&repo, branch_name)?;
             assert!(train_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&train_path), og_num_files);
 
@@ -620,7 +618,7 @@ mod tests {
             assert!(!new_dir_path.exists());
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, &branch_name)?;
+            command::checkout_branch(&repo, branch_name)?;
             assert!(new_dir_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
 

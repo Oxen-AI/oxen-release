@@ -8,4 +8,3 @@ pub struct Entry {
     pub filename: String,
     pub hash: String,
 }
-

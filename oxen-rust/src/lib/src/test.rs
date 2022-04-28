@@ -205,12 +205,12 @@ pub fn test_jpeg_file() -> &'static Path {
 
 pub fn populate_repo_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
     // Directory Structure
-    // Features: 
+    // Features:
     //   - has multiple content types (jpg, txt, md)
     //   - has multiple directory levels (annotations/train/one_shot.txt)
     //   - has a file at top level (README.md)
     //   - has files/dirs at different levels with same names
-    // 
+    //
     // train/
     //   dog_1.jpg
     //   dog_2.jpg
@@ -230,7 +230,9 @@ pub fn populate_repo_with_training_data(repo_dir: &Path) -> Result<(), OxenError
     // README.md
 
     // README.md
-    write_txt_file_to_path(repo_dir.join("README.md"), r#"
+    write_txt_file_to_path(
+        repo_dir.join("README.md"),
+        r#"
         # Welcome to the party
 
         If you are seeing this, you are deep in the test framework, love to see it, keep testing.
@@ -238,50 +240,84 @@ pub fn populate_repo_with_training_data(repo_dir: &Path) -> Result<(), OxenError
         Yes I am biased, dog is label 0, cat is label 1, not alphabetical. Interpret that as you will.
 
         🐂 💨
-    "#)?;
+    "#,
+    )?;
 
-    write_txt_file_to_path(repo_dir.join("labels"), r#"
+    write_txt_file_to_path(
+        repo_dir.join("labels"),
+        r#"
         dog
         cat
-    "#)?;
+    "#,
+    )?;
 
     // train/
     let train_dir = repo_dir.join("train");
     std::fs::create_dir_all(&train_dir)?;
-    std::fs::copy(Path::new("data/test/images/dog_1.jpg"), train_dir.join("dog_1.jpg"))?;
-    std::fs::copy(Path::new("data/test/images/dog_2.jpg"), train_dir.join("dog_2.jpg"))?;
-    std::fs::copy(Path::new("data/test/images/dog_3.jpg"), train_dir.join("dog_3.jpg"))?;
-    std::fs::copy(Path::new("data/test/images/cat_1.jpg"), train_dir.join("cat_1.jpg"))?;
-    std::fs::copy(Path::new("data/test/images/cat_2.jpg"), train_dir.join("cat_2.jpg"))?;
+    std::fs::copy(
+        Path::new("data/test/images/dog_1.jpg"),
+        train_dir.join("dog_1.jpg"),
+    )?;
+    std::fs::copy(
+        Path::new("data/test/images/dog_2.jpg"),
+        train_dir.join("dog_2.jpg"),
+    )?;
+    std::fs::copy(
+        Path::new("data/test/images/dog_3.jpg"),
+        train_dir.join("dog_3.jpg"),
+    )?;
+    std::fs::copy(
+        Path::new("data/test/images/cat_1.jpg"),
+        train_dir.join("cat_1.jpg"),
+    )?;
+    std::fs::copy(
+        Path::new("data/test/images/cat_2.jpg"),
+        train_dir.join("cat_2.jpg"),
+    )?;
 
     // test/
     let test_dir = repo_dir.join("test");
     std::fs::create_dir_all(&test_dir)?;
-    std::fs::copy(Path::new("data/test/images/dog_4.jpg"), test_dir.join("1.jpg"))?;
-    std::fs::copy(Path::new("data/test/images/cat_3.jpg"), test_dir.join("2.jpg"))?;
+    std::fs::copy(
+        Path::new("data/test/images/dog_4.jpg"),
+        test_dir.join("1.jpg"),
+    )?;
+    std::fs::copy(
+        Path::new("data/test/images/cat_3.jpg"),
+        test_dir.join("2.jpg"),
+    )?;
 
     // annotations/train/
     let train_annotations_dir = repo_dir.join("annotations/train");
     std::fs::create_dir_all(&train_annotations_dir)?;
-    write_txt_file_to_path(train_annotations_dir.join("annotations.txt"), r#"
+    write_txt_file_to_path(
+        train_annotations_dir.join("annotations.txt"),
+        r#"
         train/dog_1.jpg 0
         train/dog_2.jpg 0
         train/dog_3.jpg 0
         train/cat_1.jpg 1
         train/cat_2.jpg 1
-    "#)?;
-    write_txt_file_to_path(train_annotations_dir.join("one_shot.txt"), r#"
+    "#,
+    )?;
+    write_txt_file_to_path(
+        train_annotations_dir.join("one_shot.txt"),
+        r#"
         train/dog_1.jpg 0
         train/cat_1.jpg 1
-    "#)?;
+    "#,
+    )?;
 
     // annotations/test/
     let test_annotations_dir = repo_dir.join("annotations/test");
     std::fs::create_dir_all(&test_annotations_dir)?;
-    write_txt_file_to_path(test_annotations_dir.join("annotations.txt"), r#"
+    write_txt_file_to_path(
+        test_annotations_dir.join("annotations.txt"),
+        r#"
         test/1.jpg 0
         test/2.jpg 1
-    "#)?;
+    "#,
+    )?;
 
     Ok(())
 }
