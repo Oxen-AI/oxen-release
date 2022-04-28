@@ -16,4 +16,8 @@ impl LocalEntry {
     pub fn file_from_commit(&self, commit: &Commit) -> PathBuf {
         PathBuf::from(format!("{}.{}", commit.id, self.extension))
     }
+
+    pub fn file_from_commit_id(&self, commit_id: &str) -> PathBuf {
+        PathBuf::from(format!("{}.{}", commit_id, self.extension))
+    }
 }

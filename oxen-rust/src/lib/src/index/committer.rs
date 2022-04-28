@@ -95,6 +95,10 @@ impl Committer {
         }
     }
 
+    fn commit_db_path(&self, id: &str) -> PathBuf {
+        self.history_dir.join(Path::new(&id))
+    }
+
     fn create_db_dir_for_commit_id(&self, id: &str) -> Result<PathBuf, OxenError> {
         match self.referencer.head_commit_id() {
             Ok(parent_id) => {
@@ -131,6 +135,8 @@ impl Committer {
     ) -> Result<(), OxenError> {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
+
+        println!("Commit[{}] {:?}", new_commit.id, path);
 
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
@@ -410,6 +416,58 @@ impl Committer {
             }
             Err(_) => Ok(commit_msgs),
         }
+    }
+
+    pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
+        let commit_id = self.referencer.get_commit_id(name)?;
+        let commit_db_path = self.commit_db_path(&commit_id);
+
+        // Open db
+        let opts = Committer::db_opts();
+        let db = DB::open(&opts, &commit_db_path)?;
+
+        // Iterate over files in current dir, and make sure they should all be there
+        // if they aren't in this commit db, remove them
+        let dir_entries = std::fs::read_dir(&self.repository.path)?;
+        for entry in dir_entries {
+            let local_path = entry?.path();
+            if local_path.is_file() {
+                let relative_path =
+                    util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
+                println!("set_working_repo_to_branch[{}] commit_id {} relative_path {:?}", name, commit_id, relative_path);
+                let bytes = relative_path.to_str().unwrap().as_bytes();
+                match db.get_pinned(bytes) {
+                    Ok(_) => {
+                        println!("WE HAVE FILE {:?} WE GOOD HOMIE", relative_path);
+                    },
+                    _ => {
+                        // sorry, we don't know you, bye
+                        println!("you dead. {:?}", local_path);
+                        std::fs::remove_file(local_path)?;
+                    }
+                }
+            }
+        }
+
+        // Iterate over files in db, and make sure the hashes match,
+        // if different, copy the correct version over
+        let iter = db.iterator(IteratorMode::Start);
+        for (key, value) in iter {
+            let path = Path::new(str::from_utf8(&*key)?);
+            let entry: LocalEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+
+            let dst_path = self.repository.path.join(path);
+            let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
+
+            if entry.hash != dst_hash {
+                // we need to update working dir
+                let entry_filename = entry.file_from_commit_id(&commit_id);
+                let version_file = self.versions_dir.join(&entry.id).join(entry_filename);
+                std::fs::copy(version_file, dst_path)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn p_list_commits(&self, commit_id: &str, messages: &mut Vec<Commit>) -> Result<(), OxenError> {

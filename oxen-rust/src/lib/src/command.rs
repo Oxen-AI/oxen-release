@@ -144,11 +144,17 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
 /// It also updates all the local files to be from the commit that this branch references
 pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     let committer = Committer::new(repo)?;
-    if committer.referencer.has_branch(name) {
-        committer.referencer.set_head(name)?;
+    let current_branch = committer.referencer.get_current_branch()?;
 
-        // TODO: go through files in the commit, and make sure working directory matches
-        //       proper files from our versions/ dir
+    // If we are already on the branch, do nothing
+    if current_branch.name == name {
+        eprintln!("Already on branch {}", name);
+        return Ok(());
+    }
+
+    if committer.referencer.has_branch(name) && current_branch.name != name {
+        committer.set_working_repo_to_branch(name)?;
+        committer.referencer.set_head(name)?;
 
         Ok(())
     } else {
@@ -161,6 +167,7 @@ pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenErr
 /// This creates a branch with name
 /// Then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    println!("command::create_checkout_branch[{}]", name);
     let committer = Committer::new(repo)?;
     match committer.get_head_commit() {
         Ok(Some(head_commit)) => {
@@ -293,8 +300,29 @@ mod tests {
         })
     }
 
+
     #[test]
-    fn test_command_checkout_different_previous_branch() -> Result<(), OxenError> {
+    fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            // Write the first file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello");
+
+            // Track & commit the file
+            command::add(&repo, &hello_file)?;
+            command::commit(&repo, "Added hello.txt")?;
+
+            // Create and checkout branch
+            let branch_name = "feature/world-explorer";
+            command::create_checkout_branch(&repo, branch_name)?;
+            command::checkout_branch(&repo, branch_name)?;
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_checkout_added_file() -> Result<(), OxenError> {
         test::run_empty_repo_test(|repo| {
             // Write the first file
             let hello_file = repo.path.join("hello.txt");
@@ -323,21 +351,69 @@ mod tests {
             let commits = command::log(&repo)?;
             assert_eq!(commits.len(), 2);
 
+            let branches = command::list_branches(&repo)?;
+            assert_eq!(commits.len(), 2);
+            for branch in branches.iter() {
+                println!("GOT BRANCH {} -> {}", branch.name, branch.commit_id);
+            }
+
             // Make sure we have both files on disk in our repo dir
             assert!(hello_file.exists());
             assert!(world_file.exists());
 
             // Go back to the main branch
+            println!("SWITCH BACK TO MAIN");
             command::checkout_branch(&repo, &orig_branch.name)?;
 
             // The world file should no longer be there
             assert!(hello_file.exists());
             assert!(!world_file.exists());
 
-            // Go back to the branch
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            // Go back to the world branch
+            command::checkout_branch(&repo, &branch_name)?;
             assert!(hello_file.exists());
             assert!(world_file.exists());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_checkout_modified_file() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            // Write the first file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello");
+
+            // Track & commit the file
+            command::add(&repo, &hello_file)?;
+            command::commit(&repo, "Added hello.txt")?;
+
+            // Get the original branch name
+            let orig_branch = command::current_branch(&repo)?;
+
+            // Create and checkout branch
+            let branch_name = "feature/world-explorer";
+            command::create_checkout_branch(&repo, branch_name)?;
+
+            // Modify the file
+            let hello_file = test::modify_txt_file(hello_file, "World")?;
+
+            // Track & commit the change in the branch
+            command::add(&repo, &hello_file)?;
+            command::commit(&repo, "Changed file to world")?;
+
+            // It should say World at this point
+            assert_eq!(util::fs::read_from_path(&hello_file)?, "World");
+
+            // Go back to the main branch
+            command::checkout_branch(&repo, &orig_branch.name)?;
+
+            // The file contents should be Hello, not World
+            assert!(hello_file.exists());
+            
+            // It should be reverted back to Hello
+            assert_eq!(util::fs::read_from_path(&hello_file)?, "Hello");
 
             Ok(())
         })
