@@ -136,8 +136,6 @@ impl Committer {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
 
-        println!("Commit[{}] adding: {:?}", new_commit.id, path);
-
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
             let file_path = self.repository.path.join(path);
@@ -434,16 +432,14 @@ impl Committer {
             if local_path.is_file() {
                 let relative_path =
                     util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
-                println!("set_working_repo_to_branch[{}] commit_id {} relative_path {:?}", name, commit_id, relative_path);
+                // println!("set_working_repo_to_branch[{}] commit_id {} relative_path {:?}", name, commit_id, relative_path);
                 let bytes = relative_path.to_str().unwrap().as_bytes();
                 match db.get(bytes) {
-                    Ok(Some(value)) => {
-                        let entry: LocalEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-                        println!("WE HAVE FILE {:?} WE GOOD HOMIE {:?}", relative_path, entry);
+                    Ok(Some(_value)) => {
+                        // We already have file ✅
                     },
                     _ => {
                         // sorry, we don't know you, bye
-                        println!("you dead 💀 {:?}", local_path);
                         std::fs::remove_file(local_path)?;
                     }
                 }
