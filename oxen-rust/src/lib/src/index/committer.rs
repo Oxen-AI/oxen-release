@@ -5,6 +5,7 @@ use crate::index::Referencer;
 use crate::model::{Commit, LocalEntry, StagedData};
 use crate::util;
 
+use std::collections::HashSet;
 use chrono::Utc;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
@@ -136,6 +137,7 @@ impl Committer {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
 
+        println!("Commit [{}] commit file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
             let file_path = self.repository.path.join(path);
@@ -232,7 +234,7 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for (dir, _) in added_dirs.iter() {
-            println!("Committing files in dir: {:?}", dir);
+            println!("Commit [{}] files in dir: {:?}", commit.id, dir);
             let full_path = self.repository.path.join(dir);
             let files: Vec<PathBuf> = util::fs::list_files_in_dir(&full_path)
                 .into_iter()
@@ -324,6 +326,8 @@ impl Committer {
         self.referencer.set_head_commit_id(&commit.id)?;
         // Update our current head db to be this commit db so we can quickly find files
         self.head_commit_db = Some(commit_db);
+
+        println!("commit({}) -> {}", commit.id, commit.message);
 
         Ok(Some(commit))
     }
@@ -421,42 +425,91 @@ impl Committer {
         }
     }
 
+    fn list_files_in_commit_db(&self, db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<PathBuf>, OxenError> {
+        let mut paths: Vec<PathBuf> = vec![];
+        let iter = db.iterator(IteratorMode::Start);
+        for (key, _value) in iter {
+            paths.push(PathBuf::from(str::from_utf8(&*key)?));
+        }
+        Ok(paths)
+    }
+
+    fn list_entries_in_commit_db(&self, db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<(PathBuf, LocalEntry)>, OxenError> {
+        let mut paths: Vec<(PathBuf, LocalEntry)> = vec![];
+        let iter = db.iterator(IteratorMode::Start);
+        for (key, value) in iter {
+            let path = PathBuf::from(str::from_utf8(&*key)?);
+            let entry: LocalEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+            paths.push((path, entry));
+        }
+        Ok(paths)
+    }
+
     pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
         let commit_id = self.referencer.get_commit_id(name)?;
         let commit_db_path = self.commit_db_path(&commit_id);
+        
+        if let Some(head_commit) = self.get_head_commit()? {
+            if head_commit.id == commit_id {
+                // Don't do anything if we tried to switch to same commit
+                return Ok(());
+            }
+        }
 
         // Open db
+        println!("Getting entries for branch [{}] {}", name, commit_id);
         let opts = Committer::db_opts();
-        let db = DB::open(&opts, &commit_db_path)?;
+        let commit_db = DBWithThreadMode::open(&opts, &commit_db_path)?;
 
-        // Iterate over files in current dir, and make sure they should all be there
-        // if they aren't in this commit db, remove them
-        let dir_entries = std::fs::read_dir(&self.repository.path)?;
-        for entry in dir_entries {
-            let local_path = entry?.path();
-            if local_path.is_file() {
-                let relative_path =
-                    util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
-                // println!("set_working_repo_to_branch[{}] commit_id {} relative_path {:?}", name, commit_id, relative_path);
-                let bytes = relative_path.to_str().unwrap().as_bytes();
-                match db.get(bytes) {
+        // Keep track of directories, since we do not explicitly store which ones are tracked...
+        // we will remove them later if no files exist in them.
+        let mut candidate_dirs_to_rm: HashSet<PathBuf> = HashSet::new();
+
+        // Iterate over files in that are in *current head* and make sure they should all be there
+        // if they aren't in commit db we are switching to, remove them
+        let current_entries = self.list_files_in_commit_db(&self.head_commit_db.as_ref().unwrap())?;
+        for path in current_entries.iter() {
+            let repo_path = self.repository.path.join(path);
+            println!("current_entries[{:?}]", repo_path);
+            if repo_path.is_file() {
+                println!("set_working_repo_to_branch[{}] commit_id {} path {:?}", name, commit_id, path);
+                
+                // Keep track of parents to see if we clear them
+                if let Some(parent) = path.parent() {
+                    if parent.parent().is_some() { // only add one directory below top level
+                        println!("CANDIDATE DIR {:?}", parent);
+                        candidate_dirs_to_rm.insert(parent.to_path_buf());
+                    }
+                }
+
+                let bytes = path.to_str().unwrap().as_bytes();
+                match commit_db.get(bytes) {
                     Ok(Some(_value)) => {
                         // We already have file ✅
+                        println!("We already have file ✅ {:?}", repo_path);
                     },
                     _ => {
                         // sorry, we don't know you, bye
-                        std::fs::remove_file(local_path)?;
+                        println!("see ya 💀 {:?}", repo_path);
+                        std::fs::remove_file(repo_path)?;
                     }
                 }
             }
         }
 
-        // Iterate over files in db, and make sure the hashes match,
+        // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
-        let iter = db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            let path = Path::new(str::from_utf8(&*key)?);
-            let entry: LocalEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+        let commit_entries = self.list_entries_in_commit_db(&commit_db)?;
+        for (path, entry) in commit_entries.iter() {
+            // println!("Committed entry: {:?}", path);
+            if let Some(parent) = path.parent() {
+                // Check if parent directory exists, if it does, we no longer have
+                // it as a candidate to remove
+                // println!("CHECKING {:?}", parent);
+                if candidate_dirs_to_rm.contains(parent) {
+                    candidate_dirs_to_rm.remove(&parent.to_path_buf());
+                }
+            }
 
             let dst_path = self.repository.path.join(path);
 
@@ -466,6 +519,15 @@ impl Committer {
 
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
+                println!("RESTORE FILE BECAUSE IT NEW 🙏 {:?} -> {:?}", version_path, dst_path);
+
+                // mkdir if not exists for the parent
+                if let Some(parent) = dst_path.parent() {
+                    if !parent.exists() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                }
+
                 std::fs::copy(version_path, dst_path)?;
             } else {
                 // we do have it, check if we need to update it
@@ -474,9 +536,17 @@ impl Committer {
                 // If the hash of the file from the commit is different than the one on disk, update it
                 if entry.hash != dst_hash {
                     // we need to update working dir
+                    println!("RESTORE FILE BECAUSE IT DIFFERENT 🙏 {:?} -> {:?}", version_path, dst_path);
                     std::fs::copy(version_path, dst_path)?;
                 }
             }
+        }
+
+        // Remove un-tracked directories
+        for dir in candidate_dirs_to_rm.iter() {
+            let full_dir = self.repository.path.join(dir);
+            println!("REMOVE ME {:?}", full_dir);
+            std::fs::remove_dir_all(full_dir)?;
         }
 
         Ok(())
