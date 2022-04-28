@@ -173,6 +173,10 @@ pub fn status() -> Result<(), OxenError> {
         repo_status.print_added();
     }
 
+    if repo_status.has_modified_entries() {
+        repo_status.print_modified();
+    }
+
     if repo_status.has_untracked_entries() {
         repo_status.print_untracked();
     }

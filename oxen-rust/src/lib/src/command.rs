@@ -5,7 +5,7 @@
 
 use crate::error::OxenError;
 use crate::index::{Committer, Referencer, Stager};
-use crate::model::{Branch, Commit, LocalRepository, RepoStatus};
+use crate::model::{Branch, Commit, LocalRepository, StagedData};
 use crate::util;
 
 use std::path::Path;
@@ -85,7 +85,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// # Ok(())
 /// # }
 /// ```
-pub fn status(repository: &LocalRepository) -> Result<RepoStatus, OxenError> {
+pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
     if !hidden_dir.exists() {
         let err = NO_REPO_MSG.to_string();
@@ -94,17 +94,7 @@ pub fn status(repository: &LocalRepository) -> Result<RepoStatus, OxenError> {
 
     let committer = Committer::new(repository)?;
     let stager = Stager::new(repository)?;
-
-    let added_dirs = stager.list_added_directories()?;
-    let added_files = stager.list_added_files()?;
-    let untracked_dirs = stager.list_untracked_directories(&committer)?;
-    let untracked_files = stager.list_untracked_files(&committer)?;
-    let status = RepoStatus {
-        added_dirs,
-        added_files,
-        untracked_dirs,
-        untracked_files,
-    };
+    let status = stager.status(&committer)?;
     Ok(status)
 }
 
@@ -120,10 +110,8 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
     let mut committer = Committer::new(repo)?;
-    let added_files = stager.list_added_files()?;
-    let added_dirs = stager.list_added_directories()?;
-
-    committer.commit(&added_files, &added_dirs, message)?;
+    let status = stager.status(&committer)?;
+    committer.commit(&status, message)?;
     stager.unstage()?;
     Ok(())
 }
@@ -158,6 +146,10 @@ pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenErr
     let committer = Committer::new(repo)?;
     if committer.referencer.has_branch(name) {
         committer.referencer.set_head(name)?;
+
+        // TODO: go through files in the commit, and make sure working directory matches
+        //       proper files from our versions/ dir
+
         Ok(())
     } else {
         let err = format!("Err: Branch not found '{}'", name);
