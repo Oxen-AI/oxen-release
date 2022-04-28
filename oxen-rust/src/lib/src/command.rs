@@ -34,6 +34,16 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let config_path = util::fs::config_filepath(path);
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
+
+    // write a little hidden easter egg .drove.txt file and commit it to get plowing
+    let path = repo.path.join(".drove.txt");
+    util::fs::write_to_path(&path, "👋 🐂");
+
+    add(&repo, &path)?;
+    if let Some(commit) = commit(&repo, "Initialized Repo 🐂")? {
+        println!("Initial commit {}", commit.id);
+    }
+
     Ok(repo)
 }
 
@@ -107,13 +117,16 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 }
 
 /// # Commit the staged files in the repo
-pub fn commit(repo: &LocalRepository, message: &str) -> Result<(), OxenError> {
+pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
     let stager = Stager::new(repo)?;
     let mut committer = Committer::new(repo)?;
     let status = stager.status(&committer)?;
-    committer.commit(&status, message)?;
-    stager.unstage()?;
-    Ok(())
+    if let Some(commit) = committer.commit(&status, message)? {
+        stager.unstage()?;
+        Ok(Some(commit))
+    } else {
+        Ok(None)
+    }
 }
 
 /// # Get a log of all the commits
@@ -202,21 +215,31 @@ mod tests {
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
+    use crate::constants;
+
+    use std::path::Path;
 
     #[test]
     fn test_command_init() -> Result<(), OxenError> {
         test::run_empty_repo_dir_test(|repo_dir| {
             // Init repo
-            let repository = command::init(repo_dir)?;
+            let repo = command::init(repo_dir)?;
 
             // Init should create the .oxen directory
             let hidden_dir = util::fs::oxen_hidden_dir(repo_dir);
             let config_file = util::fs::config_filepath(repo_dir);
             assert!(hidden_dir.exists());
             assert!(config_file.exists());
+
             // Name and id will be random but should be populated
-            assert!(!repository.id.is_empty());
-            assert!(!repository.name.is_empty());
+            assert!(!repo.id.is_empty());
+            assert!(!repo.name.is_empty());
+
+            // We make an initial parent commit and branch called "main" 
+            // just to make our lives easier down the line
+            let orig_branch = command::current_branch(&repo)?;
+            assert_eq!(orig_branch.name, constants::DEFAULT_BRANCH_NAME);
+            assert!(!orig_branch.commit_id.is_empty());
 
             Ok(())
         })
@@ -232,6 +255,18 @@ mod tests {
             assert_eq!(repo_status.untracked_files.len(), 0);
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            let commits = command::log(&repo)?;
+            let initial_len = commits.len();
+            command::commit(&repo, "Should not work")?;
+            // We should not have added any commits
+            assert_eq!(commits.len(), initial_len);
             Ok(())
         })
     }
@@ -294,7 +329,7 @@ mod tests {
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
             let commits = command::log(&repo)?;
-            assert_eq!(commits.len(), 1);
+            assert_eq!(commits.len(), 2);
 
             Ok(())
         })
@@ -347,22 +382,18 @@ mod tests {
             command::add(&repo, &world_file)?;
             command::commit(&repo, "Added world.txt")?;
 
-            // Make sure we have both commits
+            // Make sure we have both commits after the initial
             let commits = command::log(&repo)?;
-            assert_eq!(commits.len(), 2);
+            assert_eq!(commits.len(), 3);
 
             let branches = command::list_branches(&repo)?;
-            assert_eq!(commits.len(), 2);
-            for branch in branches.iter() {
-                println!("GOT BRANCH {} -> {}", branch.name, branch.commit_id);
-            }
+            assert_eq!(branches.len(), 2);
 
             // Make sure we have both files on disk in our repo dir
             assert!(hello_file.exists());
             assert!(world_file.exists());
 
             // Go back to the main branch
-            println!("SWITCH BACK TO MAIN");
             command::checkout_branch(&repo, &orig_branch.name)?;
 
             // The world file should no longer be there
@@ -414,6 +445,24 @@ mod tests {
             
             // It should be reverted back to Hello
             assert_eq!(util::fs::read_from_path(&hello_file)?, "Hello");
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Get the original branch name
+            let orig_branch = command::current_branch(&repo)?;
+
+            // Track & commit the file
+
+            command::add(&repo, &repo.path.join("annotations/train/one_shot.txt"))?;
+            command::commit(&repo, "Adding one shot")?;
+
+
+
 
             Ok(())
         })

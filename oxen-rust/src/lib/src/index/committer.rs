@@ -1,6 +1,6 @@
 use crate::config::AuthConfig;
+use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::error::OxenError;
-use crate::index::referencer::DEFAULT_BRANCH;
 use crate::index::Referencer;
 use crate::model::{Commit, LocalEntry, StagedData};
 use crate::util;
@@ -117,9 +117,9 @@ impl Committer {
                 }
 
                 // Set head to default name -> first commit
-                self.referencer.create_branch(DEFAULT_BRANCH, id)?;
+                self.referencer.create_branch(DEFAULT_BRANCH_NAME, id)?;
                 // Make sure head is pointing to that branch
-                self.referencer.set_head(DEFAULT_BRANCH)?;
+                self.referencer.set_head(DEFAULT_BRANCH_NAME)?;
 
                 // return current commit path, so we can insert into it
                 Ok(commit_db_path)
@@ -290,7 +290,12 @@ impl Committer {
         &mut self,
         status: &StagedData,
         message: &str,
-    ) -> Result<Commit, OxenError> {
+    ) -> Result<Option<Commit>, OxenError> {
+        if status.is_clean() {
+            println!("Nothing staged to commit.");
+            return Ok(None);
+        }
+
         // Generate uniq id for this commit
         let commit_id = format!("{}", uuid::Uuid::new_v4());
 
@@ -320,7 +325,7 @@ impl Committer {
         // Update our current head db to be this commit db so we can quickly find files
         self.head_commit_db = Some(commit_db);
 
-        Ok(commit)
+        Ok(Some(commit))
     }
 
     pub fn get_num_entries_in_head(&self) -> Result<usize, OxenError> {
@@ -658,14 +663,15 @@ mod tests {
 
             let message = "Adding training data to 🐂";
             let status = stager.status(&committer)?;
-            let commit = committer.commit(&status, message)?;
+            let commit = committer.commit(&status, message)?.unwrap();
             stager.unstage()?;
             let commit_history = committer.list_commits()?;
 
             let head = committer.get_head_commit()?;
             assert!(head.is_some());
 
-            assert_eq!(commit_history.len(), 1);
+            // always start with an initial commit
+            assert_eq!(commit_history.len(), 2);
             assert_eq!(commit_history[0].id, commit.id);
             assert_eq!(commit_history[0].message, message);
 
@@ -678,7 +684,7 @@ mod tests {
             // List files in commit to be pushed
             let files = committer.list_unsynced_files_for_commit(&commit)?;
             // Two files in training_data and one at base level
-            assert_eq!(files.len(), 4);
+            assert_eq!(files.len(), 5);
 
             // Verify that the current commit contains the hello file
             let relative_annotation_path =
@@ -689,7 +695,7 @@ mod tests {
             stager.add_dir(&test_dir, &committer)?;
             let message_2 = "Adding test data to 🐂";
             let status = stager.status(&committer)?;
-            let commit = committer.commit(&status, message_2)?;
+            let commit = committer.commit(&status, message_2)?.unwrap();
 
             // Remove from staged
             stager.unstage()?;
@@ -697,7 +703,7 @@ mod tests {
             // Check commit history
             let commit_history = committer.list_commits()?;
             // The messages come out LIFO
-            assert_eq!(commit_history.len(), 2);
+            assert_eq!(commit_history.len(), 3);
             assert_eq!(commit_history[0].id, commit.id);
             assert_eq!(commit_history[0].message, message_2);
             assert!(committer.head_contains_file(&relative_annotation_path)?);
@@ -728,7 +734,7 @@ mod tests {
             stager.add_file(&hello_file, &committer)?;
             // commit the mods
             let status = stager.status(&committer)?;
-            let commit = committer.commit(&status, "modified hello to be world")?;
+            let commit = committer.commit(&status, "modified hello to be world")?.unwrap();
 
             let relative_path = util::fs::path_relative_to_dir(&hello_file, &repo_path)?;
             let entry = committer.get_entry(&relative_path)?.unwrap();

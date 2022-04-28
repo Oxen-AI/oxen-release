@@ -157,7 +157,8 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        assert_eq!(list.commits.len(), 0);
+        // Plus the initial commit
+        assert_eq!(list.commits.len(), 1);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
@@ -184,7 +185,8 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
-        assert_eq!(list.commits.len(), 2);
+        // Plus the initial commit
+        assert_eq!(list.commits.len(), 3);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

@@ -1,6 +1,7 @@
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
+use crate::constants::DEFAULT_BRANCH_NAME;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::{Path, PathBuf};
@@ -8,7 +9,6 @@ use std::str;
 
 pub const HEAD_FILE: &str = "HEAD";
 pub const REFS_DIR: &str = "refs";
-pub const DEFAULT_BRANCH: &str = "main";
 
 pub struct Referencer {
     refs_db: DB,
@@ -29,7 +29,7 @@ impl Referencer {
         let head_filename = Referencer::head_file(&repository.path);
 
         if !head_filename.exists() {
-            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH);
+            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH_NAME);
         }
 
         let mut opts = Options::default();
@@ -46,7 +46,7 @@ impl Referencer {
         let head_filename = Referencer::head_file(&repository.path);
 
         if !head_filename.exists() {
-            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH);
+            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH_NAME);
         }
 
         let error_if_log_file_exist = false;
@@ -162,23 +162,8 @@ mod tests {
         test::run_referencer_test(|referencer| {
             assert_eq!(
                 referencer.read_head_ref()?,
-                crate::index::referencer::DEFAULT_BRANCH
+                crate::index::referencer::DEFAULT_BRANCH_NAME
             );
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_create_branch_read_no_head() -> Result<(), OxenError> {
-        test::run_referencer_test(|referencer| {
-            let branch_name = "experiment/cat-dog";
-            let commit_id = format!("{}", uuid::Uuid::new_v4());
-            referencer.create_branch(branch_name, &commit_id)?;
-
-            if referencer.head_commit_id().is_ok() {
-                panic!("Should not be able to read head!")
-            }
 
             Ok(())
         })
@@ -200,8 +185,9 @@ mod tests {
     #[test]
     fn test_referencer_list_branches_empty() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
+            // always start with a default branch
             let branches = referencer.list_branches()?;
-            assert_eq!(branches.len(), 0);
+            assert_eq!(branches.len(), 1);
 
             Ok(())
         })
@@ -214,9 +200,8 @@ mod tests {
             let commit_id = format!("{}", uuid::Uuid::new_v4());
             referencer.create_branch(name, &commit_id)?;
             let branches = referencer.list_branches()?;
-            assert_eq!(branches.len(), 1);
-            assert_eq!(branches[0].name, name);
-            assert_eq!(branches[0].commit_id, commit_id);
+            // we always start with "main" branch
+            assert_eq!(branches.len(), 2);
 
             Ok(())
         })
@@ -225,11 +210,12 @@ mod tests {
     #[test]
     fn test_referencer_list_branches_many() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
+            // we always start with a default branch
             referencer.create_branch("name_1", "1")?;
             referencer.create_branch("name_2", "2")?;
             referencer.create_branch("name_3", "3")?;
             let branches = referencer.list_branches()?;
-            assert_eq!(branches.len(), 3);
+            assert_eq!(branches.len(), 4);
 
             Ok(())
         })
@@ -238,15 +224,15 @@ mod tests {
     #[test]
     fn test_referencer_create_branch_same_name() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
-            referencer.create_branch("name", "1")?;
+            referencer.create_branch("my-fun-name", "1")?;
 
-            if referencer.create_branch("name", "2").is_ok() {
+            if referencer.create_branch("my-fun-name", "2").is_ok() {
                 panic!("Should not be able to read head!")
             }
 
-            // We should still only have one branch
+            // We should still only have two branches, default on and this one
             let branches = referencer.list_branches()?;
-            assert_eq!(branches.len(), 1);
+            assert_eq!(branches.len(), 2);
 
             Ok(())
         })
