@@ -105,10 +105,7 @@ pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
                     files.push(path);
                 }
             }
-            Err(err) => eprintln!(
-                "rlist_files_in_dir Could not iterate over dir... {}",
-                err
-            ),
+            Err(err) => eprintln!("rlist_files_in_dir Could not iterate over dir... {}", err),
         }
     }
     files
