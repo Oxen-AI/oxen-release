@@ -64,8 +64,7 @@ async fn create_entry(
             total_bytes, filepath,
         );
         let url = format!(
-            "{}/{}",
-            api::endpoint::url_from(&repository.name),
+            "{}",
             &data.filename
         );
 
