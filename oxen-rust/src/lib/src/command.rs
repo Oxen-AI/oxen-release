@@ -357,6 +357,33 @@ mod tests {
     }
 
     #[test]
+    fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Track the file
+            let annotations_dir = repo.path.join("annotations");
+            command::add(&repo, &annotations_dir)?;
+            // Commit the file
+            command::commit(&repo, "Adding annotations data dir, which has two levels")?;
+
+            let repo_status = command::status(&repo)?;
+            assert_eq!(repo_status.added_dirs.len(), 0);
+            assert_eq!(repo_status.added_files.len(), 0);
+            assert_eq!(repo_status.untracked_files.len(), 2);
+
+            for dir in repo_status.untracked_dirs.iter() {
+                println!("{:?}", dir);
+            }
+
+            assert_eq!(repo_status.untracked_dirs.len(), 2);
+
+            let commits = command::log(&repo)?;
+            assert_eq!(commits.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
         test::run_empty_repo_test(|repo| {
             // Write the first file

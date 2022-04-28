@@ -91,6 +91,29 @@ pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = vec![];
+    if !dir.is_dir() {
+        return files;
+    }
+
+    for entry in WalkDir::new(dir) {
+        match entry {
+            Ok(val) => {
+                let path = val.path();
+                if path.is_file() {
+                    files.push(path);
+                }
+            }
+            Err(err) => eprintln!(
+                "rlist_files_in_dir Could not iterate over dir... {}",
+                err
+            ),
+        }
+    }
+    files
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
