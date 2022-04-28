@@ -334,6 +334,29 @@ mod tests {
         })
     }
 
+    #[test]
+    fn test_command_commit_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Track the file
+            let train_dir = repo.path.join("train");
+            command::add(&repo, &train_dir)?;
+            // Commit the file
+            command::commit(&repo, "Adding training data")?;
+
+            let repo_status = command::status(&repo)?;
+            assert_eq!(repo_status.added_dirs.len(), 0);
+            assert_eq!(repo_status.added_files.len(), 0);
+            assert_eq!(repo_status.untracked_files.len(), 2);
+            assert_eq!(repo_status.untracked_dirs.len(), 2);
+            
+
+            let commits = command::log(&repo)?;
+            assert_eq!(commits.len(), 2);
+
+            Ok(())
+        })
+    }
+
 
     #[test]
     fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
@@ -546,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_command_add_top_level_dir_then_revert() -> Result<(), OxenError> {
+    fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Get the original branch name
             let orig_branch = command::current_branch(&repo)?;
@@ -566,12 +589,40 @@ mod tests {
             command::checkout_branch(&repo, &orig_branch.name)?;
             assert!(!train_path.exists());
 
-            println!("-----------");
-
             // checkout branch again and make sure it reverts
             command::checkout_branch(&repo, &branch_name)?;
             assert!(train_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&train_path), og_num_files);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Get the original branch name
+            let orig_branch = command::current_branch(&repo)?;
+
+            // Create a branch to make the changes
+            let branch_name = "feature/adding-annotations";
+            command::create_checkout_branch(&repo, branch_name)?;
+
+            // Track & commit (dir already created in helper)
+            let new_dir_path = repo.path.join("annotations").join("train");
+            let og_num_files = util::fs::rcount_files_in_dir(&new_dir_path);
+
+            command::add(&repo, &new_dir_path)?;
+            command::commit(&repo, "Adding train dir")?;
+
+            // checkout OG and make sure it removes the train dir
+            command::checkout_branch(&repo, &orig_branch.name)?;
+            assert!(!new_dir_path.exists());
+
+            // checkout branch again and make sure it reverts
+            command::checkout_branch(&repo, &branch_name)?;
+            assert!(new_dir_path.exists());
+            assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
 
             Ok(())
         })
