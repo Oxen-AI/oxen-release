@@ -106,6 +106,39 @@ where
     Ok(())
 }
 
+/// Run a test on a repo with a bunch of filees
+pub fn run_training_data_repo_test_fully_committed<T>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_repo_with_training_data(&repo_dir)?;
+    command::add(&repo, Path::new("train"))?;
+    command::add(&repo, Path::new("test"))?;
+    command::add(&repo, Path::new("annotations"))?;
+    command::add(&repo, Path::new("labels.txt"))?;
+    command::add(&repo, Path::new("README.md"))?;
+    command::commit(&repo, "adding all data baby")?;
+
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
 pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(Stager) -> Result<(), OxenError> + std::panic::UnwindSafe,

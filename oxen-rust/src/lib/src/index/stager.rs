@@ -397,7 +397,9 @@ impl Stager {
                             // TODO: Speed this up, maybe we are opening and closing the db too many times
                             // example: adding and committing a 12500 files, then checking status
                             let count = self.count_untracked_files_in_dir(&path, committer);
-                            paths.push((relative_path, count));
+                            if count > 0 {
+                                paths.push((relative_path, count));
+                            }
                         }
                         Err(err) => {
                             eprintln!("{}", err);
@@ -834,6 +836,9 @@ mod tests {
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data");
             std::fs::create_dir_all(&sub_dir)?;
+
+            // Must have some sort of file in the dir to add it.
+            test::write_txt_file_to_path(sub_dir.join("hi.txt"), "Hi")?;
 
             // Do not add...
 
