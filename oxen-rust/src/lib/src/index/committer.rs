@@ -136,7 +136,7 @@ impl Committer {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
 
-        println!("Commit[{}] {:?}", new_commit.id, path);
+        println!("Commit[{}] adding: {:?}", new_commit.id, path);
 
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
@@ -436,13 +436,14 @@ impl Committer {
                     util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
                 println!("set_working_repo_to_branch[{}] commit_id {} relative_path {:?}", name, commit_id, relative_path);
                 let bytes = relative_path.to_str().unwrap().as_bytes();
-                match db.get_pinned(bytes) {
-                    Ok(_) => {
-                        println!("WE HAVE FILE {:?} WE GOOD HOMIE", relative_path);
+                match db.get(bytes) {
+                    Ok(Some(value)) => {
+                        let entry: LocalEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+                        println!("WE HAVE FILE {:?} WE GOOD HOMIE {:?}", relative_path, entry);
                     },
                     _ => {
                         // sorry, we don't know you, bye
-                        println!("you dead. {:?}", local_path);
+                        println!("you dead 💀 {:?}", local_path);
                         std::fs::remove_file(local_path)?;
                     }
                 }
@@ -457,13 +458,23 @@ impl Committer {
             let entry: LocalEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
 
             let dst_path = self.repository.path.join(path);
-            let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
 
-            if entry.hash != dst_hash {
-                // we need to update working dir
-                let entry_filename = entry.file_from_commit_id(&commit_id);
-                let version_file = self.versions_dir.join(&entry.id).join(entry_filename);
-                std::fs::copy(version_file, dst_path)?;
+            // Check the versioned file hash
+            let version_filename = entry.file_from_commit_id(&commit_id);
+            let version_path = self.versions_dir.join(&entry.id).join(version_filename);
+
+            // If we do not have the file, restore it from our versioned history
+            if !dst_path.exists() {
+                std::fs::copy(version_path, dst_path)?;
+            } else {
+                // we do have it, check if we need to update it
+                let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
+
+                // If the hash of the file from the commit is different than the one on disk, update it
+                if entry.hash != dst_hash {
+                    // we need to update working dir
+                    std::fs::copy(version_path, dst_path)?;
+                }
             }
         }
 
