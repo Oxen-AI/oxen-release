@@ -1,13 +1,15 @@
 use colored::Colorize;
 use std::path::PathBuf;
 
+use crate::model::{StagedEntry, StagedEntryStatus};
+
 pub struct StagedData {
     pub added_dirs: Vec<(PathBuf, usize)>,
-    pub added_files: Vec<PathBuf>,
-    // TODO: this hack might not work anymore...because we will have to track if any file changed in the directory
+    pub added_files: Vec<(PathBuf, StagedEntry)>,
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
+    pub removed_files: Vec<PathBuf>,
 }
 
 impl StagedData {
@@ -17,6 +19,7 @@ impl StagedData {
             && self.untracked_files.is_empty()
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
+            && self.removed_files.is_empty()
     }
 
     pub fn has_added_entries(&self) -> bool {
@@ -74,12 +77,12 @@ impl StagedData {
     }
 
     fn print_added_files(&self) {
-        for file in self.added_files.iter() {
-            // If the file is in a directory that was added, don't display it
+        for (path, entry) in self.added_files.iter() {
+            // If the path is in a directory that was added, don't display it
             let mut break_both = false;
             for (dir, _size) in self.added_dirs.iter() {
-                // println!("checking if file {:?} starts with {:?}", file, dir);
-                if file.starts_with(&dir) {
+                // println!("checking if path {:?} starts with {:?}", path, dir);
+                if path.starts_with(&dir) {
                     break_both = true;
                     continue;
                 }
@@ -89,8 +92,13 @@ impl StagedData {
                 continue;
             }
 
-            let added_file_str = format!("  added:  {}", file.to_str().unwrap()).green();
-            println!("{}", added_file_str);
+            if entry.status == StagedEntryStatus::Removed {
+                let added_file_str = format!("  removed:  {}", path.to_str().unwrap()).green();
+                println!("{}", added_file_str);
+            } else {
+                let added_file_str = format!("  added:  {}", path.to_str().unwrap()).green();
+                println!("{}", added_file_str);
+            }
         }
     }
 

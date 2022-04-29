@@ -1,12 +1,12 @@
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{Entry, RemoteRepository};
-use crate::view::{EntryResponse, PaginatedEntries};
+use crate::model::{RemoteEntry, RemoteRepository};
+use crate::view::{RemoteEntryResponse, PaginatedEntries};
 
 use std::fs::File;
 use std::path::Path;
 
-pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry, OxenError> {
+pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<RemoteEntry, OxenError> {
     let url = format!(
         "http://{}/api/v1/entries/search?hash={}",
         config.host(),
@@ -20,7 +20,7 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
     {
         let status = res.status();
         let body = res.text()?;
-        let response: Result<EntryResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RemoteEntryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val.entry),
             Err(_) => Err(OxenError::basic_str(&format!(
@@ -34,7 +34,7 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Entry
     }
 }
 
-pub fn create(repository: &RemoteRepository, path: &Path, hash: &str) -> Result<Entry, OxenError> {
+pub fn create(repository: &RemoteRepository, path: &Path, hash: &str) -> Result<RemoteEntry, OxenError> {
     let file = File::open(path)?;
     let client = reqwest::blocking::Client::new();
     let url = format!(
@@ -47,7 +47,7 @@ pub fn create(repository: &RemoteRepository, path: &Path, hash: &str) -> Result<
         Ok(res) => {
             let status = res.status();
             let body = res.text()?;
-            let response: Result<EntryResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<RemoteEntryResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(result) => Ok(result.entry),
                 Err(_) => Err(OxenError::basic_str(&format!(

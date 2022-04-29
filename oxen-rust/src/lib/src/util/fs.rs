@@ -26,7 +26,7 @@ pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
     match fs::read_to_string(path) {
         Ok(contents) => Ok(contents),
         Err(_) => {
-            let err = format!("Could not open staging file {}", path.display());
+            let err = format!("util::fs::read_from_path could not open: {}", path.display());
             Err(OxenError::basic_str(&err))
         }
     }

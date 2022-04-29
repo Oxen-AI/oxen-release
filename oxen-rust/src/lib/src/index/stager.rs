@@ -1,7 +1,8 @@
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::Committer;
-use crate::model::{LocalEntry, LocalRepository, StagedData};
+use crate::index::committer::VERSIONS_DIR;
+use crate::model::{StagedEntry, StagedEntryStatus, CommitEntry, LocalRepository, StagedData};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -34,6 +35,31 @@ impl Stager {
     }
 
     pub fn add(&self, path: &Path, committer: &Committer) -> Result<(), OxenError> {
+        // If it doesn't exist on disk, we can't tell if it is a file or dir
+        // so we have to check if it is committed, and what the backup version is
+        if !path.exists() {
+            let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+            println!("Stager.add() checking relative path: {:?}", relative_path);
+            // Since entries that are committed are only files.. we will have to have different logic for dirs
+            if let Ok(Some(value)) = committer.get_entry(&relative_path) {
+                self.add_removed_file(&relative_path, &value)?;
+                return Ok(())
+            }
+
+            let files_in_dir = committer.list_head_files_from_dir(&relative_path);
+            if files_in_dir.len() > 0 {
+
+                for (file, _) in files_in_dir.iter() {
+                    if let Ok(Some(value)) = committer.get_entry(&file) {
+                        self.add_removed_file(&file, &value)?;
+                    }
+                }
+
+                return Ok(())
+            }
+        }
+
+        println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
         if path.is_dir() {
             match self.add_dir(path, committer) {
                 Ok(_) => Ok(()),
@@ -54,12 +80,14 @@ impl Stager {
         let untracked_dirs = self.list_untracked_directories(committer)?;
         let untracked_files = self.list_untracked_files(committer)?;
         let modified_files = self.list_modified_files(committer)?;
+        let removed_files = self.list_removed_files(committer)?;
         let status = StagedData {
             added_dirs,
             added_files,
             untracked_dirs,
             untracked_files,
             modified_files,
+            removed_files,
         };
         Ok(status)
     }
@@ -77,6 +105,30 @@ impl Stager {
         files.len()
     }
 
+    fn add_removed_file(&self, repo_path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
+        let version_dir = util::fs::oxen_hidden_dir(&self.repository.path).join(Path::new(VERSIONS_DIR));
+        let version_path = version_dir.join(&entry.id).join(entry.filename());
+        if !version_path.exists() {
+            eprintln!("Version file not found: {:?}", version_path);
+            let err = format!("Stager.add_removed_file({:?}) cannot stage non-existant file\npath: {:?}\nentry: {:?}", version_path, repo_path, entry);
+            return Err(OxenError::basic_str(&err));
+        }
+
+        let entry = StagedEntry {
+            id: entry.id.clone(),
+            hash: entry.hash.clone(),
+            status: StagedEntryStatus::Removed
+        };
+
+        let key = repo_path.to_str().unwrap();
+        let entry_json = serde_json::to_string(&entry)?;
+
+        println!("Stager.add_removed_file {} -> {}", key, entry_json);
+        self.db.put(&key, entry_json.as_bytes())?;
+
+        Ok(entry)
+    }
+
     pub fn add_dir(&self, path: &Path, committer: &Committer) -> Result<usize, OxenError> {
         if !path.exists() {
             let err = format!("Stager.add_dir({:?}) cannot stage non-existant dir", path);
@@ -88,8 +140,6 @@ impl Stager {
 
         // Add all files, and get a count
         let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path, committer);
-
-        // TODO: Find dirs and recursively add
         let count: usize = paths.len();
         self.add_dir_count(key, count)
     }
@@ -122,8 +172,7 @@ impl Stager {
         }
     }
 
-    pub fn get_entry(&self, path: &Path) -> Option<LocalEntry> {
-        // I know this is ugly as shit.. long day, and to be honest all these matches should work so it's just.. i dont want to return the error. w/e fix later
+    pub fn get_entry(&self, path: &Path) -> Option<StagedEntry> {
         if let Some(path_str) = path.to_str() {
             let bytes = path_str.as_bytes();
             match self.db.get(bytes) {
@@ -153,12 +202,11 @@ impl Stager {
                     None
                 }
                 Err(err) => {
-                    eprintln!("could not fetch value from db: {}", err);
+                    eprintln!("Err could not fetch value from db: {}", err);
                     None
                 }
             }
         } else {
-            eprintln!("could not convert path to str: {:?}", path);
             None
         }
     }
@@ -167,7 +215,7 @@ impl Stager {
         // We should have normalized to path past repo at this point
         // println!("Add file: {:?} to {:?}", path, self.repository.path);
         if !path.exists() {
-            let err = format!("Stage.add_file({:?}) cannot stage non-existant file", path);
+            let err = format!("Stager.add_file({:?}) cannot stage non-existant file", path);
             return Err(OxenError::basic_str(&err));
         }
 
@@ -189,11 +237,10 @@ impl Stager {
             }
         }
 
-        let entry = LocalEntry {
+        let entry = StagedEntry {
             id,
-            is_synced: false, // so we know to sync
             hash,
-            extension: String::from(path.extension().unwrap().to_str().unwrap()),
+            status: StagedEntryStatus::Added
         };
 
         let key = path.to_str().unwrap();
@@ -247,14 +294,21 @@ impl Stager {
         Ok(keys)
     }
 
-    pub fn list_added_files(&self) -> Result<Vec<PathBuf>, OxenError> {
+    pub fn list_added_files(&self) -> Result<Vec<(PathBuf, StagedEntry)>, OxenError> {
         let iter = self.db.iterator(IteratorMode::Start);
-        let mut paths: Vec<PathBuf> = vec![];
-        for (key, _) in iter {
+        let mut paths: Vec<(PathBuf, StagedEntry)> = vec![];
+        for (key, value) in iter {
             let local_path = PathBuf::from(String::from(str::from_utf8(&*key)?));
-            let full_path = self.repository.path.join(&local_path);
-            if full_path.is_file() {
-                paths.push(local_path);
+            let value = str::from_utf8(&*value)?;
+            let entry: Result<StagedEntry, serde_json::error::Error> = serde_json::from_str(value);
+            match entry {
+                Ok(entry) => {
+                    paths.push((local_path, entry));
+                },
+                Err(_) => {
+                    // Deserialized value that was a dir count
+                    // eprintln!("Stager.list_added_files Could not deserialize: {:?} => {}", local_path, value)
+                }
             }
         }
         Ok(paths)
@@ -278,6 +332,19 @@ impl Stager {
                         )
                     }
                 }
+            }
+        }
+        Ok(paths)
+    }
+
+    pub fn list_removed_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
+        // TODO: We are looping multiple times to check whether file is added,modified,or removed, etc
+        //       We should do this loop once, and check each thing
+        let mut paths: Vec<PathBuf> = vec![];
+        for short_path in committer.list_files_in_head_commit_db()? {
+            let path = self.repository.path.join(&short_path);
+            if !path.exists() {
+                paths.push(short_path);
             }
         }
         Ok(paths)
@@ -427,14 +494,15 @@ impl Stager {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::Committer;
+    use crate::index::{Committer, Stager};
+    use crate::model::StagedEntryStatus;
     use crate::test;
     use crate::util;
 
     use std::path::{Path, PathBuf};
 
     #[test]
-    fn test_stager_add_file() -> Result<(), OxenError> {
+    fn test_1_stager_add_file() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager| {
             // Create committer with no commits
             let committer = Committer::new(&stager.repository)?;
@@ -600,8 +668,8 @@ mod tests {
             // we should be able to fetch this entry json
             let entry = stager.get_entry(&relative_path).unwrap();
             assert!(!entry.id.is_empty());
-            assert!(!entry.extension.is_empty());
-            assert!(!entry.is_synced);
+            assert!(!entry.hash.is_empty());
+            assert_eq!(entry.status, StagedEntryStatus::Added);
 
             Ok(())
         })
@@ -624,7 +692,7 @@ mod tests {
             let files = stager.list_added_files()?;
             assert_eq!(files.len(), 1);
 
-            assert_eq!(files[0], relative_path);
+            assert_eq!(files[0].0, relative_path);
 
             Ok(())
         })
@@ -652,7 +720,7 @@ mod tests {
             // There is one file
             assert_eq!(files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&sub_file, repo_path)?;
-            assert_eq!(files[0], relative_path);
+            assert_eq!(files[0].0, relative_path);
 
             Ok(())
         })
@@ -864,6 +932,38 @@ mod tests {
 
             // With two files
             assert_eq!(files[0].1, 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_add_dir_recursive() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            let stager = Stager::new(&repo)?;
+            let committer = Committer::new(&repo)?;
+
+            // Write two files to a sub directory
+            let repo_path = &stager.repository.path;
+            let annotations_dir = repo_path.join("annotations");
+
+            // Add the directory which has the structure
+            // annotations/
+            //   train/
+            //     annotations.txt
+            //     one_shot.txt
+            //   test/
+            //     annotations.txt
+            stager.add(&annotations_dir, &committer)?;
+
+            // List dirs
+            let dirs = stager.list_added_directories()?;
+
+            // There is one directory
+            assert_eq!(dirs.len(), 1);
+
+            // With 3 recursive files
+            assert_eq!(dirs[0].1, 3);
 
             Ok(())
         })

@@ -1,9 +1,9 @@
 use crate::app_data::SyncDir;
 
 use liboxen::api;
-use liboxen::model::{Entry, LocalRepository};
+use liboxen::model::{RemoteEntry, LocalRepository};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::view::{EntryResponse, StatusMessage};
+use liboxen::view::{RemoteEntryResponse, StatusMessage};
 use serde::Deserialize;
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -65,10 +65,10 @@ async fn create_entry(
         );
         let url = (&data.filename).to_string();
 
-        Ok(HttpResponse::Ok().json(EntryResponse {
+        Ok(HttpResponse::Ok().json(RemoteEntryResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),
-            entry: Entry {
+            entry: RemoteEntry {
                 id: format!("{}", uuid::Uuid::new_v4()), // generate a new one on the server for now
                 data_type: data_type_from_ext(extension.to_str().unwrap()),
                 url,
@@ -97,7 +97,7 @@ mod tests {
 
     use liboxen::error::OxenError;
     use liboxen::util;
-    use liboxen::view::EntryResponse;
+    use liboxen::view::RemoteEntryResponse;
 
     use crate::app_data::SyncDir;
     use crate::controllers;
@@ -136,7 +136,7 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        let entry_resp: EntryResponse = serde_json::from_str(body)?;
+        let entry_resp: RemoteEntryResponse = serde_json::from_str(body)?;
 
         // Make sure entry gets populated
         assert_eq!(entry_resp.entry.filename, filename);
