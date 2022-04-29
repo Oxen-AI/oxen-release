@@ -215,9 +215,9 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
+    use crate::model::StagedEntryStatus;
     use crate::test;
     use crate::util;
-    use crate::model::StagedEntryStatus;
 
     #[test]
     fn test_command_init() -> Result<(), OxenError> {
@@ -664,7 +664,7 @@ mod tests {
 
             // Delete the file
             std::fs::remove_file(&file_to_remove)?;
-            
+
             // We should recognize it as missing now
             let status = command::status(&repo)?;
             assert_eq!(status.removed_files.len(), 1);
@@ -688,7 +688,7 @@ mod tests {
 
             // Add the deleted dir, so that we can commit the deletion
             command::add(&repo, &dir_to_remove)?;
-            
+
             // Make sure we have the correct amount of files tagged as removed
             let status = command::status(&repo)?;
             assert_eq!(status.added_files.len(), og_file_count);

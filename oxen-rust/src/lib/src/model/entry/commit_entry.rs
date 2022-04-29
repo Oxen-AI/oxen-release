@@ -1,6 +1,3 @@
-
-use crate::index::Committer;
-
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
