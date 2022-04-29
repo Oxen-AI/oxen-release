@@ -1,10 +1,5 @@
-use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Entry {
-    pub id: String,
-    pub data_type: String,
-    pub url: String,
-    pub filename: String,
-    pub hash: String,
-}
+
+pub mod staged_entry;
+pub mod commit_entry;
+pub mod remote_entry;

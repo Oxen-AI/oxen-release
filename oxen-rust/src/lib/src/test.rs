@@ -144,7 +144,9 @@ where
     T: FnOnce(Stager) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    println!("BEFORE COMMAND::INIT");
     let repo = command::init(&repo_dir)?;
+    println!("AFTER COMMAND::INIT");
     let stager = Stager::new(&repo)?;
 
     // Run test to see if it panic'd
@@ -244,7 +246,7 @@ pub fn populate_repo_with_training_data(repo_dir: &Path) -> Result<(), OxenError
     )?;
 
     write_txt_file_to_path(
-        repo_dir.join("labels"),
+        repo_dir.join("labels.txt"),
         r#"
         dog
         cat

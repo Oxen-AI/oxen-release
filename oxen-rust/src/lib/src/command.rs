@@ -217,6 +217,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
+    use crate::model::StagedEntryStatus;
 
     #[test]
     fn test_command_init() -> Result<(), OxenError> {
@@ -369,11 +370,6 @@ mod tests {
             assert_eq!(repo_status.added_dirs.len(), 0);
             assert_eq!(repo_status.added_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 2);
-
-            for dir in repo_status.untracked_dirs.iter() {
-                println!("{:?}", dir);
-            }
-
             assert_eq!(repo_status.untracked_dirs.len(), 2);
 
             let commits = command::log(&repo)?;
@@ -569,6 +565,7 @@ mod tests {
             command::commit(&repo, "Adding one shot")?;
 
             // Get OG file contents
+            println!("READ OG");
             let og_content = util::fs::read_from_path(&one_shot_path)?;
 
             let branch_name = "feature/change-the-shot";
@@ -581,11 +578,13 @@ mod tests {
 
             // checkout OG and make sure it reverts
             command::checkout_branch(&repo, &orig_branch.name)?;
+            println!("READ BRANCH ORIG");
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(og_content, updated_content);
 
             // checkout branch again and make sure it reverts
             command::checkout_branch(&repo, branch_name)?;
+            println!("READ BRANCH NEW");
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(new_contents, updated_content);
 
@@ -648,6 +647,90 @@ mod tests {
             command::checkout_branch(&repo, branch_name)?;
             assert!(new_dir_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_add_removed_file() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // (file already created in helper)
+            let file_to_remove = repo.path.join("labels.txt");
+
+            // Commit the file
+            command::add(&repo, &file_to_remove)?;
+            command::commit(&repo, "Adding labels file")?;
+
+            // Delete the file
+            std::fs::remove_file(&file_to_remove)?;
+            
+            // We should recognize it as missing now
+            let status = command::status(&repo)?;
+            assert_eq!(status.removed_files.len(), 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_commit_removed_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // (dir already created in helper)
+            let dir_to_remove = repo.path.join("train");
+            let og_file_count = util::fs::rcount_files_in_dir(&dir_to_remove);
+
+            command::add(&repo, &dir_to_remove)?;
+            command::commit(&repo, "Adding train directory")?;
+
+            // Delete the directory
+            std::fs::remove_dir_all(&dir_to_remove)?;
+
+            // Add the deleted dir, so that we can commit the deletion
+            command::add(&repo, &dir_to_remove)?;
+            
+            // Make sure we have the correct amount of files tagged as removed
+            let status = command::status(&repo)?;
+            assert_eq!(status.added_files.len(), og_file_count);
+            assert_eq!(status.added_files[0].1.status, StagedEntryStatus::Removed);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Get the original branch name
+            let orig_branch = command::current_branch(&repo)?;
+
+            // (dir already created in helper)
+            let dir_to_remove = repo.path.join("train");
+            let og_num_files = util::fs::rcount_files_in_dir(&dir_to_remove);
+
+            // track the dir
+            command::add(&repo, &dir_to_remove)?;
+            command::commit(&repo, "Adding train dir")?;
+
+            // Create a branch to make the changes
+            let branch_name = "feature/removing-train";
+            command::create_checkout_branch(&repo, branch_name)?;
+
+            // Delete the directory from disk
+            std::fs::remove_dir_all(&dir_to_remove)?;
+
+            // Track the deletion
+            command::add(&repo, &dir_to_remove)?;
+            command::commit(&repo, "Removing train dir")?;
+
+            // checkout OG and make sure it restores the train dir
+            command::checkout_branch(&repo, &orig_branch.name)?;
+            assert!(dir_to_remove.exists());
+            assert_eq!(util::fs::rcount_files_in_dir(&dir_to_remove), og_num_files);
+
+            // checkout branch again and make sure it reverts
+            command::checkout_branch(&repo, branch_name)?;
+            assert!(!dir_to_remove.exists());
 
             Ok(())
         })
