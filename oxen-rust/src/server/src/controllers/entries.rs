@@ -1,7 +1,7 @@
 use crate::app_data::SyncDir;
 
 use liboxen::api;
-use liboxen::model::{RemoteEntry, LocalRepository};
+use liboxen::model::{LocalRepository, RemoteEntry};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::view::{RemoteEntryResponse, StatusMessage};
 use serde::Deserialize;

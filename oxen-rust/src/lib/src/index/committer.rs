@@ -2,10 +2,7 @@ use crate::config::AuthConfig;
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::error::OxenError;
 use crate::index::Referencer;
-use crate::model::{
-    Commit, CommitEntry,
-    StagedEntryStatus, StagedEntry, StagedData
-};
+use crate::model::{Commit, CommitEntry, StagedData, StagedEntry, StagedEntryStatus};
 use crate::util;
 
 use chrono::Utc;
@@ -168,7 +165,10 @@ impl Committer {
             if !versions_entry_dir.exists() {
                 std::fs::create_dir_all(versions_entry_dir)?;
             }
-            println!("Commit [{}] copied file {:?} to {:?}", new_commit.id, path, versions_path);
+            println!(
+                "Commit [{}] copied file {:?} to {:?}",
+                new_commit.id, path, versions_path
+            );
             std::fs::copy(file_path, versions_path)?;
 
             // Write to db
@@ -220,7 +220,7 @@ impl Committer {
     fn commit_staged_entry_to_db(
         &self,
         commit: &Commit,
-        path: &PathBuf,
+        path: &Path,
         entry: &StagedEntry,
         db: &DBWithThreadMode<MultiThreaded>,
     ) {
@@ -228,7 +228,10 @@ impl Committer {
             match self.remove_path_from_commit_db(path, db) {
                 Ok(_) => {}
                 Err(err) => {
-                    let err = format!("Committer.commit_staged_entry_to_db failed to remove file: {}", err);
+                    let err = format!(
+                        "Committer.commit_staged_entry_to_db failed to remove file: {}",
+                        err
+                    );
                     eprintln!("{}", err)
                 }
             }
@@ -237,7 +240,10 @@ impl Committer {
             match self.add_path_to_commit_db(commit, path, db) {
                 Ok(_) => {}
                 Err(err) => {
-                    let err = format!("Committer.commit_staged_entry_to_db failed to add file: {}", err);
+                    let err = format!(
+                        "Committer.commit_staged_entry_to_db failed to add file: {}",
+                        err
+                    );
                     eprintln!("{}", err)
                 }
             }
@@ -251,9 +257,8 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         added_files.par_iter().for_each(|path| {
-            match self.add_path_to_commit_db(commit, path, db) {
-                Ok(_) => {},
-                Err(_) => {}
+            if self.add_path_to_commit_db(commit, path, db).is_err() {
+                eprintln!("Error staging file... {:?}", path);
             }
         });
         Ok(())
@@ -268,9 +273,8 @@ impl Committer {
         let size: u64 = unsafe { std::mem::transmute(added_files.len()) };
         let bar = ProgressBar::new(size);
         added_files.par_iter().for_each(|path| {
-            match self.add_path_to_commit_db(commit, path, db) {
-                Ok(_) => {},
-                Err(_) => {}
+            if self.add_path_to_commit_db(commit, path, db).is_err() {
+                eprintln!("Error staging file... {:?}", path);
             }
             bar.inc(1);
         });
@@ -284,9 +288,9 @@ impl Committer {
         added_files: &[(PathBuf, StagedEntry)],
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        added_files.par_iter().for_each(|(path, entry)| {
-            self.commit_staged_entry_to_db(commit, path, entry, db)
-        });
+        added_files
+            .par_iter()
+            .for_each(|(path, entry)| self.commit_staged_entry_to_db(commit, path, entry, db));
         Ok(())
     }
 
@@ -505,20 +509,16 @@ impl Committer {
         }
     }
 
-    pub fn list_files_in_head_commit_db(
-        &self,
-    ) -> Result<Vec<PathBuf>, OxenError> {
+    pub fn list_files_in_head_commit_db(&self) -> Result<Vec<PathBuf>, OxenError> {
         if let Some(db) = &self.head_commit_db {
-            return self.list_files_in_commit_db(&db);
+            return self.list_files_in_commit_db(db);
         }
         Ok(vec![])
     }
 
-    pub fn list_entries_in_head_commit_db(
-        &self,
-    ) -> Result<Vec<(PathBuf, CommitEntry)>, OxenError> {
+    pub fn list_entries_in_head_commit_db(&self) -> Result<Vec<(PathBuf, CommitEntry)>, OxenError> {
         if let Some(db) = &self.head_commit_db {
-            return self.list_entries_in_commit_db(&db);
+            return self.list_entries_in_commit_db(db);
         }
         Ok(vec![])
     }
@@ -561,7 +561,10 @@ impl Committer {
         }
 
         // Open db
-        println!("set_working_repo_to_branch getting entries for branch [{}] {}", name, commit_id);
+        println!(
+            "set_working_repo_to_branch getting entries for branch [{}] {}",
+            name, commit_id
+        );
         let opts = Committer::db_opts();
         let commit_db = DBWithThreadMode::open(&opts, &commit_db_path)?;
 
@@ -575,7 +578,10 @@ impl Committer {
             self.list_files_in_commit_db(self.head_commit_db.as_ref().unwrap())?;
         for path in current_entries.iter() {
             let repo_path = self.repository.path.join(path);
-            println!("set_working_repo_to_branch current_entries[{:?}]", repo_path);
+            println!(
+                "set_working_repo_to_branch current_entries[{:?}]",
+                repo_path
+            );
             if repo_path.is_file() {
                 println!(
                     "set_working_repo_to_branch[{}] commit_id {} path {:?}",
@@ -595,7 +601,10 @@ impl Committer {
                 match commit_db.get(bytes) {
                     Ok(Some(_value)) => {
                         // We already have file ✅
-                        println!("set_working_repo_to_branch we already have file ✅ {:?}", repo_path);
+                        println!(
+                            "set_working_repo_to_branch we already have file ✅ {:?}",
+                            repo_path
+                        );
                     }
                     _ => {
                         // sorry, we don't know you, bye
@@ -764,23 +773,17 @@ impl Committer {
 
     pub fn head_has_files_in_dir(&self, dir: &Path) -> bool {
         match self.list_entries_in_head_commit_db() {
-            Ok(entries) => {
-                return entries.into_iter().find(|(path, _)| path.starts_with(dir)).is_some();
-            },
-            _ => {
-                false
-            }
+            Ok(entries) => entries.into_iter().any(|(path, _)| path.starts_with(dir)),
+            _ => false,
         }
     }
 
     pub fn list_head_files_from_dir(&self, dir: &Path) -> Vec<(PathBuf, CommitEntry)> {
         match self.list_entries_in_head_commit_db() {
-            Ok(entries) => {
-                return entries
-                    .into_iter()
-                    .filter(|(path, _)| path.starts_with(dir))
-                    .collect();
-            },
+            Ok(entries) => entries
+                .into_iter()
+                .filter(|(path, _)| path.starts_with(dir))
+                .collect(),
             _ => {
                 vec![]
             }
@@ -943,7 +946,7 @@ mod tests {
             stager.add_file(&hello_file, &committer)?;
             // commit the mods
             let status = stager.status(&committer)?;
-            let commit = committer
+            let _commit = committer
                 .commit(&status, "modified hello to be world")?
                 .unwrap();
 

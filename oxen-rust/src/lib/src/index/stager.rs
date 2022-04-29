@@ -1,8 +1,8 @@
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::Committer;
 use crate::index::committer::VERSIONS_DIR;
-use crate::model::{StagedEntry, StagedEntryStatus, CommitEntry, LocalRepository, StagedData};
+use crate::index::Committer;
+use crate::model::{CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -43,19 +43,18 @@ impl Stager {
             // Since entries that are committed are only files.. we will have to have different logic for dirs
             if let Ok(Some(value)) = committer.get_entry(&relative_path) {
                 self.add_removed_file(&relative_path, &value)?;
-                return Ok(())
+                return Ok(());
             }
 
             let files_in_dir = committer.list_head_files_from_dir(&relative_path);
-            if files_in_dir.len() > 0 {
-
+            if !files_in_dir.is_empty() {
                 for (file, _) in files_in_dir.iter() {
-                    if let Ok(Some(value)) = committer.get_entry(&file) {
-                        self.add_removed_file(&file, &value)?;
+                    if let Ok(Some(value)) = committer.get_entry(file) {
+                        self.add_removed_file(file, &value)?;
                     }
                 }
 
-                return Ok(())
+                return Ok(());
             }
         }
 
@@ -105,8 +104,13 @@ impl Stager {
         files.len()
     }
 
-    fn add_removed_file(&self, repo_path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
-        let version_dir = util::fs::oxen_hidden_dir(&self.repository.path).join(Path::new(VERSIONS_DIR));
+    fn add_removed_file(
+        &self,
+        repo_path: &Path,
+        entry: &CommitEntry,
+    ) -> Result<StagedEntry, OxenError> {
+        let version_dir =
+            util::fs::oxen_hidden_dir(&self.repository.path).join(Path::new(VERSIONS_DIR));
         let version_path = version_dir.join(&entry.id).join(entry.filename());
         if !version_path.exists() {
             eprintln!("Version file not found: {:?}", version_path);
@@ -117,7 +121,7 @@ impl Stager {
         let entry = StagedEntry {
             id: entry.id.clone(),
             hash: entry.hash.clone(),
-            status: StagedEntryStatus::Removed
+            status: StagedEntryStatus::Removed,
         };
 
         let key = repo_path.to_str().unwrap();
@@ -240,7 +244,7 @@ impl Stager {
         let entry = StagedEntry {
             id,
             hash,
-            status: StagedEntryStatus::Added
+            status: StagedEntryStatus::Added,
         };
 
         let key = path.to_str().unwrap();
@@ -301,14 +305,8 @@ impl Stager {
             let local_path = PathBuf::from(String::from(str::from_utf8(&*key)?));
             let value = str::from_utf8(&*value)?;
             let entry: Result<StagedEntry, serde_json::error::Error> = serde_json::from_str(value);
-            match entry {
-                Ok(entry) => {
-                    paths.push((local_path, entry));
-                },
-                Err(_) => {
-                    // Deserialized value that was a dir count
-                    // eprintln!("Stager.list_added_files Could not deserialize: {:?} => {}", local_path, value)
-                }
+            if let Ok(entry) = entry {
+                paths.push((local_path, entry));
             }
         }
         Ok(paths)
