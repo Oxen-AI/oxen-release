@@ -171,18 +171,7 @@ pub fn status() -> Result<(), OxenError> {
     let current_branch = command::current_branch(&repository)?;
     println!("On branch {}\n", current_branch.name);
 
-    // List added files
-    if repo_status.has_added_entries() {
-        repo_status.print_added();
-    }
-
-    if repo_status.has_modified_entries() {
-        repo_status.print_modified();
-    }
-
-    if repo_status.has_untracked_entries() {
-        repo_status.print_untracked();
-    }
+    repo_status.print();
 
     Ok(())
 }

@@ -1,5 +1,6 @@
 use colored::Colorize;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
+use std::collections::HashSet;
 
 use crate::model::{StagedEntry, StagedEntryStatus};
 
@@ -30,8 +31,31 @@ impl StagedData {
         !self.modified_files.is_empty()
     }
 
+    pub fn has_removed_entries(&self) -> bool {
+        !self.removed_files.is_empty()
+    }
+
     pub fn has_untracked_entries(&self) -> bool {
         !self.untracked_dirs.is_empty() || !self.untracked_files.is_empty()
+    }
+
+    pub fn print(&self) {
+        // List added files
+        if self.has_added_entries() {
+            self.print_added();
+        }
+
+        if self.has_modified_entries() {
+            self.print_modified();
+        }
+
+        if self.has_removed_entries() {
+            self.print_removed();
+        }
+
+        if self.has_untracked_entries() {
+            self.print_untracked();
+        }
     }
 
     pub fn print_added(&self) {
@@ -53,6 +77,13 @@ impl StagedData {
         println!("Modified files:");
         println!("  (use \"oxen add <file>...\" to update what will be committed)");
         self.print_modified_files();
+        println!();
+    }
+
+    pub fn print_removed(&self) {
+        println!("Removed files:");
+        println!("  (use \"oxen add <file>...\" to update what will be committed)");
+        self.print_removed_files();
         println!();
     }
 
@@ -107,6 +138,25 @@ impl StagedData {
             let added_file_str = format!("  modified:  {}", file.to_str().unwrap()).yellow();
             println!("{}", added_file_str);
         }
+    }
+
+    fn print_removed_files(&self) {
+        let mut top_level: HashSet<PathBuf> = HashSet::new();
+        for file in self.removed_files.iter() {
+            if let Some(parent) = self.rget_top_level_dir(&file) {
+                top_level.insert(parent);
+            }
+        }
+
+        for file in self.removed_files.iter() {
+            let added_file_str = format!("  removed:  {}", file.to_str().unwrap()).red();
+            println!("{}", added_file_str);
+        }
+    }
+
+    fn rget_top_level_dir(&self, path: &Path) -> Option<PathBuf> {
+        // TODO, collapse print_deleted() into top level dirs
+        None
     }
 
     fn print_untracked_dirs(&self) {
