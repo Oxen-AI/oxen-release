@@ -37,7 +37,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 
     // write a little hidden easter egg .drove.txt file and commit it to get plowing
     let path = repo.path.join(".drove.txt");
-    util::fs::write_to_path(&path, "👋 🐂");
+    util::fs::write_to_path(&path, "👋 Welcome to the drove 🐂");
 
     add(&repo, &path)?;
     if let Some(commit) = commit(&repo, "Initialized Repo 🐂")? {
@@ -156,7 +156,7 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
 /// This switches HEAD to point to the branch name
 /// It also updates all the local files to be from the commit that this branch references
 pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    println!("checkout_branch {}", name);
+    println!("checkout branch: {}", name);
     let committer = Committer::new(repo)?;
     let current_branch = committer.referencer.get_current_branch()?;
 
@@ -181,7 +181,7 @@ pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenErr
 /// This creates a branch with name
 /// Then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    println!("create_checkout_branch {}", name);
+    println!("create and checkout branch {}", name);
     let committer = Committer::new(repo)?;
     match committer.get_head_commit() {
         Ok(Some(head_commit)) => {
@@ -565,7 +565,6 @@ mod tests {
             command::commit(&repo, "Adding one shot")?;
 
             // Get OG file contents
-            println!("READ OG");
             let og_content = util::fs::read_from_path(&one_shot_path)?;
 
             let branch_name = "feature/change-the-shot";
@@ -578,13 +577,11 @@ mod tests {
 
             // checkout OG and make sure it reverts
             command::checkout_branch(&repo, &orig_branch.name)?;
-            println!("READ BRANCH ORIG");
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(og_content, updated_content);
 
             // checkout branch again and make sure it reverts
             command::checkout_branch(&repo, branch_name)?;
-            println!("READ BRANCH NEW");
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(new_contents, updated_content);
 
@@ -693,6 +690,9 @@ mod tests {
             let status = command::status(&repo)?;
             assert_eq!(status.added_files.len(), og_file_count);
             assert_eq!(status.added_files[0].1.status, StagedEntryStatus::Removed);
+
+            // Make sure they don't show up in the status
+            assert_eq!(status.removed_files.len(), 0);
 
             Ok(())
         })

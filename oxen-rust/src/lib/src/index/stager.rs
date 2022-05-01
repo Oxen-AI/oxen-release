@@ -39,7 +39,7 @@ impl Stager {
         // so we have to check if it is committed, and what the backup version is
         if !path.exists() {
             let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-            println!("Stager.add() checking relative path: {:?}", relative_path);
+            // println!("Stager.add() checking relative path: {:?}", relative_path);
             // Since entries that are committed are only files.. we will have to have different logic for dirs
             if let Ok(Some(value)) = committer.get_entry(&relative_path) {
                 self.add_removed_file(&relative_path, &value)?;
@@ -58,7 +58,7 @@ impl Stager {
             }
         }
 
-        println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
+        // println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
         if path.is_dir() {
             match self.add_dir(path, committer) {
                 Ok(_) => Ok(()),
@@ -127,7 +127,7 @@ impl Stager {
         let key = repo_path.to_str().unwrap();
         let entry_json = serde_json::to_string(&entry)?;
 
-        println!("Stager.add_removed_file {} -> {}", key, entry_json);
+        // println!("Stager.add_removed_file {} -> {}", key, entry_json);
         self.db.put(&key, entry_json.as_bytes())?;
 
         Ok(entry)
@@ -341,7 +341,7 @@ impl Stager {
         let mut paths: Vec<PathBuf> = vec![];
         for short_path in committer.list_files_in_head_commit_db()? {
             let path = self.repository.path.join(&short_path);
-            if !path.exists() {
+            if !path.exists() && !self.has_entry(&short_path) {
                 paths.push(short_path);
             }
         }

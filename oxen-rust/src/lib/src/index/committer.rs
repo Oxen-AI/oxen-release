@@ -137,7 +137,7 @@ impl Committer {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
 
-        println!("Commit [{}] commit file {:?}", new_commit.id, path);
+        // println!("Commit [{}] commit file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
             let file_path = self.repository.path.join(path);
@@ -165,10 +165,10 @@ impl Committer {
             if !versions_entry_dir.exists() {
                 std::fs::create_dir_all(versions_entry_dir)?;
             }
-            println!(
-                "Commit [{}] copied file {:?} to {:?}",
-                new_commit.id, path, versions_path
-            );
+            // println!(
+            //     "Commit [{}] copied file {:?} to {:?}",
+            //     new_commit.id, path, versions_path
+            // );
             std::fs::copy(file_path, versions_path)?;
 
             // Write to db
@@ -317,7 +317,7 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for (dir, _) in added_dirs.iter() {
-            println!("Commit [{}] files in dir: {:?}", commit.id, dir);
+            // println!("Commit [{}] files in dir: {:?}", commit.id, dir);
             let full_path = self.repository.path.join(dir);
             let files: Vec<PathBuf> = util::fs::rlist_files_in_dir(&full_path)
                 .into_iter()
@@ -387,7 +387,7 @@ impl Committer {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit(&commit_id, message)?;
-        println!("COMMIT_START {} -> {}", commit.id, commit.message);
+        // println!("COMMIT_START {} -> {}", commit.id, commit.message);
 
         // Get last commit_id from the referencer
         // either copy over parent db as a starting point, or start new
@@ -411,7 +411,7 @@ impl Committer {
         // Update our current head db to be this commit db so we can quickly find files
         self.head_commit_db = Some(commit_db);
 
-        println!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
+        // println!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         Ok(Some(commit))
     }
@@ -561,10 +561,6 @@ impl Committer {
         }
 
         // Open db
-        println!(
-            "set_working_repo_to_branch getting entries for branch [{}] {}",
-            name, commit_id
-        );
         let opts = Committer::db_opts();
         let commit_db = DBWithThreadMode::open(&opts, &commit_db_path)?;
 
@@ -578,21 +574,21 @@ impl Committer {
             self.list_files_in_commit_db(self.head_commit_db.as_ref().unwrap())?;
         for path in current_entries.iter() {
             let repo_path = self.repository.path.join(path);
-            println!(
-                "set_working_repo_to_branch current_entries[{:?}]",
-                repo_path
-            );
+            // println!(
+            //     "set_working_repo_to_branch current_entries[{:?}]",
+            //     repo_path
+            // );
             if repo_path.is_file() {
-                println!(
-                    "set_working_repo_to_branch[{}] commit_id {} path {:?}",
-                    name, commit_id, path
-                );
+                // println!(
+                //     "set_working_repo_to_branch[{}] commit_id {} path {:?}",
+                //     name, commit_id, path
+                // );
 
                 // Keep track of parents to see if we clear them
                 if let Some(parent) = path.parent() {
                     if parent.parent().is_some() {
                         // only add one directory below top level
-                        println!("set_working_repo_to_branch candidate dir {:?}", parent);
+                        // println!("set_working_repo_to_branch candidate dir {:?}", parent);
                         candidate_dirs_to_rm.insert(parent.to_path_buf());
                     }
                 }
@@ -601,14 +597,14 @@ impl Committer {
                 match commit_db.get(bytes) {
                     Ok(Some(_value)) => {
                         // We already have file ✅
-                        println!(
-                            "set_working_repo_to_branch we already have file ✅ {:?}",
-                            repo_path
-                        );
+                        // println!(
+                        //     "set_working_repo_to_branch we already have file ✅ {:?}",
+                        //     repo_path
+                        // );
                     }
                     _ => {
                         // sorry, we don't know you, bye
-                        println!("set_working_repo_to_branch see ya 💀 {:?}", repo_path);
+                        // println!("set_working_repo_to_branch see ya 💀 {:?}", repo_path);
                         std::fs::remove_file(repo_path)?;
                     }
                 }
@@ -637,10 +633,10 @@ impl Committer {
 
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
-                println!(
-                    "set_working_repo_to_branch restore file, she new 🙏 {:?} -> {:?}",
-                    version_path, dst_path
-                );
+                // println!(
+                //     "set_working_repo_to_branch restore file, she new 🙏 {:?} -> {:?}",
+                //     version_path, dst_path
+                // );
 
                 // mkdir if not exists for the parent
                 if let Some(parent) = dst_path.parent() {
@@ -657,10 +653,10 @@ impl Committer {
                 // If the hash of the file from the commit is different than the one on disk, update it
                 if entry.hash != dst_hash {
                     // we need to update working dir
-                    println!(
-                        "set_working_repo_to_branch restore file diff hash 🙏 {:?} -> {:?}",
-                        version_path, dst_path
-                    );
+                    // println!(
+                    //     "set_working_repo_to_branch restore file diff hash 🙏 {:?} -> {:?}",
+                    //     version_path, dst_path
+                    // );
                     std::fs::copy(version_path, dst_path)?;
                 }
             }
@@ -669,7 +665,7 @@ impl Committer {
         // Remove un-tracked directories
         for dir in candidate_dirs_to_rm.iter() {
             let full_dir = self.repository.path.join(dir);
-            println!("set_working_repo_to_branch remove dis dir {:?}", full_dir);
+            // println!("set_working_repo_to_branch remove dis dir {:?}", full_dir);
             std::fs::remove_dir_all(full_dir)?;
         }
 
