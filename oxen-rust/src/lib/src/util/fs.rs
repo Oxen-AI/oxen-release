@@ -114,6 +114,19 @@ pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// Recursively tries to traverse up for an .oxen directory, returns None if not found
+pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
+    if path.join(".oxen").exists() {
+        return Some(path.to_path_buf());
+    }
+    
+    if let Some(parent) = path.parent() {
+        return get_repo_root(parent);
+    } else {
+        return None;
+    }
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
