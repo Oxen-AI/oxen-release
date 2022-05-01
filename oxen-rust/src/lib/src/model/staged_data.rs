@@ -1,8 +1,10 @@
 use colored::Colorize;
 use std::path::{PathBuf, Path};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::env;
 
 use crate::model::{StagedEntry, StagedEntryStatus};
+use crate::util;
 
 pub struct StagedData {
     pub added_dirs: Vec<(PathBuf, usize)>,
@@ -141,22 +143,90 @@ impl StagedData {
     }
 
     fn print_removed_files(&self) {
-        let mut top_level: HashSet<PathBuf> = HashSet::new();
-        for file in self.removed_files.iter() {
-            if let Some(parent) = self.rget_top_level_dir(&file) {
-                top_level.insert(parent);
-            }
+        if self.removed_files.is_empty() {
+            // nothing to print
+            return;
         }
 
-        for file in self.removed_files.iter() {
-            let added_file_str = format!("  removed:  {}", file.to_str().unwrap()).red();
-            println!("{}", added_file_str);
+        let current_dir = env::current_dir().unwrap();
+        let repo_path = util::fs::get_repo_root(&current_dir);
+        if !repo_path.is_some() {
+            eprintln!("Err: print_removed_files() Could not find oxen repository");
+            return;
+        }
+
+        // Unwrap because is some
+        let repo_path = repo_path.unwrap();
+        println!("Got repo path {:?} {:?}", current_dir, repo_path);
+
+        // Get the top level dirs so that we don't have to print every file
+        let mut top_level_counts: HashMap<PathBuf, usize> = HashMap::new();
+        for short_path in self.removed_files.iter() {
+            let full_path = repo_path.join(short_path);
+
+            let path = self.get_top_level_dir(&repo_path, &full_path);
+            if !top_level_counts.contains_key(&path) {
+                top_level_counts.insert(path.to_path_buf(), 0);
+            } 
+            *top_level_counts.get_mut(&path).unwrap() += 1;
+        }
+
+        // See the actual counts in the dir, if nothing remains, we can just print the top level summary
+        let mut remaining_file_count: HashMap<PathBuf, usize> = HashMap::new();
+        for (dir, _) in top_level_counts.iter() {
+            let full_path = repo_path.join(dir);
+
+            let count = util::fs::rcount_files_in_dir(&full_path);
+            remaining_file_count.insert(dir.to_owned(), count);
+        }
+
+        // When iterating, if remaining_file_count[p] == 0 or we have more than N entries then we only print the count
+        let mut summarized: HashSet<PathBuf> = HashSet::new();
+        for short_path in self.removed_files.iter() {
+            let full_path = repo_path.join(short_path);
+            let path = self.get_top_level_dir(&repo_path, &full_path);
+
+            let count = top_level_counts[&path];
+            if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5) && !summarized.contains(&path) {
+                let added_file_str = format!("  removed: {}\n    which had {} files including {}", path.to_str().unwrap(), count, short_path.to_str().unwrap()).red();
+                println!("{}", added_file_str);
+
+                summarized.insert(path.to_owned());
+            }
+
+            if !summarized.contains(&path) {
+                let added_file_str = format!("  removed:  {}", short_path.to_str().unwrap()).red();
+                println!("{}", added_file_str);
+            }
         }
     }
 
-    fn rget_top_level_dir(&self, path: &Path) -> Option<PathBuf> {
-        // TODO, collapse print_deleted() into top level dirs
-        None
+    fn get_top_level_dir(&self, repo_path: &Path, full_path: &Path) -> PathBuf {
+        let mut mut_path = full_path.to_path_buf();
+        let mut components: Vec<PathBuf> = vec![];
+        while let Some(parent) = mut_path.parent() {
+            // println!("get_top_level_dir GOT PARENT {:?}", parent);
+            if repo_path == parent {
+                break;
+            }
+
+            if let Some(filename) = parent.file_name() {
+                // println!("get_top_level_dir filename {:?}", filename);
+                components.push(PathBuf::from(filename));
+            }
+            
+            mut_path.pop();
+        }
+        components.reverse();
+        
+        let mut result = PathBuf::new();
+        for component in components.iter() {
+            result = result.join(component);
+        }
+
+        // println!("get_top_level_dir got result {:?}", result);
+
+        result
     }
 
     fn print_untracked_dirs(&self) {
