@@ -84,14 +84,11 @@ impl Committer {
     ) -> Option<DBWithThreadMode<MultiThreaded>> {
         let history_path = Committer::history_dir(repo_dir);
         let opts = Committer::db_opts();
-        match referencer.read_head_ref() {
-            Ok(ref_name) => match referencer.get_commit_id(&ref_name) {
-                Ok(commit_id) => {
-                    let commit_db_path = history_path.join(Path::new(&commit_id));
-                    Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
-                }
-                Err(_) => None,
-            },
+        match referencer.get_head_commit_id() {
+            Ok(commit_id) => {
+                let commit_db_path = history_path.join(Path::new(&commit_id));
+                Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
+            }
             Err(_) => None,
         }
     }
@@ -120,7 +117,7 @@ impl Committer {
                 // Set head to default name -> first commit
                 self.referencer.create_branch(DEFAULT_BRANCH_NAME, id)?;
                 // Make sure head is pointing to that branch
-                self.referencer.set_head(DEFAULT_BRANCH_NAME)?;
+                self.referencer.set_head(DEFAULT_BRANCH_NAME);
 
                 // return current commit path, so we can insert into it
                 Ok(commit_db_path)
@@ -334,8 +331,7 @@ impl Committer {
         //  - message
         //  - date
         //  - author
-        let ref_name = self.referencer.read_head_ref()?;
-        match self.referencer.get_commit_id(&ref_name) {
+        match self.referencer.get_head_commit_id() {
             Ok(parent_id) => {
                 // We have a parent
                 Ok(Commit {
@@ -377,7 +373,6 @@ impl Committer {
         message: &str,
     ) -> Result<Option<Commit>, OxenError> {
         if status.is_clean() {
-            println!("Nothing staged to commit.");
             return Ok(None);
         }
 
@@ -549,8 +544,7 @@ impl Committer {
         Ok(paths)
     }
 
-    pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
-        let commit_id = self.referencer.get_commit_id(name)?;
+    pub fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         let commit_db_path = self.commit_db_path(&commit_id);
 
         if let Some(head_commit) = self.get_head_commit()? {
@@ -575,12 +569,12 @@ impl Committer {
         for path in current_entries.iter() {
             let repo_path = self.repository.path.join(path);
             // println!(
-            //     "set_working_repo_to_branch current_entries[{:?}]",
+            //     "set_working_repo_to_commit_id current_entries[{:?}]",
             //     repo_path
             // );
             if repo_path.is_file() {
                 // println!(
-                //     "set_working_repo_to_branch[{}] commit_id {} path {:?}",
+                //     "set_working_repo_to_commit_id[{}] commit_id {} path {:?}",
                 //     name, commit_id, path
                 // );
 
@@ -588,7 +582,7 @@ impl Committer {
                 if let Some(parent) = path.parent() {
                     if parent.parent().is_some() {
                         // only add one directory below top level
-                        // println!("set_working_repo_to_branch candidate dir {:?}", parent);
+                        // println!("set_working_repo_to_commit_id candidate dir {:?}", parent);
                         candidate_dirs_to_rm.insert(parent.to_path_buf());
                     }
                 }
@@ -598,13 +592,13 @@ impl Committer {
                     Ok(Some(_value)) => {
                         // We already have file ✅
                         // println!(
-                        //     "set_working_repo_to_branch we already have file ✅ {:?}",
+                        //     "set_working_repo_to_commit_id we already have file ✅ {:?}",
                         //     repo_path
                         // );
                     }
                     _ => {
                         // sorry, we don't know you, bye
-                        // println!("set_working_repo_to_branch see ya 💀 {:?}", repo_path);
+                        // println!("set_working_repo_to_commit_id see ya 💀 {:?}", repo_path);
                         std::fs::remove_file(repo_path)?;
                     }
                 }
@@ -634,7 +628,7 @@ impl Committer {
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
                 // println!(
-                //     "set_working_repo_to_branch restore file, she new 🙏 {:?} -> {:?}",
+                //     "set_working_repo_to_commit_id restore file, she new 🙏 {:?} -> {:?}",
                 //     version_path, dst_path
                 // );
 
@@ -654,7 +648,7 @@ impl Committer {
                 if entry.hash != dst_hash {
                     // we need to update working dir
                     // println!(
-                    //     "set_working_repo_to_branch restore file diff hash 🙏 {:?} -> {:?}",
+                    //     "set_working_repo_to_commit_id restore file diff hash 🙏 {:?} -> {:?}",
                     //     version_path, dst_path
                     // );
                     std::fs::copy(version_path, dst_path)?;
@@ -665,11 +659,16 @@ impl Committer {
         // Remove un-tracked directories
         for dir in candidate_dirs_to_rm.iter() {
             let full_dir = self.repository.path.join(dir);
-            // println!("set_working_repo_to_branch remove dis dir {:?}", full_dir);
+            // println!("set_working_repo_to_commit_id remove dis dir {:?}", full_dir);
             std::fs::remove_dir_all(full_dir)?;
         }
 
         Ok(())
+    }
+
+    pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
+        let commit_id = self.referencer.get_commit_id_for_branch(name)?;
+        self.set_working_repo_to_commit_id(&commit_id)
     }
 
     fn p_list_commits(&self, commit_id: &str, messages: &mut Vec<Commit>) -> Result<(), OxenError> {

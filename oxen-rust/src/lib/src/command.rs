@@ -152,29 +152,34 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
     }
 }
 
-/// # Checkout a branch
-/// This switches HEAD to point to the branch name
+/// # Checkout a branch or commit id
+/// This switches HEAD to point to the branch name or commit id
 /// It also updates all the local files to be from the commit that this branch references
-pub fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    println!("checkout branch: {}", name);
+pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
+    println!("checkout branch: {}", value);
     let committer = Committer::new(repo)?;
-    let current_branch = committer.referencer.get_current_branch()?;
 
-    // If we are already on the branch, do nothing
-    if current_branch.name == name {
-        eprintln!("Already on branch {}", name);
-        return Ok(());
-    }
+    if committer.referencer.has_branch(value) {
+        let current_branch = committer.referencer.get_current_branch()?;
 
-    if committer.referencer.has_branch(name) && current_branch.name != name {
-        committer.set_working_repo_to_branch(name)?;
-        committer.referencer.set_head(name)?;
-
-        Ok(())
+        // If we are already on the branch, do nothing
+        if current_branch.name == value {
+            eprintln!("Already on branch {}", value);
+            return Ok(());
+        }
+        committer.set_working_repo_to_branch(value)?;
     } else {
-        let err = format!("Err: Branch not found '{}'", name);
-        Err(OxenError::basic_str(&err))
+        let current_commit_id = committer.referencer.get_head_commit_id()?;
+        // If we are already on the commit, do nothing
+        if current_commit_id == value {
+            eprintln!("Commit already checked out {}", value);
+            return Ok(());
+        }
+
+        committer.set_working_repo_to_commit_id(value)?;
     }
+    committer.referencer.set_head(value);
+    Ok(())
 }
 
 /// # Create a branch and check it out in one go
@@ -186,7 +191,7 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), 
     match committer.get_head_commit() {
         Ok(Some(head_commit)) => {
             committer.referencer.create_branch(name, &head_commit.id)?;
-            committer.referencer.set_head(name)?;
+            committer.referencer.set_head(name);
             Ok(())
         }
         _ => Err(OxenError::basic_str(
@@ -336,6 +341,44 @@ mod tests {
     }
 
     #[test]
+    fn test_command_checkout_commit_id() -> Result<(), OxenError> {
+        test::run_empty_repo_test(|repo| {
+            // Write to file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello");
+            let world_file = repo.path.join("world.txt");
+            util::fs::write_to_path(&world_file, "World");
+
+            // Track the hello file
+            command::add(&repo, &hello_file)?;
+            // Commit the hello file
+            let first_commit = command::commit(&repo, "Adding hello")?;
+            assert!(first_commit.is_some());
+
+            // Track the world file
+            command::add(&repo, &world_file)?;
+
+            let status = command::status(&repo)?;
+            status.print();
+
+            // Commit the world file
+            let second_commit = command::commit(&repo, "Adding world")?;
+            assert!(second_commit.is_some());
+
+            // We have the world file
+            assert!(world_file.exists());
+
+            // We checkout the previous commit
+            command::checkout(&repo, &first_commit.unwrap().id)?;
+
+            // Then we do not have the world file anymore
+            assert!(!world_file.exists());
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_command_commit_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Track the file
@@ -393,7 +436,7 @@ mod tests {
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
             command::create_checkout_branch(&repo, branch_name)?;
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
 
             Ok(())
         })
@@ -437,14 +480,14 @@ mod tests {
             assert!(world_file.exists());
 
             // Go back to the main branch
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
 
             // The world file should no longer be there
             assert!(hello_file.exists());
             assert!(!world_file.exists());
 
             // Go back to the world branch
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
             assert!(hello_file.exists());
             assert!(world_file.exists());
 
@@ -495,7 +538,7 @@ mod tests {
             assert!(keep_file.exists());
 
             // Go back to the main branch
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
 
             // The world file should no longer be there
             assert!(hello_file.exists());
@@ -503,7 +546,7 @@ mod tests {
             assert!(keep_file.exists());
 
             // Go back to the world branch
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
             assert!(hello_file.exists());
             assert!(world_file.exists());
             assert!(keep_file.exists());
@@ -541,7 +584,7 @@ mod tests {
             assert_eq!(util::fs::read_from_path(&hello_file)?, "World");
 
             // Go back to the main branch
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
 
             // The file contents should be Hello, not World
             assert!(hello_file.exists());
@@ -576,12 +619,12 @@ mod tests {
             command::commit(&repo, "Changing one shot")?;
 
             // checkout OG and make sure it reverts
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(og_content, updated_content);
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
             let updated_content = util::fs::read_from_path(&one_shot_path)?;
             assert_eq!(new_contents, updated_content);
 
@@ -607,11 +650,11 @@ mod tests {
             command::commit(&repo, "Adding train dir")?;
 
             // checkout OG and make sure it removes the train dir
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
             assert!(!train_path.exists());
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
             assert!(train_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&train_path), og_num_files);
 
@@ -637,11 +680,11 @@ mod tests {
             command::commit(&repo, "Adding train dir")?;
 
             // checkout OG and make sure it removes the train dir
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
             assert!(!new_dir_path.exists());
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
             assert!(new_dir_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
 
@@ -724,12 +767,12 @@ mod tests {
             command::commit(&repo, "Removing train dir")?;
 
             // checkout OG and make sure it restores the train dir
-            command::checkout_branch(&repo, &orig_branch.name)?;
+            command::checkout(&repo, &orig_branch.name)?;
             assert!(dir_to_remove.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&dir_to_remove), og_num_files);
 
             // checkout branch again and make sure it reverts
-            command::checkout_branch(&repo, branch_name)?;
+            command::checkout(&repo, branch_name)?;
             assert!(!dir_to_remove.exists());
 
             Ok(())
