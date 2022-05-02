@@ -163,8 +163,14 @@ pub fn status() -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let repo_status = command::status(&repository)?;
 
-    let current_branch = command::current_branch(&repository)?;
-    println!("On branch {}\n", current_branch.name);
+    if let Some(current_branch) = command::current_branch(&repository)? {
+        println!("On branch {}\n", current_branch.name);
+    } else {
+        if let Some(head) = command::head_commit(&repository)? {
+            println!("You are in 'detached HEAD' state.\nHEAD is now at {} {}\n", head.id, head.message);
+        }
+    }
+    
     repo_status.print();
 
     Ok(())

@@ -121,37 +121,44 @@ impl Referencer {
         Ok(branch_names)
     }
 
-    pub fn get_current_branch(&self) -> Result<Branch, OxenError> {
+    pub fn get_current_branch(&self) -> Result<Option<Branch>, OxenError> {
         let ref_name = self.read_head_ref()?;
-        let id = self.get_commit_id_for_branch(&ref_name)?;
-        Ok(Branch {
-            name: ref_name,
-            commit_id: id,
-            is_head: true,
-        })
+        if let Some(id) = self.get_commit_id_for_branch(&ref_name)? {
+            Ok(Some(Branch {
+                name: ref_name,
+                commit_id: id,
+                is_head: true,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn has_branch(&self, name: &str) -> bool {
-        self.get_commit_id_for_branch(name).is_ok()
+        let bytes = name.as_bytes();
+        match self.refs_db.get(bytes) {
+            Ok(Some(_)) => true,
+            Ok(None) => false,
+            Err(_) => false,
+        }
     }
 
     pub fn get_head_commit_id(&self) -> Result<String, OxenError> {
         // If we have the branch, read the value from the db, otherwise assume it is the commit id
         let ref_val = self.read_head_ref()?;
         if self.has_branch(&ref_val) {
-            return self.get_commit_id_for_branch(&ref_val);
+            return Ok(self.get_commit_id_for_branch(&ref_val)?.unwrap());
         } else {
             return Ok(ref_val);
         }
     }
 
-    pub fn get_commit_id_for_branch(&self, name: &str) -> Result<String, OxenError> {
+    pub fn get_commit_id_for_branch(&self, name: &str) -> Result<Option<String>, OxenError> {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {
-            Ok(Some(value)) => Ok(String::from(str::from_utf8(&*value)?)),
+            Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&*value)?))),
             Ok(None) => {
-                let err = format!("ref not found: {}", name);
-                Err(OxenError::basic_str(&err))
+                Ok(None)
             }
             Err(err) => {
                 let err = format!("{}", err);
@@ -161,7 +168,12 @@ impl Referencer {
     }
 
     pub fn head_commit_id(&self) -> Result<String, OxenError> {
-        self.get_commit_id_for_branch(&self.read_head_ref()?)
+        let head_ref = self.read_head_ref()?;
+        if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
+            return Ok(commit_id)
+        } else {
+            Ok(head_ref)
+        }
     }
 
     pub fn read_head_ref(&self) -> Result<String, OxenError> {

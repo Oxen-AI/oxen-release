@@ -156,17 +156,17 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
 /// This switches HEAD to point to the branch name or commit id
 /// It also updates all the local files to be from the commit that this branch references
 pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
-    println!("checkout branch: {}", value);
     let committer = Committer::new(repo)?;
-
     if committer.referencer.has_branch(value) {
-        let current_branch = committer.referencer.get_current_branch()?;
-
-        // If we are already on the branch, do nothing
-        if current_branch.name == value {
-            eprintln!("Already on branch {}", value);
-            return Ok(());
+        if let Some(current_branch) = committer.referencer.get_current_branch()? {
+            // If we are already on the branch, do nothing
+            if current_branch.name == value {
+                eprintln!("Already on branch {}", value);
+                return Ok(());
+            }
         }
+
+        println!("checkout branch: {}", value);
         committer.set_working_repo_to_branch(value)?;
     } else {
         let current_commit_id = committer.referencer.get_head_commit_id()?;
@@ -176,6 +176,7 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
             return Ok(());
         }
 
+        println!("checkout commit: {}", value);
         committer.set_working_repo_to_commit_id(value)?;
     }
     committer.referencer.set_head(value);
@@ -208,10 +209,17 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 }
 
 /// # Get the current branch
-pub fn current_branch(repo: &LocalRepository) -> Result<Branch, OxenError> {
+pub fn current_branch(repo: &LocalRepository) -> Result<Option<Branch>, OxenError> {
     let referencer = Referencer::new(repo)?;
     let branch = referencer.get_current_branch()?;
     Ok(branch)
+}
+
+/// # Get the current commit
+pub fn head_commit(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
+    let committer = Committer::new(repo)?;
+    let commit = committer.get_head_commit()?;
+    Ok(commit)
 }
 
 #[cfg(test)]
@@ -242,7 +250,7 @@ mod tests {
 
             // We make an initial parent commit and branch called "main"
             // just to make our lives easier down the line
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
             assert_eq!(orig_branch.name, constants::DEFAULT_BRANCH_NAME);
             assert!(!orig_branch.commit_id.is_empty());
 
@@ -454,7 +462,7 @@ mod tests {
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
@@ -511,7 +519,7 @@ mod tests {
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
@@ -567,7 +575,7 @@ mod tests {
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
@@ -600,7 +608,7 @@ mod tests {
     fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // Track & commit the file
             let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
@@ -636,7 +644,7 @@ mod tests {
     fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // Create a branch to make the changes
             let branch_name = "feature/adding-train";
@@ -666,7 +674,7 @@ mod tests {
     fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // Create a branch to make the changes
             let branch_name = "feature/adding-annotations";
@@ -745,7 +753,7 @@ mod tests {
     fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Get the original branch name
-            let orig_branch = command::current_branch(&repo)?;
+            let orig_branch = command::current_branch(&repo)?.unwrap();
 
             // (dir already created in helper)
             let dir_to_remove = repo.path.join("train");
