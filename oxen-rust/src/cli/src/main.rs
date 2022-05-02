@@ -128,9 +128,12 @@ fn main() {
                     eprintln!("{}", err)
                 }
             } else {
-                let name = sub_matches.value_of("name").expect("required");
-                if let Err(err) = dispatch::create_branch(name) {
-                    eprintln!("{}", err)
+                if let Some(name) = sub_matches.value_of("name") {
+                    if let Err(err) = dispatch::create_branch(name) {
+                        eprintln!("{}", err)
+                    }
+                } else {
+                    eprintln!("`oxen branch` must supply name or -a to list all")
                 }
             }
         }

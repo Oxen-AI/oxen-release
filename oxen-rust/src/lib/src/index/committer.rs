@@ -667,8 +667,12 @@ impl Committer {
     }
 
     pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
-        let commit_id = self.referencer.get_commit_id_for_branch(name)?;
-        self.set_working_repo_to_commit_id(&commit_id)
+        if let Some(commit_id) = self.referencer.get_commit_id_for_branch(name)? {
+            self.set_working_repo_to_commit_id(&commit_id)
+        } else {
+            let err = format!("Could not get commit_id for branch: {}", name);
+            Err(OxenError::basic_str(&err))
+        }
     }
 
     fn p_list_commits(&self, commit_id: &str, messages: &mut Vec<Commit>) -> Result<(), OxenError> {
