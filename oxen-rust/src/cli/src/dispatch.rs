@@ -163,14 +163,8 @@ pub fn status() -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let repo_status = command::status(&repository)?;
 
-    if repo_status.is_clean() {
-        println!("nothing to commit, working tree clean");
-        return Ok(());
-    }
-
     let current_branch = command::current_branch(&repository)?;
     println!("On branch {}\n", current_branch.name);
-
     repo_status.print();
 
     Ok(())
@@ -183,10 +177,10 @@ pub fn create_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn checkout_branch(name: &str) -> Result<(), OxenError> {
+pub fn checkout(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::checkout_branch(&repository, name)?;
+    command::checkout(&repository, name)?;
     Ok(())
 }
 

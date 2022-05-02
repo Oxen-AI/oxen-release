@@ -59,14 +59,8 @@ impl Referencer {
         })
     }
 
-    pub fn set_head(&self, name: &str) -> Result<(), OxenError> {
-        if self.has_branch(name) {
-            util::fs::write_to_path(&self.head_file, name);
-            Ok(())
-        } else {
-            let err = format!("Cannot set head to non-existant ref: {}", name);
-            Err(OxenError::basic_str(&err))
-        }
+    pub fn set_head(&self, name: &str) {
+        util::fs::write_to_path(&self.head_file, name);
     }
 
     pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
@@ -86,6 +80,19 @@ impl Referencer {
     }
 
     pub fn set_head_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        // if we have head ref in HEAD file then write it to that db
+        let head_val = self.read_head_ref()?; // could be branch name or commit ID
+        if self.has_branch(&head_val) {
+            self.set_head_branch_commit_id(commit_id)?;
+        } else {
+            self.set_head(commit_id);
+        }
+
+        // else just write it to our HEAD file
+        Ok(())
+    }
+
+    pub fn set_head_branch_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         let head_ref = self.read_head_ref()?;
         self.set_branch_commit_id(&head_ref, commit_id)?;
         Ok(())
@@ -116,7 +123,7 @@ impl Referencer {
 
     pub fn get_current_branch(&self) -> Result<Branch, OxenError> {
         let ref_name = self.read_head_ref()?;
-        let id = self.get_commit_id(&ref_name)?;
+        let id = self.get_commit_id_for_branch(&ref_name)?;
         Ok(Branch {
             name: ref_name,
             commit_id: id,
@@ -125,10 +132,20 @@ impl Referencer {
     }
 
     pub fn has_branch(&self, name: &str) -> bool {
-        self.get_commit_id(name).is_ok()
+        self.get_commit_id_for_branch(name).is_ok()
     }
 
-    pub fn get_commit_id(&self, name: &str) -> Result<String, OxenError> {
+    pub fn get_head_commit_id(&self) -> Result<String, OxenError> {
+        // If we have the branch, read the value from the db, otherwise assume it is the commit id
+        let ref_val = self.read_head_ref()?;
+        if self.has_branch(&ref_val) {
+            return self.get_commit_id_for_branch(&ref_val);
+        } else {
+            return Ok(ref_val);
+        }
+    }
+
+    pub fn get_commit_id_for_branch(&self, name: &str) -> Result<String, OxenError> {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {
             Ok(Some(value)) => Ok(String::from(str::from_utf8(&*value)?)),
@@ -144,7 +161,7 @@ impl Referencer {
     }
 
     pub fn head_commit_id(&self) -> Result<String, OxenError> {
-        self.get_commit_id(&self.read_head_ref()?)
+        self.get_commit_id_for_branch(&self.read_head_ref()?)
     }
 
     pub fn read_head_ref(&self) -> Result<String, OxenError> {
@@ -175,7 +192,7 @@ mod tests {
             let branch_name = "experiment/cat-dog";
             let commit_id = format!("{}", uuid::Uuid::new_v4());
             referencer.create_branch(branch_name, &commit_id)?;
-            referencer.set_head(branch_name)?;
+            referencer.set_head(branch_name);
             assert_eq!(referencer.head_commit_id()?, commit_id);
 
             Ok(())

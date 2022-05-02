@@ -142,7 +142,7 @@ fn main() {
                 }
             } else if sub_matches.is_present("name") {
                 let name = sub_matches.value_of("name").expect("required");
-                if let Err(err) = dispatch::checkout_branch(name) {
+                if let Err(err) = dispatch::checkout(name) {
                     eprintln!("{}", err)
                 }
             } else {

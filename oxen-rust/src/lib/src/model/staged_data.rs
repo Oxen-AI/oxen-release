@@ -42,6 +42,11 @@ impl StagedData {
     }
 
     pub fn print(&self) {
+        if self.is_clean() {
+            println!("nothing to commit, working tree clean");
+            return;
+        }
+
         // List added files
         if self.has_added_entries() {
             self.print_added();
