@@ -1,4 +1,3 @@
-use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
@@ -139,9 +138,9 @@ impl Referencer {
         // If we have the branch, read the value from the db, otherwise assume it is the commit id
         let ref_val = self.read_head_ref()?;
         if self.has_branch(&ref_val) {
-            return Ok(self.get_commit_id_for_branch(&ref_val)?.unwrap());
+            Ok(self.get_commit_id_for_branch(&ref_val)?.unwrap())
         } else {
-            return Ok(ref_val);
+            Ok(ref_val)
         }
     }
 
@@ -149,9 +148,7 @@ impl Referencer {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&*value)?))),
-            Ok(None) => {
-                Ok(None)
-            }
+            Ok(None) => Ok(None),
             Err(err) => {
                 let err = format!("{}", err);
                 Err(OxenError::basic_str(&err))
@@ -162,7 +159,7 @@ impl Referencer {
     pub fn head_commit_id(&self) -> Result<String, OxenError> {
         let head_ref = self.read_head_ref()?;
         if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
-            return Ok(commit_id)
+            Ok(commit_id)
         } else {
             Ok(head_ref)
         }
@@ -183,7 +180,7 @@ mod tests {
         test::run_referencer_test(|referencer| {
             assert_eq!(
                 referencer.read_head_ref()?,
-                crate::index::referencer::DEFAULT_BRANCH_NAME
+                crate::constants::DEFAULT_BRANCH_NAME
             );
 
             Ok(())
