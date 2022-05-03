@@ -4,6 +4,7 @@ use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
+use crate::constants::NO_REPO_MSG;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -68,6 +69,9 @@ impl LocalRepository {
 
     pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
         let config_path = util::fs::config_filepath(dir);
+        if !config_path.exists() {
+            return Err(OxenError::basic_str(NO_REPO_MSG));
+        }
         let repo = LocalRepository::from_cfg(&config_path)?;
         Ok(repo)
     }

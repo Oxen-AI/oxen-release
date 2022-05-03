@@ -94,6 +94,24 @@ pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+pub fn rlist_paths_in_dir(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = vec![];
+    if !dir.is_dir() {
+        return files;
+    }
+
+    for entry in WalkDir::new(dir) {
+        match entry {
+            Ok(val) => {
+                let path = val.path();
+                files.push(path);
+            }
+            Err(err) => eprintln!("rlist_paths_in_dir Could not iterate over dir... {}", err),
+        }
+    }
+    files
+}
+
 pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = vec![];
     if !dir.is_dir() {
@@ -277,7 +295,7 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
 
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
-        // println!("Comparing {:?} => {:?} => {:?}", path, mut_path, dir);
+        // println!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);
         if let Some(filename) = mut_path.file_name() {
             if mut_path != dir {
                 components.push(PathBuf::from(filename));
@@ -285,7 +303,7 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
                 break;
             }
         } else {
-            let err = format!("Invalid filename {:?}", mut_path);
+            let err = format!("util::fs::path_relative_to_dir Invalid filename {:?}", mut_path);
             return Err(OxenError::basic_str(&err));
         }
 

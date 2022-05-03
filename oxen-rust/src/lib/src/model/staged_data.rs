@@ -115,6 +115,8 @@ impl StagedData {
     }
 
     fn print_added_files(&self) {
+        // TODO: this doesn't collapse giant lists of removed files, because they are not in "added dirs"
+
         for (path, entry) in self.added_files.iter() {
             // If the path is in a directory that was added, don't display it
             let mut break_both = false;
