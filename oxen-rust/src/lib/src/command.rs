@@ -366,9 +366,6 @@ mod tests {
             // Track the world file
             command::add(&repo, &world_file)?;
 
-            let status = command::status(&repo)?;
-            status.print();
-
             // Commit the world file
             let second_commit = command::commit(&repo, "Adding world")?;
             assert!(second_commit.is_some());
