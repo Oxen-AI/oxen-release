@@ -7,6 +7,7 @@ use crate::error::OxenError;
 use crate::index::{Committer, Referencer, Stager};
 use crate::model::{Branch, Commit, LocalRepository, StagedData};
 use crate::util;
+use crate::constants::DEFAULT_BRANCH_NAME;
 
 use std::path::Path;
 
@@ -187,7 +188,7 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
 /// This creates a branch with name
 /// Then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    println!("create and checkout branch {}", name);
+    println!("create and checkout branch: {}", name);
     let committer = Committer::new(repo)?;
     match committer.get_head_commit() {
         Ok(Some(head_commit)) => {
