@@ -35,10 +35,29 @@ impl Stager {
     }
 
     pub fn add(&self, path: &Path, committer: &Committer) -> Result<(), OxenError> {
+        if path.to_str().unwrap().to_string().contains(".oxen") {
+            return Ok(());
+        }
+
+        // println!("stager.add({:?})", path);
+
+        if path == Path::new(".") {
+            for entry in std::fs::read_dir(path)? {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    let entry_path = self.repository.path.join(&path);
+                    self.add(&entry_path, committer)?;
+                }
+                
+            }
+            // println!("ADD CURRENT DIR: {:?}", path);
+            return Ok(());
+        }
+
         // If it doesn't exist on disk, we can't tell if it is a file or dir
         // so we have to check if it is committed, and what the backup version is
         if !path.exists() {
-            let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+            let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
             // println!("Stager.add() checking relative path: {:?}", relative_path);
             // Since entries that are committed are only files.. we will have to have different logic for dirs
             if let Ok(Some(value)) = committer.get_entry(&relative_path) {
@@ -60,12 +79,12 @@ impl Stager {
 
         // println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
         if path.is_dir() {
-            match self.add_dir(path, committer) {
+            match self.add_dir(&path, committer) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
         } else {
-            match self.add_file(path, committer) {
+            match self.add_file(&path, committer) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
@@ -74,12 +93,19 @@ impl Stager {
 
     pub fn status(&self, committer: &Committer) -> Result<StagedData, OxenError> {
         // TODO: let's do this in a single loop and filter model
+        // println!("status: before list_added_directories");
         let added_dirs = self.list_added_directories()?;
+        // println!("status: list_added_files");
         let added_files = self.list_added_files()?;
+        // println!("status: list_untracked_directories");
         let untracked_dirs = self.list_untracked_directories(committer)?;
+        // println!("status: list_untracked_files");
         let untracked_files = self.list_untracked_files(committer)?;
+        // println!("status: list_modified_files");
         let modified_files = self.list_modified_files(committer)?;
+        // println!("status: list_removed_files");
         let removed_files = self.list_removed_files(committer)?;
+        // println!("status: ok");
         let status = StagedData {
             added_dirs,
             added_files,
@@ -302,11 +328,27 @@ impl Stager {
         let iter = self.db.iterator(IteratorMode::Start);
         let mut paths: Vec<(PathBuf, StagedEntry)> = vec![];
         for (key, value) in iter {
-            let local_path = PathBuf::from(String::from(str::from_utf8(&*key)?));
-            let value = str::from_utf8(&*value)?;
-            let entry: Result<StagedEntry, serde_json::error::Error> = serde_json::from_str(value);
-            if let Ok(entry) = entry {
-                paths.push((local_path, entry));
+            match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+                (Ok(key), Ok(value)) => {
+                    // println!("list_added_files reading key [{}] value [{}]", key, value);
+                    let local_path = PathBuf::from(String::from(key));
+                    let entry: Result<StagedEntry, serde_json::error::Error> = serde_json::from_str(value);
+                    if let Ok(entry) = entry {
+                        paths.push((local_path, entry));
+                    }
+                },
+                (Ok(_key), _) => {
+                    // This is fine because it's a directory with a count at the end
+                    // eprintln!("list_added_files() Could not values for key {}.", key)
+                }
+                (_, Ok(val)) => {
+                    // This shouldn't happen
+                    eprintln!("list_added_files() Could not key for value {}.", val)
+                }
+                _ => {
+                    // This shouldn't happen
+                    eprintln!("list_added_files() Could not decoded keys and values.")
+                }
             }
         }
         Ok(paths)

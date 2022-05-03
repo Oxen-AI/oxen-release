@@ -4,3 +4,4 @@ pub const REPO_CONFIG_FILENAME: &str = "config.toml";
 pub const DEFAULT_BRANCH_NAME: &str = "main";
 pub const DEFAULT_ORIGIN_NAME: &str = "origin";
 pub const DEFAULT_ORIGIN_VALUE: &str = "hub.oxen.ai";
+pub const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
