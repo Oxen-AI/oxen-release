@@ -4,13 +4,12 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde_json::json;
-use std::path::Path;
 use std::sync::Arc;
 
 use crate::api;
 use crate::error::OxenError;
 use crate::index::Committer;
-use crate::model::{Commit, CommitHead, LocalRepository, RemoteRepository};
+use crate::model::{Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::view::{CommitResponse, RemoteRepositoryHeadResponse, RepositoryResponse};
 
@@ -26,20 +25,20 @@ impl Indexer {
     }
 
     fn push_entries(&self, committer: &Arc<Committer>, commit: &Commit) -> Result<(), OxenError> {
-        let paths = committer.list_unsynced_files_for_commit(commit)?;
+        let entries = committer.list_unsynced_entries_for_commit(commit)?;
 
-        println!("🐂 push {} files", paths.len());
+        println!("🐂 push {} files", entries.len());
 
         // len is usize and progressbar requires u64, I don't think we'll overflow...
-        let size: u64 = unsafe { std::mem::transmute(paths.len()) };
+        let size: u64 = unsafe { std::mem::transmute(entries.len()) };
         let bar = ProgressBar::new(size);
 
         let commit_db = &committer.head_commit_db;
-        paths.par_iter().for_each(|path| {
-            match self.hash_and_push(committer, commit_db, path) {
+        entries.par_iter().for_each(|entry| {
+            match self.push_entry(committer, commit_db, entry) {
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!("Error pushing entry {:?} Err {}", path, err)
+                    eprintln!("Error pushing entry {:?} Err {}", entry, err)
                 }
             }
             bar.inc(1);
@@ -50,67 +49,48 @@ impl Indexer {
         Ok(())
     }
 
-    fn hash_and_push(
+    pub fn push_entry(
         &self,
         committer: &Arc<Committer>,
         db: &Option<DBWithThreadMode<MultiThreaded>>,
-        path: &Path,
+        entry: &CommitEntry,
     ) -> Result<(), OxenError> {
-        // hash the file
-        // find the entry in the history commit db
-        // compare it to the last hash
-        // TODO: if it is different, upload it, and mark it as being changed?
-        //       maybe on the server we make a linked list of the changes with the commit id?
-        // if it is the same, don't re-upload
-        // Update the hash for this specific commit for this path
-        if let Ok(hash) = util::hasher::hash_file_contents(path) {
-            match util::fs::path_relative_to_dir(path, &self.repository.path) {
-                Ok(path) => {
-                    // Compare last hash to new one
-                    let old_hash = committer.get_path_hash(db, &path).unwrap();
-                    if old_hash == hash {
-                        // we don't need to upload if hash is the same
-                        // println!("Hash is the same! don't upload again {:?}", path);
-                        return Ok(());
-                    }
+        /*
+        Check if the entry is synced or not, if it is not, go back and make sure 
+        all parent commit versions are synced as well
+        */
+        if entry.is_synced {
+            return Ok(())
+        }
 
-                    // Upload entry to server
-                    let remote_repo = RemoteRepository::from_local(&self.repository)?;
-                    match api::remote::entries::create(&remote_repo, &path, &hash) {
-                        Ok(_entry) => {
-                            // The last thing we do is update the hash in the local db
-                            // after it has been posted to the server, so that even if the process
-                            // is killed, and we don't get here, the worst thing that can happen
-                            // is we re-upload it.
-                            match committer.update_path_hash(db, &path, &hash) {
-                                Ok(_) => {
-                                    // println!("Updated hash! {:?} => {}", path, hash);
-                                    Ok(())
-                                }
-                                Err(err) => {
-                                    let err = format!(
-                                        "Error updating hash path: {:?} Err: {}",
-                                        path, err
-                                    );
-                                    Err(OxenError::basic_str(&err))
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            let err = format!("Error uploading {:?} {}", path, err);
-                            Err(OxenError::basic_str(&err))
-                        }
+        // Upload entry to server
+        let remote_repo = RemoteRepository::from_local(&self.repository)?;
+        match api::remote::entries::create(&remote_repo, &entry) {
+            Ok(_entry) => {
+                // The last thing we do is update the hash in the local db
+                // after it has been posted to the server, so that even if the process
+                // is killed, and we don't get here, the worst thing that can happen
+                // is we re-upload it.
+                match committer.set_is_synced(db, &entry) {
+                    Ok(_) => {
+                        // println!("Updated hash! {:?} => {}", path, hash);
+                        Ok(())
                     }
-                }
-                Err(err) => {
-                    let err = format!("Could not get relative path... Err: {}", err);
-                    Err(OxenError::basic_str(&err))
+                    Err(err) => {
+                        let err = format!(
+                            "Error updating hash path: {:?} Err: {}",
+                            entry.path, err
+                        );
+                        Err(OxenError::basic_str(&err))
+                    }
                 }
             }
-        } else {
-            let err = format!("Error computing hash for path: {:?}", path);
-            Err(OxenError::basic_str(&err))
+            Err(err) => {
+                let err = format!("Error uploading {:?} {}", entry.path, err);
+                Err(OxenError::basic_str(&err))
+            }
         }
+
     }
 
     pub fn push(&self, committer: &Arc<Committer>) -> Result<(), OxenError> {

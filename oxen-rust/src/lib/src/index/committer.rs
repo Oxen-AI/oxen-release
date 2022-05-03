@@ -137,16 +137,17 @@ impl Committer {
         // println!("Commit [{}] commit file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
-            let file_path = self.repository.path.join(path);
-            let filename_str = file_path.to_str().unwrap();
+            let full_path = self.repository.path.join(path);
+            let filename_str = full_path.to_str().unwrap();
             let id = util::hasher::hash_buffer(filename_str.as_bytes());
 
-            let hash = util::hasher::hash_file_contents(&file_path)?;
+            let hash = util::hasher::hash_file_contents(&full_path)?;
             let ext = String::from(ext.to_str().unwrap_or(""));
 
             // Create entry object to as json
             let entry = CommitEntry {
                 id: id.clone(),
+                path: path.to_path_buf(),
                 hash,
                 is_synced: false, // so we know to sync
                 commit_id: new_commit.id.clone(),
@@ -166,7 +167,7 @@ impl Committer {
             //     "Commit [{}] copied file {:?} to {:?}",
             //     new_commit.id, path, versions_path
             // );
-            std::fs::copy(file_path, versions_path)?;
+            std::fs::copy(full_path, versions_path)?;
 
             // Write to db
             let entry_json = serde_json::to_string(&entry)?;
@@ -462,25 +463,27 @@ impl Committer {
         }
     }
 
-    pub fn update_path_hash(
+    pub fn set_is_synced(
         &self,
         db: &Option<DBWithThreadMode<MultiThreaded>>,
-        path: &Path,
-        hash: &str,
+        entry: &CommitEntry
     ) -> Result<(), OxenError> {
         if let Some(db) = db {
-            let key = path.to_str().unwrap();
+            let key = entry.path.to_str().unwrap();
             let bytes = key.as_bytes();
-            match db.put(bytes, hash) {
+            let entry = entry.to_synced();
+            let json_str = serde_json::to_string(&entry)?;
+            let data = json_str.as_bytes();
+            match db.put(bytes, data) {
                 Ok(_) => Ok(()),
                 Err(err) => {
-                    let err = format!("get_path_hash() Err: {}", err);
+                    let err = format!("set_is_synced() Err: {}", err);
                     Err(OxenError::basic_str(&err))
                 }
             }
         } else {
             Err(OxenError::basic_str(
-                "Committer.update_path_hash() no commit db.",
+                "Committer.set_is_synced() no commit db.",
             ))
         }
     }
@@ -691,49 +694,48 @@ impl Committer {
         Ok(())
     }
 
-    pub fn list_unsynced_files_for_commit(
+    pub fn list_unsynced_entries_for_commit(
         &self,
         commit: &Commit,
-    ) -> Result<Vec<PathBuf>, OxenError> {
-        let mut paths: Vec<PathBuf> = vec![];
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        let mut entries: Vec<CommitEntry> = vec![];
 
         match self.get_head_commit() {
             Ok(Some(head_commit)) => {
                 if head_commit.id == commit.id {
                     if let Some(db) = &self.head_commit_db {
-                        self.p_add_untracked_files_from_commit(&mut paths, db)?
+                        self.p_add_untracked_files_from_commit(&mut entries, db)?
                     } else {
                         eprintln!(
-                            "list_unsynced_files_for_commit Err: Could not get head commit db"
+                            "list_unsynced_entries_for_commit Err: Could not get head commit db"
                         );
                     }
                 } else {
                     let db = self.get_commit_db(&commit.id)?;
-                    self.p_add_untracked_files_from_commit(&mut paths, &db)?;
+                    self.p_add_untracked_files_from_commit(&mut entries, &db)?;
                 }
             }
             _ => {
                 let db = self.get_commit_db(&commit.id)?;
-                self.p_add_untracked_files_from_commit(&mut paths, &db)?;
+                self.p_add_untracked_files_from_commit(&mut entries, &db)?;
             }
         };
 
-        Ok(paths)
+        Ok(entries)
     }
 
     fn p_add_untracked_files_from_commit(
         &self,
-        paths: &mut Vec<PathBuf>,
+        entries: &mut Vec<CommitEntry>,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         let iter = db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            match (str::from_utf8(&*key), str::from_utf8(&*value)) {
-                (Ok(key_str), Ok(value_str)) => {
-                    let filepath = PathBuf::from(String::from(key_str));
+        for (_key, value) in iter {
+            match str::from_utf8(&*value) {
+                Ok(value_str) => {
                     let entry: CommitEntry = serde_json::from_str(value_str)?;
                     if !entry.is_synced {
-                        paths.push(filepath);
+                        entries.push(entry);
                     }
                 }
                 _ => {
@@ -893,7 +895,7 @@ mod tests {
             assert_eq!(dirs.len(), 0);
 
             // List files in commit to be pushed
-            let files = committer.list_unsynced_files_for_commit(&commit)?;
+            let files = committer.list_unsynced_entries_for_commit(&commit)?;
             // Two files in training_data and one at base level
             assert_eq!(files.len(), 5);
 
