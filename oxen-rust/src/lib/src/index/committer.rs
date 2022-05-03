@@ -548,6 +548,11 @@ impl Committer {
     }
 
     pub fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        if !self.commit_id_exists(commit_id) {
+            let err = format!("Ref not exist: {}", commit_id);
+            return Err(OxenError::basic_str(&err));
+        }
+
         let commit_db_path = self.commit_db_path(commit_id);
 
         if let Some(head_commit) = self.get_head_commit()? {
@@ -611,7 +616,11 @@ impl Committer {
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
         let commit_entries = self.list_entries_in_commit_db(&commit_db)?;
+        println!("Setting working directory to {}", commit_id);
+        let size: u64 = unsafe { std::mem::transmute(commit_entries.len()) };
+        let bar = ProgressBar::new(size);
         for (path, entry) in commit_entries.iter() {
+            bar.inc(1);
             // println!("Committed entry: {:?}", path);
             if let Some(parent) = path.parent() {
                 // Check if parent directory exists, if it does, we no longer have
@@ -657,6 +666,12 @@ impl Committer {
                     std::fs::copy(version_path, dst_path)?;
                 }
             }
+        }
+
+        bar.finish();
+
+        if candidate_dirs_to_rm.len() > 0 {
+            println!("Cleaning up...");
         }
 
         // Remove un-tracked directories
@@ -750,6 +765,16 @@ impl Committer {
         match self.referencer.head_commit_id() {
             Ok(commit_id) => Ok(self.get_commit_by_id(&commit_id)?),
             Err(_) => Ok(None),
+        }
+    }
+
+    pub fn commit_id_exists(&self, commit_id: &str) -> bool {
+        // Check if the id is in the DB
+        let key = commit_id.as_bytes();
+        match self.commits_db.get(key) {
+            Ok(Some(_)) => true,
+            Ok(None) => false,
+            Err(_) => false,
         }
     }
 

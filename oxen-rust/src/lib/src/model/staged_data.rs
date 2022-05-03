@@ -101,14 +101,14 @@ impl StagedData {
             let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
             let num_files_str = match count {
                 1 => {
-                    format!("with untracked {} file\n", count)
+                    format!("with added {} file\n", count)
                 }
                 0 => {
-                    // Skip since we don't have any untracked files in this dir
+                    // Skip since we don't have any added files in this dir
                     String::from("\n")
                 }
                 _ => {
-                    format!("with untracked {} files\n", count)
+                    format!("with added {} files\n", count)
                 }
             };
             print!("{} {}", added_file_str, num_files_str);

@@ -124,6 +124,18 @@ fn test_command_commit_file() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
+    test::run_empty_repo_test(|repo| {
+
+        // This shouldn't work
+        let checkout_result = command::checkout(&repo, "non-existant");
+        assert!(!checkout_result.is_ok());
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_command_checkout_commit_id() -> Result<(), OxenError> {
     test::run_empty_repo_test(|repo| {
         // Write to file
