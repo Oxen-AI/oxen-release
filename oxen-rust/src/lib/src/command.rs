@@ -379,6 +379,10 @@ mod tests {
             // Then we do not have the world file anymore
             assert!(!world_file.exists());
 
+            // Check status
+            let status = command::status(&repo)?;
+            assert!(status.is_clean());
+
             Ok(())
         })
     }

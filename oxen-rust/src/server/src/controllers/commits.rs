@@ -214,8 +214,10 @@ mod tests {
         let commit_dir = Path::new(&commit_dir_name);
         std::fs::create_dir_all(commit_dir)?;
         // Write a random file to it
-        let random_file = commit_dir.join("blah.txt");
-        util::fs::write_to_path(&random_file, "sup");
+        let zipped_filename = "blah.txt";
+        let zipped_file_contents = "sup";
+        let random_file = commit_dir.join(zipped_filename);
+        util::fs::write_to_path(&random_file, zipped_file_contents);
 
         println!("Compressing commit {}...", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -247,7 +249,6 @@ mod tests {
         let resp = actix_web::test::call_service(&app, req).await;
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("GOT BODY: {}", body);
         let resp: CommitResponse = serde_json::from_str(body)?;
 
         // Make sure commit gets populated
@@ -261,9 +262,9 @@ mod tests {
             .join(repo.name)
             .join(OXEN_HIDDEN_DIR)
             .join(path_to_compress)
-            .join("blah.txt");
+            .join(zipped_filename);
         assert!(uploaded_file.exists());
-        assert_eq!(util::fs::read_from_path(&uploaded_file)?, "sup");
+        assert_eq!(util::fs::read_from_path(&uploaded_file)?, zipped_file_contents);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

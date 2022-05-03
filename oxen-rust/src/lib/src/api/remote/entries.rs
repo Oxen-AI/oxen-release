@@ -1,10 +1,9 @@
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{RemoteEntry, RemoteRepository};
+use crate::model::{CommitEntry, RemoteEntry, RemoteRepository};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs::File;
-use std::path::Path;
 
 pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<RemoteEntry, OxenError> {
     let url = format!(
@@ -36,16 +35,15 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Remot
 
 pub fn create(
     repository: &RemoteRepository,
-    path: &Path,
-    hash: &str,
+    entry: &CommitEntry,
 ) -> Result<RemoteEntry, OxenError> {
-    let file = File::open(path)?;
+    let file = File::open(&entry.path)?;
     let client = reqwest::blocking::Client::new();
     let url = format!(
         "http://0.0.0.0:3000/repositories/{}/entries?filename={}&hash={}",
         repository.name,
-        path.to_str().unwrap(),
-        hash
+        entry.path.to_str().unwrap(),
+        entry.hash
     );
     match client.post(url).body(file).send() {
         Ok(res) => {
