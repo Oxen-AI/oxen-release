@@ -1,7 +1,7 @@
 use colored::Colorize;
-use std::path::{PathBuf, Path};
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::path::{Path, PathBuf};
 
 use crate::model::{StagedEntry, StagedEntryStatus};
 use crate::util;
@@ -155,7 +155,7 @@ impl StagedData {
 
         let current_dir = env::current_dir().unwrap();
         let repo_path = util::fs::get_repo_root(&current_dir);
-        if !repo_path.is_some() {
+        if repo_path.is_none() {
             eprintln!("Err: print_removed_files() Could not find oxen repository");
             return;
         }
@@ -172,7 +172,7 @@ impl StagedData {
             let path = self.get_top_level_dir(&repo_path, &full_path);
             if !top_level_counts.contains_key(&path) {
                 top_level_counts.insert(path.to_path_buf(), 0);
-            } 
+            }
             *top_level_counts.get_mut(&path).unwrap() += 1;
         }
 
@@ -192,8 +192,16 @@ impl StagedData {
             let path = self.get_top_level_dir(&repo_path, &full_path);
 
             let count = top_level_counts[&path];
-            if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5) && !summarized.contains(&path) {
-                let added_file_str = format!("  removed: {}\n    which had {} files including {}", path.to_str().unwrap(), count, short_path.to_str().unwrap()).red();
+            if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
+                && !summarized.contains(&path)
+            {
+                let added_file_str = format!(
+                    "  removed: {}\n    which had {} files including {}",
+                    path.to_str().unwrap(),
+                    count,
+                    short_path.to_str().unwrap()
+                )
+                .red();
                 println!("{}", added_file_str);
 
                 summarized.insert(path.to_owned());
@@ -219,11 +227,11 @@ impl StagedData {
                 // println!("get_top_level_dir filename {:?}", filename);
                 components.push(PathBuf::from(filename));
             }
-            
+
             mut_path.pop();
         }
         components.reverse();
-        
+
         let mut result = PathBuf::new();
         for component in components.iter() {
             result = result.join(component);

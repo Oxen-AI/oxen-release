@@ -127,14 +127,12 @@ fn main() {
                 if let Err(err) = dispatch::list_branches() {
                     eprintln!("{}", err)
                 }
-            } else {
-                if let Some(name) = sub_matches.value_of("name") {
-                    if let Err(err) = dispatch::create_branch(name) {
-                        eprintln!("{}", err)
-                    }
-                } else {
-                    eprintln!("`oxen branch` must supply name or -a to list all")
+            } else if let Some(name) = sub_matches.value_of("name") {
+                if let Err(err) = dispatch::create_branch(name) {
+                    eprintln!("{}", err)
                 }
+            } else {
+                eprintln!("`oxen branch` must supply name or -a to list all")
             }
         }
         Some(("checkout", sub_matches)) => {

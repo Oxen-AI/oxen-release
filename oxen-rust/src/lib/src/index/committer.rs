@@ -545,7 +545,7 @@ impl Committer {
     }
 
     pub fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
-        let commit_db_path = self.commit_db_path(&commit_id);
+        let commit_db_path = self.commit_db_path(commit_id);
 
         if let Some(head_commit) = self.get_head_commit()? {
             if head_commit.id == commit_id {

@@ -7,7 +7,6 @@ use crate::error::OxenError;
 use crate::index::{Committer, Referencer, Stager};
 use crate::model::{Branch, Commit, LocalRepository, StagedData};
 use crate::util;
-use crate::constants::DEFAULT_BRANCH_NAME;
 
 use std::path::Path;
 

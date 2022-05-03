@@ -119,11 +119,11 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     if path.join(".oxen").exists() {
         return Some(path.to_path_buf());
     }
-    
+
     if let Some(parent) = path.parent() {
-        return get_repo_root(parent);
+        get_repo_root(parent)
     } else {
-        return None;
+        None
     }
 }
 
