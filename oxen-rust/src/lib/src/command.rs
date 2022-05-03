@@ -174,7 +174,6 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
             return Ok(());
         }
 
-        println!("checkout commit: {}", value);
         committer.set_working_repo_to_commit_id(value)?;
     }
     committer.referencer.set_head(value);
