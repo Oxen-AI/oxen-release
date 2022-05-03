@@ -28,10 +28,6 @@ impl Referencer {
         let refs_dir = Referencer::refs_dir(&repository.path);
         let head_filename = Referencer::head_file(&repository.path);
 
-        if !head_filename.exists() {
-            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH_NAME);
-        }
-
         let mut opts = Options::default();
         opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
@@ -44,10 +40,6 @@ impl Referencer {
     pub fn new_read_only(repository: &LocalRepository) -> Result<Referencer, OxenError> {
         let refs_dir = Referencer::refs_dir(&repository.path);
         let head_filename = Referencer::head_file(&repository.path);
-
-        if !head_filename.exists() {
-            util::fs::write_to_path(&head_filename, DEFAULT_BRANCH_NAME);
-        }
 
         let error_if_log_file_exist = false;
         let mut opts = Options::default();
