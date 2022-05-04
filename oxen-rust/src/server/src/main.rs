@@ -5,6 +5,7 @@ pub mod app_data;
 pub mod controllers;
 pub mod http;
 pub mod test;
+pub mod auth;
 
 extern crate dotenv;
 extern crate log;
