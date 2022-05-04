@@ -2,9 +2,31 @@ use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
+use crate::api;
 use serde_json::json;
 use urlencoding::encode;
 
+pub fn create_or_get_repo(name: &str) -> Result<(), OxenError> {
+    let url = api::endpoint::url_from("/repositories");
+    let params = json!({ "name": name });
+
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client.post(url).json(&params).send() {
+        let body = res.text()?;
+        let response: Result<RemoteRepositoryResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(_) => Ok(()),
+            Err(_) => Ok(()), // we are just assuming this error is already exists for now
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "create_or_get_repo() Could not create repo",
+        ))
+    }
+}
+
+// TODO THESE ARE LEGACY....
 pub fn create<'a>(
     config: &'a dyn HTTPConfig<'a>,
     name: &str,

@@ -3,15 +3,14 @@ use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use serde_json::json;
 use std::sync::Arc;
+use std::path::Path;
 
 use crate::api;
 use crate::error::OxenError;
 use crate::index::Committer;
 use crate::model::{Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository};
-use crate::util;
-use crate::view::{CommitResponse, RemoteRepositoryHeadResponse, RepositoryResponse};
+use crate::view::{CommitResponse, RemoteRepositoryHeadResponse};
 
 pub struct Indexer {
     pub repository: LocalRepository,
@@ -22,6 +21,11 @@ impl Indexer {
         Ok(Indexer {
             repository: repository.clone(),
         })
+    }
+
+    pub fn create_or_get_repo(&self) -> Result<(), OxenError> {
+        let name = &self.repository.name;
+        api::remote::repositories::create_or_get_repo(name)
     }
 
     fn push_entries(&self, committer: &Arc<Committer>, commit: &Commit) -> Result<(), OxenError> {
@@ -38,7 +42,7 @@ impl Indexer {
             match self.push_entry(committer, commit_db, entry) {
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!("Error pushing entry {:?} Err {}", entry, err)
+                    log::error!("Error pushing entry {:?} Err {}", entry, err)
                 }
             }
             bar.inc(1);
@@ -73,7 +77,7 @@ impl Indexer {
                 // is we re-upload it.
                 match committer.set_is_synced(db, &entry) {
                     Ok(_) => {
-                        // println!("Updated hash! {:?} => {}", path, hash);
+                        log::debug!("Entry is synced! {:?}", entry.path);
                         Ok(())
                     }
                     Err(err) => {
@@ -108,28 +112,6 @@ impl Indexer {
                 let msg = format!("Err: {}", err);
                 Err(OxenError::basic_str(&msg))
             }
-        }
-    }
-
-    pub fn create_or_get_repo(&self) -> Result<(), OxenError> {
-        // TODO move into another api class, and better error handling...just cranking this out
-        let name = &self.repository.name;
-        let url = "http://0.0.0.0:3000/repositories".to_string();
-        let params = json!({ "name": name });
-
-        let client = reqwest::blocking::Client::new();
-        if let Ok(res) = client.post(url).json(&params).send() {
-            let body = res.text()?;
-            let response: Result<RepositoryResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(_) => Ok(()),
-                Err(_) => Ok(()), // we are just assuming this error is already exists for now
-            }
-        } else {
-            Err(OxenError::basic_str(
-                "create_or_get_repo() Could not create repo",
-            ))
         }
     }
 
@@ -191,25 +173,24 @@ impl Indexer {
         }
     }
 
-    pub fn post_commit_to_server(&self, commit: &Commit) -> Result<(), OxenError> {
+    pub fn post_commit_to_server(&self, commit: &Commit) -> Result<CommitResponse, OxenError> {
         // zip up the rocksdb in history dir, and post to server
-        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-        let commit_dir = hidden_dir.join(&commit.id);
-        let path_to_compress = format!("history/{}", commit.id);
+        let commit_dir = Committer::history_dir(&self.repository.path).join(commit.id.clone());
+        // This will be the subdir within the tarball
+        let tar_subdir = Path::new("history").join(commit.id.clone());
 
-        println!("Compressing commit {}...", commit.id);
+        println!("Compressing commit {}", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());
         let mut tar = tar::Builder::new(enc);
 
-        tar.append_dir_all(path_to_compress, commit_dir)?;
+        tar.append_dir_all(&tar_subdir, commit_dir)?;
         tar.finish()?;
-        let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-        self.post_tarball_to_server(&buffer, commit)?;
 
-        Ok(())
+        let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+        self.post_tarball_to_server(&buffer, commit)
     }
 
-    fn post_tarball_to_server(&self, buffer: &[u8], commit: &Commit) -> Result<(), OxenError> {
+    fn post_tarball_to_server(&self, buffer: &[u8], commit: &Commit) -> Result<CommitResponse, OxenError> {
         println!("Syncing commit {}...", commit.id);
 
         let name = &self.repository.name;
@@ -228,7 +209,7 @@ impl Indexer {
             let body = res.text()?;
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
-                Ok(_) => Ok(()),
+                Ok(response) => Ok(response),
                 Err(_) => Err(OxenError::basic_str(&format!(
                     "Error serializing CommitResponse: status_code[{}] \n\n{}",
                     status, body
@@ -277,15 +258,37 @@ impl Indexer {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    // use crate::index::Indexer;
-    // use crate::model::Repository;
-    // use crate::test;
-    // use crate::util;
-
-    // const BASE_DIR: &str = "data/test/runs";
+    use crate::index::Indexer;
+    use crate::test;
+    use crate::command;
 
     #[test]
-    fn test_indexer_push() -> Result<(), OxenError> {
-        Ok(())
+    fn test_indexer_post_commit_to_server() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Track the annotations dir
+            // has format
+            //   annotations/
+            //     train/
+            //       one_shot.txt
+            //       annotations.txt
+            //     test/
+            //       annotations.txt
+            let annotations_dir = repo.path.join("annotations");
+            command::add(&repo, &annotations_dir)?;
+            // Commit the file
+            let commit = command::commit(&repo, "Adding annotations data dir, which has two levels")?;
+            assert!(commit.is_some());
+            let commit = commit.unwrap();
+
+            let indexer = Indexer::new(&repo)?;
+            // Create repo on the server
+            indexer.create_or_get_repo()?;
+
+            // Post commit
+            let result_commit = indexer.post_commit_to_server(&commit)?;
+            assert_eq!(result_commit.commit.id, commit.id);
+
+            Ok(())
+        })
     }
 }

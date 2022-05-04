@@ -11,8 +11,16 @@ use crate::model::{LocalRepository, RemoteRepository};
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use env_logger::Env;
 
 const TEST_RUN_DIR: &str = "data/test/runs";
+
+fn init_test_env() {
+    let env = Env::default();
+    if let Ok(_) = env_logger::try_init_from_env(env) {
+        log::debug!("Logger initialized");
+    }
+}
 
 fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
     let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
@@ -37,6 +45,7 @@ pub fn run_empty_repo_dir_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
+    init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
 
     // Run test to see if it panic'd
@@ -60,6 +69,7 @@ pub fn run_empty_repo_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
+    init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let repo = command::init(&repo_dir)?;
 
@@ -84,6 +94,7 @@ pub fn run_training_data_repo_test_no_commits<T>(test: T) -> Result<(), OxenErro
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
+    init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let repo = command::init(&repo_dir)?;
 
@@ -111,6 +122,7 @@ pub fn run_training_data_repo_test_fully_committed<T>(test: T) -> Result<(), Oxe
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
+    init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let repo = command::init(&repo_dir)?;
 
@@ -143,6 +155,7 @@ pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(Stager) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
+    init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     println!("BEFORE COMMAND::INIT");
     let repo = command::init(&repo_dir)?;
@@ -169,6 +182,7 @@ pub fn run_referencer_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(Referencer) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
+    init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let repo = command::init(&repo_dir)?;
     let referencer = Referencer::new(&repo)?;

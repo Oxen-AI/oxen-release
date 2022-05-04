@@ -1,4 +1,3 @@
-extern crate dotenv;
 
 use liboxen::api;
 
@@ -7,20 +6,29 @@ pub mod controllers;
 pub mod http;
 pub mod test;
 
-use actix_web::middleware::Logger;
+extern crate dotenv;
+extern crate log;
 
+use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use env_logger::Env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    let env = Env::default();
+    env_logger::init_from_env(env);
+
     let host: &str = &api::endpoint::host();
     let port: u16 = api::endpoint::port()
         .parse::<u16>()
         .expect("Port must be number");
     println!("Running 🐂 server on {}:{}", host, port);
 
-    let sync_dir = std::env::var("SYNC_DIR").expect("Set env SYNC_DIR");
+    let sync_dir = match std::env::var("SYNC_DIR") {
+        Ok(dir) => dir,
+        Err(_) => String::from("/tmp/oxen")
+    };
+
     env_logger::init_from_env(Env::default().default_filter_or("info"));
     println!("Syncing to directory: {}", sync_dir);
 

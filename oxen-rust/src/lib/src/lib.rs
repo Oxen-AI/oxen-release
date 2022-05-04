@@ -8,7 +8,6 @@
 //! - `oxen push`
 //!
 
-/// api to do stuff
 pub mod api;
 pub mod command;
 pub mod config;

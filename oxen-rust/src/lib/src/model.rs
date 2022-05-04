@@ -1,15 +1,14 @@
 pub mod branch;
 pub mod commit;
 pub mod entry;
-pub mod local_repository;
+pub mod repository;
 pub mod remote;
-pub mod remote_repository;
 pub mod staged_data;
 pub mod user;
 
 // Repository
-pub use crate::model::local_repository::LocalRepository;
-pub use crate::model::remote_repository::RemoteRepository;
+pub use crate::model::repository::local_repository::LocalRepository;
+pub use crate::model::repository::remote_repository::RemoteRepository;
 
 // Commit
 pub use crate::model::commit::{Commit, CommitHead, CommmitSyncInfo};

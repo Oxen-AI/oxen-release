@@ -1,11 +1,17 @@
 use std::env;
 
 pub fn host() -> String {
-    env::var("HOST").expect("env HOST must be set")
+    match env::var("HOST") {
+        Ok(host) => host,
+        Err(_) => String::from("0.0.0.0")
+    }
 }
 
 pub fn port() -> String {
-    env::var("PORT").expect("env PORT must be set")
+    match env::var("POST") {
+        Ok(port) => port,
+        Err(_) => String::from("3000")
+    }
 }
 
 pub fn server() -> String {
@@ -13,5 +19,5 @@ pub fn server() -> String {
 }
 
 pub fn url_from(name: &str) -> String {
-    format!("http://{}/{}", server(), name)
+    format!("http://{}{}", server(), name)
 }
