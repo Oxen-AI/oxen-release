@@ -199,10 +199,9 @@ fn test_command_commit_dir() -> Result<(), OxenError> {
 #[test]
 fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
-        // Track the file
+        // Track the annotations dir, which has sub dirs
         let annotations_dir = repo.path.join("annotations");
         command::add(&repo, &annotations_dir)?;
-        // Commit the file
         command::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
         let repo_status = command::status(&repo)?;

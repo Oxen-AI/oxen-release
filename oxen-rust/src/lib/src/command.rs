@@ -107,6 +107,29 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 }
 
 /// # Get status of files in repository
+///
+/// ```
+/// use liboxen::command;
+/// use liboxen::util;
+/// # use liboxen::error::OxenError;
+/// # use std::path::Path;
+/// # fn main() -> Result<(), OxenError> {
+///
+/// // Initialize the repository
+/// let base_dir = Path::new("/tmp/repo_dir");
+/// let repo = command::init(base_dir)?;
+/// 
+/// // Write file to disk
+/// let hello_file = base_dir.join("hello.txt");
+/// util::fs::write_to_path(&hello_file, "Hello World");
+/// 
+/// // Stage the file
+/// command::add(&repo, &hello_file)?;
+///
+/// # std::fs::remove_dir_all(base_dir)?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
     let committer = Committer::new(repo)?;
@@ -115,6 +138,32 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 }
 
 /// # Commit the staged files in the repo
+///
+/// ```
+/// use liboxen::command;
+/// use liboxen::util;
+/// # use liboxen::error::OxenError;
+/// # use std::path::Path;
+/// # fn main() -> Result<(), OxenError> {
+///
+/// // Initialize the repository
+/// let base_dir = Path::new("/tmp/repo_dir");
+/// let repo = command::init(base_dir)?;
+/// 
+/// // Write file to disk
+/// let hello_file = base_dir.join("hello.txt");
+/// util::fs::write_to_path(&hello_file, "Hello World");
+/// 
+/// // Stage the file
+/// command::add(&repo, &hello_file)?;
+/// 
+/// // Commit staged
+/// command::commit(&repo, "My commit message")?;
+///
+/// # std::fs::remove_dir_all(base_dir)?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
     let stager = Stager::new(repo)?;
     let mut committer = Committer::new(repo)?;
@@ -128,6 +177,27 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
 }
 
 /// # Get a log of all the commits
+///
+/// ```
+/// use liboxen::command;
+/// # use liboxen::error::OxenError;
+/// # use std::path::Path;
+/// # fn main() -> Result<(), OxenError> {
+///
+/// // Initialize the repository
+/// let base_dir = Path::new("/tmp/repo_dir");
+/// let repo = command::init(base_dir)?;
+/// 
+/// // Print     commit history
+/// let history = command::log(&repo)?;
+/// for commit in history.iter() {
+///   println!("{} {}", commit.id, commit.message);
+/// }
+///
+/// # std::fs::remove_dir_all(base_dir)?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let committer = Committer::new(repo)?;
     let commits = committer.list_commits()?;
@@ -135,8 +205,8 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 }
 
 /// # Create a new branch
-/// This creates a new pointer to the current commit with a name
-/// It does not switch you to this branch, you still must call `checkout_branch`
+/// This creates a new pointer to the current commit with a name,
+/// it does not switch you to this branch, you still must call `checkout_branch`
 pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     let committer = Committer::new(repo)?;
     match committer.get_head_commit() {
@@ -151,8 +221,8 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
 }
 
 /// # Checkout a branch or commit id
-/// This switches HEAD to point to the branch name or commit id
-/// It also updates all the local files to be from the commit that this branch references
+/// This switches HEAD to point to the branch name or commit id,
+/// it also updates all the local files to be from the commit that this branch references
 pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
     let committer = Committer::new(repo)?;
     if committer.referencer.has_branch(value) {
@@ -181,8 +251,8 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
 }
 
 /// # Create a branch and check it out in one go
-/// This creates a branch with name
-/// Then switches HEAD to point to the branch
+/// This creates a branch with name,
+/// then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     println!("create and checkout branch: {}", name);
     let committer = Committer::new(repo)?;

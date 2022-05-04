@@ -41,11 +41,11 @@ impl Committer {
         opts
     }
 
-    fn history_dir(path: &Path) -> PathBuf {
+    pub fn history_dir(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path).join(Path::new(HISTORY_DIR))
     }
 
-    fn commits_dir(path: &Path) -> PathBuf {
+    pub fn commits_dir(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
     }
 
