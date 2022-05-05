@@ -1,8 +1,8 @@
+use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, RemoteEntry, RemoteRepository};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
-use crate::api;
 
 use std::fs::File;
 
@@ -13,7 +13,8 @@ pub fn create(
     let config = AuthConfig::default()?;
     let file = File::open(&entry.path)?;
     let client = reqwest::blocking::Client::new();
-    let uri = format!("/repositories/{}/entries?filename={}&hash={}",
+    let uri = format!(
+        "/repositories/{}/entries?filename={}&hash={}",
         repository.name,
         entry.path.to_str().unwrap(),
         entry.hash
@@ -82,12 +83,8 @@ pub fn list_page(
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
-    use crate::error::OxenError;
-    use crate::test;
-    use crate::util::hasher;
 
-    use std::path::Path;
+    use crate::error::OxenError;
 
     // TODO: Make these tests for oxen-server not oxen-hub
 

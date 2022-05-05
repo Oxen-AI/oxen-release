@@ -1,4 +1,3 @@
-
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -185,7 +184,7 @@ mod tests {
     // #[test]
     // fn test_indexer_post_commit_to_server() -> Result<(), OxenError> {
     //     test::run_training_data_repo_test_no_commits(|repo| {
-    
+
     //         Ok(())
     //     })
     // }
