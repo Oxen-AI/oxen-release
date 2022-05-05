@@ -1,4 +1,6 @@
 use liboxen::api;
+use liboxen::model::NewUser;
+use liboxen::config::AuthConfig;
 
 pub mod app_data;
 pub mod auth;
@@ -12,9 +14,11 @@ extern crate log;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
-use clap::{arg, Command};
+use clap::{Arg, Command};
 use env_logger::Env;
 use std::path::Path;
+
+const ADD_USER_USAGE: &str = "Usage: `oxen-server add-user -e g@oxen.ai -n greg -o auth_config.toml`";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -35,18 +39,43 @@ async fn main() -> std::io::Result<()> {
         .subcommand(Command::new("start").about("Starts server"))
         .subcommand(
             Command::new("add-user")
-                .about("Generates a token for a user ")
-                .arg(arg!(<EMAIL> "The email for the user"))
-                .arg_required_else_help(true),
+                .about(ADD_USER_USAGE)
+                .arg(
+                    Arg::new("email")
+                        .long("email")
+                        .short('e')
+                        .help("Users email address")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("name")
+                        .long("name")
+                        .short('n')
+                        .help("Users name that will show up in the commits")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .short('o')
+                        .value_name("auth_config.toml")
+                        .default_value("auth_config.toml")
+                        .default_missing_value("always")
+                        .help("Where to write the output config file to give to the user")
+                        .takes_value(true),
+                ),
         );
     let matches = command.get_matches();
 
+    let host: &str = &api::endpoint::host();
+    let port: u16 = api::endpoint::port()
+        .parse::<u16>()
+        .expect("Port must be number");
+
     match matches.subcommand() {
         Some(("start", _sub_matches)) => {
-            let host: &str = &api::endpoint::host();
-            let port: u16 = api::endpoint::port()
-                .parse::<u16>()
-                .expect("Port must be number");
             println!("Running 🐂 server on {}:{}", host, port);
             println!("Syncing to directory: {}", sync_dir);
 
@@ -92,11 +121,39 @@ async fn main() -> std::io::Result<()> {
             .await
         }
         Some(("add-user", sub_matches)) => {
-            let email = sub_matches.value_of("EMAIL").expect("required");
-            let path = Path::new(&sync_dir);
-            if let Ok(keygen) = auth::access_keys::KeyGenerator::new(path) {
-                if let Ok(token) = keygen.create(email) {
-                    println!("Added user {} with token: {}", email, token);
+            
+            match (sub_matches.value_of("email"), sub_matches.value_of("name"), sub_matches.value_of("output")) {
+                (Some(email), Some(name), Some(output)) => {
+                    let path = Path::new(&sync_dir);
+                    if let Ok(keygen) = auth::access_keys::KeyGenerator::new(path) {
+                        let new_user = NewUser {
+                            name: name.to_string(), 
+                            email: email.to_string(),
+                        };
+                        match keygen.create(&new_user) {
+                            Ok(user) => {
+                                let auth_config = AuthConfig {
+                                    host: format!("{}:{}", host, port),
+                                    user: user
+                                };
+                                match auth_config.save(Path::new(output)) {
+                                    Ok(_) => {
+                                        println!("Saved config to: {}\n\nTo give user access have them put the file in home directory at ~/.oxen/auth_config.toml", output)
+                                    },
+                                    Err(err) => {
+                                        eprintln!("Error saving config: {}", err)
+                                    }
+                                }
+                            },
+                            Err(err) => {
+                                eprintln!("Error adding user: {}", err)
+                            }
+                        }
+                    }
+        
+                }
+                _ => {
+                    eprintln!("{}", ADD_USER_USAGE)
                 }
             }
 

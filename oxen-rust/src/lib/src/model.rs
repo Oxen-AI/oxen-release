@@ -21,7 +21,7 @@ pub use crate::model::entry::commit_entry::CommitEntry;
 pub use crate::model::entry::remote_entry::RemoteEntry;
 pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 
-pub use crate::model::user::{User, UserResponse};
+pub use crate::model::user::{User, NewUser, UserResponse};
 
 pub use crate::model::staged_data::StagedData;
 
