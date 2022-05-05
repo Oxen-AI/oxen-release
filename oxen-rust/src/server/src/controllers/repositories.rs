@@ -3,13 +3,10 @@ use crate::app_data::SyncDir;
 use liboxen::api;
 
 use liboxen::view::http::{
-    MSG_RESOURCE_CREATED,
-    MSG_RESOURCE_DELETED,
-    MSG_RESOURCE_FOUND,
-    STATUS_SUCCESS
+    MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
 use liboxen::view::{
-    ListRemoteRepositoryResponse, RepositoryNew, RemoteRepositoryResponse, StatusMessage,
+    ListRemoteRepositoryResponse, RemoteRepositoryResponse, RepositoryNew, StatusMessage,
 };
 
 use liboxen::model::RemoteRepository;
@@ -34,8 +31,8 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
             HttpResponse::Ok().json(view)
         }
         Err(err) => {
-            let msg = format!("Unable to list repositories. Err: {}", err);
-            HttpResponse::Ok().json(StatusMessage::error(&msg))
+            log::error!("Unable to list repositories. Err: {}", err);
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
 }
@@ -52,29 +49,28 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                 repository: RemoteRepository::from_local(&repository),
             }),
             Err(err) => {
-                let msg = format!("Err: {}", err);
-                HttpResponse::Ok().json(StatusMessage::error(&msg))
+                log::debug!("Could not find repo: {}", err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::Ok().json(StatusMessage::error(msg))
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
+    log::info!("repositories::create_or_get: {}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::get_by_name(&sync_dir.path, &data.name) {
-            Ok(repository) => {
-                HttpResponse::Ok().json(RemoteRepositoryResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    repository: RemoteRepository::from_local(&repository),
-                })
-            },
+            Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_FOUND),
+                repository: RemoteRepository::from_local(&repository),
+            }),
             Err(_) => match api::local::repositories::create(&sync_dir.path, &data.name) {
                 Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
@@ -82,12 +78,12 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     repository: RemoteRepository::from_local(&repository),
                 }),
                 Err(err) => {
-                    let msg = format!("Error: {:?}", err);
-                    HttpResponse::Ok().json(StatusMessage::error(&msg))
+                    log::error!("Err api::local::repositories::create: {:?}", err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
-            }
+            },
         },
-        Err(_) => HttpResponse::Ok().json(StatusMessage::error("Invalid body.")),
+        Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),
     }
 }
 
@@ -98,21 +94,28 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&sync_dir.path, name) {
             Ok(repository) => {
-                
-                HttpResponse::Ok().json(RemoteRepositoryResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_DELETED),
-                    repository: RemoteRepository::from_local(&repository),
-                })
+                match api::local::repositories::delete(&sync_dir.path, repository) {
+                    Ok(repository) => {
+                        HttpResponse::Ok().json(RemoteRepositoryResponse {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_DELETED),
+                            repository: RemoteRepository::from_local(&repository),
+                        })
+                    },
+                    Err(err) => {
+                        log::error!("Error deleting repository: {}", err);
+                        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                    }
+                }
             },
             Err(err) => {
-                let msg = format!("Err: {}", err);
-                HttpResponse::Ok().json(StatusMessage::error(&msg))
+                log::error!("Delete could not find repo: {}", err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
         }
     } else {
-        let msg = "Could not find `name` param...";
-        HttpResponse::Ok().json(StatusMessage::error(msg))
+        let msg = "Could not find `name` param";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 

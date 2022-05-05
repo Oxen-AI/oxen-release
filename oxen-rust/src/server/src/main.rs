@@ -5,7 +5,6 @@ use liboxen::model::NewUser;
 pub mod app_data;
 pub mod auth;
 pub mod controllers;
-pub mod http;
 pub mod test;
 
 extern crate dotenv;

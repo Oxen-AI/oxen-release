@@ -6,6 +6,41 @@ use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 use urlencoding::encode;
 
+pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/repositories/{}", name);
+    let url = api::endpoint::url_from(&uri);
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let status = res.status();
+        let body = res.text()?;
+
+        log::debug!("repositories::get_by_name status[{}] body:\n{}", status, body);
+
+        let response: Result<RemoteRepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.repository),
+            Err(err) => {
+                log::debug!("Err: {}", err);
+                Err(OxenError::basic_str(&format!(
+                    "api::repositories::get_by_name() Could not serialize repository [{}]",
+                    name
+                )))
+            },
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::repositories::get_by_name() Request failed",
+        ))
+    }
+}
 
 pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
@@ -13,11 +48,13 @@ pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
     let params = json!({ "name": name });
 
     let client = reqwest::blocking::Client::new();
-    if let Ok(res) = 
-        client
+    if let Ok(res) = client
         .post(url)
         .json(&params)
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", config.auth_token()))
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
         .send()
     {
         let body = res.text()?;
@@ -28,11 +65,11 @@ pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
             Err(err) => {
                 let err = format!("Could not create or find repository: {}", err);
                 Err(OxenError::basic_str(&err))
-            },
+            }
         }
     } else {
         Err(OxenError::basic_str(
-            "create_or_get_repo() Could not create repo",
+            "create_or_get() Could not create repo",
         ))
     }
 }
@@ -45,7 +82,10 @@ pub fn get_by_url(url: &str) -> Result<RemoteRepository, OxenError> {
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
-        .header(reqwest::header::AUTHORIZATION, config.auth_token())
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
         .send()
     {
         match res.json::<RemoteRepositoryResponse>() {
@@ -57,20 +97,23 @@ pub fn get_by_url(url: &str) -> Result<RemoteRepository, OxenError> {
         }
     } else {
         Err(OxenError::basic_str(
-            "api::repositories::create() Request failed",
+            "api::repositories::get_by_url() Request failed",
         ))
     }
 }
 
 pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}", repository.id);
+    let uri = format!("/repositories/{}", repository.name);
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .delete(url)
-        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", config.auth_token()))
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
         .send()
     {
         let status = res.status();
@@ -112,16 +155,51 @@ mod tests {
     }
 
     #[test]
-    fn test_get_by_url() -> Result<(), OxenError> {
-        let name: &str = "test_get_by_url";
+    fn test_get_by_name() -> Result<(), OxenError> {
+        test::init_test_env();
+
+        let name: &str = "test_get_by_name";
 
         let repository = api::remote::repositories::create_or_get(name)?;
-        let url_repo = api::remote::repositories::get_by_url( &repository.url)?;
+        let url_repo = api::remote::repositories::get_by_name(&name)?;
 
         assert_eq!(repository.id, url_repo.id);
 
         // cleanup
         api::remote::repositories::delete(repository)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_by_url() -> Result<(), OxenError> {
+        test::init_test_env();
+
+        let name: &str = "test_get_by_url";
+
+        let repository = api::remote::repositories::create_or_get(name)?;
+        let url_repo = api::remote::repositories::get_by_url(&repository.url)?;
+
+        assert_eq!(repository.id, url_repo.id);
+
+        // cleanup
+        api::remote::repositories::delete(repository)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_repository() -> Result<(), OxenError> {
+        test::init_test_env();
+
+        let name: &str = "test_delete_repository";
+        let repository = api::remote::repositories::create_or_get(name)?;
+
+        // delete
+        api::remote::repositories::delete(repository)?;
+
+        let result = api::remote::repositories::get_by_name(name);
+        assert!(result.is_err());
+        
         Ok(())
     }
 }
