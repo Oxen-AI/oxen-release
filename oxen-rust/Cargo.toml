@@ -35,6 +35,7 @@ walkdir = "2"
 env_logger = "0.9.0"
 log = "0.4.17"
 actix-multipart = "0.4.0"
+actix-web-httpauth = "0.6.0"
 futures-util = "0.3.21"
 futures = "0.3.21"
 threadpool = "1.8.1"
@@ -45,6 +46,7 @@ jsonwebtoken = "8"
 x25519-dalek = "1.2.0"
 rand = "0.8.0"
 rand_core = "0.5"
+derive_more = "0.99.17"
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]
