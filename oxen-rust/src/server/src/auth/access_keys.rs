@@ -1,6 +1,6 @@
 use liboxen::error::OxenError;
-use liboxen::util;
 use liboxen::model::{NewUser, User};
+use liboxen::util;
 
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rand_core::OsRng;
