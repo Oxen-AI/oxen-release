@@ -33,7 +33,7 @@ fn test_command_init() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_status_empty() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         let repo_status = command::status(&repo)?;
 
         assert_eq!(repo_status.added_dirs.len(), 0);
@@ -47,7 +47,7 @@ fn test_command_status_empty() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         let commits = command::log(&repo)?;
         let initial_len = commits.len();
         command::commit(&repo, "Should not work")?;
@@ -59,7 +59,7 @@ fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_status_has_txt_file() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello World");
@@ -77,7 +77,7 @@ fn test_command_status_has_txt_file() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_add_file() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello World");
@@ -97,7 +97,7 @@ fn test_command_add_file() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_commit_file() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello World");
@@ -123,7 +123,7 @@ fn test_command_commit_file() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // This shouldn't work
         let checkout_result = command::checkout(&repo, "non-existant");
         assert!(checkout_result.is_err());
@@ -134,7 +134,7 @@ fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_checkout_commit_id() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
@@ -216,7 +216,7 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
@@ -236,7 +236,7 @@ fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenEr
 
 #[test]
 fn test_command_checkout_added_file() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
@@ -289,7 +289,7 @@ fn test_command_checkout_added_file() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
@@ -349,7 +349,7 @@ fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
 
 #[test]
 fn test_command_checkout_modified_file() -> Result<(), OxenError> {
-    test::run_empty_repo_test(|repo| {
+    test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
