@@ -1,8 +1,8 @@
+use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
-use crate::api;
 use serde_json::json;
 use urlencoding::encode;
 

@@ -1,11 +1,10 @@
-
 use liboxen::api;
 
 pub mod app_data;
+pub mod auth;
 pub mod controllers;
 pub mod http;
 pub mod test;
-pub mod auth;
 
 extern crate dotenv;
 extern crate log;
@@ -13,8 +12,8 @@ extern crate log;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
-use env_logger::Env;
 use clap::{arg, Command};
+use env_logger::Env;
 use std::path::Path;
 
 #[actix_web::main]
@@ -23,7 +22,7 @@ async fn main() -> std::io::Result<()> {
 
     let sync_dir = match std::env::var("SYNC_DIR") {
         Ok(dir) => dir,
-        Err(_) => String::from("/tmp/oxen_sync")
+        Err(_) => String::from("/tmp/oxen_sync"),
     };
 
     let command = Command::new("oxen-server")
@@ -33,10 +32,7 @@ async fn main() -> std::io::Result<()> {
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .allow_invalid_utf8_for_external_subcommands(true)
-        .subcommand(
-            Command::new("start")
-                .about("Starts server")
-        )
+        .subcommand(Command::new("start").about("Starts server"))
         .subcommand(
             Command::new("add-user")
                 .about("Generates a token for a user ")
@@ -98,12 +94,12 @@ async fn main() -> std::io::Result<()> {
         Some(("add-user", sub_matches)) => {
             let email = sub_matches.value_of("EMAIL").expect("required");
             let path = Path::new(&sync_dir);
-            if let Ok(keygen) = auth::access_keys::KeyGenerator::new(&path) {
+            if let Ok(keygen) = auth::access_keys::KeyGenerator::new(path) {
                 if let Ok(token) = keygen.create(email) {
                     println!("Added user {} with token: {}", email, token);
                 }
             }
-            
+
             Ok(())
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachabe!()

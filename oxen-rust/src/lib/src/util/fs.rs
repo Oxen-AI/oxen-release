@@ -303,7 +303,10 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
                 break;
             }
         } else {
-            let err = format!("util::fs::path_relative_to_dir Invalid filename {:?}", mut_path);
+            let err = format!(
+                "util::fs::path_relative_to_dir Invalid filename {:?}",
+                mut_path
+            );
             return Err(OxenError::basic_str(&err));
         }
 

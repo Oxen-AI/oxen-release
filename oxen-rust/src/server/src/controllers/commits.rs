@@ -264,7 +264,10 @@ mod tests {
             .join(path_to_compress)
             .join(zipped_filename);
         assert!(uploaded_file.exists());
-        assert_eq!(util::fs::read_from_path(&uploaded_file)?, zipped_file_contents);
+        assert_eq!(
+            util::fs::read_from_path(&uploaded_file)?,
+            zipped_file_contents
+        );
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

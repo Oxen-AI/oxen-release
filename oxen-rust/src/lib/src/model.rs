@@ -1,8 +1,8 @@
 pub mod branch;
 pub mod commit;
 pub mod entry;
-pub mod repository;
 pub mod remote;
+pub mod repository;
 pub mod staged_data;
 pub mod user;
 

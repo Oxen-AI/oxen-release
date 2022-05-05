@@ -1,10 +1,10 @@
 use crate::api;
 use crate::config::AuthConfig;
+use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
-use crate::constants::NO_REPO_MSG;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};

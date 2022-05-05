@@ -1,10 +1,9 @@
-
 use liboxen::command;
-use liboxen::test;
 use liboxen::constants;
-use liboxen::util;
 use liboxen::error::OxenError;
 use liboxen::model::StagedEntryStatus;
+use liboxen::test;
+use liboxen::util;
 
 #[test]
 fn test_command_init() -> Result<(), OxenError> {
@@ -31,7 +30,6 @@ fn test_command_init() -> Result<(), OxenError> {
         Ok(())
     })
 }
-
 
 #[test]
 fn test_command_status_empty() -> Result<(), OxenError> {
@@ -126,10 +124,9 @@ fn test_command_commit_file() -> Result<(), OxenError> {
 #[test]
 fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
     test::run_empty_repo_test(|repo| {
-
         // This shouldn't work
         let checkout_result = command::checkout(&repo, "non-existant");
-        assert!(!checkout_result.is_ok());
+        assert!(checkout_result.is_err());
 
         Ok(())
     })
@@ -456,7 +453,7 @@ fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
         // checkout OG and make sure it removes the train dir
         command::checkout(&repo, &orig_branch.name)?;
         assert!(!train_path.exists());
-        
+
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;
         assert!(train_path.exists());

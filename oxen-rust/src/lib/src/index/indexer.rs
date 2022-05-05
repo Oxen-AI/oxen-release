@@ -3,8 +3,8 @@ use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::sync::Arc;
 use std::path::Path;
+use std::sync::Arc;
 
 use crate::api;
 use crate::error::OxenError;
@@ -60,31 +60,29 @@ impl Indexer {
         entry: &CommitEntry,
     ) -> Result<(), OxenError> {
         /*
-        Check if the entry is synced or not, if it is not, go back and make sure 
+        Check if the entry is synced or not, if it is not, go back and make sure
         all parent commit versions are synced as well
         */
         if entry.is_synced {
-            return Ok(())
+            return Ok(());
         }
 
         // Upload entry to server
         let remote_repo = RemoteRepository::from_local(&self.repository)?;
-        match api::remote::entries::create(&remote_repo, &entry) {
+        match api::remote::entries::create(&remote_repo, entry) {
             Ok(_entry) => {
                 // The last thing we do is update the hash in the local db
                 // after it has been posted to the server, so that even if the process
                 // is killed, and we don't get here, the worst thing that can happen
                 // is we re-upload it.
-                match committer.set_is_synced(db, &entry) {
+                match committer.set_is_synced(db, entry) {
                     Ok(_) => {
                         log::debug!("Entry is synced! {:?}", entry.path);
                         Ok(())
                     }
                     Err(err) => {
-                        let err = format!(
-                            "Error updating hash path: {:?} Err: {}",
-                            entry.path, err
-                        );
+                        let err =
+                            format!("Error updating hash path: {:?} Err: {}", entry.path, err);
                         Err(OxenError::basic_str(&err))
                     }
                 }
@@ -94,7 +92,6 @@ impl Indexer {
                 Err(OxenError::basic_str(&err))
             }
         }
-
     }
 
     pub fn push(&self, committer: &Arc<Committer>) -> Result<(), OxenError> {
@@ -190,7 +187,11 @@ impl Indexer {
         self.post_tarball_to_server(&buffer, commit)
     }
 
-    fn post_tarball_to_server(&self, buffer: &[u8], commit: &Commit) -> Result<CommitResponse, OxenError> {
+    fn post_tarball_to_server(
+        &self,
+        buffer: &[u8],
+        commit: &Commit,
+    ) -> Result<CommitResponse, OxenError> {
         println!("Syncing commit {}...", commit.id);
 
         let name = &self.repository.name;
@@ -257,10 +258,10 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
+    use crate::command;
     use crate::error::OxenError;
     use crate::index::Indexer;
     use crate::test;
-    use crate::command;
 
     #[test]
     fn test_indexer_post_commit_to_server() -> Result<(), OxenError> {
@@ -276,7 +277,8 @@ mod tests {
             let annotations_dir = repo.path.join("annotations");
             command::add(&repo, &annotations_dir)?;
             // Commit the file
-            let commit = command::commit(&repo, "Adding annotations data dir, which has two levels")?;
+            let commit =
+                command::commit(&repo, "Adding annotations data dir, which has two levels")?;
             assert!(commit.is_some());
             let commit = commit.unwrap();
 
