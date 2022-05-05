@@ -79,7 +79,7 @@ async fn main() -> std::io::Result<()> {
             println!("Running 🐂 server on {}:{}", host, port);
             println!("Syncing to directory: {}", sync_dir);
 
-            let data = app_data::SyncDir::from(&sync_dir);
+            let data = app_data::OxenAppData::from(&sync_dir);
 
             HttpServer::new(move || {
                 App::new()
@@ -132,7 +132,7 @@ async fn main() -> std::io::Result<()> {
             ) {
                 (Some(email), Some(name), Some(output)) => {
                     let path = Path::new(&sync_dir);
-                    if let Ok(keygen) = auth::access_keys::KeyGenerator::new(path) {
+                    if let Ok(keygen) = auth::access_keys::AccessKeyManager::new(path) {
                         let new_user = NewUser {
                             name: name.to_string(),
                             email: email.to_string(),

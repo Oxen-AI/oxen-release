@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
-pub struct SyncDir {
+pub struct OxenAppData {
     pub path: PathBuf,
 }
 
-impl SyncDir {
-    pub fn from(path: &str) -> SyncDir {
-        SyncDir {
+impl OxenAppData {
+    pub fn from(path: &str) -> OxenAppData {
+        OxenAppData {
             path: PathBuf::from(path),
         }
     }

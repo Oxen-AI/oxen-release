@@ -1,4 +1,4 @@
-use crate::app_data::SyncDir;
+use crate::app_data::OxenAppData;
 
 use liboxen::api;
 
@@ -9,19 +9,22 @@ use liboxen::view::{
     ListRemoteRepositoryResponse, RemoteRepositoryResponse, RepositoryNew, StatusMessage,
 };
 
-use liboxen::model::RemoteRepository;
+use liboxen::model::{
+    LocalRepository,
+    RemoteRepository
+};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
-use std::path::PathBuf;
+use std::path::PathBuf; 
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
-    match api::local::repositories::list(&sync_dir.path) {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    match api::local::repositories::list(&app_data.path) {
         Ok(repos) => {
             let repos: Vec<RemoteRepository> = repos
                 .iter()
-                .map(|repo| RemoteRepository::from_local(&repo.clone()))
+                .map(|repo| remote_from_local(repo.clone()))
                 .collect();
             let view = ListRemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
@@ -38,15 +41,15 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 }
 
 pub async fn show(req: HttpRequest) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: Option<&str> = req.match_info().get("name");
     if let Some(name) = name {
-        match api::local::repositories::get_by_name(&sync_dir.path, name) {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: RemoteRepository::from_local(&repository),
+                repository: remote_from_local(repository),
             }),
             Err(err) => {
                 log::debug!("Could not find repo: {}", err);
@@ -60,23 +63,28 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 }
 
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    log::info!("repositories::create_or_get: {}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => match api::local::repositories::get_by_name(&sync_dir.path, &data.name) {
-            Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: RemoteRepository::from_local(&repository),
-            }),
-            Err(_) => match api::local::repositories::create(&sync_dir.path, &data.name) {
-                Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+        Ok(data) => match api::local::repositories::get_by_name(&app_data.path, &data.name) {
+            Ok(repository) => {
+                // Set the remote to this server
+                HttpResponse::Ok().json(RemoteRepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
-                    repository: RemoteRepository::from_local(&repository),
-                }),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    repository: remote_from_local(repository),
+                })
+            },
+            Err(_) => match api::local::repositories::create(&app_data.path, &data.name) {
+                Ok(repository) => {
+                    // Set the remote to this server
+                    HttpResponse::Ok().json(RemoteRepositoryResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        repository: remote_from_local(repository),
+                    })
+                },
                 Err(err) => {
                     log::error!("Err api::local::repositories::create: {:?}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -87,19 +95,26 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     }
 }
 
+fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
+    let uri = format!("/repositories/{}", repository.name);
+    let remote = api::endpoint::url_from(&uri);
+    repository.set_remote(liboxen::constants::DEFAULT_ORIGIN_NAME, &remote);
+    RemoteRepository::from_local(&repository)
+} 
+
 pub async fn delete(req: HttpRequest) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: Option<&str> = req.match_info().get("name");
     if let Some(name) = name {
-        match api::local::repositories::get_by_name(&sync_dir.path, name) {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => {
-                match api::local::repositories::delete(&sync_dir.path, repository) {
+                match api::local::repositories::delete(&app_data.path, repository) {
                     Ok(repository) => {
                         HttpResponse::Ok().json(RemoteRepositoryResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_DELETED),
-                            repository: RemoteRepository::from_local(&repository),
+                            repository: remote_from_local(repository),
                         })
                     },
                     Err(err) => {
@@ -120,11 +135,11 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
 }
 
 pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
     let name: &str = req.match_info().get("name").unwrap();
-    match api::local::repositories::get_by_name(&sync_dir.path, name) {
+    match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(repo) => {
             let full_path = repo.path.join(&filepath);
             Ok(NamedFile::open(full_path)?)
