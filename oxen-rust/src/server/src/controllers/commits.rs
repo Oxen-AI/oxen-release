@@ -41,7 +41,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::NotFound().json(StatusMessage::error(msg))
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 
@@ -92,14 +92,14 @@ pub async fn upload(
                     }))
                 }
                 Err(err) => {
-                    let msg = format!("Err: {}", err);
-                    Ok(HttpResponse::Ok().json(StatusMessage::error(&msg)))
+                    log::error!("Err create_commit: {}", err);
+                    Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
                 }
             }
         }
         Err(err) => {
-            let msg = format!("Err: {}", err);
-            Ok(HttpResponse::Ok().json(StatusMessage::error(&msg)))
+            log::error!("Err get_by_name: {}", err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
     }
 }

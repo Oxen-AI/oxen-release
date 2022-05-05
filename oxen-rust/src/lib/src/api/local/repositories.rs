@@ -64,6 +64,17 @@ pub fn create(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError>
     Ok(repository)
 }
 
+pub fn delete(sync_dir: &Path, repository: LocalRepository) -> Result<LocalRepository, OxenError> {
+    let repo_dir = sync_dir.join(Path::new(&repository.name));
+    if !repo_dir.exists() {
+        let err = format!("Repository does not exist {:?}", repo_dir);
+        return Err(OxenError::basic_str(&err));
+    }
+
+    std::fs::remove_dir_all(&repo_dir)?;
+    Ok(repository)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api;

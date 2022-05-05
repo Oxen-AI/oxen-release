@@ -14,7 +14,10 @@ pub fn from_hash<'a>(config: &'a dyn HTTPConfig<'a>, hash: &str) -> Result<Remot
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
-        .header(reqwest::header::AUTHORIZATION, config.auth_token())
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
         .send()
     {
         let status = res.status();

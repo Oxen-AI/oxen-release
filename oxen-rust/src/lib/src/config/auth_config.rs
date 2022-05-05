@@ -45,7 +45,7 @@ impl AuthConfig {
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
             let mut config_file = oxen_dir.join(Path::new(AUTH_CONFIG_FILENAME));
-            if let Ok(_) = std::env::var("TEST") {
+            if std::env::var("TEST").is_ok() {
                 config_file = PathBuf::from("data/test/config/auth_config.toml");
             }
             if config_file.exists() {
