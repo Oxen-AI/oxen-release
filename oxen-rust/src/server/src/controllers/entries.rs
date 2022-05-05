@@ -1,4 +1,4 @@
-use crate::app_data::SyncDir;
+use crate::app_data::OxenAppData;
 
 use liboxen::api;
 use liboxen::model::{LocalRepository, RemoteEntry};
@@ -24,12 +24,12 @@ pub async fn create(
     body: web::Payload,
     data: web::Query<EntryQuery>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
 
     // name of the repo
     let name: &str = req.match_info().get("name").unwrap();
-    match api::local::repositories::get_by_name(&sync_dir.path, name) {
-        Ok(local_repo) => create_entry(&sync_dir.path, &local_repo, body, data).await,
+    match api::local::repositories::get_by_name(&app_data.path, name) {
+        Ok(local_repo) => create_entry(&app_data.path, &local_repo, body, data).await,
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {}", err);
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
@@ -99,7 +99,7 @@ mod tests {
     use liboxen::util;
     use liboxen::view::RemoteEntryResponse;
 
-    use crate::app_data::SyncDir;
+    use crate::app_data::OxenAppData;
     use crate::controllers;
     use crate::test;
 
@@ -119,7 +119,7 @@ mod tests {
         );
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(SyncDir {
+                .app_data(OxenAppData {
                     path: sync_dir.clone(),
                 })
                 .route(

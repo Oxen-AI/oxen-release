@@ -19,18 +19,28 @@ pub struct JWTClaim {
     email: String,
 }
 
-pub struct KeyGenerator {
+pub struct AccessKeyManager {
     sync_dir: PathBuf,
     db: DBWithThreadMode<MultiThreaded>,
 }
 
-impl KeyGenerator {
+impl AccessKeyManager {
     fn secret_key_path(sync_dir: &Path) -> PathBuf {
         let hidden_dir = util::fs::oxen_hidden_dir(sync_dir);
         hidden_dir.join(SECRET_KEY_FILENAME)
     }
 
-    pub fn new(sync_dir: &Path) -> Result<KeyGenerator, OxenError> {
+    pub fn new(sync_dir: &Path) -> Result<AccessKeyManager, OxenError> {
+        let read_only = false;
+        AccessKeyManager::p_new(sync_dir, read_only)
+    }
+
+    pub fn new_read_only(sync_dir: &Path) -> Result<AccessKeyManager, OxenError> {
+        let read_only = true;
+        AccessKeyManager::p_new(sync_dir, read_only)
+    }
+
+    fn p_new(sync_dir: &Path, read_only: bool) -> Result<AccessKeyManager, OxenError> {
         let hidden_dir = util::fs::oxen_hidden_dir(sync_dir);
         if !hidden_dir.exists() {
             std::fs::create_dir_all(&hidden_dir)?;
@@ -41,7 +51,7 @@ impl KeyGenerator {
         opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
 
-        let secret_file = KeyGenerator::secret_key_path(sync_dir);
+        let secret_file = AccessKeyManager::secret_key_path(sync_dir);
         if !secret_file.exists() {
             // Not really using this in the right context...but fine to generate random hash for now
             let secret = EphemeralSecret::new(OsRng);
@@ -51,9 +61,15 @@ impl KeyGenerator {
             util::fs::write_to_path(&secret_file, &key);
         }
 
-        Ok(KeyGenerator {
+        let db = if read_only {
+            DBWithThreadMode::open_for_read_only(&opts, &db_dir, false)?
+        } else {
+            DBWithThreadMode::open(&opts, &db_dir)?
+        };
+
+        Ok(AccessKeyManager {
             sync_dir: sync_dir.to_path_buf(),
-            db: DBWithThreadMode::open(&opts, &db_dir)?,
+            db: db,
         })
     }
 
@@ -139,7 +155,7 @@ impl KeyGenerator {
     }
 
     fn read_secret_key(&self) -> Result<String, OxenError> {
-        let path = KeyGenerator::secret_key_path(&self.sync_dir);
+        let path = AccessKeyManager::secret_key_path(&self.sync_dir);
         util::fs::read_from_path(&path)
     }
 }
@@ -147,7 +163,7 @@ impl KeyGenerator {
 #[cfg(test)]
 mod tests {
 
-    use crate::auth::access_keys::KeyGenerator;
+    use crate::auth::access_keys::AccessKeyManager;
     use crate::test;
     use liboxen::error::OxenError;
     use liboxen::model::NewUser;
@@ -155,7 +171,7 @@ mod tests {
     #[test]
     fn test_constructor() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
-            let keygen_result = KeyGenerator::new(sync_dir);
+            let keygen_result = AccessKeyManager::new(sync_dir);
             assert!(keygen_result.is_ok());
             Ok(())
         })
@@ -164,7 +180,7 @@ mod tests {
     #[test]
     fn test_generate_key() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
-            let keygen = KeyGenerator::new(sync_dir)?;
+            let keygen = AccessKeyManager::new(sync_dir)?;
             let new_user = NewUser {
                 name: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
@@ -179,7 +195,7 @@ mod tests {
     #[test]
     fn test_generate_and_get_key() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
-            let keygen = KeyGenerator::new(sync_dir)?;
+            let keygen = AccessKeyManager::new(sync_dir)?;
             let new_user = NewUser {
                 name: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
@@ -198,7 +214,7 @@ mod tests {
     #[test]
     fn test_generate_and_validate() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
-            let keygen = KeyGenerator::new(sync_dir)?;
+            let keygen = AccessKeyManager::new(sync_dir)?;
             let new_user = NewUser {
                 name: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
@@ -213,7 +229,7 @@ mod tests {
     #[test]
     fn test_invalid_key() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
-            let keygen = KeyGenerator::new(sync_dir)?;
+            let keygen = AccessKeyManager::new(sync_dir)?;
 
             let is_valid = keygen.token_is_valid("not-a-valid-key");
             assert!(!is_valid);

@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 
 pub const REMOTE_CONFIG_FILENAME: &str = "remote_config.toml";
-pub const DEFAULT_HOST: &str = "localhost:4000";
+pub const DEFAULT_HOST: &str = "0.0.0.0:3000";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RemoteConfig {

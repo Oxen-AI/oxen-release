@@ -88,7 +88,8 @@ impl LocalRepository {
     }
 
     pub fn clone_remote(url: &str) -> Result<LocalRepository, OxenError> {
-        match api::remote::repositories::get_by_url(url) {
+        let name = LocalRepository::dirname_from_url(url)?;
+        match api::remote::repositories::get_by_name(&name) {
             Ok(remote_repo) => LocalRepository::clone_repo(remote_repo),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
@@ -199,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
-        let url = "http://localhost:4000/gschoeni/OxenData";
+        let url = "http://0.0.0.0:3000/repositories/OxenData";
         let dirname = LocalRepository::dirname_from_url(url)?;
         assert_eq!(dirname, "OxenData");
         Ok(())

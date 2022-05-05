@@ -1,4 +1,4 @@
-use crate::app_data::SyncDir;
+use crate::app_data::OxenAppData;
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
@@ -43,7 +43,7 @@ where
 
 pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(SyncDir {
+        .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
         })
         .to_http_request()
@@ -56,7 +56,7 @@ pub fn request_with_param(
     val: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(SyncDir {
+        .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
         })
         .param(key, val)
@@ -69,7 +69,7 @@ pub fn request_with_json(
     data: impl Serialize,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(SyncDir {
+        .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
         })
         .set_json(data)
@@ -84,7 +84,7 @@ pub fn request_with_payload_and_entry(
     data: impl Into<actix_web::web::Bytes>,
 ) -> (actix_web::HttpRequest, actix_web::dev::Payload) {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(SyncDir {
+        .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
         })
         .param("filename", filename)

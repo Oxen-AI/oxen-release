@@ -6,7 +6,7 @@ use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
 use liboxen::view::{CommitResponse, ListCommitResponse, StatusMessage};
 
-use crate::app_data::SyncDir;
+use crate::app_data::OxenAppData;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
@@ -26,12 +26,11 @@ pub struct CommitQuery {
 
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
     let path: Option<&str> = req.match_info().get("name");
 
     if let Some(path) = path {
-        let repo_dir = sync_dir.path.join(path);
-        // TODO do less matching and take care of flow in subroutine and propigate up error
+        let repo_dir = app_data.path.join(path);
         match p_index(&repo_dir) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
@@ -57,10 +56,10 @@ pub async fn upload(
     mut body: web::Payload,        // the actual file body
     data: web::Query<CommitQuery>, // these are the query params -> struct
 ) -> Result<HttpResponse, Error> {
-    let sync_dir = req.app_data::<SyncDir>().unwrap();
+    let app_data = req.app_data::<OxenAppData>().unwrap();
     // name to the repo, should be in url path so okay to unwap
     let name: &str = req.match_info().get("name").unwrap();
-    match api::local::repositories::get_by_name(&sync_dir.path, name) {
+    match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(repo) => {
             let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
@@ -138,7 +137,7 @@ mod tests {
     use liboxen::util;
     use liboxen::view::{CommitResponse, ListCommitResponse};
 
-    use crate::app_data::SyncDir;
+    use crate::app_data::OxenAppData;
     use crate::controllers;
     use crate::test;
 
@@ -231,7 +230,7 @@ mod tests {
         let uri = format!("/repositories/{}/commits?{}", name, commit_query);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(SyncDir {
+                .app_data(OxenAppData {
                     path: sync_dir.clone(),
                 })
                 .route(
