@@ -69,7 +69,7 @@ impl AccessKeyManager {
 
         Ok(AccessKeyManager {
             sync_dir: sync_dir.to_path_buf(),
-            db: db,
+            db,
         })
     }
 
