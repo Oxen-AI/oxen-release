@@ -9,14 +9,11 @@ use liboxen::view::{
     ListRemoteRepositoryResponse, RemoteRepositoryResponse, RepositoryNew, StatusMessage,
 };
 
-use liboxen::model::{
-    LocalRepository,
-    RemoteRepository
-};
+use liboxen::model::{LocalRepository, RemoteRepository};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
-use std::path::PathBuf; 
+use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -75,7 +72,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     status_message: String::from(MSG_RESOURCE_FOUND),
                     repository: remote_from_local(repository),
                 })
-            },
+            }
             Err(_) => match api::local::repositories::create(&app_data.path, &data.name) {
                 Ok(repository) => {
                     // Set the remote to this server
@@ -84,7 +81,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                         status_message: String::from(MSG_RESOURCE_CREATED),
                         repository: remote_from_local(repository),
                     })
-                },
+                }
                 Err(err) => {
                     log::error!("Err api::local::repositories::create: {:?}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -100,7 +97,7 @@ fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
     let remote = api::endpoint::url_from(&uri);
     repository.set_remote(liboxen::constants::DEFAULT_ORIGIN_NAME, &remote);
     RemoteRepository::from_local(&repository)
-} 
+}
 
 pub async fn delete(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -108,19 +105,15 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => {
-                match api::local::repositories::delete(&app_data.path, repository) {
-                    Ok(repository) => {
-                        HttpResponse::Ok().json(RemoteRepositoryResponse {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_DELETED),
-                            repository: remote_from_local(repository),
-                        })
-                    },
-                    Err(err) => {
-                        log::error!("Error deleting repository: {}", err);
-                        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                    }
+            Ok(repository) => match api::local::repositories::delete(&app_data.path, repository) {
+                Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_DELETED),
+                    repository: remote_from_local(repository),
+                }),
+                Err(err) => {
+                    log::error!("Error deleting repository: {}", err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
             },
             Err(err) => {

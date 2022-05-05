@@ -21,9 +21,14 @@ pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
         let status = res.status();
         let body = res.text()?;
 
-        log::debug!("repositories::get_by_name status[{}] body:\n{}", status, body);
+        log::debug!(
+            "repositories::get_by_name status[{}] body:\n{}",
+            status,
+            body
+        );
 
-        let response: Result<RemoteRepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RemoteRepositoryResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.repository),
             Err(err) => {
@@ -32,7 +37,7 @@ pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
                     "api::repositories::get_by_name() Could not serialize repository [{}]",
                     name
                 )))
-            },
+            }
         }
     } else {
         Err(OxenError::basic_str(
@@ -62,7 +67,10 @@ pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
         match response {
             Ok(response) => Ok(response.repository),
             Err(err) => {
-                let err = format!("Could not create or find repository [{}]: {}\n{}", name, err, body);
+                let err = format!(
+                    "Could not create or find repository [{}]: {}\n{}",
+                    name, err, body
+                );
                 Err(OxenError::basic_str(&err))
             }
         }
@@ -133,7 +141,7 @@ mod tests {
         let name: &str = "test_get_by_name";
 
         let repository = api::remote::repositories::create_or_get(name)?;
-        let url_repo = api::remote::repositories::get_by_name(&name)?;
+        let url_repo = api::remote::repositories::get_by_name(name)?;
 
         assert_eq!(repository.id, url_repo.id);
 
@@ -155,7 +163,7 @@ mod tests {
 
         let result = api::remote::repositories::get_by_name(name);
         assert!(result.is_err());
-        
+
         Ok(())
     }
 }

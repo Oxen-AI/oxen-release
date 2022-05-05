@@ -92,7 +92,8 @@ pub async fn upload(
                 }
                 Err(err) => {
                     log::error!("Err create_commit: {}", err);
-                    Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
                 }
             }
         }

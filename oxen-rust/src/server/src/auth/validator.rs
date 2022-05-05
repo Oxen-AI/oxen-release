@@ -17,11 +17,10 @@ pub async fn validate(
             } else {
                 Err(actix_web::error::ErrorUnauthorized("unauthorized"))
             }
-        },
-        Err(err) => {
-            Err(actix_web::error::ErrorInternalServerError(
-                format!("Err could not get keygen: {}", err),
-            ))
         }
+        Err(err) => Err(actix_web::error::ErrorInternalServerError(format!(
+            "Err could not get keygen: {}",
+            err
+        ))),
     }
 }
