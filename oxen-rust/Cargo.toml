@@ -47,6 +47,7 @@ x25519-dalek = "1.2.0"
 rand = "0.8.0"
 rand_core = "0.5"
 derive_more = "0.99.17"
+hex = "0.4.3"
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]
