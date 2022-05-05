@@ -6,18 +6,29 @@ use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 use urlencoding::encode;
 
-pub fn create_or_get_repo(name: &str) -> Result<(), OxenError> {
+
+pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
+    let config = AuthConfig::default()?;
     let url = api::endpoint::url_from("/repositories");
     let params = json!({ "name": name });
 
     let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client.post(url).json(&params).send() {
+    if let Ok(res) = 
+        client
+        .post(url)
+        .json(&params)
+        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", config.auth_token()))
+        .send()
+    {
         let body = res.text()?;
         let response: Result<RemoteRepositoryResponse, serde_json::Error> =
             serde_json::from_str(&body);
         match response {
-            Ok(_) => Ok(()),
-            Err(_) => Ok(()), // we are just assuming this error is already exists for now
+            Ok(response) => Ok(response.repository),
+            Err(err) => {
+                let err = format!("Could not create or find repository: {}", err);
+                Err(OxenError::basic_str(&err))
+            },
         }
     } else {
         Err(OxenError::basic_str(
@@ -26,51 +37,14 @@ pub fn create_or_get_repo(name: &str) -> Result<(), OxenError> {
     }
 }
 
-// TODO THESE ARE LEGACY....
-pub fn create<'a>(
-    config: &'a dyn HTTPConfig<'a>,
-    name: &str,
-) -> Result<RemoteRepository, OxenError> {
-    let url = format!("http://{}/api/v1/repositories", config.host());
-    let params = json!({ "name": name });
-
-    let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client
-        .post(url)
-        .json(&params)
-        .header(reqwest::header::AUTHORIZATION, config.auth_token())
-        .send()
-    {
-        let status = res.status();
-        let body = res.text()?;
-        let response: Result<RemoteRepositoryResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(val) => Ok(val.repository),
-            Err(_) => Err(OxenError::basic_str(&format!(
-                "status_code[{}], could not create repository \n\n{}",
-                status, body
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "api::repositories::create() Request failed",
-        ))
-    }
-}
-
-pub fn get_by_url<'a>(
-    config: &'a dyn HTTPConfig<'a>,
-    url: &str,
-) -> Result<RemoteRepository, OxenError> {
+pub fn get_by_url(url: &str) -> Result<RemoteRepository, OxenError> {
+    let config = AuthConfig::default()?;
     let encoded_url = encode(url);
+    let uri = format!("/repositories/get_by_url?url={}", encoded_url);
+    let url = api::endpoint::url_from(&uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
-        .get(format!(
-            "http://{}/api/v1/repositories/get_by_url?url={}",
-            config.host(),
-            encoded_url
-        ))
+        .get(url)
         .header(reqwest::header::AUTHORIZATION, config.auth_token())
         .send()
     {
@@ -90,16 +64,13 @@ pub fn get_by_url<'a>(
 
 pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
-    let url = format!(
-        "http://{}/api/v1/repositories/{}",
-        config.host(),
-        repository.id
-    );
+    let uri = format!("/repositories/{}", repository.id);
+    let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .delete(url)
-        .header(reqwest::header::AUTHORIZATION, config.auth_token())
+        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", config.auth_token()))
         .send()
     {
         let status = res.status();
@@ -123,17 +94,16 @@ pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> 
 mod tests {
 
     use crate::api;
-    use crate::config::AuthConfig;
     use crate::error::OxenError;
     use crate::test;
 
     #[test]
     fn test_create_repository() -> Result<(), OxenError> {
-        let path = test::auth_cfg_file();
-        let config = AuthConfig::new(path);
+        test::init_test_env();
+
         let name: &str = "test_create_repository";
 
-        let repository = api::remote::repositories::create(&config, name)?;
+        let repository = api::remote::repositories::create_or_get(name)?;
         assert_eq!(repository.name, name);
 
         // cleanup
@@ -143,12 +113,10 @@ mod tests {
 
     #[test]
     fn test_get_by_url() -> Result<(), OxenError> {
-        let path = test::auth_cfg_file();
-        let config = AuthConfig::new(path);
         let name: &str = "test_get_by_url";
 
-        let repository = api::remote::repositories::create(&config, name)?;
-        let url_repo = api::remote::repositories::get_by_url(&config, &repository.url)?;
+        let repository = api::remote::repositories::create_or_get(name)?;
+        let url_repo = api::remote::repositories::get_by_url( &repository.url)?;
 
         assert_eq!(repository.id, url_repo.id);
 

@@ -23,9 +23,9 @@ impl Indexer {
         })
     }
 
-    pub fn create_or_get_repo(&self) -> Result<(), OxenError> {
+    pub fn create_or_get_repo(&self) -> Result<RemoteRepository, OxenError> {
         let name = &self.repository.name;
-        api::remote::repositories::create_or_get_repo(name)
+        api::remote::repositories::create_or_get(name)
     }
 
     fn push_entries(&self, committer: &Arc<Committer>, commit: &Commit) -> Result<(), OxenError> {
@@ -68,7 +68,7 @@ impl Indexer {
         }
 
         // Upload entry to server
-        let remote_repo = RemoteRepository::from_local(&self.repository)?;
+        let remote_repo = RemoteRepository::from_local(&self.repository);
         match api::remote::entries::create(&remote_repo, entry) {
             Ok(_entry) => {
                 // The last thing we do is update the hash in the local db

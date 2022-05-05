@@ -7,7 +7,7 @@ pub mod status_message;
 pub use crate::view::status_message::StatusMessage;
 
 pub use crate::view::repository::{
-    ListRepositoryResponse, RemoteRepositoryHeadResponse, RemoteRepositoryResponse, RepositoryNew,
+    ListRemoteRepositoryResponse, RemoteRepositoryHeadResponse, RemoteRepositoryResponse, RepositoryNew,
     RepositoryResponse, RepositoryView,
 };
 

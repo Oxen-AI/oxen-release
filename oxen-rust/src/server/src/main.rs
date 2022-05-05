@@ -103,16 +103,20 @@ async fn main() -> std::io::Result<()> {
                         web::get().to(controllers::repositories::get_file),
                     )
                     .route(
-                        "/repositories/{name}",
-                        web::get().to(controllers::repositories::show),
-                    )
-                    .route(
                         "/repositories",
                         web::get().to(controllers::repositories::index),
                     )
                     .route(
+                        "/repositories/{name}",
+                        web::get().to(controllers::repositories::show),
+                    )
+                    .route(
+                        "/repositories/{name}",
+                        web::delete().to(controllers::repositories::delete),
+                    )
+                    .route(
                         "/repositories",
-                        web::post().to(controllers::repositories::create),
+                        web::post().to(controllers::repositories::create_or_get),
                     )
                     .wrap(Logger::default())
                     .wrap(Logger::new("%a %{User-Agent}i"))

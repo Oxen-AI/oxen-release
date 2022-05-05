@@ -43,8 +43,7 @@ pub fn init(path: &str) -> Result<(), OxenError> {
 }
 
 pub fn clone(url: &str) -> Result<(), OxenError> {
-    let auth_cfg = AuthConfig::default()?;
-    LocalRepository::clone_remote(auth_cfg, url)?;
+    LocalRepository::clone_remote(url)?;
     Ok(())
 }
 
