@@ -466,7 +466,7 @@ impl Committer {
     pub fn set_is_synced(
         &self,
         db: &Option<DBWithThreadMode<MultiThreaded>>,
-        entry: &CommitEntry
+        entry: &CommitEntry,
     ) -> Result<(), OxenError> {
         if let Some(db) = db {
             let key = entry.path.to_str().unwrap();
@@ -670,7 +670,7 @@ impl Committer {
 
         bar.finish();
 
-        if candidate_dirs_to_rm.len() > 0 {
+        if !candidate_dirs_to_rm.is_empty() {
             println!("Cleaning up...");
         }
 

@@ -1,11 +1,13 @@
-
 use crate::app_data::SyncDir;
 use crate::auth;
 
+use actix_web::dev::ServiceRequest;
 use actix_web_httpauth::extractors::bearer::BearerAuth;
-use actix_web::{dev::ServiceRequest};
 
-pub async fn validate(req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, actix_web::Error> {
+pub async fn validate(
+    req: ServiceRequest,
+    credentials: BearerAuth,
+) -> Result<ServiceRequest, actix_web::Error> {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
     if let Ok(keygen) = auth::access_keys::KeyGenerator::new(&sync_dir.path) {
         let token = credentials.token();
@@ -15,6 +17,8 @@ pub async fn validate(req: ServiceRequest, credentials: BearerAuth) -> Result<Se
             Err(actix_web::error::ErrorUnauthorized("unauthorized"))
         }
     } else {
-        Err(actix_web::error::ErrorInternalServerError("could not get keygen"))
+        Err(actix_web::error::ErrorInternalServerError(
+            "could not get keygen",
+        ))
     }
 }

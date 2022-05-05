@@ -8,16 +8,16 @@ use crate::error::OxenError;
 use crate::index::{Referencer, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 
+use env_logger::Env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
-use env_logger::Env;
 
 const TEST_RUN_DIR: &str = "data/test/runs";
 
 fn init_test_env() {
     let env = Env::default();
-    if let Ok(_) = env_logger::try_init_from_env(env) {
+    if env_logger::try_init_from_env(env).is_ok() {
         log::debug!("Logger initialized");
     }
 }

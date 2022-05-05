@@ -42,13 +42,10 @@ impl Stager {
         // println!("stager.add({:?})", path);
 
         if path == Path::new(".") {
-            for entry in std::fs::read_dir(path)? {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    let entry_path = self.repository.path.join(&path);
-                    self.add(&entry_path, committer)?;
-                }
-                
+            for entry in (std::fs::read_dir(path)?).flatten() {
+                let path = entry.path();
+                let entry_path = self.repository.path.join(&path);
+                self.add(&entry_path, committer)?;
             }
             // println!("ADD CURRENT DIR: {:?}", path);
             return Ok(());
@@ -57,7 +54,7 @@ impl Stager {
         // If it doesn't exist on disk, we can't tell if it is a file or dir
         // so we have to check if it is committed, and what the backup version is
         if !path.exists() {
-            let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+            let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
             // println!("Stager.add() checking relative path: {:?}", relative_path);
             // Since entries that are committed are only files.. we will have to have different logic for dirs
             if let Ok(Some(value)) = committer.get_entry(&relative_path) {
@@ -79,12 +76,12 @@ impl Stager {
 
         // println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
         if path.is_dir() {
-            match self.add_dir(&path, committer) {
+            match self.add_dir(path, committer) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
         } else {
-            match self.add_file(&path, committer) {
+            match self.add_file(path, committer) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
@@ -332,11 +329,12 @@ impl Stager {
                 (Ok(key), Ok(value)) => {
                     // println!("list_added_files reading key [{}] value [{}]", key, value);
                     let local_path = PathBuf::from(String::from(key));
-                    let entry: Result<StagedEntry, serde_json::error::Error> = serde_json::from_str(value);
+                    let entry: Result<StagedEntry, serde_json::error::Error> =
+                        serde_json::from_str(value);
                     if let Ok(entry) = entry {
                         paths.push((local_path, entry));
                     }
-                },
+                }
                 (Ok(_key), _) => {
                     // This is fine because it's a directory with a count at the end
                     // eprintln!("list_added_files() Could not values for key {}.", key)

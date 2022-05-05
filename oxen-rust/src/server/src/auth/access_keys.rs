@@ -1,14 +1,13 @@
-
 use liboxen::error::OxenError;
 use liboxen::util;
 
-use rand_core::OsRng;
-use x25519_dalek::{EphemeralSecret, PublicKey};
-use rocksdb::{DBWithThreadMode, LogLevel, MultiThreaded, Options};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rand_core::OsRng;
+use rocksdb::{DBWithThreadMode, LogLevel, MultiThreaded, Options};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::str;
+use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub const SECRET_KEY_FILENAME: &str = "SECRET_KEY_BASE";
 
@@ -19,7 +18,7 @@ struct JWTClaims {
 
 pub struct KeyGenerator {
     sync_dir: PathBuf,
-    db: DBWithThreadMode<MultiThreaded>
+    db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl KeyGenerator {
@@ -51,7 +50,7 @@ impl KeyGenerator {
 
         Ok(KeyGenerator {
             sync_dir: sync_dir.to_path_buf(),
-            db: DBWithThreadMode::open(&opts, &db_dir)?
+            db: DBWithThreadMode::open(&opts, &db_dir)?,
         })
     }
 
@@ -59,9 +58,13 @@ impl KeyGenerator {
         let user_claims = JWTClaims {
             email: email.to_owned(),
         };
-        
+
         let secret_key = self.read_secret_key()?;
-        match encode(&Header::default(), &user_claims, &EncodingKey::from_secret(secret_key.as_ref())) {
+        match encode(
+            &Header::default(),
+            &user_claims,
+            &EncodingKey::from_secret(secret_key.as_ref()),
+        ) {
             Ok(token) => {
                 // We map from token to email so that
                 // when a request comes in with a token we can decode it
@@ -69,7 +72,7 @@ impl KeyGenerator {
                 // if the token doesn't exist, they def don't have access
                 self.db.put(&token, email)?;
                 Ok(token)
-            },
+            }
             Err(_) => {
                 let err = format!("Could not create access key for: {}", email);
                 Err(OxenError::basic_str(&err))
@@ -86,10 +89,7 @@ impl KeyGenerator {
             }
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!(
-                    "Err could not red from commit db: {}",
-                    err
-                );
+                let err = format!("Err could not red from commit db: {}", err);
                 Err(OxenError::basic_str(&err))
             }
         }
@@ -99,27 +99,29 @@ impl KeyGenerator {
         match self.get_email(token) {
             Ok(Some(email)) => {
                 let secret = self.read_secret_key();
-                if !secret.is_ok() {
+                if secret.is_err() {
                     return false;
                 }
-                
+
                 let mut validator = Validation::new(Algorithm::HS256);
                 validator.set_required_spec_claims(&["email"]);
-                match decode::<JWTClaims>(&token, &DecodingKey::from_secret(secret.unwrap().as_ref()), &validator) {
+                match decode::<JWTClaims>(
+                    token,
+                    &DecodingKey::from_secret(secret.unwrap().as_ref()),
+                    &validator,
+                ) {
                     Ok(token_data) => {
                         // Make sure we decoded the email is the one in our db
                         token_data.claims.email == email
-                    },
+                    }
                     _ => {
                         log::info!("auth token is not valid: {}", token);
                         false
                     }
                 }
-            },
-            Ok(None) => false,
-            Err(_) => {
-                false
             }
+            Ok(None) => false,
+            Err(_) => false,
         }
     }
 
@@ -128,7 +130,6 @@ impl KeyGenerator {
         util::fs::read_from_path(&path)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -152,7 +153,7 @@ mod tests {
             let keygen = KeyGenerator::new(sync_dir)?;
             let token = keygen.create("g@oxen.ai")?;
             assert!(!token.is_empty());
-            
+
             Ok(())
         })
     }
@@ -163,11 +164,11 @@ mod tests {
             let keygen = KeyGenerator::new(sync_dir)?;
             let email = "g@oxen.ai";
             let og_token = keygen.create(email)?;
-            
+
             let fetched_email_opt = keygen.get_email(&og_token)?;
             assert!(fetched_email_opt.is_some());
             assert_eq!(email, fetched_email_opt.unwrap());
-            
+
             Ok(())
         })
     }
@@ -178,10 +179,10 @@ mod tests {
             let keygen = KeyGenerator::new(sync_dir)?;
             let email = "g@oxen.ai";
             let token = keygen.create(email)?;
-            
+
             let is_valid = keygen.token_is_valid(&token);
             assert!(is_valid);
-            
+
             Ok(())
         })
     }
@@ -190,10 +191,10 @@ mod tests {
     fn test_invalid_key() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
             let keygen = KeyGenerator::new(sync_dir)?;
-            
+
             let is_valid = keygen.token_is_valid("not-a-valid-key");
             assert!(!is_valid);
-            
+
             Ok(())
         })
     }

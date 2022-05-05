@@ -128,10 +128,16 @@ impl StagedData {
         // println!("Got repo path {:?} {:?}", current_dir, repo_path);
 
         // Get the top level dirs so that we don't have to print every file
-        let added_files: Vec<PathBuf> = self.added_files.clone().into_iter().map(|(path, _)| path).collect();
+        let added_files: Vec<PathBuf> = self
+            .added_files
+            .clone()
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect();
         let mut top_level_counts = self.get_top_level_removed_counts(&repo_path, &added_files);
         // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        let remaining_file_count = self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
+        let remaining_file_count =
+            self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
         let mut summarized: HashSet<PathBuf> = HashSet::new();
         for (short_path, entry) in self.added_files.iter() {
             // If the short_path is in a directory that was added, don't display it
@@ -169,7 +175,8 @@ impl StagedData {
                 }
 
                 if !summarized.contains(&path) {
-                    let added_file_str = format!("  removed:  {}", short_path.to_str().unwrap()).green();
+                    let added_file_str =
+                        format!("  removed:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", added_file_str);
                 }
             } else {
@@ -186,21 +193,29 @@ impl StagedData {
         }
     }
 
-    fn get_top_level_removed_counts(&self, repo_path: &Path, paths: &Vec<PathBuf>) -> HashMap<PathBuf, usize> {
+    fn get_top_level_removed_counts(
+        &self,
+        repo_path: &Path,
+        paths: &[PathBuf],
+    ) -> HashMap<PathBuf, usize> {
         let mut top_level_counts: HashMap<PathBuf, usize> = HashMap::new();
         for short_path in paths.iter() {
             let full_path = repo_path.join(short_path);
 
-            let path = self.get_top_level_dir(&repo_path, &full_path);
+            let path = self.get_top_level_dir(repo_path, &full_path);
             if !top_level_counts.contains_key(&path) {
                 top_level_counts.insert(path.to_path_buf(), 0);
             }
             *top_level_counts.get_mut(&path).unwrap() += 1;
         }
-        return top_level_counts;
+        top_level_counts
     }
 
-    fn get_remaining_removed_counts(&self, top_level_counts: &mut HashMap<PathBuf, usize>, repo_path: &Path) -> HashMap<PathBuf, usize> {
+    fn get_remaining_removed_counts(
+        &self,
+        top_level_counts: &mut HashMap<PathBuf, usize>,
+        repo_path: &Path,
+    ) -> HashMap<PathBuf, usize> {
         let mut remaining_file_count: HashMap<PathBuf, usize> = HashMap::new();
         for (dir, _) in top_level_counts.iter() {
             let full_path = repo_path.join(dir);
@@ -208,7 +223,7 @@ impl StagedData {
             let count = util::fs::rcount_files_in_dir(&full_path);
             remaining_file_count.insert(dir.to_owned(), count);
         }
-        return remaining_file_count;
+        remaining_file_count
     }
 
     fn print_removed_files(&self) {
@@ -229,10 +244,12 @@ impl StagedData {
         // println!("Got repo path {:?} {:?}", current_dir, repo_path);
 
         // Get the top level dirs so that we don't have to print every file
-        let mut top_level_counts = self.get_top_level_removed_counts(&repo_path, &self.removed_files);
+        let mut top_level_counts =
+            self.get_top_level_removed_counts(&repo_path, &self.removed_files);
 
         // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        let remaining_file_count = self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
+        let remaining_file_count =
+            self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
 
         // When iterating, if remaining_file_count[p] == 0 or we have more than N entries then we only print the count
         let mut summarized: HashSet<PathBuf> = HashSet::new();

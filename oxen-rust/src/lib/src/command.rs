@@ -3,11 +3,11 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
+use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
 use crate::index::{Committer, Referencer, Stager};
 use crate::model::{Branch, Commit, LocalRepository, StagedData};
 use crate::util;
-use crate::constants::NO_REPO_MSG;
 
 use std::path::Path;
 
@@ -97,7 +97,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
     if !hidden_dir.exists() {
-        return Err(OxenError::basic_str(&NO_REPO_MSG));
+        return Err(OxenError::basic_str(NO_REPO_MSG));
     }
 
     let committer = Committer::new(repository)?;
@@ -118,11 +118,11 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir");
 /// let repo = command::init(base_dir)?;
-/// 
+///
 /// // Write file to disk
 /// let hello_file = base_dir.join("hello.txt");
 /// util::fs::write_to_path(&hello_file, "Hello World");
-/// 
+///
 /// // Stage the file
 /// command::add(&repo, &hello_file)?;
 ///
@@ -149,14 +149,14 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir");
 /// let repo = command::init(base_dir)?;
-/// 
+///
 /// // Write file to disk
 /// let hello_file = base_dir.join("hello.txt");
 /// util::fs::write_to_path(&hello_file, "Hello World");
-/// 
+///
 /// // Stage the file
 /// command::add(&repo, &hello_file)?;
-/// 
+///
 /// // Commit staged
 /// command::commit(&repo, "My commit message")?;
 ///
@@ -187,7 +187,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir");
 /// let repo = command::init(base_dir)?;
-/// 
+///
 /// // Print     commit history
 /// let history = command::log(&repo)?;
 /// for commit in history.iter() {
