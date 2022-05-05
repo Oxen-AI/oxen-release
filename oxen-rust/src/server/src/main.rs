@@ -134,7 +134,7 @@ async fn main() -> std::io::Result<()> {
                             Ok(user) => {
                                 let auth_config = AuthConfig {
                                     host: format!("{}:{}", host, port),
-                                    user: user
+                                    user
                                 };
                                 match auth_config.save(Path::new(output)) {
                                     Ok(_) => {

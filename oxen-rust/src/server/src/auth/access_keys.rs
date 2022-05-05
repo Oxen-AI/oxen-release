@@ -82,7 +82,7 @@ impl KeyGenerator {
                     id: user_claims.id.to_owned(),
                     name: user_claims.name.to_owned(),
                     email: user_claims.email.to_owned(),
-                    token: token.to_owned(),
+                    token,
                 })
             }
             Err(_) => {
