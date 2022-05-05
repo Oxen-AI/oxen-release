@@ -35,10 +35,10 @@ pub struct RemoteRepositoryHeadResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ListRepositoryResponse {
+pub struct ListRemoteRepositoryResponse {
     pub status: String,
     pub status_message: String,
-    pub repositories: Vec<RepositoryView>,
+    pub repositories: Vec<RemoteRepository>,
 }
 
 impl RepositoryView {

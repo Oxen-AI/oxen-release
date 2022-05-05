@@ -3,7 +3,6 @@
 
 use crate::api;
 use crate::command;
-use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::index::{Referencer, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
@@ -15,11 +14,13 @@ use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
 
-fn init_test_env() {
+pub fn init_test_env() {
     let env = Env::default();
     if env_logger::try_init_from_env(env).is_ok() {
         log::debug!("Logger initialized");
     }
+
+    std::env::set_var("TEST", "true");
 }
 
 fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
@@ -204,15 +205,15 @@ where
 }
 
 pub fn remote_cfg_file() -> &'static Path {
-    Path::new("data/test/config/remote_cfg.toml")
+    Path::new("data/test/config/remote_config.toml")
 }
 
 pub fn auth_cfg_file() -> &'static Path {
-    Path::new("data/test/config/auth_cfg.toml")
+    Path::new("data/test/config/auth_config.toml")
 }
 
 pub fn repo_cfg_file() -> &'static Path {
-    Path::new("data/test/config/repo_cfg.toml")
+    Path::new("data/test/config/repo_config.toml")
 }
 
 pub fn test_jpeg_file() -> &'static Path {
@@ -339,8 +340,7 @@ pub fn populate_repo_with_training_data(repo_dir: &Path) -> Result<(), OxenError
 }
 
 pub fn create_remote_repo(name: &str) -> Result<RemoteRepository, OxenError> {
-    let config = AuthConfig::new(auth_cfg_file());
-    let repository = api::remote::repositories::create(&config, name)?;
+    let repository = api::remote::repositories::create_or_get(name)?;
     Ok(repository)
 }
 

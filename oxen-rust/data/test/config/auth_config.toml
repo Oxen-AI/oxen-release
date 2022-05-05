@@ -1,0 +1,7 @@
+host = "0.0.0.0:3000"
+
+[user]
+id = "4132e203-4295-480a-b3b3-003855f9c422"
+token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjQxMzJlMjAzLTQyOTUtNDgwYS1iM2IzLTAwMzg1NWY5YzQyMiIsIm5hbWUiOiJncmVnIiwiZW1haWwiOiJnQG94ZW4uYWkifQ.MleNzlg-HTyJwZ7CBZhXPOQjW5g0J7H0xTD9ZBD5DP8"
+email = "g@oxen.ai"
+name = "greg"

@@ -1,5 +1,4 @@
 use crate::api;
-use crate::config::AuthConfig;
 use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
@@ -88,8 +87,8 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn clone_remote(config: AuthConfig, url: &str) -> Result<LocalRepository, OxenError> {
-        match api::remote::repositories::get_by_url(&config, url) {
+    pub fn clone_remote(url: &str) -> Result<LocalRepository, OxenError> {
+        match api::remote::repositories::get_by_url(url) {
             Ok(remote_repo) => LocalRepository::clone_repo(remote_repo),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
@@ -192,7 +191,6 @@ impl LocalRepository {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::config::AuthConfig;
     use crate::error::OxenError;
     use crate::model::LocalRepository;
     use crate::test;
@@ -210,12 +208,10 @@ mod tests {
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
         let name = "OxenDataTest";
-        let config = AuthConfig::new(test::auth_cfg_file());
-        let remote_repo = api::remote::repositories::create(&config, name)?;
+        let remote_repo = api::remote::repositories::create_or_get(name)?;
         let url = &remote_repo.url;
 
-        let auth_config = AuthConfig::new(test::auth_cfg_file());
-        let local_repo = LocalRepository::clone_remote(auth_config, url)?;
+        let local_repo = LocalRepository::clone_remote(url)?;
 
         let cfg_path = format!("{}/.oxen/config.toml", name);
         let path = Path::new(&cfg_path);

@@ -2,10 +2,17 @@ use crate::app_data::SyncDir;
 
 use liboxen::api;
 
-use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{
-    ListRepositoryResponse, RepositoryNew, RepositoryResponse, RepositoryView, StatusMessage,
+use liboxen::view::http::{
+    MSG_RESOURCE_CREATED,
+    MSG_RESOURCE_DELETED,
+    MSG_RESOURCE_FOUND,
+    STATUS_SUCCESS
 };
+use liboxen::view::{
+    ListRemoteRepositoryResponse, RepositoryNew, RemoteRepositoryResponse, StatusMessage,
+};
+
+use liboxen::model::RemoteRepository;
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
@@ -15,11 +22,11 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
     match api::local::repositories::list(&sync_dir.path) {
         Ok(repos) => {
-            let repos: Vec<RepositoryView> = repos
+            let repos: Vec<RemoteRepository> = repos
                 .iter()
-                .map(|repo| RepositoryView::from_local(repo.clone()))
+                .map(|repo| RemoteRepository::from_local(&repo.clone()))
                 .collect();
-            let view = ListRepositoryResponse {
+            let view = ListRemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
                 repositories: repos,
@@ -39,10 +46,10 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&sync_dir.path, name) {
-            Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
+            Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: RepositoryView::from_local(repository),
+                repository: RemoteRepository::from_local(&repository),
             }),
             Err(err) => {
                 let msg = format!("Err: {}", err);
@@ -55,23 +62,57 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
+pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let sync_dir = req.app_data::<SyncDir>().unwrap();
 
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => match api::local::repositories::create(&sync_dir.path, &data.name) {
-            Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_CREATED),
-                repository: RepositoryView::from_local(repository),
-            }),
-            Err(err) => {
-                let msg = format!("Error: {:?}", err);
-                HttpResponse::Ok().json(StatusMessage::error(&msg))
+        Ok(data) => match api::local::repositories::get_by_name(&sync_dir.path, &data.name) {
+            Ok(repository) => {
+                HttpResponse::Ok().json(RemoteRepositoryResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    repository: RemoteRepository::from_local(&repository),
+                })
+            },
+            Err(_) => match api::local::repositories::create(&sync_dir.path, &data.name) {
+                Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_CREATED),
+                    repository: RemoteRepository::from_local(&repository),
+                }),
+                Err(err) => {
+                    let msg = format!("Error: {:?}", err);
+                    HttpResponse::Ok().json(StatusMessage::error(&msg))
+                }
             }
         },
         Err(_) => HttpResponse::Ok().json(StatusMessage::error("Invalid body.")),
+    }
+}
+
+pub async fn delete(req: HttpRequest) -> HttpResponse {
+    let sync_dir = req.app_data::<SyncDir>().unwrap();
+
+    let name: Option<&str> = req.match_info().get("name");
+    if let Some(name) = name {
+        match api::local::repositories::get_by_name(&sync_dir.path, name) {
+            Ok(repository) => {
+                
+                HttpResponse::Ok().json(RemoteRepositoryResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_DELETED),
+                    repository: RemoteRepository::from_local(&repository),
+                })
+            },
+            Err(err) => {
+                let msg = format!("Err: {}", err);
+                HttpResponse::Ok().json(StatusMessage::error(&msg))
+            }
+        }
+    } else {
+        let msg = "Could not find `name` param...";
+        HttpResponse::Ok().json(StatusMessage::error(msg))
     }
 }
 
@@ -102,7 +143,7 @@ mod tests {
     use liboxen::error::OxenError;
 
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
+    use liboxen::view::{ListRemoteRepositoryResponse, RepositoryResponse};
 
     use crate::controllers;
     use crate::test;
@@ -117,7 +158,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListRepositoryResponse = serde_json::from_str(text)?;
+        let list: ListRemoteRepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 0);
 
         // cleanup
@@ -138,7 +179,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListRepositoryResponse = serde_json::from_str(text)?;
+        let list: ListRemoteRepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 2);
 
         // cleanup
@@ -180,7 +221,7 @@ mod tests {
         }"#;
         let req = test::request(&sync_dir, "/repositories");
 
-        let resp = controllers::repositories::create(req, String::from(data)).await;
+        let resp = controllers::repositories::create_or_get(req, String::from(data)).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();

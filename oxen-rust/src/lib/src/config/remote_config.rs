@@ -116,7 +116,7 @@ mod tests {
         let config = RemoteConfig::new()?;
         assert_eq!(config.endpoint(), format!("http://{}/api/v1", DEFAULT_HOST));
 
-        let export_path = Path::new("/tmp/remote_cfg.toml");
+        let export_path = Path::new("/tmp/remote_config.toml");
         config.save(export_path)?;
 
         let new_config = RemoteConfig::from(export_path);

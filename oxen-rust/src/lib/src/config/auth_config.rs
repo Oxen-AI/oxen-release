@@ -4,7 +4,7 @@ use crate::model::User;
 use crate::util;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const AUTH_CONFIG_FILENAME: &str = "auth_config.toml";
 
@@ -40,11 +40,14 @@ impl AuthConfig {
 
     pub fn default() -> Result<AuthConfig, OxenError> {
         let err = String::from(
-            "AuthConfig::default() not configuration found, run `oxen login` to configure.",
+            "AuthConfig::default() not configuration found, acquire an auth_config.toml file from your administrator.",
         );
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
-            let config_file = oxen_dir.join(Path::new(AUTH_CONFIG_FILENAME));
+            let mut config_file = oxen_dir.join(Path::new(AUTH_CONFIG_FILENAME));
+            if let Ok(_) = std::env::var("TEST") {
+                config_file = PathBuf::from("data/test/config/auth_config.toml");
+            }
             if config_file.exists() {
                 Ok(AuthConfig::new(&config_file))
             } else {
