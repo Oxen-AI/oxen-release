@@ -93,7 +93,8 @@ where
 /// Test syncing between local and remote, where both exist, and both are empty
 pub fn run_empty_sync_repo_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(&LocalRepository, &RemoteRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(&LocalRepository, &RemoteRepository) -> Result<(), OxenError>
+        + std::panic::UnwindSafe,
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
@@ -122,7 +123,8 @@ where
 /// Test where the local repo has training data in it
 pub fn run_training_data_sync_test_no_commits<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(&LocalRepository, &RemoteRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(&LocalRepository, &RemoteRepository) -> Result<(), OxenError>
+        + std::panic::UnwindSafe,
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
