@@ -43,10 +43,7 @@ pub async fn create(
     }
 }
 
-pub async fn list_entries(
-    req: HttpRequest,
-    query: web::Query<PageNumQuery>
-) -> HttpResponse {
+pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: &str = req.match_info().get("name").unwrap();
@@ -77,15 +74,17 @@ pub async fn list_entries(
                     let entries: Vec<RemoteEntry> =
                         entries.into_iter().map(|entry| entry.to_remote()).collect();
 
-                    let total_entries: usize = api::local::entries::count_for_commit(&repo, &commit).unwrap_or(entries.len());
+                    let total_entries: usize =
+                        api::local::entries::count_for_commit(&repo, &commit)
+                            .unwrap_or(entries.len());
                     let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
                     let view = PaginatedEntries {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),
-                        page_size: page_size,
+                        page_size,
                         page_number: page_num,
                         total_pages: total_pages as usize,
-                        total_entries: total_entries,
+                        total_entries,
                         entries,
                     };
                     HttpResponse::Ok().json(view)

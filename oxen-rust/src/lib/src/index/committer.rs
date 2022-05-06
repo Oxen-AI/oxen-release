@@ -542,7 +542,12 @@ impl Committer {
         }
     }
 
-    pub fn list_entry_page_for_commit(&self, commit: &Commit, page_num: usize, page_size: usize) -> Result<Vec<CommitEntry>, OxenError> {
+    pub fn list_entry_page_for_commit(
+        &self,
+        commit: &Commit,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
         match self.get_commit_db_read_only(&commit.id) {
             Ok(db) => {
                 log::debug!("Found db for commit_id: {}", commit.id);
@@ -593,8 +598,7 @@ impl Committer {
         // Do not go negative, and start from 0
         let start_page = if page_num == 0 { 0 } else { page_num - 1 };
         let start_idx = start_page * page_size;
-        let mut entry_i = 0;
-        for (_key, value) in iter {
+        for (entry_i, (_key, value)) in iter.enumerate() {
             // limit to page_size
             if paths.len() >= page_size {
                 break;
@@ -605,8 +609,6 @@ impl Committer {
                 let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
                 paths.push(entry);
             }
-
-            entry_i += 1;
         }
         Ok(paths)
     }

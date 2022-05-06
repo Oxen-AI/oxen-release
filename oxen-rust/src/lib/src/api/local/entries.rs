@@ -14,7 +14,12 @@ pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize
     committer.num_entries_in_commit(&commit.id)
 }
 
-pub fn list_page(repo: &LocalRepository, commit: &Commit, page_num: usize, page_size: usize) -> Result<Vec<CommitEntry>, OxenError> {
+pub fn list_page(
+    repo: &LocalRepository,
+    commit: &Commit,
+    page_num: usize,
+    page_size: usize,
+) -> Result<Vec<CommitEntry>, OxenError> {
     let committer = Committer::new(repo)?;
     let entries = committer.list_entry_page_for_commit(commit, page_num, page_size)?;
     Ok(entries)
