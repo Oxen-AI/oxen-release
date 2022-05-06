@@ -64,8 +64,7 @@ impl Indexer {
         }
 
         // Upload entry to server
-        let remote_repo = RemoteRepository::from_local(&self.repository);
-        match api::remote::entries::create(&remote_repo, entry) {
+        match api::remote::entries::create(&self.repository, entry) {
             Ok(_entry) => {
                 // The last thing we do is update the hash in the local db
                 // after it has been posted to the server, so that even if the process
