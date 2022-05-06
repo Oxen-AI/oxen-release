@@ -368,18 +368,19 @@ impl Committer {
     //     train/image_1.png -> b"{entry_json}"
     //     train/image_2.png -> b"{entry_json}"
     //     test/image_2.png -> b"{entry_json}"
-    pub fn commit(
-        &mut self,
-        status: &StagedData,
-        message: &str,
-    ) -> Result<Commit, OxenError> {
+    pub fn commit(&mut self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
         // Generate uniq id for this commit
         let commit_id = format!("{}", uuid::Uuid::new_v4());
 
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit(&commit_id, message)?;
-        log::debug!("COMMIT_START Repo {:?} commit {} message [{}]", self.repository.path, commit.id, commit.message);
+        log::debug!(
+            "COMMIT_START Repo {:?} commit {} message [{}]",
+            self.repository.path,
+            commit.id,
+            commit.message
+        );
 
         // Get last commit_id from the referencer
         // either copy over parent db as a starting point, or start new
@@ -532,8 +533,8 @@ impl Committer {
         match self.get_commit_db_read_only(&commit.id) {
             Ok(db) => {
                 log::debug!("Found db for commit_id: {}", commit.id);
-                return self.list_entries_in_commit_db(&db);
-            },
+                self.list_entries_in_commit_db(&db)
+            }
             Err(err) => {
                 log::error!("Could not find db for commit_id: {}", commit.id);
                 Err(err)
@@ -995,8 +996,7 @@ mod tests {
             stager.add_file(&hello_file, &committer)?;
             // commit the mods
             let status = stager.status(&committer)?;
-            let _commit = committer
-                .commit(&status, "modified hello to be world")?;
+            let _commit = committer.commit(&status, "modified hello to be world")?;
 
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             let entry = committer.get_entry(&relative_path)?.unwrap();

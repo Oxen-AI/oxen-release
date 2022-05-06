@@ -42,11 +42,19 @@ pub async fn list_entries(req: HttpRequest) -> HttpResponse {
 
     let name: &str = req.match_info().get("name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
-    log::debug!("list_entries repo name [{}] commit_id [{}]", name, commit_id);
+    log::debug!(
+        "list_entries repo name [{}] commit_id [{}]",
+        name,
+        commit_id
+    );
     if let Ok(repo) = api::local::repositories::get_by_name(&app_data.path, name) {
         log::debug!("list_entries got repo [{}]", name);
-        if let Ok(Some(commit)) = api::local::commits::get_by_id(&repo, &commit_id) {
-            log::debug!("list_entries got commit [{}] '{}'", commit.id, commit.message);
+        if let Ok(Some(commit)) = api::local::commits::get_by_id(&repo, commit_id) {
+            log::debug!(
+                "list_entries got commit [{}] '{}'",
+                commit.id,
+                commit.message
+            );
             match api::local::entries::list_all(&repo, &commit) {
                 Ok(entries) => {
                     log::debug!("list_entries got {} entries", entries.len());
@@ -60,7 +68,7 @@ pub async fn list_entries(req: HttpRequest) -> HttpResponse {
                         page_number: 1,
                         total_pages: 1,
                         total_entries: entries.len(),
-                        entries: entries,
+                        entries,
                     };
                     HttpResponse::Ok().json(view)
                 }
@@ -122,7 +130,7 @@ mod tests {
     use liboxen::command;
     use liboxen::error::OxenError;
     use liboxen::util;
-    use liboxen::view::{RemoteEntryResponse, PaginatedEntries};
+    use liboxen::view::{PaginatedEntries, RemoteEntryResponse};
 
     use crate::app_data::OxenAppData;
     use crate::controllers;
@@ -182,7 +190,6 @@ mod tests {
         Ok(())
     }
 
-
     #[actix_web::test]
     async fn test_entries_controller_list_entries() -> Result<(), OxenError> {
         liboxen::test::init_test_env();
@@ -204,10 +211,7 @@ mod tests {
         let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
 
         // Use the api list the files from the commit
-        let uri = format!(
-            "/repositories/{}/commits/{}/entries",
-            name, commit.id
-        );
+        let uri = format!("/repositories/{}/commits/{}/entries", name, commit.id);
         println!("Hit uri {}", uri);
         let app = actix_web::test::init_service(
             App::new()
@@ -221,9 +225,7 @@ mod tests {
         )
         .await;
 
-        let req = actix_web::test::TestRequest::get()
-            .uri(&uri)
-            .to_request();
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
         let resp = actix_web::test::call_service(&app, req).await;
         println!("GOT RESP STATUS: {}", resp.response().status());
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
