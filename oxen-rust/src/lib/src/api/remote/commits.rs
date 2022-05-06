@@ -127,13 +127,11 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
-            // Commit the file
+            // Commit the directory
             let commit = command::commit(
                 local_repo,
                 "Adding annotations data dir, which has two levels",
-            )?;
-            assert!(commit.is_some());
-            let commit = commit.unwrap();
+            )?.unwrap();
 
             // Post commit
             let result_commit = api::remote::commits::post_commit_to_server(local_repo, &commit)?;

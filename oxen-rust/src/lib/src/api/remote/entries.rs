@@ -1,17 +1,18 @@
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{CommitEntry, RemoteEntry, RemoteRepository};
+use crate::model::{CommitEntry, RemoteEntry, LocalRepository, RemoteRepository};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs::File;
 
 pub fn create(
-    repository: &RemoteRepository,
+    repository: &LocalRepository,
     entry: &CommitEntry,
 ) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
-    let file = File::open(&entry.path)?;
+    let fullpath = repository.path.join(&entry.path);
+    let file = File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
     let uri = format!(
         "/repositories/{}/entries?filename={}&hash={}",
@@ -85,24 +86,32 @@ pub fn list_page(
 mod tests {
 
     use crate::error::OxenError;
-
-    // TODO: Make these tests for oxen-server not oxen-hub
+    use crate::test;
+    use crate::api;
+    use crate::command;
+    use crate::index::Committer;
 
     #[test]
-    fn test_create_image_entry() -> Result<(), OxenError> {
-        // let img_path = test::test_jpeg_file();
-        // let repo_name = format!("{}", uuid::Uuid::new_v4());
-        // let repo_cfg = test::create_repo_cfg(&repo_name)?;
-        // let hash = hasher::hash_file_contents(img_path)?;
-        // let entry = api::entries::create(&repo_cfg, img_path, &hash)?;
+    fn test_create_entry() -> Result<(), OxenError> {
+        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+            // Track an image
+            let image_file = local_repo.path.join("train").join("dog_1.jpg");
+            command::add(local_repo, &image_file)?;
+            // Commit the directory
+            let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
-        // assert_eq!("image", entry.data_type);
-        // assert_eq!(hash, entry.hash);
+            let committer = Committer::new(&local_repo)?;
+            let entries = committer.list_unsynced_entries_for_commit(&commit)?;
+            assert!(!entries.is_empty());
 
-        // // cleanup
-        // api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
-        assert!(false);
-        Ok(())
+            let entry = entries.last().unwrap();
+            println!("Posting entry {:?}", entry);
+            let result = api::remote::entries::create(local_repo, &entry);
+            log::debug!("{:?}", result);
+            assert!(result.is_ok());
+
+            Ok(())
+        })
     }
 
     #[test]
