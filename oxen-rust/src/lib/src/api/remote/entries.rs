@@ -51,11 +51,12 @@ pub fn list_page(
     repository: &LocalRepository,
     commit: &Commit,
     page_num: usize,
+    page_size: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!(
-        "/repositories/{}/commits/{}/entries?page={}",
-        repository.name, commit.id, page_num
+        "/repositories/{}/commits/{}/entries?page_num={}&page_size={}",
+        repository.name, commit.id, page_num, page_size
     );
     let url = api::endpoint::url_from(&uri);
     let client = reqwest::blocking::Client::new();
@@ -69,6 +70,7 @@ pub fn list_page(
     {
         let status = res.status();
         let body = res.text()?;
+        log::debug!("list_page got body: {}", body);
         let response: Result<PaginatedEntries, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
@@ -115,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_entries() -> Result<(), OxenError> {
+    fn test_list_entries_all_in_one_page() -> Result<(), OxenError> {
         test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
             // Track train directory
             let train_dir = local_repo.path.join("train");
@@ -125,9 +127,31 @@ mod tests {
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
             command::push(local_repo)?;
 
-            let entries = api::remote::entries::list_page(local_repo, &commit, 1)?;
+            let entries = api::remote::entries::list_page(local_repo, &commit, 1, num_files)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_entries_first_page_of_two() -> Result<(), OxenError> {
+        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+            // Track train directory
+            let train_dir = local_repo.path.join("train");
+            let num_files = util::fs::rcount_files_in_dir(&train_dir);
+            command::add(local_repo, &train_dir)?;
+            // Commit the directory
+            let commit = command::commit(local_repo, "Adding image")?.unwrap();
+            command::push(local_repo)?;
+
+            let page_size = 3;
+            let entries = api::remote::entries::list_page(local_repo, &commit, 1, page_size)?;
+            assert_eq!(entries.total_entries, num_files);
+            assert_eq!(entries.page_size, page_size);
+            assert_eq!(entries.total_pages, 2);
+            assert_eq!(entries.entries.len(), page_size);
 
             Ok(())
         })

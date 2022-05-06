@@ -26,7 +26,7 @@ pub fn get_commit_head(repo: &LocalRepository) -> Result<Option<CommitHead>, Oxe
                 commit_id,
                 name: committer.referencer.read_head_ref()?,
                 sync_info: CommmitSyncInfo {
-                    num_entries: committer.get_num_entries_in_head()?,
+                    num_entries: committer.num_entries_in_head()?,
                     num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
                 },
             })),
