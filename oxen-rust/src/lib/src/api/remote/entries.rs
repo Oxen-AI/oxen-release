@@ -1,7 +1,7 @@
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
+use crate::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs::File;
@@ -48,11 +48,15 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
 }
 
 pub fn list_page(
-    repository: &RemoteRepository,
+    repository: &LocalRepository,
+    commit: &Commit,
     page_num: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/entries?page={}", repository.id, page_num);
+    let uri = format!(
+        "/repositories/{}/commits/{}/entries?page={}",
+        repository.name, commit.id, page_num
+    );
     let url = api::endpoint::url_from(&uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -87,6 +91,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::index::Committer;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_create_entry() -> Result<(), OxenError> {
@@ -102,9 +107,7 @@ mod tests {
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();
-            println!("Posting entry {:?}", entry);
             let result = api::remote::entries::create(local_repo, entry);
-            log::debug!("{:?}", result);
             assert!(result.is_ok());
 
             Ok(())
@@ -113,28 +116,20 @@ mod tests {
 
     #[test]
     fn test_list_entries() -> Result<(), OxenError> {
-        // let repo_name = format!("{}", uuid::Uuid::new_v4());
-        // let repo_cfg = test::create_repo_cfg(&repo_name)?;
+        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+            // Track train directory
+            let train_dir = local_repo.path.join("train");
+            let num_files = util::fs::rcount_files_in_dir(&train_dir);
+            command::add(local_repo, &train_dir)?;
+            // Commit the directory
+            let commit = command::commit(local_repo, "Adding image")?.unwrap();
+            command::push(local_repo)?;
 
-        // let paths = vec![
-        //     Path::new("data/test/images/cole_anthony.jpeg"),
-        //     Path::new("data/test/images/dwight_vince.jpeg"),
-        //     Path::new("data/test/images/ignas_brazdeikis.jpeg"),
-        // ];
+            let entries = api::remote::entries::list_page(local_repo, &commit, 1)?;
+            assert_eq!(entries.total_entries, num_files);
+            assert_eq!(entries.entries.len(), num_files);
 
-        // for path in paths.iter() {
-        //     let hash = hasher::hash_file_contents(path)?;
-        //     api::entries::create(&repo_cfg, path, &hash)?;
-        // }
-
-        // let page = api::entries::list_page(&repo_cfg, 1)?;
-        // assert_eq!(page.page_number, 1);
-        // assert_eq!(page.total_entries, paths.len());
-        // assert_eq!(page.total_pages, 1);
-
-        // // cleanup
-        // api::repositories::delete(&repo_cfg, &repo_cfg.repository)?;
-        assert!(false);
-        Ok(())
+            Ok(())
+        })
     }
 }

@@ -2,8 +2,8 @@ use crate::app_data::OxenAppData;
 
 use liboxen::api;
 use liboxen::model::{LocalRepository, RemoteEntry};
-use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::view::{RemoteEntryResponse, StatusMessage};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
 use serde::Deserialize;
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -29,7 +29,7 @@ pub async fn create(
     // name of the repo
     let name: &str = req.match_info().get("name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
-        Ok(local_repo) => create_entry(&app_data.path, &local_repo, body, data).await,
+        Ok(local_repo) => p_create_entry(&app_data.path, &local_repo, body, data).await,
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {}", err);
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
@@ -37,7 +37,45 @@ pub async fn create(
     }
 }
 
-async fn create_entry(
+pub async fn list_entries(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: &str = req.match_info().get("name").unwrap();
+    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    if let Ok(repo) = api::local::repositories::get_by_name(&app_data.path, name) {
+        if let Ok(Some(commit)) = api::local::commits::get_by_id(&repo, &commit_id) {
+            match api::local::entries::list_all(&repo, &commit) {
+                Ok(entries) => {
+                    let entries: Vec<RemoteEntry> =
+                        entries.into_iter().map(|entry| entry.to_remote()).collect();
+
+                    let view = PaginatedEntries {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_FOUND),
+                        page_size: entries.len(),
+                        page_number: 1,
+                        total_pages: 1,
+                        total_entries: entries.len(),
+                        entries: entries,
+                    };
+                    HttpResponse::Ok().json(view)
+                }
+                Err(err) => {
+                    log::error!("Unable to list repositories. Err: {}", err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                }
+            }
+        } else {
+            log::debug!("Could not find commit with id {}", commit_id);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+    } else {
+        log::debug!("Could not find repo with name {}", name);
+        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+    }
+}
+
+async fn p_create_entry(
     sync_dir: &Path,
     repository: &LocalRepository,
     mut body: web::Payload,
@@ -58,36 +96,17 @@ async fn create_entry(
     while let Some(item) = body.next().await {
         total_bytes += file.write(&item?)?;
     }
-    if let Some(extension) = filepath.extension() {
-        println!(
-            "Wrote {} bytes to {:?} with extension",
-            total_bytes, filepath,
-        );
-        let url = (&data.filename).to_string();
+    println!("Wrote {} bytes to {:?}", total_bytes, filepath,);
 
-        Ok(HttpResponse::Ok().json(RemoteEntryResponse {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_CREATED),
-            entry: RemoteEntry {
-                id: format!("{}", uuid::Uuid::new_v4()), // generate a new one on the server for now
-                data_type: data_type_from_ext(extension.to_str().unwrap()),
-                url,
-                filename: String::from(&data.filename),
-                hash: String::from(&data.hash),
-            },
-        }))
-    } else {
-        let msg = format!("Invalid file extension: {:?}", &data.filename);
-        Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
-    }
-}
-
-fn data_type_from_ext(ext: &str) -> String {
-    match ext {
-        "jpg" | "png" => String::from("image"),
-        "txt" => String::from("text"),
-        _ => String::from("binary"),
-    }
+    Ok(HttpResponse::Ok().json(RemoteEntryResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_CREATED),
+        entry: RemoteEntry {
+            id: format!("{}", uuid::Uuid::new_v4()), // generate a new one on the server for now
+            filename: String::from(&data.filename),
+            hash: String::from(&data.hash),
+        },
+    }))
 }
 
 #[cfg(test)]

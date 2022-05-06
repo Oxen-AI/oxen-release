@@ -64,10 +64,8 @@ impl Stager {
 
             let files_in_dir = committer.list_head_files_from_dir(&relative_path);
             if !files_in_dir.is_empty() {
-                for (file, _) in files_in_dir.iter() {
-                    if let Ok(Some(value)) = committer.get_entry(file) {
-                        self.add_removed_file(file, &value)?;
-                    }
+                for entry in files_in_dir.iter() {
+                    self.add_removed_file(&entry.path, &entry)?;
                 }
 
                 return Ok(());

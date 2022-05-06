@@ -15,9 +15,11 @@ pub struct RemoteEntryResponse {
     pub entry: RemoteEntry,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedEntries {
-    pub entries: Vec<CommitEntry>,
+    pub status: String,
+    pub status_message: String,
+    pub entries: Vec<RemoteEntry>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,

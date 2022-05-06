@@ -514,9 +514,16 @@ impl Committer {
         Ok(vec![])
     }
 
-    pub fn list_entries_in_head_commit_db(&self) -> Result<Vec<(PathBuf, CommitEntry)>, OxenError> {
+    pub fn list_entries_in_head_commit_db(&self) -> Result<Vec<CommitEntry>, OxenError> {
         if let Some(db) = &self.head_commit_db {
             return self.list_entries_in_commit_db(db);
+        }
+        Ok(vec![])
+    }
+
+    pub fn list_entries_for_commit(&self, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
+        if let Ok(db) = self.get_commit_db(&commit.id) {
+            return self.list_entries_in_commit_db(&db);
         }
         Ok(vec![])
     }
@@ -536,13 +543,12 @@ impl Committer {
     fn list_entries_in_commit_db(
         &self,
         db: &DBWithThreadMode<MultiThreaded>,
-    ) -> Result<Vec<(PathBuf, CommitEntry)>, OxenError> {
-        let mut paths: Vec<(PathBuf, CommitEntry)> = vec![];
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        let mut paths: Vec<CommitEntry> = vec![];
         let iter = db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            let path = PathBuf::from(str::from_utf8(&*key)?);
+        for (_key, value) in iter {
             let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-            paths.push((path, entry));
+            paths.push(entry);
         }
         Ok(paths)
     }
@@ -619,8 +625,9 @@ impl Committer {
         println!("Setting working directory to {}", commit_id);
         let size: u64 = unsafe { std::mem::transmute(commit_entries.len()) };
         let bar = ProgressBar::new(size);
-        for (path, entry) in commit_entries.iter() {
+        for entry in commit_entries.iter() {
             bar.inc(1);
+            let path = &entry.path;
             // println!("Committed entry: {:?}", path);
             if let Some(parent) = path.parent() {
                 // Check if parent directory exists, if it does, we no longer have
@@ -799,16 +806,16 @@ impl Committer {
 
     pub fn head_has_files_in_dir(&self, dir: &Path) -> bool {
         match self.list_entries_in_head_commit_db() {
-            Ok(entries) => entries.into_iter().any(|(path, _)| path.starts_with(dir)),
+            Ok(entries) => entries.into_iter().any(|entry| entry.path.starts_with(dir)),
             _ => false,
         }
     }
 
-    pub fn list_head_files_from_dir(&self, dir: &Path) -> Vec<(PathBuf, CommitEntry)> {
+    pub fn list_head_files_from_dir(&self, dir: &Path) -> Vec<CommitEntry> {
         match self.list_entries_in_head_commit_db() {
             Ok(entries) => entries
                 .into_iter()
-                .filter(|(path, _)| path.starts_with(dir))
+                .filter(|entry| entry.path.starts_with(dir))
                 .collect(),
             _ => {
                 vec![]

@@ -5,9 +5,10 @@
 
 use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
-use crate::index::{Committer, Referencer, Stager};
+use crate::index::{Committer, Indexer, Referencer, Stager};
 use crate::model::{Branch, Commit, LocalRepository, StagedData};
 use crate::util;
+use std::sync::Arc;
 
 use std::path::Path;
 
@@ -287,4 +288,53 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> 
     let committer = Committer::new(repo)?;
     let commit = committer.get_head_commit()?;
     Ok(commit)
+}
+
+/// # Set the remote for a repository
+/// Tells the CLI where to push the changes to
+pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(), OxenError> {
+    repo.set_remote(name, url);
+    repo.save_default()?;
+    Ok(())
+}
+
+/// # Get a log of all the commits
+///
+/// ```
+/// use liboxen::command;
+/// # use liboxen::error::OxenError;
+/// # use std::path::Path;
+/// # fn main() -> Result<(), OxenError> {
+///
+/// // Initialize the repository
+/// let base_dir = Path::new("/tmp/repo_dir");
+/// let repo = command::init(base_dir)?;
+///
+/// // Write file to disk
+/// let hello_file = base_dir.join("hello.txt");
+/// util::fs::write_to_path(&hello_file, "Hello World");
+///
+/// // Stage the file
+/// command::add(&repo, &hello_file)?;
+///
+/// // Commit staged
+/// command::commit(&repo, "My commit message")?;
+///
+/// // Set the remote server
+/// command::set_remote(&repo, "origin", "http://hub.oxen.ai/repositories/hello");
+///
+/// // Push the file
+/// command::push(&repo);
+///
+/// # std::fs::remove_dir_all(base_dir)?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn push(repo: &LocalRepository) -> Result<(), OxenError> {
+    let indexer = Indexer::new(&repo)?;
+    let committer = Arc::new(Committer::new(&repo)?);
+
+    indexer.push(&committer)?;
+
+    Ok(())
 }
