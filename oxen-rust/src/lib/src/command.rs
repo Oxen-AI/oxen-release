@@ -161,24 +161,28 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
-    let status = status(&repo)?;
+    let status = status(repo)?;
     if status.is_clean() {
         return Ok(None);
     }
     let commit = p_commit(repo, &status, message)?;
-    return Ok(Some(commit));
+    Ok(Some(commit))
 }
 
 fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = status(&repo)?;
+    let status = status(repo)?;
     let commit = p_commit(repo, &status, message)?;
     Ok(commit)
 }
 
-fn p_commit(repo: &LocalRepository, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
+fn p_commit(
+    repo: &LocalRepository,
+    status: &StagedData,
+    message: &str,
+) -> Result<Commit, OxenError> {
     let stager = Stager::new(repo)?;
     let mut committer = Committer::new(repo)?;
-    let commit = committer.commit(&status, message)?;
+    let commit = committer.commit(status, message)?;
     stager.unstage()?;
     Ok(commit)
 }
@@ -338,8 +342,8 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 /// # }
 /// ```
 pub fn push(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = Indexer::new(&repo)?;
-    let committer = Arc::new(Committer::new(&repo)?);
+    let indexer = Indexer::new(repo)?;
+    let committer = Arc::new(Committer::new(repo)?);
 
     indexer.push(&committer)?;
 

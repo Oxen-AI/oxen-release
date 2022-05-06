@@ -11,7 +11,7 @@ pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEnt
 
 #[cfg(test)]
 mod tests {
-    
+
     use crate::api;
     use crate::command;
     use crate::error::OxenError;
