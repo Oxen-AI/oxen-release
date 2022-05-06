@@ -87,7 +87,7 @@ fn post_tarball_to_server(
         match response {
             Ok(response) => Ok(response),
             Err(_) => Err(OxenError::basic_str(&format!(
-                "Error serializing CommitResponse: status_code[{}] \n\n{}",
+                "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
                 status, body
             ))),
         }
