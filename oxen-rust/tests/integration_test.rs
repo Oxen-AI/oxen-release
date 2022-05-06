@@ -1,3 +1,4 @@
+use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
@@ -575,6 +576,28 @@ fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;
         assert!(!dir_to_remove.exists());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_push_one_commit() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Track the file
+        let train_dir = repo.path.join("train");
+        let num_files = util::fs::rcount_files_in_dir(&train_dir);
+        command::add(&repo, &train_dir)?;
+        // Commit the file
+        let commit = command::commit(&repo, "Adding training data")?.unwrap();
+        // Push the files
+        command::push(&repo)?;
+
+        let page_num = 1;
+        let page_size = num_files;
+        let entries = api::remote::entries::list_page(&repo, &commit, page_num, page_size)?;
+        assert_eq!(entries.total_entries, num_files);
+        assert_eq!(entries.entries.len(), num_files);
 
         Ok(())
     })

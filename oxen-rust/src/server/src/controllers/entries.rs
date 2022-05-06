@@ -19,6 +19,12 @@ pub struct EntryQuery {
     hash: String,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct PageNumQuery {
+    page_num: Option<usize>,
+    page_size: Option<usize>,
+}
+
 pub async fn create(
     req: HttpRequest,
     body: web::Payload,
@@ -37,15 +43,25 @@ pub async fn create(
     }
 }
 
-pub async fn list_entries(req: HttpRequest) -> HttpResponse {
+pub async fn list_entries(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>
+) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: &str = req.match_info().get("name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
+
+    // default to first page with first ten values
+    let page_num: usize = query.page_num.unwrap_or(1);
+    let page_size: usize = query.page_size.unwrap_or(10);
+
     log::debug!(
-        "list_entries repo name [{}] commit_id [{}]",
+        "list_entries repo name [{}] commit_id [{}] page_num {} page_size {}",
         name,
-        commit_id
+        commit_id,
+        page_num,
+        page_size,
     );
     if let Ok(repo) = api::local::repositories::get_by_name(&app_data.path, name) {
         log::debug!("list_entries got repo [{}]", name);
@@ -55,19 +71,21 @@ pub async fn list_entries(req: HttpRequest) -> HttpResponse {
                 commit.id,
                 commit.message
             );
-            match api::local::entries::list_all(&repo, &commit) {
+            match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
                 Ok(entries) => {
                     log::debug!("list_entries got {} entries", entries.len());
                     let entries: Vec<RemoteEntry> =
                         entries.into_iter().map(|entry| entry.to_remote()).collect();
 
+                    let total_entries: usize = api::local::entries::count_for_commit(&repo, &commit).unwrap_or(entries.len());
+                    let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
                     let view = PaginatedEntries {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),
-                        page_size: entries.len(),
-                        page_number: 1,
-                        total_pages: 1,
-                        total_entries: entries.len(),
+                        page_size: page_size,
+                        page_number: page_num,
+                        total_pages: total_pages as usize,
+                        total_entries: total_entries,
                         entries,
                     };
                     HttpResponse::Ok().json(view)

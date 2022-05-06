@@ -409,7 +409,7 @@ impl Committer {
         Ok(commit)
     }
 
-    pub fn get_num_entries_in_head(&self) -> Result<usize, OxenError> {
+    pub fn num_entries_in_head(&self) -> Result<usize, OxenError> {
         if let Some(db) = &self.head_commit_db {
             Ok(db.iterator(IteratorMode::Start).count())
         } else {
@@ -417,8 +417,8 @@ impl Committer {
         }
     }
 
-    pub fn get_num_entries_in_commit(&self, commit_id: &str) -> Result<usize, OxenError> {
-        let db = self.get_commit_db(commit_id)?;
+    pub fn num_entries_in_commit(&self, commit_id: &str) -> Result<usize, OxenError> {
+        let db = self.get_commit_db_read_only(commit_id)?;
         Ok(db.iterator(IteratorMode::Start).count())
     }
 
@@ -542,6 +542,19 @@ impl Committer {
         }
     }
 
+    pub fn list_entry_page_for_commit(&self, commit: &Commit, page_num: usize, page_size: usize) -> Result<Vec<CommitEntry>, OxenError> {
+        match self.get_commit_db_read_only(&commit.id) {
+            Ok(db) => {
+                log::debug!("Found db for commit_id: {}", commit.id);
+                self.list_entry_page_in_commit_db(&db, page_num, page_size)
+            }
+            Err(err) => {
+                log::error!("Could not find db for commit_id: {}", commit.id);
+                Err(err)
+            }
+        }
+    }
+
     fn list_files_in_commit_db(
         &self,
         db: &DBWithThreadMode<MultiThreaded>,
@@ -563,6 +576,37 @@ impl Committer {
         for (_key, value) in iter {
             let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
             paths.push(entry);
+        }
+        Ok(paths)
+    }
+
+    fn list_entry_page_in_commit_db(
+        &self,
+        db: &DBWithThreadMode<MultiThreaded>,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        // The iterator doesn't technically have a skip method as far as I can tell
+        // so we are just going to manually do it
+        let mut paths: Vec<CommitEntry> = vec![];
+        let iter = db.iterator(IteratorMode::Start);
+        // Do not go negative, and start from 0
+        let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+        let start_idx = start_page * page_size;
+        let mut entry_i = 0;
+        for (_key, value) in iter {
+            // limit to page_size
+            if paths.len() >= page_size {
+                break;
+            }
+
+            // only grab values after start_idx based on page_num and page_size
+            if entry_i >= start_idx {
+                let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+                paths.push(entry);
+            }
+
+            entry_i += 1;
         }
         Ok(paths)
     }
