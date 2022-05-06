@@ -73,12 +73,12 @@ pub fn list_page(
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(&format!(
-                "status_code[{}] \n\n{}",
+                "api::entries::list_page Err status_code[{}] \n\n{}",
                 status, body
             ))),
         }
     } else {
-        let err = format!("api::entries::list_page request failed: {}", url);
+        let err = format!("api::entries::list_page Err request failed: {}", url);
         Err(OxenError::basic_str(&err))
     }
 }

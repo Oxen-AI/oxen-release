@@ -42,10 +42,14 @@ pub async fn list_entries(req: HttpRequest) -> HttpResponse {
 
     let name: &str = req.match_info().get("name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    log::debug!("list_entries repo name [{}] commit_id [{}]", name, commit_id);
     if let Ok(repo) = api::local::repositories::get_by_name(&app_data.path, name) {
+        log::debug!("list_entries got repo [{}]", name);
         if let Ok(Some(commit)) = api::local::commits::get_by_id(&repo, &commit_id) {
+            log::debug!("list_entries got commit [{}] '{}'", commit.id, commit.message);
             match api::local::entries::list_all(&repo, &commit) {
                 Ok(entries) => {
+                    log::debug!("list_entries got {} entries", entries.len());
                     let entries: Vec<RemoteEntry> =
                         entries.into_iter().map(|entry| entry.to_remote()).collect();
 
@@ -113,10 +117,12 @@ async fn p_create_entry(
 mod tests {
 
     use actix_web::{web, App};
+    use std::path::Path;
 
+    use liboxen::command;
     use liboxen::error::OxenError;
     use liboxen::util;
-    use liboxen::view::RemoteEntryResponse;
+    use liboxen::view::{RemoteEntryResponse, PaginatedEntries};
 
     use crate::app_data::OxenAppData;
     use crate::controllers;
@@ -124,6 +130,8 @@ mod tests {
 
     #[actix_web::test]
     async fn test_entries_create_text_file() -> Result<(), OxenError> {
+        liboxen::test::init_test_env();
+
         let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
@@ -167,6 +175,64 @@ mod tests {
         assert!(uploaded_file.exists());
         // Make sure file contents are the same as the payload
         assert_eq!(util::fs::read_from_path(&uploaded_file)?, payload);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+
+    #[actix_web::test]
+    async fn test_entries_controller_list_entries() -> Result<(), OxenError> {
+        liboxen::test::init_test_env();
+
+        let sync_dir = test::get_sync_dir()?;
+
+        let name = "Testing-Name";
+        let repo = test::create_local_repo(&sync_dir, name)?;
+
+        // write files to dir
+        liboxen::test::populate_repo_with_training_data(&repo.path)?;
+
+        // add the full dir
+        let train_dir = repo.path.join(Path::new("train"));
+        let num_entries = util::fs::rcount_files_in_dir(&train_dir);
+        command::add(&repo, &train_dir)?;
+
+        // commit the changes
+        let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
+
+        // Use the api list the files from the commit
+        let uri = format!(
+            "/repositories/{}/commits/{}/entries",
+            name, commit.id
+        );
+        println!("Hit uri {}", uri);
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData {
+                    path: sync_dir.clone(),
+                })
+                .route(
+                    "/repositories/{name}/commits/{commit_id}/entries",
+                    web::get().to(controllers::entries::list_entries),
+                ),
+        )
+        .await;
+
+        let req = actix_web::test::TestRequest::get()
+            .uri(&uri)
+            .to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        println!("GOT RESP STATUS: {}", resp.response().status());
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        println!("GOT BODY: {}", body);
+        let entries_resp: PaginatedEntries = serde_json::from_str(body)?;
+
+        // Make sure we can fetch all the entries
+        assert_eq!(entries_resp.total_entries, num_entries);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

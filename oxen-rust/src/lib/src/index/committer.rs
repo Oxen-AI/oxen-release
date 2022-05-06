@@ -134,7 +134,7 @@ impl Committer {
         let path_str = path.to_str().unwrap();
         let key = path_str.as_bytes();
 
-        // println!("Commit [{}] commit file {:?}", new_commit.id, path);
+        log::debug!("Commit [{}] commit file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
         if let Some(ext) = path.extension() {
             let full_path = self.repository.path.join(path);
@@ -372,18 +372,14 @@ impl Committer {
         &mut self,
         status: &StagedData,
         message: &str,
-    ) -> Result<Option<Commit>, OxenError> {
-        if status.is_clean() {
-            return Ok(None);
-        }
-
+    ) -> Result<Commit, OxenError> {
         // Generate uniq id for this commit
         let commit_id = format!("{}", uuid::Uuid::new_v4());
 
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit(&commit_id, message)?;
-        // println!("COMMIT_START {} -> {}", commit.id, commit.message);
+        log::debug!("COMMIT_START Repo {:?} commit {} message [{}]", self.repository.path, commit.id, commit.message);
 
         // Get last commit_id from the referencer
         // either copy over parent db as a starting point, or start new
@@ -409,7 +405,7 @@ impl Committer {
 
         // println!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
-        Ok(Some(commit))
+        Ok(commit)
     }
 
     pub fn get_num_entries_in_head(&self) -> Result<usize, OxenError> {
@@ -433,6 +429,17 @@ impl Committer {
         let mut opts = Options::default();
         opts.set_log_level(LogLevel::Error);
         let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
+        Ok(db)
+    }
+
+    pub fn get_commit_db_read_only(
+        &self,
+        commit_id: &str,
+    ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
+        let mut opts = Options::default();
+        opts.set_log_level(LogLevel::Error);
+        let db = DBWithThreadMode::open_for_read_only(&opts, &commit_db_path, false)?;
         Ok(db)
     }
 
@@ -522,10 +529,16 @@ impl Committer {
     }
 
     pub fn list_entries_for_commit(&self, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
-        if let Ok(db) = self.get_commit_db(&commit.id) {
-            return self.list_entries_in_commit_db(&db);
+        match self.get_commit_db_read_only(&commit.id) {
+            Ok(db) => {
+                log::debug!("Found db for commit_id: {}", commit.id);
+                return self.list_entries_in_commit_db(&db);
+            },
+            Err(err) => {
+                log::error!("Could not find db for commit_id: {}", commit.id);
+                Err(err)
+            }
         }
-        Ok(vec![])
     }
 
     fn list_files_in_commit_db(
@@ -908,7 +921,7 @@ mod tests {
 
             let message = "Adding training data to 🐂";
             let status = stager.status(&committer)?;
-            let commit = committer.commit(&status, message)?.unwrap();
+            let commit = committer.commit(&status, message)?;
             stager.unstage()?;
             let commit_history = committer.list_commits()?;
 
@@ -928,8 +941,11 @@ mod tests {
 
             // List files in commit to be pushed
             let files = committer.list_unsynced_entries_for_commit(&commit)?;
-            // Two files in training_data and one at base level
-            assert_eq!(files.len(), 5);
+            for file in files.iter() {
+                log::debug!("unsynced: {:?}", file);
+            }
+            // three files in training_data and one annotation file at base level
+            assert_eq!(files.len(), 4);
 
             // Verify that the current commit contains the hello file
             let relative_annotation_path =
@@ -940,7 +956,7 @@ mod tests {
             stager.add_dir(&test_dir, &committer)?;
             let message_2 = "Adding test data to 🐂";
             let status = stager.status(&committer)?;
-            let commit = committer.commit(&status, message_2)?.unwrap();
+            let commit = committer.commit(&status, message_2)?;
 
             // Remove from staged
             stager.unstage()?;
@@ -980,8 +996,7 @@ mod tests {
             // commit the mods
             let status = stager.status(&committer)?;
             let _commit = committer
-                .commit(&status, "modified hello to be world")?
-                .unwrap();
+                .commit(&status, "modified hello to be world")?;
 
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             let entry = committer.get_entry(&relative_path)?.unwrap();

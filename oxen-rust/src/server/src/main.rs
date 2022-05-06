@@ -18,11 +18,11 @@ use env_logger::Env;
 use std::path::Path;
 
 const ADD_USER_USAGE: &str =
-    "Usage: `oxen-server add-user -e g@oxen.ai -n greg -o auth_config.toml`";
+    "Usage: `oxen-server add-user -e <email> -n <name> -o auth_config.toml`";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init_from_env(Env::default().default_filter_or("info"));
+    env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
 
     let sync_dir = match std::env::var("SYNC_DIR") {
         Ok(dir) => dir,
@@ -92,6 +92,10 @@ async fn main() -> std::io::Result<()> {
                     .route(
                         "/repositories/{name}/commits",
                         web::post().to(controllers::commits::upload),
+                    )
+                    .route(
+                        "/repositories/{name}/commits/{commit_id}/entries",
+                        web::get().to(controllers::entries::list_entries),
                     )
                     .route(
                         "/repositories/{name}/entries",

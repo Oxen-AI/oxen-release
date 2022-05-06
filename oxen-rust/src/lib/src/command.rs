@@ -35,12 +35,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
 
-    // write a little hidden easter egg .drove.txt file and commit it to get plowing
-    let path = repo.path.join(".drove.txt");
-    util::fs::write_to_path(&path, "👋 Welcome to the drove 🐂");
-
-    add(&repo, &path)?;
-    if let Some(commit) = commit(&repo, "Initialized Repo 🐂")? {
+    if let Ok(commit) = commit_with_no_files(&repo, "Initialized Repo 🐂") {
         println!("Initial commit {}", commit.id);
     }
 
@@ -166,15 +161,26 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
+    let status = status(&repo)?;
+    if status.is_clean() {
+        return Ok(None);
+    }
+    let commit = p_commit(repo, &status, message)?;
+    return Ok(Some(commit));
+}
+
+fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
+    let status = status(&repo)?;
+    let commit = p_commit(repo, &status, message)?;
+    Ok(commit)
+}
+
+fn p_commit(repo: &LocalRepository, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
     let stager = Stager::new(repo)?;
     let mut committer = Committer::new(repo)?;
-    let status = stager.status(&committer)?;
-    if let Some(commit) = committer.commit(&status, message)? {
-        stager.unstage()?;
-        Ok(Some(commit))
-    } else {
-        Ok(None)
-    }
+    let commit = committer.commit(&status, message)?;
+    stager.unstage()?;
+    Ok(commit)
 }
 
 /// # Get a log of all the commits
@@ -302,13 +308,14 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 ///
 /// ```
 /// use liboxen::command;
+/// use liboxen::util;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
 ///
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir");
-/// let repo = command::init(base_dir)?;
+/// let mut repo = command::init(base_dir)?;
 ///
 /// // Write file to disk
 /// let hello_file = base_dir.join("hello.txt");
@@ -321,7 +328,7 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::set_remote(&repo, "origin", "http://hub.oxen.ai/repositories/hello");
+/// command::set_remote(&mut repo, "origin", "http://hub.oxen.ai/repositories/hello");
 ///
 /// // Push the file
 /// command::push(&repo);
