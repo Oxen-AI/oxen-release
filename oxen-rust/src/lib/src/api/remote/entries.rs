@@ -1,15 +1,12 @@
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{CommitEntry, RemoteEntry, LocalRepository, RemoteRepository};
+use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs::File;
 
-pub fn create(
-    repository: &LocalRepository,
-    entry: &CommitEntry,
-) -> Result<RemoteEntry, OxenError> {
+pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
     let fullpath = repository.path.join(&entry.path);
     let file = File::open(&fullpath)?;
@@ -85,11 +82,11 @@ pub fn list_page(
 #[cfg(test)]
 mod tests {
 
-    use crate::error::OxenError;
-    use crate::test;
     use crate::api;
     use crate::command;
+    use crate::error::OxenError;
     use crate::index::Committer;
+    use crate::test;
 
     #[test]
     fn test_create_entry() -> Result<(), OxenError> {
@@ -100,13 +97,13 @@ mod tests {
             // Commit the directory
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
-            let committer = Committer::new(&local_repo)?;
+            let committer = Committer::new(local_repo)?;
             let entries = committer.list_unsynced_entries_for_commit(&commit)?;
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();
             println!("Posting entry {:?}", entry);
-            let result = api::remote::entries::create(local_repo, &entry);
+            let result = api::remote::entries::create(local_repo, entry);
             log::debug!("{:?}", result);
             assert!(result.is_ok());
 
