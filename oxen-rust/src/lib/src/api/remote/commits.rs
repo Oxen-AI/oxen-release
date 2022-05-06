@@ -131,7 +131,8 @@ mod tests {
             let commit = command::commit(
                 local_repo,
                 "Adding annotations data dir, which has two levels",
-            )?.unwrap();
+            )?
+            .unwrap();
 
             // Post commit
             let result_commit = api::remote::commits::post_commit_to_server(local_repo, &commit)?;
