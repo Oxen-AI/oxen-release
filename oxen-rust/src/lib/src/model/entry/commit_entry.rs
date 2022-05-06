@@ -1,3 +1,5 @@
+use crate::model::RemoteEntry;
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -24,6 +26,14 @@ impl CommitEntry {
             hash: self.hash.clone(),
             commit_id: self.commit_id.clone(),
             extension: self.extension.clone(),
+        }
+    }
+
+    pub fn to_remote(&self) -> RemoteEntry {
+        RemoteEntry {
+            id: self.id.clone(),
+            filename: self.path.to_str().unwrap_or("").to_string(),
+            hash: self.hash.clone(),
         }
     }
 }
