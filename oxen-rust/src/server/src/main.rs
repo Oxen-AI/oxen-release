@@ -30,7 +30,7 @@ async fn main() -> std::io::Result<()> {
     };
 
     let command = Command::new("oxen-server")
-        .version("0.0.1")
+        .version("0.1.0")
         .about("Oxen server")
         .subcommand_required(true)
         .arg_required_else_help(true)

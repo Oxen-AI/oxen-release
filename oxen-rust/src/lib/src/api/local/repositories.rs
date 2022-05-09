@@ -37,15 +37,18 @@ pub fn get_commit_head(repo: &LocalRepository) -> Result<Option<CommitHead>, Oxe
 }
 
 pub fn list(sync_dir: &Path) -> Result<Vec<LocalRepository>, OxenError> {
+    log::debug!("api::local::entries::list repositories for dir: {:?}", sync_dir);
     let mut repos: Vec<LocalRepository> = vec![];
     for entry in WalkDir::new(&sync_dir).into_iter().filter_map(|e| e.ok()) {
         // if the directory has a .oxen dir, let's add it, otherwise ignore
         let local_dir = entry.path();
         let oxen_dir = util::fs::oxen_hidden_dir(local_dir);
+        log::debug!("api::local::entries::list got local dir {:?}", local_dir);
 
         if oxen_dir.exists() {
-            let repository = LocalRepository::from_dir(local_dir)?;
-            repos.push(repository);
+            if let Ok(repository) = LocalRepository::from_dir(local_dir) {
+                repos.push(repository);
+            }
         }
     }
 
