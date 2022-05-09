@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
-use liboxen::index::{Committer, Indexer};
+use liboxen::index::Committer;
 use liboxen::model::LocalRepository;
 use liboxen::util;
 
@@ -43,7 +43,8 @@ pub fn init(path: &str) -> Result<(), OxenError> {
 }
 
 pub fn clone(url: &str) -> Result<(), OxenError> {
-    LocalRepository::clone_remote(url)?;
+    let dst = std::env::current_dir()?;
+    LocalRepository::clone_remote(url, &dst)?;
     Ok(())
 }
 
@@ -81,10 +82,8 @@ pub fn push() -> Result<(), OxenError> {
     }
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let indexer = Indexer::new(&repository)?;
-    let committer = Arc::new(Committer::new(&repository)?);
-
-    indexer.push(&committer)
+    command::push(&repository)?;
+    Ok(())
 }
 
 pub fn pull() -> Result<(), OxenError> {
@@ -95,8 +94,8 @@ pub fn pull() -> Result<(), OxenError> {
     }
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let indexer = Indexer::new(&repository)?;
-    indexer.pull()
+    command::pull(&repository)?;
+    Ok(())
 }
 
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {

@@ -2,11 +2,25 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::sync::Arc;
+use std::path::Path;
+use std::fs::File;
 
 use crate::api;
+use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::index::Committer;
-use crate::model::{Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository};
+use crate::model::{
+    Commit,
+    CommitEntry,
+    CommitHead,
+    RemoteEntry,
+    LocalRepository,
+    RemoteRepository
+};
+
+use crate::view::{
+    PaginatedEntries
+};
 
 pub struct Indexer {
     pub repository: LocalRepository,
@@ -89,15 +103,15 @@ impl Indexer {
         }
     }
 
-    pub fn push(&self, committer: &Arc<Committer>) -> Result<(), OxenError> {
-        self.create_or_get_repo()?;
+    pub fn push(&self, committer: &Arc<Committer>) -> Result<RemoteRepository, OxenError> {
+        let remote_repo = self.create_or_get_repo()?;
         match committer.get_head_commit() {
             Ok(Some(commit)) => {
                 // maybe_push() will recursively check commits head against remote head
                 // and sync ones that have not been synced
                 let remote_head = api::remote::commits::get_remote_head(&self.repository)?;
                 self.maybe_push(committer, &remote_head, &commit.id, 0)?;
-                Ok(())
+                Ok(remote_repo)
             }
             Ok(None) => Err(OxenError::basic_str("No commits to push.")),
             Err(err) => {
@@ -115,7 +129,7 @@ impl Indexer {
         depth: usize,
     ) -> Result<(), OxenError> {
         if let Some(head) = remote_head {
-            if commit_id == head.commit_id {
+            if commit_id == head.commit.id {
                 if depth == 0 && head.is_synced() {
                     println!("No commits to push, remote is synced.");
                     return Ok(());
@@ -141,36 +155,92 @@ impl Indexer {
     }
 
     pub fn pull(&self) -> Result<(), OxenError> {
-        // Get list of commits we have to pull
+        // Get the remote head commit, and try to recursively pull subsequent commits
+        if let Some(remote_head) = api::remote::commits::get_remote_head(&self.repository)? {
+            self.rpull_commit_id(&remote_head.commit.id)?;
+        }
 
-        // For each commit
-        // - pull dbs
-        // - pull entries given the db
-
-        let total: usize = 0;
-        println!("🐂 pulling {} entries", total);
-        let size: u64 = unsafe { std::mem::transmute(total) };
-        let bar = ProgressBar::new(size);
-
-        bar.finish();
         Ok(())
     }
 
-    /*
-    fn download_url(
+    fn rpull_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        // Check if we have the local commit
+        let local_commit = api::local::commits::get_by_id(&self.repository, &commit_id)?;
+        if local_commit.is_none() {
+            // If we don't have it locally, we have to pull dbs and entries
+            self.pull_dbs_for_commit_id(commit_id)?;
+            self.pull_entries_for_commit_id(commit_id)?;
+
+            // Then recursively see if we need to sync the parent
+            if let Some(parent) = api::remote::commits::get_remote_parent(&self.repository, commit_id)? {
+                self.rpull_commit_id(&parent.commit.id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn pull_dbs_for_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        log::error!("TODO: pull_dbs_for_commit_id {}", commit_id);
+        Ok(())
+    }
+
+    fn pull_entries_for_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+        let entries = api::remote::entries::first_page(&self.repository, commit_id)?;
+
+        let total: usize = entries.total_entries;
+        println!("🐂 pulling commit {} with {} entries", commit_id, total);
+        let size: u64 = unsafe { std::mem::transmute(total) };
+        let bar = ProgressBar::new(size);
+
+        self.pull_entries(&entries, commit_id, &bar, 1)?;
+
+        bar.finish();
+
+        Ok(())
+    }
+
+    fn pull_entries(&self, entries: &PaginatedEntries, commit_id: &str, progress: &ProgressBar, page_num: usize) -> Result<(), OxenError> {
+        // Download all the files
+        for entry in entries.entries.iter() {
+            self.download_remote_entry(entry)?;
+            progress.inc(1);
+        }
+
+        
+        if page_num < entries.total_pages {
+            let next_page = page_num + 1;
+            let entries = api::remote::entries::nth_page(&self.repository, commit_id, next_page)?;
+            self.pull_entries(&entries, commit_id, progress, next_page)?;
+        }
+
+        Ok(())
+    }
+
+
+    fn download_remote_entry(
         &self,
-        entry: &crate::model::Entry,
+        entry: &RemoteEntry,
     ) -> Result<(), OxenError> {
-        let fname = path.join(&entry.filename);
+        let config = AuthConfig::default()?;
+        let fpath = Path::new(&entry.filename);
         // println!("Downloading file {:?}", &fname);
-        if !fname.exists() {
-            let mut response = reqwest::blocking::get(&entry.url)?;
-            let mut dest = { File::create(fname)? };
+        if !fpath.exists() {
+            let remote = self.repository.remote().unwrap().value;
+            let url = format!("{}/{}/{}", remote, self.repository.name, entry.filename);
+
+            let client = reqwest::blocking::Client::new();
+            let mut response = client.get(&url)
+                .header(
+                    reqwest::header::AUTHORIZATION,
+                    format!("Bearer {}", config.auth_token()),
+                )
+                .send()?;
+            let mut dest = { File::create(fpath)? };
             response.copy_to(&mut dest)?;
         }
         Ok(())
     }
-    */
 }
 
 #[cfg(test)]

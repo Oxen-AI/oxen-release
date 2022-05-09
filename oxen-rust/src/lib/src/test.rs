@@ -36,13 +36,13 @@ fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 ///
 /// ```
 /// # use liboxen::test;
-/// test::run_empty_repo_dir_test(|repo_dir| {
+/// test::run_empty_dir_test(|repo_dir| {
 ///   // do your fancy testing here
 ///   assert!(true);
 ///   Ok(())
 /// });
 /// ```
-pub fn run_empty_repo_dir_test<T>(test: T) -> Result<(), OxenError>
+pub fn run_empty_dir_test<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {

@@ -87,10 +87,10 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn clone_remote(url: &str) -> Result<LocalRepository, OxenError> {
+    pub fn clone_remote(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
         let name = LocalRepository::dirname_from_url(url)?;
         match api::remote::repositories::get_by_name(&name) {
-            Ok(remote_repo) => LocalRepository::clone_repo(remote_repo),
+            Ok(remote_repo) => LocalRepository::clone_repo(remote_repo, dst),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -139,27 +139,30 @@ impl LocalRepository {
         }
     }
 
-    fn clone_repo(repo: RemoteRepository) -> Result<LocalRepository, OxenError> {
+    fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
         let url = &repo.url;
         let dir_name = LocalRepository::dirname_from_url(url)?;
+        log::debug!("Clone {} to {:?}", url, dst);
 
         // if directory already exists -> return Err
-        let repo_path = Path::new(&dir_name);
+        let repo_path = dst.join(&dir_name);
+        log::debug!("Repo path {:?}", repo_path);
         if repo_path.exists() {
             let err = format!("Directory already exists: {}", dir_name);
             return Err(OxenError::basic_str(&err));
         }
 
         // if directory does not exist, create it
-        std::fs::create_dir(&repo_path)?;
+        std::fs::create_dir_all(&repo_path)?;
 
         // if create successful, create .oxen directory
-        let oxen_hidden_path = util::fs::oxen_hidden_dir(repo_path);
+        let oxen_hidden_path = util::fs::oxen_hidden_dir(&repo_path);
         std::fs::create_dir(&oxen_hidden_path)?;
 
         // save Repository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
+        log::debug!("clone saving config file {:?}", repo_config_file);
         let toml = toml::to_string(&repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
 
@@ -176,6 +179,7 @@ impl LocalRepository {
             remote_name: None,
         };
         local_repo.set_remote("origin", url);
+
         Ok(local_repo)
     }
 
@@ -208,23 +212,26 @@ mod tests {
 
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
-        let name = "OxenDataTest";
-        let remote_repo = api::remote::repositories::create_or_get(name)?;
-        let url = &remote_repo.url;
+        test::run_empty_dir_test(|dir| {
+            let name = "OxenDataTest";
+            let remote_repo = api::remote::repositories::create_or_get(name)?;
+            let url = &remote_repo.url;
 
-        let local_repo = LocalRepository::clone_remote(url)?;
+            let local_repo = LocalRepository::clone_remote(url, &dir)?;
 
-        let cfg_path = format!("{}/.oxen/config.toml", name);
-        let path = Path::new(&cfg_path);
-        assert!(path.exists());
-        assert_eq!(local_repo.name, local_repo.name);
-        assert_eq!(local_repo.id, local_repo.id);
+            let cfg_fname = format!(".oxen/config.toml");
+            let config_path = local_repo.path.join(&cfg_fname);
+            log::debug!("Expecting config file: {:?}", config_path);
+            assert!(config_path.exists());
+            assert_eq!(local_repo.name, local_repo.name);
+            assert_eq!(local_repo.id, local_repo.id);
 
-        // cleanup
-        api::remote::repositories::delete(remote_repo)?;
-        std::fs::remove_dir_all(name)?;
+            // cleanup
+            api::remote::repositories::delete(remote_repo)?;
+            std::fs::remove_dir_all(local_repo.path)?;
 
-        Ok(())
+            Ok(())
+        })
     }
 
     #[test]

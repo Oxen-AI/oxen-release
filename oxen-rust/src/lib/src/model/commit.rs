@@ -50,7 +50,7 @@ pub struct CommmitSyncInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommitHead {
     pub name: String,
-    pub commit_id: String,
+    pub commit: Commit,
     pub sync_info: CommmitSyncInfo,
 }
 
