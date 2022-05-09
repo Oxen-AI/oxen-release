@@ -8,7 +8,7 @@ use liboxen::util;
 
 #[test]
 fn test_command_init() -> Result<(), OxenError> {
-    test::run_empty_repo_dir_test(|repo_dir| {
+    test::run_empty_dir_test(|repo_dir| {
         // Init repo
         let repo = command::init(repo_dir)?;
 
@@ -588,17 +588,108 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         let train_dir = repo.path.join("train");
         let num_files = util::fs::rcount_files_in_dir(&train_dir);
         command::add(&repo, &train_dir)?;
-        // Commit the file
+        // Commit the train dir
         let commit = command::commit(&repo, "Adding training data")?.unwrap();
+        // Push it real good
+        command::push(&repo)?;
+
+        let page_num = 1;
+        let page_size = num_files;
+        let entries = api::remote::entries::list_page(&repo, &commit.id, page_num, page_size)?;
+        assert_eq!(entries.total_entries, num_files);
+        assert_eq!(entries.entries.len(), num_files);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Track the train dir
+        let train_dir = repo.path.join("train");
+        let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
+        command::add(&repo, &train_dir)?;
+        // Commit the train dur
+        command::commit(&repo, "Adding training data")?;
+        
+        // Push the files
+        command::push(&repo)?;
+
+        // Track the test dir
+        let test_dir = repo.path.join("test");
+        num_files += util::fs::rcount_files_in_dir(&test_dir);
+        command::add(&repo, &test_dir)?;
+        let commit = command::commit(&repo, "Adding test data")?.unwrap();
+
         // Push the files
         command::push(&repo)?;
 
         let page_num = 1;
         let page_size = num_files;
-        let entries = api::remote::entries::list_page(&repo, &commit, page_num, page_size)?;
+        let entries = api::remote::entries::list_page(&repo, &commit.id, page_num, page_size)?;
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
         Ok(())
+    })
+}
+
+
+#[test]
+fn test_command_push_after_two_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Track the train dir
+        let train_dir = repo.path.join("train");
+        let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
+        command::add(&repo, &train_dir)?;
+        // Commit the train dur
+        command::commit(&repo, "Adding training data")?;
+        
+        // Track the test dir
+        let test_dir = repo.path.join("test");
+        num_files += util::fs::rcount_files_in_dir(&test_dir);
+        command::add(&repo, &test_dir)?;
+        let commit = command::commit(&repo, "Adding test data")?.unwrap();
+
+        // Push the files
+        command::push(&repo)?;
+
+        let page_num = 1;
+        let page_size = num_files;
+        let entries = api::remote::entries::list_page(&repo, &commit.id, page_num, page_size)?;
+        assert_eq!(entries.total_entries, num_files);
+        assert_eq!(entries.entries.len(), num_files);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_push_clone() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Track the file
+        let train_dirname = "train";
+        let train_dir = repo.path.join(train_dirname);
+        let og_num_files = util::fs::rcount_files_in_dir(&train_dir);
+        command::add(&repo, &train_dir)?;
+        // Commit the train dir
+        command::commit(&repo, "Adding training data")?.unwrap();
+
+        // Push it real good
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let new_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let oxen_dir = new_repo_dir.join(".oxen");
+            assert!(oxen_dir.exists());
+            command::pull(&new_repo)?;
+
+            let cloned_train_dir = new_repo_dir.join(train_dirname);
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_train_dir);
+            assert_eq!(og_num_files, cloned_num_files);
+            Ok(())
+        })
     })
 }

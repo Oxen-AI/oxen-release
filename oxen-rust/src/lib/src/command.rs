@@ -6,7 +6,7 @@
 use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
 use crate::index::{Committer, Indexer, Referencer, Stager};
-use crate::model::{Branch, Commit, LocalRepository, StagedData};
+use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData};
 use crate::util;
 use std::sync::Arc;
 
@@ -248,7 +248,7 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
         println!("checkout branch: {}", value);
         committer.set_working_repo_to_branch(value)?;
     } else {
-        let current_commit_id = committer.referencer.get_head_commit_id()?;
+        let current_commit_id = committer.referencer.head_commit_id()?;
         // If we are already on the commit, do nothing
         if current_commit_id == value {
             eprintln!("Commit already checked out {}", value);
@@ -341,11 +341,21 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 /// # Ok(())
 /// # }
 /// ```
-pub fn push(repo: &LocalRepository) -> Result<(), OxenError> {
+pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
     let committer = Arc::new(Committer::new(repo)?);
 
-    indexer.push(&committer)?;
+    indexer.push(&committer)
+}
 
+/// Clone a repo from a url to a directory
+pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
+    LocalRepository::clone_remote(url, dst)
+}
+
+/// Pull a repository's data
+pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
+    let indexer = Indexer::new(&repo)?;
+    indexer.pull()?;
     Ok(())
 }

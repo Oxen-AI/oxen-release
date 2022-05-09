@@ -1,10 +1,12 @@
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
+use crate::model::{CommitEntry, LocalRepository, RemoteEntry};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs::File;
+
+const DEFAULT_PAGE_SIZE: usize = 10;
 
 pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
@@ -47,16 +49,32 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
     }
 }
 
+pub fn first_page(
+    repository: &LocalRepository,
+    commit_id: &str,
+) -> Result<PaginatedEntries, OxenError> {
+    let page_num = 1;
+    list_page(repository, commit_id, page_num, DEFAULT_PAGE_SIZE)
+}
+
+pub fn nth_page(
+    repository: &LocalRepository,
+    commit_id: &str,
+    page_num: usize,
+) -> Result<PaginatedEntries, OxenError> {
+    list_page(repository, commit_id, page_num, DEFAULT_PAGE_SIZE)
+}
+
 pub fn list_page(
     repository: &LocalRepository,
-    commit: &Commit,
+    commit_id: &str,
     page_num: usize,
     page_size: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!(
         "/repositories/{}/commits/{}/entries?page_num={}&page_size={}",
-        repository.name, commit.id, page_num, page_size
+        repository.name, commit_id, page_num, page_size
     );
     let url = api::endpoint::url_from(&uri);
     let client = reqwest::blocking::Client::new();
@@ -127,7 +145,7 @@ mod tests {
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
             command::push(local_repo)?;
 
-            let entries = api::remote::entries::list_page(local_repo, &commit, 1, num_files)?;
+            let entries = api::remote::entries::list_page(local_repo, &commit.id, 1, num_files)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
@@ -147,7 +165,7 @@ mod tests {
             command::push(local_repo)?;
 
             let page_size = 3;
-            let entries = api::remote::entries::list_page(local_repo, &commit, 1, page_size)?;
+            let entries = api::remote::entries::list_page(local_repo, &commit.id, 1, page_size)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.page_size, page_size);
             assert_eq!(entries.total_pages, 2);

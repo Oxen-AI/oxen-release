@@ -38,6 +38,35 @@ pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead
     }
 }
 
+pub fn get_remote_parent(repository: &LocalRepository, commit_id: &str) -> Result<Option<CommitHead>, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/repositories/{}/commits/{}/parent", repository.name, commit_id);
+    let url = api::endpoint::url_from(&uri);
+
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let body = res.text()?;
+        let response: Result<RemoteRepositoryHeadResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.head),
+            Err(err) => Err(OxenError::basic_str(&format!(
+                "get_remote_parent() Could not serialize response [{}]\n{}",
+                err, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("get_remote_parent() Request failed"))
+    }
+}
+
 pub fn post_commit_to_server(
     repository: &LocalRepository,
     commit: &Commit,

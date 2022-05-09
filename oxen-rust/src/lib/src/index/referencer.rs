@@ -134,16 +134,6 @@ impl Referencer {
         }
     }
 
-    pub fn get_head_commit_id(&self) -> Result<String, OxenError> {
-        // If we have the branch, read the value from the db, otherwise assume it is the commit id
-        let ref_val = self.read_head_ref()?;
-        if self.has_branch(&ref_val) {
-            Ok(self.get_commit_id_for_branch(&ref_val)?.unwrap())
-        } else {
-            Ok(ref_val)
-        }
-    }
-
     pub fn get_commit_id_for_branch(&self, name: &str) -> Result<Option<String>, OxenError> {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {

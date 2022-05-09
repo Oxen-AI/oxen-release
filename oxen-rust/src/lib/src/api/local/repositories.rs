@@ -21,16 +21,16 @@ pub fn get_by_name(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenE
 
 pub fn get_commit_head(repo: &LocalRepository) -> Result<Option<CommitHead>, OxenError> {
     match Committer::new(repo) {
-        Ok(committer) => match committer.referencer.head_commit_id() {
-            Ok(commit_id) => Ok(Some(CommitHead {
-                commit_id,
+        Ok(committer) => match committer.get_head_commit() {
+            Ok(Some(commit)) => Ok(Some(CommitHead {
+                commit,
                 name: committer.referencer.read_head_ref()?,
                 sync_info: CommmitSyncInfo {
                     num_entries: committer.num_entries_in_head()?,
                     num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
                 },
             })),
-            Err(_) => Ok(None),
+            _ => Ok(None),
         },
         Err(_) => Ok(None),
     }
@@ -85,7 +85,7 @@ mod tests {
 
     #[test]
     fn test_local_repository_api_create() -> Result<(), OxenError> {
-        test::run_empty_repo_dir_test(|sync_dir| {
+        test::run_empty_dir_test(|sync_dir| {
             let name: &str = "testing";
             let repo = api::local::repositories::create(sync_dir, name)?;
 
@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_local_repository_api_create_list_one() -> Result<(), OxenError> {
-        test::run_empty_repo_dir_test(|sync_dir| {
+        test::run_empty_dir_test(|sync_dir| {
             let name: &str = "testing";
             let _ = api::local::repositories::create(sync_dir, name)?;
             let repos = api::local::repositories::list(sync_dir)?;
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_local_repository_api_create_list_multiple() -> Result<(), OxenError> {
-        test::run_empty_repo_dir_test(|sync_dir| {
+        test::run_empty_dir_test(|sync_dir| {
             let _ = api::local::repositories::create(sync_dir, "testing1")?;
             let _ = api::local::repositories::create(sync_dir, "testing2")?;
             let _ = api::local::repositories::create(sync_dir, "testing3")?;
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_local_repository_api_cannot_create_name_twice() -> Result<(), OxenError> {
-        test::run_empty_repo_dir_test(|sync_dir| {
+        test::run_empty_dir_test(|sync_dir| {
             let name: &str = "CatsVsDogs";
             // first time is okay
             let _ = api::local::repositories::create(sync_dir, name)?;
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn test_local_repository_api_get_by_name() -> Result<(), OxenError> {
-        test::run_empty_repo_dir_test(|sync_dir| {
+        test::run_empty_dir_test(|sync_dir| {
             let name = "my-repo";
             let _ = api::local::repositories::create(sync_dir, name)?;
             let repo = api::local::repositories::get_by_name(sync_dir, name)?;

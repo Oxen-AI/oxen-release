@@ -84,7 +84,7 @@ impl Committer {
     ) -> Option<DBWithThreadMode<MultiThreaded>> {
         let history_path = Committer::history_dir(repo_dir);
         let opts = Committer::db_opts();
-        match referencer.get_head_commit_id() {
+        match referencer.head_commit_id() {
             Ok(commit_id) => {
                 let commit_db_path = history_path.join(Path::new(&commit_id));
                 Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
@@ -332,7 +332,7 @@ impl Committer {
         //  - message
         //  - date
         //  - author
-        match self.referencer.get_head_commit_id() {
+        match self.referencer.head_commit_id() {
             Ok(parent_id) => {
                 // We have a parent
                 Ok(Commit {
