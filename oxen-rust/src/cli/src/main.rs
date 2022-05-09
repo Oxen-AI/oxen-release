@@ -3,10 +3,8 @@ use clap::{arg, Arg, Command};
 pub mod dispatch;
 
 fn main() {
-    // Here is another example with set of commands
-    // https://github.com/rust-in-action/code/blob/1st-edition/ch9/ch9-clock1/src/main.rs
     let command = Command::new("oxen")
-        .version("0.0.1")
+        .version("0.1.0")
         .about("Data management toolchain")
         .subcommand_required(true)
         .arg_required_else_help(true)

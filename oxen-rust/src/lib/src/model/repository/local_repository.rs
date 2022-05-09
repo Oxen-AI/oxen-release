@@ -1,5 +1,8 @@
 use crate::api;
-use crate::constants::NO_REPO_MSG;
+use crate::constants::{
+    NO_REPO_MSG,
+    DEFAULT_ORIGIN_NAME
+};
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
@@ -52,11 +55,14 @@ impl LocalRepository {
     pub fn from_remote(view: RemoteRepository) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
             // generate new uuid locally
-            id: view.id.clone(),
-            name: view.name.clone(),
+            id: view.id.to_owned(),
+            name: view.name.to_owned(),
             path: std::env::current_dir()?.join(view.name),
-            remotes: vec![],
-            remote_name: None,
+            remotes: vec![Remote {
+                name: String::from(DEFAULT_ORIGIN_NAME),
+                value: view.url.to_owned()
+            }],
+            remote_name: Some(String::from(DEFAULT_ORIGIN_NAME)),
         })
     }
 
@@ -141,8 +147,8 @@ impl LocalRepository {
 
     fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
-        let url = &repo.url;
-        let dir_name = LocalRepository::dirname_from_url(url)?;
+        let url = repo.url.to_owned();
+        let dir_name = LocalRepository::dirname_from_url(&url)?;
         log::debug!("Clone {} to {:?}", url, dst);
 
         // if directory already exists -> return Err
@@ -163,6 +169,7 @@ impl LocalRepository {
         // save Repository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
         log::debug!("clone saving config file {:?}", repo_config_file);
+        let repo = LocalRepository::from_remote(repo)?;
         let toml = toml::to_string(&repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
 
@@ -178,7 +185,7 @@ impl LocalRepository {
             remotes: vec![],
             remote_name: None,
         };
-        local_repo.set_remote("origin", url);
+        local_repo.set_remote("origin", &url);
 
         Ok(local_repo)
     }
@@ -221,10 +228,12 @@ mod tests {
 
             let cfg_fname = format!(".oxen/config.toml");
             let config_path = local_repo.path.join(&cfg_fname);
-            log::debug!("Expecting config file: {:?}", config_path);
             assert!(config_path.exists());
             assert_eq!(local_repo.name, local_repo.name);
             assert_eq!(local_repo.id, local_repo.id);
+
+            let repository = LocalRepository::from_cfg(&config_path);
+            assert!(repository.is_ok());
 
             // cleanup
             api::remote::repositories::delete(remote_repo)?;

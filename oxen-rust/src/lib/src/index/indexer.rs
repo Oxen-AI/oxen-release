@@ -155,9 +155,13 @@ impl Indexer {
     }
 
     pub fn pull(&self) -> Result<(), OxenError> {
+        log::debug!("Oxen pull!");
         // Get the remote head commit, and try to recursively pull subsequent commits
         if let Some(remote_head) = api::remote::commits::get_remote_head(&self.repository)? {
+            log::debug!("Oxen pull got remote head: `{}`", remote_head.commit.message);
             self.rpull_commit_id(&remote_head.commit.id)?;
+        } else {
+            log::debug!("Oxen pull Could not get remote head...");
         }
 
         Ok(())

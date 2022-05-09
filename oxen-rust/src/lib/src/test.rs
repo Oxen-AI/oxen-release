@@ -23,10 +23,18 @@ pub fn init_test_env() {
     std::env::set_var("TEST", "true");
 }
 
-fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
-    let repo_name = format!("{}/repo_{}", base_dir, uuid::Uuid::new_v4());
+fn create_prefixed_dir(base_dir: &str, prefix: &str) -> Result<PathBuf, OxenError> {
+    let repo_name = format!("{}/{}_{}", prefix, base_dir, uuid::Uuid::new_v4());
     std::fs::create_dir_all(&repo_name)?;
     Ok(PathBuf::from(&repo_name))
+}
+
+fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
+    create_prefixed_dir(base_dir, "repo")
+}
+
+fn create_empty_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
+    create_prefixed_dir(base_dir, "dir")
 }
 
 /// # Run a unit test on a test repo directory
@@ -47,7 +55,7 @@ where
     T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_empty_dir(TEST_RUN_DIR)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&repo_dir) {

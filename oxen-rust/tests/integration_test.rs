@@ -682,11 +682,12 @@ fn test_command_push_clone() -> Result<(), OxenError> {
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
             let new_repo = command::clone(&remote_repo.url, new_repo_dir)?;
-            let oxen_dir = new_repo_dir.join(".oxen");
+            let oxen_dir = new_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&new_repo)?;
 
-            let cloned_train_dir = new_repo_dir.join(train_dirname);
+            let cloned_train_dir = new_repo.path.join(train_dirname);
+            log::debug!("Counting files in cloned dir: {:?}", cloned_train_dir);
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_train_dir);
             assert_eq!(og_num_files, cloned_num_files);
             Ok(())
