@@ -1,7 +1,8 @@
 use crate::api;
 use crate::constants::{
     NO_REPO_MSG,
-    DEFAULT_ORIGIN_NAME
+    DEFAULT_ORIGIN_NAME,
+    DEFAULT_BRANCH_NAME
 };
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
@@ -94,6 +95,7 @@ impl LocalRepository {
     }
 
     pub fn clone_remote(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
+        log::debug!("clone_remote {} -> {:?}", url, dst);
         let name = LocalRepository::dirname_from_url(url)?;
         match api::remote::repositories::get_by_name(&name) {
             Ok(remote_repo) => LocalRepository::clone_repo(remote_repo, dst),
@@ -149,11 +151,8 @@ impl LocalRepository {
         // get last part of URL for directory name
         let url = repo.url.to_owned();
         let dir_name = LocalRepository::dirname_from_url(&url)?;
-        log::debug!("Clone {} to {:?}", url, dst);
-
         // if directory already exists -> return Err
         let repo_path = dst.join(&dir_name);
-        log::debug!("Repo path {:?}", repo_path);
         if repo_path.exists() {
             let err = format!("Directory already exists: {}", dir_name);
             return Err(OxenError::basic_str(&err));
@@ -168,24 +167,20 @@ impl LocalRepository {
 
         // save Repository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
-        log::debug!("clone saving config file {:?}", repo_config_file);
-        let repo = LocalRepository::from_remote(repo)?;
-        let toml = toml::to_string(&repo)?;
+        let mut local_repo = LocalRepository::from_remote(repo)?;
+        local_repo.path = repo_path;
+        local_repo.set_remote("origin", &url);
+
+        let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
+
+        let head_path = oxen_hidden_path.join(Path::new("HEAD"));
+        util::fs::write_to_path(&head_path, DEFAULT_BRANCH_NAME);
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull",
             url, dir_name, dir_name
         );
-
-        let mut local_repo = LocalRepository {
-            id: repo.id.clone(),
-            name: repo.name.clone(),
-            path: repo_path.to_path_buf(),
-            remotes: vec![],
-            remote_name: None,
-        };
-        local_repo.set_remote("origin", &url);
 
         Ok(local_repo)
     }
@@ -203,6 +198,7 @@ impl LocalRepository {
 #[cfg(test)]
 mod tests {
     use crate::api;
+    use crate::command;
     use crate::error::OxenError;
     use crate::model::LocalRepository;
     use crate::test;
@@ -227,13 +223,20 @@ mod tests {
             let local_repo = LocalRepository::clone_remote(url, &dir)?;
 
             let cfg_fname = format!(".oxen/config.toml");
+            let head_fname = format!(".oxen/HEAD");
             let config_path = local_repo.path.join(&cfg_fname);
+            let head_path = local_repo.path.join(&head_fname);
             assert!(config_path.exists());
+            assert!(head_path.exists());
             assert_eq!(local_repo.name, local_repo.name);
             assert_eq!(local_repo.id, local_repo.id);
 
             let repository = LocalRepository::from_cfg(&config_path);
             assert!(repository.is_ok());
+
+            let repository = repository.unwrap();
+            let status = command::status(&repository)?;
+            assert!(status.is_clean());
 
             // cleanup
             api::remote::repositories::delete(remote_repo)?;

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 // CLI Messages
-pub const NO_REPO_MSG: &str = "fatal: no oxen repository exists, looking for directory: .oxen ";
+pub const NO_REPO_MSG: &str = liboxen::constants::NO_REPO_MSG;
 pub const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
 
 pub fn login() -> Result<(), OxenError> {

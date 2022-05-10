@@ -94,6 +94,18 @@ async fn main() -> std::io::Result<()> {
                         web::post().to(controllers::commits::upload),
                     )
                     .route(
+                        "/repositories/{repo_name}/commits/head",
+                        web::get().to(controllers::commits::head),
+                    )
+                    .route(
+                        "/repositories/{repo_name}/commits/{commit_id}",
+                        web::get().to(controllers::commits::show),
+                    )
+                    .route(
+                        "/repositories/{repo_name}/commits/{commit_id}/parent",
+                        web::get().to(controllers::commits::parent),
+                    )
+                    .route(
                         "/repositories/{name}/commits/{commit_id}/entries",
                         web::get().to(controllers::entries::list_entries),
                     )

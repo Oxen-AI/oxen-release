@@ -8,7 +8,6 @@ use crate::error::OxenError;
 use crate::index::{Committer, Indexer, Referencer, Stager};
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData};
 use crate::util;
-use std::sync::Arc;
 
 use std::path::Path;
 
@@ -343,7 +342,7 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 /// ```
 pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
-    let committer = Arc::new(Committer::new(repo)?);
+    let committer = Committer::new(repo)?;
 
     indexer.push(&committer)
 }
@@ -356,6 +355,7 @@ pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
 /// Pull a repository's data
 pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(&repo)?;
-    indexer.pull()?;
+    let mut committer = Committer::new(repo)?;
+    indexer.pull(&mut committer)?;
     Ok(())
 }

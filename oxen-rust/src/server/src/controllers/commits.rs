@@ -1,10 +1,19 @@
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::index::Committer;
-use liboxen::model::{Commit, LocalRepository};
+use liboxen::model::{
+    Commit,
+    LocalRepository,
+    RemoteRepository
+};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
-use liboxen::view::{CommitResponse, ListCommitResponse, StatusMessage};
+use liboxen::view::{
+    CommitResponse,
+    ListCommitResponse,
+    StatusMessage,
+    RemoteRepositoryHeadResponse
+};
 
 use crate::app_data::OxenAppData;
 
@@ -41,6 +50,129 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     } else {
         let msg = "Could not find `name` param...";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+pub async fn head(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: Option<&str> = req.match_info().get("repo_name");
+    if let Some(name) = name {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
+            Ok(repository) => {
+                match api::local::repositories::get_commit_head(&repository) {
+                    Ok(Some(commit)) => {
+                        HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_CREATED),
+                            repository: RemoteRepository::from_local(&repository),
+                            head: Some(commit),
+                        })
+                    },
+                    Ok(None) => {
+                        log::debug!("Head commit does not exist for repo: {}", name);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    },
+                    Err(err) => {
+                        log::debug!("Could not get head commit: {}", err);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                }
+            },
+            Err(err) => {
+                log::debug!("Could not find repo: {}", err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+        }
+    } else {
+        let msg = "Could not find `repo_name` param...";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+pub async fn show(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let commit_id: Option<&str> = req.match_info().get("commit_id");
+    if let (Some(name), Some(commit_id)) = (name, commit_id) {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
+            Ok(repository) => {
+                match api::local::commits::get_by_id(&repository, commit_id) {
+                    Ok(Some(commit)) => {
+                        HttpResponse::Ok().json(CommitResponse {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_CREATED),
+                            commit: commit
+                        })
+                    },
+                    Ok(None) => {
+                        log::debug!("commit_id {} does not exist for repo: {}", commit_id, name);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    },
+                    Err(err) => {
+                        log::debug!("Err getting commit_id {}: {}", commit_id, err);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                }
+            },
+            Err(err) => {
+                log::debug!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+        }
+    } else {
+        let msg = "Must supply `repo_name` and `commit_id` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+pub async fn parent(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let commit_id: Option<&str> = req.match_info().get("commit_id");
+    if let (Some(name), Some(commit_id)) = (name, commit_id) {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
+            Ok(repository) => match p_get_parent(&repository, commit_id) {
+                Ok(Some(parent)) => {
+                    HttpResponse::Ok().json(CommitResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        commit: parent
+                    })
+                },
+                Ok(None) => {
+                    log::debug!("commit {} has no parent in repo {}", commit_id, name);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                },
+                Err(err) => {
+                    log::debug!("Error finding parent for commit {} in repo {}\nErr: {}", commit_id, name, err);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+            },
+            Err(err) => {
+                log::debug!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+        }
+    } else {
+        let msg = "Must supply `repo_name` and `commit_id` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+fn p_get_parent(repository: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
+    match api::local::commits::get_by_id(&repository, commit_id) {
+        Ok(Some(commit)) => {
+            api::local::commits::get_parent(&repository, &commit)
+        },
+        Ok(None) => {
+            Ok(None)
+        },
+        Err(err) => {
+            Err(err)
+        }
     }
 }
 
@@ -109,7 +241,9 @@ fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let result = Committer::new(&repo);
     match result {
         Ok(mut committer) => match committer.add_commit(commit) {
-            Ok(_) => {}
+            Ok(_) => {
+                committer.referencer.set_head_commit_id(&commit.id)?;
+            }
             Err(err) => {
                 eprintln!("Error adding commit to db: {:?}", err);
             }

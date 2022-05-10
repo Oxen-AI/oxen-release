@@ -668,6 +668,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_clone() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
+        log::debug!("test_command_push_clone got repo: {:?}", repo.path);
         // Track the file
         let train_dirname = "train";
         let train_dir = repo.path.join(train_dirname);
@@ -681,7 +682,9 @@ fn test_command_push_clone() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
+            log::debug!("HALLO WASSUP test_command_push_clone got new dir: {:?}", new_repo_dir);
             let new_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            log::debug!("HALLO WASSUP test_command_push_clone got new repo dir: {:?}", new_repo.path);
             let oxen_dir = new_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&new_repo)?;
