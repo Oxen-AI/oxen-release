@@ -272,7 +272,7 @@ impl Indexer {
         log::debug!("download_remote_entry entry {}", entry.filename);
         if !fpath.exists() {
             let remote = self.repository.remote().unwrap().value;
-            let url = format!("{}/{}/{}", remote, self.repository.name, entry.filename);
+            let url = format!("{}/{}", remote, entry.filename);
             log::debug!("download_remote_entry get url {}", url);
 
             let client = reqwest::blocking::Client::new();
