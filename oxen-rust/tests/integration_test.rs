@@ -678,6 +678,17 @@ fn test_command_push_clone() -> Result<(), OxenError> {
         // Push it real good
         let remote_repo = command::push(&repo)?;
 
+        // Add a new file
+        let new_filename = "party_ppl.txt";
+        let new_contents = String::from("Wassup Party Ppl");
+        let new_file_path = repo.path.join(new_filename);
+        util::fs::write_to_path(&new_file_path, &new_contents);
+
+        // Add and commit and push
+        command::add(&repo, &new_file_path)?;
+        command::commit(&repo, "Adding party_ppl.txt")?.unwrap();
+        command::push(&repo)?;
+
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
             let new_repo = command::clone(&remote_repo.url, new_repo_dir)?;
@@ -685,9 +696,17 @@ fn test_command_push_clone() -> Result<(), OxenError> {
             assert!(oxen_dir.exists());
             command::pull(&new_repo)?;
 
+            // Make sure we pulled all of the train dir
             let cloned_train_dir = new_repo.path.join(train_dirname);
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_train_dir);
             assert_eq!(og_num_files, cloned_num_files);
+
+            // Make sure we have the party ppl file from the next commit
+            let cloned_party_ppl_path = new_repo.path.join(new_filename);
+            assert!(cloned_party_ppl_path.exists());
+            let cloned_contents = util::fs::read_from_path(&cloned_party_ppl_path)?;
+            assert_eq!(cloned_contents, new_contents);
+
             Ok(())
         })
     })
