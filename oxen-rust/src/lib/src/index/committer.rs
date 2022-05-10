@@ -131,7 +131,6 @@ impl Committer {
         path: &Path,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-
         log::debug!("Commit [{}] commit file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
         let ext = path.extension().unwrap();
@@ -146,12 +145,12 @@ impl Committer {
 
         // Create entry object to as json
         let entry = CommitEntry {
-            id: entry_id.clone(),
+            id: entry_id,
             path: path.to_path_buf(),
             hash,
             is_synced: false, // so we know to sync
             commit_id: new_commit.id.clone(),
-            extension: ext.clone(),
+            extension: ext,
         };
 
         // Write to db

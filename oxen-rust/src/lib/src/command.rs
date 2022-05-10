@@ -354,7 +354,7 @@ pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
 
 /// Pull a repository's data
 pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = Indexer::new(&repo)?;
+    let indexer = Indexer::new(repo)?;
     let mut committer = Committer::new(repo)?;
     indexer.pull(&mut committer)?;
     Ok(())
