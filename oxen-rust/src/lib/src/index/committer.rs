@@ -27,14 +27,14 @@ pub struct Committer {
     // TODO: have map of ref names to dbs so that we can have different ones open besides HEAD
     pub head_commit_db: Option<DBWithThreadMode<MultiThreaded>>,
     pub referencer: Referencer,
-    history_dir: PathBuf,
+    pub history_dir: PathBuf,
     versions_dir: PathBuf,
     auth_cfg: AuthConfig,
-    repository: LocalRepository,
+    pub repository: LocalRepository,
 }
 
 impl Committer {
-    fn db_opts() -> Options {
+    pub fn db_opts() -> Options {
         let mut opts = Options::default();
         opts.set_log_level(LogLevel::Error);
         opts.create_if_missing(true);
@@ -131,48 +131,60 @@ impl Committer {
         path: &Path,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        let path_str = path.to_str().unwrap();
-        let key = path_str.as_bytes();
 
         log::debug!("Commit [{}] commit file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
-        if let Some(ext) = path.extension() {
-            let full_path = self.repository.path.join(path);
-            let filename_str = full_path.to_str().unwrap();
-            let id = util::hasher::hash_buffer(filename_str.as_bytes());
+        let ext = path.extension().unwrap();
+        // entry_id will be the relative path of the file hashed
+        let filename_str = path.to_str().unwrap();
+        let entry_id = util::hasher::hash_buffer(filename_str.as_bytes());
 
-            let hash = util::hasher::hash_file_contents(&full_path)?;
-            let ext = String::from(ext.to_str().unwrap_or(""));
+        // then hash the actual file contents
+        let full_path = self.repository.path.join(path);
+        let hash = util::hasher::hash_file_contents(&full_path)?;
+        let ext = String::from(ext.to_str().unwrap_or(""));
 
-            // Create entry object to as json
-            let entry = CommitEntry {
-                id: id.clone(),
-                path: path.to_path_buf(),
-                hash,
-                is_synced: false, // so we know to sync
-                commit_id: new_commit.id.clone(),
-                extension: ext.clone(),
-            };
+        // Create entry object to as json
+        let entry = CommitEntry {
+            id: entry_id.clone(),
+            path: path.to_path_buf(),
+            hash,
+            is_synced: false, // so we know to sync
+            commit_id: new_commit.id.clone(),
+            extension: ext.clone(),
+        };
 
-            // create a copy to our versions directory
-            // .oxen/versions/ENTRY_ID/COMMIT_ID.ext
-            let name = format!("{}.{}", new_commit.id, ext);
-            let versions_entry_dir = self.versions_dir.join(id);
-            let versions_path = versions_entry_dir.join(name);
+        // Write to db
+        self.add_commit_entry(&entry, db)?;
+        Ok(())
+    }
 
-            if !versions_entry_dir.exists() {
-                std::fs::create_dir_all(versions_entry_dir)?;
-            }
-            // println!(
-            //     "Commit [{}] copied file {:?} to {:?}",
-            //     new_commit.id, path, versions_path
-            // );
-            std::fs::copy(full_path, versions_path)?;
+    pub fn add_commit_entry(
+        &self,
+        entry: &CommitEntry,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        let full_path = self.repository.path.join(&entry.path);
 
-            // Write to db
-            let entry_json = serde_json::to_string(&entry)?;
-            db.put(&key, entry_json.as_bytes())?;
+        // create a copy to our versions directory
+        // .oxen/versions/ENTRY_ID/COMMIT_ID.ext
+        let name = format!("{}.{}", entry.commit_id, entry.extension);
+        let versions_entry_dir = self.versions_dir.join(&entry.id);
+        let versions_path = versions_entry_dir.join(name);
+
+        if !versions_entry_dir.exists() {
+            std::fs::create_dir_all(versions_entry_dir)?;
         }
+        // println!(
+        //     "Commit [{}] copied file {:?} to {:?}",
+        //     new_commit.id, path, versions_path
+        // );
+        std::fs::copy(full_path, versions_path)?;
+
+        let path_str = entry.path.to_str().unwrap();
+        let key = path_str.as_bytes();
+        let entry_json = serde_json::to_string(&entry)?;
+        db.put(&key, entry_json.as_bytes())?;
         Ok(())
     }
 
@@ -326,7 +338,7 @@ impl Committer {
         Ok(())
     }
 
-    fn create_commit(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
+    fn create_commit_obj(&self, id_str: &str, message: &str) -> Commit {
         // Commit
         //  - parent_commit_id (can be empty if root)
         //  - message
@@ -335,23 +347,23 @@ impl Committer {
         match self.referencer.head_commit_id() {
             Ok(parent_id) => {
                 // We have a parent
-                Ok(Commit {
+                Commit {
                     id: String::from(id_str),
                     parent_id: Some(parent_id),
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
                     date: Utc::now(),
-                })
+                }
             }
             Err(_) => {
                 // We are creating initial commit, no parent
-                Ok(Commit {
+                Commit {
                     id: String::from(id_str),
                     parent_id: None,
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
                     date: Utc::now(),
-                })
+                }
             }
         }
     }
@@ -374,7 +386,7 @@ impl Committer {
 
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
-        let commit = self.create_commit(&commit_id, message)?;
+        let commit = self.create_commit_obj(&commit_id, message);
         log::debug!(
             "COMMIT_START Repo {:?} commit {} message [{}]",
             self.repository.path,
@@ -420,17 +432,6 @@ impl Committer {
     pub fn num_entries_in_commit(&self, commit_id: &str) -> Result<usize, OxenError> {
         let db = self.get_commit_db_read_only(commit_id)?;
         Ok(db.iterator(IteratorMode::Start).count())
-    }
-
-    pub fn get_commit_db(
-        &self,
-        commit_id: &str,
-    ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
-        let commit_db_path = self.history_dir.join(Path::new(&commit_id));
-        let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
-        let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
-        Ok(db)
     }
 
     pub fn get_commit_db_read_only(
@@ -793,12 +794,12 @@ impl Committer {
                         );
                     }
                 } else {
-                    let db = self.get_commit_db(&commit.id)?;
+                    let db = self.get_commit_db_read_only(&commit.id)?;
                     self.p_add_untracked_files_from_commit(&mut entries, &db)?;
                 }
             }
             _ => {
-                let db = self.get_commit_db(&commit.id)?;
+                let db = self.get_commit_db_read_only(&commit.id)?;
                 self.p_add_untracked_files_from_commit(&mut entries, &db)?;
             }
         };

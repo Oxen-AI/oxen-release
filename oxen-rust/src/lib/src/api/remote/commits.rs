@@ -11,7 +11,7 @@ use flate2::Compression;
 
 pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}", repository.name);
+    let uri = format!("/repositories/{}/commits/head", repository.name);
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();
@@ -24,6 +24,7 @@ pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead
         .send()
     {
         let body = res.text()?;
+        log::debug!("get_remote_head\n{}", body);
         let response: Result<RemoteRepositoryHeadResponse, serde_json::Error> =
             serde_json::from_str(&body);
         match response {
@@ -35,6 +36,35 @@ pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead
         }
     } else {
         Err(OxenError::basic_str("get_remote_head() Request failed"))
+    }
+}
+
+pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/repositories/{}/commits/{}", repository.name, commit_id);
+    let url = api::endpoint::url_from(&uri);
+
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let body = res.text()?;
+        let response: Result<CommitResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.commit),
+            Err(err) => Err(OxenError::basic_str(&format!(
+                "get_commit_by_id() Could not serialize response [{}]\n{}",
+                err, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("get_commit_by_id() Request failed"))
     }
 }
 

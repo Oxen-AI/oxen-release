@@ -79,7 +79,6 @@ impl Referencer {
             self.set_head(commit_id);
         }
 
-        // else just write it to our HEAD file
         Ok(())
     }
 

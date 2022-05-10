@@ -14,6 +14,20 @@ pub struct CommitEntry {
 }
 
 impl CommitEntry {
+    pub fn from_remote_and_commit_id(remote: &RemoteEntry, commit_id: &str) -> CommitEntry {
+        let path = PathBuf::from(remote.filename.to_owned());
+        // assuming extension is valid if we got it from remote
+        let extension = path.extension().unwrap().to_str().unwrap();
+        CommitEntry {
+            id: remote.id.to_owned(),
+            path: path.to_owned(),
+            is_synced: true,
+            hash: remote.hash.to_owned(),
+            commit_id: commit_id.to_string(),
+            extension: extension.to_string(),
+        }
+    }
+
     pub fn filename(&self) -> PathBuf {
         PathBuf::from(format!("{}.{}", self.commit_id, self.extension))
     }
