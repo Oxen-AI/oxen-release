@@ -54,8 +54,7 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit
         .send()
     {
         let body = res.text()?;
-        let response: Result<CommitResponse, serde_json::Error> =
-            serde_json::from_str(&body);
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.commit),
             Err(err) => Err(OxenError::basic_str(&format!(
@@ -68,9 +67,15 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit
     }
 }
 
-pub fn get_remote_parent(repository: &LocalRepository, commit_id: &str) -> Result<Option<CommitHead>, OxenError> {
+pub fn get_remote_parent(
+    repository: &LocalRepository,
+    commit_id: &str,
+) -> Result<Option<CommitHead>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/{}/parent", repository.name, commit_id);
+    let uri = format!(
+        "/repositories/{}/commits/{}/parent",
+        repository.name, commit_id
+    );
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();

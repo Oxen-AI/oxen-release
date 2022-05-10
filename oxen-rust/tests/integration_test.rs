@@ -612,7 +612,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::add(&repo, &train_dir)?;
         // Commit the train dur
         command::commit(&repo, "Adding training data")?;
-        
+
         // Push the files
         command::push(&repo)?;
 
@@ -635,7 +635,6 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
     })
 }
 
-
 #[test]
 fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
@@ -645,7 +644,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         command::add(&repo, &train_dir)?;
         // Commit the train dur
         command::commit(&repo, "Adding training data")?;
-        
+
         // Track the test dir
         let test_dir = repo.path.join("test");
         num_files += util::fs::rcount_files_in_dir(&test_dir);
@@ -668,7 +667,6 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_clone() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
-        log::debug!("test_command_push_clone got repo: {:?}", repo.path);
         // Track the file
         let train_dirname = "train";
         let train_dir = repo.path.join(train_dirname);
@@ -682,15 +680,12 @@ fn test_command_push_clone() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            log::debug!("HALLO WASSUP test_command_push_clone got new dir: {:?}", new_repo_dir);
             let new_repo = command::clone(&remote_repo.url, new_repo_dir)?;
-            log::debug!("HALLO WASSUP test_command_push_clone got new repo dir: {:?}", new_repo.path);
             let oxen_dir = new_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&new_repo)?;
 
             let cloned_train_dir = new_repo.path.join(train_dirname);
-            log::debug!("Counting files in cloned dir: {:?}", cloned_train_dir);
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_train_dir);
             assert_eq!(og_num_files, cloned_num_files);
             Ok(())

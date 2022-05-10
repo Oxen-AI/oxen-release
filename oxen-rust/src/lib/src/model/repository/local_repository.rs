@@ -1,9 +1,5 @@
 use crate::api;
-use crate::constants::{
-    NO_REPO_MSG,
-    DEFAULT_ORIGIN_NAME,
-    DEFAULT_BRANCH_NAME
-};
+use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_ORIGIN_NAME, NO_REPO_MSG};
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
@@ -61,7 +57,7 @@ impl LocalRepository {
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![Remote {
                 name: String::from(DEFAULT_ORIGIN_NAME),
-                value: view.url.to_owned()
+                value: view.url,
             }],
             remote_name: Some(String::from(DEFAULT_ORIGIN_NAME)),
         })
@@ -220,10 +216,10 @@ mod tests {
             let remote_repo = api::remote::repositories::create_or_get(name)?;
             let url = &remote_repo.url;
 
-            let local_repo = LocalRepository::clone_remote(url, &dir)?;
+            let local_repo = LocalRepository::clone_remote(url, dir)?;
 
-            let cfg_fname = format!(".oxen/config.toml");
-            let head_fname = format!(".oxen/HEAD");
+            let cfg_fname = ".oxen/config.toml".to_string();
+            let head_fname = ".oxen/HEAD".to_string();
             let config_path = local_repo.path.join(&cfg_fname);
             let head_path = local_repo.path.join(&head_fname);
             assert!(config_path.exists());

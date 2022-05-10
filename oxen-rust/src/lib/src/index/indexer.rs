@@ -1,25 +1,18 @@
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::path::Path;
 use std::fs::File;
+use std::path::Path;
 
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::index::Committer;
 use crate::model::{
-    Commit,
-    CommitEntry,
-    CommitHead,
-    RemoteEntry,
-    LocalRepository,
-    RemoteRepository
+    Commit, CommitEntry, CommitHead, LocalRepository, RemoteEntry, RemoteRepository,
 };
 
-use crate::view::{
-    PaginatedEntries
-};
+use crate::view::PaginatedEntries;
 
 pub struct Indexer {
     pub repository: LocalRepository,
@@ -160,10 +153,10 @@ impl Indexer {
             Ok(Some(remote_head)) => {
                 log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
                 self.rpull_commit_id(committer, &remote_head.commit.id)?;
-            },
+            }
             Ok(None) => {
                 log::debug!("oxen pull remote head does not exist");
-            },
+            }
             Err(err) => {
                 log::debug!("oxen pull could not get remote head: {}", err);
             }
@@ -188,7 +181,9 @@ impl Indexer {
             self.pull_entries_for_commit_id(committer, commit_id)?;
 
             // Then recursively see if we need to sync the parent
-            if let Ok(Some(parent)) = api::remote::commits::get_remote_parent(&self.repository, commit_id) {
+            if let Ok(Some(parent)) =
+                api::remote::commits::get_remote_parent(&self.repository, commit_id)
+            {
                 self.rpull_commit_id(committer, &parent.commit.id)?;
             }
         }
@@ -196,7 +191,11 @@ impl Indexer {
         Ok(())
     }
 
-    fn pull_entries_for_commit_id(&self, committer: &Committer, commit_id: &str) -> Result<(), OxenError> {
+    fn pull_entries_for_commit_id(
+        &self,
+        committer: &Committer,
+        commit_id: &str,
+    ) -> Result<(), OxenError> {
         log::debug!("pull_entries_for_commit_id commit_id {}", commit_id);
         let entries = api::remote::entries::first_page(&self.repository, commit_id)?;
 
@@ -208,12 +207,18 @@ impl Indexer {
         match committer.referencer.head_commit_id() {
             Ok(head_commit_id) => {
                 if head_commit_id == commit_id {
-                    log::debug!("pull_entries_for_commit_id commit_id with HEAD {}", commit_id);
-                    
+                    log::debug!(
+                        "pull_entries_for_commit_id commit_id with HEAD {}",
+                        commit_id
+                    );
+
                     let db = committer.head_commit_db.as_ref().unwrap();
-                    self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
+                    self.pull_entries(committer, db, &entries, commit_id, &bar, 1)?;
                 } else {
-                    log::debug!("pull_entries_for_commit_id commit_id with HISTORY DIR {}", commit_id);
+                    log::debug!(
+                        "pull_entries_for_commit_id commit_id with HISTORY DIR {}",
+                        commit_id
+                    );
                     let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
                     let opts = Committer::db_opts();
                     let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
@@ -223,7 +228,7 @@ impl Indexer {
             }
             Err(err) => {
                 log::error!("could not pull entries {}", err)
-            },
+            }
         }
 
         bar.finish();
@@ -238,7 +243,7 @@ impl Indexer {
         entries: &PaginatedEntries,
         commit_id: &str,
         progress: &ProgressBar,
-        page_num: usize
+        page_num: usize,
     ) -> Result<(), OxenError> {
         // Download all the files
         for entry in entries.entries.iter() {
@@ -271,7 +276,8 @@ impl Indexer {
             log::debug!("download_remote_entry get url {}", url);
 
             let client = reqwest::blocking::Client::new();
-            let mut response = client.get(&url)
+            let mut response = client
+                .get(&url)
                 .header(
                     reqwest::header::AUTHORIZATION,
                     format!("Bearer {}", config.auth_token()),
@@ -284,7 +290,7 @@ impl Indexer {
                     std::fs::create_dir_all(parent)?;
                 }
             }
-            
+
             log::debug!("writing file to path: {:?}", fpath);
             let mut dest = { File::create(fpath)? };
             response.copy_to(&mut dest)?;
