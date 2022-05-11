@@ -177,7 +177,9 @@ impl Committer {
         }
         log::debug!(
             "Commit [{}] copied file {:?} to {:?}",
-            entry.commit_id, entry.path, versions_path
+            entry.commit_id,
+            entry.path,
+            versions_path
         );
         std::fs::copy(full_path, versions_path)?;
 

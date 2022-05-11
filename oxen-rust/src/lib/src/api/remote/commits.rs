@@ -90,8 +90,7 @@ pub fn get_remote_parent(
     {
         let body = res.text()?;
         log::debug!("get_remote_parent response: {}", body);
-        let response: Result<CommitResponse, serde_json::Error> =
-            serde_json::from_str(&body);
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),
             Err(err) => Err(OxenError::basic_str(&format!(

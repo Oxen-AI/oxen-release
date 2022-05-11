@@ -422,7 +422,10 @@ impl Stager {
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
         // println!("Listing untracked files from {:?}", dir_entries);
         let num_in_head = committer.num_entries_in_head()?;
-        log::debug!("stager::list_untracked_files head has {} files", num_in_head);
+        log::debug!(
+            "stager::list_untracked_files head has {} files",
+            num_in_head
+        );
 
         let mut paths: Vec<PathBuf> = vec![];
         for entry in dir_entries {
@@ -431,8 +434,11 @@ impl Stager {
                 // Return relative path with respect to the repo
                 let relative_path =
                     util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
-                log::debug!("stager::list_untracked_files considering path {:?}", relative_path);
-                
+                log::debug!(
+                    "stager::list_untracked_files considering path {:?}",
+                    relative_path
+                );
+
                 // File is committed in HEAD
                 if committer.file_is_committed(&relative_path) {
                     continue;
