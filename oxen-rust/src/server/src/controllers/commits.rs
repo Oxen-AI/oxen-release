@@ -3,7 +3,7 @@ use liboxen::error::OxenError;
 use liboxen::index::Committer;
 use liboxen::model::{Commit, LocalRepository, RemoteRepository};
 use liboxen::util;
-use liboxen::view::http::{MSG_RESOURCE_CREATED, STATUS_SUCCESS};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{
     CommitResponse, ListCommitResponse, RemoteRepositoryHeadResponse, StatusMessage,
 };
@@ -122,7 +122,7 @@ pub async fn parent(req: HttpRequest) -> HttpResponse {
             Ok(repository) => match p_get_parent(&repository, commit_id) {
                 Ok(Some(parent)) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
                     commit: parent,
                 }),
                 Ok(None) => {

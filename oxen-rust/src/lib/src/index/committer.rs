@@ -87,6 +87,7 @@ impl Committer {
         match referencer.head_commit_id() {
             Ok(commit_id) => {
                 let commit_db_path = history_path.join(Path::new(&commit_id));
+                log::debug!("committer head_commit_db path: {:?}", commit_db_path);
                 Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
             }
             Err(_) => None,
@@ -174,15 +175,17 @@ impl Committer {
         if !versions_entry_dir.exists() {
             std::fs::create_dir_all(versions_entry_dir)?;
         }
-        // println!(
-        //     "Commit [{}] copied file {:?} to {:?}",
-        //     new_commit.id, path, versions_path
-        // );
+        log::debug!(
+            "Commit [{}] copied file {:?} to {:?}",
+            entry.commit_id, entry.path, versions_path
+        );
         std::fs::copy(full_path, versions_path)?;
 
         let path_str = entry.path.to_str().unwrap();
         let key = path_str.as_bytes();
         let entry_json = serde_json::to_string(&entry)?;
+        log::debug!("Adding entry to db {} -> {}", path_str, entry_json);
+        log::debug!("db path {:?}", db.path());
         db.put(&key, entry_json.as_bytes())?;
         Ok(())
     }
@@ -422,6 +425,7 @@ impl Committer {
 
     pub fn num_entries_in_head(&self) -> Result<usize, OxenError> {
         if let Some(db) = &self.head_commit_db {
+            log::debug!("num_entries_in_head reading from db: {:?}", db.path());
             Ok(db.iterator(IteratorMode::Start).count())
         } else {
             Ok(0)
@@ -430,6 +434,7 @@ impl Committer {
 
     pub fn num_entries_in_commit(&self, commit_id: &str) -> Result<usize, OxenError> {
         let db = self.get_commit_db_read_only(commit_id)?;
+        log::debug!("num_entries_in_commit reading from db: {:?}", db.path());
         Ok(db.iterator(IteratorMode::Start).count())
     }
 

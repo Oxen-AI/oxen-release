@@ -1,4 +1,5 @@
 use liboxen::api;
+use liboxen::constants::DEFAULT_ORIGIN_NAME;
 use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
@@ -44,7 +45,7 @@ pub fn init(path: &str) -> Result<(), OxenError> {
 
 pub fn clone(url: &str) -> Result<(), OxenError> {
     let dst = std::env::current_dir()?;
-    LocalRepository::clone_remote(url, &dst)?;
+    command::clone(url, &dst)?;
     Ok(())
 }
 
@@ -56,8 +57,8 @@ pub fn set_remote(url: &str) -> Result<(), OxenError> {
     }
 
     let mut repo = LocalRepository::from_dir(&current_dir)?;
-    repo.set_remote("origin", url);
-    repo.save_default()?;
+    command::set_remote(&mut repo, DEFAULT_ORIGIN_NAME, url)?;
+
     Ok(())
 }
 
@@ -162,7 +163,7 @@ pub fn status() -> Result<(), OxenError> {
     let repo_status = command::status(&repository)?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
-        println!("On branch {}\n", current_branch.name);
+        println!("On branch {} -> {}\n", current_branch.name, current_branch.commit_id);
     } else if let Some(head) = command::head_commit(&repository)? {
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",

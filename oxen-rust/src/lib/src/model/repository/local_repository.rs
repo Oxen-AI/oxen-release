@@ -1,5 +1,5 @@
 use crate::api;
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_ORIGIN_NAME, NO_REPO_MSG};
+use crate::constants::{DEFAULT_ORIGIN_NAME, NO_REPO_MSG};
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
@@ -170,9 +170,6 @@ impl LocalRepository {
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
 
-        let head_path = oxen_hidden_path.join(Path::new("HEAD"));
-        util::fs::write_to_path(&head_path, DEFAULT_BRANCH_NAME);
-
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull",
             url, dir_name, dir_name
@@ -219,11 +216,8 @@ mod tests {
             let local_repo = LocalRepository::clone_remote(url, dir)?;
 
             let cfg_fname = ".oxen/config.toml".to_string();
-            let head_fname = ".oxen/HEAD".to_string();
             let config_path = local_repo.path.join(&cfg_fname);
-            let head_path = local_repo.path.join(&head_fname);
             assert!(config_path.exists());
-            assert!(head_path.exists());
             assert_eq!(local_repo.name, local_repo.name);
             assert_eq!(local_repo.id, local_repo.id);
 
