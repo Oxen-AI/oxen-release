@@ -369,13 +369,8 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
     let db = DB::open_for_read_only(&opts, path, false)?;
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
-        match (str::from_utf8(&key), str::from_utf8(&value)) {
-            (Ok(key), Ok(value)) => {
-                println!("{}\t{}", key, value)
-            },
-            _ => {
-
-            }
+        if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
+            println!("{}\t{}", key, value)
         }
     }
     Ok(())

@@ -104,7 +104,7 @@ impl Indexer {
         if self.repository.remote().is_none() {
             return Err(OxenError::basic_str("Must set remote on repository"));
         }
-        
+
         let remote_repo = self.create_or_get_repo()?;
         match committer.get_head_commit() {
             Ok(Some(commit)) => {
@@ -166,7 +166,9 @@ impl Indexer {
 
                 // Make sure head is pointing to that branch
                 committer.referencer.set_head(DEFAULT_BRANCH_NAME);
-                committer.referencer.set_branch_commit_id(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
+                committer
+                    .referencer
+                    .set_branch_commit_id(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
 
                 // Pull the commit
                 self.rpull_commit_id(committer, &remote_head.commit.id)?;
@@ -223,7 +225,7 @@ impl Indexer {
 
         let total: usize = entries.total_entries;
         if total == 0 {
-            return Ok(())
+            return Ok(());
         }
 
         println!("🐂 pulling commit {} with {} entries", commit_id, total);
@@ -265,7 +267,7 @@ impl Indexer {
                         log::debug!("REMOVE IT {:?}", file);
                         std::fs::remove_file(file)?;
                     }
-                },
+                }
                 Err(err) => {
                     log::error!("Error cleaning removed entries {}", err)
                 }
@@ -273,7 +275,6 @@ impl Indexer {
         }
         Ok(())
     }
-
 
     fn pull_entries(
         &self,
@@ -313,7 +314,7 @@ impl Indexer {
         let config = AuthConfig::default()?;
         let fpath = committer.repository.path.join(&entry.filename);
         log::debug!("download_remote_entry entry {}", entry.filename);
-        if !fpath.exists() || self.path_hash_is_different(&entry, &fpath) {
+        if !fpath.exists() || self.path_hash_is_different(entry, &fpath) {
             let remote = self.repository.remote().unwrap().value;
             let url = format!("{}/{}", remote, entry.filename);
 
@@ -343,15 +344,11 @@ impl Indexer {
         Ok(())
     }
 
-    fn path_hash_is_different(
-        &self,
-        entry: &RemoteEntry,
-        path: &Path,
-    ) -> bool {
+    fn path_hash_is_different(&self, entry: &RemoteEntry, path: &Path) -> bool {
         if let Ok(hash) = util::hasher::hash_file_contents(path) {
             return hash != entry.hash;
         }
-        return false;
+        false
     }
 }
 

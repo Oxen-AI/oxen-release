@@ -584,7 +584,7 @@ fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_one_commit() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
-        let mut repo = repo.clone();
+        let mut repo = repo;
 
         // Track the file
         let train_dir = repo.path.join("train");
@@ -613,7 +613,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
-        let mut repo = repo.clone();
+        let mut repo = repo;
         // Track the train dir
         let train_dir = repo.path.join("train");
         let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
@@ -651,7 +651,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Make mutable copy so we can set remote
-        let mut repo = repo.clone();
+        let mut repo = repo;
 
         // Track the train dir
         let train_dir = repo.path.join("train");
@@ -682,7 +682,6 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         Ok(())
     })
 }
-
 
 #[test]
 fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
@@ -760,7 +759,7 @@ fn test_command_push_clone() -> Result<(), OxenError> {
             // Make sure we updated the dbs properly
             let status = command::status(&cloned_repo)?;
             assert!(status.is_clean());
-            
+
             // Have this side add a file, and send it back over
             let send_it_back_filename = "send_it_back.txt";
             let send_it_back_contents = String::from("Hello from the other side");
@@ -779,7 +778,6 @@ fn test_command_push_clone() -> Result<(), OxenError> {
             let pulled_contents = util::fs::read_from_path(&pulled_send_it_back_path)?;
             assert_eq!(pulled_contents, send_it_back_contents);
 
-            
             // Modify the party ppl contents
             let party_ppl_contents = String::from("Late to the party");
             util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents);

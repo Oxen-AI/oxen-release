@@ -1,4 +1,4 @@
-use crate::constants::{DEFAULT_ORIGIN_NAME, DEFAULT_ORIGIN_HOST};
+use crate::constants::{DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_NAME};
 use crate::model::{LocalRepository, Remote};
 use serde::{Deserialize, Serialize};
 
