@@ -1,8 +1,12 @@
 use clap::{arg, Arg, Command};
+use env_logger::Env;
+use std::path::Path;
 
 pub mod dispatch;
 
 fn main() {
+    env_logger::init_from_env(Env::default());
+
     let command = Command::new("oxen")
         .version("0.1.0")
         .about("Data management toolchain")
@@ -69,6 +73,12 @@ fn main() {
                 .about("Clone a repository by its URL")
                 .arg_required_else_help(true)
                 .arg(arg!(<URL> "URL of the repository you want to clone")),
+        )
+        .subcommand(
+            Command::new("inspect")
+                .about("Inspect a key-val pair db")
+                .arg_required_else_help(true)
+                .arg(arg!(<PATH> "The path to the database you want to inspect")),
         )
         .subcommand(
             Command::new("push").about("Push the current branch up to the remote repository"),
@@ -163,6 +173,16 @@ fn main() {
         Some(("clone", sub_matches)) => {
             let url = sub_matches.value_of("URL").expect("required");
             match dispatch::clone(url) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Err: {}", err)
+                }
+            }
+        }
+        Some(("inspect", sub_matches)) => {
+            let path_str = sub_matches.value_of("PATH").expect("required");
+            let path = Path::new(path_str);
+            match dispatch::inspect(&path) {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {}", err)

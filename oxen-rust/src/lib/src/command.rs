@@ -9,7 +9,9 @@ use crate::index::{Committer, Indexer, Referencer, Stager};
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData};
 use crate::util;
 
+use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
+use std::str;
 
 /// # Initialize an Empty Oxen Repository
 ///
@@ -357,5 +359,24 @@ pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
     let mut committer = Committer::new(repo)?;
     indexer.pull(&mut committer)?;
+    Ok(())
+}
+
+/// Inspect a key value database for debugging
+pub fn inspect(path: &Path) -> Result<(), OxenError> {
+    let mut opts = Options::default();
+    opts.set_log_level(LogLevel::Error);
+    let db = DB::open_for_read_only(&opts, path, false)?;
+    let iter = db.iterator(IteratorMode::Start);
+    for (key, value) in iter {
+        match (str::from_utf8(&key), str::from_utf8(&value)) {
+            (Ok(key), Ok(value)) => {
+                println!("{}\t{}", key, value)
+            },
+            _ => {
+
+            }
+        }
+    }
     Ok(())
 }

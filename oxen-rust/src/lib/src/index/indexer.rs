@@ -158,16 +158,11 @@ impl Indexer {
                 log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
 
                 // TODO: Be able to pull a different branch than main
-                if !committer.referencer.has_branch(DEFAULT_BRANCH_NAME) {
-                    // Make sure local head matches remote head
-                    // Set head to default name -> commit
-                    committer
-                        .referencer
-                        .create_branch(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
-                }
 
                 // Make sure head is pointing to that branch
                 committer.referencer.set_head(DEFAULT_BRANCH_NAME);
+                committer.referencer.set_branch_commit_id(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
+
                 // Pull the commit
                 self.rpull_commit_id(committer, &remote_head.commit.id)?;
             }
@@ -206,6 +201,8 @@ impl Indexer {
 
             // Pull all the entry files for that commit
             self.pull_entries_for_commit_id(committer, commit_id)?;
+        } else {
+            log::debug!("we have local commit: {:?}", local_commit);
         }
 
         Ok(())

@@ -23,6 +23,10 @@ oxen, oxen-server, liboxen
 
 ## File Structure
 
+To inspect any of the key value dbs below
+
+`oxen inspect <PATH_TO_DB>`
+
 ```
 .oxen/
   HEAD (file that contains name of current "ref")
