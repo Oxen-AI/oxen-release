@@ -6,7 +6,7 @@ use std::path::Path;
 
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
-use crate::constants::{DEFAULT_BRANCH_NAME};
+use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::error::OxenError;
 use crate::index::Committer;
 use crate::model::{
@@ -156,14 +156,16 @@ impl Indexer {
         match api::remote::commits::get_remote_head(&self.repository) {
             Ok(Some(remote_head)) => {
                 log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
-                
+
                 // TODO: Be able to pull a different branch than main
                 if !committer.referencer.has_branch(DEFAULT_BRANCH_NAME) {
                     // Make sure local head matches remote head
                     // Set head to default name -> commit
-                    committer.referencer.create_branch(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
+                    committer
+                        .referencer
+                        .create_branch(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
                 }
-                
+
                 // Make sure head is pointing to that branch
                 committer.referencer.set_head(DEFAULT_BRANCH_NAME);
                 // Pull the commit
@@ -185,7 +187,7 @@ impl Indexer {
         let local_commit = committer.get_commit_by_id(commit_id)?;
         if local_commit.is_none() {
             // If we don't have it locally
-            
+
             // Recursively see if we need to sync the parent
             if let Ok(Some(parent)) =
                 api::remote::commits::get_remote_parent(&self.repository, commit_id)
@@ -195,7 +197,11 @@ impl Indexer {
 
             // Get commit and write it to local DB
             let remote_commit = api::remote::commits::get_by_id(&self.repository, commit_id)?;
-            log::debug!("rpull_commit_id adding commit {} -> `{}`", remote_commit.id, remote_commit.message);
+            log::debug!(
+                "rpull_commit_id adding commit {} -> `{}`",
+                remote_commit.id,
+                remote_commit.message
+            );
             committer.add_commit(&remote_commit)?;
 
             // Pull all the entry files for that commit
@@ -223,7 +229,10 @@ impl Indexer {
         let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
         let opts = Committer::db_opts();
         let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
-        log::debug!("BEFORE PULL ENTRIES GOT HISTORY_DIR DB {:?}", commit_db_path);
+        log::debug!(
+            "BEFORE PULL ENTRIES GOT HISTORY_DIR DB {:?}",
+            commit_db_path
+        );
         // Pull and write all the entries
         self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
 

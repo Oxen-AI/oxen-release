@@ -1,7 +1,7 @@
 use liboxen::api;
-use liboxen::constants::DEFAULT_ORIGIN_NAME;
 use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
+use liboxen::constants::DEFAULT_ORIGIN_NAME;
 use liboxen::error::OxenError;
 use liboxen::index::Committer;
 use liboxen::model::LocalRepository;
@@ -163,7 +163,10 @@ pub fn status() -> Result<(), OxenError> {
     let repo_status = command::status(&repository)?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
-        println!("On branch {} -> {}\n", current_branch.name, current_branch.commit_id);
+        println!(
+            "On branch {} -> {}\n",
+            current_branch.name, current_branch.commit_id
+        );
     } else if let Some(head) = command::head_commit(&repository)? {
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
