@@ -216,3 +216,7 @@ pub fn list_branches() -> Result<(), OxenError> {
 
     Ok(())
 }
+
+pub fn inspect(path: &Path) -> Result<(), OxenError> {
+    command::inspect(path)
+}

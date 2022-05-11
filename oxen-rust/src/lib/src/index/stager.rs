@@ -135,7 +135,7 @@ impl Stager {
         let version_path = version_dir.join(&entry.id).join(entry.filename());
         if !version_path.exists() {
             eprintln!("Version file not found: {:?}", version_path);
-            let err = format!("Stager.add_removed_file({:?}) cannot stage non-existant file\npath: {:?}\nentry: {:?}", version_path, repo_path, entry);
+            let err = format!("Cannot stage non-existant file: {:?}", entry.filename());
             return Err(OxenError::basic_str(&err));
         }
 
@@ -240,7 +240,7 @@ impl Stager {
         // We should have normalized to path past repo at this point
         // println!("Add file: {:?} to {:?}", path, self.repository.path);
         if !path.exists() {
-            let err = format!("Stager.add_file({:?}) cannot stage non-existant file", path);
+            let err = format!("Err cannot stage non-existant file: {:?}", path);
             return Err(OxenError::basic_str(&err));
         }
 
