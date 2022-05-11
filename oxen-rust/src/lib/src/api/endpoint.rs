@@ -1,5 +1,5 @@
-use std::env;
 use crate::constants;
+use std::env;
 
 pub fn host() -> String {
     match env::var("HOST") {

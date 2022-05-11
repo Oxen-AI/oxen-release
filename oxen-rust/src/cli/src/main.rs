@@ -182,7 +182,7 @@ fn main() {
         Some(("inspect", sub_matches)) => {
             let path_str = sub_matches.value_of("PATH").expect("required");
             let path = Path::new(path_str);
-            match dispatch::inspect(&path) {
+            match dispatch::inspect(path) {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {}", err)
