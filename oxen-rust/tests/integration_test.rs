@@ -686,26 +686,57 @@ fn test_command_push_clone() -> Result<(), OxenError> {
 
         // Add and commit and push
         command::add(&repo, &new_file_path)?;
-        command::commit(&repo, "Adding party_ppl.txt")?.unwrap();
+        let latest_commit = command::commit(&repo, "Adding party_ppl.txt")?.unwrap();
         command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let new_repo = command::clone(&remote_repo.url, new_repo_dir)?;
-            let oxen_dir = new_repo.path.join(".oxen");
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let oxen_dir = cloned_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
-            command::pull(&new_repo)?;
+            command::pull(&cloned_repo)?;
 
             // Make sure we pulled all of the train dir
-            let cloned_train_dir = new_repo.path.join(train_dirname);
+            let cloned_train_dir = cloned_repo.path.join(train_dirname);
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_train_dir);
             assert_eq!(og_num_files, cloned_num_files);
 
             // Make sure we have the party ppl file from the next commit
-            let cloned_party_ppl_path = new_repo.path.join(new_filename);
+            let cloned_party_ppl_path = cloned_repo.path.join(new_filename);
             assert!(cloned_party_ppl_path.exists());
             let cloned_contents = util::fs::read_from_path(&cloned_party_ppl_path)?;
             assert_eq!(cloned_contents, new_contents);
+
+            // Make sure that pull updates local HEAD to be correct
+            let head = command::head_commit(&cloned_repo)?;
+            assert_eq!(head.unwrap().id, latest_commit.id);
+
+            // Make sure we synced all the commits
+            let repo_commits = command::log(&repo)?;
+            let cloned_commits = command::log(&cloned_repo)?;
+            assert_eq!(repo_commits.len(), cloned_commits.len());
+
+            // Make sure we updated the dbs properly
+            let status = command::status(&cloned_repo)?;
+            assert!(status.is_clean());
+
+            // Have this side add a file, and send it back over
+            let send_it_back_filename = "send_it_back.txt";
+            let send_it_back_contents = String::from("Hello from the other side");
+            let send_it_back_file_path = repo.path.join(send_it_back_filename);
+            util::fs::write_to_path(&send_it_back_file_path, &send_it_back_contents);
+
+            // Add and commit and push
+            command::add(&cloned_repo, &send_it_back_file_path)?;
+            command::commit(&cloned_repo, "Adding send_it_back.txt")?;
+            command::push(&cloned_repo)?;
+
+            // Pull back from the OG Repo
+            command::pull(&repo)?;
+            let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
+            assert!(pulled_send_it_back_path.exists());
+            let pulled_contents = util::fs::read_from_path(&pulled_send_it_back_path)?;
+            assert_eq!(pulled_contents, send_it_back_contents);
 
             Ok(())
         })

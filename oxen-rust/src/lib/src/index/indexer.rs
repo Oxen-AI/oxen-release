@@ -6,6 +6,7 @@ use std::path::Path;
 
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
+use crate::constants::{DEFAULT_BRANCH_NAME};
 use crate::error::OxenError;
 use crate::index::Committer;
 use crate::model::{
@@ -32,6 +33,9 @@ impl Indexer {
 
     fn push_entries(&self, committer: &Committer, commit: &Commit) -> Result<(), OxenError> {
         let entries = committer.list_unsynced_entries_for_commit(commit)?;
+        if entries.is_empty() {
+            return Ok(());
+        }
 
         println!("🐂 push {} files", entries.len());
 
@@ -152,6 +156,17 @@ impl Indexer {
         match api::remote::commits::get_remote_head(&self.repository) {
             Ok(Some(remote_head)) => {
                 log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
+                
+                // TODO: Be able to pull a different branch than main
+                if !committer.referencer.has_branch(DEFAULT_BRANCH_NAME) {
+                    // Make sure local head matches remote head
+                    // Set head to default name -> commit
+                    committer.referencer.create_branch(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
+                }
+                
+                // Make sure head is pointing to that branch
+                committer.referencer.set_head(DEFAULT_BRANCH_NAME);
+                // Pull the commit
                 self.rpull_commit_id(committer, &remote_head.commit.id)?;
             }
             Ok(None) => {
@@ -167,25 +182,24 @@ impl Indexer {
 
     fn rpull_commit_id(&self, committer: &mut Committer, commit_id: &str) -> Result<(), OxenError> {
         // Check if we have the local commit
-        log::debug!("rpull_commit_id trying to get local commit {}", commit_id);
         let local_commit = committer.get_commit_by_id(commit_id)?;
         if local_commit.is_none() {
             // If we don't have it locally
+            
+            // Recursively see if we need to sync the parent
+            if let Ok(Some(parent)) =
+                api::remote::commits::get_remote_parent(&self.repository, commit_id)
+            {
+                self.rpull_commit_id(committer, &parent.id)?;
+            }
+
             // Get commit and write it to local DB
-            log::debug!("rpull_commit_id we don't have local commit {}", commit_id);
             let remote_commit = api::remote::commits::get_by_id(&self.repository, commit_id)?;
-            log::debug!("rpull_commit_id got remote commit {}", remote_commit.id);
+            log::debug!("rpull_commit_id adding commit {} -> `{}`", remote_commit.id, remote_commit.message);
             committer.add_commit(&remote_commit)?;
 
             // Pull all the entry files for that commit
             self.pull_entries_for_commit_id(committer, commit_id)?;
-
-            // Then recursively see if we need to sync the parent
-            if let Ok(Some(parent)) =
-                api::remote::commits::get_remote_parent(&self.repository, commit_id)
-            {
-                self.rpull_commit_id(committer, &parent.commit.id)?;
-            }
         }
 
         Ok(())
@@ -196,40 +210,22 @@ impl Indexer {
         committer: &Committer,
         commit_id: &str,
     ) -> Result<(), OxenError> {
-        log::debug!("pull_entries_for_commit_id commit_id {}", commit_id);
+        log::debug!("🐂 pull_entries_for_commit_id commit_id {}", commit_id);
         let entries = api::remote::entries::first_page(&self.repository, commit_id)?;
 
         let total: usize = entries.total_entries;
-        println!("🐂 pulling commit {} with {} entries", commit_id, total);
+        if total > 0 {
+            println!("🐂 pulling commit {} with {} entries", commit_id, total);
+        }
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
 
-        match committer.referencer.head_commit_id() {
-            Ok(head_commit_id) => {
-                if head_commit_id == commit_id {
-                    log::debug!(
-                        "pull_entries_for_commit_id commit_id with HEAD {}",
-                        commit_id
-                    );
-
-                    let db = committer.head_commit_db.as_ref().unwrap();
-                    self.pull_entries(committer, db, &entries, commit_id, &bar, 1)?;
-                } else {
-                    log::debug!(
-                        "pull_entries_for_commit_id commit_id with HISTORY DIR {}",
-                        commit_id
-                    );
-                    let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
-                    let opts = Committer::db_opts();
-                    let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
-                    // Pull and write all the entries
-                    self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
-                }
-            }
-            Err(err) => {
-                log::error!("could not pull entries {}", err)
-            }
-        }
+        let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
+        let opts = Committer::db_opts();
+        let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
+        log::debug!("BEFORE PULL ENTRIES GOT HISTORY_DIR DB {:?}", commit_db_path);
+        // Pull and write all the entries
+        self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
 
         bar.finish();
 
@@ -294,10 +290,11 @@ impl Indexer {
             log::debug!("writing file to path: {:?}", fpath);
             let mut dest = { File::create(fpath)? };
             response.copy_to(&mut dest)?;
-
-            let commit_entry = CommitEntry::from_remote_and_commit_id(entry, commit_id);
-            committer.add_commit_entry(&commit_entry, db)?;
         }
+
+        // Add to db, even if we do not need the file
+        let commit_entry = CommitEntry::from_remote_and_commit_id(entry, commit_id);
+        committer.add_commit_entry(&commit_entry, db)?;
         Ok(())
     }
 }
