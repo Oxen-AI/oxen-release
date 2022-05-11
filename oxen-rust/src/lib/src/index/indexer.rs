@@ -12,6 +12,7 @@ use crate::index::Committer;
 use crate::model::{
     Commit, CommitEntry, CommitHead, LocalRepository, RemoteEntry, RemoteRepository,
 };
+use crate::util;
 
 use crate::view::PaginatedEntries;
 
@@ -100,6 +101,10 @@ impl Indexer {
     }
 
     pub fn push(&self, committer: &Committer) -> Result<RemoteRepository, OxenError> {
+        if self.repository.remote().is_none() {
+            return Err(OxenError::basic_str("Must set remote on repository"));
+        }
+        
         let remote_repo = self.create_or_get_repo()?;
         match committer.get_head_commit() {
             Ok(Some(commit)) => {
@@ -217,26 +222,58 @@ impl Indexer {
         let entries = api::remote::entries::first_page(&self.repository, commit_id)?;
 
         let total: usize = entries.total_entries;
-        if total > 0 {
-            println!("🐂 pulling commit {} with {} entries", commit_id, total);
+        if total == 0 {
+            return Ok(())
         }
+
+        println!("🐂 pulling commit {} with {} entries", commit_id, total);
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
 
         let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
         let opts = Committer::db_opts();
         let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
-        log::debug!(
-            "BEFORE PULL ENTRIES GOT HISTORY_DIR DB {:?}",
-            commit_db_path
-        );
+
         // Pull and write all the entries
         self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
+
+        // Cleanup files that shouldn't be there
+        self.cleanup_removed_entries(committer, &db)?;
 
         bar.finish();
 
         Ok(())
     }
+
+    fn cleanup_removed_entries(
+        &self,
+        committer: &Committer,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
+            let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
+            log::debug!("Checking if we should remove: {:?}", short_path);
+            let key = short_path.to_str().unwrap().as_bytes();
+            match db.get(key) {
+                Ok(Some(_value)) => {
+                    // we have it, keep it
+                    log::debug!("Keep file: {:?}", file);
+                }
+                Ok(None) => {
+                    // we don't have it, remove it
+                    if committer.head_contains_file(&short_path)? {
+                        log::debug!("REMOVE IT {:?}", file);
+                        std::fs::remove_file(file)?;
+                    }
+                },
+                Err(err) => {
+                    log::error!("Error cleaning removed entries {}", err)
+                }
+            }
+        }
+        Ok(())
+    }
+
 
     fn pull_entries(
         &self,
@@ -269,13 +306,16 @@ impl Indexer {
         entry: &RemoteEntry,
         commit_id: &str,
     ) -> Result<(), OxenError> {
+        if self.repository.remote().is_none() {
+            return Err(OxenError::basic_str("Must set remote"));
+        }
+
         let config = AuthConfig::default()?;
         let fpath = committer.repository.path.join(&entry.filename);
         log::debug!("download_remote_entry entry {}", entry.filename);
-        if !fpath.exists() {
+        if !fpath.exists() || self.path_hash_is_different(&entry, &fpath) {
             let remote = self.repository.remote().unwrap().value;
             let url = format!("{}/{}", remote, entry.filename);
-            log::debug!("download_remote_entry get url {}", url);
 
             let client = reqwest::blocking::Client::new();
             let mut response = client
@@ -293,7 +333,6 @@ impl Indexer {
                 }
             }
 
-            log::debug!("writing file to path: {:?}", fpath);
             let mut dest = { File::create(fpath)? };
             response.copy_to(&mut dest)?;
         }
@@ -302,6 +341,17 @@ impl Indexer {
         let commit_entry = CommitEntry::from_remote_and_commit_id(entry, commit_id);
         committer.add_commit_entry(&commit_entry, db)?;
         Ok(())
+    }
+
+    fn path_hash_is_different(
+        &self,
+        entry: &RemoteEntry,
+        path: &Path,
+    ) -> bool {
+        if let Ok(hash) = util::hasher::hash_file_contents(path) {
+            return hash != entry.hash;
+        }
+        return false;
     }
 }
 

@@ -406,8 +406,8 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let branch_name = "feature/change-the-shot";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let new_contents = "train/cat_1.jpg 0";
-        let one_shot_path = test::modify_txt_file(one_shot_path, new_contents)?;
+        let party_ppl_contents = "train/cat_1.jpg 0";
+        let one_shot_path = test::modify_txt_file(one_shot_path, party_ppl_contents)?;
         command::add(&repo, &one_shot_path)?;
         command::commit(&repo, "Changing one shot")?;
 
@@ -419,7 +419,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
-        assert_eq!(new_contents, updated_content);
+        assert_eq!(party_ppl_contents, updated_content);
 
         Ok(())
     })
@@ -584,12 +584,19 @@ fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_one_commit() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
+        let mut repo = repo.clone();
+
         // Track the file
         let train_dir = repo.path.join("train");
         let num_files = util::fs::rcount_files_in_dir(&train_dir);
         command::add(&repo, &train_dir)?;
         // Commit the train dir
         let commit = command::commit(&repo, "Adding training data")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
         // Push it real good
         command::push(&repo)?;
 
@@ -606,12 +613,17 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
+        let mut repo = repo.clone();
         // Track the train dir
         let train_dir = repo.path.join("train");
         let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
         command::add(&repo, &train_dir)?;
         // Commit the train dur
         command::commit(&repo, "Adding training data")?;
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
 
         // Push the files
         command::push(&repo)?;
@@ -638,6 +650,9 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 #[test]
 fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
+        // Make mutable copy so we can set remote
+        let mut repo = repo.clone();
+
         // Track the train dir
         let train_dir = repo.path.join("train");
         let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
@@ -650,6 +665,10 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         num_files += util::fs::rcount_files_in_dir(&test_dir);
         command::add(&repo, &test_dir)?;
         let commit = command::commit(&repo, "Adding test data")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
 
         // Push the files
         command::push(&repo)?;
@@ -664,9 +683,27 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     })
 }
 
+
+#[test]
+fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Track the file
+        let train_dirname = "train";
+        let train_dir = repo.path.join(train_dirname);
+        command::add(&repo, &train_dir)?;
+        // Commit the train dir
+        command::commit(&repo, "Adding training data")?.unwrap();
+
+        // Should not be able to push
+        let result = command::push(&repo);
+        assert!(result.is_err());
+        Ok(())
+    })
+}
+
 #[test]
 fn test_command_push_clone() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
         // Track the file
         let train_dirname = "train";
         let train_dir = repo.path.join(train_dirname);
@@ -675,17 +712,21 @@ fn test_command_push_clone() -> Result<(), OxenError> {
         // Commit the train dir
         command::commit(&repo, "Adding training data")?.unwrap();
 
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
         // Push it real good
         let remote_repo = command::push(&repo)?;
 
         // Add a new file
-        let new_filename = "party_ppl.txt";
-        let new_contents = String::from("Wassup Party Ppl");
-        let new_file_path = repo.path.join(new_filename);
-        util::fs::write_to_path(&new_file_path, &new_contents);
+        let party_ppl_filename = "party_ppl.txt";
+        let party_ppl_contents = String::from("Wassup Party Ppl");
+        let party_ppl_file_path = repo.path.join(party_ppl_filename);
+        util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents);
 
         // Add and commit and push
-        command::add(&repo, &new_file_path)?;
+        command::add(&repo, &party_ppl_file_path)?;
         let latest_commit = command::commit(&repo, "Adding party_ppl.txt")?.unwrap();
         command::push(&repo)?;
 
@@ -702,10 +743,10 @@ fn test_command_push_clone() -> Result<(), OxenError> {
             assert_eq!(og_num_files, cloned_num_files);
 
             // Make sure we have the party ppl file from the next commit
-            let cloned_party_ppl_path = cloned_repo.path.join(new_filename);
+            let cloned_party_ppl_path = cloned_repo.path.join(party_ppl_filename);
             assert!(cloned_party_ppl_path.exists());
             let cloned_contents = util::fs::read_from_path(&cloned_party_ppl_path)?;
-            assert_eq!(cloned_contents, new_contents);
+            assert_eq!(cloned_contents, party_ppl_contents);
 
             // Make sure that pull updates local HEAD to be correct
             let head = command::head_commit(&cloned_repo)?;
@@ -719,11 +760,11 @@ fn test_command_push_clone() -> Result<(), OxenError> {
             // Make sure we updated the dbs properly
             let status = command::status(&cloned_repo)?;
             assert!(status.is_clean());
-
+            
             // Have this side add a file, and send it back over
             let send_it_back_filename = "send_it_back.txt";
             let send_it_back_contents = String::from("Hello from the other side");
-            let send_it_back_file_path = repo.path.join(send_it_back_filename);
+            let send_it_back_file_path = cloned_repo.path.join(send_it_back_filename);
             util::fs::write_to_path(&send_it_back_file_path, &send_it_back_contents);
 
             // Add and commit and push
@@ -737,6 +778,30 @@ fn test_command_push_clone() -> Result<(), OxenError> {
             assert!(pulled_send_it_back_path.exists());
             let pulled_contents = util::fs::read_from_path(&pulled_send_it_back_path)?;
             assert_eq!(pulled_contents, send_it_back_contents);
+
+            
+            // Modify the party ppl contents
+            let party_ppl_contents = String::from("Late to the party");
+            util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents);
+            command::add(&repo, &party_ppl_file_path)?;
+            command::commit(&repo, "Modified party ppl contents")?;
+            command::push(&repo)?;
+
+            // Pull the modifications
+            command::pull(&cloned_repo)?;
+            let pulled_contents = util::fs::read_from_path(&cloned_party_ppl_path)?;
+            assert_eq!(pulled_contents, party_ppl_contents);
+
+            // Remove a file, add, commit, push the change
+            std::fs::remove_file(&send_it_back_file_path)?;
+            command::add(&cloned_repo, &send_it_back_file_path)?;
+            command::commit(&cloned_repo, "Removing the send it back file")?;
+            command::push(&cloned_repo)?;
+
+            // Pull down the changes and make sure the file is removed
+            command::pull(&repo)?;
+            let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
+            assert!(!pulled_send_it_back_path.exists());
 
             Ok(())
         })

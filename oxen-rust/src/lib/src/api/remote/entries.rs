@@ -108,6 +108,7 @@ mod tests {
 
     use crate::api;
     use crate::command;
+    use crate::constants;
     use crate::error::OxenError;
     use crate::index::Committer;
     use crate::test;
@@ -137,15 +138,23 @@ mod tests {
     #[test]
     fn test_list_entries_all_in_one_page() -> Result<(), OxenError> {
         test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
-            // Track train directory
-            let train_dir = local_repo.path.join("train");
-            let num_files = util::fs::rcount_files_in_dir(&train_dir);
-            command::add(local_repo, &train_dir)?;
-            // Commit the directory
-            let commit = command::commit(local_repo, "Adding image")?.unwrap();
-            command::push(local_repo)?;
+            // Make mutable copy so we can set the remote
+            let mut repo = local_repo.clone();
 
-            let entries = api::remote::entries::list_page(local_repo, &commit.id, 1, num_files)?;
+            // Track train directory
+            let train_dir = repo.path.join("train");
+            let num_files = util::fs::rcount_files_in_dir(&train_dir);
+            command::add(&repo, &train_dir)?;
+            // Commit the directory
+            let commit = command::commit(&repo, "Adding image")?.unwrap();
+
+            // Set the proper remote
+            let remote = api::endpoint::repo_url_from(&repo.name);
+            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
+            command::push(&repo)?;
+
+            let entries = api::remote::entries::list_page(&repo, &commit.id, 1, num_files)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
@@ -156,16 +165,25 @@ mod tests {
     #[test]
     fn test_list_entries_first_page_of_two() -> Result<(), OxenError> {
         test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+            // Make mutable copy so we can set the remote
+            let mut repo = local_repo.clone();
+
             // Track train directory
-            let train_dir = local_repo.path.join("train");
+            let train_dir = repo.path.join("train");
             let num_files = util::fs::rcount_files_in_dir(&train_dir);
-            command::add(local_repo, &train_dir)?;
+            command::add(&repo, &train_dir)?;
             // Commit the directory
-            let commit = command::commit(local_repo, "Adding image")?.unwrap();
-            command::push(local_repo)?;
+            let commit = command::commit(&repo, "Adding image")?.unwrap();
+
+            // Set the proper remote
+            let remote = api::endpoint::repo_url_from(&repo.name);
+            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
+            // Push
+            command::push(&repo)?;
 
             let page_size = 3;
-            let entries = api::remote::entries::list_page(local_repo, &commit.id, 1, page_size)?;
+            let entries = api::remote::entries::list_page(&repo, &commit.id, 1, page_size)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.page_size, page_size);
             assert_eq!(entries.total_pages, 2);

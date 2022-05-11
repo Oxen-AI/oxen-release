@@ -186,8 +186,8 @@ impl Committer {
         let path_str = entry.path.to_str().unwrap();
         let key = path_str.as_bytes();
         let entry_json = serde_json::to_string(&entry)?;
-        log::debug!("Adding entry to db {} -> {}", path_str, entry_json);
-        log::debug!("db path {:?}", db.path());
+        // log::debug!("Adding entry to db {} -> {}", path_str, entry_json);
+        // log::debug!("db path {:?}", db.path());
         db.put(&key, entry_json.as_bytes())?;
         Ok(())
     }
