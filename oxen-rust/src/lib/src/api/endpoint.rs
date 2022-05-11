@@ -1,16 +1,17 @@
 use std::env;
+use crate::constants;
 
 pub fn host() -> String {
     match env::var("HOST") {
         Ok(host) => host,
-        Err(_) => String::from("0.0.0.0"),
+        Err(_) => String::from(constants::DEFAULT_ORIGIN_HOST),
     }
 }
 
 pub fn port() -> String {
     match env::var("POST") {
         Ok(port) => port,
-        Err(_) => String::from("3000"),
+        Err(_) => String::from(constants::DEFAULT_ORIGIN_PORT),
     }
 }
 
@@ -20,4 +21,8 @@ pub fn server() -> String {
 
 pub fn url_from(name: &str) -> String {
     format!("http://{}{}", server(), name)
+}
+
+pub fn repo_url_from(name: &str) -> String {
+    format!("http://{}/repositories/{}", server(), name)
 }

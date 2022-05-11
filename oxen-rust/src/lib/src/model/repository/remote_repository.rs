@@ -1,4 +1,4 @@
-use crate::constants::{DEFAULT_ORIGIN_NAME, DEFAULT_ORIGIN_VALUE};
+use crate::constants::{DEFAULT_ORIGIN_NAME, DEFAULT_ORIGIN_HOST};
 use crate::model::{LocalRepository, Remote};
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ impl RemoteRepository {
                 .remote()
                 .unwrap_or_else(|| Remote {
                     name: String::from(DEFAULT_ORIGIN_NAME),
-                    value: String::from(DEFAULT_ORIGIN_VALUE),
+                    value: String::from(DEFAULT_ORIGIN_HOST),
                 })
                 .value,
         }
