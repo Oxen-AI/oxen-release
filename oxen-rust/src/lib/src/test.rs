@@ -226,11 +226,11 @@ where
 
     // Write all the files
     populate_repo_with_training_data(&repo_dir)?;
-    command::add(&repo, Path::new("train"))?;
-    command::add(&repo, Path::new("test"))?;
-    command::add(&repo, Path::new("annotations"))?;
-    command::add(&repo, Path::new("labels.txt"))?;
-    command::add(&repo, Path::new("README.md"))?;
+    command::add(&repo, &repo_dir.join("train"))?;
+    command::add(&repo, &repo_dir.join("test"))?;
+    command::add(&repo, &repo_dir.join("annotations"))?;
+    command::add(&repo, &repo_dir.join("labels.txt"))?;
+    command::add(&repo, &repo_dir.join("README.md"))?;
     command::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd

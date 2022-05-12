@@ -126,18 +126,55 @@ impl Committer {
         }
     }
 
+    fn add_modified_to_commit_db(
+        &self,
+        new_commit: &Commit,
+        path: &Path,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        // If it's modified we will have a head commit
+        let current_commit_id = self.get_head_commit()?.unwrap().id;
+
+        log::debug!("Commit new id [{}] old id [{}] modify file {:?}", new_commit.id, current_commit_id, path);
+        // if we can't get the extension...not a file we want to index anyways
+        let ext = path.extension().unwrap();
+        // entry_id will be the relative path of the file hashed
+        log::debug!("add_modified_to_commit_db hash_filename: {:?}", path);
+        let entry_id = util::hasher::hash_filename(path);
+
+        // then hash the actual file contents
+        let full_path = self.repository.path.join(path);
+        let hash = util::hasher::hash_file_contents(&full_path)?;
+        let ext = String::from(ext.to_str().unwrap_or(""));
+
+        // Create entry object to as json
+        let entry = CommitEntry {
+            id: entry_id,
+            path: path.to_path_buf(),
+            hash,
+            is_synced: false, // so we know to sync
+            commit_id: new_commit.id.to_owned(),
+            extension: ext,
+        };
+
+        // Write to db & backup
+        self.add_commit_entry(&entry, db)?;
+        
+        Ok(())
+    }
+
     fn add_path_to_commit_db(
         &self,
         new_commit: &Commit,
         path: &Path,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        log::debug!("Commit [{}] commit file {:?}", new_commit.id, path);
+        log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
         // if we can't get the extension...not a file we want to index anyways
         let ext = path.extension().unwrap();
         // entry_id will be the relative path of the file hashed
-        let filename_str = path.to_str().unwrap();
-        let entry_id = util::hasher::hash_buffer(filename_str.as_bytes());
+        log::debug!("add_path_to_commit_db hash_filename: {:?}", path);
+        let entry_id = util::hasher::hash_filename(path);
 
         // then hash the actual file contents
         let full_path = self.repository.path.join(path);
@@ -154,7 +191,7 @@ impl Committer {
             extension: ext,
         };
 
-        // Write to db
+        // Write to db & backup
         self.add_commit_entry(&entry, db)?;
         Ok(())
     }
@@ -164,31 +201,64 @@ impl Committer {
         entry: &CommitEntry,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        let full_path = self.repository.path.join(&entry.path);
-
-        // create a copy to our versions directory
-        // .oxen/versions/ENTRY_ID/COMMIT_ID.ext
-        let name = format!("{}.{}", entry.commit_id, entry.extension);
-        let versions_entry_dir = self.versions_dir.join(&entry.id);
-        let versions_path = versions_entry_dir.join(name);
-
-        if !versions_entry_dir.exists() {
-            std::fs::create_dir_all(versions_entry_dir)?;
-        }
-        log::debug!(
-            "Commit [{}] copied file {:?} to {:?}",
-            entry.commit_id,
-            entry.path,
-            versions_path
-        );
-        std::fs::copy(full_path, versions_path)?;
+        self.backup_file_to_versions_dir(entry)?;
 
         let path_str = entry.path.to_str().unwrap();
         let key = path_str.as_bytes();
         let entry_json = serde_json::to_string(&entry)?;
-        // log::debug!("Adding entry to db {} -> {}", path_str, entry_json);
+        log::debug!("Adding entry to db {} -> {}", path_str, entry_json);
         // log::debug!("db path {:?}", db.path());
         db.put(&key, entry_json.as_bytes())?;
+
+        Ok(())
+    }
+
+    fn backup_file_to_versions_dir(
+        &self,
+        new_entry: &CommitEntry,
+    ) -> Result<(), OxenError> {
+        let full_path = self.repository.path.join(&new_entry.path);
+        // create a copy to our versions directory
+        // .oxen/versions/ENTRY_ID/COMMIT_ID.ext
+        let name = format!("{}.{}", new_entry.commit_id, new_entry.extension);
+        let versions_entry_dir = self.versions_dir.join(&new_entry.id);
+        let versions_path = versions_entry_dir.join(name);
+
+        if !versions_entry_dir.exists() {
+            // it's the first time
+            log::debug!("Creating version dir for file: {:?}", new_entry.path);
+
+            // Create version dir
+            std::fs::create_dir_all(versions_entry_dir)?;
+
+            // Copy file over
+            log::debug!(
+                "Commit [{}] first time copying file {:?} to {:?}",
+                new_entry.commit_id,
+                new_entry.path,
+                versions_path
+            );
+            std::fs::copy(full_path, versions_path)?;
+        } else {
+            // Make sure we only copy it if it hasn't changed
+            if let Ok(Some(old_entry)) = self.get_entry(&new_entry.path) {
+                log::debug!("got entry from db {:?}", new_entry);
+                if new_entry.hash != old_entry.hash {
+                    let versions_path = versions_entry_dir.join(new_entry.filename());
+                    log::debug!(
+                        "Commit new commit [{}] old commit [{}] copying file {:?} to {:?}",
+                        new_entry.commit_id,
+                        old_entry.commit_id,
+                        new_entry.path,
+                        versions_path
+                    );
+                    std::fs::copy(full_path, versions_path)?;
+                }
+            } else {
+                log::debug!("could not find entry from db {:?}", new_entry.path);
+            }
+        }
+
         Ok(())
     }
 
@@ -238,27 +308,41 @@ impl Committer {
         entry: &StagedEntry,
         db: &DBWithThreadMode<MultiThreaded>,
     ) {
-        if entry.status == StagedEntryStatus::Removed {
-            match self.remove_path_from_commit_db(path, db) {
-                Ok(_) => {}
-                Err(err) => {
-                    let err = format!(
-                        "Committer.commit_staged_entry_to_db failed to remove file: {}",
-                        err
-                    );
-                    eprintln!("{}", err)
+        match entry.status {
+            StagedEntryStatus::Removed => {
+                match self.remove_path_from_commit_db(path, db) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        let err = format!(
+                            "Committer.commit_staged_entry_to_db failed to REMOVE file: {}",
+                            err
+                        );
+                        eprintln!("{}", err)
+                    }
                 }
-            }
-        } else {
-            // TODO: have different path for modified
-            match self.add_path_to_commit_db(commit, path, db) {
-                Ok(_) => {}
-                Err(err) => {
-                    let err = format!(
-                        "Committer.commit_staged_entry_to_db failed to add file: {}",
-                        err
-                    );
-                    eprintln!("{}", err)
+            },
+            StagedEntryStatus::Modified => {
+                match self.add_modified_to_commit_db(commit, path, db) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        let err = format!(
+                            "Committer.commit_staged_entry_to_db failed to commit MODIFIED file: {}",
+                            err
+                        );
+                        eprintln!("{}", err)
+                    }
+                }
+            },
+            StagedEntryStatus::Added => {
+                match self.add_path_to_commit_db(commit, path, db) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        let err = format!(
+                            "Committer.commit_staged_entry_to_db failed to ADD file: {}",
+                            err
+                        );
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }
@@ -625,6 +709,7 @@ impl Committer {
             let err = format!("Ref not exist: {}", commit_id);
             return Err(OxenError::basic_str(&err));
         }
+        log::debug!("set_working_repo_to_commit_id: {}", commit_id);
 
         let commit_db_path = self.commit_db_path(commit_id);
 
@@ -649,15 +734,15 @@ impl Committer {
             self.list_files_in_commit_db(self.head_commit_db.as_ref().unwrap())?;
         for path in current_entries.iter() {
             let repo_path = self.repository.path.join(path);
-            // println!(
-            //     "set_working_repo_to_commit_id current_entries[{:?}]",
-            //     repo_path
-            // );
+            log::debug!(
+                "set_working_repo_to_commit_id current_entries[{:?}]",
+                repo_path
+            );
             if repo_path.is_file() {
-                // println!(
-                //     "set_working_repo_to_commit_id[{}] commit_id {} path {:?}",
-                //     name, commit_id, path
-                // );
+                log::debug!(
+                    "set_working_repo_to_commit_id commit_id {} path {:?}",
+                    commit_id, path
+                );
 
                 // Keep track of parents to see if we clear them
                 if let Some(parent) = path.parent() {
@@ -672,14 +757,14 @@ impl Committer {
                 match commit_db.get(bytes) {
                     Ok(Some(_value)) => {
                         // We already have file ✅
-                        // println!(
-                        //     "set_working_repo_to_commit_id we already have file ✅ {:?}",
-                        //     repo_path
-                        // );
+                        log::debug!(
+                            "set_working_repo_to_commit_id we already have file ✅ {:?}",
+                            repo_path
+                        );
                     }
                     _ => {
                         // sorry, we don't know you, bye
-                        // println!("set_working_repo_to_commit_id see ya 💀 {:?}", repo_path);
+                        log::debug!("set_working_repo_to_commit_id see ya 💀 {:?}", repo_path);
                         std::fs::remove_file(repo_path)?;
                     }
                 }
@@ -695,7 +780,7 @@ impl Committer {
         for entry in commit_entries.iter() {
             bar.inc(1);
             let path = &entry.path;
-            // println!("Committed entry: {:?}", path);
+            log::debug!("Checking committed entry: {:?} => {:?}", path, entry);
             if let Some(parent) = path.parent() {
                 // Check if parent directory exists, if it does, we no longer have
                 // it as a candidate to remove
@@ -709,14 +794,20 @@ impl Committer {
 
             // Check the versioned file hash
             let version_filename = entry.filename();
-            let version_path = self.versions_dir.join(&entry.id).join(version_filename);
+            let entry_version_dir = self.versions_dir.join(&entry.id);
+
+            for f in util::fs::rlist_files_in_dir(&entry_version_dir) {
+                log::debug!("VERSION FILE: {:?} version: {:?}", path, f);
+            }
+
+            let version_path = entry_version_dir.join(version_filename);
 
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
-                // println!(
-                //     "set_working_repo_to_commit_id restore file, she new 🙏 {:?} -> {:?}",
-                //     version_path, dst_path
-                // );
+                log::debug!(
+                    "set_working_repo_to_commit_id restore file, she new 🙏 {:?} -> {:?}",
+                    version_path, dst_path
+                );
 
                 // mkdir if not exists for the parent
                 if let Some(parent) = dst_path.parent() {
@@ -730,14 +821,24 @@ impl Committer {
                 // we do have it, check if we need to update it
                 let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
 
+                // let old_contents = util::fs::read_from_path(&version_path)?;
+                // let current_contents = util::fs::read_from_path(&dst_path)?;
+                // log::debug!("old_contents {:?}\n{}", version_path, old_contents);
+                // log::debug!("current_contents {:?}\n{}", dst_path, current_contents);
+
                 // If the hash of the file from the commit is different than the one on disk, update it
                 if entry.hash != dst_hash {
                     // we need to update working dir
-                    // println!(
-                    //     "set_working_repo_to_commit_id restore file diff hash 🙏 {:?} -> {:?}",
-                    //     version_path, dst_path
-                    // );
+                    log::debug!(
+                        "set_working_repo_to_commit_id restore file diff hash 🙏 {:?} -> {:?}",
+                        version_path, dst_path
+                    );
                     std::fs::copy(version_path, dst_path)?;
+                } else {
+                    log::debug!(
+                        "set_working_repo_to_commit_id hashes match! {:?} -> {:?}",
+                        version_path, dst_path
+                    );
                 }
             }
         }

@@ -134,7 +134,7 @@ impl Stager {
             util::fs::oxen_hidden_dir(&self.repository.path).join(Path::new(VERSIONS_DIR));
         let version_path = version_dir.join(&entry.id).join(entry.filename());
         if !version_path.exists() {
-            eprintln!("Version file not found: {:?}", version_path);
+            log::error!("Version file not found: {:?}", version_path);
             let err = format!("Cannot stage non-existant file: {:?}", entry.filename());
             return Err(OxenError::basic_str(&err));
         }
@@ -183,8 +183,7 @@ impl Stager {
     pub fn has_entry(&self, path: &Path) -> bool {
         if let Some(path_str) = path.to_str() {
             let bytes = path_str.as_bytes();
-            // TODO: is there a faster way to check a key? "key_may_exist" sounds sketchy what does may mean?
-            match self.db.get_pinned(bytes) {
+            match self.db.get(bytes) {
                 Ok(Some(_value)) => true,
                 Ok(None) => false,
                 Err(err) => {
@@ -244,10 +243,8 @@ impl Stager {
             return Err(OxenError::basic_str(&err));
         }
 
-        // create a little meta data object to attach to file path
-        let filename_str = path.to_str().unwrap();
-        let id = util::hasher::hash_buffer(filename_str.as_bytes());
-        let hash = util::hasher::hash_file_contents(path)?;
+        // compute the hash to know if it has changed
+        let hash = util::hasher::hash_file_contents(&path)?;
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
@@ -255,21 +252,26 @@ impl Stager {
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
         let path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
 
+        log::debug!("add_file hash_filename: {:?}", path);
+        let id = util::hasher::hash_filename(&path);
+        let mut staged_entry = StagedEntry {
+            id,
+            hash: hash.to_owned(),
+            status: StagedEntryStatus::Added,
+        };
+
         if let Ok(Some(entry)) = committer.get_entry(&path) {
             if entry.hash == hash {
                 // file has not changed, don't add it
                 return Ok(path);
+            } else {
+                // Hash doesn't match, mark it as modified
+                staged_entry.status = StagedEntryStatus::Modified;
             }
         }
 
-        let entry = StagedEntry {
-            id,
-            hash,
-            status: StagedEntryStatus::Added,
-        };
-
         let key = path.to_str().unwrap();
-        let entry_json = serde_json::to_string(&entry)?;
+        let entry_json = serde_json::to_string(&staged_entry)?;
         self.db.put(&key, entry_json.as_bytes())?;
 
         // Check if we have added the full directory,
@@ -389,17 +391,19 @@ impl Stager {
     pub fn list_modified_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
         // TODO: We are looping multiple times to check whether file is added,modified,or removed, etc
         //       We should do this loop once, and check each thing
-        let dir_entries = std::fs::read_dir(&self.repository.path)?;
+        let dir_entries = util::fs::rlist_files_in_dir(&self.repository.path);
 
         let mut paths: Vec<PathBuf> = vec![];
-        for entry in dir_entries {
-            let local_path = entry?.path();
+        for local_path in dir_entries.iter() {
             if local_path.is_file() {
                 // Return relative path with respect to the repo
                 let relative_path =
                     util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
 
+                // log::debug!("stager::list_modified_files considering path {:?}", relative_path);
+                
                 if self.has_entry(&relative_path) {
+                    log::debug!("stager::list_modified_files already added path {:?}", relative_path);
                     continue;
                 }
 
@@ -408,8 +412,11 @@ impl Stager {
                     // Check if the old_entry has changed
                     let current_hash = util::hasher::hash_file_contents(&local_path)?;
                     if current_hash != old_entry.hash {
+                        log::debug!("stager::list_modified_files hashes are different! {:?}", relative_path);
                         paths.push(relative_path);
                     }
+                } else {
+                    // log::debug!("stager::list_modified_files we don't have file in head commit {:?}", relative_path);
                 }
             }
         }
@@ -1011,6 +1018,38 @@ mod tests {
 
             // With 3 recursive files
             assert_eq!(dirs[0].1, 3);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_modify_file_recursive() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let stager = Stager::new(&repo)?;
+            let committer = Committer::new(&repo)?;
+
+            // Write two files to a sub directory
+            let repo_path = &stager.repository.path;
+            let one_shot_file = repo_path.join("annotations").join("train").join("one_shot.txt");
+
+            // Add the directory which has the structure
+            // annotations/
+            //   train/
+            //     one_shot.txt
+
+            // Modify the committed file
+            let one_shot_file = test::modify_txt_file(one_shot_file, "new content coming in hot")?;
+
+            // List dirs
+            let files = stager.list_modified_files(&committer)?;
+
+            // There is one modified file
+            assert_eq!(files.len(), 1);
+
+            // And it is
+            let relative_path = util::fs::path_relative_to_dir(&one_shot_file, repo_path)?;
+            assert_eq!(files[0], relative_path);
 
             Ok(())
         })

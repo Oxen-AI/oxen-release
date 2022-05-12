@@ -13,18 +13,8 @@ use crate::app_data::OxenAppData;
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
 use futures_util::stream::StreamExt as _;
-use serde::Deserialize;
 use std::path::Path;
 use tar::Archive;
-
-#[derive(Deserialize, Debug)]
-pub struct CommitQuery {
-    commit_id: String,
-    parent_id: Option<String>,
-    message: String,
-    author: String,
-    date: String,
-}
 
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
@@ -170,8 +160,8 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
 
 pub async fn upload(
     req: HttpRequest,
-    mut body: web::Payload,        // the actual file body
-    data: web::Query<CommitQuery>, // these are the query params -> struct
+    mut body: web::Payload,   // the actual file body
+    data: web::Query<Commit>, // these are the query params -> struct
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     // name to the repo, should be in url path so okay to unwap
@@ -181,15 +171,8 @@ pub async fn upload(
             let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
             // Create Commit from uri params
-            let commit = Commit {
-                id: data.commit_id.clone(),
-                parent_id: data.parent_id.clone(),
-                message: data.message.clone(),
-                author: data.author.clone(),
-                date: Commit::date_from_str(&data.date),
-            };
-
-            match create_commit(&repo.path, &commit) {
+            let commit = &data.into_inner();
+            match create_commit(&repo.path, commit) {
                 Ok(_) => {
                     // Get tar.gz bytes for history/COMMIT_ID data
                     let mut bytes = web::BytesMut::new();
@@ -204,7 +187,7 @@ pub async fn upload(
                     Ok(HttpResponse::Ok().json(CommitResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_CREATED),
-                        commit,
+                        commit: commit.to_owned(),
                     }))
                 }
                 Err(err) => {

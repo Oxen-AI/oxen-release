@@ -34,20 +34,24 @@ impl CommitEntry {
 
     pub fn to_synced(&self) -> CommitEntry {
         CommitEntry {
-            id: self.id.clone(),
-            path: self.path.clone(),
+            id: self.id.to_owned(),
+            path: self.path.to_owned(),
             is_synced: true,
-            hash: self.hash.clone(),
-            commit_id: self.commit_id.clone(),
-            extension: self.extension.clone(),
+            hash: self.hash.to_owned(),
+            commit_id: self.commit_id.to_owned(),
+            extension: self.extension.to_owned(),
         }
     }
 
     pub fn to_remote(&self) -> RemoteEntry {
         RemoteEntry {
-            id: self.id.clone(),
+            id: self.id.to_owned(),
             filename: self.path.to_str().unwrap_or("").to_string(),
-            hash: self.hash.clone(),
+            hash: self.hash.to_owned(),
         }
+    }
+
+    pub fn to_uri_encoded(&self) -> String {
+        serde_url_params::to_string(&self).unwrap()
     }
 }
