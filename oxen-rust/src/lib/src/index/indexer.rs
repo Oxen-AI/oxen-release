@@ -106,6 +106,7 @@ impl Indexer {
         }
 
         let remote_repo = self.create_or_get_repo()?;
+        log::debug!("indexer::push got remote repo: {}", remote_repo.url);
         match committer.get_head_commit() {
             Ok(Some(commit)) => {
                 // maybe_push() will recursively check commits head against remote head
@@ -223,26 +224,23 @@ impl Indexer {
         log::debug!("🐂 pull_entries_for_commit_id commit_id {}", commit_id);
         let entries = api::remote::entries::first_page(&self.repository, commit_id)?;
 
-        let total: usize = entries.total_entries;
-        if total == 0 {
-            return Ok(());
-        }
-
-        println!("🐂 pulling commit {} with {} entries", commit_id, total);
-        let size: u64 = unsafe { std::mem::transmute(total) };
-        let bar = ProgressBar::new(size);
-
         let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
         let opts = Committer::db_opts();
         let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
 
-        // Pull and write all the entries
-        self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
+        let total: usize = entries.total_entries;
+        if total > 0 {
+            println!("🐂 pulling commit {} with {} entries", commit_id, total);
+            let size: u64 = unsafe { std::mem::transmute(total) };
+            let bar = ProgressBar::new(size);
+
+            // Pull and write all the entries
+            self.pull_entries(committer, &db, &entries, commit_id, &bar, 1)?;
+            bar.finish();
+        }
 
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(committer, &db)?;
-
-        bar.finish();
 
         Ok(())
     }

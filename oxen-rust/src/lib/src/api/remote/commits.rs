@@ -24,7 +24,6 @@ pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead
         .send()
     {
         let body = res.text()?;
-        log::debug!("get_remote_head\n{}", body);
         let response: Result<RemoteRepositoryHeadResponse, serde_json::Error> =
             serde_json::from_str(&body);
         match response {
