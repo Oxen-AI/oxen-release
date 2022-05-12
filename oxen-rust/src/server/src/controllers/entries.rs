@@ -1,7 +1,7 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-use liboxen::model::{LocalRepository, RemoteEntry};
+use liboxen::model::{LocalRepository, RemoteEntry, CommitEntry};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
 use serde::Deserialize;
@@ -14,12 +14,6 @@ use std::io::prelude::*;
 use std::path::Path;
 
 #[derive(Deserialize, Debug)]
-pub struct EntryQuery {
-    filename: String,
-    hash: String,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct PageNumQuery {
     page_num: Option<usize>,
     page_size: Option<usize>,
@@ -28,7 +22,7 @@ pub struct PageNumQuery {
 pub async fn create(
     req: HttpRequest,
     body: web::Payload,
-    data: web::Query<EntryQuery>,
+    data: web::Query<CommitEntry>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
@@ -108,11 +102,11 @@ async fn p_create_entry(
     sync_dir: &Path,
     repository: &LocalRepository,
     mut body: web::Payload,
-    data: web::Query<EntryQuery>,
+    data: web::Query<CommitEntry>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let repo_dir = &sync_dir.join(&repository.name);
 
-    let filepath = repo_dir.join(&data.filename);
+    let filepath = repo_dir.join(&data.path);
 
     if let Some(parent) = filepath.parent() {
         if !parent.exists() {
@@ -130,11 +124,7 @@ async fn p_create_entry(
     Ok(HttpResponse::Ok().json(RemoteEntryResponse {
         status: String::from(STATUS_SUCCESS),
         status_message: String::from(MSG_RESOURCE_CREATED),
-        entry: RemoteEntry {
-            id: format!("{}", uuid::Uuid::new_v4()), // generate a new one on the server for now
-            filename: String::from(&data.filename),
-            hash: String::from(&data.hash),
-        },
+        entry: RemoteEntry::from_commit_entry(&data.into_inner()),
     }))
 }
 
@@ -142,10 +132,11 @@ async fn p_create_entry(
 mod tests {
 
     use actix_web::{web, App};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use liboxen::command;
     use liboxen::error::OxenError;
+    use liboxen::model::CommitEntry;
     use liboxen::util;
     use liboxen::view::{PaginatedEntries, RemoteEntryResponse};
 
@@ -162,12 +153,19 @@ mod tests {
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, name)?;
 
-        let filename = "test.txt";
-        let hash = "1234";
+        let entry = CommitEntry {
+            id: String::from(""),
+            path: PathBuf::from("file.txt"),
+            is_synced: false,
+            hash: String::from("1234"),
+            commit_id: String::from("1111"),
+            extension: String::from("txt"),
+        };
+        
         let payload = "🐂 💨";
         let uri = format!(
-            "/repositories/{}/entries?filename={}&hash={}",
-            name, filename, hash
+            "/repositories/{}/entries?{}",
+            name, entry.to_uri_encoded()
         );
         let app = actix_web::test::init_service(
             App::new()
@@ -191,12 +189,12 @@ mod tests {
         let entry_resp: RemoteEntryResponse = serde_json::from_str(body)?;
 
         // Make sure entry gets populated
-        assert_eq!(entry_resp.entry.filename, filename);
-        assert_eq!(entry_resp.entry.hash, hash);
+        assert_eq!(entry_resp.entry.filename, entry.path.to_str().unwrap());
+        assert_eq!(entry_resp.entry.hash, entry.hash);
 
         // Make sure file actually exists on disk
         let repo_dir = sync_dir.join(repo.name);
-        let uploaded_file = repo_dir.join(filename);
+        let uploaded_file = repo_dir.join(entry.path);
         assert!(uploaded_file.exists());
         // Make sure file contents are the same as the payload
         assert_eq!(util::fs::read_from_path(&uploaded_file)?, payload);

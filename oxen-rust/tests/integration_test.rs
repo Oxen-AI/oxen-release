@@ -2,9 +2,12 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
+use liboxen::index::committer::VERSIONS_DIR;
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
+
+use std::path::Path;
 
 #[test]
 fn test_command_init() -> Result<(), OxenError> {
@@ -406,20 +409,29 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let branch_name = "feature/change-the-shot";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let party_ppl_contents = "train/cat_1.jpg 0";
-        let one_shot_path = test::modify_txt_file(one_shot_path, party_ppl_contents)?;
+        let file_contents = "train/cat_1.jpg 0";
+        let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 1);
+        status.print();
         command::add(&repo, &one_shot_path)?;
+        log::debug!("---- after command add ----");
+        let status = command::status(&repo)?;
+        status.print();
         command::commit(&repo, "Changing one shot")?;
+        log::debug!("---- after command commit ----");
 
         // checkout OG and make sure it reverts
         command::checkout(&repo, &orig_branch.name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
 
+        log::debug!("---- after checkout OG ----");
+
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
-        assert_eq!(party_ppl_contents, updated_content);
+        assert_eq!(file_contents, updated_content);
 
         Ok(())
     })
@@ -859,7 +871,6 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             // Stage & Commit & Push the removal
             command::add(&repo, &filepath)?;
             command::commit(&repo, "You mess with it, I remove it")?.unwrap();
-            log::debug!("--------------FINAL PUSHING-----------");
             command::push(&repo)?;
 
             command::pull(&cloned_repo)?;
@@ -870,5 +881,30 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
     })
 }
 
+#[test]
+fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Track a file
+        let filename = "labels.txt";
+        let filepath = repo.path.join(filename);
+        command::add(&repo, &filepath)?;
+        command::commit(&repo, "Adding labels file")?.unwrap();
 
-// TODO: make sure we are not storing EVERY version, just changed ones
+        let new_filename = "new.txt";
+        let new_filepath = repo.path.join(new_filename);
+        util::fs::write_to_path(&new_filepath, "hallo");
+        command::add(&repo, &new_filepath)?;
+        command::commit(&repo, "Adding a new file")?.unwrap();
+
+        let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(VERSIONS_DIR));
+        log::debug!("version_dir hash_filename: {:?}", filepath);
+
+        let id = util::hasher::hash_filename(Path::new(filename));
+        let original_file_version_dir = version_dir.join(id);
+        log::debug!("version dir: {:?}", original_file_version_dir);
+        let num_files = util::fs::rcount_files_in_dir(&original_file_version_dir);
+        assert_eq!(num_files, 1);
+
+        Ok(())
+    })
+}

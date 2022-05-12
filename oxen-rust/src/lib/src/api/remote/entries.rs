@@ -14,12 +14,12 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
     let file = File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
     let uri = format!(
-        "/repositories/{}/entries?filename={}&hash={}",
+        "/repositories/{}/entries?{}",
         repository.name,
-        entry.path.to_str().unwrap(),
-        entry.hash
+        entry.to_uri_encoded()
     );
     let url = api::endpoint::url_from(&uri);
+    log::debug!("create entry: {}", url);
     match client
         .post(url)
         .body(file)
@@ -32,6 +32,7 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
         Ok(res) => {
             let status = res.status();
             let body = res.text()?;
+            log::debug!("api::remote::entries::create {}", body);
             let response: Result<RemoteEntryResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {

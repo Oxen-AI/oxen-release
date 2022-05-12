@@ -1,6 +1,5 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use urlencoding::encode;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Commit {
@@ -14,21 +13,7 @@ pub struct Commit {
 
 impl Commit {
     pub fn to_uri_encoded(&self) -> String {
-        let message = encode(&self.message);
-        let author = encode(&self.author);
-        let date_str = self.date_to_str();
-        let date = encode(&date_str);
-        if let Some(parent_id) = &self.parent_id {
-            format!(
-                "commit_id={}&parent_id={}&message={}&author={}&date={}",
-                self.id, parent_id, message, author, date
-            )
-        } else {
-            format!(
-                "commit_id={}&message={}&author={}&date={}",
-                self.id, message, author, date
-            )
-        }
+        serde_url_params::to_string(&self).unwrap()
     }
 
     pub fn date_to_str(&self) -> String {

@@ -154,34 +154,41 @@ impl StagedData {
                 continue;
             }
 
-            if entry.status == StagedEntryStatus::Removed {
-                let full_path = repo_path.join(short_path);
-                let path = self.get_top_level_dir(&repo_path, &full_path);
+            match entry.status {
+                StagedEntryStatus::Removed => {
+                    let full_path = repo_path.join(short_path);
+                    let path = self.get_top_level_dir(&repo_path, &full_path);
 
-                let count = top_level_counts[&path];
-                if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
-                    && !summarized.contains(&path)
-                {
-                    let added_file_str = format!(
-                        "  removed: {}\n    which had {} files including {}",
-                        path.to_str().unwrap(),
-                        count,
-                        short_path.to_str().unwrap(),
-                    )
-                    .green();
+                    let count = top_level_counts[&path];
+                    if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
+                        && !summarized.contains(&path)
+                    {
+                        let added_file_str = format!(
+                            "  removed: {}\n    which had {} files including {}",
+                            path.to_str().unwrap(),
+                            count,
+                            short_path.to_str().unwrap(),
+                        )
+                        .green();
+                        println!("{}", added_file_str);
+
+                        summarized.insert(path.to_owned());
+                    }
+
+                    if !summarized.contains(&path) {
+                        let added_file_str =
+                            format!("  removed:  {}", short_path.to_str().unwrap()).green();
+                        println!("{}", added_file_str);
+                    }
+                },
+                StagedEntryStatus::Modified => {
+                    let added_file_str = format!("  modified:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", added_file_str);
-
-                    summarized.insert(path.to_owned());
-                }
-
-                if !summarized.contains(&path) {
-                    let added_file_str =
-                        format!("  removed:  {}", short_path.to_str().unwrap()).green();
+                },
+                StagedEntryStatus::Added => {
+                    let added_file_str = format!("  added:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", added_file_str);
                 }
-            } else {
-                let added_file_str = format!("  added:  {}", short_path.to_str().unwrap()).green();
-                println!("{}", added_file_str);
             }
         }
     }

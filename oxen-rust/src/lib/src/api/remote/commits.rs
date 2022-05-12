@@ -135,7 +135,7 @@ fn post_tarball_to_server(
 
     let uri = format!("/repositories/{}/commits?{}", name, commit.to_uri_encoded());
     let url = api::endpoint::url_from(&uri);
-
+    log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client
         .post(url)
         .body(reqwest::blocking::Body::from(buffer.to_owned()))

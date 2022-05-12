@@ -39,6 +39,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_url_params",
  "signal-hook",
  "tar",
  "threadpool",
@@ -1280,6 +1281,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "serde_url_params",
  "signal-hook",
  "tar",
  "threadpool",
@@ -2035,6 +2037,16 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serde_url_params"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c43307d0640738af32fe8d01e47119bc0fc8a686be470a44a586caff76dfb34"
+dependencies = [
+ "serde",
+ "url",
 ]
 
 [[package]]
