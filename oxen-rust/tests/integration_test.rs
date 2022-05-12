@@ -701,7 +701,7 @@ fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
 }
 
 #[test]
-fn test_command_push_clone() -> Result<(), OxenError> {
+fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|mut repo| {
         // Track the file
         let train_dirname = "train";
@@ -805,3 +805,70 @@ fn test_command_push_clone() -> Result<(), OxenError> {
         })
     })
 }
+
+// This specific flow broke during a demo
+// * add file *
+// push
+// pull
+// * modify file *
+// push
+// pull
+// * remove file *
+// push
+#[test]
+fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // Track a file
+        let filename = "labels.txt";
+        let filepath = repo.path.join(filename);
+        command::add(&repo, &filepath)?;
+        command::commit(&repo, "Adding labels file")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
+        // Push it real good
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            command::pull(&cloned_repo)?;
+
+            // Modify the file in the cloned dir
+            let cloned_filepath = cloned_repo.path.join(filename);
+            let changed_content = "messing up the labels";
+            util::fs::write_to_path(&cloned_filepath, changed_content);
+            command::add(&cloned_repo, &cloned_filepath)?;
+            command::commit(&cloned_repo, "I messed with the label file")?.unwrap();
+
+            // Push back to server
+            command::push(&cloned_repo)?;
+
+            // Pull back to original guy
+            command::pull(&repo)?;
+
+            // Make sure content changed
+            let pulled_content = util::fs::read_from_path(&filepath)?;
+            assert_eq!(pulled_content, changed_content);
+
+            // Delete the file in the og filepath
+            std::fs::remove_file(&filepath)?;
+
+            // Stage & Commit & Push the removal
+            command::add(&repo, &filepath)?;
+            command::commit(&repo, "You mess with it, I remove it")?.unwrap();
+            log::debug!("--------------FINAL PUSHING-----------");
+            command::push(&repo)?;
+
+            command::pull(&cloned_repo)?;
+            assert!(!cloned_filepath.exists());
+
+            Ok(())
+        })
+    })
+}
+
+
+// TODO: make sure we are not storing EVERY version, just changed ones
