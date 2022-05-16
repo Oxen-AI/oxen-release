@@ -120,13 +120,23 @@ To inspect any of the key value dbs below
 
 ## Structure
 
-Directories with repository names to simply sync data to
+Directories with repository names to simply sync data to, same internal file structure as your local repo
 
-## APIs
+/tmp/oxen_sync
+  /repo_name
+
+# APIs
 
 `set SERVER 0.0.0.0:3000`
 
-`curl "http://$SERVER/repositories"`
+## List Repositories
 
-```
-```
+`curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/repositories"`
+
+## Create Repository
+
+`curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"name": "MyRepo"}' "http://$SERVER/repositories"`
+
+## Add file
+
+`curl -v -H "Authorization: Bearer $TOKEN" -X POST --data-binary @/Users/gregschoeninger/Downloads/woof_meow.jpeg "http://$SERVER/repositories/MyRepo/entries?id=1234&path=woof_meow.jpeg&is_synced=true&hash=4321&commit_id=1234&extension=jpeg"`
