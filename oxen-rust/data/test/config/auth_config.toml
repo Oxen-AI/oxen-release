@@ -1,7 +1,7 @@
 host = "0.0.0.0:3000"
 
 [user]
-id = "90dba452-8215-4d41-81c0-d8fea2f5808e"
-token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjkwZGJhNDUyLTgyMTUtNGQ0MS04MWMwLWQ4ZmVhMmY1ODA4ZSIsIm5hbWUiOiJncmVnIiwiZW1haWwiOiJnQG94ZW4uYWkifQ.gAVz5TN7Fenh4NghpePUY1KLwK8p5AarUaESbpvCM1M"
+id = "0129b967-1be1-40ce-b328-53ec7a360b16"
+token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjAxMjliOTY3LTFiZTEtNDBjZS1iMzI4LTUzZWM3YTM2MGIxNiIsIm5hbWUiOiJncmVnIiwiZW1haWwiOiJnQG94ZW4uYWkifQ.JswpZm1Ds-kO0c09yhkNeZARGNnxYpEsrek8MbdGTLM"
 email = "g@oxen.ai"
 name = "greg"

@@ -16,6 +16,14 @@ Generate a config file and token to give user access to the server
 
 `./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml`
 
+Copy the config to the default locations
+
+`mkdir ~/.oxen`
+
+`mv auth_config.toml ~/.oxen/auth_config.toml`
+
+`cp ~/.oxen/auth_config.toml data/test/config/auth_config.toml`
+
 Run the server
 
 `./target/debug/oxen-server start`
