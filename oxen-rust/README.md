@@ -6,7 +6,34 @@ Libraries and tools to manage Oxen repositories.
 
 oxen, oxen-server, liboxen
 
-## Commands
+# Build & Run
+
+Build the binaries
+
+`cargo build`
+
+Generate a config file and token to give user access to the server
+
+`./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml`
+
+Run the server
+
+`./target/debug/oxen-server start`
+
+The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
+
+
+# Unit & Integration Tests
+
+Make sure your server is running on the default port and host, then run
+
+`cargo test`
+
+To run with all debug output and run a specific test
+
+`env RUST_LOG=warn,liboxen=debug,integration_test=debug cargo test -- --nocapture test_command_push_clone_pull_push`
+
+# CLI Commands
 
 `oxen init .`
 
@@ -21,7 +48,7 @@ oxen, oxen-server, liboxen
 `oxen push`
 
 
-## File Structure
+## Local File Structure
 
 To inspect any of the key value dbs below
 
@@ -97,7 +124,7 @@ Directories with repository names to simply sync data to
 
 ## APIs
 
-set SERVER 0.0.0.0:3000
+`set SERVER 0.0.0.0:3000`
 
 `curl "http://$SERVER/repositories"`
 
