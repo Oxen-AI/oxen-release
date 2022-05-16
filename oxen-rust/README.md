@@ -1,6 +1,6 @@
 # Oxen 🐂
 
-Libraries and tools to manage Oxen repositories.
+Library, tools, and server to manage Oxen repositories.
 
 # Components
 
