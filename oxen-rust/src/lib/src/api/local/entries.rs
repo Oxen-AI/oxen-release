@@ -86,6 +86,23 @@ mod tests {
     }
 
     #[test]
+    fn test_api_local_entries_count_many_dirs() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // (files already created in helper)
+            let num_files = util::fs::rcount_files_in_dir(&repo.path);
+
+            // Commit the dir
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all data")?.unwrap();
+
+            let count = api::local::entries::count_for_commit(&repo, &commit)?;
+            assert_eq!(count, num_files);
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_api_local_entries_list_page_first_page() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // (files already created in helper)
