@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
-use liboxen::index::committer::VERSIONS_DIR;
+use liboxen::index::committer::{VERSIONS_DIR, HISTORY_DIR};
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -902,7 +902,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         let remote = api::endpoint::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
 
-        // Push it real good
+        // Push it
         let remote_repo = command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
@@ -943,5 +943,65 @@ fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
         assert_eq!(num_files, 1);
 
         Ok(())
+    })
+}
+
+#[test]
+fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // First commit
+        let filename = "labels.txt";
+        let filepath = repo.path.join(filename);
+        command::add(&repo, &filepath)?;
+        command::commit(&repo, "Adding labels file")?.unwrap();
+
+        // Second commit
+        let new_filename = "new.txt";
+        let new_filepath = repo.path.join(new_filename);
+        util::fs::write_to_path(&new_filepath, "hallo");
+        command::add(&repo, &new_filepath)?;
+        command::commit(&repo, "Adding a new file")?.unwrap();
+
+        // Third commit
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        // Fourth commit
+        let test_path = repo.path.join("test");
+        command::add(&repo, &test_path)?;
+        command::commit(&repo, "Adding test dir")?.unwrap();
+
+        // Get local history
+        let local_history = command::log(&repo)?;
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
+        // Push it
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            command::pull(&cloned_repo)?;
+            
+            // Get cloned history
+            let cloned_history = command::log(&cloned_repo)?;
+
+            // Make sure the histories match
+            assert_eq!(local_history.len(), cloned_history.len());
+
+            // Make sure we have grabbed all the history dirs
+            let hidden_dir = util::fs::oxen_hidden_dir(&cloned_repo.path);
+            let history_dir = hidden_dir.join(Path::new(HISTORY_DIR));
+            for commit in cloned_history.iter() {
+                let commit_history_dir = history_dir.join(&commit.id);
+                assert!(commit_history_dir.exists());
+            }
+
+            Ok(())
+        })
     })
 }
