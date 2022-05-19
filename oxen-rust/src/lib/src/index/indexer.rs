@@ -156,6 +156,11 @@ impl Indexer {
         Ok(())
     }
 
+    // TODO: The only reason we need a mutable committer is that we are writing the commit entries
+    // Which is already very inefficient
+    // Instead when we pull each commit meta data, we should make a request to
+    // zip up the remote history/COMMIT_ID entry
+    // Download it, unzip it, and put it in the local history dir
     pub fn pull(&self, committer: &mut Committer) -> Result<(), OxenError> {
         log::debug!("🐂 ##### Oxen pull!");
         // Get the remote head commit, and try to recursively pull subsequent commits
@@ -171,11 +176,14 @@ impl Indexer {
                     .referencer
                     .set_branch_commit_id(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
 
-                // Pull the commit
+                // Sync the commit objects
+                self.rpull_missing_commit_objects(committer, &remote_head.commit)?;
+                
+                // Sync the HEAD commit data
                 self.rpull_commit_id(committer, &remote_head.commit)?;
             }
             Ok(None) => {
-                log::debug!("oxen pull remote head does not exist");
+                eprintln!("oxen pull error: remote head does not exist");
             }
             Err(err) => {
                 log::debug!("oxen pull could not get remote head: {}", err);
@@ -185,41 +193,67 @@ impl Indexer {
         Ok(())
     }
 
-    fn rpull_commit_id(&self, committer: &mut Committer, remote_commit_head: &Commit) -> Result<(), OxenError> {
-        // Check if we have the local commit
-        log::debug!("🐂 START rpull_commit_id commit_id {}", remote_commit_head.id);
-        if let Some(local_commit) = committer.get_commit_by_id(&remote_commit_head.id)? {
-            self.check_parent_and_pull_entries(committer, &local_commit)?;
-        } else {
-            // We don't have it locally, so pull it
-            self.check_parent_and_pull_entries(committer, &remote_commit_head)?;
-        }
-        log::debug!("🐂 END rpull_commit_id commit_id {}", remote_commit_head.id);
+    /// Just pull the commit objects that are missing (not the data)
+    fn rpull_missing_commit_objects(
+        &self,
+        committer: &mut Committer,
+        remote_head_commit: &Commit
+    ) -> Result<(), OxenError> {
+        let local_head_commit = committer.get_commit_by_id(&remote_head_commit.id)?;
+        if local_head_commit.is_none() {
+            // We don't have HEAD locally, so pull it
+            self.check_parent_and_pull_commit_object(committer, &remote_head_commit)?;
+        } // else we are synced
+
         Ok(())
     }
 
-    fn check_parent_and_pull_entries(&self, committer: &mut Committer, commit: &Commit) -> Result<(), OxenError> {
-        log::debug!("🐂 START check_parent_and_pull_entries commit_id {}", commit.id);
-        // Recursively see if we need to sync the parent
+    fn check_parent_and_pull_commit_object(
+        &self,
+        committer: &mut Committer,
+        commit: &Commit
+    ) -> Result<(), OxenError> {
+        // If we have a parent on the remote
         if let Ok(Some(parent)) =
             api::remote::commits::get_remote_parent(&self.repository, &commit.id)
         {
-            self.check_parent_and_pull_entries(committer, &parent)?;
+            // Check if we have the parent locally
+            let local_parent_commit = committer.get_commit_by_id(&parent.id)?;
+            if local_parent_commit.is_none() {
+                // Recursively sync the parent
+                self.check_parent_and_pull_commit_object(committer, &parent)?;
+            }
         }
 
         // Get commit and write it to local DB
         let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?;
         log::debug!(
-            "check_parent_and_pull_entries adding commit {:?}",
+            "check_parent_and_pull_commit_object adding commit {:?}",
             remote_commit
         );
         committer.add_commit(&remote_commit)?;
 
+        // Download the specific commit_db that holds all the entries
+        api::remote::commits::download_commit_db_by_id(&self.repository, &commit.id)?;
+
+        Ok(())
+    }
+
+    fn rpull_commit_id(&self, committer: &mut Committer, remote_commit_head: &Commit) -> Result<(), OxenError> {
+        // Check if we have the local commit
+        log::debug!("🐂 START rpull_commit_id commit_id {}", remote_commit_head.id);
+
+        // Optimize...
+        // only need to really pull the entries for head commit, 
+        // and then dbs for the other commits if you are rolling back?
+        // Or we could compress the history dir, and pull that, then pull the entries for head
+
         // Pull all the entry files for that commit
         let page_size: usize = 512;
         let limit = 0; // if limit is 0, we pull it all
-        self.pull_entries_for_commit_id(committer, &commit.id, page_size, limit)?;
-        log::debug!("🐂 DONE check_parent_and_pull_entries commit_id {}", commit.id);
+        self.pull_entries_for_commit_id(committer, &remote_commit_head.id, page_size, limit)?;
+
+        log::debug!("🐂 END rpull_commit_id commit_id {}", remote_commit_head.id);
         Ok(())
     }
 
@@ -250,42 +284,25 @@ impl Indexer {
 
         let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
         log::debug!("pull_entries_for_commit_id before open commit_db {:?}", commit_db_path);
-        // TODO: Why do we run into this in CLI but not unit tests 🤔 (opening committer.head_commit_db.path twice)
-        if &commit_db_path == committer.head_commit_db.as_ref().unwrap().path() {
-            let total: usize = limit;
-            if total > 0 {
-                println!("🐂 pulling commit {} limit {} entries", commit_id, total);
-                let size: u64 = unsafe { std::mem::transmute(total) };
-                let bar = ProgressBar::new(size);
+    
+        let opts = Committer::db_opts();
+        let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
+        log::debug!("pull_entries_for_commit_id after open commit_db {:?}", commit_db_path);
 
-                // Pull and write all the entries
-                self.pull_entries(committer, committer.head_commit_db.as_ref().unwrap(), &entries, commit_id, &bar, first_page_idx, page_size, limit)?;
-                log::debug!("🐂 DONE pull_entries_for_commit_id pulling commit {} limit {} entries", commit_id, total);
-                bar.finish();
-            }
+        let total: usize = limit;
+        if total > 0 {
+            println!("🐂 pulling commit {} limit {} entries", commit_id, total);
+            let size: u64 = unsafe { std::mem::transmute(total) };
+            let bar = ProgressBar::new(size);
 
-            // Cleanup files that shouldn't be there
-            self.cleanup_removed_entries(committer, committer.head_commit_db.as_ref().unwrap())?;
-        } else {
-            let opts = Committer::db_opts();
-            let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
-            log::debug!("pull_entries_for_commit_id after open commit_db {:?}", commit_db_path);
-
-            let total: usize = limit;
-            if total > 0 {
-                println!("🐂 pulling commit {} limit {} entries", commit_id, total);
-                let size: u64 = unsafe { std::mem::transmute(total) };
-                let bar = ProgressBar::new(size);
-
-                // Pull and write all the entries
-                self.pull_entries(committer, &db, &entries, commit_id, &bar, first_page_idx, page_size, limit)?;
-                log::debug!("🐂 DONE pull_entries_for_commit_id pulling commit {} limit {} entries", commit_id, total);
-                bar.finish();
-            }
-
-            // Cleanup files that shouldn't be there
-            self.cleanup_removed_entries(committer, &db)?;
+            // Pull and write all the entries
+            self.pull_entries(committer, &db, &entries, commit_id, &bar, first_page_idx, page_size, limit)?;
+            log::debug!("🐂 DONE pull_entries_for_commit_id pulling commit {} limit {} entries", commit_id, total);
+            bar.finish();
         }
+
+        // Cleanup files that shouldn't be there
+        self.cleanup_removed_entries(committer, &db)?;
         
         Ok(())
     }

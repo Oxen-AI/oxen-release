@@ -3,9 +3,12 @@ use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::index::Committer;
 use crate::model::{Commit, CommitHead, LocalRepository};
+use crate::util;
 use crate::view::{CommitResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
 
+use flate2::read::GzDecoder;
+use tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
@@ -63,6 +66,33 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit
         }
     } else {
         Err(OxenError::basic_str("get_commit_by_id() Request failed"))
+    }
+}
+
+pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/repositories/{}/commits/{}/commit_db", repository.name, commit_id);
+    let url = api::endpoint::url_from(&uri);
+    log::debug!("download_commit_db_by_id {:?}", url);
+
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        // Unpack tarball to our hidden dir
+        let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
+        log::debug!("DOWNLOADING TO HIDDEN DIR {:?}", hidden_dir);
+        let mut archive = Archive::new(GzDecoder::new(res));
+        archive.unpack(hidden_dir)?;
+
+        Ok(())
+    } else {
+        Err(OxenError::basic_str("download_commit_db_by_id() Request failed"))
     }
 }
 
