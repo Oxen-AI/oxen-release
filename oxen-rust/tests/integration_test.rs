@@ -882,6 +882,43 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_pull_multiple_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // Track a file
+        let filename = "labels.txt";
+        let file_path = repo.path.join(filename);
+        command::add(&repo, &file_path)?;
+        command::commit(&repo, "Adding labels file")?.unwrap();
+
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        let test_path = repo.path.join("test");
+        command::add(&repo, &test_path)?;
+        command::commit(&repo, "Adding test dir")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+
+        // Push it real good
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            command::pull(&cloned_repo)?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // 3 test, 4 train, 1 labels
+            assert_eq!(8, cloned_num_files);
+
+            Ok(())
+        })
+    })
+}
+
+#[test]
 fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Track a file

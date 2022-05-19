@@ -1046,6 +1046,7 @@ impl Committer {
 
 #[cfg(test)]
 mod tests {
+    use crate::command;
     use crate::error::OxenError;
     use crate::index::Committer;
     use crate::test;
@@ -1159,6 +1160,22 @@ mod tests {
 
             let entry_file = entry_dir.join(entry.filename());
             assert!(entry_file.exists());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            test::populate_dir_with_training_data(&dir)?;
+
+            let repo = command::init(&dir)?;
+            let commits = command::log(&repo)?;
+            let commit = commits.last().unwrap();
+            let committer = Committer::new(&repo)?;
+            let num_entries = committer.num_entries_in_commit(&commit.id)?;
+            assert_eq!(num_entries, 0);
 
             Ok(())
         })
