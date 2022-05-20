@@ -26,7 +26,7 @@ impl Stager {
         let dbpath = Stager::staging_dir(&repository.path);
         std::fs::create_dir_all(&dbpath)?;
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         opts.create_if_missing(true);
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,

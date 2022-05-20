@@ -7,8 +7,9 @@ use std::path::Path;
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants::DEFAULT_BRANCH_NAME;
+use crate::index::committer::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::index::Committer;
+use crate::index::{Committer, CommitEntryReader, Referencer};
 use crate::model::{
     Commit, CommitEntry, CommitHead, LocalRepository, RemoteEntry, RemoteRepository,
 };
@@ -156,31 +157,22 @@ impl Indexer {
         Ok(())
     }
 
-    // TODO: The only reason we need a mutable committer is that we are writing the commit entries
-    // Which is already very inefficient
-    // Instead when we pull each commit meta data, we should make a request to
-    // zip up the remote history/COMMIT_ID entry
-    // Download it, unzip it, and put it in the local history dir
-    pub fn pull(&self, committer: &mut Committer) -> Result<(), OxenError> {
-        log::debug!("🐂 ##### Oxen pull!");
+    pub fn pull(&self) -> Result<(), OxenError> {
+        println!("🐂 Oxen pull");
         // Get the remote head commit, and try to recursively pull subsequent commits
         match api::remote::commits::get_remote_head(&self.repository) {
             Ok(Some(remote_head)) => {
                 log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
 
                 // TODO: Be able to pull a different branch than main
+                self.set_branch_name_for_commit(DEFAULT_BRANCH_NAME, &remote_head.commit)?;
 
-                // Make sure head is pointing to that branch
-                committer.referencer.set_head(DEFAULT_BRANCH_NAME);
-                committer
-                    .referencer
-                    .set_branch_commit_id(DEFAULT_BRANCH_NAME, &remote_head.commit.id)?;
-
+                println!("🐂 fetching commit objects...");
                 // Sync the commit objects
-                self.rpull_missing_commit_objects(committer, &remote_head.commit)?;
+                self.rpull_missing_commit_objects(&remote_head.commit)?;
                 
                 // Sync the HEAD commit data
-                self.rpull_commit_id(committer, &remote_head.commit)?;
+                self.pull_entries_for_commit(&remote_head.commit)?;
             }
             Ok(None) => {
                 eprintln!("oxen pull error: remote head does not exist");
@@ -193,16 +185,23 @@ impl Indexer {
         Ok(())
     }
 
+    fn set_branch_name_for_commit(&self, name: &str, commit: &Commit) -> Result<(), OxenError> {
+        let referencer = Referencer::new(&self.repository)?;
+        // Make sure head is pointing to that branch
+        referencer.set_head(name);
+        referencer.set_branch_commit_id(name, &commit.id)
+    }
+
     /// Just pull the commit objects that are missing (not the data)
     fn rpull_missing_commit_objects(
         &self,
-        committer: &mut Committer,
         remote_head_commit: &Commit
     ) -> Result<(), OxenError> {
-        let local_head_commit = committer.get_commit_by_id(&remote_head_commit.id)?;
-        if local_head_commit.is_none() {
+        // See if we have the DB pulled
+        let commit_db_dir = self.repository.path.join(HISTORY_DIR).join(remote_head_commit.id.clone());
+        if !commit_db_dir.exists() {
             // We don't have HEAD locally, so pull it
-            self.check_parent_and_pull_commit_object(committer, &remote_head_commit)?;
+            self.check_parent_and_pull_commit_object(&remote_head_commit)?;
         } // else we are synced
 
         Ok(())
@@ -210,7 +209,6 @@ impl Indexer {
 
     fn check_parent_and_pull_commit_object(
         &self,
-        committer: &mut Committer,
         commit: &Commit
     ) -> Result<(), OxenError> {
         // If we have a parent on the remote
@@ -218,91 +216,53 @@ impl Indexer {
             api::remote::commits::get_remote_parent(&self.repository, &commit.id)
         {
             // Check if we have the parent locally
-            let local_parent_commit = committer.get_commit_by_id(&parent.id)?;
-            if local_parent_commit.is_none() {
+            let commit_db_dir = self.repository.path.join(HISTORY_DIR).join(parent.id.clone());
+            if !commit_db_dir.exists() {
                 // Recursively sync the parent
-                self.check_parent_and_pull_commit_object(committer, &parent)?;
+                self.check_parent_and_pull_commit_object(&parent)?;
             }
         }
 
         // Get commit and write it to local DB
         let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?;
-        log::debug!(
-            "check_parent_and_pull_commit_object adding commit {:?}",
-            remote_commit
-        );
-        committer.add_commit(&remote_commit)?;
 
         // Download the specific commit_db that holds all the entries
         api::remote::commits::download_commit_db_by_id(&self.repository, &commit.id)?;
 
+        // The committer relys on the commit dir being downloaded to add the commit to the commit db
+        // Might want to separate this functionality out of the large "committer" into a smaller commit writer...
+        let mut committer = Committer::new(&self.repository)?;
+        committer.add_commit(&remote_commit)?;
+
         Ok(())
     }
 
-    fn rpull_commit_id(&self, committer: &mut Committer, remote_commit_head: &Commit) -> Result<(), OxenError> {
-        // Check if we have the local commit
-        log::debug!("🐂 START rpull_commit_id commit_id {}", remote_commit_head.id);
-
-        // Optimize...
-        // only need to really pull the entries for head commit, 
-        // and then dbs for the other commits if you are rolling back?
-        // Or we could compress the history dir, and pull that, then pull the entries for head
-
-        // Pull all the entry files for that commit
-        let page_size: usize = 512;
-        let limit = 0; // if limit is 0, we pull it all
-        self.pull_entries_for_commit_id(committer, &remote_commit_head.id, page_size, limit)?;
-
-        log::debug!("🐂 END rpull_commit_id commit_id {}", remote_commit_head.id);
-        Ok(())
-    }
-
-    /// Public for unit testing a partially killed pull
-    pub fn pull_entries_for_commit_id_with_limit(
+    fn pull_entries_for_commit(
         &self,
-        committer: &Committer,
-        commit_id: &str,
-        limit: usize,
+        commit: &Commit
     ) -> Result<(), OxenError> {
-        let page_size: usize = 100;
-        self.pull_entries_for_commit_id(committer, commit_id, page_size, limit)
-    }
-
-    fn pull_entries_for_commit_id(
-        &self,
-        committer: &Committer,
-        commit_id: &str,
-        page_size: usize,
-        mut limit: usize,
-    ) -> Result<(), OxenError> {
-        log::debug!("🐂 pull_entries_for_commit_id commit_id {}", commit_id);
-        let first_page_idx = 1;
-        let entries = api::remote::entries::list_page(&self.repository, commit_id, first_page_idx, page_size)?;
-        if limit == 0 {
-            limit = entries.total_entries;
-        }
-
-        let commit_db_path = committer.history_dir.join(Path::new(&commit_id));
-        log::debug!("pull_entries_for_commit_id before open commit_db {:?}", commit_db_path);
-    
-        let opts = Committer::db_opts();
-        let db = DBWithThreadMode::open(&opts, &commit_db_path)?;
-        log::debug!("pull_entries_for_commit_id after open commit_db {:?}", commit_db_path);
-
-        let total: usize = limit;
-        if total > 0 {
-            println!("🐂 pulling commit {} limit {} entries", commit_id, total);
-            let size: u64 = unsafe { std::mem::transmute(total) };
+        log::debug!("🐂 pull_entries_for_commit_id commit_id {}", commit.id);
+        
+        let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let entries = commit_reader.list_entries()?;
+        if entries.len() > 0 {
+            println!("🐂 pulling commit {} with {} entries", commit.id, entries.len());
+            let size: u64 = unsafe { std::mem::transmute(entries.len()) };
             let bar = ProgressBar::new(size);
 
             // Pull and write all the entries
-            self.pull_entries(committer, &db, &entries, commit_id, &bar, first_page_idx, page_size, limit)?;
-            log::debug!("🐂 DONE pull_entries_for_commit_id pulling commit {} limit {} entries", commit_id, total);
+            entries.par_iter().for_each(|entry| {
+                if let Err(err) = self.download_remote_entry(entry) {
+                    eprintln!("Could not download entry {:?} Err: {:?}", entry.path, err);
+                }
+                bar.inc(1);
+            });
+
             bar.finish();
         }
 
         // Cleanup files that shouldn't be there
-        self.cleanup_removed_entries(committer, &db)?;
+        // self.cleanup_removed_entries(committer, &db)?;
         
         Ok(())
     }
@@ -310,6 +270,7 @@ impl Indexer {
     fn cleanup_removed_entries(
         &self,
         committer: &Committer,
+        commit_reader: &CommitEntryReader,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
@@ -335,61 +296,21 @@ impl Indexer {
         Ok(())
     }
 
-    fn pull_entries(
-        &self,
-        committer: &Committer,
-        db: &DBWithThreadMode<MultiThreaded>,
-        entries: &PaginatedEntries,
-        commit_id: &str,
-        progress: &ProgressBar,
-        page_num: usize,
-        page_size: usize,
-        limit: usize,
-    ) -> Result<(), OxenError> {
-        // Download all the files
-        let elem_num = (page_num-1)*page_size;
-        let mut num_to_take = entries.entries.len();
-        log::debug!("pull_entries checking if we change num_to_take {}, {} >= {}", num_to_take, elem_num+num_to_take, limit);
-        if elem_num+num_to_take >= limit && limit > elem_num {
-            num_to_take = limit - elem_num;
-        }
-
-        log::debug!("pull_entries maybe stop: {} < {} = {} entries.entries.len({})", elem_num, limit, num_to_take, entries.entries.len());
-        entries.entries[0..num_to_take].par_iter().for_each(|entry| {
-            if elem_num < limit {
-                if let Err(err) = self.download_remote_entry(committer, db, entry, commit_id) {
-                    eprintln!("Could not download entry {:?} Err: {:?}", entry.filename, err);
-                }
-            }
-            progress.inc(1);
-        });
-
-        if elem_num+num_to_take < limit {
-            let next_page = page_num + 1;
-            let entries = api::remote::entries::list_page(&self.repository, commit_id, next_page, page_size)?;
-            self.pull_entries(committer, db, &entries, commit_id, progress, next_page, page_size, limit)?;
-        }
-
-        Ok(())
-    }
-
     fn download_remote_entry(
         &self,
-        committer: &Committer,
-        db: &DBWithThreadMode<MultiThreaded>,
-        entry: &RemoteEntry,
-        commit_id: &str,
+        entry: &CommitEntry,
     ) -> Result<(), OxenError> {
         if self.repository.remote().is_none() {
             return Err(OxenError::basic_str("Must set remote"));
         }
 
         let config = AuthConfig::default()?;
-        let fpath = committer.repository.path.join(&entry.filename);
-        log::debug!("download_remote_entry entry {}", entry.filename);
+        let fpath = self.repository.path.join(&entry.path);
+        log::debug!("download_remote_entry entry {:?}", entry.path);
         if !fpath.exists() || self.path_hash_is_different(entry, &fpath) {
             let remote = self.repository.remote().unwrap().value;
-            let url = format!("{}/{}", remote, entry.filename);
+            let filename = entry.path.to_str().unwrap();
+            let url = format!("{}/{}", remote, filename);
 
             let client = reqwest::blocking::Client::new();
             let mut response = client
@@ -411,13 +332,10 @@ impl Indexer {
             response.copy_to(&mut dest)?;
         }
 
-        // Add to db, even if we do not need the file
-        let commit_entry = CommitEntry::from_remote_and_commit_id(entry, commit_id);
-        committer.add_commit_entry(&commit_entry, db)?;
         Ok(())
     }
 
-    fn path_hash_is_different(&self, entry: &RemoteEntry, path: &Path) -> bool {
+    fn path_hash_is_different(&self, entry: &CommitEntry, path: &Path) -> bool {
         if let Ok(hash) = util::hasher::hash_file_contents(path) {
             return hash != entry.hash;
         }
@@ -451,7 +369,6 @@ mod tests {
 
             test::run_empty_dir_test(|new_repo_dir| {
                 let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
-                let mut committer = Committer::new(&cloned_repo)?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -459,13 +376,13 @@ mod tests {
                 let last_commit = commits.first().unwrap();
                 let page_size = 2;
                 let limit = page_size;
-                indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
+                // indexer.pull_entries_for_commit_with_limit(&last_commit, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(num_files, limit);
 
                 // try to pull the full thing again even though we have only partially pulled some
-                indexer.pull(&mut committer)?;
+                indexer.pull()?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);
@@ -497,7 +414,7 @@ mod tests {
                 let last_commit = commits.first().unwrap();
                 let page_size = 3; // make sure it is not an even multiple of limit
                 let limit = 8;
-                indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
+                // indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(num_files, limit);
@@ -538,7 +455,7 @@ mod tests {
                 let last_commit = commits.first().unwrap();
                 let page_size = 3; // make sure it is not an even multiple of limit
                 let limit = 7;
-                indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
+                // indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(num_files, limit);

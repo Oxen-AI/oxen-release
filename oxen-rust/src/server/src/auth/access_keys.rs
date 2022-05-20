@@ -48,7 +48,7 @@ impl AccessKeyManager {
 
         let db_dir = hidden_dir.join("keys");
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         opts.create_if_missing(true);
 
         let secret_file = AccessKeyManager::secret_key_path(sync_dir);

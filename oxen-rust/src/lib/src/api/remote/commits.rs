@@ -73,7 +73,6 @@ pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}/commits/{}/commit_db", repository.name, commit_id);
     let url = api::endpoint::url_from(&uri);
-    log::debug!("download_commit_db_by_id {:?}", url);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -85,8 +84,9 @@ pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -
         .send()
     {
         // Unpack tarball to our hidden dir
+        let size = res.content_length();
+        log::debug!("Got response size: {:?}", size);
         let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
-        log::debug!("DOWNLOADING TO HIDDEN DIR {:?}", hidden_dir);
         let mut archive = Archive::new(GzDecoder::new(res));
         archive.unpack(hidden_dir)?;
 
