@@ -36,7 +36,7 @@ pub struct Committer {
 impl Committer {
     pub fn db_opts() -> Options {
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         opts.create_if_missing(true);
         opts
     }
@@ -530,7 +530,7 @@ impl Committer {
     ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
         let commit_db_path = self.history_dir.join(Path::new(&commit_id));
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         let db = DBWithThreadMode::open_for_read_only(&opts, &commit_db_path, false)?;
         Ok(db)
     }

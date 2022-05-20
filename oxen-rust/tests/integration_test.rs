@@ -2,6 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
+use liboxen::index::{CommitEntryReader};
 use liboxen::index::committer::{VERSIONS_DIR, HISTORY_DIR};
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
@@ -999,6 +1000,11 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
             for commit in cloned_history.iter() {
                 let commit_history_dir = history_dir.join(&commit.id);
                 assert!(commit_history_dir.exists());
+
+                // make sure we can successfully open the db and read entries
+                let reader = CommitEntryReader::new(&cloned_repo, &commit)?;
+                let entries = reader.list_entries();
+                assert!(entries.is_ok());
             }
 
             Ok(())

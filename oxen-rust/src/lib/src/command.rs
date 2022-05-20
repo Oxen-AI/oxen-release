@@ -357,15 +357,14 @@ pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
 /// Pull a repository's data
 pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
-    let mut committer = Committer::new(repo)?;
-    indexer.pull(&mut committer)?;
+    indexer.pull()?;
     Ok(())
 }
 
 /// Inspect a key value database for debugging
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
     let mut opts = Options::default();
-    opts.set_log_level(LogLevel::Error);
+    opts.set_log_level(LogLevel::Fatal);
     let db = DB::open_for_read_only(&opts, path, false)?;
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {

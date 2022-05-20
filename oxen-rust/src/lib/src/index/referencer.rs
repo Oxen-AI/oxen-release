@@ -28,7 +28,7 @@ impl Referencer {
         let head_filename = Referencer::head_file(&repository.path);
 
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open(&opts, &refs_dir)?,
@@ -42,7 +42,7 @@ impl Referencer {
 
         let error_if_log_file_exist = false;
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         opts.create_if_missing(true);
         Ok(Referencer {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,

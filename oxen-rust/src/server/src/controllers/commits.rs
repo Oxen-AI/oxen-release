@@ -171,8 +171,11 @@ pub async fn download_commit_db(req: HttpRequest,) -> HttpResponse {
                 Ok(Some(commit)) => {
                     match compress_commit(&repository, &commit) {
                         Ok(buffer) => {
+                            // TODO: for some reason when this comes over the wire it is different.........
+                            log::debug!("Returning compressed size db size: {}", buffer.len());
                             HttpResponse::Ok()
-                                .insert_header(("Content-Type", "application/gzip"))
+                                // .insert_header(("Content-Type", "application/gzip"))
+                                // .insert_header(("Content-Encoding", "gzip"))
                                 .body(buffer)
                         },
                         Err(err) => {
