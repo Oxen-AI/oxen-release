@@ -87,7 +87,6 @@ impl Committer {
         match referencer.head_commit_id() {
             Ok(commit_id) => {
                 let commit_db_path = history_path.join(Path::new(&commit_id));
-                log::debug!("committer head_commit_db path: {:?}", commit_db_path);
                 Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
             }
             Err(_) => None,

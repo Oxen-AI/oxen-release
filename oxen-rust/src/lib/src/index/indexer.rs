@@ -197,7 +197,7 @@ impl Indexer {
         remote_head_commit: &Commit
     ) -> Result<(), OxenError> {
         // See if we have the DB pulled
-        let commit_db_dir = self.repository.path.join(HISTORY_DIR).join(remote_head_commit.id.clone());
+        let commit_db_dir = util::fs::oxen_hidden_dir(&self.repository.path).join(HISTORY_DIR).join(remote_head_commit.id.clone());
         if !commit_db_dir.exists() {
             // We don't have HEAD locally, so pull it
             self.check_parent_and_pull_commit_object(&remote_head_commit)?;
@@ -214,16 +214,12 @@ impl Indexer {
         if let Ok(Some(parent)) =
             api::remote::commits::get_remote_parent(&self.repository, &commit.id)
         {
-            // Check if we have the parent locally
-            let commit_db_dir = self.repository.path.join(HISTORY_DIR).join(parent.id.clone());
-            if !commit_db_dir.exists() {
-                // Recursively sync the parent
-                self.check_parent_and_pull_commit_object(&parent)?;
-            }
+            // Recursively sync the parent
+            self.check_parent_and_pull_commit_object(&parent)?;
         }
 
         // Pulls dbs and commit object
-        self.pull_commit_data_objects(commit)?;
+        self.pull_commit_data_objects(&commit)?;
 
         Ok(())
     }
@@ -232,20 +228,19 @@ impl Indexer {
         &self,
         commit: &Commit
     ) -> Result<(), OxenError> {
-        // Get commit and write it to local DB
-        let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?;
-
+        log::debug!("pull_commit_data_objects {} `{}`", commit.id, commit.message);
         // Download the specific commit_db that holds all the entries
-        // TODO: Check if we have the commit db locally before doing this
         api::remote::commits::download_commit_db_by_id(&self.repository, &commit.id)?;
 
+        // Get commit and write it to local DB
         // The committer relys on the commit dir being downloaded to add the commit to the commit db
         // Might want to separate this functionality out of the large "committer" into a smaller commit writer...
+        let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?;
         let mut committer = Committer::new(&self.repository)?;
         committer.add_commit(&remote_commit)
     }
 
-    // For unit testing
+    // For unit testing a half synced commit
     pub fn pull_entries_for_commit_with_limit(
         &self,
         commit: &Commit,
@@ -260,13 +255,14 @@ impl Indexer {
         commit: &Commit,
         mut limit: usize,
     ) -> Result<(), OxenError> {
-        log::debug!("🐂 pull_entries_for_commit_id commit_id {}", commit.id);
+        
         
         let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
         let entries = commit_reader.list_entries()?;
         if limit == 0 {
             limit = entries.len();
         }
+        log::debug!("🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}", commit.id, limit, entries.len());
         if entries.len() > 0 {
             println!("🐂 pulling commit {} with {} entries", commit.id, limit);
             let size: u64 = unsafe { std::mem::transmute(limit) };

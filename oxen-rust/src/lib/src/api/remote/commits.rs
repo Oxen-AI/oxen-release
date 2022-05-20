@@ -84,8 +84,6 @@ pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -
         .send()
     {
         // Unpack tarball to our hidden dir
-        let size = res.content_length();
-        log::debug!("Got response size: {:?}", size);
         let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
         let mut archive = Archive::new(GzDecoder::new(res));
         archive.unpack(hidden_dir)?;
@@ -106,8 +104,6 @@ pub fn get_remote_parent(
         repository.name, commit_id
     );
     let url = api::endpoint::url_from(&uri);
-    log::debug!("get_remote_parent {}", url);
-
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -118,7 +114,6 @@ pub fn get_remote_parent(
         .send()
     {
         let body = res.text()?;
-        log::debug!("get_remote_parent response: {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),
