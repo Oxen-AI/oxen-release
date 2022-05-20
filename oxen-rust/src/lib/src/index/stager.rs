@@ -130,15 +130,6 @@ impl Stager {
         repo_path: &Path,
         entry: &CommitEntry,
     ) -> Result<StagedEntry, OxenError> {
-        let version_dir =
-            util::fs::oxen_hidden_dir(&self.repository.path).join(Path::new(VERSIONS_DIR));
-        let version_path = version_dir.join(&entry.id).join(entry.filename());
-        if !version_path.exists() {
-            log::error!("Version file not found: {:?}", version_path);
-            let err = format!("Cannot stage non-existant file: {:?}", entry.filename());
-            return Err(OxenError::basic_str(&err));
-        }
-
         let entry = StagedEntry {
             id: entry.id.clone(),
             hash: entry.hash.clone(),
@@ -147,8 +138,6 @@ impl Stager {
 
         let key = repo_path.to_str().unwrap();
         let entry_json = serde_json::to_string(&entry)?;
-
-        // println!("Stager.add_removed_file {} -> {}", key, entry_json);
         self.db.put(&key, entry_json.as_bytes())?;
 
         Ok(entry)
