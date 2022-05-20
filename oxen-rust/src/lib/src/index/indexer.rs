@@ -11,11 +11,9 @@ use crate::index::committer::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{Committer, CommitEntryReader, Referencer};
 use crate::model::{
-    Commit, CommitEntry, CommitHead, LocalRepository, RemoteEntry, RemoteRepository,
+    Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository,
 };
 use crate::util;
-
-use crate::view::PaginatedEntries;
 
 pub struct Indexer {
     pub repository: LocalRepository,
@@ -172,7 +170,8 @@ impl Indexer {
                 self.rpull_missing_commit_objects(&remote_head.commit)?;
                 
                 // Sync the HEAD commit data
-                self.pull_entries_for_commit(&remote_head.commit)?;
+                let limit: usize = 0; // zero means pull all
+                self.pull_entries_for_commit(&remote_head.commit, limit)?;
             }
             Ok(None) => {
                 eprintln!("oxen pull error: remote head does not exist");
@@ -223,35 +222,58 @@ impl Indexer {
             }
         }
 
+        // Pulls dbs and commit object
+        self.pull_commit_data_objects(commit)?;
+
+        Ok(())
+    }
+
+    fn pull_commit_data_objects(
+        &self,
+        commit: &Commit
+    ) -> Result<(), OxenError> {
         // Get commit and write it to local DB
         let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?;
 
         // Download the specific commit_db that holds all the entries
+        // TODO: Check if we have the commit db locally before doing this
         api::remote::commits::download_commit_db_by_id(&self.repository, &commit.id)?;
 
         // The committer relys on the commit dir being downloaded to add the commit to the commit db
         // Might want to separate this functionality out of the large "committer" into a smaller commit writer...
         let mut committer = Committer::new(&self.repository)?;
-        committer.add_commit(&remote_commit)?;
+        committer.add_commit(&remote_commit)
+    }
 
-        Ok(())
+    // For unit testing
+    pub fn pull_entries_for_commit_with_limit(
+        &self,
+        commit: &Commit,
+        limit: usize,
+    ) -> Result<(), OxenError> {
+        self.pull_commit_data_objects(commit)?;
+        self.pull_entries_for_commit(commit, limit)
     }
 
     fn pull_entries_for_commit(
         &self,
-        commit: &Commit
+        commit: &Commit,
+        mut limit: usize,
     ) -> Result<(), OxenError> {
         log::debug!("🐂 pull_entries_for_commit_id commit_id {}", commit.id);
         
         let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
         let entries = commit_reader.list_entries()?;
+        if limit == 0 {
+            limit = entries.len();
+        }
         if entries.len() > 0 {
-            println!("🐂 pulling commit {} with {} entries", commit.id, entries.len());
-            let size: u64 = unsafe { std::mem::transmute(entries.len()) };
+            println!("🐂 pulling commit {} with {} entries", commit.id, limit);
+            let size: u64 = unsafe { std::mem::transmute(limit) };
             let bar = ProgressBar::new(size);
 
             // Pull and write all the entries
-            entries.par_iter().for_each(|entry| {
+            entries[0..limit].par_iter().for_each(|entry| {
                 if let Err(err) = self.download_remote_entry(entry) {
                     eprintln!("Could not download entry {:?} Err: {:?}", entry.path, err);
                 }
@@ -262,35 +284,20 @@ impl Indexer {
         }
 
         // Cleanup files that shouldn't be there
-        // self.cleanup_removed_entries(committer, &db)?;
+        self.cleanup_removed_entries(&commit_reader)?;
         
         Ok(())
     }
 
     fn cleanup_removed_entries(
         &self,
-        committer: &Committer,
         commit_reader: &CommitEntryReader,
-        db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
             let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
-            let key = short_path.to_str().unwrap().as_bytes();
-            match db.get(key) {
-                Ok(Some(_value)) => {
-                    // we have it, keep it
-                    // log::debug!("Keep file: {:?}", file);
-                }
-                Ok(None) => {
-                    // we don't have it, remove it
-                    if committer.head_contains_file(&short_path)? {
-                        log::debug!("REMOVE IT {:?}", file);
-                        std::fs::remove_file(file)?;
-                    }
-                }
-                Err(err) => {
-                    log::error!("Error cleaning removed entries {}", err)
-                }
+            if !commit_reader.contains_path(&short_path)? {
+                log::debug!("REMOVE IT {:?}", file);
+                std::fs::remove_file(file)?;
             }
         }
         Ok(())
@@ -349,7 +356,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::{Indexer, Committer};
+    use crate::index::Indexer;
     use crate::test;
     use crate::util;
 
@@ -373,10 +380,10 @@ mod tests {
 
                 // Pull a part of the commit
                 let commits = command::log(&repo)?;
-                let last_commit = commits.first().unwrap();
+                let latest_commit = commits.first().unwrap();
                 let page_size = 2;
                 let limit = page_size;
-                // indexer.pull_entries_for_commit_with_limit(&last_commit, limit)?;
+                indexer.pull_entries_for_commit_with_limit(&latest_commit, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(num_files, limit);
@@ -386,38 +393,6 @@ mod tests {
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);
-
-                Ok(())
-            })
-        })
-    }
-
-    #[test]
-    fn test_indexer_partial_pull_odd_size() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|mut repo| {
-            // Set the proper remote
-            let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
-
-            // Push it
-            let remote_repo = command::push(&repo)?;
-
-            command::push(&repo)?;
-
-            test::run_empty_dir_test(|new_repo_dir| {
-                let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
-                let committer = Committer::new(&cloned_repo)?;
-                let indexer = Indexer::new(&cloned_repo)?;
-
-                // Pull a part of the commit
-                let commits = command::log(&repo)?;
-                let last_commit = commits.first().unwrap();
-                let page_size = 3; // make sure it is not an even multiple of limit
-                let limit = 8;
-                // indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
-
-                let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
-                assert_eq!(num_files, limit);
 
                 Ok(())
             })
@@ -447,15 +422,13 @@ mod tests {
 
             test::run_empty_dir_test(|new_repo_dir| {
                 let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
-                let committer = Committer::new(&cloned_repo)?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
                 let commits = command::log(&repo)?;
                 let last_commit = commits.first().unwrap();
-                let page_size = 3; // make sure it is not an even multiple of limit
                 let limit = 7;
-                // indexer.pull_entries_for_commit_id(&committer, &last_commit.id, page_size, limit)?;
+                indexer.pull_entries_for_commit_with_limit(last_commit, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(num_files, limit);
