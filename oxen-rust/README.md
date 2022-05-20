@@ -1,10 +1,15 @@
 # Oxen 🐂
 
-Library, tools, and server to manage Oxen repositories.
+Create a world where everyone can contribute to an Artificial General Intelligence.
 
-# Components
+# In this repository
 
-oxen, oxen-server, liboxen
+Library, tools, and server to manage local and remote Oxen repositories.
+
+Includes:
+  - `oxen` (command line interface)
+  - `oxen-server` (remote server to sync data to)
+  - `liboxen` (shared lib between cli and server)
 
 # Build & Run
 
@@ -135,7 +140,13 @@ Directories with repository names to simply sync data to, same internal file str
 
 # APIs
 
+Server defaults to localhost 3000
+
 `set SERVER 0.0.0.0:3000`
+
+You can grab your auth token from the config file above (~/.oxen/auth_config.toml)
+
+`set TOKEN <YOUR_TOKEN>`
 
 ## List Repositories
 

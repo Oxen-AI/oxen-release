@@ -18,7 +18,7 @@
 
 // pub fn create(name: String, path: &Path) -> Result<(), OxenError> {
 //     let mut opts = Options::default();
-//     opts.set_log_level(LogLevel::Error);
+//     opts.set_log_level(LogLevel::Fatal);
 //     opts.create_if_missing(true);
 
 //     let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &path)?;

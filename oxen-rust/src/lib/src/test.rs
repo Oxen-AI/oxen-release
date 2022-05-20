@@ -139,7 +139,7 @@ where
     let local_repo = command::init(&repo_dir)?;
 
     // Write all the training data files
-    populate_repo_with_training_data(&repo_dir)?;
+    populate_dir_with_training_data(&repo_dir)?;
 
     let remote_repo = api::remote::repositories::create_or_get(&local_repo.name)?;
 
@@ -197,7 +197,7 @@ where
     let repo = command::init(&repo_dir)?;
 
     // Write all the files
-    populate_repo_with_training_data(&repo_dir)?;
+    populate_dir_with_training_data(&repo_dir)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
@@ -225,7 +225,7 @@ where
     let repo = command::init(&repo_dir)?;
 
     // Write all the files
-    populate_repo_with_training_data(&repo_dir)?;
+    populate_dir_with_training_data(&repo_dir)?;
     command::add(&repo, &repo_dir.join("train"))?;
     command::add(&repo, &repo_dir.join("test"))?;
     command::add(&repo, &repo_dir.join("annotations"))?;
@@ -317,7 +317,7 @@ pub fn test_jpeg_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
 }
 
-pub fn populate_repo_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
+pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
     // Directory Structure
     // Features:
     //   - has multiple content types (jpg, txt, md)

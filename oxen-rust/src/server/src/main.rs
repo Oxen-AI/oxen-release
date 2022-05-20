@@ -12,6 +12,7 @@ extern crate log;
 
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
+use actix_http::{KeepAlive};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
 use env_logger::Env;
@@ -102,6 +103,10 @@ async fn main() -> std::io::Result<()> {
                         web::get().to(controllers::commits::show),
                     )
                     .route(
+                        "/repositories/{repo_name}/commits/{commit_id}/commit_db",
+                        web::get().to(controllers::commits::download_commit_db),
+                    )
+                    .route(
                         "/repositories/{repo_name}/commits/{commit_id}/parent",
                         web::get().to(controllers::commits::parent),
                     )
@@ -136,6 +141,7 @@ async fn main() -> std::io::Result<()> {
                     .wrap(Logger::default())
                     .wrap(Logger::new("%a %{User-Agent}i"))
             })
+            .keep_alive(KeepAlive::Disabled) // Server was running out of or closing connections if I didn't do this..🤔
             .bind((host, port))?
             .run()
             .await
