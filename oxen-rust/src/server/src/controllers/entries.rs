@@ -64,7 +64,7 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
             );
             match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
                 Ok(entries) => {
-                    log::debug!("list_entries got {} entries", entries.len());
+                    log::debug!("list_entries commit {} got {} entries", commit_id, entries.len());
                     let entries: Vec<RemoteEntry> =
                         entries.into_iter().map(|entry| entry.to_remote()).collect();
 
@@ -215,7 +215,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, name)?;
 
         // write files to dir
-        liboxen::test::populate_repo_with_training_data(&repo.path)?;
+        liboxen::test::populate_dir_with_training_data(&repo.path)?;
 
         // add the full dir
         let train_dir = repo.path.join(Path::new("train"));

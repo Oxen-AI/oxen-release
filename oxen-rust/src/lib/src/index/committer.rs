@@ -36,7 +36,7 @@ pub struct Committer {
 impl Committer {
     pub fn db_opts() -> Options {
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         opts.create_if_missing(true);
         opts
     }
@@ -87,7 +87,6 @@ impl Committer {
         match referencer.head_commit_id() {
             Ok(commit_id) => {
                 let commit_db_path = history_path.join(Path::new(&commit_id));
-                log::debug!("committer head_commit_db path: {:?}", commit_db_path);
                 Some(DBWithThreadMode::open(&opts, &commit_db_path).unwrap())
             }
             Err(_) => None,
@@ -530,7 +529,7 @@ impl Committer {
     ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
         let commit_db_path = self.history_dir.join(Path::new(&commit_id));
         let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Error);
+        opts.set_log_level(LogLevel::Fatal);
         let db = DBWithThreadMode::open_for_read_only(&opts, &commit_db_path, false)?;
         Ok(db)
     }
@@ -1046,6 +1045,7 @@ impl Committer {
 
 #[cfg(test)]
 mod tests {
+    use crate::command;
     use crate::error::OxenError;
     use crate::index::Committer;
     use crate::test;
@@ -1159,6 +1159,22 @@ mod tests {
 
             let entry_file = entry_dir.join(entry.filename());
             assert!(entry_file.exists());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            test::populate_dir_with_training_data(&dir)?;
+
+            let repo = command::init(&dir)?;
+            let commits = command::log(&repo)?;
+            let commit = commits.last().unwrap();
+            let committer = Committer::new(&repo)?;
+            let num_entries = committer.num_entries_in_commit(&commit.id)?;
+            assert_eq!(num_entries, 0);
 
             Ok(())
         })

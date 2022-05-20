@@ -3,9 +3,12 @@ use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::index::Committer;
 use crate::model::{Commit, CommitHead, LocalRepository};
+use crate::util;
 use crate::view::{CommitResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
 
+use flate2::read::GzDecoder;
+use tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
@@ -66,17 +69,10 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit
     }
 }
 
-pub fn get_remote_parent(
-    repository: &LocalRepository,
-    commit_id: &str,
-) -> Result<Option<Commit>, OxenError> {
+pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/parent",
-        repository.name, commit_id
-    );
+    let uri = format!("/repositories/{}/commits/{}/commit_db", repository.name, commit_id);
     let url = api::endpoint::url_from(&uri);
-    log::debug!("get_remote_parent {}", url);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -87,8 +83,37 @@ pub fn get_remote_parent(
         )
         .send()
     {
+        // Unpack tarball to our hidden dir
+        let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
+        let mut archive = Archive::new(GzDecoder::new(res));
+        archive.unpack(hidden_dir)?;
+
+        Ok(())
+    } else {
+        Err(OxenError::basic_str("download_commit_db_by_id() Request failed"))
+    }
+}
+
+pub fn get_remote_parent(
+    repository: &LocalRepository,
+    commit_id: &str,
+) -> Result<Option<Commit>, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!(
+        "/repositories/{}/commits/{}/parent",
+        repository.name, commit_id
+    );
+    let url = api::endpoint::url_from(&uri);
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
         let body = res.text()?;
-        log::debug!("get_remote_parent response: {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),

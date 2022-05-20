@@ -15,6 +15,8 @@ use flate2::read::GzDecoder;
 use futures_util::stream::StreamExt as _;
 use std::path::Path;
 use tar::Archive;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
@@ -156,6 +158,63 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     let committer = Committer::new(&repo)?;
     let commits = committer.list_commits()?;
     Ok(ListCommitResponse::success(commits))
+}
+
+pub async fn download_commit_db(req: HttpRequest,) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let commit_id: Option<&str> = req.match_info().get("commit_id");
+    if let (Some(name), Some(commit_id)) = (name, commit_id) {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
+            Ok(repository) => match api::local::commits::get_by_id(&repository, commit_id) {
+                Ok(Some(commit)) => {
+                    match compress_commit(&repository, &commit) {
+                        Ok(buffer) => {
+                            HttpResponse::Ok().body(buffer)
+                        },
+                        Err(err) => {
+                            log::error!("Error compressing commit: [{}] Err: {}", name, err);
+                            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                        }
+                    }
+                },
+                Ok(None) => {
+                    log::debug!("Could not find commit [{}]", name);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::error!("Error finding commit: [{}] Err: {}", name, err);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+            },
+            Err(err) => {
+                log::debug!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+        }
+    } else {
+        let msg = "Must supply `repo_name` and `commit_id` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
+    // Tar and gzip the commit db directory
+    // zip up the rocksdb in history dir, and post to server
+    let commit_dir = Committer::history_dir(&repository.path).join(commit.id.clone());
+    // This will be the subdir within the tarball
+    let tar_subdir = Path::new("history").join(commit.id.clone());
+
+    println!("Compressing commit {}", commit.id);
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    tar.append_dir_all(&tar_subdir, commit_dir)?;
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    Ok(buffer)
 }
 
 pub async fn upload(

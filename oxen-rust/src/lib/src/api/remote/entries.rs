@@ -89,7 +89,7 @@ pub fn list_page(
     {
         let status = res.status();
         let body = res.text()?;
-        log::debug!("list_page got body: {}", body);
+        // log::debug!("list_page got body: {}", body);
         let response: Result<PaginatedEntries, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
