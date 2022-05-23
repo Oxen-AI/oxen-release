@@ -49,6 +49,7 @@ rand = "0.8.0"
 rand_core = "0.5"
 derive_more = "0.99.17"
 hex = "0.4.3"
+filetime = "0.2.16"
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]

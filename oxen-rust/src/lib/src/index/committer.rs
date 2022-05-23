@@ -5,6 +5,8 @@ use crate::index::Referencer;
 use crate::model::{Commit, CommitEntry, StagedData, StagedEntry, StagedEntryStatus};
 use crate::util;
 
+use std::fs;
+use filetime::FileTime;
 use chrono::Utc;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
@@ -135,29 +137,30 @@ impl Committer {
         let current_commit_id = self.get_head_commit()?.unwrap().id;
 
         log::debug!("Commit new id [{}] old id [{}] modify file {:?}", new_commit.id, current_commit_id, path);
-        // if we can't get the extension...not a file we want to index anyways
-        let ext = path.extension().unwrap();
         // entry_id will be the relative path of the file hashed
-        log::debug!("add_modified_to_commit_db hash_filename: {:?}", path);
         let entry_id = util::hasher::hash_filename(path);
 
         // then hash the actual file contents
         let full_path = self.repository.path.join(path);
         let hash = util::hasher::hash_file_contents(&full_path)?;
-        let ext = String::from(ext.to_str().unwrap_or(""));
+
+        // Get last modified time
+        let metadata = fs::metadata(full_path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
 
         // Create entry object to as json
         let entry = CommitEntry {
             id: entry_id,
+            commit_id: new_commit.id.to_owned(),
             path: path.to_path_buf(),
             hash,
             is_synced: false, // so we know to sync
-            commit_id: new_commit.id.to_owned(),
-            extension: ext,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
         };
 
         // Write to db & backup
-        self.add_commit_entry(&entry, db)?;
+        self.add_commit_entry(&new_commit.id, &entry, db)?;
         
         Ok(())
     }
@@ -169,8 +172,6 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
-        // if we can't get the extension...not a file we want to index anyways
-        let ext = path.extension().unwrap();
         // entry_id will be the relative path of the file hashed
         log::debug!("add_path_to_commit_db hash_filename: {:?}", path);
         let entry_id = util::hasher::hash_filename(path);
@@ -178,29 +179,34 @@ impl Committer {
         // then hash the actual file contents
         let full_path = self.repository.path.join(path);
         let hash = util::hasher::hash_file_contents(&full_path)?;
-        let ext = String::from(ext.to_str().unwrap_or(""));
+
+        // Get last modified time
+        let metadata = fs::metadata(full_path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
 
         // Create entry object to as json
         let entry = CommitEntry {
             id: entry_id,
+            commit_id: new_commit.id.to_owned(),
             path: path.to_path_buf(),
             hash,
             is_synced: false, // so we know to sync
-            commit_id: new_commit.id.clone(),
-            extension: ext,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
         };
 
         // Write to db & backup
-        self.add_commit_entry(&entry, db)?;
+        self.add_commit_entry(&new_commit.id, &entry, db)?;
         Ok(())
     }
 
     pub fn add_commit_entry(
         &self,
+        commit_id: &str,
         entry: &CommitEntry,
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        self.backup_file_to_versions_dir(entry)?;
+        self.backup_file_to_versions_dir(commit_id, entry)?;
 
         let path_str = entry.path.to_str().unwrap();
         let key = path_str.as_bytes();
@@ -214,12 +220,13 @@ impl Committer {
 
     fn backup_file_to_versions_dir(
         &self,
+        commit_id: &str,
         new_entry: &CommitEntry,
     ) -> Result<(), OxenError> {
         let full_path = self.repository.path.join(&new_entry.path);
         // create a copy to our versions directory
         // .oxen/versions/ENTRY_ID/COMMIT_ID.ext
-        let name = format!("{}.{}", new_entry.commit_id, new_entry.extension);
+        let name = format!("{}.{}", commit_id, new_entry.extension());
         let versions_entry_dir = self.versions_dir.join(&new_entry.id);
         let versions_path = versions_entry_dir.join(name);
 
@@ -229,25 +236,16 @@ impl Committer {
 
             // Create version dir
             std::fs::create_dir_all(versions_entry_dir)?;
-
-            // Copy file over
-            log::debug!(
-                "Commit [{}] first time copying file {:?} to {:?}",
-                new_entry.commit_id,
-                new_entry.path,
-                versions_path
-            );
             std::fs::copy(full_path, versions_path)?;
         } else {
             // Make sure we only copy it if it hasn't changed
             if let Ok(Some(old_entry)) = self.get_entry(&new_entry.path) {
                 log::debug!("got entry from db {:?}", new_entry);
                 if new_entry.hash != old_entry.hash {
-                    let versions_path = versions_entry_dir.join(new_entry.filename());
+                    let filename = new_entry.filename();
+                    let versions_path = versions_entry_dir.join(filename);
                     log::debug!(
-                        "Commit new commit [{}] old commit [{}] copying file {:?} to {:?}",
-                        new_entry.commit_id,
-                        old_entry.commit_id,
+                        "Commit new commit copying file {:?} to {:?}",
                         new_entry.path,
                         versions_path
                     );
@@ -279,7 +277,7 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         // len kind of arbitrary right now...just nice to see progress on big sets of files
-        if added_files.len() > 10000 {
+        if added_files.len() > 1000 {
             self.add_staged_entries_to_db_with_prog(commit, added_files, db)
         } else {
             self.add_staged_entries_to_db_without_prog(commit, added_files, db)
@@ -293,7 +291,7 @@ impl Committer {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         // len kind of arbitrary right now...just nice to see progress on big sets of files
-        if added_files.len() > 10000 {
+        if added_files.len() > 1000 {
             self.add_staged_files_to_db_with_prog(commit, added_files, db)
         } else {
             self.add_staged_files_to_db_without_prog(commit, added_files, db)
@@ -1139,7 +1137,7 @@ mod tests {
             // add & commit the file
             stager.add_file(&hello_file, &committer)?;
             let status = stager.status(&committer)?;
-            committer.commit(&status, "added hello")?;
+            let commit_1 = committer.commit(&status, "added hello")?;
             stager.unstage()?; // make sure to unstage
 
             // modify the file
@@ -1150,15 +1148,21 @@ mod tests {
             stager.add_file(&hello_file, &committer)?;
             // commit the mods
             let status = stager.status(&committer)?;
-            let _commit = committer.commit(&status, "modified hello to be world")?;
+            let commit_2 = committer.commit(&status, "modified hello to be world")?;
 
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             let entry = committer.get_entry(&relative_path)?.unwrap();
             let entry_dir = Committer::versions_dir(repo_path).join(&entry.id);
             assert!(entry_dir.exists());
 
-            let entry_file = entry_dir.join(entry.filename());
-            assert!(entry_file.exists());
+            // Make sure both versions are there
+            let old_version_file = entry_dir.join(entry.filename_from_commit_id(&commit_1.id));
+            log::debug!("old_version_file {:?}", old_version_file);
+            assert!(old_version_file.exists());
+
+            let new_version_file = entry_dir.join(entry.filename_from_commit_id(&commit_2.id));
+            log::debug!("new_version_file {:?}", new_version_file);
+            assert!(new_version_file.exists());
 
             Ok(())
         })
