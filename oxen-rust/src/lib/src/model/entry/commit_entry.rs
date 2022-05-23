@@ -6,6 +6,7 @@ use filetime::FileTime;
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
     pub id: String,
+    pub commit_id: String, // need commit_id to restore
     pub path: PathBuf,
     pub is_synced: bool,
     pub hash: String,
@@ -14,6 +15,10 @@ pub struct CommitEntry {
 }
 
 impl CommitEntry {
+    pub fn filename(&self) -> PathBuf {
+        PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
+    }
+
     pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {
         PathBuf::from(format!("{}.{}", commit_id, self.extension()))
     }
@@ -25,6 +30,7 @@ impl CommitEntry {
     pub fn to_synced(&self) -> CommitEntry {
         CommitEntry {
             id: self.id.to_owned(),
+            commit_id: self.commit_id.to_owned(),
             path: self.path.to_owned(),
             is_synced: true,
             hash: self.hash.to_owned(),

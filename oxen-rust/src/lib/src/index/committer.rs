@@ -151,6 +151,7 @@ impl Committer {
         // Create entry object to as json
         let entry = CommitEntry {
             id: entry_id,
+            commit_id: new_commit.id.to_owned(),
             path: path.to_path_buf(),
             hash,
             is_synced: false, // so we know to sync
@@ -186,6 +187,7 @@ impl Committer {
         // Create entry object to as json
         let entry = CommitEntry {
             id: entry_id,
+            commit_id: new_commit.id.to_owned(),
             path: path.to_path_buf(),
             hash,
             is_synced: false, // so we know to sync
@@ -240,7 +242,7 @@ impl Committer {
             if let Ok(Some(old_entry)) = self.get_entry(&new_entry.path) {
                 log::debug!("got entry from db {:?}", new_entry);
                 if new_entry.hash != old_entry.hash {
-                    let filename = new_entry.filename_from_commit_id(commit_id);
+                    let filename = new_entry.filename();
                     let versions_path = versions_entry_dir.join(filename);
                     log::debug!(
                         "Commit new commit copying file {:?} to {:?}",
@@ -788,7 +790,7 @@ impl Committer {
             let dst_path = self.repository.path.join(path);
 
             // Check the versioned file hash
-            let version_filename = entry.filename_from_commit_id(commit_id);
+            let version_filename = entry.filename();
             let entry_version_dir = self.versions_dir.join(&entry.id);
 
             for f in util::fs::rlist_files_in_dir(&entry_version_dir) {

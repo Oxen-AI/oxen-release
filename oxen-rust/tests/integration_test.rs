@@ -384,6 +384,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
         command::checkout(&repo, &orig_branch.name)?;
 
         // The file contents should be Hello, not World
+        log::debug!("HELLO FILE NAME: {:?}", hello_file);
         assert!(hello_file.exists());
 
         // It should be reverted back to Hello
@@ -523,6 +524,48 @@ fn test_command_add_removed_file() -> Result<(), OxenError> {
         // We should recognize it as missing now
         let status = command::status(&repo)?;
         assert_eq!(status.removed_files.len(), 1);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_restore_removed_file_from_branch_with_commits_between() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // (file already created in helper)
+        let file_to_remove = repo.path.join("labels.txt");
+
+        let orig_branch = command::current_branch(&repo)?.unwrap();
+
+        // Commit the file
+        command::add(&repo, &file_to_remove)?;
+        command::commit(&repo, "Adding labels file")?;
+
+        let train_dir = repo.path.join("train");
+        command::add(&repo, &train_dir)?;
+        command::commit(&repo, "Adding train dir")?;
+
+        // Branch
+        command::create_checkout_branch(&repo, "remove-labels")?;
+
+        // Delete the file
+        std::fs::remove_file(&file_to_remove)?;
+
+        // We should recognize it as missing now
+        let status = command::status(&repo)?;
+        assert_eq!(status.removed_files.len(), 1);
+
+        // Commit removed file
+        command::add(&repo, &file_to_remove)?;
+        command::commit(&repo, "Removing labels file")?;
+
+        // Make sure file is not there
+        assert!(!file_to_remove.exists());
+
+        // Switch back to main branch
+        command::checkout(&repo, &orig_branch.name)?;
+        // Make sure we restore file
+        assert!(file_to_remove.exists());
 
         Ok(())
     })
