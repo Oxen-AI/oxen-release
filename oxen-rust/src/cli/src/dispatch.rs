@@ -123,7 +123,7 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     match flag.to_str().unwrap() {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
-            println!("Committing with msg [{}]", message);
+            println!("Committing with message: {}", message);
             let repo = LocalRepository::from_dir(&repo_dir)?;
             command::commit(&repo, message)?;
             Ok(())

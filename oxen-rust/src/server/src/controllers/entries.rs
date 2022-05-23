@@ -155,6 +155,7 @@ mod tests {
 
         let entry = CommitEntry {
             id: String::from(""),
+            commit_id: String::from("4312"),
             path: PathBuf::from("file.txt"),
             is_synced: false,
             hash: String::from("1234"),
