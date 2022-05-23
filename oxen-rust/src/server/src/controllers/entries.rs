@@ -158,8 +158,8 @@ mod tests {
             path: PathBuf::from("file.txt"),
             is_synced: false,
             hash: String::from("1234"),
-            commit_id: String::from("1111"),
-            extension: String::from("txt"),
+            last_modified_seconds: 1,
+            last_modified_nanoseconds: 2
         };
         
         let payload = "🐂 💨";

@@ -38,6 +38,7 @@ futures-util = "0.3.21"
 threadpool = "1.8.1"
 xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
 lazy_static = "1.4.0"
+filetime = "0.2.16"
 
 [lib]
 name = "liboxen"
