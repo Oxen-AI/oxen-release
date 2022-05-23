@@ -1,7 +1,7 @@
 use crate::model::RemoteEntry;
-
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use filetime::FileTime;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
@@ -9,27 +9,17 @@ pub struct CommitEntry {
     pub path: PathBuf,
     pub is_synced: bool,
     pub hash: String,
-    pub commit_id: String,
-    pub extension: String,
+    pub last_modified_seconds: i64,
+    pub last_modified_nanoseconds: u32,
 }
 
 impl CommitEntry {
-    pub fn from_remote_and_commit_id(remote: &RemoteEntry, commit_id: &str) -> CommitEntry {
-        let path = PathBuf::from(remote.filename.to_owned());
-        // assuming extension is valid if we got it from remote
-        let extension = path.extension().unwrap().to_str().unwrap();
-        CommitEntry {
-            id: remote.id.to_owned(),
-            path: path.to_owned(),
-            is_synced: true,
-            hash: remote.hash.to_owned(),
-            commit_id: commit_id.to_string(),
-            extension: extension.to_string(),
-        }
+    pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {
+        PathBuf::from(format!("{}.{}", commit_id, self.extension()))
     }
 
-    pub fn filename(&self) -> PathBuf {
-        PathBuf::from(format!("{}.{}", self.commit_id, self.extension))
+    pub fn extension(&self) -> String {
+        String::from(self.path.extension().unwrap().to_str().unwrap())
     }
 
     pub fn to_synced(&self) -> CommitEntry {
@@ -38,8 +28,8 @@ impl CommitEntry {
             path: self.path.to_owned(),
             is_synced: true,
             hash: self.hash.to_owned(),
-            commit_id: self.commit_id.to_owned(),
-            extension: self.extension.to_owned(),
+            last_modified_seconds: self.last_modified_seconds,
+            last_modified_nanoseconds: self.last_modified_nanoseconds
         }
     }
 
@@ -53,5 +43,10 @@ impl CommitEntry {
 
     pub fn to_uri_encoded(&self) -> String {
         serde_url_params::to_string(&self).unwrap()
+    }
+
+    pub fn has_different_modification_time(&self, time: &FileTime) -> bool {
+        self.last_modified_nanoseconds != time.nanoseconds() ||
+        self.last_modified_seconds != time.unix_seconds()
     }
 }

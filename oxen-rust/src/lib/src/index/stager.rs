@@ -1,6 +1,5 @@
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::committer::VERSIONS_DIR;
 use crate::index::Committer;
 use crate::model::{CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus};
 use crate::util;
@@ -9,6 +8,8 @@ use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::fs;
+use filetime::FileTime;
 
 pub const STAGED_DIR: &str = "staged";
 
@@ -88,19 +89,19 @@ impl Stager {
 
     pub fn status(&self, committer: &Committer) -> Result<StagedData, OxenError> {
         // TODO: let's do this in a single loop and filter model
-        // println!("status: before list_added_directories");
+        log::debug!("STATUS: before list_added_directories");
         let added_dirs = self.list_added_directories()?;
-        // println!("status: list_added_files");
+        log::debug!("STATUS: list_added_files");
         let added_files = self.list_added_files()?;
-        // println!("status: list_untracked_directories");
+        log::debug!("STATUS: list_untracked_directories");
         let untracked_dirs = self.list_untracked_directories(committer)?;
-        // println!("status: list_untracked_files");
+        log::debug!("STATUS: list_untracked_files");
         let untracked_files = self.list_untracked_files(committer)?;
-        // println!("status: list_modified_files");
+        log::debug!("STATUS: list_modified_files");
         let modified_files = self.list_modified_files(committer)?;
-        // println!("status: list_removed_files");
+        log::debug!("STATUS: list_removed_files");
         let removed_files = self.list_removed_files(committer)?;
-        // println!("status: ok");
+        log::debug!("STATUS: ok");
         let status = StagedData {
             added_dirs,
             added_files,
@@ -398,10 +399,14 @@ impl Stager {
 
                 // Check if we have the entry in the head commit
                 if let Ok(Some(old_entry)) = committer.get_entry(&relative_path) {
-                    // Check if the old_entry has changed
-                    let current_hash = util::hasher::hash_file_contents(&local_path)?;
-                    if current_hash != old_entry.hash {
-                        log::debug!("stager::list_modified_files hashes are different! {:?}", relative_path);
+                    // Get last modified time
+                    let metadata = fs::metadata(local_path).unwrap();
+                    let mtime = FileTime::from_last_modification_time(&metadata);
+
+                    log::debug!("COMPARING TIMESTAMPS: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
+
+                    if old_entry.has_different_modification_time(&mtime) {
+                        log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
                         paths.push(relative_path);
                     }
                 } else {
@@ -414,7 +419,6 @@ impl Stager {
     }
 
     pub fn list_untracked_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
-        // TODO: We just look at the top level here for summary..not recursively right now
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
         // println!("Listing untracked files from {:?}", dir_entries);
         let num_in_head = committer.num_entries_in_head()?;
