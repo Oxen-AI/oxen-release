@@ -48,6 +48,8 @@ Untracked files:
 Committing with message: adding train
 ```
 
+## Demo changing data on branch
+
 `oxen checkout -b change-train`
 
 ```
@@ -78,4 +80,28 @@ Untracked files:
 `oxen checkout main`
 
 `oxen checkout change-train`
+
+## Add all data on main branch
+
+`oxen checkout main`
+
+`oxen add test`
+
+`oxen add annotations`
+
+`oxen commit -m "adding test data"`
+
+## Mess with the test data to get better stats
+
+`oxen checkout -b play-with-test-data`
+
+`rm test/10.jpg`
+
+`head -n 9 annotations/test_annotations.txt > annotations/test_annotations.txt`
+
+`oxen commit -m "remove 10.jpg from test"`
+
+Revert back
+`oxen checkout main`
+
 
