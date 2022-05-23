@@ -1,15 +1,16 @@
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::fs::File;
 use std::path::Path;
+use std::fs;
+use filetime::FileTime;
 
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::index::committer::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::index::{Committer, CommitEntryReader, Referencer};
+use crate::index::{Committer, CommitEntryReader, CommitEntryWriter, Referencer};
 use crate::model::{
     Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository,
 };
@@ -250,27 +251,35 @@ impl Indexer {
         self.pull_entries_for_commit(commit, limit)
     }
 
-    fn pull_entries_for_commit(
+    fn read_entries(
         &self,
         commit: &Commit,
         mut limit: usize,
-    ) -> Result<(), OxenError> {
-        
-        
+    ) -> Result<Vec<CommitEntry>, OxenError> {
         let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
         let entries = commit_reader.list_entries()?;
         if limit == 0 {
             limit = entries.len();
         }
+        Ok(entries[0..limit].to_vec())
+    }
+
+    fn pull_entries_for_commit(
+        &self,
+        commit: &Commit,
+        limit: usize,
+    ) -> Result<(), OxenError> {
+        let entries = self.read_entries(commit, limit)?;
         log::debug!("🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}", commit.id, limit, entries.len());
         if entries.len() > 0 {
             println!("🐂 pulling commit {} with {} entries", commit.id, limit);
             let size: u64 = unsafe { std::mem::transmute(limit) };
             let bar = ProgressBar::new(size);
 
+            let committer = CommitEntryWriter::new(&self.repository, commit)?;
             // Pull and write all the entries
-            entries[0..limit].par_iter().for_each(|entry| {
-                if let Err(err) = self.download_remote_entry(entry) {
+            entries.par_iter().for_each(|entry| {
+                if let Err(err) = self.download_remote_entry(entry, &committer) {
                     eprintln!("Could not download entry {:?} Err: {:?}", entry.path, err);
                 }
                 bar.inc(1);
@@ -280,19 +289,16 @@ impl Indexer {
         }
 
         // Cleanup files that shouldn't be there
-        self.cleanup_removed_entries(&commit_reader)?;
+        self.cleanup_removed_entries(commit)?;
         
         Ok(())
     }
 
-    fn cleanup_removed_entries(
-        &self,
-        commit_reader: &CommitEntryReader,
-    ) -> Result<(), OxenError> {
+    fn cleanup_removed_entries(&self, commit: &Commit,) -> Result<(), OxenError> {
+        let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
         for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
             let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
             if !commit_reader.contains_path(&short_path)? {
-                log::debug!("REMOVE IT {:?}", file);
                 std::fs::remove_file(file)?;
             }
         }
@@ -302,6 +308,7 @@ impl Indexer {
     fn download_remote_entry(
         &self,
         entry: &CommitEntry,
+        committer: &CommitEntryWriter,
     ) -> Result<(), OxenError> {
         if self.repository.remote().is_none() {
             return Err(OxenError::basic_str("Must set remote"));
@@ -331,8 +338,12 @@ impl Indexer {
                 }
             }
 
-            let mut dest = { File::create(fpath)? };
+            let mut dest = { fs::File::create(&fpath)? };
             response.copy_to(&mut dest)?;
+
+            let metadata = fs::metadata(fpath).unwrap();
+            let mtime = FileTime::from_last_modification_time(&metadata);
+            committer.set_file_timestamps(entry, &mtime)?;
         }
 
         Ok(())
