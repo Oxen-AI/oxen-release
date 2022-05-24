@@ -63,6 +63,23 @@ pub fn request_with_param(
         .to_http_request()
 }
 
+pub fn request_with_two_params(
+    sync_dir: &Path,
+    uri: &str,
+    key_1: impl Into<Cow<'static, str>>,
+    val_1: impl Into<Cow<'static, str>>,
+    key_2: impl Into<Cow<'static, str>>,
+    val_2: impl Into<Cow<'static, str>>,
+) -> actix_web::HttpRequest {
+    actix_web::test::TestRequest::with_uri(uri)
+        .app_data(OxenAppData {
+            path: sync_dir.to_path_buf(),
+        })
+        .param(key_1, val_1)
+        .param(key_2, val_2)
+        .to_http_request()
+}
+
 pub fn request_with_json(
     sync_dir: &Path,
     uri: &str,

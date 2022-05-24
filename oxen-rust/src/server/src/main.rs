@@ -116,7 +116,15 @@ async fn main() -> std::io::Result<()> {
                     )
                     .route(
                         "/repositories/{name}/branches",
-                        web::get().to(controllers::commits::index),
+                        web::get().to(controllers::branches::index),
+                    )
+                    .route(
+                        "/repositories/{name}/branches",
+                        web::post().to(controllers::branches::create_or_get),
+                    )
+                    .route(
+                        "/repositories/{repo_name}/branches/{branch_name}",
+                        web::get().to(controllers::branches::show),
                     )
                     .route(
                         "/repositories/{name}/entries",
