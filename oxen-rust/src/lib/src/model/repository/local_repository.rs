@@ -208,8 +208,8 @@ mod tests {
 
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            let remote_repo = api::remote::repositories::create_or_get(&repo)?;
+        test::run_empty_local_repo_test(|local_repo| {
+            let remote_repo = api::remote::repositories::create_or_get(&local_repo)?;
 
             test::run_empty_dir_test(|dir| {
                 let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)?;
