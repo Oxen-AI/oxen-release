@@ -11,7 +11,7 @@ use crate::index::committer::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{Committer, CommitEntryReader, CommitEntryWriter, Referencer};
 use crate::model::{
-    Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository,
+    Commit, CommitEntry, CommitHead, LocalRepository, RemoteRepository, RemoteBranch
 };
 use crate::util;
 
@@ -150,23 +150,30 @@ impl Indexer {
         Ok(())
     }
 
-    pub fn pull(&self, remote: &str, branch: &str) -> Result<(), OxenError> {
-        println!("🐂 Oxen pull {} {}", remote, branch);
-        // Get the remote head commit, and try to recursively pull subsequent commits
-        match api::remote::commits::get_remote_head(&self.repository) {
-            Ok(Some(remote_head)) => {
-                log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
+    pub fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
+        println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
+
+        let remote = self.repository.get_remote(&rb.remote).ok_or(OxenError::remote_not_set())?;
+
+        // Get the remote commit from branch name, and try to recursively pull subsequent commits
+
+        let remote_repo = api::remote::repositories::get_by_url(&remote.url)?;
+        let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
+        let remote_branch = api::remote::branches::get_by_name(&remote_repo, &rb.branch)?.ok_or(OxenError::basic_str(&remote_branch_err))?;
+        match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
+            Ok(Some(commit)) => {
+                log::debug!("Oxen pull got remote commit: {}", commit.id);
 
                 // TODO: Be able to pull a different branch than main
-                self.set_branch_name_for_commit(branch, &remote_head.commit)?;
+                self.set_branch_name_for_commit(&rb.branch, &commit)?;
 
-                println!("🐂 fetching commit objects...");
+                println!("🐂 fetching commit objects {}", commit.id);
                 // Sync the commit objects
-                self.rpull_missing_commit_objects(&remote_head.commit)?;
+                self.rpull_missing_commit_objects(&commit)?;
                 
                 // Sync the HEAD commit data
                 let limit: usize = 0; // zero means pull all
-                self.pull_entries_for_commit(&remote_head.commit, limit)?;
+                self.pull_entries_for_commit(&commit, limit)?;
             }
             Ok(None) => {
                 eprintln!("oxen pull error: remote head does not exist");
@@ -230,7 +237,7 @@ impl Indexer {
         // Get commit and write it to local DB
         // The committer relys on the commit dir being downloaded to add the commit to the commit db
         // Might want to separate this functionality out of the large "committer" into a smaller commit writer...
-        let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?;
+        let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?.unwrap();
         let mut committer = Committer::new(&self.repository)?;
         committer.add_commit(&remote_commit)
     }
@@ -245,7 +252,7 @@ impl Indexer {
         self.pull_entries_for_commit(commit, limit)
     }
 
-    fn read_entries(
+    fn read_pulled_commit_entries(
         &self,
         commit: &Commit,
         mut limit: usize,
@@ -263,7 +270,7 @@ impl Indexer {
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
-        let entries = self.read_entries(commit, limit)?;
+        let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!("🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}", commit.id, limit, entries.len());
         if entries.len() > 0 {
             println!("🐂 pulling commit {} with {} entries", commit.id, limit);
@@ -312,7 +319,7 @@ impl Indexer {
         let fpath = self.repository.path.join(&entry.path);
         log::debug!("download_remote_entry entry {:?}", entry.path);
         if !fpath.exists() || self.path_hash_is_different(entry, &fpath) {
-            let remote = self.repository.remote().unwrap().value;
+            let remote = self.repository.remote().unwrap().url;
             let filename = entry.path.to_str().unwrap();
             let url = format!("{}/entries/{}", remote, filename);
 
@@ -358,6 +365,7 @@ mod tests {
     use crate::constants;
     use crate::error::OxenError;
     use crate::index::Indexer;
+    use crate::model::RemoteBranch;
     use crate::test;
     use crate::util;
 
@@ -390,7 +398,8 @@ mod tests {
                 assert_eq!(num_files, limit);
 
                 // try to pull the full thing again even though we have only partially pulled some
-                indexer.pull(constants::DEFAULT_REMOTE_NAME, constants::DEFAULT_BRANCH_NAME)?;
+                let rb = RemoteBranch::default();
+                indexer.pull(&rb)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);

@@ -8,7 +8,7 @@ use crate::view::{BranchResponse};
 
 use serde_json::json;
 
-pub fn get_remote_branch(repository: &RemoteRepository, branch_name: &str) -> Result<Option<Branch>, OxenError> {
+pub fn get_by_name(repository: &RemoteRepository, branch_name: &str) -> Result<Option<Branch>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}/branches/{}", repository.name, branch_name);
     let url = api::endpoint::url_from(&uri);
@@ -28,12 +28,14 @@ pub fn get_remote_branch(repository: &RemoteRepository, branch_name: &str) -> Re
         match response {
             Ok(j_res) => Ok(Some(j_res.branch)),
             Err(err) => {
-                log::debug!("get_remote_branch() Could not serialize response [{}] {}", err, body);
+                log::debug!("remote::branches::get_by_name() Could not serialize response [{}] {}", err, body);
                 Ok(None)
             },
         }
     } else {
-        Err(OxenError::basic_str("get_remote_branch() Request failed"))
+        let err = "Failed to get branch";
+        log::error!("remote::branches::get_by_name() err: {}", err);
+        Err(OxenError::basic_str(&err))
     }
 }
 
@@ -92,12 +94,12 @@ mod tests {
     }
 
     #[test]
-    fn test_get_remote_branch() -> Result<(), OxenError> {
+    fn test_get_by_name() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|remote_repo| {
             let branch_name = "my-branch";
             api::remote::branches::create_or_get(&remote_repo, branch_name)?;
 
-            let branch = api::remote::branches::get_remote_branch(&remote_repo, branch_name)?;
+            let branch = api::remote::branches::get_by_name(&remote_repo, branch_name)?;
             assert!(branch.is_some());
             assert_eq!(branch.unwrap().name, branch_name);
 

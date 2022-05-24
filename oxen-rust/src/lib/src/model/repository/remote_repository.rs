@@ -18,9 +18,9 @@ impl RemoteRepository {
                 .remote()
                 .unwrap_or_else(|| Remote {
                     name: String::from(DEFAULT_REMOTE_NAME),
-                    value: String::from(DEFAULT_ORIGIN_HOST),
+                    url: String::from(DEFAULT_ORIGIN_HOST),
                 })
-                .value,
+                .url,
         }
     }
 }

@@ -41,7 +41,7 @@ pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead
     }
 }
 
-pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit, OxenError> {
+pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}/commits/{}", repository.name, commit_id);
     let url = api::endpoint::url_from(&uri);
@@ -55,10 +55,14 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit
         )
         .send()
     {
+        if res.status() == 404 {
+            return Ok(None);
+        }
+
         let body = res.text()?;
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(j_res.commit),
+            Ok(j_res) => Ok(Some(j_res.commit)),
             Err(err) => Err(OxenError::basic_str(&format!(
                 "get_commit_by_id() Could not serialize response [{}]\n{}",
                 err, body

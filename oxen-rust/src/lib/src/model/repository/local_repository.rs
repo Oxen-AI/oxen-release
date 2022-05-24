@@ -57,7 +57,7 @@ impl LocalRepository {
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![Remote {
                 name: String::from(DEFAULT_REMOTE_NAME),
-                value: view.url,
+                url: view.url,
             }],
             remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
         })
@@ -102,11 +102,11 @@ impl LocalRepository {
         }
     }
 
-    pub fn set_remote(&mut self, name: &str, value: &str) {
+    pub fn set_remote(&mut self, name: &str, url: &str) {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
-            value: String::from(value),
+            url: String::from(url),
         };
         if self.has_remote(name) {
             // find remote by name and set
@@ -130,14 +130,18 @@ impl LocalRepository {
         false
     }
 
+    pub fn get_remote(&self, name: &str) -> Option<Remote> {
+        for remote in self.remotes.iter() {
+            if &remote.name == name {
+                return Some(remote.clone());
+            }
+        }
+        None
+    }
+
     pub fn remote(&self) -> Option<Remote> {
         if let Some(name) = &self.remote_name {
-            for remote in self.remotes.iter() {
-                if &remote.name == name {
-                    return Some(remote.clone());
-                }
-            }
-            None
+            self.get_remote(&name)
         } else {
             None
         }
@@ -204,6 +208,20 @@ mod tests {
         let dirname = LocalRepository::dirname_from_url(url)?;
         assert_eq!(dirname, "OxenData");
         Ok(())
+    }
+
+    #[test]
+    fn test_get_set_has_remote() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|mut local_repo| {
+            let url = "http://0.0.0.0:3000/repositories/OxenData";
+            let remote_name = "origin";
+            local_repo.set_remote(remote_name, url);
+            let remote = local_repo.get_remote(&remote_name).unwrap();
+            assert_eq!(remote.name, remote_name);
+            assert_eq!(remote.url, url);
+
+            Ok(())
+        })
     }
 
     #[test]
