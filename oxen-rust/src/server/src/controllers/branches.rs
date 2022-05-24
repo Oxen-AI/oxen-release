@@ -37,7 +37,39 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
             HttpResponse::InternalServerError().json(StatusMessage::resource_not_found())
         }
     }
+}
 
+pub async fn show(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let branch_name: Option<&str> = req.match_info().get("branch_name");
+    if let (Some(name), Some(branch_name)) = (name, branch_name) {
+        match api::local::repositories::get_by_name(&app_data.path, name) {
+            Ok(repository) => match api::local::branches::get_by_name(&repository, branch_name) {
+                Ok(Some(branch)) => HttpResponse::Ok().json(BranchResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_CREATED),
+                    branch,
+                }),
+                Ok(None) => {
+                    log::debug!("branch_name {} does not exist for repo: {}", branch_name, name);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::debug!("Err getting branch_name {}: {}", branch_name, err);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+            },
+            Err(err) => {
+                log::debug!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+        }
+    } else {
+        let msg = "Must supply `repo_name` and `branch_name` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
 }
 
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
@@ -147,6 +179,31 @@ mod tests {
         let list: ListBranchesResponse = serde_json::from_str(text)?;
         // main + branch-1 + branch-2
         assert_eq!(list.branches.len(), 3);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_branch_show() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+
+        let repo_name = "Testing-Branches-1";
+        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let branch_name = "branch-1";
+        api::local::branches::create(&repo, branch_name)?;
+
+        let uri = format!("/repositories/{}/branches", repo_name);
+        let req = test::request_with_two_params(&sync_dir, &uri, "repo_name", repo_name, "branch_name", branch_name);
+
+        let resp = controllers::branches::show(req).await;
+        assert_eq!(resp.status(), http::StatusCode::OK);
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let branch_resp: BranchResponse = serde_json::from_str(text)?;
+        assert_eq!(branch_resp.branch.name, branch_name);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
