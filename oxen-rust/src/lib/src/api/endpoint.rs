@@ -25,7 +25,7 @@ pub fn url_from(uri: &str) -> String {
 }
 
 pub fn url_from_remote(remote: &Remote, uri: &str) -> String {
-    format!("http://{}{}", remote.value, uri)
+    format!("http://{}{}", remote.url, uri)
 }
 
 pub fn repo_url_from(name: &str) -> String {

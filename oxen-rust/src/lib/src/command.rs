@@ -3,10 +3,10 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
-use crate::constants::{NO_REPO_MSG, DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
 use crate::index::{Committer, Indexer, Referencer, Stager};
-use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData};
+use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData, RemoteBranch};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -357,14 +357,19 @@ pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
 /// Pull a repository's data from origin/main
 pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
-    indexer.pull(DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME)?;
+    let rb = RemoteBranch::default();
+    indexer.pull(&rb)?;
     Ok(())
 }
 
 /// Pull a specific origin and branch
 pub fn pull_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
-    indexer.pull(remote, branch)?;
+    let rb = RemoteBranch {
+        remote: String::from(remote),
+        branch: String::from(branch),
+    };
+    indexer.pull(&rb)?;
     Ok(())
 }
 

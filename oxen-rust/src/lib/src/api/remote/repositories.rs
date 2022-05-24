@@ -5,6 +5,11 @@ use crate::model::{RemoteRepository, LocalRepository};
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 
+pub fn get_by_url(url: &str) -> Result<RemoteRepository, OxenError> {
+    let name = LocalRepository::dirname_from_url(url)?;
+    get_by_name(&name)
+}
+
 pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}", name);
