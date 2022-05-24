@@ -47,9 +47,8 @@ pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
 }
 
 pub fn create_or_get(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    let remote = repository.remote().ok_or(OxenError::remote_not_set())?;
     let config = AuthConfig::default()?;
-    let url = api::endpoint::url_from_remote(&remote, "/repositories");
+    let url = api::endpoint::url_from("/repositories");
     let params = json!({ "name": repository.name });
 
     let client = reqwest::blocking::Client::new();

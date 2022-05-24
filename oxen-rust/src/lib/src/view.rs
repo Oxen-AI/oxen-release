@@ -16,4 +16,4 @@ pub use crate::view::entry::{EntryResponse, PaginatedEntries, RemoteEntryRespons
 
 pub use crate::view::commit::{CommitResponse, ListCommitResponse, PaginatedCommits};
 
-pub use crate::view::branch::{BranchResponse, ListBranchResponse, BranchNew};
+pub use crate::view::branch::{BranchResponse, ListBranchesResponse, BranchNew};

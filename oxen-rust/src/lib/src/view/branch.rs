@@ -15,7 +15,7 @@ pub struct BranchNew {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ListBranchResponse {
+pub struct ListBranchesResponse {
     pub status: String,
     pub status_message: String,
     pub branches: Vec<Branch>,
