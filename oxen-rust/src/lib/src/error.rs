@@ -20,6 +20,10 @@ impl OxenError {
     pub fn basic_str(s: &str) -> Self {
         OxenError::Basic(String::from(s))
     }
+
+    pub fn remote_not_set() -> OxenError {
+        OxenError::basic_str("Remote not set. `oxen set-remote <remote-name> <url>`")
+    }
 }
 
 impl fmt::Display for OxenError {

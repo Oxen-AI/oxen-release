@@ -7,7 +7,6 @@ use filetime::FileTime;
 
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
-use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::index::committer::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{Committer, CommitEntryReader, CommitEntryWriter, Referencer};
@@ -25,11 +24,6 @@ impl Indexer {
         Ok(Indexer {
             repository: repository.clone(),
         })
-    }
-
-    pub fn create_or_get_repo(&self) -> Result<RemoteRepository, OxenError> {
-        let name = &self.repository.name;
-        api::remote::repositories::create_or_get(name)
     }
 
     fn push_entries(&self, committer: &Committer, commit: &Commit) -> Result<(), OxenError> {
@@ -102,10 +96,10 @@ impl Indexer {
 
     pub fn push(&self, committer: &Committer) -> Result<RemoteRepository, OxenError> {
         if self.repository.remote().is_none() {
-            return Err(OxenError::basic_str("Must set remote on repository. `oxen set-remote <URL>`"));
+            return Err(OxenError::remote_not_set());
         }
 
-        let remote_repo = self.create_or_get_repo()?;
+        let remote_repo = api::remote::repositories::create_or_get(&self.repository)?;
         log::debug!("indexer::push got remote repo: {}", remote_repo.url);
         match committer.get_head_commit() {
             Ok(Some(commit)) => {
@@ -156,15 +150,15 @@ impl Indexer {
         Ok(())
     }
 
-    pub fn pull(&self) -> Result<(), OxenError> {
-        println!("🐂 Oxen pull");
+    pub fn pull(&self, remote: &str, branch: &str) -> Result<(), OxenError> {
+        println!("🐂 Oxen pull {} {}", remote, branch);
         // Get the remote head commit, and try to recursively pull subsequent commits
         match api::remote::commits::get_remote_head(&self.repository) {
             Ok(Some(remote_head)) => {
                 log::debug!("Oxen pull got remote head: {}", remote_head.commit.id);
 
                 // TODO: Be able to pull a different branch than main
-                self.set_branch_name_for_commit(DEFAULT_BRANCH_NAME, &remote_head.commit)?;
+                self.set_branch_name_for_commit(branch, &remote_head.commit)?;
 
                 println!("🐂 fetching commit objects...");
                 // Sync the commit objects
@@ -320,7 +314,7 @@ impl Indexer {
         if !fpath.exists() || self.path_hash_is_different(entry, &fpath) {
             let remote = self.repository.remote().unwrap().value;
             let filename = entry.path.to_str().unwrap();
-            let url = format!("{}/{}", remote, filename);
+            let url = format!("{}/entries/{}", remote, filename);
 
             let client = reqwest::blocking::Client::new();
             let mut response = client
@@ -374,7 +368,7 @@ mod tests {
 
             // Set the proper remote
             let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push it
             let remote_repo = command::push(&repo)?;
@@ -396,7 +390,7 @@ mod tests {
                 assert_eq!(num_files, limit);
 
                 // try to pull the full thing again even though we have only partially pulled some
-                indexer.pull()?;
+                indexer.pull(constants::DEFAULT_REMOTE_NAME, constants::DEFAULT_BRANCH_NAME)?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);
@@ -411,7 +405,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|mut repo| {
             // Set the proper remote
             let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
             command::add(&repo, &train_dir)?;

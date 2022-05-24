@@ -151,7 +151,7 @@ mod tests {
 
             // Set the proper remote
             let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             command::push(&repo)?;
 
@@ -178,7 +178,7 @@ mod tests {
 
             // Set the proper remote
             let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push
             command::push(&repo)?;

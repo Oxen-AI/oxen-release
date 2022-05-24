@@ -651,7 +651,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -679,7 +679,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
         command::push(&repo)?;
@@ -724,7 +724,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
         command::push(&repo)?;
@@ -769,7 +769,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
         let remote_repo = command::push(&repo)?;
@@ -882,7 +882,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
         let remote_repo = command::push(&repo)?;
@@ -944,7 +944,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
         let remote_repo = command::push(&repo)?;
@@ -1021,7 +1021,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
         let remote_repo = command::push(&repo)?;

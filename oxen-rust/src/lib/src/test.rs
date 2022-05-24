@@ -107,7 +107,7 @@ where
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let local_repo = command::init(&repo_dir)?;
-    let remote_repo = api::remote::repositories::create_or_get(&local_repo.name)?;
+    let remote_repo = api::remote::repositories::create_or_get(&local_repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -141,7 +141,7 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
 
-    let remote_repo = api::remote::repositories::create_or_get(&local_repo.name)?;
+    let remote_repo = api::remote::repositories::create_or_get(&local_repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -169,7 +169,9 @@ where
 {
     init_test_env();
     let name = format!("repo_{}", uuid::Uuid::new_v4());
-    let repo = api::remote::repositories::create_or_get(&name)?;
+    let path = Path::new(&name);
+    let local_repo = command::init(&path)?;
+    let repo = api::remote::repositories::create_or_get(&local_repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&repo) {
@@ -434,11 +436,6 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     )?;
 
     Ok(())
-}
-
-pub fn create_remote_repo(name: &str) -> Result<RemoteRepository, OxenError> {
-    let repository = api::remote::repositories::create_or_get(name)?;
-    Ok(repository)
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {

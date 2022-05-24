@@ -1,5 +1,5 @@
 use crate::api;
-use crate::constants::{DEFAULT_ORIGIN_NAME, NO_REPO_MSG};
+use crate::constants::{DEFAULT_REMOTE_NAME, NO_REPO_MSG};
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
@@ -56,10 +56,10 @@ impl LocalRepository {
             name: view.name.to_owned(),
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![Remote {
-                name: String::from(DEFAULT_ORIGIN_NAME),
+                name: String::from(DEFAULT_REMOTE_NAME),
                 value: view.url,
             }],
-            remote_name: Some(String::from(DEFAULT_ORIGIN_NAME)),
+            remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
         })
     }
 
@@ -208,31 +208,30 @@ mod tests {
 
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|dir| {
-            let name = "OxenDataTest";
-            let remote_repo = api::remote::repositories::create_or_get(name)?;
-            let url = &remote_repo.url;
+        test::run_empty_local_repo_test(|repo| {
+            let remote_repo = api::remote::repositories::create_or_get(&repo)?;
 
-            let local_repo = LocalRepository::clone_remote(url, dir)?;
+            test::run_empty_dir_test(|dir| {
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)?;
 
-            let cfg_fname = ".oxen/config.toml".to_string();
-            let config_path = local_repo.path.join(&cfg_fname);
-            assert!(config_path.exists());
-            assert_eq!(local_repo.name, local_repo.name);
-            assert_eq!(local_repo.id, local_repo.id);
+                let cfg_fname = ".oxen/config.toml".to_string();
+                let config_path = local_repo.path.join(&cfg_fname);
+                assert!(config_path.exists());
+                assert_eq!(local_repo.name, local_repo.name);
+                assert_eq!(local_repo.id, local_repo.id);
 
-            let repository = LocalRepository::from_cfg(&config_path);
-            assert!(repository.is_ok());
+                let repository = LocalRepository::from_cfg(&config_path);
+                assert!(repository.is_ok());
 
-            let repository = repository.unwrap();
-            let status = command::status(&repository)?;
-            assert!(status.is_clean());
+                let repository = repository.unwrap();
+                let status = command::status(&repository)?;
+                assert!(status.is_clean());
 
-            // cleanup
-            api::remote::repositories::delete(remote_repo)?;
-            std::fs::remove_dir_all(local_repo.path)?;
+                // Cleanup
+                api::remote::repositories::delete(remote_repo)?;
 
-            Ok(())
+                Ok(())
+            })
         })
     }
 
@@ -243,16 +242,6 @@ mod tests {
         assert_eq!(repo.id, "0af558cc-a57c-4197-a442-50eb889e9495");
         assert_eq!(repo.name, "Mini-Dogs-Vs-Cats");
         assert_eq!(repo.path, Path::new("/tmp/Mini-Dogs-Vs-Cats"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_repo_cfg() -> Result<(), OxenError> {
-        let name: &str = "Test Repo";
-        let repository = test::create_remote_repo(name)?;
-        assert_eq!(repository.name, name);
-        // cleanup
-        api::remote::repositories::delete(repository)?;
         Ok(())
     }
 

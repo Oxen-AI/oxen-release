@@ -95,7 +95,7 @@ async fn main() -> std::io::Result<()> {
                         web::post().to(controllers::commits::upload),
                     )
                     .route(
-                        "/repositories/{repo_name}/commits/head",
+                        "/repositories/{repo_name}/commits/HEAD",
                         web::get().to(controllers::commits::head),
                     )
                     .route(
@@ -115,11 +115,15 @@ async fn main() -> std::io::Result<()> {
                         web::get().to(controllers::entries::list_entries),
                     )
                     .route(
+                        "/repositories/{name}/branches",
+                        web::get().to(controllers::commits::index),
+                    )
+                    .route(
                         "/repositories/{name}/entries",
                         web::post().to(controllers::entries::create),
                     )
                     .route(
-                        "/repositories/{name}/{filename:.*}",
+                        "/repositories/{name}/entries/{filename:.*}",
                         web::get().to(controllers::repositories::get_file),
                     )
                     .route(

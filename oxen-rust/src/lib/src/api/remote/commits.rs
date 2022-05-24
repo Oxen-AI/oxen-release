@@ -14,7 +14,7 @@ use flate2::Compression;
 
 pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/head", repository.name);
+    let uri = format!("/repositories/{}/commits/HEAD", repository.name);
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();

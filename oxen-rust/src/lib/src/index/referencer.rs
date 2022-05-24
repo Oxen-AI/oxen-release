@@ -54,14 +54,18 @@ impl Referencer {
         util::fs::write_to_path(&self.head_file, name);
     }
 
-    pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
+    pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
         // Only create branch if it does not exist already
         if self.has_branch(name) {
             let err = format!("Branch already exists: {}", name);
             Err(OxenError::basic_str(&err))
         } else {
             self.set_branch_commit_id(name, commit_id)?;
-            Ok(())
+            Ok(Branch {
+                name: String::from(name),
+                commit_id: String::from(commit_id),
+                is_head: false,
+            })
         }
     }
 
@@ -130,6 +134,19 @@ impl Referencer {
             Ok(Some(_)) => true,
             Ok(None) => false,
             Err(_) => false,
+        }
+    }
+
+    pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
+        let head_commit_id = self.head_commit_id()?;
+        match self.get_commit_id_for_branch(name) {
+            Ok(Some(commit_id)) => Ok(Some(Branch {
+                name: name.to_string(),
+                commit_id: commit_id.to_string(),
+                is_head: commit_id == head_commit_id,
+            })),
+            Ok(None) => Ok(None),
+            Err(err) => Err(err),
         }
     }
 

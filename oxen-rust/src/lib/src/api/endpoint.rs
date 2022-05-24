@@ -1,4 +1,5 @@
 use crate::constants;
+use crate::model::Remote;
 use std::env;
 
 pub fn host() -> String {
@@ -19,8 +20,12 @@ pub fn server() -> String {
     format!("{}:{}", host(), port())
 }
 
-pub fn url_from(name: &str) -> String {
-    format!("http://{}{}", server(), name)
+pub fn url_from(uri: &str) -> String {
+    format!("http://{}{}", server(), uri)
+}
+
+pub fn url_from_remote(remote: &Remote, uri: &str) -> String {
+    format!("http://{}{}", remote.value, uri)
 }
 
 pub fn repo_url_from(name: &str) -> String {

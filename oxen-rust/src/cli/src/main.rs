@@ -2,6 +2,7 @@ use clap::{arg, Arg, Command};
 use env_logger::Env;
 use std::path::Path;
 
+use liboxen::constants::{DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME};
 pub mod dispatch;
 
 fn main() {
@@ -83,7 +84,12 @@ fn main() {
         .subcommand(
             Command::new("push").about("Push the current branch up to the remote repository"),
         )
-        .subcommand(Command::new("pull").about("Pull the files up from a remote branch"));
+        .subcommand(
+            Command::new("pull")
+            .about("Pull the files up from a remote branch")
+            .arg(arg!(<REMOTE> "Remote you want to pull from"))
+            .arg(arg!(<BRANCH> "Branch name to pull")),
+        );
 
     let matches = command.get_matches();
 
@@ -164,10 +170,14 @@ fn main() {
                 eprintln!("{}", err)
             }
         },
-        Some(("pull", _sub_matches)) => match dispatch::pull() {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{}", err)
+        Some(("pull", sub_matches)) => {
+            let remote = sub_matches.value_of("REMOTE").or_else(|| { Some(DEFAULT_REMOTE_NAME) }).unwrap();
+            let branch = sub_matches.value_of("BRANCH").or_else(|| { Some(DEFAULT_BRANCH_NAME) }).unwrap();
+            match dispatch::pull(remote, branch) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
             }
         },
         Some(("clone", sub_matches)) => {
