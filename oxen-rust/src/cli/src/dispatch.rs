@@ -1,7 +1,7 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
-use liboxen::constants::DEFAULT_ORIGIN_NAME;
+use liboxen::constants::DEFAULT_REMOTE_NAME;
 use liboxen::error::OxenError;
 use liboxen::index::Committer;
 use liboxen::model::LocalRepository;
@@ -57,7 +57,7 @@ pub fn set_remote(url: &str) -> Result<(), OxenError> {
     }
 
     let mut repo = LocalRepository::from_dir(&current_dir)?;
-    command::set_remote(&mut repo, DEFAULT_ORIGIN_NAME, url)?;
+    command::set_remote(&mut repo, DEFAULT_REMOTE_NAME, url)?;
 
     Ok(())
 }
@@ -87,7 +87,7 @@ pub fn push() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn pull() -> Result<(), OxenError> {
+pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     if !util::fs::repo_exists(&repo_dir) {
         let err = NO_REPO_MSG.to_string();
@@ -95,7 +95,7 @@ pub fn pull() -> Result<(), OxenError> {
     }
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::pull(&repository)?;
+    command::pull_remote_branch(&repository, remote, branch)?;
     Ok(())
 }
 

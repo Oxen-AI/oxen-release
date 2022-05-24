@@ -95,7 +95,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
 fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
     let uri = format!("/repositories/{}", repository.name);
     let remote = api::endpoint::url_from(&uri);
-    repository.set_remote(liboxen::constants::DEFAULT_ORIGIN_NAME, &remote);
+    repository.set_remote(liboxen::constants::DEFAULT_REMOTE_NAME, &remote);
     RemoteRepository::from_local(&repository)
 }
 

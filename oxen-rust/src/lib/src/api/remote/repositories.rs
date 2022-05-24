@@ -1,7 +1,7 @@
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::RemoteRepository;
+use crate::model::{RemoteRepository, LocalRepository};
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 
@@ -46,10 +46,11 @@ pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
     }
 }
 
-pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
+pub fn create_or_get(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+    let remote = repository.remote().ok_or(OxenError::remote_not_set())?;
     let config = AuthConfig::default()?;
-    let url = api::endpoint::url_from("/repositories");
-    let params = json!({ "name": name });
+    let url = api::endpoint::url_from_remote(&remote, "/repositories");
+    let params = json!({ "name": repository.name });
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -69,7 +70,7 @@ pub fn create_or_get(name: &str) -> Result<RemoteRepository, OxenError> {
             Err(err) => {
                 let err = format!(
                     "Could not create or find repository [{}]: {}\n{}",
-                    name, err, body
+                    repository.name, err, body
                 );
                 Err(OxenError::basic_str(&err))
             }
@@ -120,50 +121,44 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_create_repository() -> Result<(), OxenError> {
-        test::init_test_env();
+    fn test_create_remote_repository() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|local_repo| {
+            let repository = api::remote::repositories::create_or_get(&local_repo)?;
+            println!("got repository: {:?}", repository);
+            assert_eq!(repository.name, local_repo.name);
 
-        let name: &str = "test_create_repository";
-
-        let repository = api::remote::repositories::create_or_get(name)?;
-        println!("got repository: {:?}", repository);
-        assert_eq!(repository.name, name);
-
-        // cleanup
-        api::remote::repositories::delete(repository)?;
-        Ok(())
+            // cleanup
+            api::remote::repositories::delete(repository)?;
+            Ok(())
+        })
     }
 
     #[test]
     fn test_get_by_name() -> Result<(), OxenError> {
-        test::init_test_env();
+        test::run_empty_local_repo_test(|local_repo| {
+            let repository = api::remote::repositories::create_or_get(&local_repo)?;
+            let url_repo = api::remote::repositories::get_by_name(&local_repo.name)?;
 
-        let name: &str = "test_get_by_name";
+            assert_eq!(repository.id, url_repo.id);
 
-        let repository = api::remote::repositories::create_or_get(name)?;
-        let url_repo = api::remote::repositories::get_by_name(name)?;
+            // cleanup
+            api::remote::repositories::delete(repository)?;
 
-        assert_eq!(repository.id, url_repo.id);
-
-        // cleanup
-        api::remote::repositories::delete(repository)?;
-
-        Ok(())
+            Ok(())
+        })
     }
 
     #[test]
     fn test_delete_repository() -> Result<(), OxenError> {
-        test::init_test_env();
+        test::run_empty_local_repo_test(|local_repo| {
+            let repository = api::remote::repositories::create_or_get(&local_repo)?;
 
-        let name: &str = "test_delete_repository";
-        let repository = api::remote::repositories::create_or_get(name)?;
+            // delete
+            api::remote::repositories::delete(repository)?;
 
-        // delete
-        api::remote::repositories::delete(repository)?;
-
-        let result = api::remote::repositories::get_by_name(name);
-        assert!(result.is_err());
-
-        Ok(())
+            let result = api::remote::repositories::get_by_name(&local_repo.name);
+            assert!(result.is_err());
+            Ok(())
+        })
     }
 }
