@@ -3,9 +3,14 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
-use crate::constants::NO_REPO_MSG;
 use crate::error::OxenError;
-use crate::index::{Committer, Indexer, Referencer, Stager};
+use crate::index::{
+    CommitReader, CommitWriter,
+    CommitEntryReader,
+    Indexer,
+    RefReader, RefWriter,
+    Stager
+};
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData, RemoteBranch};
 use crate::util;
 
@@ -94,12 +99,12 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
     if !hidden_dir.exists() {
-        return Err(OxenError::basic_str(NO_REPO_MSG));
+        return Err(OxenError::local_repo_not_found());
     }
 
-    let committer = Committer::new(repository)?;
+    let reader = CommitEntryReader::new_from_head(repository)?;
     let stager = Stager::new(repository)?;
-    let status = stager.status(&committer)?;
+    let status = stager.status(&reader)?;
     Ok(status)
 }
 
@@ -129,8 +134,9 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// ```
 pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
-    let committer = Committer::new(repo)?;
-    stager.add(path, &committer)?;
+    let commit = head_commit(&repo)?;
+    let reader = CommitEntryReader::new(repo, &commit)?;
+    stager.add(path, &reader)?;
     Ok(())
 }
 
@@ -182,8 +188,8 @@ fn p_commit(
     message: &str,
 ) -> Result<Commit, OxenError> {
     let stager = Stager::new(repo)?;
-    let mut committer = Committer::new(repo)?;
-    let commit = committer.commit(status, message)?;
+    let commit_writer = CommitWriter::new(repo)?;
+    let commit = commit_writer.commit(status, message)?;
     stager.unstage()?;
     Ok(commit)
 }
@@ -211,55 +217,108 @@ fn p_commit(
 /// # }
 /// ```
 pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
-    let committer = Committer::new(repo)?;
-    let commits = committer.list_commits()?;
+    let committer = CommitReader::new(repo)?;
+    let commits = committer.history_from_head()?;
     Ok(commits)
 }
 
 /// # Create a new branch
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
-pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    let committer = Committer::new(repo)?;
-    match committer.get_head_commit() {
-        Ok(Some(head_commit)) => {
-            committer.referencer.create_branch(name, &head_commit.id)?;
-            Ok(())
-        }
-        _ => Err(OxenError::basic_str(
-            "Err: No Commits. Cannot create a branch until you make your initial commit.",
-        )),
-    }
+pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    let head_commit = commit_reader.head_commit()?;
+    ref_writer.create_branch(name, &head_commit.id)
 }
 
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
 pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
-    let committer = Committer::new(repo)?;
-    if committer.referencer.has_branch(value) {
-        if let Some(current_branch) = committer.referencer.get_current_branch()? {
-            // If we are already on the branch, do nothing
-            if current_branch.name == value {
-                eprintln!("Already on branch {}", value);
-                return Ok(());
-            }
+    if branch_exists(repo, value) {
+        if already_on_branch(repo, value) {
+            println!("Already on branch {}", value);
+            return Ok(());
         }
 
         println!("checkout branch: {}", value);
-        committer.set_working_repo_to_branch(value)?;
+        set_working_branch(repo, value)?;
+        set_head(repo, value)?;
     } else {
-        let current_commit_id = committer.referencer.head_commit_id()?;
         // If we are already on the commit, do nothing
-        if current_commit_id == value {
+        if already_on_commit(repo, value) {
             eprintln!("Commit already checked out {}", value);
             return Ok(());
         }
 
-        committer.set_working_repo_to_commit_id(value)?;
+        println!("checkout commit: {}", value);
+        set_working_commit_id(repo, value)?;
+        set_head(repo, value)?;
     }
-    committer.referencer.set_head(value);
+    
     Ok(())
+}
+
+fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    let commit_writer = CommitWriter::new(repo)?;
+    commit_writer.set_working_repo_to_branch(name)
+}
+
+fn set_working_commit_id(repo: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
+    let commit_writer = CommitWriter::new(repo)?;
+    commit_writer.set_working_repo_to_commit_id(commit_id)
+}
+
+fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_head(value);
+    Ok(())
+}
+
+fn branch_exists(repo: &LocalRepository, name: &str) -> bool {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => {
+            ref_reader.has_branch(name)
+        },
+        _ => {
+            false
+        }
+    }
+}
+
+fn already_on_branch(repo: &LocalRepository, name: &str) -> bool {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => {
+            if let Ok(Some(current_branch)) = ref_reader.get_current_branch() {
+                // If we are already on the branch, do nothing
+                if current_branch.name == name {
+                    return true;
+                }
+            }
+            return false;
+        },
+        _ => {
+            return false;
+        }
+    }
+}
+
+fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => {
+            if let Ok(head_commit_id) = ref_reader.head_commit_id() {
+                // If we are already on the branch, do nothing
+                if head_commit_id == commit_id {
+                    return true;
+                }
+            }
+            return false;
+        },
+        _ => {
+            return false;
+        }
+    }
 }
 
 /// # Create a branch and check it out in one go
@@ -267,37 +326,33 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
 /// then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     println!("create and checkout branch: {}", name);
-    let committer = Committer::new(repo)?;
-    match committer.get_head_commit() {
-        Ok(Some(head_commit)) => {
-            committer.referencer.create_branch(name, &head_commit.id)?;
-            committer.referencer.set_head(name);
-            Ok(())
-        }
-        _ => Err(OxenError::basic_str(
-            "Err: No Commits. Cannot create a branch until you make your initial commit.",
-        )),
-    }
+    let head_commit = head_commit(repo)?;
+    let ref_writer = RefWriter::new(repo)?;
+
+    ref_writer.create_branch(name, &head_commit.id)?;
+    ref_writer.set_head(name);
+    Ok(())
+
 }
 
 /// # List branches
 pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    let referencer = Referencer::new(repo)?;
-    let branches = referencer.list_branches()?;
+    let ref_reader = RefReader::new(repo)?;
+    let branches = ref_reader.list_branches()?;
     Ok(branches)
 }
 
 /// # Get the current branch
 pub fn current_branch(repo: &LocalRepository) -> Result<Option<Branch>, OxenError> {
-    let referencer = Referencer::new(repo)?;
-    let branch = referencer.get_current_branch()?;
+    let ref_reader = RefReader::new(repo)?;
+    let branch = ref_reader.get_current_branch()?;
     Ok(branch)
 }
 
 /// # Get the current commit
-pub fn head_commit(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
-    let committer = Committer::new(repo)?;
-    let commit = committer.get_head_commit()?;
+pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commit = committer.head_commit()?;
     Ok(commit)
 }
 
@@ -344,9 +399,18 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 /// ```
 pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
-    let committer = Committer::new(repo)?;
+    let rb = RemoteBranch::default();
+    indexer.push(&rb)
+}
 
-    indexer.push(&committer)
+/// Push to a specific remote
+pub fn push_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) -> Result<RemoteRepository, OxenError> {
+    let indexer = Indexer::new(repo)?;
+    let rb = RemoteBranch {
+        remote: String::from(remote),
+        branch: String::from(branch),
+    };
+    indexer.push(&rb)
 }
 
 /// Clone a repo from a url to a directory

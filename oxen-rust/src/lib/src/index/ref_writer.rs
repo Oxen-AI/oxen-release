@@ -1,51 +1,27 @@
+use crate::constants::{REFS_DIR, HEAD_FILE};
+use crate::db;
 use crate::error::OxenError;
+use crate::index::RefDBReader;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
 
-use rocksdb::{IteratorMode, LogLevel, Options, DB};
+use rocksdb::{IteratorMode, DB};
 use std::path::{Path, PathBuf};
 use std::str;
 
-pub const HEAD_FILE: &str = "HEAD";
-pub const REFS_DIR: &str = "refs";
-
-pub struct Referencer {
+pub struct RefWriter {
     refs_db: DB,
     head_file: PathBuf,
 }
 
-impl Referencer {
-    pub fn refs_dir(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path).join(Path::new(REFS_DIR))
-    }
+impl RefWriter {
+    pub fn new(repository: &LocalRepository) -> Result<RefWriter, OxenError> {
+        let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(REFS_DIR));
+        let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(HEAD_FILE));
 
-    pub fn head_file(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path).join(Path::new(HEAD_FILE))
-    }
-
-    pub fn new(repository: &LocalRepository) -> Result<Referencer, OxenError> {
-        let refs_dir = Referencer::refs_dir(&repository.path);
-        let head_filename = Referencer::head_file(&repository.path);
-
-        let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Fatal);
-        opts.create_if_missing(true);
-        Ok(Referencer {
+        let opts = db::opts::default();
+        Ok(RefWriter {
             refs_db: DB::open(&opts, &refs_dir)?,
-            head_file: head_filename,
-        })
-    }
-
-    pub fn new_read_only(repository: &LocalRepository) -> Result<Referencer, OxenError> {
-        let refs_dir = Referencer::refs_dir(&repository.path);
-        let head_filename = Referencer::head_file(&repository.path);
-
-        let error_if_log_file_exist = false;
-        let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Fatal);
-        opts.create_if_missing(true);
-        Ok(Referencer {
-            refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
             head_file: head_filename,
         })
     }
@@ -117,7 +93,7 @@ impl Referencer {
 
     pub fn get_current_branch(&self) -> Result<Option<Branch>, OxenError> {
         let ref_name = self.read_head_ref()?;
-        if let Some(id) = self.get_commit_id_for_branch(&ref_name)? {
+        if let Some(id) = RefDBReader::get_commit_id_for_branch(&self.refs_db, &ref_name)? {
             Ok(Some(Branch {
                 name: ref_name,
                 commit_id: id,
@@ -129,12 +105,7 @@ impl Referencer {
     }
 
     pub fn has_branch(&self, name: &str) -> bool {
-        let bytes = name.as_bytes();
-        match self.refs_db.get(bytes) {
-            Ok(Some(_)) => true,
-            Ok(None) => false,
-            Err(_) => false,
-        }
+        RefDBReader::has_branch(&self.refs_db, name)
     }
 
     pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
@@ -261,19 +232,4 @@ mod tests {
             Ok(())
         })
     }
-
-    // Create branch (based on current commit, fail if no commit yet)
-    // `git branch my_branch`
-
-    // List all branches
-    // `git branch -a`
-
-    // Checkout branch (switches all files too, and reverts modifications, this the money)
-    // `git checkout my_branch`
-
-    // Create branch and check it out
-    // git checkout -b my_branchie_poo
-
-    // TODO on commit, make all them hard links to our mirror directory....
-    // maybe we compress and hash? we'll see, don't compress at the start, KISS
 }

@@ -1,4 +1,4 @@
-use crate::model::Commit;
+use crate::model::{Commit, CommitStats};
 use crate::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,13 @@ pub struct CommitResponse {
     pub status: String,
     pub status_message: String,
     pub commit: Commit,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct CommitStatsResponse {
+    pub status: String,
+    pub status_message: String,
+    pub stats: CommitStats,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

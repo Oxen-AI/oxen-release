@@ -111,7 +111,7 @@ async fn main() -> std::io::Result<()> {
                         web::get().to(controllers::commits::parent),
                     )
                     .route(
-                        "/repositories/{name}/commits/{commit_id}/entries",
+                        "/repositories/{repo_name}/commits/{commit_id}/entries",
                         web::get().to(controllers::entries::list_entries),
                     )
                     .route(

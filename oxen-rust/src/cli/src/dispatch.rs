@@ -1,21 +1,14 @@
 use liboxen::api;
 use liboxen::command;
-use liboxen::config::{AuthConfig, RemoteConfig};
+use liboxen::config::RemoteConfig;
 use liboxen::constants::DEFAULT_REMOTE_NAME;
 use liboxen::error::OxenError;
-use liboxen::index::Committer;
 use liboxen::model::LocalRepository;
-use liboxen::util;
 
 use colored::Colorize;
 use std::env;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-
-// CLI Messages
-pub const NO_REPO_MSG: &str = liboxen::constants::NO_REPO_MSG;
-pub const RUN_LOGIN_MSG: &str = "fatal: no oxen user, run `oxen login` to login";
 
 pub fn login() -> Result<(), OxenError> {
     println!("🐂 Login\n\nEnter your email:");
@@ -50,13 +43,9 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
 }
 
 pub fn set_remote(url: &str) -> Result<(), OxenError> {
-    let current_dir = env::current_dir().unwrap();
-    if !util::fs::repo_exists(&current_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
+    let repo_dir = env::current_dir().unwrap();
+    let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let mut repo = LocalRepository::from_dir(&current_dir)?;
     command::set_remote(&mut repo, DEFAULT_REMOTE_NAME, url)?;
 
     Ok(())
@@ -64,12 +53,8 @@ pub fn set_remote(url: &str) -> Result<(), OxenError> {
 
 pub fn add(path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !util::fs::repo_exists(&repo_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
-
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
     command::add(&repository, Path::new(path))?;
 
     Ok(())
@@ -77,39 +62,23 @@ pub fn add(path: &str) -> Result<(), OxenError> {
 
 pub fn push() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !util::fs::repo_exists(&repo_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
-
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
     command::push(&repository)?;
     Ok(())
 }
 
 pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !util::fs::repo_exists(&repo_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
-
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
     command::pull_remote_branch(&repository, remote, branch)?;
     Ok(())
 }
 
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
-    if AuthConfig::default().is_err() {
-        println!("{}", RUN_LOGIN_MSG);
-        return Err(OxenError::basic_str(RUN_LOGIN_MSG));
-    }
-
     let repo_dir = env::current_dir().unwrap();
-    if !util::fs::repo_exists(&repo_dir) {
-        println!("{}", NO_REPO_MSG);
-        return Err(OxenError::basic_str(NO_REPO_MSG));
-    }
+    let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
     if args.len() != 2 {
@@ -124,7 +93,6 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
             println!("Committing with message: {}", message);
-            let repo = LocalRepository::from_dir(&repo_dir)?;
             command::commit(&repo, message)?;
             Ok(())
         }
@@ -137,15 +105,9 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
 
 pub fn log_commits() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    if !util::fs::repo_exists(&repo_dir) {
-        let err = NO_REPO_MSG.to_string();
-        return Err(OxenError::basic_str(&err));
-    }
+    let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-    let committer = Arc::new(Committer::new(&repo)?);
-
-    for commit in committer.list_commits()? {
+    for commit in command::log(&repository)? {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{}\n", commit_id_str);
         println!("Author: {}", commit.author);
@@ -167,7 +129,8 @@ pub fn status() -> Result<(), OxenError> {
             "On branch {} -> {}\n",
             current_branch.name, current_branch.commit_id
         );
-    } else if let Some(head) = command::head_commit(&repository)? {
+    } else { 
+        let head = command::head_commit(&repository)?;
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
             head.id, head.message

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::constants::{DEFAULT_REMOTE_NAME, NO_REPO_MSG};
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
@@ -72,7 +72,7 @@ impl LocalRepository {
     pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
         let config_path = util::fs::config_filepath(dir);
         if !config_path.exists() {
-            return Err(OxenError::basic_str(NO_REPO_MSG));
+            return Err(OxenError::local_repo_not_found());
         }
         let repo = LocalRepository::from_cfg(&config_path)?;
         Ok(repo)

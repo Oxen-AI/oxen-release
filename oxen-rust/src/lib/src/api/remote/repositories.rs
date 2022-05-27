@@ -10,6 +10,11 @@ pub fn get_by_url(url: &str) -> Result<RemoteRepository, OxenError> {
     get_by_name(&name)
 }
 
+pub fn create_or_get_by_url(url: &str) -> Result<RemoteRepository, OxenError> {
+    let name = LocalRepository::dirname_from_url(url)?;
+    create_or_get_by_name(&name)
+}
+
 pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}", name);
@@ -52,9 +57,13 @@ pub fn get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
 }
 
 pub fn create_or_get(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+    create_or_get_by_name(&repository.name)
+}
+
+fn create_or_get_by_name(name: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
     let url = api::endpoint::url_from("/repositories");
-    let params = json!({ "name": repository.name });
+    let params = json!({ "name": name });
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -74,7 +83,7 @@ pub fn create_or_get(repository: &LocalRepository) -> Result<RemoteRepository, O
             Err(err) => {
                 let err = format!(
                     "Could not create or find repository [{}]: {}\n{}",
-                    repository.name, err, body
+                    name, err, body
                 );
                 Err(OxenError::basic_str(&err))
             }

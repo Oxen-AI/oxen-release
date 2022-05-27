@@ -12,7 +12,7 @@ pub use crate::model::repository::local_repository::LocalRepository;
 pub use crate::model::repository::remote_repository::RemoteRepository;
 
 // Commit
-pub use crate::model::commit::{Commit, CommitHead, CommmitSyncInfo};
+pub use crate::model::commit::{Commit, CommitStats};
 
 // Branch
 pub use crate::model::branch::Branch;
