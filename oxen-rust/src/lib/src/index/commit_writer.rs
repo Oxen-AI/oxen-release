@@ -43,7 +43,7 @@ impl CommitWriter {
 
         let opts = db::opts::default();
         Ok(CommitWriter {
-            commits_db: DBWithThreadMode::open_for_read_only(&opts, &db_path, false)?,
+            commits_db: DBWithThreadMode::open(&opts, &db_path)?,
             versions_dir: versions_path,
             auth_cfg: AuthConfig::default().unwrap(),
             repository: repository.clone(),
@@ -303,6 +303,7 @@ impl CommitWriter {
 mod tests {
     use crate::error::OxenError;
     use crate::index::{CommitWriter, CommitEntryReader, CommitDBReader};
+    use crate::model::StagedData;
     use crate::test;
     use crate::util;
 
@@ -310,11 +311,12 @@ mod tests {
     #[test]
     fn test_commit_no_files() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, repo| {
-            let reader = CommitEntryReader::new_from_head(&repo)?;
-            let status = stager.status(&reader)?;
+            let status = StagedData::empty();
+            log::debug!("run_empty_stager_test before CommitWriter::new...");
             let commit_writer = CommitWriter::new(&repo)?;
             commit_writer.commit(&status, "Init")?;
             stager.unstage()?;
+
             Ok(())
         })
     }

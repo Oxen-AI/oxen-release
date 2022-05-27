@@ -1,9 +1,10 @@
+use crate::db;
 use crate::constants::{REFS_DIR, HEAD_FILE};
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
 
-use rocksdb::{IteratorMode, LogLevel, Options, DB};
+use rocksdb::{IteratorMode, DB};
 use std::path::PathBuf;
 use std::str;
 
@@ -13,19 +14,19 @@ pub struct RefReader {
 }
 
 impl RefReader {
-    fn db_opts() -> Options {
-        let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Fatal);
-        opts.create_if_missing(true);
-        opts
-    }
-    
     pub fn new(repository: &LocalRepository) -> Result<RefReader, OxenError> {
         let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(REFS_DIR);
         let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(HEAD_FILE);
-
         let error_if_log_file_exist = false;
-        let opts = RefReader::db_opts();
+        let opts = db::opts::default();
+
+        if !refs_dir.exists() {
+            std::fs::create_dir_all(&refs_dir)?;
+            // open it then lose scope to close it
+            let db = DB::open(&opts, &refs_dir)?;
+            log::debug!("RefReader opening db for first time {:?}", db.path());
+        }
+
         Ok(RefReader {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
             head_file: head_filename,
