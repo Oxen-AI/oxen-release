@@ -1,4 +1,4 @@
-use crate::model::{CommitHead, LocalRepository, RemoteRepository};
+use crate::model::{CommitStats, LocalRepository, RemoteRepository};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -31,7 +31,7 @@ pub struct RemoteRepositoryHeadResponse {
     pub status: String,
     pub status_message: String,
     pub repository: RemoteRepository,
-    pub head: Option<CommitHead>,
+    pub head: Option<CommitStats>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

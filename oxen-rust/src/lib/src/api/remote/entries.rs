@@ -4,14 +4,14 @@ use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
-use std::fs::File;
+use std::fs;
 
 const DEFAULT_PAGE_SIZE: usize = 10;
 
 pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
     let fullpath = repository.path.join(&entry.path);
-    let file = File::open(&fullpath)?;
+    let file = fs::File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
     let uri = format!(
         "/repositories/{}/entries?{}",
@@ -94,13 +94,51 @@ pub fn list_page(
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(&format!(
-                "api::entries::list_page Err status_code[{}] \n\n{}",
-                status, body
+                "api::entries::list_page {} Err status_code[{}] \n\n{}",
+                url, status, body
             ))),
         }
     } else {
         let err = format!("api::entries::list_page Err request failed: {}", url);
         Err(OxenError::basic_str(&err))
+    }
+}
+
+/// Returns true if we downloaded the entry, and false if it already exists
+pub fn download_entry(
+    repository: &LocalRepository,
+    entry: &CommitEntry,
+) -> Result<bool, OxenError> {
+    let remote = repository.remote().ok_or(OxenError::remote_not_set())?;
+    let config = AuthConfig::default()?;
+    let fpath = repository.path.join(&entry.path);
+    log::debug!("download_remote_entry entry {:?}", entry.path);
+    if !fpath.exists() {
+        let filename = entry.path.to_str().unwrap();
+        let url = format!("{}/entries/{}", remote.url, filename);
+
+        let client = reqwest::blocking::Client::new();
+        let mut response = client
+            .get(&url)
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", config.auth_token()),
+            )
+            .send()?;
+
+        if let Some(parent) = fpath.parent() {
+            if !parent.exists() {
+                log::debug!("Create parent dir {:?}", parent);
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let mut dest = { fs::File::create(&fpath)? };
+        response.copy_to(&mut dest)?;
+        Ok(true)
+    } else {
+        log::debug!("Not downloading existing entry: {:?}", fpath);
+        Ok(false)
     }
 }
 
@@ -111,7 +149,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::Committer;
+    use crate::index::CommitEntryReader;
     use crate::test;
     use crate::util;
 
@@ -124,8 +162,8 @@ mod tests {
             // Commit the directory
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
-            let committer = Committer::new(local_repo)?;
-            let entries = committer.list_unsynced_entries_for_commit(&commit)?;
+            let committer = CommitEntryReader::new(&local_repo, &commit)?;
+            let entries = committer.list_unsynced_entries()?;
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();

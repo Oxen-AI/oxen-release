@@ -1,17 +1,16 @@
-use crate::index::Committer;
+use crate::index::CommitEntryReader;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 
 use crate::error::OxenError;
 
 pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
-    let committer = Committer::new(repo)?;
-    let entries = committer.list_entries_for_commit(commit)?;
-    Ok(entries)
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.list_entries()
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let committer = Committer::new(repo)?;
-    committer.num_entries_in_commit(&commit.id)
+    let reader = CommitEntryReader::new(repo, &commit)?;
+    reader.num_entries()
 }
 
 pub fn list_page(
@@ -20,9 +19,8 @@ pub fn list_page(
     page_num: usize,
     page_size: usize,
 ) -> Result<Vec<CommitEntry>, OxenError> {
-    let committer = Committer::new(repo)?;
-    let entries = committer.list_entry_page_for_commit(commit, page_num, page_size)?;
-    Ok(entries)
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.list_entry_page(page_num, page_size)
 }
 
 #[cfg(test)]

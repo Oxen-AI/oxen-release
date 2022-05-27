@@ -1,6 +1,8 @@
 use liboxen::api;
+use liboxen::command;
+use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
-use liboxen::index::Committer;
+use liboxen::index::{CommitWriter, RefWriter};
 use liboxen::model::{Commit, LocalRepository, RemoteRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -44,17 +46,13 @@ pub async fn head(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::repositories::get_commit_head(&repository) {
-                Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
+            Ok(repository) => match api::local::repositories::get_head_commit_stats(&repository) {
+                Ok(commit) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
                     repository: RemoteRepository::from_local(&repository),
                     head: Some(commit),
                 }),
-                Ok(None) => {
-                    log::debug!("Head commit does not exist for repo: {}", name);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
                 Err(err) => {
                     log::debug!("Could not get head commit: {}", err);
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -154,9 +152,8 @@ fn p_get_parent(
 }
 
 fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
-    let repo = LocalRepository::from_dir(repo_dir)?;
-    let committer = Committer::new(&repo)?;
-    let commits = committer.list_commits()?;
+    let repo = LocalRepository::new(&repo_dir)?;
+    let commits = command::log(&repo)?;
     Ok(ListCommitResponse::success(commits))
 }
 
@@ -202,7 +199,7 @@ pub async fn download_commit_db(req: HttpRequest,) -> HttpResponse {
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
     // zip up the rocksdb in history dir, and post to server
-    let commit_dir = Committer::history_dir(&repository.path).join(commit.id.clone());
+    let commit_dir = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.clone());
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 
@@ -265,18 +262,19 @@ pub async fn upload(
 
 fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(repo_dir)?;
-    let result = Committer::new(&repo);
+    let result = CommitWriter::new(&repo);
     match result {
-        Ok(mut committer) => match committer.add_commit(commit) {
+        Ok(commit_writer) => match commit_writer.add_commit(commit) {
             Ok(_) => {
-                committer.referencer.set_head_commit_id(&commit.id)?;
+                let ref_writer = RefWriter::new(&repo)?;
+                ref_writer.set_head_commit_id(&commit.id)?;
             }
             Err(err) => {
-                eprintln!("Error adding commit to db: {:?}", err);
+                log::error!("Error adding commit to db: {:?}", err);
             }
         },
         Err(err) => {
-            eprintln!("Error creating committer: {:?}", err);
+            log::error!("Error creating commit writer: {:?}", err);
         }
     };
     Ok(())

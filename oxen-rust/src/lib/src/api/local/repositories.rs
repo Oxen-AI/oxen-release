@@ -1,7 +1,7 @@
 use crate::command;
 use crate::error::OxenError;
-use crate::index::Committer;
-use crate::model::{CommitHead, CommmitSyncInfo, LocalRepository};
+use crate::index::CommitEntryReader;
+use crate::model::{CommitStats, LocalRepository};
 use crate::util;
 
 use std::path::Path;
@@ -19,21 +19,14 @@ pub fn get_by_name(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenE
     Ok(repo)
 }
 
-pub fn get_commit_head(repo: &LocalRepository) -> Result<Option<CommitHead>, OxenError> {
-    match Committer::new(repo) {
-        Ok(committer) => match committer.get_head_commit() {
-            Ok(Some(commit)) => Ok(Some(CommitHead {
-                commit,
-                name: committer.referencer.read_head_ref()?,
-                sync_info: CommmitSyncInfo {
-                    num_entries: committer.num_entries_in_head()?,
-                    num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
-                },
-            })),
-            _ => Ok(None),
-        },
-        Err(_) => Ok(None),
-    }
+pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, OxenError> {
+    let commit = command::head_commit(repo)?;
+    let reader = CommitEntryReader::new_from_head(repo)?;
+    Ok(CommitStats {
+        commit,
+        num_entries: reader.num_entries()?,
+        num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
+    })
 }
 
 pub fn list(sync_dir: &Path) -> Result<Vec<LocalRepository>, OxenError> {
