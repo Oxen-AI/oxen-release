@@ -177,7 +177,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
 }
 
 fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = status(repo)?;
+    let status = StagedData::empty();
     let commit = p_commit(repo, &status, message)?;
     Ok(commit)
 }
