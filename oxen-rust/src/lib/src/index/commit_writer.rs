@@ -2,7 +2,7 @@ use crate::constants::{VERSIONS_DIR, COMMITS_DB};
 use crate::config::AuthConfig;
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{RefReader, CommitDBReader, CommitEntryWriter, CommitEntryReader};
+use crate::index::{RefReader, RefWriter, CommitDBReader, CommitEntryWriter, CommitEntryReader};
 use crate::model::{Commit, StagedData};
 use crate::util;
 
@@ -128,6 +128,10 @@ impl CommitWriter {
 
         // Add to commits db id -> commit_json
         self.add_commit_to_db(&commit)?;
+
+        // Move head to commit id
+        let ref_writer = RefWriter::new(&self.repository)?;
+        ref_writer.set_head_commit_id(&commit.id)?;
 
         Ok(())
     }
@@ -318,7 +322,6 @@ mod tests {
     use crate::index::{CommitWriter, CommitEntryReader, CommitDBReader};
     use crate::model::StagedData;
     use crate::test;
-    use crate::util;
 
     // This is how we initialize
     #[test]
@@ -375,86 +378,6 @@ mod tests {
             assert_eq!(files.len(), 0);
             let dirs = stager.list_added_directories()?;
             assert_eq!(dirs.len(), 0);
-
-            // Create a new entry reader from the new commit
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            // List files in commit to be pushed
-            let files = entry_reader.list_unsynced_entries()?;
-            for file in files.iter() {
-                log::debug!("unsynced: {:?}", file);
-            }
-            // three files in training_data and one annotation file at base level
-            assert_eq!(files.len(), 4);
-
-            // Verify that the current commit contains the hello file
-            let relative_annotation_path =
-                util::fs::path_relative_to_dir(&annotation_file, repo_path)?;
-            assert!(entry_reader.has_file(&relative_annotation_path));
-
-            // Add more files and commit again, make sure the commit copied over the last one
-            stager.add_dir(&test_dir, &entry_reader)?;
-            let message_2 = "Adding test data to 🐂";
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, message_2)?;
-
-            // Remove from staged
-            stager.unstage()?;
-
-            // Check commit history
-            let commit_history = CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
-            // The messages come out LIFO
-            assert_eq!(commit_history.len(), 3);
-            assert_eq!(commit_history[0].id, commit.id);
-            assert_eq!(commit_history[0].message, message_2);
-            // New entry reader for the new db
-            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            assert!(entry_reader.has_file(&relative_annotation_path));
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_commit_modified() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
-            // Create committer with no commits
-            let repo_path = &stager.repository.path;
-            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
-            let commit_writer = CommitWriter::new(&stager.repository)?;
-            let hello_file = test::add_txt_file_to_dir(repo_path, "Hello")?;
-
-            // add & commit the file
-            stager.add_file(&hello_file, &entry_reader)?;
-            let status = stager.status(&entry_reader)?;
-            let commit_1 = commit_writer.commit(&status, "added hello")?;
-            stager.unstage()?; // make sure to unstage
-
-            // modify the file
-            let hello_file = test::modify_txt_file(hello_file, "Hello World")?;
-            let entry_reader = CommitEntryReader::new(&repo, &commit_1)?;
-            let status = stager.status(&entry_reader)?;
-            assert_eq!(status.modified_files.len(), 1);
-            // Add the modified file
-            stager.add_file(&hello_file, &entry_reader)?;
-            // commit the mods
-            let status = stager.status(&entry_reader)?;
-            let commit_2 = commit_writer.commit(&status, "modified hello to be world")?;
-
-            // Make sure that file got committed
-            let entry_reader = CommitEntryReader::new(&repo, &commit_2)?;
-            let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
-            let entry = entry_reader.get_entry(&relative_path)?.unwrap();
-            let entry_dir = CommitWriter::versions_dir(repo_path).join(&entry.id);
-            assert!(entry_dir.exists());
-
-            // Make sure both versions are there
-            let old_version_file = entry_dir.join(entry.filename_from_commit_id(&commit_1.id));
-            log::debug!("old_version_file {:?}", old_version_file);
-            assert!(old_version_file.exists());
-
-            let new_version_file = entry_dir.join(entry.filename_from_commit_id(&commit_2.id));
-            log::debug!("new_version_file {:?}", new_version_file);
-            assert!(new_version_file.exists());
 
             Ok(())
         })

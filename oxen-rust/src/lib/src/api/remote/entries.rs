@@ -191,6 +191,7 @@ mod tests {
             let remote = api::endpoint::repo_url_from(&repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+            // Push everything
             command::push(&repo)?;
 
             let entries = api::remote::entries::list_page(&repo, &commit.id, 1, num_files)?;

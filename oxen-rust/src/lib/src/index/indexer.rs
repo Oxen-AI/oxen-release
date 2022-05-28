@@ -75,14 +75,17 @@ impl Indexer {
         // check if commit exists on remote
         // if not, push the commit and it's dbs
         match api::remote::commits::get_by_id(&self.repository, &local_commit.id) {
-            Ok(Some(remote_parent)) => {
+            Ok(Some(remote_commit)) => {
                 // We have remote commit, stop syncing
-                log::debug!("rpush_missing_commit_objects stop, we have remote parent {} -> '{}'", remote_parent.id, remote_parent.message);
+                log::debug!("rpush_missing_commit_objects stop, we have remote parent {} -> '{}'", remote_commit.id, remote_commit.message);
             },
             Ok(None) => {
                 // We don't have remote commit
                 // Recursively find local parent and remote parents
                 if let Some(parent_id) = &local_commit.parent_id {
+                    // Post commit
+                    api::remote::commits::post_commit_to_server(&self.repository, local_commit)?;
+
                     // We should have a local parent if the local_commit has parent id
                     let local_parent = api::local::commits::get_by_id(&self.repository, &parent_id)?
                                             .ok_or(OxenError::local_parent_link_broken(&local_commit.id))?;
@@ -91,9 +94,6 @@ impl Indexer {
                 } else {
                     log::debug!("rpush_missing_commit_objects stop, no more local parents {} -> '{}'", local_commit.id, local_commit.message);
                 }
-
-                // Unroll and push the dbs
-                api::remote::commits::post_commit_to_server(&self.repository, local_commit)?;
             },
             Err(err) => {
                 let err = format!("Could not push missing commit err: {}", err);
