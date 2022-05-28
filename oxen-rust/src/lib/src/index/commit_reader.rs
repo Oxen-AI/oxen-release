@@ -2,7 +2,7 @@
 use crate::db;
 use crate::constants::COMMITS_DB;
 use crate::error::OxenError;
-use crate::index::{RefReader, CommitDBReader};
+use crate::index::CommitDBReader;
 use crate::model::Commit;
 use crate::util;
 
@@ -41,25 +41,22 @@ impl CommitReader {
         CommitDBReader::head_commit(&self.repository, &self.db)
     }
 
+    pub fn root_commit(&self) -> Result<Commit, OxenError> {
+        CommitDBReader::root_commit(&self.repository, &self.db)
+    }
+
     /// List the commit history starting at a commit id
     pub fn history_from_commit_id(&self, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
         let mut commits: Vec<Commit> = vec![];
+
         self.p_list_commits(&commit_id, &mut commits)?;
         Ok(commits)
     }
 
     /// List the commit history from the HEAD commit
     pub fn history_from_head(&self) -> Result<Vec<Commit>, OxenError> {
-        let mut commit_msgs: Vec<Commit> = vec![];
-        let ref_reader = RefReader::new(&self.repository)?;
-        // Start with head, and the get parents until there are no parents
-        match ref_reader.head_commit_id() {
-            Ok(commit_id) => {
-                self.p_list_commits(&commit_id, &mut commit_msgs)?;
-                Ok(commit_msgs)
-            }
-            Err(_) => Ok(commit_msgs),
-        }
+        let head_commit = self.head_commit()?;
+        CommitDBReader::history_from_commit(&self.db, &head_commit)
     }
 
     /// See if a commit id exists
@@ -80,5 +77,25 @@ impl CommitReader {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::constants::INITIAL_COMMIT_MSG;
+    use crate::error::OxenError;
+    use crate::index::{CommitReader};
+    use crate::test;
+
+    #[test]
+    fn test_get_root_commit() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commit_reader = CommitReader::new(&repo)?;
+            let root_commit = commit_reader.root_commit()?;
+
+            assert_eq!(root_commit.message, INITIAL_COMMIT_MSG);
+
+            Ok(())
+        })
     }
 }

@@ -40,31 +40,37 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn head(req: HttpRequest) -> HttpResponse {
+pub async fn stats(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: Option<&str> = req.match_info().get("repo_name");
-    if let Some(name) = name {
+    let commit_id: Option<&str> = req.match_info().get("commit_id");
+    if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::repositories::get_head_commit_stats(&repository) {
-                Ok(commit) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
+            Ok(repository) => match api::local::repositories::get_commit_stats_from_id(&repository, &commit_id) {
+                Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
                     repository: RemoteRepository::from_local(&repository),
                     head: Some(commit),
                 }),
-                Err(err) => {
-                    log::debug!("Could not get head commit: {}", err);
+                Ok(None) => {
+                    log::debug!("Could not get find commit id: {}", commit_id);
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::error!("Could not get find commit id: {}", err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
             },
             Err(err) => {
-                log::debug!("Could not find repo: {}", err);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                log::error!("Could not find repo: {}", err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
-        let msg = "Could not find `repo_name` param...";
+        log::error!("bad request: {:?}", req);
+        let msg = "Could not find `repo_name` or `commit_id` param...";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -264,7 +270,7 @@ fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(repo_dir)?;
     let result = CommitWriter::new(&repo);
     match result {
-        Ok(commit_writer) => match commit_writer.add_commit(commit) {
+        Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
             Ok(_) => {
                 let ref_writer = RefWriter::new(&repo)?;
                 ref_writer.set_head_commit_id(&commit.id)?;

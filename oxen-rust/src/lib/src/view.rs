@@ -9,7 +9,7 @@ pub use crate::view::status_message::StatusMessage;
 
 pub use crate::view::repository::{
     ListRemoteRepositoryResponse, RemoteRepositoryHeadResponse, RemoteRepositoryResponse,
-    RepositoryNew, RepositoryResponse, RepositoryView,
+    RepositoryResponse, RepositoryView,
 };
 
 pub use crate::view::entry::{EntryResponse, PaginatedEntries, RemoteEntryResponse};

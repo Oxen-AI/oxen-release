@@ -22,3 +22,5 @@ pub const DEFAULT_REMOTE_NAME: &str = "origin";
 pub const DEFAULT_ORIGIN_HOST: &str = "0.0.0.0";
 pub const DEFAULT_ORIGIN_PORT: &str = "3000";
 
+// Commits
+pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
