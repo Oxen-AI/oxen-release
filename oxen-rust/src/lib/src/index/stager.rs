@@ -118,8 +118,10 @@ impl Stager {
     fn list_untracked_files_in_dir(&self, dir: &Path, entry_reader: &CommitEntryReader) -> Vec<PathBuf> {
         util::fs::recursive_eligible_files(dir)
             .into_iter()
-            .map(|file| util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
-            .filter(|file| !self.file_is_in_index(file, entry_reader))
+            .map(|file|util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
+            .filter(|file| {
+                !self.file_is_in_index(file, entry_reader)
+            })
             .collect()
     }
 
@@ -274,9 +276,9 @@ impl Stager {
             // println!("Parent {:?} is_dir {}", parent, parent.is_dir());
             if parent != Path::new("") {
                 let full_path = self.repository.path.join(parent);
-                // println!("Getting count for parent {:?} full path: {:?}", parent, full_path);
+                log::debug!("stager::add_file({:?}) Getting count for parent {:?} full path: {:?}", path, parent, full_path);
                 let untracked_files = self.list_untracked_files_in_dir(&full_path, entry_reader);
-                // println!("Got {} untracked files", untracked_files.len());
+                log::debug!("stager::add_file({:?}) Got {} untracked files", path, untracked_files.len());
                 if untracked_files.is_empty() {
                     let to_remove = self.list_keys_with_prefix(parent.to_str().unwrap())?;
                     let count = to_remove.len();
@@ -926,7 +928,7 @@ mod tests {
             // commit the file
             let status = stager.status(&entry_reader)?;
             let commit_writer = CommitWriter::new(&repo)?;
-            commit_writer.commit(&status, "added hello 1")?;
+            let commit = commit_writer.commit(&status, "added hello 1")?;
             stager.unstage()?;
 
             let mod_files = stager.list_modified_files(&entry_reader)?;
@@ -936,6 +938,7 @@ mod tests {
             let hello_file = test::modify_txt_file(hello_file, "Hello 2")?;
 
             // List files
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
             let mod_files = stager.list_modified_files(&entry_reader)?;
             assert_eq!(mod_files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;

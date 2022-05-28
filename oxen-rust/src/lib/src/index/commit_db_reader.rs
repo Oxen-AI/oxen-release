@@ -29,9 +29,10 @@ impl CommitDBReader {
     fn rget_root_commit(repo: &LocalRepository, db: &DBWithThreadMode<MultiThreaded>, commit_id: &str) -> Result<Commit, OxenError> {
         let commit = CommitDBReader::get_commit_by_id(db, commit_id)?.ok_or(OxenError::commit_db_corrupted(commit_id))?;
         if let Some(parent_id) = &commit.parent_id {
-            CommitDBReader::rget_root_commit(repo, db, parent_id)?;
+            Ok(CommitDBReader::rget_root_commit(repo, db, parent_id)?)
+        } else {
+            Ok(commit)
         }
-        Ok(commit)
     }
 
     pub fn get_commit_by_id(db: &DBWithThreadMode<MultiThreaded>, commit_id: &str) -> Result<Option<Commit>, OxenError> {

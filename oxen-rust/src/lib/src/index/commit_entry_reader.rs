@@ -142,7 +142,8 @@ impl CommitEntryReader {
 
     pub fn has_file(&self, path: &Path) -> bool {
         match self.get_entry(path) {
-            Ok(_val) => true,
+            Ok(Some(_val)) => true,
+            Ok(None) => false,
             Err(_err) => false,
         }
     }
