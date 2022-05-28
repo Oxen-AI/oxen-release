@@ -638,7 +638,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cannot_add_if_no_difference_than_commit() -> Result<(), OxenError> {
+    fn test_cannot_add_if_not_different_from_commit() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
@@ -653,10 +653,11 @@ mod tests {
             // Commit it
             let commit_writer = CommitWriter::new(&repo)?;
             let status = stager.status(&entry_reader)?;
-            commit_writer.commit(&status, "Add Hello World")?;
+            let commit = commit_writer.commit(&status, "Add Hello World")?;
             stager.unstage()?;
 
             // try to add it again
+            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
             stager.add_file(&hello_file, &entry_reader)?;
 
             // make sure we don't have it added again, because the hash hadn't changed since last commit
