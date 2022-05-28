@@ -166,7 +166,8 @@ mod tests {
             api::remote::repositories::delete(repository)?;
 
             let result = api::remote::repositories::get_by_name(&local_repo.name);
-            assert!(result.is_err());
+            assert!(result.is_ok());
+            assert!(result.unwrap().is_none());
             Ok(())
         })
     }
