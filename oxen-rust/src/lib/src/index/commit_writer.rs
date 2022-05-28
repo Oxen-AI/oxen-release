@@ -104,6 +104,21 @@ impl CommitWriter {
         );
 
         // Write entries
+        self.add_commit_from_status(&commit, status)?;
+
+        // println!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
+
+        Ok(commit)
+    }
+
+    pub fn add_commit_from_empty_status(&self, commit: &Commit) -> Result<(), OxenError> {
+        // Empty Status
+        let status = StagedData::empty();
+        self.add_commit_from_status(commit, &status)
+    }
+
+    pub fn add_commit_from_status(&self, commit: &Commit, status: &StagedData) -> Result<(), OxenError> {
+        // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, &commit)?;
         // Commit all staged files from db
         entry_writer.add_staged_entries(&commit, &status.added_files)?;
@@ -112,14 +127,12 @@ impl CommitWriter {
         entry_writer.add_staged_dirs(&commit, &status.added_dirs)?;
 
         // Add to commits db id -> commit_json
-        self.add_commit(&commit)?;
+        self.add_commit_to_db(&commit)?;
 
-        // println!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
-
-        Ok(commit)
+        Ok(())
     }
 
-    pub fn add_commit(&self, commit: &Commit) -> Result<(), OxenError> {
+    pub fn add_commit_to_db(&self, commit: &Commit) -> Result<(), OxenError> {
         // Write commit json to db
         let commit_json = serde_json::to_string(&commit)?;
         self.commits_db.put(&commit.id, commit_json.as_bytes())?;
@@ -350,7 +363,7 @@ mod tests {
             let commit = commit_writer.commit(&status, message)?;
             stager.unstage()?;
 
-            let commit_history = CommitDBReader::commit_history_from_commit(&commit_writer.commits_db, &commit)?;
+            let commit_history = CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
 
             // always start with an initial commit
             assert_eq!(commit_history.len(), 2);
@@ -388,7 +401,7 @@ mod tests {
             stager.unstage()?;
 
             // Check commit history
-            let commit_history = CommitDBReader::commit_history_from_commit(&commit_writer.commits_db, &commit)?;
+            let commit_history = CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
             // The messages come out LIFO
             assert_eq!(commit_history.len(), 3);
             assert_eq!(commit_history[0].id, commit.id);

@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
-use crate::model::{Remote, RemoteRepository};
+use crate::model::{Remote, RemoteRepository, Commit};
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -9,9 +9,12 @@ use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// For creating a remote repo we need the repo name
+/// and we need the root commit so that we do not generate a new one on creation on the server
 #[derive(Deserialize, Debug, Clone)]
 pub struct RepositoryNew {
     pub name: String,
+    pub root_commit: Commit,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -90,11 +93,12 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn clone_remote(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
+    pub fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!("clone_remote {} -> {:?}", url, dst);
         let name = LocalRepository::dirname_from_url(url)?;
         match api::remote::repositories::get_by_name(&name) {
-            Ok(remote_repo) => LocalRepository::clone_repo(remote_repo, dst),
+            Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst)?)),
+            Ok(None) => Ok(None),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -227,10 +231,10 @@ mod tests {
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let remote_repo = api::remote::repositories::create_or_get(&local_repo)?;
+            let remote_repo = api::remote::repositories::create(&local_repo)?;
 
             test::run_empty_dir_test(|dir| {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)?;
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)?.unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);

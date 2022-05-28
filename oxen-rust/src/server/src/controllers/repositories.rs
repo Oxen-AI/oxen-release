@@ -6,10 +6,10 @@ use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
 use liboxen::view::{
-    ListRemoteRepositoryResponse, RemoteRepositoryResponse, RepositoryNew, StatusMessage,
+    ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage,
 };
 
-use liboxen::model::{LocalRepository, RemoteRepository};
+use liboxen::model::{LocalRepository, RemoteRepository, RepositoryNew};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
@@ -73,7 +73,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     repository: remote_from_local(repository),
                 })
             }
-            Err(_) => match api::local::repositories::create(&app_data.path, &data.name) {
+            Err(_) => match api::local::repositories::create_empty(&app_data.path, &data) {
                 Ok(repository) => {
                     // Set the remote to this server
                     HttpResponse::Ok().json(RemoteRepositoryResponse {

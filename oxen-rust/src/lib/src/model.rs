@@ -8,7 +8,7 @@ pub mod staged_data;
 pub mod user;
 
 // Repository
-pub use crate::model::repository::local_repository::LocalRepository;
+pub use crate::model::repository::local_repository::{LocalRepository, RepositoryNew};
 pub use crate::model::repository::remote_repository::RemoteRepository;
 
 // Commit

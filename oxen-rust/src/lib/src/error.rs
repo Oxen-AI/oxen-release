@@ -17,12 +17,17 @@ pub enum OxenError {
 }
 
 impl OxenError {
-    pub fn basic_str(s: &str) -> Self {
-        OxenError::Basic(String::from(s))
+    pub fn basic_str<T: AsRef<str>>(s: T) -> Self {
+        OxenError::Basic(String::from(s.as_ref()))
     }
 
     pub fn local_repo_not_found() -> OxenError {
-        OxenError::basic_str("No oxen repository exists, looking for directory: .oxen ")
+        OxenError::basic_str("No oxen repository exists, looking for directory: .oxen")
+    }
+
+    pub fn remote_repo_not_found<T: AsRef<str>>(url: T) -> OxenError {
+        let err = format!("Remote repository does not exist {}", url.as_ref());
+        OxenError::basic_str(&err)
     }
 
     pub fn head_not_found() -> OxenError {

@@ -3,6 +3,7 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
+use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
     CommitReader, CommitWriter,
@@ -41,7 +42,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
 
-    if let Ok(commit) = commit_with_no_files(&repo, "Initialized Repo 🐂") {
+    if let Ok(commit) = commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG) {
         println!("Initial commit {}", commit.id);
     }
 
@@ -350,6 +351,13 @@ pub fn current_branch(repo: &LocalRepository) -> Result<Option<Branch>, OxenErro
 }
 
 /// # Get the current commit
+pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commit = committer.root_commit()?;
+    Ok(commit)
+}
+
+/// # Get the current commit
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commit = committer.head_commit()?;
@@ -415,7 +423,7 @@ pub fn push_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) ->
 
 /// Clone a repo from a url to a directory
 pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    LocalRepository::clone_remote(url, dst)
+    LocalRepository::clone_remote(url, dst)?.ok_or(OxenError::remote_repo_not_found(url))
 }
 
 /// Pull a repository's data from origin/main

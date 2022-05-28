@@ -2,11 +2,6 @@ use crate::model::{CommitStats, LocalRepository, RemoteRepository};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RepositoryNew {
-    pub name: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RepositoryView {
     pub id: String,
     pub name: String,

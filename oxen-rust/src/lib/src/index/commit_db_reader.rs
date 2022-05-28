@@ -21,6 +21,19 @@ impl CommitDBReader {
         }
     }
 
+    pub fn root_commit(repo: &LocalRepository, db: &DBWithThreadMode<MultiThreaded>) -> Result<Commit, OxenError> {
+        let head_commit = CommitDBReader::head_commit(repo, db)?;
+        CommitDBReader::rget_root_commit(repo, db, &head_commit.id)
+    }
+
+    fn rget_root_commit(repo: &LocalRepository, db: &DBWithThreadMode<MultiThreaded>, commit_id: &str) -> Result<Commit, OxenError> {
+        let commit = CommitDBReader::get_commit_by_id(db, commit_id)?.ok_or(OxenError::commit_db_corrupted(commit_id))?;
+        if let Some(parent_id) = &commit.parent_id {
+            CommitDBReader::rget_root_commit(repo, db, parent_id)?;
+        }
+        Ok(commit)
+    }
+
     pub fn get_commit_by_id(db: &DBWithThreadMode<MultiThreaded>, commit_id: &str) -> Result<Option<Commit>, OxenError> {
         // Check if the id is in the DB
         let key = commit_id.as_bytes();
@@ -51,18 +64,18 @@ impl CommitDBReader {
         }
     }
 
-    pub fn commit_history_from_commit(db: &DBWithThreadMode<MultiThreaded>, commit: &Commit) -> Result<Vec<Commit>, OxenError> {
+    pub fn history_from_commit(db: &DBWithThreadMode<MultiThreaded>, commit: &Commit) -> Result<Vec<Commit>, OxenError> {
         let mut commit_msgs: Vec<Commit> = vec![];
         // Start with head, and the get parents until there are no parents
-        CommitDBReader::list_commits(db, &commit.id, &mut commit_msgs)?;
+        CommitDBReader::history_from_commit_id(db, &commit.id, &mut commit_msgs)?;
         Ok(commit_msgs)
     }
 
-    fn list_commits(db: &DBWithThreadMode<MultiThreaded>, commit_id: &str, commits: &mut Vec<Commit>) -> Result<(), OxenError> {
+    pub fn history_from_commit_id(db: &DBWithThreadMode<MultiThreaded>, commit_id: &str, commits: &mut Vec<Commit>) -> Result<(), OxenError> {
         if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
             commits.push(commit.clone());
             if let Some(parent_id) = &commit.parent_id {
-                CommitDBReader::list_commits(db, parent_id, commits)?;
+                CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
             }
         }
         Ok(())

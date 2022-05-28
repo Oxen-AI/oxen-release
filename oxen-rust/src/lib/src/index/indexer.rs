@@ -34,7 +34,14 @@ impl Indexer {
                         .ok_or(OxenError::remote_not_set())?;
 
         // Create or fetch the remote repository
-        let remote_repo = api::remote::repositories::create_or_get_by_url(&remote.url)?;
+        let remote_repo = match api::remote::repositories::get_by_url(&remote.url) {
+            Ok(Some(repo)) => {
+                repo
+            },
+            _ => {
+                api::remote::repositories::create(&self.repository)?
+            }
+        };
 
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
@@ -214,7 +221,7 @@ impl Indexer {
         let remote = self.repository.get_remote(&rb.remote).ok_or(OxenError::remote_not_set())?;
 
         // Get the remote commit from branch name, and try to recursively pull subsequent commits
-        let remote_repo = api::remote::repositories::get_by_url(&remote.url)?;
+        let remote_repo = api::remote::repositories::get_by_url(&remote.url)?.ok_or(OxenError::remote_repo_not_found(&rb.remote))?;
         let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
         let remote_branch = api::remote::branches::get_by_name(&remote_repo, &rb.branch)?.ok_or(OxenError::basic_str(&remote_branch_err))?;
         match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
@@ -294,7 +301,7 @@ impl Indexer {
         // Get commit and write it to local DB
         let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?.unwrap();
         let writer = CommitWriter::new(&self.repository)?;
-        writer.add_commit(&remote_commit)
+        writer.add_commit_to_db(&remote_commit)
     }
 
     // For unit testing a half synced commit
