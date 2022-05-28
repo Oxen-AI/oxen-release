@@ -20,7 +20,6 @@ pub struct CommitEntryReader {
 impl CommitEntryReader {
     pub fn new(repository: &LocalRepository, commit: &Commit) -> Result<CommitEntryReader, OxenError> {
         let db_path = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.to_owned());
-        log::debug!("CommitEntryReader db_path {:?}", db_path);
         let opts = db::opts::default();
         Ok(CommitEntryReader {
             db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
@@ -35,7 +34,6 @@ impl CommitEntryReader {
     }
 
     pub fn num_entries(&self) -> Result<usize, OxenError> {
-        log::debug!("num_entries_in_head reading from db: {:?}", self.db.path());
         Ok(self.db.iterator(IteratorMode::Start).count())
     }
 
@@ -93,7 +91,7 @@ impl CommitEntryReader {
     }
 
     pub fn list_unsynced_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
-        Ok(self.list_entries()?.into_iter().filter(|entry| entry.is_synced).collect())
+        Ok(self.list_entries()?.into_iter().filter(|entry| !entry.is_synced).collect())
     }
 
     pub fn list_entry_page(

@@ -28,7 +28,11 @@ impl CommitEntryWriter {
     }
 
     pub fn new(repository: &LocalRepository, commit: &Commit) -> Result<CommitEntryWriter, OxenError> {
-        let db_path = CommitEntryWriter::create_db_dir_for_commit_id(repository, &commit.id)?;
+        log::debug!("CommitEntryWriter::new() commit_id: {}", commit.id);
+        let db_path = CommitEntryWriter::commit_db_dir(&repository.path, &commit.id);
+        if !db_path.exists() {
+            CommitEntryWriter::create_db_dir_for_commit_id(repository, &commit.id)?;
+        }
         
         let opts = db::opts::default();
         Ok(CommitEntryWriter {
@@ -41,14 +45,18 @@ impl CommitEntryWriter {
         // either copy over parent db as a starting point, or start new
         match CommitEntryWriter::head_commit_id(repo) {
             Ok(parent_id) => {
+                log::debug!("CommitEntryWriter::create_db_dir_for_commit_id have parent_id {}", parent_id);
                 // We have a parent, we have to copy over last db, and continue
                 let parent_commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, &parent_id);
                 let current_commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, &commit_id);
+                log::debug!("COPY DB from {:?} => {:?}", parent_commit_db_path, current_commit_db_path);
+
                 util::fs::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
                 // return current commit path, so we can add to it
                 Ok(current_commit_db_path)
             }
-            Err(_) => {
+            Err(err) => {
+                log::debug!("CommitEntryWriter::create_db_dir_for_commit_id do not have parent id {:?}", err);
                 // We are creating initial commit, no parent
                 let commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, &commit_id);
                 if !commit_db_path.exists() {
@@ -197,7 +205,7 @@ impl CommitEntryWriter {
         let path_str = entry.path.to_str().unwrap();
         let key = path_str.as_bytes();
         let entry_json = serde_json::to_string(&entry)?;
-        log::debug!("Adding entry to db {} -> {}", path_str, entry_json);
+        log::debug!("ADD ENTRY to db[{:?}] {} -> {}", self.db.path(), path_str, entry_json);
         self.db.put(&key, entry_json.as_bytes())?;
 
         Ok(())
@@ -224,7 +232,7 @@ impl CommitEntryWriter {
             std::fs::copy(full_path, versions_path)?;
         } else {
             // Make sure we only copy it if it hasn't changed
-            if let Ok(Some(old_entry)) = CommitEntryDBReader::get_entry(&self.db, &new_entry.path) {
+            if let Some(old_entry) = CommitEntryDBReader::get_entry(&self.db, &new_entry.path)? {
                 log::debug!("got entry from db {:?}", new_entry);
                 if new_entry.hash != old_entry.hash {
                     let filename = new_entry.filename();
@@ -237,7 +245,7 @@ impl CommitEntryWriter {
                     std::fs::copy(full_path, versions_path)?;
                 }
             } else {
-                log::debug!("could not find entry from db {:?}", new_entry.path);
+                log::debug!("COULD NOT FIND ENTRY in db[{:?}] {:?}", self.db.path(), new_entry.path);
             }
         }
 

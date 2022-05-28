@@ -91,17 +91,17 @@ impl Stager {
 
     pub fn status(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
         // TODO: let's do this in a single loop and filter model
-        log::debug!("STATUS: before list_added_directories");
+        // log::debug!("STATUS: before list_added_directories");
         let added_dirs = self.list_added_directories()?;
-        log::debug!("STATUS: list_added_files");
+        // log::debug!("STATUS: list_added_files");
         let added_files = self.list_added_files()?;
-        log::debug!("STATUS: list_untracked_directories");
+        // log::debug!("STATUS: list_untracked_directories");
         let untracked_dirs = self.list_untracked_directories(entry_reader)?;
-        log::debug!("STATUS: list_untracked_files");
+        // log::debug!("STATUS: list_untracked_files");
         let untracked_files = self.list_untracked_files(entry_reader)?;
-        log::debug!("STATUS: list_modified_files");
+        // log::debug!("STATUS: list_modified_files");
         let modified_files = self.list_modified_files(entry_reader)?;
-        log::debug!("STATUS: list_removed_files");
+        // log::debug!("STATUS: list_removed_files");
         let removed_files = self.list_removed_files(entry_reader)?;
         log::debug!("STATUS: ok");
         let status = StagedData {
