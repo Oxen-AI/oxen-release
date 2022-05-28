@@ -170,8 +170,9 @@ where
     T: FnOnce(&RemoteRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
+    let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
-    let path = Path::new(&name);
+    let path = empty_dir.join(name);
     let local_repo = command::init(&path)?;
     let repo = api::remote::repositories::create_or_get(&local_repo)?;
 
@@ -185,6 +186,9 @@ where
 
     // Cleanup remote repo
     api::remote::repositories::delete(repo)?;
+
+    // Cleanup Local
+    std::fs::remove_dir_all(path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
