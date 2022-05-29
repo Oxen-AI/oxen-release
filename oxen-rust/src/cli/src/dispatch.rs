@@ -1,7 +1,6 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::config::RemoteConfig;
-use liboxen::constants::DEFAULT_REMOTE_NAME;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 
@@ -42,11 +41,11 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn set_remote(url: &str) -> Result<(), OxenError> {
+pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::set_remote(&mut repo, DEFAULT_REMOTE_NAME, url)?;
+    command::set_remote(&mut repo, name, url)?;
 
     Ok(())
 }

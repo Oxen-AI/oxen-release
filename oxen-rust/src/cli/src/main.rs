@@ -24,6 +24,7 @@ fn main() {
         .subcommand(
             Command::new("set-remote")
                 .about("Sets remote url for repository")
+                .arg(arg!(<NAME> "The remote name"))
                 .arg(arg!(<URL> "The remote url"))
                 .arg_required_else_help(true),
         )
@@ -105,9 +106,10 @@ fn main() {
             }
         }
         Some(("set-remote", sub_matches)) => {
+            let name = sub_matches.value_of("NAME").expect("required");
             let url = sub_matches.value_of("URL").expect("required");
 
-            match dispatch::set_remote(url) {
+            match dispatch::set_remote(name, url) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
