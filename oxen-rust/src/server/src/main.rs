@@ -131,7 +131,7 @@ async fn main() -> std::io::Result<()> {
                         web::post().to(controllers::entries::create),
                     )
                     .route(
-                        "/repositories/{name}/entries/{filename:.*}",
+                        "/repositories/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
                         web::get().to(controllers::repositories::get_file),
                     )
                     .route(
