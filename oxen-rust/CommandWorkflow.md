@@ -3,7 +3,7 @@
 
 `oxen status`
 
-## TODO: what is the command to create repo
+TODO: what is the command to create repo
 
 ```
 fatal: no oxen repository exists, looking for directory: .oxen
@@ -11,7 +11,7 @@ fatal: no oxen repository exists, looking for directory: .oxen
 
 `oxen init .`
 
-## TODO: oxen create command that generates structure
+TODO: oxen create command that generates structure
 
 ```
 Initial commit e4def8e8-e973-4ed4-8beb-393fde7b27b4
@@ -79,7 +79,11 @@ Untracked files:
 
 `oxen add train/dog.1.jpg`
 
-`oxen commit -m "changing train/dog.1.jpg"`
+TODO: Only show added and not modified in next status here
+
+`oxen status`
+
+`oxen commit -m "changing train/dog.1.jpg to Finn"`
 
 Revert back to main branch
 
