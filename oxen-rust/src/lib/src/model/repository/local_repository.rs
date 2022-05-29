@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 /// For creating a remote repo we need the repo name
 /// and we need the root commit so that we do not generate a new one on creation on the server
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RepositoryNew {
     pub name: String,
     pub root_commit: Commit,

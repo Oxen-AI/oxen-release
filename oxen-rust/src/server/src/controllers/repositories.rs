@@ -151,7 +151,10 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
+    use liboxen::constants;
     use liboxen::error::OxenError;
+    use liboxen::model::{RepositoryNew, Commit};
+    use chrono::Utc;
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRemoteRepositoryResponse, RepositoryResponse};
@@ -226,10 +229,17 @@ mod tests {
     #[actix_web::test]
     async fn test_respository_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let data = r#"
-        {
-            "name": "Testing-Name"
-        }"#;
+        let repo_new = RepositoryNew {
+            name: String::from("Testing-Name"),
+            root_commit: Commit {
+                id: String::from("1234"),
+                parent_id: None,
+                message: String::from(constants::INITIAL_COMMIT_MSG),
+                author: String::from("Ox"),
+                date: Utc::now(),
+            }
+        };
+        let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, "/repositories");
 
         let resp = controllers::repositories::create_or_get(req, String::from(data)).await;
@@ -239,7 +249,7 @@ mod tests {
 
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status, STATUS_SUCCESS);
-        assert_eq!(repo_response.repository.name, "Testing-Name");
+        assert_eq!(repo_response.repository.name, repo_new.name);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
