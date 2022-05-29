@@ -4,7 +4,7 @@
 use crate::api;
 use crate::command;
 use crate::error::OxenError;
-use crate::index::{Referencer, Stager};
+use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 
 use env_logger::Env;
@@ -24,9 +24,10 @@ pub fn init_test_env() {
 }
 
 fn create_prefixed_dir(base_dir: &str, prefix: &str) -> Result<PathBuf, OxenError> {
-    let repo_name = format!("{}/{}_{}", prefix, base_dir, uuid::Uuid::new_v4());
-    std::fs::create_dir_all(&repo_name)?;
-    Ok(PathBuf::from(&repo_name))
+    let repo_name = format!("{}_{}_{}", prefix, base_dir, uuid::Uuid::new_v4());
+    let full_dir = Path::new(base_dir).join(repo_name);
+    std::fs::create_dir_all(&full_dir)?;
+    Ok(full_dir.to_path_buf())
 }
 
 fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
@@ -106,8 +107,9 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    
     let local_repo = command::init(&repo_dir)?;
-    let remote_repo = api::remote::repositories::create_or_get(&local_repo.name)?;
+    let remote_repo = api::remote::repositories::create(&local_repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -141,7 +143,7 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
 
-    let remote_repo = api::remote::repositories::create_or_get(&local_repo.name)?;
+    let remote_repo = api::remote::repositories::create(&local_repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -168,8 +170,11 @@ where
     T: FnOnce(&RemoteRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
+    let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
-    let repo = api::remote::repositories::create_or_get(&name)?;
+    let path = empty_dir.join(name);
+    let local_repo = command::init(&path)?;
+    let repo = api::remote::repositories::create(&local_repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&repo) {
@@ -181,6 +186,9 @@ where
 
     // Cleanup remote repo
     api::remote::repositories::delete(repo)?;
+
+    // Cleanup Local
+    std::fs::remove_dir_all(path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -251,17 +259,18 @@ where
 
 pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(Stager) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(Stager, LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
-    println!("BEFORE COMMAND::INIT");
+    log::debug!("BEFORE COMMAND::INIT");
     let repo = command::init(&repo_dir)?;
-    println!("AFTER COMMAND::INIT");
+    log::debug!("AFTER COMMAND::INIT");
     let stager = Stager::new(&repo)?;
+    log::debug!("AFTER CREATE STAGER");
 
     // Run test to see if it panic'd
-    let result = std::panic::catch_unwind(|| match test(stager) {
+    let result = std::panic::catch_unwind(|| match test(stager, repo) {
         Ok(_) => {}
         Err(err) => {
             panic!("Error running test. Err: {}", err);
@@ -278,12 +287,12 @@ where
 
 pub fn run_referencer_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(Referencer) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(RefWriter) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let repo = command::init(&repo_dir)?;
-    let referencer = Referencer::new(&repo)?;
+    let referencer = RefWriter::new(&repo)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(referencer) {
@@ -434,11 +443,6 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     )?;
 
     Ok(())
-}
-
-pub fn create_remote_repo(name: &str) -> Result<RemoteRepository, OxenError> {
-    let repository = api::remote::repositories::create_or_get(name)?;
-    Ok(repository)
 }
 
 pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {

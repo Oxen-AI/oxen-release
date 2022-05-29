@@ -3,11 +3,15 @@
 
 `oxen status`
 
+## TODO: what is the command to create repo
+
 ```
 fatal: no oxen repository exists, looking for directory: .oxen
 ```
 
 `oxen init .`
+
+## TODO: oxen create command that generates structure
 
 ```
 Initial commit e4def8e8-e973-4ed4-8beb-393fde7b27b4
@@ -77,6 +81,8 @@ Untracked files:
 
 `oxen commit -m "changing train/dog.1.jpg"`
 
+Revert back to main branch
+
 `oxen checkout main`
 
 `oxen checkout change-train`
@@ -99,9 +105,37 @@ Untracked files:
 
 `head -n 9 annotations/test_annotations.txt > annotations/test_annotations.txt`
 
+`oxen add annotations/test_annotations.txt`
+
+`oxen add test/10.jpg`
+
+## Modification should show up in summary
+
 `oxen commit -m "remove 10.jpg from test"`
 
 Revert back
+
 `oxen checkout main`
+
+## Colaboration
+
+Push the changes
+
+`oxen set-remote origin http://0.0.0.0:3000/repositories/SmallCatDog`
+
+`oxen push`
+
+Pull the changes to some other workspace
+
+`oxen clone http://0.0.0.0:3000/repositories/SmallCatDog`
+
+`oxen pull origin change-train`
+
+`for i in (seq 200 210) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/ ; end`
+
+
+## TODO: do we want to show what the new files are in the dir, or to expand the status?
+
+`oxen status`
 
 

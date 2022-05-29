@@ -1,10 +1,10 @@
 use crate::api;
+use crate::constants::HISTORY_DIR;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::index::Committer;
-use crate::model::{Commit, CommitHead, LocalRepository};
+use crate::model::{Commit, CommitStats, LocalRepository};
 use crate::util;
-use crate::view::{CommitResponse, RemoteRepositoryHeadResponse};
+use crate::view::{CommitResponse, CommitStatsResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
 
 use flate2::read::GzDecoder;
@@ -12,9 +12,9 @@ use tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
-pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead>, OxenError> {
+pub fn get_stats(repository: &LocalRepository, commit: &Commit) -> Result<Option<CommitStats>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/head", repository.name);
+    let uri = format!("/repositories/{}/commits/{}/stats", repository.name, commit.id);
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();
@@ -41,7 +41,7 @@ pub fn get_remote_head(repository: &LocalRepository) -> Result<Option<CommitHead
     }
 }
 
-pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit, OxenError> {
+pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}/commits/{}", repository.name, commit_id);
     let url = api::endpoint::url_from(&uri);
@@ -55,10 +55,14 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Commit
         )
         .send()
     {
+        if res.status() == 404 {
+            return Ok(None);
+        }
+
         let body = res.text()?;
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(j_res.commit),
+            Ok(j_res) => Ok(Some(j_res.commit)),
             Err(err) => Err(OxenError::basic_str(&format!(
                 "get_commit_by_id() Could not serialize response [{}]\n{}",
                 err, body
@@ -127,12 +131,49 @@ pub fn get_remote_parent(
     }
 }
 
+pub fn get_remote_parent_stats(
+    repository: &LocalRepository,
+    commit_id: &str,
+) -> Result<Option<CommitStats>, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!(
+        "/repositories/{}/commits/{}/parent/stats",
+        repository.name, commit_id
+    );
+    let url = api::endpoint::url_from(&uri);
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        if res.status() == 404 {
+            return Ok(None);
+        }
+
+        let body = res.text()?;
+        let response: Result<CommitStatsResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(Some(j_res.stats)),
+            Err(err) => Err(OxenError::basic_str(&format!(
+                "get_remote_parent_stats() Could not serialize response [{}]\n{}",
+                err, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("get_remote_parent_stats() Request failed"))
+    }
+}
+
 pub fn post_commit_to_server(
     repository: &LocalRepository,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // zip up the rocksdb in history dir, and post to server
-    let commit_dir = Committer::history_dir(&repository.path).join(commit.id.clone());
+    let commit_dir = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.clone());
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 
@@ -197,7 +238,8 @@ mod tests {
     #[test]
     fn test_get_empty_remote_head() -> Result<(), OxenError> {
         test::run_empty_sync_repo_test(|local_repo, _remote_repo| {
-            let remote_head_result = api::remote::commits::get_remote_head(local_repo);
+            let commit = command::head_commit(&local_repo)?;
+            let remote_head_result = api::remote::commits::get_stats(local_repo, &commit);
             assert!(remote_head_result.is_ok());
             Ok(())
         })

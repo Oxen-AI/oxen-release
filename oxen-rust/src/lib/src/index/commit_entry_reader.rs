@@ -1,9 +1,12 @@
 
+use crate::db;
+use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::index::Committer;
+use crate::index::{CommitReader, CommitEntryDBReader};
 use crate::model::{Commit, CommitEntry};
+use crate::util;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, LogLevel, MultiThreaded, Options};
+use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -15,23 +18,22 @@ pub struct CommitEntryReader {
 }
 
 impl CommitEntryReader {
-    pub fn db_opts() -> Options {
-        let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Fatal);
-        opts.create_if_missing(true);
-        opts
-    }
-
     pub fn new(repository: &LocalRepository, commit: &Commit) -> Result<CommitEntryReader, OxenError> {
-        let db_path = Committer::history_dir(&repository.path).join(commit.id.to_owned());
-        let opts = CommitEntryReader::db_opts();
+        let db_path = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.to_owned());
+        let opts = db::opts::default();
         Ok(CommitEntryReader {
-            db: DBWithThreadMode::open_for_read_only(&opts, &db_path, false)?,
+            db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
         })
     }
 
+    /// For opening the entry reader from head, so that it opens and closes the commit db within the constructor
+    pub fn new_from_head(repository: &LocalRepository) -> Result<CommitEntryReader, OxenError> {
+        let commit_reader = CommitReader::new(repository)?;
+        let commit = commit_reader.head_commit()?;
+        CommitEntryReader::new(repository, &commit)
+    }
+
     pub fn num_entries(&self) -> Result<usize, OxenError> {
-        log::debug!("num_entries_in_head reading from db: {:?}", self.db.path());
         Ok(self.db.iterator(IteratorMode::Start).count())
     }
 
@@ -72,6 +74,24 @@ impl CommitEntryReader {
             paths.push(entry);
         }
         Ok(paths)
+    }
+
+    /// Short circuits checking if there are any unsynced entries, instead of returning all 
+    /// unsynced then checking if empty it deserializes the entries and stops early
+    /// if it finds one that is unsynced
+    pub fn has_unsynced_entries(&self) -> Result<bool, OxenError> {
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (_key, value) in iter {
+            let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+            if !entry.is_synced {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    pub fn list_unsynced_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
+        Ok(self.list_entries()?.into_iter().filter(|entry| !entry.is_synced).collect())
     }
 
     pub fn list_entry_page(
@@ -120,26 +140,16 @@ impl CommitEntryReader {
         }
     }
 
-    pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
-
-        let key = path.to_str().unwrap();
-        let bytes = key.as_bytes();
-        match self.db.get(bytes) {
-            Ok(Some(value)) => match str::from_utf8(&*value) {
-                Ok(value) => {
-                    let entry: CommitEntry = serde_json::from_str(value)?;
-                    Ok(Some(entry))
-                }
-                Err(_) => Err(OxenError::basic_str(
-                    "get_local_entry_from_commit invalid entry",
-                )),
-            },
-            Ok(None) => Ok(None),
-            Err(err) => {
-                let err = format!("get_local_entry_from_commit Error reading db\nErr: {}", err);
-                Err(OxenError::basic_str(&err))
-            }
+    pub fn has_file(&self, path: &Path) -> bool {
+        match self.get_entry(path) {
+            Ok(Some(_val)) => true,
+            Ok(None) => false,
+            Err(_err) => false,
         }
+    }
+
+    pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
+        CommitEntryDBReader::get_entry(&self.db, path)
     }
 
     pub fn contains_path(&self, path: &Path) -> Result<bool, OxenError> {

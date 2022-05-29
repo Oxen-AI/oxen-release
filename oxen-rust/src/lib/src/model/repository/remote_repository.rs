@@ -1,4 +1,4 @@
-use crate::constants::{DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_NAME};
+use crate::constants::{DEFAULT_ORIGIN_HOST, DEFAULT_REMOTE_NAME};
 use crate::model::{LocalRepository, Remote};
 use serde::{Deserialize, Serialize};
 
@@ -17,10 +17,10 @@ impl RemoteRepository {
             url: repository
                 .remote()
                 .unwrap_or_else(|| Remote {
-                    name: String::from(DEFAULT_ORIGIN_NAME),
-                    value: String::from(DEFAULT_ORIGIN_HOST),
+                    name: String::from(DEFAULT_REMOTE_NAME),
+                    url: String::from(DEFAULT_ORIGIN_HOST),
                 })
-                .value,
+                .url,
         }
     }
 }

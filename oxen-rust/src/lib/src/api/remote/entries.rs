@@ -1,17 +1,26 @@
 use crate::api;
+use crate::constants;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
+use crate::util;
 
-use std::fs::File;
+use std::fs;
 
 const DEFAULT_PAGE_SIZE: usize = 10;
 
 pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
-    let fullpath = repository.path.join(&entry.path);
-    let file = File::open(&fullpath)?;
+    let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
+    let fullpath = version_dir.join(entry.filename());
+    log::debug!("Creating entry: {:?} -> {:?}", entry.path, fullpath);
+
+    if !fullpath.exists() {
+        return Err(OxenError::local_file_not_found(fullpath));
+    }
+
+    let file = fs::File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
     let uri = format!(
         "/repositories/{}/entries?{}",
@@ -94,14 +103,70 @@ pub fn list_page(
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(&format!(
-                "api::entries::list_page Err status_code[{}] \n\n{}",
-                status, body
+                "api::entries::list_page {} Err status_code[{}] \n\n{}",
+                url, status, body
             ))),
         }
     } else {
         let err = format!("api::entries::list_page Err request failed: {}", url);
         Err(OxenError::basic_str(&err))
     }
+}
+
+/// Returns true if we downloaded the entry, and false if it already exists
+pub fn download_entry(
+    repository: &LocalRepository,
+    entry: &CommitEntry,
+) -> Result<bool, OxenError> {
+    let remote = repository.remote().ok_or(OxenError::remote_not_set())?;
+    let config = AuthConfig::default()?;
+    let fpath = repository.path.join(&entry.path);
+    log::debug!("download_remote_entry entry {:?}", entry.path);
+
+    let filename = entry.path.to_str().unwrap();
+    let url = format!("{}/commits/{}/entries/{}", remote.url, entry.commit_id, filename);
+    log::debug!("download_entry {}", url);
+
+    let client = reqwest::blocking::Client::new();
+    let mut response = client
+        .get(&url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()?;
+
+    if let Some(parent) = fpath.parent() {
+        if !parent.exists() {
+            log::debug!("Create parent dir {:?}", parent);
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
+    let status = response.status();
+    if 200 == status {
+        // Copy to working dir
+        let mut dest = { fs::File::create(&fpath)? };
+        response.copy_to(&mut dest)?;
+
+        // Copy to versions dir
+        let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
+        let version_path = version_dir.join(entry.filename());
+
+        if let Some(parent) = version_path.parent() {
+            if !parent.exists() {
+                log::debug!("Create version parent dir {:?}", parent);
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        std::fs::copy(fpath, version_path)?;
+    } else {
+        let err = format!("Could not download entry status: {}", status);
+        return Err(OxenError::basic_str(&err))
+    }
+
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -111,7 +176,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::Committer;
+    use crate::index::CommitEntryReader;
     use crate::test;
     use crate::util;
 
@@ -124,8 +189,8 @@ mod tests {
             // Commit the directory
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
-            let committer = Committer::new(local_repo)?;
-            let entries = committer.list_unsynced_entries_for_commit(&commit)?;
+            let committer = CommitEntryReader::new(&local_repo, &commit)?;
+            let entries = committer.list_unsynced_entries()?;
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();
@@ -151,8 +216,9 @@ mod tests {
 
             // Set the proper remote
             let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+            // Push everything
             command::push(&repo)?;
 
             let entries = api::remote::entries::list_page(&repo, &commit.id, 1, num_files)?;
@@ -178,7 +244,7 @@ mod tests {
 
             // Set the proper remote
             let remote = api::endpoint::repo_url_from(&repo.name);
-            command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push
             command::push(&repo)?;

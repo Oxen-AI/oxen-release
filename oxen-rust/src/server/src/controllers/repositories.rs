@@ -1,15 +1,16 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-
+use liboxen::constants;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
 use liboxen::view::{
-    ListRemoteRepositoryResponse, RemoteRepositoryResponse, RepositoryNew, StatusMessage,
+    ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage,
 };
+use liboxen::util;
 
-use liboxen::model::{LocalRepository, RemoteRepository};
+use liboxen::model::{LocalRepository, RemoteRepository, RepositoryNew};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
@@ -73,7 +74,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     repository: remote_from_local(repository),
                 })
             }
-            Err(_) => match api::local::repositories::create(&app_data.path, &data.name) {
+            Err(_) => match api::local::repositories::create_empty(&app_data.path, &data) {
                 Ok(repository) => {
                     // Set the remote to this server
                     HttpResponse::Ok().json(RemoteRepositoryResponse {
@@ -95,7 +96,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
 fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
     let uri = format!("/repositories/{}", repository.name);
     let remote = api::endpoint::url_from(&uri);
-    repository.set_remote(liboxen::constants::DEFAULT_ORIGIN_NAME, &remote);
+    repository.set_remote(liboxen::constants::DEFAULT_REMOTE_NAME, &remote);
     RemoteRepository::from_local(&repository)
 }
 
@@ -129,15 +130,48 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
 
 pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-
+    // TODO: look up file from commit in version dir and return that one
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
-    let name: &str = req.match_info().get("name").unwrap();
-    match api::local::repositories::get_by_name(&app_data.path, name) {
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    match api::local::repositories::get_by_name(&app_data.path, repo_name) {
         Ok(repo) => {
-            let full_path = repo.path.join(&filepath);
-            Ok(NamedFile::open(full_path)?)
+            match api::local::commits::get_by_id(&repo, commit_id) {
+                Ok(Some(commit)) => {
+                    match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
+                        Ok(Some(entry)) => {
+                            let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR).join(&entry.id);
+                            let version_path = version_dir.join(entry.filename());
+                            log::debug!("get_file looking for {:?} -> {:?}", filepath, version_path);
+                            Ok(NamedFile::open(version_path)?)
+                        },
+                        Ok(None) => {
+                            log::debug!("get_file entry not found for commit id {} -> {:?}", commit_id, filepath);
+                            // gives a 404
+                            Ok(NamedFile::open("")?)
+                        }
+                        Err(err) => {
+                            log::error!("get_file get entry err: {:?}", err);
+                            // gives a 404
+                            Ok(NamedFile::open("")?)
+                        }
+                    }
+
+                },
+                Ok(None) => {
+                    log::debug!("get_file commit not found {}", commit_id);
+                    // gives a 404
+                    Ok(NamedFile::open("")?)
+                },
+                Err(err) => {
+                    log::error!("get_file get commit err: {:?}", err);
+                    // gives a 404
+                    Ok(NamedFile::open("")?)
+                }
+            }
         }
-        Err(_) => {
+        Err(err) => {
+            log::error!("get_file get repo err: {:?}", err);
             // gives a 404
             Ok(NamedFile::open("")?)
         }
@@ -151,7 +185,10 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
+    use liboxen::constants;
     use liboxen::error::OxenError;
+    use liboxen::model::{RepositoryNew, Commit};
+    use chrono::Utc;
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRemoteRepositoryResponse, RepositoryResponse};
@@ -226,10 +263,17 @@ mod tests {
     #[actix_web::test]
     async fn test_respository_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let data = r#"
-        {
-            "name": "Testing-Name"
-        }"#;
+        let repo_new = RepositoryNew {
+            name: String::from("Testing-Name"),
+            root_commit: Commit {
+                id: String::from("1234"),
+                parent_id: None,
+                message: String::from(constants::INITIAL_COMMIT_MSG),
+                author: String::from("Ox"),
+                date: Utc::now(),
+            }
+        };
+        let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, "/repositories");
 
         let resp = controllers::repositories::create_or_get(req, String::from(data)).await;
@@ -239,7 +283,7 @@ mod tests {
 
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status, STATUS_SUCCESS);
-        assert_eq!(repo_response.repository.name, "Testing-Name");
+        assert_eq!(repo_response.repository.name, repo_new.name);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

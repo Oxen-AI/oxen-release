@@ -28,20 +28,14 @@ impl Commit {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct CommmitSyncInfo {
+pub struct CommitStats {
+    pub commit: Commit,
     pub num_entries: usize,      // this is how many entries are in our commit db
     pub num_synced_files: usize, // this is how many files are actually synced (in case we killed)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CommitHead {
-    pub name: String,
-    pub commit: Commit,
-    pub sync_info: CommmitSyncInfo,
-}
-
-impl CommitHead {
+impl CommitStats {
     pub fn is_synced(&self) -> bool {
-        self.sync_info.num_entries == self.sync_info.num_synced_files
+        self.num_entries == self.num_synced_files
     }
 }
