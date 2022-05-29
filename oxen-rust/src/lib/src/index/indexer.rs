@@ -360,7 +360,7 @@ impl Indexer {
             // Pull and write all the entries
             entries.par_iter().for_each(|entry| {
                 if let Err(err) = self.download_remote_entry(entry, &committer) {
-                    eprintln!("Could not download entry {:?} Err: {:?}", entry.path, err);
+                    eprintln!("Pull entry could not download entry {:?} Err: {:?}", entry.path, err);
                 }
                 bar.inc(1);
             });

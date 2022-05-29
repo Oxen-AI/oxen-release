@@ -113,33 +113,37 @@ pub fn download_entry(
     let config = AuthConfig::default()?;
     let fpath = repository.path.join(&entry.path);
     log::debug!("download_remote_entry entry {:?}", entry.path);
-    if !fpath.exists() {
-        let filename = entry.path.to_str().unwrap();
-        let url = format!("{}/entries/{}", remote.url, filename);
 
-        let client = reqwest::blocking::Client::new();
-        let mut response = client
-            .get(&url)
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", config.auth_token()),
-            )
-            .send()?;
+    let filename = entry.path.to_str().unwrap();
+    let url = format!("{}/commits/{}/entries/{}", remote.url, entry.commit_id, filename);
+    log::debug!("download_entry {}", url);
 
-        if let Some(parent) = fpath.parent() {
-            if !parent.exists() {
-                log::debug!("Create parent dir {:?}", parent);
-                std::fs::create_dir_all(parent)?;
-            }
+    let client = reqwest::blocking::Client::new();
+    let mut response = client
+        .get(&url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()?;
+
+    if let Some(parent) = fpath.parent() {
+        if !parent.exists() {
+            log::debug!("Create parent dir {:?}", parent);
+            std::fs::create_dir_all(parent)?;
         }
+    }
 
+    let status = response.status();
+    if 200 == status {
         let mut dest = { fs::File::create(&fpath)? };
         response.copy_to(&mut dest)?;
-        Ok(true)
     } else {
-        log::debug!("Not downloading existing entry: {:?}", fpath);
-        Ok(false)
+        let err = format!("Could not download entry status: {}", status);
+        return Err(OxenError::basic_str(&err))
     }
+
+    Ok(true)
 }
 
 #[cfg(test)]

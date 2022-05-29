@@ -1,11 +1,13 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
+use liboxen::constants;
 use liboxen::model::{LocalRepository, RemoteEntry, CommitEntry};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
-use serde::Deserialize;
+use liboxen::util;
 
+use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use futures_util::stream::StreamExt as _;
 
@@ -111,22 +113,23 @@ async fn p_create_entry(
     mut body: web::Payload,
     data: web::Query<CommitEntry>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    // Write entry to versions dir
     let repo_dir = &sync_dir.join(&repository.name);
+    let version_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::VERSIONS_DIR).join(&data.id);
+    let version_path = version_dir.join(data.filename());
 
-    let filepath = repo_dir.join(&data.path);
-
-    if let Some(parent) = filepath.parent() {
+    if let Some(parent) = version_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)?;
         }
     }
 
-    let mut file = File::create(&filepath)?;
+    let mut file = File::create(&version_path)?;
     let mut total_bytes = 0;
     while let Some(item) = body.next().await {
         total_bytes += file.write(&item?)?;
     }
-    log::debug!("Wrote {} bytes to {:?}", total_bytes, filepath,);
+    log::debug!("Wrote {} bytes to {:?}", total_bytes, version_path,);
 
     Ok(HttpResponse::Ok().json(RemoteEntryResponse {
         status: String::from(STATUS_SUCCESS),
@@ -142,6 +145,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use liboxen::command;
+    use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::CommitEntry;
     use liboxen::util;
@@ -161,7 +165,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, name)?;
 
         let entry = CommitEntry {
-            id: String::from(""),
+            id: String::from("321i9"),
             commit_id: String::from("4312"),
             path: PathBuf::from("file.txt"),
             is_synced: false,
@@ -200,9 +204,11 @@ mod tests {
         assert_eq!(entry_resp.entry.filename, entry.path.to_str().unwrap());
         assert_eq!(entry_resp.entry.hash, entry.hash);
 
-        // Make sure file actually exists on disk
+        // Make sure file actually exists on disk in versions dir
         let repo_dir = sync_dir.join(repo.name);
-        let uploaded_file = repo_dir.join(entry.path);
+        let version_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::VERSIONS_DIR).join(&entry.id);
+        let uploaded_file = version_dir.join(entry.filename());
+
         assert!(uploaded_file.exists());
         // Make sure file contents are the same as the payload
         assert_eq!(util::fs::read_from_path(&uploaded_file)?, payload);
