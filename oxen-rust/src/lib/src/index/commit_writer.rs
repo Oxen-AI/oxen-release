@@ -95,10 +95,9 @@ impl CommitWriter {
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit_obj(&commit_id, message)?;
         log::debug!(
-            "COMMIT_START Repo {:?} commit {} message [{}]",
-            self.repository.path,
+            "COMMIT_START {} message [{}]",
             commit.id,
-            commit.message
+            commit.message,
         );
 
         // Write entries

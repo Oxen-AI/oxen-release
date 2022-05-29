@@ -51,6 +51,7 @@ impl Indexer {
         let remote_branch = api::remote::branches::create_or_get(&remote_repo, &rb.branch)?;
         match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
             Ok(Some(commit)) => {
+                log::debug!("push {} {} got commit {} '{}'", rb.remote, rb.branch, commit.id, commit.message);
                 // recursively check commits against remote head
                 // and sync ones that have not been synced
                 let remote_stats = api::remote::commits::get_stats(&self.repository, &commit)?;
@@ -83,14 +84,14 @@ impl Indexer {
                 // We don't have remote commit
                 // Recursively find local parent and remote parents
                 if let Some(parent_id) = &local_commit.parent_id {
-                    // Post commit
-                    api::remote::commits::post_commit_to_server(&self.repository, local_commit)?;
-
                     // We should have a local parent if the local_commit has parent id
                     let local_parent = api::local::commits::get_by_id(&self.repository, &parent_id)?
                                             .ok_or(OxenError::local_parent_link_broken(&local_commit.id))?;
 
                     self.rpush_missing_commit_objects(&local_parent)?;
+
+                    // Unroll and post commits
+                    api::remote::commits::post_commit_to_server(&self.repository, local_commit)?;
                 } else {
                     log::debug!("rpush_missing_commit_objects stop, no more local parents {} -> '{}'", local_commit.id, local_commit.message);
                 }
@@ -111,6 +112,7 @@ impl Indexer {
         local_commit_id: &str,
         depth: usize,
     ) -> Result<(), OxenError> {
+        log::debug!("rpush_entries depth {} commit_id {}", depth, local_commit_id);
         if let Some(stats) = remote_stats {
             if local_commit_id == stats.commit.id {
                 if depth == 0 && stats.is_synced() {
@@ -128,7 +130,6 @@ impl Indexer {
                 self.rpush_entries(commit_reader, remote_stats, parent_id, depth + 1)?;
             }
 
-            
             let entries = self.read_unsynced_entries(&commit)?;
             if !entries.is_empty() {
                 // Unroll stack to post entries
