@@ -1,7 +1,8 @@
 use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
-use crate::model::{Remote, RemoteRepository, Commit};
+use crate::index::Indexer;
+use crate::model::{Remote, RemoteRepository, Commit, RemoteBranch};
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -177,6 +178,10 @@ impl LocalRepository {
 
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
+
+        // Pull all commit objects, but not entries
+        let indexer = Indexer::new(&local_repo)?;
+        indexer.pull_all_commit_objects(&RemoteBranch::default())?;
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull",
