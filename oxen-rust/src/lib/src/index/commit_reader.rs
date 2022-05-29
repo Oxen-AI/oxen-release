@@ -21,13 +21,11 @@ impl CommitReader {
     /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository) -> Result<CommitReader, OxenError> {
         let db_path = util::fs::oxen_hidden_dir(&repository.path).join(COMMITS_DB);
-        log::debug!("CommitReader::new() db_path {:?}", db_path);
         let opts = db::opts::default();
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it
-            let db : DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
-            log::debug!("CommitReader opening db for first time {:?}", db.path());
+            let _db : DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
         }
         
         Ok(CommitReader {

@@ -23,8 +23,7 @@ impl RefReader {
         if !refs_dir.exists() {
             std::fs::create_dir_all(&refs_dir)?;
             // open it then lose scope to close it
-            let db = DB::open(&opts, &refs_dir)?;
-            log::debug!("RefReader opening db for first time {:?}", db.path());
+            let _db = DB::open(&opts, &refs_dir)?;
         }
 
         Ok(RefReader {

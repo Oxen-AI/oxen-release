@@ -218,6 +218,24 @@ impl Indexer {
     pub fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
 
+        self.pull_all_commit_objects_then(rb, |commit| {
+            // Sync the HEAD commit data
+            let limit: usize = 0; // zero means pull all
+            self.pull_entries_for_commit(&commit, limit)?;
+            Ok(())
+        })
+    }
+
+    pub fn pull_all_commit_objects(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
+        self.pull_all_commit_objects_then(rb, |_commit| {
+            // then nothing
+            Ok(())
+        })
+    }
+
+    pub fn pull_all_commit_objects_then<F>(&self, rb: &RemoteBranch, then: F) -> Result<(), OxenError>
+    where F: FnOnce(Commit) -> Result<(), OxenError>
+    {
         let remote = self.repository.get_remote(&rb.remote).ok_or(OxenError::remote_not_set())?;
 
         // Get the remote commit from branch name, and try to recursively pull subsequent commits
@@ -235,9 +253,7 @@ impl Indexer {
                 // Sync the commit objects
                 self.rpull_missing_commit_objects(&commit)?;
                 
-                // Sync the HEAD commit data
-                let limit: usize = 0; // zero means pull all
-                self.pull_entries_for_commit(&commit, limit)?;
+                then(commit)?;
             }
             Ok(None) => {
                 eprintln!("oxen pull error: remote head does not exist");
@@ -374,7 +390,8 @@ impl Indexer {
         committer: &CommitEntryWriter,
     ) -> Result<(), OxenError> {
         let fpath = self.repository.path.join(&entry.path);
-        if self.path_hash_is_different(entry, &fpath) {
+        if self.should_download_entry(entry, &fpath) {
+            log::debug!("Try download entry {:?}", entry.path);
             if api::remote::entries::download_entry(&self.repository, entry)? {
                 let metadata = fs::metadata(fpath).unwrap();
                 let mtime = FileTime::from_last_modification_time(&metadata);
@@ -385,8 +402,13 @@ impl Indexer {
         Ok(())
     }
 
+    fn should_download_entry(&self, entry: &CommitEntry, path: &Path) -> bool {
+        !path.exists() || self.path_hash_is_different(entry, path)
+    }
+
     fn path_hash_is_different(&self, entry: &CommitEntry, path: &Path) -> bool {
         if let Ok(hash) = util::hasher::hash_file_contents(path) {
+            log::debug!("path_hash_is_different({:?})? {} == {}", entry.path, hash, entry.hash);
             return hash != entry.hash;
         }
         false

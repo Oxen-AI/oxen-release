@@ -35,9 +35,7 @@ impl CommitWriter {
         let db_path = CommitWriter::commit_db_dir(&repository.path);
         let versions_path = CommitWriter::versions_dir(&repository.path);
 
-        log::debug!("CommitWriter db dir: {:?}", db_path);
         if !db_path.exists() {
-            log::debug!("CommitWriter CREATE db dir: {:?}", db_path);
             std::fs::create_dir_all(&db_path)?;
         }
 
