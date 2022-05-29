@@ -407,10 +407,10 @@ impl Stager {
                     let metadata = fs::metadata(local_path).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);
 
-                    log::debug!("COMPARING TIMESTAMPS: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
+                    // log::debug!("COMPARING TIMESTAMPS: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
 
                     if old_entry.has_different_modification_time(&mtime) {
-                        log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
+                        // log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
                         paths.push(relative_path);
                     }
                 } else {
