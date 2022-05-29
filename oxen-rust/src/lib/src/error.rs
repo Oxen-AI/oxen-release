@@ -1,6 +1,7 @@
 use std::error;
 use std::fmt;
 use std::io;
+use std::path::Path;
 
 #[derive(Debug)]
 pub enum OxenError {
@@ -50,6 +51,11 @@ impl OxenError {
 
     pub fn local_parent_link_broken<T: AsRef<str>>(commit_id: T) -> OxenError {
         let err = format!("Broken link to parent commit: {}", commit_id.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn local_file_not_found<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("Could not find local file: {:?}", path.as_ref());
         OxenError::basic_str(&err)
     }
 }

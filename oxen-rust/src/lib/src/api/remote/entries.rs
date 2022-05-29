@@ -1,8 +1,10 @@
 use crate::api;
+use crate::constants;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry};
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
+use crate::util;
 
 use std::fs;
 
@@ -10,7 +12,14 @@ const DEFAULT_PAGE_SIZE: usize = 10;
 
 pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
-    let fullpath = repository.path.join(&entry.path);
+    let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
+    let fullpath = version_dir.join(entry.filename());
+    log::debug!("Creating entry: {:?} -> {:?}", entry.path, fullpath);
+
+    if !fullpath.exists() {
+        return Err(OxenError::local_file_not_found(fullpath));
+    }
+
     let file = fs::File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
     let uri = format!(
@@ -136,8 +145,22 @@ pub fn download_entry(
 
     let status = response.status();
     if 200 == status {
+        // Copy to working dir
         let mut dest = { fs::File::create(&fpath)? };
         response.copy_to(&mut dest)?;
+
+        // Copy to versions dir
+        let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
+        let version_path = version_dir.join(entry.filename());
+
+        if let Some(parent) = version_path.parent() {
+            if !parent.exists() {
+                log::debug!("Create version parent dir {:?}", parent);
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        std::fs::copy(fpath, version_path)?;
     } else {
         let err = format!("Could not download entry status: {}", status);
         return Err(OxenError::basic_str(&err))
