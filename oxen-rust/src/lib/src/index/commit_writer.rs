@@ -142,8 +142,7 @@ impl CommitWriter {
 
     pub fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         if !CommitDBReader::commit_id_exists(&self.commits_db, commit_id) {
-            let err = format!("Ref not exist: {}", commit_id);
-            return Err(OxenError::basic_str(&err));
+            return Err(OxenError::commit_db_corrupted(commit_id));
         }
         log::debug!("set_working_repo_to_commit_id: {}", commit_id);
 
@@ -159,12 +158,20 @@ impl CommitWriter {
 
         // Iterate over files in that are in *current head* and make sure they should all be there
         // if they aren't in commit db we are switching to, remove them
-        let entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
-        let current_entries = entry_reader.list_files()?;
-        for path in current_entries.iter() {
+        // Safe to unwrap because we check if it exists above
+        let commit = CommitDBReader::get_commit_by_id(&self.commits_db, commit_id)?.unwrap();
+        log::debug!("set_working_repo_to_commit_id: Commit: {} => '{}'", commit_id, commit.message);
+
+        // Two readers, one for HEAD and one for this current commit
+        let head_entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
+        let commit_entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
+        let commit_entries = head_entry_reader.list_files()?;
+        log::debug!("set_working_repo_to_commit_id got {} entries in commit", commit_entries.len());
+
+        for path in commit_entries.iter() {
             let repo_path = self.repository.path.join(path);
             log::debug!(
-                "set_working_repo_to_commit_id current_entries[{:?}]",
+                "set_working_repo_to_commit_id commit_entries[{:?}]",
                 repo_path
             );
             if repo_path.is_file() {
@@ -182,7 +189,7 @@ impl CommitWriter {
                     }
                 }
 
-                if entry_reader.has_file(path) {
+                if commit_entry_reader.has_file(path) {
                     // We already have file ✅
                     log::debug!(
                         "set_working_repo_to_commit_id we already have file ✅ {:?}",
@@ -198,7 +205,7 @@ impl CommitWriter {
 
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
-        let commit_entries = entry_reader.list_entries()?;
+        let commit_entries = commit_entry_reader.list_entries()?;
         println!("Setting working directory to {}", commit_id);
         let size: u64 = unsafe { std::mem::transmute(commit_entries.len()) };
         let bar = ProgressBar::new(size);

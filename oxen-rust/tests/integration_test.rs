@@ -139,19 +139,21 @@ fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
 #[test]
 fn test_command_checkout_commit_id() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
-        // Write to file
+        // Write a hello file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
-        let world_file = repo.path.join("world.txt");
-        util::fs::write_to_path(&world_file, "World");
 
-        // Track the hello file
+        // Stage a hello file
         command::add(&repo, &hello_file)?;
         // Commit the hello file
         let first_commit = command::commit(&repo, "Adding hello")?;
         assert!(first_commit.is_some());
 
-        // Track the world file
+        // Write a world
+        let world_file = repo.path.join("world.txt");
+        util::fs::write_to_path(&world_file, "World");
+
+        // Stage a world file
         command::add(&repo, &world_file)?;
 
         // Commit the world file
