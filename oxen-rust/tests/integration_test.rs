@@ -3,7 +3,6 @@ use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitEntryReader};
-use liboxen::index::committer::{VERSIONS_DIR, HISTORY_DIR};
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -140,19 +139,21 @@ fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
 #[test]
 fn test_command_checkout_commit_id() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
-        // Write to file
+        // Write a hello file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
-        let world_file = repo.path.join("world.txt");
-        util::fs::write_to_path(&world_file, "World");
 
-        // Track the hello file
+        // Stage a hello file
         command::add(&repo, &hello_file)?;
         // Commit the hello file
         let first_commit = command::commit(&repo, "Adding hello")?;
         assert!(first_commit.is_some());
 
-        // Track the world file
+        // Write a world
+        let world_file = repo.path.join("world.txt");
+        util::fs::write_to_path(&world_file, "World");
+
+        // Stage a world file
         command::add(&repo, &world_file)?;
 
         // Commit the world file
@@ -651,7 +652,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -679,7 +680,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
         command::push(&repo)?;
@@ -724,7 +725,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
         command::push(&repo)?;
@@ -769,7 +770,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
         let remote_repo = command::push(&repo)?;
@@ -805,7 +806,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             // Make sure that pull updates local HEAD to be correct
             let head = command::head_commit(&cloned_repo)?;
-            assert_eq!(head.unwrap().id, latest_commit.id);
+            assert_eq!(head.id, latest_commit.id);
 
             // Make sure we synced all the commits
             let repo_commits = command::log(&repo)?;
@@ -882,7 +883,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
         let remote_repo = command::push(&repo)?;
@@ -944,7 +945,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
         let remote_repo = command::push(&repo)?;
@@ -977,7 +978,7 @@ fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
         command::add(&repo, &new_filepath)?;
         command::commit(&repo, "Adding a new file")?.unwrap();
 
-        let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(VERSIONS_DIR));
+        let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(constants::VERSIONS_DIR));
         log::debug!("version_dir hash_filename: {:?}", filepath);
 
         let id = util::hasher::hash_filename(Path::new(filename));
@@ -1021,7 +1022,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
-        command::set_remote(&mut repo, constants::DEFAULT_ORIGIN_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
         let remote_repo = command::push(&repo)?;
@@ -1039,7 +1040,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
 
             // Make sure we have grabbed all the history dirs
             let hidden_dir = util::fs::oxen_hidden_dir(&cloned_repo.path);
-            let history_dir = hidden_dir.join(Path::new(HISTORY_DIR));
+            let history_dir = hidden_dir.join(Path::new(constants::HISTORY_DIR));
             for commit in cloned_history.iter() {
                 let commit_history_dir = history_dir.join(&commit.id);
                 assert!(commit_history_dir.exists());
@@ -1052,5 +1053,22 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
 
             Ok(())
         })
+    })
+}
+
+
+#[test]
+fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
+    test::run_empty_dir_test(|dir| {
+        test::populate_dir_with_training_data(&dir)?;
+
+        let repo = command::init(&dir)?;
+        let commits = command::log(&repo)?;
+        let commit = commits.last().unwrap();
+        let reader = CommitEntryReader::new(&repo, &commit)?;
+        let num_entries = reader.num_entries()?;
+        assert_eq!(num_entries, 0);
+
+        Ok(())
     })
 }

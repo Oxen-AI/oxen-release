@@ -1,11 +1,13 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
+use liboxen::constants;
 use liboxen::model::{LocalRepository, RemoteEntry, CommitEntry};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
-use serde::Deserialize;
+use liboxen::util;
 
+use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use futures_util::stream::StreamExt as _;
 
@@ -40,7 +42,7 @@ pub async fn create(
 pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    let name: &str = req.match_info().get("name").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
     // default to first page with first ten values
@@ -56,41 +58,48 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
     );
     if let Ok(repo) = api::local::repositories::get_by_name(&app_data.path, name) {
         log::debug!("list_entries got repo [{}]", name);
-        if let Ok(Some(commit)) = api::local::commits::get_by_id(&repo, commit_id) {
-            log::debug!(
-                "list_entries got commit [{}] '{}'",
-                commit.id,
-                commit.message
-            );
-            match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
-                Ok(entries) => {
-                    log::debug!("list_entries commit {} got {} entries", commit_id, entries.len());
-                    let entries: Vec<RemoteEntry> =
-                        entries.into_iter().map(|entry| entry.to_remote()).collect();
-
-                    let total_entries: usize =
-                        api::local::entries::count_for_commit(&repo, &commit)
-                            .unwrap_or(entries.len());
-                    let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
-                    let view = PaginatedEntries {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
-                        page_size,
-                        page_number: page_num,
-                        total_pages: total_pages as usize,
-                        total_entries,
-                        entries,
-                    };
-                    HttpResponse::Ok().json(view)
+        match api::local::commits::get_by_id(&repo, commit_id) {
+            Ok(Some(commit)) => {
+                log::debug!(
+                    "list_entries got commit [{}] '{}'",
+                    commit.id,
+                    commit.message
+                );
+                match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
+                    Ok(entries) => {
+                        log::debug!("list_entries commit {} got {} entries", commit_id, entries.len());
+                        let entries: Vec<RemoteEntry> =
+                            entries.into_iter().map(|entry| entry.to_remote()).collect();
+    
+                        let total_entries: usize =
+                            api::local::entries::count_for_commit(&repo, &commit)
+                                .unwrap_or(entries.len());
+                        let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+                        let view = PaginatedEntries {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_FOUND),
+                            page_size,
+                            page_number: page_num,
+                            total_pages: total_pages as usize,
+                            total_entries,
+                            entries,
+                        };
+                        HttpResponse::Ok().json(view)
+                    }
+                    Err(err) => {
+                        log::error!("Unable to list repositories. Err: {}", err);
+                        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                    }
                 }
-                Err(err) => {
-                    log::error!("Unable to list repositories. Err: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
+            },
+            Ok(None) => {
+                log::debug!("Could not find commit with id {}", commit_id);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
-        } else {
-            log::debug!("Could not find commit with id {}", commit_id);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            Err(err) => {
+                log::error!("Unable to get commit id {}. Err: {}", commit_id, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
         }
     } else {
         log::debug!("Could not find repo with name {}", name);
@@ -104,22 +113,23 @@ async fn p_create_entry(
     mut body: web::Payload,
     data: web::Query<CommitEntry>,
 ) -> Result<HttpResponse, actix_web::Error> {
+    // Write entry to versions dir
     let repo_dir = &sync_dir.join(&repository.name);
+    let version_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::VERSIONS_DIR).join(&data.id);
+    let version_path = version_dir.join(data.filename());
 
-    let filepath = repo_dir.join(&data.path);
-
-    if let Some(parent) = filepath.parent() {
+    if let Some(parent) = version_path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)?;
         }
     }
 
-    let mut file = File::create(&filepath)?;
+    let mut file = File::create(&version_path)?;
     let mut total_bytes = 0;
     while let Some(item) = body.next().await {
         total_bytes += file.write(&item?)?;
     }
-    log::debug!("Wrote {} bytes to {:?}", total_bytes, filepath,);
+    log::debug!("Wrote {} bytes to {:?}", total_bytes, version_path,);
 
     Ok(HttpResponse::Ok().json(RemoteEntryResponse {
         status: String::from(STATUS_SUCCESS),
@@ -135,6 +145,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use liboxen::command;
+    use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::CommitEntry;
     use liboxen::util;
@@ -154,7 +165,7 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, name)?;
 
         let entry = CommitEntry {
-            id: String::from(""),
+            id: String::from("321i9"),
             commit_id: String::from("4312"),
             path: PathBuf::from("file.txt"),
             is_synced: false,
@@ -193,9 +204,11 @@ mod tests {
         assert_eq!(entry_resp.entry.filename, entry.path.to_str().unwrap());
         assert_eq!(entry_resp.entry.hash, entry.hash);
 
-        // Make sure file actually exists on disk
+        // Make sure file actually exists on disk in versions dir
         let repo_dir = sync_dir.join(repo.name);
-        let uploaded_file = repo_dir.join(entry.path);
+        let version_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::VERSIONS_DIR).join(&entry.id);
+        let uploaded_file = version_dir.join(entry.filename());
+
         assert!(uploaded_file.exists());
         // Make sure file contents are the same as the payload
         assert_eq!(util::fs::read_from_path(&uploaded_file)?, payload);
@@ -235,7 +248,7 @@ mod tests {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{name}/commits/{commit_id}/entries",
+                    "/repositories/{repo_name}/commits/{commit_id}/entries",
                     web::get().to(controllers::entries::list_entries),
                 ),
         )

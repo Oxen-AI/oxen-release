@@ -1,10 +1,11 @@
 use crate::constants;
+use crate::db;
 use crate::error::OxenError;
-use crate::index::Committer;
+use crate::index::CommitEntryReader;
 use crate::model::{CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus};
 use crate::util;
 
-use rocksdb::{IteratorMode, LogLevel, Options, DB};
+use rocksdb::{IteratorMode, DB};
 use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -25,18 +26,19 @@ impl Stager {
 
     pub fn new(repository: &LocalRepository) -> Result<Stager, OxenError> {
         let dbpath = Stager::staging_dir(&repository.path);
-        std::fs::create_dir_all(&dbpath)?;
-        let mut opts = Options::default();
-        opts.set_log_level(LogLevel::Fatal);
-        opts.create_if_missing(true);
+        log::debug!("Stager db_path {:?}", dbpath);
+        if !dbpath.exists() {
+            std::fs::create_dir_all(&dbpath)?;
+        }
+        let opts = db::opts::default();
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
             repository: repository.clone(),
         })
     }
 
-    pub fn add(&self, path: &Path, committer: &Committer) -> Result<(), OxenError> {
-        if path.to_str().unwrap().to_string().contains(".oxen") {
+    pub fn add(&self, path: &Path, commit_reader: &CommitEntryReader) -> Result<(), OxenError> {
+        if path.to_str().unwrap().to_string().contains(constants::OXEN_HIDDEN_DIR) {
             return Ok(());
         }
 
@@ -46,7 +48,7 @@ impl Stager {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
                 let entry_path = self.repository.path.join(&path);
-                self.add(&entry_path, committer)?;
+                self.add(&entry_path, commit_reader)?;
             }
             // println!("ADD CURRENT DIR: {:?}", path);
             return Ok(());
@@ -58,12 +60,12 @@ impl Stager {
             let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
             // println!("Stager.add() checking relative path: {:?}", relative_path);
             // Since entries that are committed are only files.. we will have to have different logic for dirs
-            if let Ok(Some(value)) = committer.get_entry(&relative_path) {
+            if let Ok(Some(value)) = commit_reader.get_entry(&relative_path) {
                 self.add_removed_file(&relative_path, &value)?;
                 return Ok(());
             }
 
-            let files_in_dir = committer.list_head_files_from_dir(&relative_path);
+            let files_in_dir = commit_reader.list_files_from_dir(&relative_path);
             if !files_in_dir.is_empty() {
                 for entry in files_in_dir.iter() {
                     self.add_removed_file(&entry.path, entry)?;
@@ -75,32 +77,32 @@ impl Stager {
 
         // println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
         if path.is_dir() {
-            match self.add_dir(path, committer) {
+            match self.add_dir(path, commit_reader) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
         } else {
-            match self.add_file(path, committer) {
+            match self.add_file(path, commit_reader) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
         }
     }
 
-    pub fn status(&self, committer: &Committer) -> Result<StagedData, OxenError> {
+    pub fn status(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
         // TODO: let's do this in a single loop and filter model
-        log::debug!("STATUS: before list_added_directories");
+        // log::debug!("STATUS: before list_added_directories");
         let added_dirs = self.list_added_directories()?;
-        log::debug!("STATUS: list_added_files");
+        // log::debug!("STATUS: list_added_files");
         let added_files = self.list_added_files()?;
-        log::debug!("STATUS: list_untracked_directories");
-        let untracked_dirs = self.list_untracked_directories(committer)?;
-        log::debug!("STATUS: list_untracked_files");
-        let untracked_files = self.list_untracked_files(committer)?;
-        log::debug!("STATUS: list_modified_files");
-        let modified_files = self.list_modified_files(committer)?;
-        log::debug!("STATUS: list_removed_files");
-        let removed_files = self.list_removed_files(committer)?;
+        // log::debug!("STATUS: list_untracked_directories");
+        let untracked_dirs = self.list_untracked_directories(entry_reader)?;
+        // log::debug!("STATUS: list_untracked_files");
+        let untracked_files = self.list_untracked_files(entry_reader)?;
+        // log::debug!("STATUS: list_modified_files");
+        let modified_files = self.list_modified_files(entry_reader)?;
+        // log::debug!("STATUS: list_removed_files");
+        let removed_files = self.list_removed_files(entry_reader)?;
         log::debug!("STATUS: ok");
         let status = StagedData {
             added_dirs,
@@ -113,16 +115,18 @@ impl Stager {
         Ok(status)
     }
 
-    fn list_untracked_files_in_dir(&self, dir: &Path, committer: &Committer) -> Vec<PathBuf> {
+    fn list_untracked_files_in_dir(&self, dir: &Path, entry_reader: &CommitEntryReader) -> Vec<PathBuf> {
         util::fs::recursive_eligible_files(dir)
             .into_iter()
-            .map(|file| util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
-            .filter(|file| !self.file_is_in_index(file, committer))
+            .map(|file|util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
+            .filter(|file| {
+                !self.file_is_in_index(file, entry_reader)
+            })
             .collect()
     }
 
-    fn count_untracked_files_in_dir(&self, dir: &Path, committer: &Committer) -> usize {
-        let files = self.list_untracked_files_in_dir(dir, committer);
+    fn count_untracked_files_in_dir(&self, dir: &Path, entry_reader: &CommitEntryReader) -> usize {
+        let files = self.list_untracked_files_in_dir(dir, entry_reader);
         files.len()
     }
 
@@ -144,9 +148,9 @@ impl Stager {
         Ok(entry)
     }
 
-    pub fn add_dir(&self, path: &Path, committer: &Committer) -> Result<usize, OxenError> {
+    pub fn add_dir(&self, path: &Path, entry_reader: &CommitEntryReader) -> Result<usize, OxenError> {
         if !path.exists() {
-            let err = format!("Stager.add_dir({:?}) cannot stage non-existant dir", path);
+            let err = format!("Cannot stage non-existant dir: {:?}", path);
             return Err(OxenError::basic_str(&err));
         }
 
@@ -154,7 +158,7 @@ impl Stager {
         let key = relative_path.to_str().unwrap().as_bytes();
 
         // Add all files, and get a count
-        let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path, committer);
+        let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path, entry_reader);
         let count: usize = paths.len();
         self.add_dir_count(key, count)
     }
@@ -225,7 +229,7 @@ impl Stager {
         }
     }
 
-    pub fn add_file(&self, path: &Path, committer: &Committer) -> Result<PathBuf, OxenError> {
+    pub fn add_file(&self, path: &Path, entry_reader: &CommitEntryReader) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
         // println!("Add file: {:?} to {:?}", path, self.repository.path);
         if !path.exists() {
@@ -250,7 +254,7 @@ impl Stager {
             status: StagedEntryStatus::Added,
         };
 
-        if let Ok(Some(entry)) = committer.get_entry(&path) {
+        if let Ok(Some(entry)) = entry_reader.get_entry(&path) {
             if entry.hash == hash {
                 // file has not changed, don't add it
                 return Ok(path);
@@ -272,9 +276,9 @@ impl Stager {
             // println!("Parent {:?} is_dir {}", parent, parent.is_dir());
             if parent != Path::new("") {
                 let full_path = self.repository.path.join(parent);
-                // println!("Getting count for parent {:?} full path: {:?}", parent, full_path);
-                let untracked_files = self.list_untracked_files_in_dir(&full_path, committer);
-                // println!("Got {} untracked files", untracked_files.len());
+                log::debug!("stager::add_file({:?}) Getting count for parent {:?} full path: {:?}", path, parent, full_path);
+                let untracked_files = self.list_untracked_files_in_dir(&full_path, entry_reader);
+                log::debug!("stager::add_file({:?}) Got {} untracked files", path, untracked_files.len());
                 if untracked_files.is_empty() {
                     let to_remove = self.list_keys_with_prefix(parent.to_str().unwrap())?;
                     let count = to_remove.len();
@@ -365,11 +369,11 @@ impl Stager {
         Ok(paths)
     }
 
-    pub fn list_removed_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
+    pub fn list_removed_files(&self, entry_reader: &CommitEntryReader) -> Result<Vec<PathBuf>, OxenError> {
         // TODO: We are looping multiple times to check whether file is added,modified,or removed, etc
         //       We should do this loop once, and check each thing
         let mut paths: Vec<PathBuf> = vec![];
-        for short_path in committer.list_files_in_head_commit_db()? {
+        for short_path in entry_reader.list_files()? {
             let path = self.repository.path.join(&short_path);
             if !path.exists() && !self.has_entry(&short_path) {
                 paths.push(short_path);
@@ -378,7 +382,7 @@ impl Stager {
         Ok(paths)
     }
 
-    pub fn list_modified_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
+    pub fn list_modified_files(&self, entry_reader: &CommitEntryReader) -> Result<Vec<PathBuf>, OxenError> {
         // TODO: We are looping multiple times to check whether file is added,modified,or removed, etc
         //       We should do this loop once, and check each thing
         let dir_entries = util::fs::rlist_files_in_dir(&self.repository.path);
@@ -398,15 +402,15 @@ impl Stager {
                 }
 
                 // Check if we have the entry in the head commit
-                if let Ok(Some(old_entry)) = committer.get_entry(&relative_path) {
+                if let Ok(Some(old_entry)) = entry_reader.get_entry(&relative_path) {
                     // Get last modified time
                     let metadata = fs::metadata(local_path).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);
 
-                    log::debug!("COMPARING TIMESTAMPS: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
+                    // log::debug!("COMPARING TIMESTAMPS: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
 
                     if old_entry.has_different_modification_time(&mtime) {
-                        log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
+                        // log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
                         paths.push(relative_path);
                     }
                 } else {
@@ -418,10 +422,10 @@ impl Stager {
         Ok(paths)
     }
 
-    pub fn list_untracked_files(&self, committer: &Committer) -> Result<Vec<PathBuf>, OxenError> {
+    pub fn list_untracked_files(&self, entry_reader: &CommitEntryReader) -> Result<Vec<PathBuf>, OxenError> {
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
         // println!("Listing untracked files from {:?}", dir_entries);
-        let num_in_head = committer.num_entries_in_head()?;
+        let num_in_head = entry_reader.num_entries()?;
         log::debug!(
             "stager::list_untracked_files head has {} files",
             num_in_head
@@ -440,7 +444,7 @@ impl Stager {
                 );
 
                 // File is committed in HEAD
-                if committer.file_is_committed(&relative_path) {
+                if entry_reader.has_file(&relative_path) {
                     continue;
                 }
 
@@ -454,19 +458,19 @@ impl Stager {
         Ok(paths)
     }
 
-    fn file_is_in_index(&self, path: &Path, committer: &Committer) -> bool {
+    fn file_is_in_index(&self, path: &Path, entry_reader: &CommitEntryReader) -> bool {
         if self.has_entry(path) {
             // we have it in our staged db
             true
         } else {
             // it is committed
-            committer.file_is_committed(path)
+            entry_reader.has_file(path)
         }
     }
 
     pub fn list_untracked_directories(
         &self,
-        committer: &Committer,
+        entry_writer: &CommitEntryReader,
     ) -> Result<Vec<(PathBuf, usize)>, OxenError> {
         // println!("list_untracked_directories {:?}", self.repository.path);
         let dir_entries = std::fs::read_dir(&self.repository.path)?;
@@ -479,7 +483,7 @@ impl Stager {
                 let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
                 // println!("list_untracked_directories relative {:?}", relative_path);
 
-                if committer.file_is_committed(&relative_path) {
+                if entry_writer.has_file(&relative_path) {
                     continue;
                 }
 
@@ -500,7 +504,7 @@ impl Stager {
 
                             // TODO: Speed this up, maybe we are opening and closing the db too many times
                             // example: adding and committing a 12500 files, then checking status
-                            let count = self.count_untracked_files_in_dir(&path, committer);
+                            let count = self.count_untracked_files_in_dir(&path, entry_writer);
                             if count > 0 {
                                 paths.push((relative_path, count));
                             }
@@ -541,7 +545,7 @@ impl Stager {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::{Committer, Stager};
+    use crate::index::{CommitReader, CommitWriter, CommitEntryReader, Stager};
     use crate::model::StagedEntryStatus;
     use crate::test;
     use crate::util;
@@ -550,16 +554,19 @@ mod tests {
 
     #[test]
     fn test_1_stager_add_file() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
 
             // Write a file to disk
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add the file
-            let path = stager.add_file(&hello_file, &committer)?;
+            let path = stager.add_file(&hello_file, &entry_reader)?;
 
             // Make sure we saved the relative path
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
@@ -571,9 +578,11 @@ mod tests {
 
     #[test]
     fn test_stager_unstage() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
@@ -584,8 +593,8 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
             // Add a file and a directory
-            stager.add_file(&hello_file, &committer)?;
-            stager.add_dir(&sub_dir, &committer)?;
+            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_dir(&sub_dir, &entry_reader)?;
 
             // Make sure the counts start as 1
             let files = stager.list_added_files()?;
@@ -608,17 +617,17 @@ mod tests {
 
     #[test]
     fn test_add_twice_only_adds_once() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add it twice
-            stager.add_file(&hello_file, &committer)?;
-            stager.add_file(&hello_file, &committer)?;
+            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader)?;
 
             // Make sure we still only have it once
             let files = stager.list_added_files()?;
@@ -629,28 +638,30 @@ mod tests {
     }
 
     #[test]
-    fn test_cannot_add_if_no_difference_than_commit() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let mut committer = Committer::new(&stager.repository)?;
+    fn test_cannot_add_if_not_different_from_commit() -> Result<(), OxenError> {
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add it
-            stager.add_file(&hello_file, &committer)?;
+            stager.add_file(&hello_file, &entry_reader)?;
 
             // Commit it
-            let status = stager.status(&committer)?;
-            committer.commit(&status, "Add Hello World")?;
+            let commit_writer = CommitWriter::new(&repo)?;
+            let status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&status, "Add Hello World")?;
             stager.unstage()?;
 
             // try to add it again
-            stager.add_file(&hello_file, &committer)?;
+            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
+            stager.add_file(&hello_file, &entry_reader)?;
 
             // make sure we don't have it added again, because the hash hadn't changed since last commit
-            let status = stager.status(&committer)?;
+            let status = stager.status(&entry_reader)?;
             assert_eq!(status.added_files.len(), 0);
 
             Ok(())
@@ -659,12 +670,12 @@ mod tests {
 
     #[test]
     fn test_add_non_existant_file() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             let hello_file = PathBuf::from("non-existant.txt");
-            if stager.add_file(&hello_file, &committer).is_ok() {
+            if stager.add_file(&hello_file, &entry_reader).is_ok() {
                 // we don't want to be able to add this file
                 panic!("test_add_non_existant_file() Cannot stage non-existant file")
             }
@@ -675,9 +686,9 @@ mod tests {
 
     #[test]
     fn test_add_directory() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             // Write two files to directories
             let repo_path = &stager.repository.path;
@@ -686,7 +697,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-            match stager.add_dir(&sub_dir, &committer) {
+            match stager.add_dir(&sub_dir, &entry_reader) {
                 Ok(num_files) => {
                     assert_eq!(2, num_files);
                 }
@@ -701,16 +712,16 @@ mod tests {
 
     #[test]
     fn test_stager_get_entry() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
 
             // Stage file
-            stager.add_file(&hello_file, &committer)?;
+            stager.add_file(&hello_file, &entry_reader)?;
 
             // we should be able to fetch this entry json
             let entry = stager.get_entry(&relative_path).unwrap();
@@ -724,16 +735,16 @@ mod tests {
 
     #[test]
     fn test_stager_list_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
 
             // Stage file
-            stager.add_file(&hello_file, &committer)?;
+            stager.add_file(&hello_file, &entry_reader)?;
 
             // List files
             let files = stager.list_added_files()?;
@@ -747,9 +758,9 @@ mod tests {
 
     #[test]
     fn test_stager_add_file_in_sub_dir() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -759,7 +770,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let sub_file = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-            stager.add_file(&sub_file, &committer)?;
+            stager.add_file(&sub_file, &entry_reader)?;
 
             // List files
             let files = stager.list_added_files()?;
@@ -775,9 +786,9 @@ mod tests {
 
     #[test]
     fn test_stager_add_file_in_sub_dir_updates_untracked_count() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -788,7 +799,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
             let sub_file = test::add_txt_file_to_dir(&sub_dir, "Hello 3")?;
 
-            let dirs = stager.list_untracked_directories(&committer)?;
+            let dirs = stager.list_untracked_directories(&entry_reader)?;
             // There is one directory
             assert_eq!(dirs.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&sub_dir, repo_path)?;
@@ -798,10 +809,10 @@ mod tests {
             assert_eq!(dirs[0].1, 3);
 
             // Then we add one file
-            stager.add_file(&sub_file, &committer)?;
+            stager.add_file(&sub_file, &entry_reader)?;
 
             // There are still two untracked files in the dir
-            let dirs = stager.list_untracked_directories(&committer)?;
+            let dirs = stager.list_untracked_directories(&entry_reader)?;
             assert_eq!(dirs.len(), 1);
             assert_eq!(dirs[0].0, relative_path);
 
@@ -814,9 +825,10 @@ mod tests {
 
     #[test]
     fn test_stager_add_all_files_in_sub_dir() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
+
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data");
@@ -826,7 +838,7 @@ mod tests {
             let sub_file_2 = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
             let sub_file_3 = test::add_txt_file_to_dir(&sub_dir, "Hello 3")?;
 
-            let dirs = stager.list_untracked_directories(&committer)?;
+            let dirs = stager.list_untracked_directories(&entry_reader)?;
 
             // There is one directory
             assert_eq!(dirs.len(), 1);
@@ -834,12 +846,12 @@ mod tests {
             assert_eq!(dirs[0].1, 3);
 
             // Then we add all three
-            stager.add_file(&sub_file_1, &committer)?;
-            stager.add_file(&sub_file_2, &committer)?;
-            stager.add_file(&sub_file_3, &committer)?;
+            stager.add_file(&sub_file_1, &entry_reader)?;
+            stager.add_file(&sub_file_2, &entry_reader)?;
+            stager.add_file(&sub_file_3, &entry_reader)?;
 
             // There now there are no untracked directories
-            let untracked_dirs = stager.list_untracked_directories(&committer)?;
+            let untracked_dirs = stager.list_untracked_directories(&entry_reader)?;
             assert_eq!(untracked_dirs.len(), 0);
 
             // And there is one tracked directory
@@ -853,9 +865,9 @@ mod tests {
 
     #[test]
     fn test_stager_list_directories() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -865,7 +877,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-            stager.add_dir(&sub_dir, &committer)?;
+            stager.add_dir(&sub_dir, &entry_reader)?;
 
             // List files
             let dirs = stager.list_added_directories()?;
@@ -883,16 +895,17 @@ mod tests {
 
     #[test]
     fn test_stager_list_untracked_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, _repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
+
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
 
             // Do not add...
 
             // List files
-            let files = stager.list_untracked_files(&committer)?;
+            let files = stager.list_untracked_files(&entry_reader)?;
             assert_eq!(files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             assert_eq!(files[0], relative_path);
@@ -903,28 +916,31 @@ mod tests {
 
     #[test]
     fn test_stager_list_modified_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let mut committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+            let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
+
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
 
             // add the file
-            stager.add_file(&hello_file, &committer)?;
+            stager.add_file(&hello_file, &entry_reader)?;
 
             // commit the file
-            let status = stager.status(&committer)?;
-            committer.commit(&status, "added hello 1")?;
+            let status = stager.status(&entry_reader)?;
+            let commit_writer = CommitWriter::new(&repo)?;
+            let commit = commit_writer.commit(&status, "added hello 1")?;
             stager.unstage()?;
 
-            let mod_files = stager.list_modified_files(&committer)?;
+            let mod_files = stager.list_modified_files(&entry_reader)?;
             assert_eq!(mod_files.len(), 0);
 
             // modify the file
             let hello_file = test::modify_txt_file(hello_file, "Hello 2")?;
 
             // List files
-            let mod_files = stager.list_modified_files(&committer)?;
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
+            let mod_files = stager.list_modified_files(&entry_reader)?;
             assert_eq!(mod_files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
             assert_eq!(mod_files[0], relative_path);
@@ -935,9 +951,11 @@ mod tests {
 
     #[test]
     fn test_stager_list_untracked_dirs() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data");
             std::fs::create_dir_all(&sub_dir)?;
@@ -948,7 +966,7 @@ mod tests {
             // Do not add...
 
             // List files
-            let files = stager.list_untracked_directories(&committer)?;
+            let files = stager.list_untracked_directories(&entry_reader)?;
             assert_eq!(files.len(), 1);
 
             Ok(())
@@ -957,9 +975,11 @@ mod tests {
 
     #[test]
     fn test_stager_list_one_untracked_directory() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -972,7 +992,7 @@ mod tests {
             // Do not add...
 
             // List files
-            let files = stager.list_untracked_directories(&committer)?;
+            let files = stager.list_untracked_directories(&entry_reader)?;
 
             // There is one directory
             assert_eq!(files.len(), 1);
@@ -988,7 +1008,9 @@ mod tests {
     fn test_stager_add_dir_recursive() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let stager = Stager::new(&repo)?;
-            let committer = Committer::new(&repo)?;
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -1001,7 +1023,7 @@ mod tests {
             //     one_shot.txt
             //   test/
             //     annotations.txt
-            stager.add(&annotations_dir, &committer)?;
+            stager.add(&annotations_dir, &entry_reader)?;
 
             // List dirs
             let dirs = stager.list_added_directories()?;
@@ -1020,7 +1042,9 @@ mod tests {
     fn test_stager_modify_file_recursive() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let stager = Stager::new(&repo)?;
-            let committer = Committer::new(&repo)?;
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&repo, &commit)?;
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -1035,7 +1059,7 @@ mod tests {
             let one_shot_file = test::modify_txt_file(one_shot_file, "new content coming in hot")?;
 
             // List dirs
-            let files = stager.list_modified_files(&committer)?;
+            let files = stager.list_modified_files(&entry_reader)?;
 
             // There is one modified file
             assert_eq!(files.len(), 1);
@@ -1050,9 +1074,11 @@ mod tests {
 
     #[test]
     fn test_stager_list_untracked_directories_after_add() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager| {
-            // Create committer with no commits
-            let committer = Committer::new(&stager.repository)?;
+        test::run_empty_stager_test(|stager, repo| {
+            // Create entry_reader with no commits
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
 
             // Create 2 sub directories, one with  Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -1077,19 +1103,19 @@ mod tests {
             let _base_file_3 = test::add_txt_file_to_dir(repo_path, "Hello 3")?;
 
             // At first there should be 3 untracked
-            let untracked_dirs = stager.list_untracked_directories(&committer)?;
+            let untracked_dirs = stager.list_untracked_directories(&entry_reader)?;
             assert_eq!(untracked_dirs.len(), 3);
 
             // Add the directory
-            let _ = stager.add_dir(&train_dir, &committer)?;
+            let _ = stager.add_dir(&train_dir, &entry_reader)?;
             // Add one file
-            let _ = stager.add_file(&base_file_1, &committer)?;
+            let _ = stager.add_file(&base_file_1, &entry_reader)?;
 
             // List the files
             let added_files = stager.list_added_files()?;
             let added_dirs = stager.list_added_directories()?;
-            let untracked_files = stager.list_untracked_files(&committer)?;
-            let untracked_dirs = stager.list_untracked_directories(&committer)?;
+            let untracked_files = stager.list_untracked_files(&entry_reader)?;
+            let untracked_dirs = stager.list_untracked_directories(&entry_reader)?;
 
             // There is 1 added file and 1 added dir
             assert_eq!(added_files.len(), 1);

@@ -1,7 +1,8 @@
 use crate::api;
-use crate::constants::{DEFAULT_ORIGIN_NAME, NO_REPO_MSG};
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
-use crate::model::{Remote, RemoteRepository};
+use crate::index::Indexer;
+use crate::model::{Remote, RemoteRepository, Commit, RemoteBranch};
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -9,9 +10,12 @@ use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Deserialize, Debug, Clone)]
+/// For creating a remote repo we need the repo name
+/// and we need the root commit so that we do not generate a new one on creation on the server
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RepositoryNew {
     pub name: String,
+    pub root_commit: Commit,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -56,10 +60,10 @@ impl LocalRepository {
             name: view.name.to_owned(),
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![Remote {
-                name: String::from(DEFAULT_ORIGIN_NAME),
-                value: view.url,
+                name: String::from(DEFAULT_REMOTE_NAME),
+                url: view.url,
             }],
-            remote_name: Some(String::from(DEFAULT_ORIGIN_NAME)),
+            remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
         })
     }
 
@@ -72,7 +76,7 @@ impl LocalRepository {
     pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
         let config_path = util::fs::config_filepath(dir);
         if !config_path.exists() {
-            return Err(OxenError::basic_str(NO_REPO_MSG));
+            return Err(OxenError::local_repo_not_found());
         }
         let repo = LocalRepository::from_cfg(&config_path)?;
         Ok(repo)
@@ -90,11 +94,12 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn clone_remote(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
+    pub fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!("clone_remote {} -> {:?}", url, dst);
         let name = LocalRepository::dirname_from_url(url)?;
         match api::remote::repositories::get_by_name(&name) {
-            Ok(remote_repo) => LocalRepository::clone_repo(remote_repo, dst),
+            Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst)?)),
+            Ok(None) => Ok(None),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
                 Err(OxenError::basic_str(&err))
@@ -102,11 +107,11 @@ impl LocalRepository {
         }
     }
 
-    pub fn set_remote(&mut self, name: &str, value: &str) {
+    pub fn set_remote(&mut self, name: &str, url: &str) {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
-            value: String::from(value),
+            url: String::from(url),
         };
         if self.has_remote(name) {
             // find remote by name and set
@@ -130,14 +135,18 @@ impl LocalRepository {
         false
     }
 
+    pub fn get_remote(&self, name: &str) -> Option<Remote> {
+        for remote in self.remotes.iter() {
+            if &remote.name == name {
+                return Some(remote.clone());
+            }
+        }
+        None
+    }
+
     pub fn remote(&self) -> Option<Remote> {
         if let Some(name) = &self.remote_name {
-            for remote in self.remotes.iter() {
-                if &remote.name == name {
-                    return Some(remote.clone());
-                }
-            }
-            None
+            self.get_remote(&name)
         } else {
             None
         }
@@ -169,6 +178,10 @@ impl LocalRepository {
 
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
+
+        // Pull all commit objects, but not entries
+        let indexer = Indexer::new(&local_repo)?;
+        indexer.pull_all_commit_objects(&RemoteBranch::default())?;
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull",
@@ -207,32 +220,45 @@ mod tests {
     }
 
     #[test]
-    fn test_clone_remote() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|dir| {
-            let name = "OxenDataTest";
-            let remote_repo = api::remote::repositories::create_or_get(name)?;
-            let url = &remote_repo.url;
-
-            let local_repo = LocalRepository::clone_remote(url, dir)?;
-
-            let cfg_fname = ".oxen/config.toml".to_string();
-            let config_path = local_repo.path.join(&cfg_fname);
-            assert!(config_path.exists());
-            assert_eq!(local_repo.name, local_repo.name);
-            assert_eq!(local_repo.id, local_repo.id);
-
-            let repository = LocalRepository::from_cfg(&config_path);
-            assert!(repository.is_ok());
-
-            let repository = repository.unwrap();
-            let status = command::status(&repository)?;
-            assert!(status.is_clean());
-
-            // cleanup
-            api::remote::repositories::delete(remote_repo)?;
-            std::fs::remove_dir_all(local_repo.path)?;
+    fn test_get_set_has_remote() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|mut local_repo| {
+            let url = "http://0.0.0.0:3000/repositories/OxenData";
+            let remote_name = "origin";
+            local_repo.set_remote(remote_name, url);
+            let remote = local_repo.get_remote(&remote_name).unwrap();
+            assert_eq!(remote.name, remote_name);
+            assert_eq!(remote.url, url);
 
             Ok(())
+        })
+    }
+
+    #[test]
+    fn test_clone_remote() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|local_repo| {
+            let remote_repo = api::remote::repositories::create(&local_repo)?;
+
+            test::run_empty_dir_test(|dir| {
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)?.unwrap();
+
+                let cfg_fname = ".oxen/config.toml".to_string();
+                let config_path = local_repo.path.join(&cfg_fname);
+                assert!(config_path.exists());
+                assert_eq!(local_repo.name, local_repo.name);
+                assert_eq!(local_repo.id, local_repo.id);
+
+                let repository = LocalRepository::from_cfg(&config_path);
+                assert!(repository.is_ok());
+
+                let repository = repository.unwrap();
+                let status = command::status(&repository)?;
+                assert!(status.is_clean());
+
+                // Cleanup
+                api::remote::repositories::delete(remote_repo)?;
+
+                Ok(())
+            })
         })
     }
 
@@ -243,16 +269,6 @@ mod tests {
         assert_eq!(repo.id, "0af558cc-a57c-4197-a442-50eb889e9495");
         assert_eq!(repo.name, "Mini-Dogs-Vs-Cats");
         assert_eq!(repo.path, Path::new("/tmp/Mini-Dogs-Vs-Cats"));
-        Ok(())
-    }
-
-    #[test]
-    fn test_create_repo_cfg() -> Result<(), OxenError> {
-        let name: &str = "Test Repo";
-        let repository = test::create_remote_repo(name)?;
-        assert_eq!(repository.name, name);
-        // cleanup
-        api::remote::repositories::delete(repository)?;
         Ok(())
     }
 

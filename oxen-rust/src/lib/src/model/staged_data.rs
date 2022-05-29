@@ -16,6 +16,17 @@ pub struct StagedData {
 }
 
 impl StagedData {
+    pub fn empty() -> StagedData {
+        StagedData {
+            added_dirs: vec![],
+            added_files: vec![],
+            untracked_dirs: vec![],
+            untracked_files: vec![],
+            modified_files: vec![],
+            removed_files: vec![],
+        }
+    }
+
     pub fn is_clean(&self) -> bool {
         self.added_dirs.is_empty()
             && self.added_files.is_empty()

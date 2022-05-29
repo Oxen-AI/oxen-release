@@ -95,8 +95,8 @@ async fn main() -> std::io::Result<()> {
                         web::post().to(controllers::commits::upload),
                     )
                     .route(
-                        "/repositories/{repo_name}/commits/head",
-                        web::get().to(controllers::commits::head),
+                        "/repositories/{repo_name}/commits/{commit_id}/stats",
+                        web::get().to(controllers::commits::stats),
                     )
                     .route(
                         "/repositories/{repo_name}/commits/{commit_id}",
@@ -111,15 +111,27 @@ async fn main() -> std::io::Result<()> {
                         web::get().to(controllers::commits::parent),
                     )
                     .route(
-                        "/repositories/{name}/commits/{commit_id}/entries",
+                        "/repositories/{repo_name}/commits/{commit_id}/entries",
                         web::get().to(controllers::entries::list_entries),
+                    )
+                    .route(
+                        "/repositories/{name}/branches",
+                        web::get().to(controllers::branches::index),
+                    )
+                    .route(
+                        "/repositories/{name}/branches",
+                        web::post().to(controllers::branches::create_or_get),
+                    )
+                    .route(
+                        "/repositories/{repo_name}/branches/{branch_name}",
+                        web::get().to(controllers::branches::show),
                     )
                     .route(
                         "/repositories/{name}/entries",
                         web::post().to(controllers::entries::create),
                     )
                     .route(
-                        "/repositories/{name}/{filename:.*}",
+                        "/repositories/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
                         web::get().to(controllers::repositories::get_file),
                     )
                     .route(
