@@ -1,13 +1,17 @@
 
 # Sample Demo Command Workflow
 
-`oxen status`
+Move into working directory
 
-TODO: what is the command to create repo
+`cd /path/to/your/dataset`
+
+`oxen status`
 
 ```
 fatal: no oxen repository exists, looking for directory: .oxen
 ```
+
+TODO: what is the command to create repo. For example `oxen create dog_classifier` would create a dir with the correct structure to add your images, and tell you how to copy into the correct spot.
 
 `oxen init .`
 
@@ -60,7 +64,7 @@ Committing with message: adding train
 create and checkout branch: change-train
 ```
 
-`cp ~/Downloads/FinnSantaBarbara.jpg train/dog.1.jpg`
+`cp ~/Downloads/FinnSantaBarbara.jpg train/dog_1.jpg`
 
 `oxen status`
 
@@ -69,7 +73,7 @@ On branch change-train -> 9ff8fb0d-7b8b-46ce-89da-65f059518515
 
 Modified files:
   (use "oxen add <file>..." to update what will be committed)
-  modified:  train/dog.1.jpg
+  modified:  train/dog_1.jpg
 
 Untracked files:
   (use "oxen add <file>..." to update what will be committed)
@@ -77,13 +81,13 @@ Untracked files:
   annotations/ with untracked 2 files
 ```
 
-`oxen add train/dog.1.jpg`
+`oxen add train/dog_1.jpg`
 
 TODO: Only show added and not modified in next status here
 
 `oxen status`
 
-`oxen commit -m "changing train/dog.1.jpg to Finn"`
+`oxen commit -m "changing train/dog_1.jpg to Finn"`
 
 Revert back to main branch
 
@@ -129,17 +133,78 @@ Push the changes
 
 `oxen push`
 
-Pull the changes to some other workspace
+Clone the Repository to another workspace
+
+`cd /path/to/new/workspace`
 
 `oxen clone http://0.0.0.0:3000/repositories/SmallCatDog`
 
-`oxen pull origin change-train`
+Pull the main branch
 
-`for i in (seq 200 210) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/ ; end`
+`oxen pull origin main`
 
+Create a branch for the changes
 
-## TODO: do we want to show what the new files are in the dir, or to expand the status?
+`oxen checkout -b add-training-data`
+
+Copy more images of dogs into the train directory
+
+`for i in (seq 200 210) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end`
+
+TODO: do we want to show what the new files are in the dir, or to expand the status?
 
 `oxen status`
 
+Stage the changes
 
+`oxen add train/`
+
+Commit the changes
+
+`oxen commit -m "added 10 images of dogs"`
+
+Push the changes for the next person to pull
+
+`oxen push origin add-training-data`
+
+In the other workspace, pull the branch
+
+`oxen fetch`
+
+`oxen pull origin add-training-data`
+
+`oxen checkout add-training-data`
+
+Now there should be the new images to work with
+
+`ls train/`
+
+Run your experiment, and add more cat images to balance out the set
+
+`for i in (seq 200 210) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; end`
+
+Stage the data
+
+`oxen add train/`
+
+Commit the data
+
+`oxen commit -m "adding more images of cats to balance out"`
+
+Push the data
+
+`oxen push origin add-training-data`
+
+Switch to the other workspace, check the data, merge the data if it looks good
+
+`cd /path/to/original/workspace/`
+
+`oxen pull origin add-training-data`
+
+TODO: implement oxen merge
+
+`oxen status`
+
+`oxen checkout main`
+
+`oxen merge add-training-data`
