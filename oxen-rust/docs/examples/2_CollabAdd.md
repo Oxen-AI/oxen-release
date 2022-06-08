@@ -8,7 +8,9 @@ Clone the Repository to a workspace
 
 Pull the main branch
 
-`oxen pull`
+*TODO* Fix progress bar on pull, it currently shows 0/0 the whole time
+
+`oxen pull origin main`
 
 Create a branch for the changes
 
@@ -16,7 +18,7 @@ Create a branch for the changes
 
 Copy more images of dogs into the train directory
 
-`for i in (seq 200 210) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end`
+`for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end`
 
 TODO: do we want to show what the new files are in the dir, or to expand the status?
 
@@ -32,11 +34,13 @@ Commit the changes
 
 Push the changes for the next person to pull
 
+*TODO* Oxen push does not take remote and branch right now
+
 `oxen push origin add-training-data`
 
 In the other workspace, pull the branch
 
-`oxen fetch`
+`cd /path/to/original/workspace/SmallCatDog`
 
 `oxen pull origin add-training-data`
 
