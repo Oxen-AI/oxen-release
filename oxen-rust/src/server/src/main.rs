@@ -21,6 +21,11 @@ use std::path::Path;
 const ADD_USER_USAGE: &str =
     "Usage: `oxen-server add-user -e <email> -n <name> -o auth_config.toml`";
 
+const START_SERVER_USAGE: &str =
+    "Usage: `oxen-server start -h 0.0.0.0 -p 3000`";
+
+const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
@@ -37,7 +42,28 @@ async fn main() -> std::io::Result<()> {
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .allow_invalid_utf8_for_external_subcommands(true)
-        .subcommand(Command::new("start").about("Starts server"))
+        .subcommand(
+            Command::new("start")
+                .about(START_SERVER_USAGE)
+                .arg(
+                    Arg::new("ip")
+                        .long("ip")
+                        .short('i')
+                        .default_value("0.0.0.0")
+                        .default_missing_value("always")
+                        .help("What host to bind the server to")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("port")
+                        .long("port")
+                        .short('p')
+                        .default_value("3000")
+                        .default_missing_value("always")
+                        .help("What port to bind the server to")
+                        .takes_value(true),
+                ),
+        )
         .subcommand(
             Command::new("add-user")
                 .about(ADD_USER_USAGE)
@@ -61,7 +87,6 @@ async fn main() -> std::io::Result<()> {
                     Arg::new("output")
                         .long("output")
                         .short('o')
-                        .value_name("auth_config.toml")
                         .default_value("auth_config.toml")
                         .default_missing_value("always")
                         .help("Where to write the output config file to give to the user")
@@ -70,93 +95,100 @@ async fn main() -> std::io::Result<()> {
         );
     let matches = command.get_matches();
 
-    let host: &str = &api::endpoint::host();
-    let port: u16 = api::endpoint::port()
-        .parse::<u16>()
-        .expect("Port must be number");
-
     match matches.subcommand() {
-        Some(("start", _sub_matches)) => {
-            println!("Running 🐂 server on {}:{}", host, port);
-            println!("Syncing to directory: {}", sync_dir);
+        Some(("start", sub_matches)) => {
+            match (
+                sub_matches.value_of("ip"),
+                sub_matches.value_of("port"),
+            ) {
+                (Some(host), Some(port)) => {
+                    let port: u16 = port.parse::<u16>().expect(INVALID_PORT_MSG);
+                    println!("Running 🐂 server on {}:{}", host, port);
+                    println!("Syncing to directory: {}", sync_dir);
 
-            let data = app_data::OxenAppData::from(&sync_dir);
+                    let data = app_data::OxenAppData::from(&sync_dir);
 
-            HttpServer::new(move || {
-                App::new()
-                    .app_data(data.clone())
-                    .wrap(HttpAuthentication::bearer(auth::validator::validate))
-                    .route(
-                        "/repositories/{name}/commits",
-                        web::get().to(controllers::commits::index),
-                    )
-                    .route(
-                        "/repositories/{name}/commits",
-                        web::post().to(controllers::commits::upload),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/commits/{commit_id}/stats",
-                        web::get().to(controllers::commits::stats),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/commits/{commit_id}",
-                        web::get().to(controllers::commits::show),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/commits/{commit_id}/commit_db",
-                        web::get().to(controllers::commits::download_commit_db),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/commits/{commit_id}/parent",
-                        web::get().to(controllers::commits::parent),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/commits/{commit_id}/entries",
-                        web::get().to(controllers::entries::list_entries),
-                    )
-                    .route(
-                        "/repositories/{name}/branches",
-                        web::get().to(controllers::branches::index),
-                    )
-                    .route(
-                        "/repositories/{name}/branches",
-                        web::post().to(controllers::branches::create_or_get),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/branches/{branch_name}",
-                        web::get().to(controllers::branches::show),
-                    )
-                    .route(
-                        "/repositories/{name}/entries",
-                        web::post().to(controllers::entries::create),
-                    )
-                    .route(
-                        "/repositories/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
-                        web::get().to(controllers::repositories::get_file),
-                    )
-                    .route(
-                        "/repositories",
-                        web::get().to(controllers::repositories::index),
-                    )
-                    .route(
-                        "/repositories/{name}",
-                        web::get().to(controllers::repositories::show),
-                    )
-                    .route(
-                        "/repositories/{name}",
-                        web::delete().to(controllers::repositories::delete),
-                    )
-                    .route(
-                        "/repositories",
-                        web::post().to(controllers::repositories::create_or_get),
-                    )
-                    .wrap(Logger::default())
-                    .wrap(Logger::new("%a %{User-Agent}i"))
-            })
-            .keep_alive(KeepAlive::Disabled) // Server was running out of or closing connections if I didn't do this..🤔
-            .bind((host, port))?
-            .run()
-            .await
+                    HttpServer::new(move || {
+                        App::new()
+                            .app_data(data.clone())
+                            .wrap(HttpAuthentication::bearer(auth::validator::validate))
+                            .route(
+                                "/repositories/{name}/commits",
+                                web::get().to(controllers::commits::index),
+                            )
+                            .route(
+                                "/repositories/{name}/commits",
+                                web::post().to(controllers::commits::upload),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/stats",
+                                web::get().to(controllers::commits::stats),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}",
+                                web::get().to(controllers::commits::show),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/commit_db",
+                                web::get().to(controllers::commits::download_commit_db),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/parent",
+                                web::get().to(controllers::commits::parent),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/entries",
+                                web::get().to(controllers::entries::list_entries),
+                            )
+                            .route(
+                                "/repositories/{name}/branches",
+                                web::get().to(controllers::branches::index),
+                            )
+                            .route(
+                                "/repositories/{name}/branches",
+                                web::post().to(controllers::branches::create_or_get),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/branches/{branch_name}",
+                                web::get().to(controllers::branches::show),
+                            )
+                            .route(
+                                "/repositories/{name}/entries",
+                                web::post().to(controllers::entries::create),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
+                                web::get().to(controllers::repositories::get_file),
+                            )
+                            .route(
+                                "/repositories",
+                                web::get().to(controllers::repositories::index),
+                            )
+                            .route(
+                                "/repositories/{name}",
+                                web::get().to(controllers::repositories::show),
+                            )
+                            .route(
+                                "/repositories/{name}",
+                                web::delete().to(controllers::repositories::delete),
+                            )
+                            .route(
+                                "/repositories",
+                                web::post().to(controllers::repositories::create_or_get),
+                            )
+                            .wrap(Logger::default())
+                            .wrap(Logger::new("%a %{User-Agent}i"))
+                    })
+                    .keep_alive(KeepAlive::Disabled) // Server was running out of or closing connections if I didn't do this..🤔
+                    .bind((host, port))?
+                    .run()
+                    .await
+                }
+                _ => {
+                    eprintln!("{}", START_SERVER_USAGE);
+                    Ok(())
+                }
+            }
         }
         Some(("add-user", sub_matches)) => {
             match (
@@ -173,6 +205,10 @@ async fn main() -> std::io::Result<()> {
                         };
                         match keygen.create(&new_user) {
                             Ok(user) => {
+                                let host: &str = &api::endpoint::host();
+                                let port: u16 = api::endpoint::port()
+                                    .parse::<u16>()
+                                    .expect(INVALID_PORT_MSG);
                                 let auth_config = AuthConfig {
                                     host: format!("{}:{}", host, port),
                                     user,
