@@ -69,11 +69,11 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn push() -> Result<(), OxenError> {
+pub fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::push(&repository)?;
+    command::push_remote_branch(&repository, remote, branch)?;
     Ok(())
 }
 

@@ -84,7 +84,10 @@ fn main() {
                 .arg(arg!(<PATH> "The path to the database you want to inspect")),
         )
         .subcommand(
-            Command::new("push").about("Push the current branch up to the remote repository"),
+            Command::new("push")
+                .about("Push the the files to the remote branch")
+                .arg(arg!(<REMOTE> "Remote you want to pull from"))
+                .arg(arg!(<BRANCH> "Branch name to pull")),
         )
         .subcommand(
             Command::new("pull")
@@ -175,10 +178,14 @@ fn main() {
                 eprintln!("Err: Usage `oxen checkout <name>`");
             }
         }
-        Some(("push", _sub_matches)) => match dispatch::push() {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{}", err)
+        Some(("push", sub_matches)) => {
+            let remote = sub_matches.value_of("REMOTE").or_else(|| { Some(DEFAULT_REMOTE_NAME) }).unwrap();
+            let branch = sub_matches.value_of("BRANCH").or_else(|| { Some(DEFAULT_BRANCH_NAME) }).unwrap();
+            match dispatch::push(remote, branch) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
             }
         },
         Some(("pull", sub_matches)) => {

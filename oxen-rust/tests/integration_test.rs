@@ -741,6 +741,42 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Make mutable copy so we can set remote
+        let mut repo = repo;
+
+        // Track the train dir
+        let train_dir = repo.path.join("train");
+        
+        command::add(&repo, &train_dir)?;
+        // Commit the train dur
+        command::commit(&repo, "Adding training data")?;
+
+        // Track the rest of the files
+        let full_dir = &repo.path;
+        let num_files = util::fs::rcount_files_in_dir(&full_dir);
+        command::add(&repo, &full_dir)?;
+        let commit = command::commit(&repo, "Adding test data")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Push the files
+        command::push(&repo)?;
+
+        let page_num = 1;
+        let page_size = num_files;
+        let entries = api::remote::entries::list_page(&repo, &commit.id, page_num, page_size)?;
+        assert_eq!(entries.total_entries, num_files);
+        assert_eq!(entries.entries.len(), num_files);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Track the file
