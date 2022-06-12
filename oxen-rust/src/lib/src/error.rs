@@ -63,7 +63,7 @@ impl OxenError {
 impl fmt::Display for OxenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let OxenError::Basic(err) = self {
-            write!(f, "{:?}", err)
+            write!(f, "{}", err)
         } else {
             write!(f, "{:?}", self)
         }

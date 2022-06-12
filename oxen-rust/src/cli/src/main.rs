@@ -20,6 +20,7 @@ fn main() {
                 .about("Initializes a local repository")
                 .arg(arg!(<PATH> "The directory to establish the repo in"))
                 .arg_required_else_help(true),
+                
         )
         .subcommand(
             Command::new("set-remote")
@@ -96,7 +97,7 @@ fn main() {
 
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
-            let path = sub_matches.value_of("PATH").expect("required");
+            let path = sub_matches.value_of("PATH").ok_or(".").expect("Must provide path to repository.");
 
             match dispatch::init(path) {
                 Ok(_) => {}
@@ -119,7 +120,7 @@ fn main() {
         Some(("status", _sub_matches)) => match dispatch::status() {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{}", err);
             }
         },
         Some(("log", _sub_matches)) => match dispatch::log_commits() {
