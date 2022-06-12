@@ -3,6 +3,7 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
+use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
@@ -362,6 +363,12 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commit = committer.head_commit()?;
     Ok(commit)
+}
+
+/// # Create a remote repository
+/// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
+pub fn create_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+    api::remote::repositories::create(repo)
 }
 
 /// # Set the remote for a repository

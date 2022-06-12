@@ -1,4 +1,8 @@
-## Adding data workflow
+# Remote Collaboration
+
+You should be comfortable with initializing a repository, staging data, and committing data by this point. If not you can refer to [this tutorial](1_InitAndCommit.md).
+
+Now it is time to collaborate on a dataset with a remote server in the middle. We will assume no remote repository exists at the start. To create a remote repository you can use the `oxen create-remote` command. This will take the current working directory name and return a URL that we can use to sync the data to.
 
 Clone the Repository to a workspace
 

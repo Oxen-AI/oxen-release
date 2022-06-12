@@ -1,4 +1,4 @@
-# Initializing and Pushing
+# Initializing and Committing
 
 Oxen mirrors the commands from `git` that you know and love. This tutorial can serve as a refresher or a clean start if you have never used version control before.
 

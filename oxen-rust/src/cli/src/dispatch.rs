@@ -41,6 +41,16 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn create_remote() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    let remote = command::create_remote(&repo)?;
+    println!("Remote url: {}", remote.url);
+
+    Ok(())
+}
+
 pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
