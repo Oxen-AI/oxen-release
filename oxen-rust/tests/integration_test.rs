@@ -740,6 +740,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     })
 }
 
+// This broke when you tried to add the "." directory to add everything, after already committing the train directory.
 #[test]
 fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
