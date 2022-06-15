@@ -441,6 +441,51 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
 }
 
 #[test]
+fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Get the original branch name
+        let orig_branch = command::current_branch(&repo)?.unwrap();
+
+        // Track & commit all the data
+        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        command::add(&repo, &repo.path)?;
+        command::commit(&repo, "Adding one shot")?;
+
+        // Get OG file contents
+        let og_content = util::fs::read_from_path(&one_shot_path)?;
+
+        let branch_name = "feature/modify-data";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        let file_contents = "train/cat_1.jpg 0";
+        let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 1);
+        status.print();
+        command::add(&repo, &one_shot_path)?;
+        log::debug!("---- after command add ----");
+        let status = command::status(&repo)?;
+        status.print();
+        command::commit(&repo, "Changing one shot")?;
+        log::debug!("---- after command commit ----");
+
+        // checkout OG and make sure it reverts
+        command::checkout(&repo, &orig_branch.name)?;
+        let updated_content = util::fs::read_from_path(&one_shot_path)?;
+        assert_eq!(og_content, updated_content);
+
+        log::debug!("---- after checkout OG ----");
+
+        // checkout branch again and make sure it reverts
+        command::checkout(&repo, branch_name)?;
+        let updated_content = util::fs::read_from_path(&one_shot_path)?;
+        assert_eq!(file_contents, updated_content);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Get the original branch name
