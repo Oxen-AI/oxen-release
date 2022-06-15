@@ -14,7 +14,7 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
     let config = AuthConfig::default()?;
     let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
     let fullpath = version_dir.join(entry.filename());
-    log::debug!("Creating entry: {:?} -> {:?}", entry.path, fullpath);
+    log::debug!("Creating remote entry: {:?} -> {:?}", entry.path, fullpath);
 
     if !fullpath.exists() {
         return Err(OxenError::local_file_not_found(fullpath));

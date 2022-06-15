@@ -19,6 +19,7 @@ pub struct CommitEntryReader {
 
 impl CommitEntryReader {
     pub fn new(repository: &LocalRepository, commit: &Commit) -> Result<CommitEntryReader, OxenError> {
+        log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
         let db_path = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.to_owned());
         let opts = db::opts::default();
         Ok(CommitEntryReader {
@@ -30,6 +31,7 @@ impl CommitEntryReader {
     pub fn new_from_head(repository: &LocalRepository) -> Result<CommitEntryReader, OxenError> {
         let commit_reader = CommitReader::new(repository)?;
         let commit = commit_reader.head_commit()?;
+        log::debug!("CommitEntryReader::new_from_head() commit_id: {}", commit.id);
         CommitEntryReader::new(repository, &commit)
     }
 
@@ -141,11 +143,7 @@ impl CommitEntryReader {
     }
 
     pub fn has_file(&self, path: &Path) -> bool {
-        match self.get_entry(path) {
-            Ok(Some(_val)) => true,
-            Ok(None) => false,
-            Err(_err) => false,
-        }
+        CommitEntryDBReader::has_file(&self.db, path)
     }
 
     pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {

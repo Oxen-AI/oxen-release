@@ -401,6 +401,7 @@ impl CommitEntryWriter {
             let files: Vec<PathBuf> = util::fs::rlist_files_in_dir(&full_path)
                 .into_iter()
                 .map(|path| util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap())
+                .filter(|path| !CommitEntryDBReader::has_file(&self.db, path))
                 .collect();
             self.add_staged_files(commit, &files)?;
         }
