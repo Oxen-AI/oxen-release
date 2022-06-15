@@ -352,8 +352,9 @@ impl Indexer {
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!("🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}", commit.id, limit, entries.len());
         if entries.len() > 0 {
-            println!("🐂 pulling commit {} with {} entries", commit.id, limit);
-            let size: u64 = unsafe { std::mem::transmute(limit) };
+            let total = if limit > 0 { limit } else { entries.len() };
+            println!("🐂 pulling commit {} with {} entries", commit.id, total);
+            let size: u64 = unsafe { std::mem::transmute(total) };
             let bar = ProgressBar::new(size);
 
             let committer = CommitEntryWriter::new(&self.repository, commit)?;

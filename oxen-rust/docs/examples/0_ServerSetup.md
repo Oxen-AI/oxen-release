@@ -41,3 +41,5 @@ Syncing to directory: /Users/gregschoeninger/Data/oxen_server
 If you want to change the default `IP ADDRESS` and `PORT` you can do so by passing them in with the `-i` and `-p` parameters.
 
 `./target/debug/oxen-server start -i 0.0.0.0 -p 4004`
+
+To learn how to create a local Oxen repository and push it to the server see the [next tutorial](1_InitAndCommit.md). 
