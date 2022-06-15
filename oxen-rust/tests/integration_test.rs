@@ -867,6 +867,11 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             // Pull back from the OG Repo
             command::pull(&repo)?;
+            let old_repo_status = command::status(&repo)?;
+            old_repo_status.print();
+            // Make sure we don't modify the timestamps or anything of the OG data
+            assert!(old_repo_status.is_clean());
+
             let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
             assert!(pulled_send_it_back_path.exists());
             let pulled_contents = util::fs::read_from_path(&pulled_send_it_back_path)?;

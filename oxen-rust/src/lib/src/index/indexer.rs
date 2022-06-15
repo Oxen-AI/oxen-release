@@ -392,14 +392,22 @@ impl Indexer {
         committer: &CommitEntryWriter,
     ) -> Result<(), OxenError> {
         let fpath = self.repository.path.join(&entry.path);
+        log::debug!("should_download_entry? {:?}", entry.path);
         if self.should_download_entry(entry, &fpath) {
-            log::debug!("Try download entry {:?}", entry.path);
             if api::remote::entries::download_entry(&self.repository, entry)? {
-                let metadata = fs::metadata(fpath).unwrap();
-                let mtime = FileTime::from_last_modification_time(&metadata);
-                committer.set_file_timestamps(entry, &mtime)?;
+                log::debug!("Downloaded entry {:?}", entry.path);
+                
+            } else {
+                log::debug!("Did not download entry {:?}", entry.path);
             }
+        } else {
+            log::debug!("Skip download entry {:?}", entry.path);
         }
+
+        // Always update modified time to last pulled
+        let metadata = fs::metadata(fpath).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        committer.set_file_timestamps(entry, &mtime)?;
 
         Ok(())
     }

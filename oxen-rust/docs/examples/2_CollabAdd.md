@@ -46,41 +46,57 @@ Pull the main branch
 
 *TODO* Fix progress bar on pull, it currently shows 0/0 the whole time
 
-`oxen pull origin main`
+```shell
+oxen pull origin main
+```
 
-Create a branch for the changes
+Create a branch for the changes we want to make
 
-`oxen checkout -b add-training-data`
+```shell
+oxen checkout -b add-training-data
+```
 
-Copy more images of dogs into the train directory
+Copy more images of dogs into the train directory.
 
-`for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end`
+```shell
+for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end
+```
 
 TODO: do we want to show what the new files are in the dir, or to expand the status?
 
-`oxen status`
+```shell
+oxen status
+```
 
 Stage the changes
 
-`oxen add train/`
+```shell
+oxen add train/
+```
 
 Commit the changes
 
-`oxen commit -m "added 10 images of dogs"`
+```shell
+oxen commit -m "added 10 images of dogs"
+```
 
-Push the changes for the next person to pull
+Push the changes for the next person to pull. *TODO* Do not need progress bars for the original commits when pushing back.
 
-*TODO* Oxen push does not take remote and branch right now
+```shell
+oxen push origin add-training-data
+```
 
-`oxen push origin add-training-data`
+In the other workspace, pull the branch.
 
-In the other workspace, pull the branch
+```shell
+$ cd /path/to/original/workspace/SmallCatDog
 
-`cd /path/to/original/workspace/SmallCatDog`
+$ oxen pull origin add-training-data
 
-`oxen pull origin add-training-data`
+$ oxen checkout add-training-data
+```
 
-`oxen checkout add-training-data`
+*TODO* We should not modify any of the timestamps of the original files.
 
 Now there should be the new images to work with
 
