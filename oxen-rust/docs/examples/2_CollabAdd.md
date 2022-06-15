@@ -88,6 +88,8 @@ oxen push origin add-training-data
 
 In the other workspace, pull the branch.
 
+TODO: Seperate pull and checkout commands, right now pull checks out...not sure if that's how git works?
+
 ```shell
 $ cd /path/to/original/workspace/SmallCatDog
 
@@ -96,31 +98,43 @@ $ oxen pull origin add-training-data
 $ oxen checkout add-training-data
 ```
 
-*TODO* We should not modify any of the timestamps of the original files.
-
 Now there should be the new images to work with
 
-`ls train/`
+```shell
+ls train/
+```
 
-Run your experiment, and add more cat images to balance out the set
+----- TUTORIAL BREAKS HERE.... ------
 
-`for i in (seq 200 210) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; end`
+Run your experiment, and add more cat images to balance out the set.
 
-Stage the data
+```shell
+for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; end
+```
 
-`oxen add train/`
+Stage the updated data
+
+```shell
+oxen add train/
+```
 
 Commit the data
 
-`oxen commit -m "adding more images of cats to balance out"`
+```shell
+oxen commit -m "adding 10 more images of cats to balance out"
+```
 
 Push the data
 
-`oxen push origin add-training-data`
+```shell
+oxen push origin add-training-data
+```
 
 Switch to the other workspace, check the data, merge the data if it looks good
 
-`cd /path/to/original/workspace/`
+```shell
+$ cd /path/to/original/workspace/
 
-`oxen pull origin add-training-data`
+$ oxen pull origin add-training-data
+```
 

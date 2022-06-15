@@ -3,15 +3,71 @@
 
 Clone the repo
 
-`oxen clone http://0.0.0.0:3000/repositories/SmallCatDog`
+```shell
+unzip SmallCatDog.zip
+```
 
 Pull all the data
 
-`oxen pull`
+```shell
+oxen init .
+```
+
+```shell
+$ oxen add .
+$ oxen commit -m "adding all data"
+```
 
 Checkout branch so we can safely remove data
 
-`oxen checkout -b remove-test-data`
+```shell
+oxen checkout -b remove-data
+```
+
+Remove the file from the filesystem.
+
+```shell
+rm train/dog_1.jpg
+```
+
+Add and commit the removed file. TODO `oxen rm` command
+
+```shell
+$ oxen add train/dog_1.jpg
+$ oxen commit -m "removing dog_1.jpg"
+```
+
+Checkout `main` branch to restore file
+
+```shell
+oxen checkout main
+```
+
+Checkout `remove-data` branch to remove the file again
+
+```shell
+oxen checkout remove-data
+```
+
+TODO: fix error message if you try to checkout branch that does not exist
+```
+gregschoeninger@GMac ~/D/SmallCatDog> oxen checkout remove-train
+checkout commit: remove-train
+Commit db currupted, could not find commit: remove-train
+```
+
+TODO: Broken workflow, adding one file in a directory, checking out main, checking back out that branch with the one removal removes the whole directory
+
+```shell
+$ oxen add train/dog_1.jpg
+$ oxen commit -m "add dog_1.jpg"
+$ oxen checkout -b remove-file
+$ rm train/dog_1.jpg
+$ oxen rm train/dog_1.jpg # TODO ADD THIS COMMAND
+$ oxen commit -m "remove dog_1.jpg"
+$ oxen checkout main
+$ oxen checkout remove-file
+```
 
 Remove an image file
 
