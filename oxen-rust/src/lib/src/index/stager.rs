@@ -399,7 +399,7 @@ impl Stager {
                 // log::debug!("stager::list_modified_files considering path {:?}", relative_path);
                 
                 if self.has_entry(&relative_path) {
-                    log::debug!("stager::list_modified_files already added path {:?}", relative_path);
+                    // log::debug!("stager::list_modified_files already added path {:?}", relative_path);
                     continue;
                 }
 
@@ -409,7 +409,7 @@ impl Stager {
                     let metadata = fs::metadata(local_path).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);
 
-                    // log::debug!("COMPARING TIMESTAMPS: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
+                    // log::debug!("comparing timestamps: {} to {}", old_entry.last_modified_nanoseconds, mtime.nanoseconds());
 
                     if old_entry.has_different_modification_time(&mtime) {
                         // log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
