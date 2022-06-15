@@ -42,7 +42,7 @@ impl Stager {
             return Ok(());
         }
 
-        // println!("stager.add({:?})", path);
+        log::debug!("stager.add({:?})", path);
 
         if path == Path::new(".") {
             for entry in (std::fs::read_dir(path)?).flatten() {
@@ -50,7 +50,7 @@ impl Stager {
                 let entry_path = self.repository.path.join(&path);
                 self.add(&entry_path, commit_reader)?;
             }
-            // println!("ADD CURRENT DIR: {:?}", path);
+            log::debug!("ADD CURRENT DIR: {:?}", path);
             return Ok(());
         }
 
@@ -155,11 +155,13 @@ impl Stager {
         }
 
         let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-        let key = relative_path.to_str().unwrap().as_bytes();
+        let path_str = relative_path.to_str().unwrap();
+        let key = path_str.as_bytes();
 
         // Add all files, and get a count
         let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path, entry_reader);
         let count: usize = paths.len();
+        log::debug!("Stager.add_dir {} -> {}", path_str, count);
         self.add_dir_count(key, count)
     }
 

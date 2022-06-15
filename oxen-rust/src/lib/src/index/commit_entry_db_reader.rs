@@ -9,6 +9,14 @@ use std::path::Path;
 pub struct CommitEntryDBReader {}
 
 impl CommitEntryDBReader {
+    pub fn has_file(db: &DBWithThreadMode<MultiThreaded>, path: &Path) -> bool {
+        match CommitEntryDBReader::get_entry(db, path) {
+            Ok(Some(_val)) => true,
+            Ok(None) => false,
+            Err(_err) => false,
+        }
+    }
+
     pub fn get_entry(db: &DBWithThreadMode<MultiThreaded>, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
         let key = path.to_str().unwrap();
         let bytes = key.as_bytes();

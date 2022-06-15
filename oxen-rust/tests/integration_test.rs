@@ -758,7 +758,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         let full_dir = &repo.path;
         let num_files = util::fs::rcount_files_in_dir(&full_dir);
         command::add(&repo, &full_dir)?;
-        let commit = command::commit(&repo, "Adding test data")?.unwrap();
+        let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
         // Set the proper remote
         let remote = api::endpoint::repo_url_from(&repo.name);
