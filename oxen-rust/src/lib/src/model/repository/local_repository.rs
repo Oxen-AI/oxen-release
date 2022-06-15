@@ -184,7 +184,7 @@ impl LocalRepository {
         indexer.pull_all_commit_objects(&RemoteBranch::default())?;
 
         println!(
-            "🐂 cloned {} to {}\n\ncd {}\noxen pull",
+            "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
             url, dir_name, dir_name
         );
 
