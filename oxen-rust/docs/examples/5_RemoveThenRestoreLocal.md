@@ -1,5 +1,7 @@
 
-## Remove images from the test data to get better stats
+# Delete & Restore data
+
+The purpose of this tutorial is to show you how to restore data that has been removed from a repository, granted that it has been committed at some point.
 
 Clone the repo
 

@@ -461,13 +461,13 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
-        status.print();
         command::add(&repo, &one_shot_path)?;
-        log::debug!("---- after command add ----");
+        assert_eq!(status.modified_files.len(), 0);
+        assert_eq!(status.added_files.len(), 1);
+
         let status = command::status(&repo)?;
         status.print();
         command::commit(&repo, "Changing one shot")?;
-        log::debug!("---- after command commit ----");
 
         // checkout OG and make sure it reverts
         command::checkout(&repo, &orig_branch.name)?;

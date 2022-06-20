@@ -7,8 +7,8 @@ use crate::model::{StagedEntry, StagedEntryStatus};
 use crate::util;
 
 pub struct StagedData {
-    pub added_dirs: Vec<(PathBuf, usize)>,
-    pub added_files: Vec<(PathBuf, StagedEntry)>,
+    pub added_dirs: Vec<(PathBuf, usize)>, // TODO: Make this a map we can look up into...and just use it for optim
+    pub added_files: Vec<(PathBuf, StagedEntry)>, // and put all the files here instead of having weird dir count
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
