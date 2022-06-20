@@ -3,7 +3,7 @@ use crate::constants::{HISTORY_DIR, VERSIONS_DIR, DEFAULT_BRANCH_NAME};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitEntryDBReader, RefReader, RefWriter};
-use crate::model::{Commit, CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
+use crate::model::{Commit, CommitEntry, LocalRepository, StagedEntry, StagedDirStats, StagedEntryStatus};
 use crate::util;
 
 use indicatif::ProgressBar;
@@ -12,6 +12,7 @@ use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::{Path, PathBuf};
 use std::fs;
+use std::collections::HashSet;
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -393,11 +394,11 @@ impl CommitEntryWriter {
     pub fn add_staged_dirs(
         &self,
         commit: &Commit,
-        added_dirs: &[(PathBuf, usize)],
+        added_dirs: &HashSet<StagedDirStats>,
     ) -> Result<(), OxenError> {
-        for (dir, _) in added_dirs.iter() {
+        for dir in added_dirs.iter() {
             // println!("Commit [{}] files in dir: {:?}", commit.id, dir);
-            let full_path = self.repository.path.join(dir);
+            let full_path = self.repository.path.join(&dir.path);
             let files: Vec<PathBuf> = util::fs::rlist_files_in_dir(&full_path)
                 .into_iter()
                 .map(|path| util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap())

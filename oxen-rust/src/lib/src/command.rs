@@ -172,6 +172,7 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
     let status = status(repo)?;
     if status.is_clean() {
+        log::debug!("Cannot commit clean status...");
         return Ok(None);
     }
     let commit = p_commit(repo, &status, message)?;

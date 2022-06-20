@@ -2,11 +2,19 @@ use crate::constants;
 use crate::db;
 use crate::error::OxenError;
 use crate::index::CommitEntryReader;
-use crate::model::{CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus};
+use crate::model::{
+    CommitEntry,
+    LocalRepository,
+    StagedData,
+    StagedDirStats,
+    StagedEntry,
+    StagedEntryStatus
+};
 use crate::util;
 
 use rocksdb::{IteratorMode, DB};
-use std::convert::TryFrom;
+use std::collections::HashSet;
+// use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::fs;
@@ -118,8 +126,9 @@ impl Stager {
     fn list_untracked_files_in_dir(&self, dir: &Path, entry_reader: &CommitEntryReader) -> Vec<PathBuf> {
         util::fs::recursive_eligible_files(dir)
             .into_iter()
-            .map(|file|util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
+            .map(|file| util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
             .filter(|file| {
+                log::debug!("list_untracked_files_in_dir {:?}", file);
                 !self.file_is_in_index(file, entry_reader)
             })
             .collect()
@@ -154,26 +163,17 @@ impl Stager {
             return Err(OxenError::basic_str(&err));
         }
 
-        let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-        let path_str = relative_path.to_str().unwrap();
-        let key = path_str.as_bytes();
-
         // Add all files, and get a count
         let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path, entry_reader);
         let count: usize = paths.len();
-        log::debug!("Stager.add_dir {} -> {}", path_str, count);
-        self.add_dir_count(key, count)
-    }
-
-    fn add_dir_count(&self, key: &[u8], count: usize) -> Result<usize, OxenError> {
-        // store count in little endian
-        match self.db.put(key, count.to_le_bytes()) {
-            Ok(_) => Ok(count),
-            Err(err) => {
-                let err = format!("Error adding key {}", err);
-                Err(OxenError::basic_str(&err))
-            }
+        log::debug!("Stager.add_dir {:?} -> {}", path, count);
+        
+        for path in paths.iter() {
+            let full_path = self.repository.path.join(path);
+            self.add_file(&full_path, entry_reader)?;
         }
+        
+        Ok(count)
     }
 
     pub fn has_entry(&self, path: &Path) -> bool {
@@ -271,38 +271,6 @@ impl Stager {
         let entry_json = serde_json::to_string(&staged_entry)?;
         self.db.put(&key, entry_json.as_bytes())?;
 
-        // Check if we have added the full directory,
-        // if we have, remove all the individual keys
-        // and add the full directory
-        // println!("Checking parent of file: {:?}", path);
-        if let Some(parent) = path.parent() {
-            // println!("Parent {:?} is_dir {}", parent, parent.is_dir());
-            if parent != Path::new("") {
-                let full_path = self.repository.path.join(parent);
-                log::debug!("stager::add_file({:?}) Getting count for parent {:?} full path: {:?}", path, parent, full_path);
-                let untracked_files = self.list_untracked_files_in_dir(&full_path, entry_reader);
-                log::debug!("stager::add_file({:?}) Got {} untracked files", path, untracked_files.len());
-                if untracked_files.is_empty() {
-                    let to_remove = self.list_keys_with_prefix(parent.to_str().unwrap())?;
-                    let count = to_remove.len();
-                    log::debug!("stager::add_file({:?}) remove {} keys", path, to_remove.len());
-                    for key in to_remove.iter() {
-                        match self.db.delete(key) {
-                            Ok(_) => {
-                                log::debug!("Deleted key: {}", key);
-                            }
-                            Err(err) => {
-                                eprintln!("Unable to delete key [{}] err: {}", key, err);
-                            }
-                        }
-                    }
-
-                    let key = parent.to_str().unwrap().as_bytes();
-                    self.add_dir_count(key, count)?;
-                }
-            }
-        }
-
         Ok(path)
     }
 
@@ -349,25 +317,45 @@ impl Stager {
         Ok(paths)
     }
 
-    pub fn list_added_directories(&self) -> Result<Vec<(PathBuf, usize)>, OxenError> {
-        let iter = self.db.iterator(IteratorMode::Start);
-        let mut paths: Vec<(PathBuf, usize)> = vec![];
-        for (key, value) in iter {
-            let local_path = PathBuf::from(String::from(str::from_utf8(&*key)?));
-            let full_path = self.repository.path.join(&local_path);
-            if full_path.is_dir() {
-                match self.convert_usize_slice(&*value) {
-                    Ok(size) => {
-                        paths.push((local_path, size));
-                    }
-                    Err(err) => {
-                        eprintln!(
-                            "Could not convert data attached to: {:?}\nErr:{}",
-                            full_path, err
-                        )
-                    }
-                }
+    pub fn list_added_directories(&self) -> Result<HashSet<StagedDirStats>, OxenError> {
+        let mut paths: HashSet<StagedDirStats> = HashSet::new();
+        for entry in fs::read_dir(&self.repository.path)? {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Only consider directories
+            if !path.is_dir() {
+                continue;
             }
+
+            // Relative path will be stored
+            let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+            let path_str = relative_path.to_str().unwrap();
+
+            // Don't add .oxen dir
+            if path_str.contains(constants::OXEN_HIDDEN_DIR) {
+                continue;
+            }
+
+            // Count in db from relative path
+            let num_added = self.list_keys_with_prefix(&path_str)?.len();
+
+            // Make sure we have some files added
+            if num_added == 0 {
+                continue;
+            }
+
+            // Count in fs from full path
+            let total = util::fs::rcount_files_in_dir(&path);
+            
+            let dir = StagedDirStats {
+                path: relative_path,
+                num_files_staged: num_added,
+                total_files: total,
+            };
+            
+            log::debug!("list_added_directories: {:?}", dir);
+            paths.insert(dir);
         }
         Ok(paths)
     }
@@ -531,25 +519,25 @@ impl Stager {
         Ok(())
     }
 
-    fn convert_usize_slice(&self, slice: &[u8]) -> Result<usize, OxenError> {
-        match <[u8; 8]>::try_from(slice) {
-            Ok(data) => {
-                let size: usize = usize::from_le_bytes(data);
-                Ok(size)
-            }
-            Err(err) => {
-                let err = format!("Unable to convert data to usize: {:?}\nErr: {}", slice, err);
-                Err(OxenError::basic_str(&err))
-            }
-        }
-    }
+    // fn convert_usize_slice(&self, slice: &[u8]) -> Result<usize, OxenError> {
+    //     match <[u8; 8]>::try_from(slice) {
+    //         Ok(data) => {
+    //             let size: usize = usize::from_le_bytes(data);
+    //             Ok(size)
+    //         }
+    //         Err(err) => {
+    //             let err = format!("Unable to convert data to usize: {:?}\nErr: {}", slice, err);
+    //             Err(OxenError::basic_str(&err))
+    //         }
+    //     }
+    // }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
     use crate::index::{CommitReader, CommitWriter, CommitEntryReader, Stager};
-    use crate::model::StagedEntryStatus;
+    use crate::model::{StagedEntryStatus, StagedDirStats};
     use crate::test;
     use crate::util;
 
@@ -599,9 +587,9 @@ mod tests {
             stager.add_file(&hello_file, &entry_reader)?;
             stager.add_dir(&sub_dir, &entry_reader)?;
 
-            // Make sure the counts start as 1
+            // Make sure the counts start properly
             let files = stager.list_added_files()?;
-            assert_eq!(files.len(), 1);
+            assert_eq!(files.len(), 3);
             let dirs = stager.list_added_directories()?;
             assert_eq!(dirs.len(), 1);
 
@@ -834,7 +822,8 @@ mod tests {
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
-            let sub_dir = repo_path.join("training_data");
+            let training_data_dir = PathBuf::from("training_data");
+            let sub_dir = repo_path.join(&training_data_dir);
             std::fs::create_dir_all(&sub_dir)?;
 
             let sub_file_1 = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
@@ -860,7 +849,9 @@ mod tests {
             // And there is one tracked directory
             let added_dirs = stager.list_added_directories()?;
             assert_eq!(added_dirs.len(), 1);
-            assert_eq!(added_dirs[0].1, 3);
+            let added_dir = added_dirs.get(&StagedDirStats::from_path(training_data_dir)).unwrap();
+            assert_eq!(added_dir.num_files_staged, 3);
+            assert_eq!(added_dir.total_files, 3);
 
             Ok(())
         })
@@ -874,7 +865,8 @@ mod tests {
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
-            let sub_dir = repo_path.join("training_data");
+            let training_data_dir = PathBuf::from("training_data");
+            let sub_dir = repo_path.join(&training_data_dir);
             std::fs::create_dir_all(&sub_dir)?;
 
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
@@ -887,10 +879,11 @@ mod tests {
 
             // There is one directory
             assert_eq!(dirs.len(), 1);
-            assert_eq!(dirs[0].0, Path::new("training_data"));
+            let added_dir = dirs.get(&StagedDirStats::from_path(&training_data_dir)).unwrap();
+            assert_eq!(added_dir.path, training_data_dir);
 
             // With two files
-            assert_eq!(dirs[0].1, 2);
+            assert_eq!(added_dir.num_files_staged, 2);
 
             Ok(())
         })
@@ -1017,7 +1010,8 @@ mod tests {
 
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
-            let annotations_dir = repo_path.join("annotations");
+            let annotations_dir = PathBuf::from("annotations");
+            let full_annotations_dir = repo_path.join(&annotations_dir);
 
             // Add the directory which has the structure
             // annotations/
@@ -1026,7 +1020,7 @@ mod tests {
             //     one_shot.txt
             //   test/
             //     annotations.txt
-            stager.add(&annotations_dir, &entry_reader)?;
+            stager.add(&full_annotations_dir, &entry_reader)?;
 
             // List dirs
             let dirs = stager.list_added_directories()?;
@@ -1035,7 +1029,8 @@ mod tests {
             assert_eq!(dirs.len(), 1);
 
             // With 3 recursive files
-            assert_eq!(dirs[0].1, 3);
+            let added_dir = dirs.get(&StagedDirStats::from_path(annotations_dir)).unwrap();
+            assert_eq!(added_dir.num_files_staged, 3);
 
             Ok(())
         })
@@ -1120,8 +1115,8 @@ mod tests {
             let untracked_files = stager.list_untracked_files(&entry_reader)?;
             let untracked_dirs = stager.list_untracked_directories(&entry_reader)?;
 
-            // There is 1 added file and 1 added dir
-            assert_eq!(added_files.len(), 1);
+            // There is 5 added file and 1 added dir
+            assert_eq!(added_files.len(), 5);
             assert_eq!(added_dirs.len(), 1);
 
             // There are 2 untracked files at the top level

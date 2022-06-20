@@ -38,3 +38,12 @@ Executed in  354.10 secs    fish           external
 ```
 
 
+```shell
+time dvc status
+Data and pipelines are up to date.                                    
+
+________________________________________________________
+Executed in    9.72 secs    fish           external
+   usr time    2.68 secs    0.32 millis    2.68 secs
+   sys time    5.79 secs    1.91 millis    5.79 secs
+```

@@ -462,6 +462,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
         command::add(&repo, &one_shot_path)?;
+        let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 0);
         assert_eq!(status.added_files.len(), 1);
 
