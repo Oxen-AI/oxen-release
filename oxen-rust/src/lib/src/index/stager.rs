@@ -157,23 +157,25 @@ impl Stager {
         Ok(entry)
     }
 
-    pub fn add_dir(&self, path: &Path, entry_reader: &CommitEntryReader) -> Result<usize, OxenError> {
+    pub fn add_dir(&self, path: &Path, entry_reader: &CommitEntryReader) -> Result<(), OxenError> {
         if !path.exists() {
             let err = format!("Cannot stage non-existant dir: {:?}", path);
             return Err(OxenError::basic_str(&err));
         }
 
-        // Add all files, and get a count
-        let paths: Vec<PathBuf> = self.list_untracked_files_in_dir(path, entry_reader);
-        let count: usize = paths.len();
-        log::debug!("Stager.add_dir {:?} -> {}", path, count);
+        // Add all untracked files and modified files
+        let mut paths = self.list_untracked_files_in_dir(path, entry_reader);
+        let mut modified_paths = self.list_modified_files(entry_reader)?;
+        paths.append(&mut modified_paths);
+        
+        log::debug!("Stager.add_dir {:?} -> {}", path, paths.len());
         
         for path in paths.iter() {
             let full_path = self.repository.path.join(path);
             self.add_file(&full_path, entry_reader)?;
         }
-        
-        Ok(count)
+
+        Ok(())
     }
 
     pub fn has_entry(&self, path: &Path) -> bool {
@@ -518,19 +520,6 @@ impl Stager {
         }
         Ok(())
     }
-
-    // fn convert_usize_slice(&self, slice: &[u8]) -> Result<usize, OxenError> {
-    //     match <[u8; 8]>::try_from(slice) {
-    //         Ok(data) => {
-    //             let size: usize = usize::from_le_bytes(data);
-    //             Ok(size)
-    //         }
-    //         Err(err) => {
-    //             let err = format!("Unable to convert data to usize: {:?}\nErr: {}", slice, err);
-    //             Err(OxenError::basic_str(&err))
-    //         }
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -688,14 +677,10 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-            match stager.add_dir(&sub_dir, &entry_reader) {
-                Ok(num_files) => {
-                    assert_eq!(2, num_files);
-                }
-                Err(err) => {
-                    panic!("test_add_directory() Should have returned path... {}", err)
-                }
-            }
+            stager.add_dir(&sub_dir, &entry_reader)?;
+
+            let num_files = stager.list_added_files()?.len();
+            assert_eq!(2, num_files);
 
             Ok(())
         })

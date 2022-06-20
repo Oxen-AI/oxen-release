@@ -396,6 +396,31 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+
+        // Modify and add the file deep in a sub dir
+        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let file_contents = "train/cat_1.jpg 0";
+        test::modify_txt_file(one_shot_path, file_contents)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 1);
+        // Add the top level directory, and make sure the modified file gets added
+        let annotation_dir_path = repo.path.join("annotations");
+        command::add(&repo, &annotation_dir_path)?;
+        let status = command::status(&repo)?;
+        status.print();
+        assert_eq!(status.added_files.len(), 1);
+        command::commit(&repo, "Changing one shot")?;
+        let status = command::status(&repo)?;
+        assert!(status.is_clean());
+
+        Ok(())
+    })
+}
+
+
+#[test]
 fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Get the original branch name
@@ -418,18 +443,14 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         assert_eq!(status.modified_files.len(), 1);
         status.print();
         command::add(&repo, &one_shot_path)?;
-        log::debug!("---- after command add ----");
         let status = command::status(&repo)?;
         status.print();
         command::commit(&repo, "Changing one shot")?;
-        log::debug!("---- after command commit ----");
 
         // checkout OG and make sure it reverts
         command::checkout(&repo, &orig_branch.name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
-
-        log::debug!("---- after checkout OG ----");
 
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;
@@ -474,8 +495,6 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         command::checkout(&repo, &orig_branch.name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
-
-        log::debug!("---- after checkout OG ----");
 
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;

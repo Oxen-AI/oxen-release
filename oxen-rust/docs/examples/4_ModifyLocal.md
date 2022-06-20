@@ -1,7 +1,5 @@
 # Modify data on a local branch, and revert
 
-TODO: make this work with `oxen pull`
-
 Unzip all the data we want to work with
 
 ```shell
@@ -14,7 +12,7 @@ Initialize repository
 oxen init .
 ```
 
-Add and commit a file. TODO: Broken if you add the whole directory for some reason....
+Add and commit the file.
 
 ```shell
 $ oxen add train/dog_1.jpg
@@ -52,8 +50,6 @@ Stage the modification
 ```shell
 oxen add train/dog_1.jpg
 ```
-
-TODO: Only show added and not modified in next status here
 
 ```shell
 oxen status
