@@ -1,5 +1,5 @@
 
-# Develper Setup for CLI and Server
+# Developer Setup for CLI and Server
 
 Build the Oxen Server and Oxen CLI binaries
 

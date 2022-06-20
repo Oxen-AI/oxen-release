@@ -2,7 +2,7 @@
 
 Oxen mirrors the commands from `git` that you know and love. This tutorial can serve as a refresher or a clean start if you have never used version control before.
 
-We will be working with an example dataset that you can download [here *TODO*](http://example.com/dataset). It is a smaller dataset created from the kaggle dataset found here: *TODO* It consists of 20 images of cats and dogs, along with some annotation files. 
+We will be working with an example dataset that you can download [here *TODO*](http://example.com/dataset). It is a smaller dataset created from the kaggle dataset found [here](https://www.kaggle.com/datasets/shaunthesheep/microsoft-catsvsdogs-dataset). It consists of 20 images of cats and dogs, along with some annotation files. 
 
 The goal of this tutorial is to show you how to stage and commit data so that you can have an auditable trail of where the data came from, as well as revert back to the data in different points of time.
 

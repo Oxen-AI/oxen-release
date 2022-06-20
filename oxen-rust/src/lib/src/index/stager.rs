@@ -75,7 +75,7 @@ impl Stager {
             }
         }
 
-        // println!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
+        log::debug!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
         if path.is_dir() {
             match self.add_dir(path, commit_reader) {
                 Ok(_) => Ok(()),
@@ -91,17 +91,17 @@ impl Stager {
 
     pub fn status(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
         // TODO: let's do this in a single loop and filter model
-        // log::debug!("STATUS: before list_added_directories");
+        log::debug!("STATUS: before list_added_directories");
         let added_dirs = self.list_added_directories()?;
-        // log::debug!("STATUS: list_added_files");
+        log::debug!("STATUS: list_added_files");
         let added_files = self.list_added_files()?;
-        // log::debug!("STATUS: list_untracked_directories");
+        log::debug!("STATUS: list_untracked_directories");
         let untracked_dirs = self.list_untracked_directories(entry_reader)?;
-        // log::debug!("STATUS: list_untracked_files");
+        log::debug!("STATUS: list_untracked_files");
         let untracked_files = self.list_untracked_files(entry_reader)?;
-        // log::debug!("STATUS: list_modified_files");
+        log::debug!("STATUS: list_modified_files");
         let modified_files = self.list_modified_files(entry_reader)?;
-        // log::debug!("STATUS: list_removed_files");
+        log::debug!("STATUS: list_removed_files");
         let removed_files = self.list_removed_files(entry_reader)?;
         log::debug!("STATUS: ok");
         let status = StagedData {
@@ -259,6 +259,7 @@ impl Stager {
         if let Ok(Some(entry)) = entry_reader.get_entry(&path) {
             if entry.hash == hash {
                 // file has not changed, don't add it
+                log::debug!("add_file do not add file, it hasn't changed: {:?}", path);
                 return Ok(path);
             } else {
                 // Hash doesn't match, mark it as modified
@@ -284,11 +285,11 @@ impl Stager {
                 if untracked_files.is_empty() {
                     let to_remove = self.list_keys_with_prefix(parent.to_str().unwrap())?;
                     let count = to_remove.len();
-                    // println!("Remove {} keys", to_remove.len());
+                    log::debug!("stager::add_file({:?}) remove {} keys", path, to_remove.len());
                     for key in to_remove.iter() {
                         match self.db.delete(key) {
                             Ok(_) => {
-                                // println!("Deleted key: {}", key);
+                                log::debug!("Deleted key: {}", key);
                             }
                             Err(err) => {
                                 eprintln!("Unable to delete key [{}] err: {}", key, err);
