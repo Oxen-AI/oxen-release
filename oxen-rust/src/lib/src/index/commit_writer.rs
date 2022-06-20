@@ -142,7 +142,7 @@ impl CommitWriter {
 
     pub fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         if !CommitDBReader::commit_id_exists(&self.commits_db, commit_id) {
-            return Err(OxenError::commit_db_corrupted(commit_id));
+            return Err(OxenError::commit_id_does_not_exist(commit_id));
         }
         log::debug!("set_working_repo_to_commit_id: {}", commit_id);
 

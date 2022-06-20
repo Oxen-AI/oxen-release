@@ -52,10 +52,6 @@ Stage the modification.
 oxen add train/dog_1.jpg
 ```
 
-```shell
-oxen status
-```
-
 Commit the modification.
 
 ```shell

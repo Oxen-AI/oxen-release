@@ -245,7 +245,7 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
             return Ok(());
         }
 
-        println!("checkout branch: {}", value);
+        println!("Checkout branch: {}", value);
         set_working_branch(repo, value)?;
         set_head(repo, value)?;
     } else {
@@ -255,7 +255,7 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
             return Ok(());
         }
 
-        println!("checkout commit: {}", value);
+        println!("Checkout commit: {}", value);
         set_working_commit_id(repo, value)?;
         set_head(repo, value)?;
     }
@@ -328,7 +328,7 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
 /// This creates a branch with name,
 /// then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    println!("create and checkout branch: {}", name);
+    println!("Create and checkout branch: {}", name);
     let head_commit = head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
 
