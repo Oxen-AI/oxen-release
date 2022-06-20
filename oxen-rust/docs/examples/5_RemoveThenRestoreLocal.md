@@ -52,19 +52,6 @@ Checkout `remove-data` branch to remove the file again
 oxen checkout remove-data
 ```
 
-TODO: Broken workflow, adding one file in a directory, checking out main, checking back out that branch with the one removal removes the whole directory
-
-```shell
-$ oxen add train/dog_1.jpg
-$ oxen commit -m "add dog_1.jpg"
-$ oxen checkout -b remove-file
-$ rm train/dog_1.jpg
-$ oxen rm train/dog_1.jpg # TODO ADD THIS COMMAND
-$ oxen commit -m "remove dog_1.jpg"
-$ oxen checkout main
-$ oxen checkout remove-file
-```
-
 Remove an image file
 
 `rm test/10.jpg`
