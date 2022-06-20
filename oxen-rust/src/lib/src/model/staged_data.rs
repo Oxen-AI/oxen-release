@@ -1,14 +1,46 @@
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::env;
 use std::path::{Path, PathBuf};
 
 use crate::model::{StagedEntry, StagedEntryStatus};
 use crate::util;
 
+// Used for a quick summary of directory
+#[derive(Debug)]
+pub struct StagedDirStats {
+    pub path: PathBuf,
+    pub num_files_staged: usize,
+    pub total_files: usize,
+}
+
+impl StagedDirStats {
+    pub fn from_path<T: AsRef<Path>>(path: T) -> StagedDirStats {
+        StagedDirStats {
+            path: path.as_ref().to_path_buf(),
+            num_files_staged: 0,
+            total_files: 0,
+        }
+    }
+}
+
+// Hash on the path field so we can quickly look up
+impl PartialEq for StagedDirStats {
+    fn eq(&self, other: &StagedDirStats) -> bool {
+        self.path == other.path
+    }
+}
+impl Eq for StagedDirStats {}
+impl Hash for StagedDirStats {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
 pub struct StagedData {
-    pub added_dirs: Vec<(PathBuf, usize)>, // TODO: Make this a map we can look up into...and just use it for optim
-    pub added_files: Vec<(PathBuf, StagedEntry)>, // and put all the files here instead of having weird dir count
+    pub added_dirs: HashSet<StagedDirStats>, // Set we can look up into...and just use it for optim
+    pub added_files: Vec<(PathBuf, StagedEntry)>, // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -18,7 +50,7 @@ pub struct StagedData {
 impl StagedData {
     pub fn empty() -> StagedData {
         StagedData {
-            added_dirs: vec![],
+            added_dirs: HashSet::new(),
             added_files: vec![],
             untracked_dirs: vec![],
             untracked_files: vec![],
@@ -107,19 +139,19 @@ impl StagedData {
     }
 
     fn print_added_dirs(&self) {
-        for (dir, count) in self.added_dirs.iter() {
+        for staged_dir in self.added_dirs.iter() {
             // Make sure we can grab the filename
-            let added_file_str = format!("  added:  {}/", dir.to_str().unwrap()).green();
-            let num_files_str = match count {
+            let added_file_str = format!("  added:  {}/", staged_dir.path.to_str().unwrap()).green();
+            let num_files_str = match staged_dir.num_files_staged {
                 1 => {
-                    Some(format!("with added {} file\n", count))
+                    Some(format!("with added {} file\n", staged_dir.num_files_staged))
                 }
                 0 => {
                     // Skip since we don't have any added files in this dir
                     None
                 }
                 _ => {
-                    Some(format!("with added {} files\n", count))
+                    Some(format!("with added {} files\n", staged_dir.num_files_staged))
                 }
             };
             if let Some(num_files_str) = num_files_str {
@@ -155,9 +187,9 @@ impl StagedData {
         for (short_path, entry) in self.added_files.iter() {
             // If the short_path is in a directory that was added, don't display it
             let mut break_both = false;
-            for (dir, _size) in self.added_dirs.iter() {
+            for staged_dir in self.added_dirs.iter() {
                 // println!("checking if short_path {:?} starts with {:?}", short_path, dir);
-                if short_path.starts_with(&dir) {
+                if short_path.starts_with(&staged_dir.path) {
                     break_both = true;
                     continue;
                 }

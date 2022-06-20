@@ -25,6 +25,6 @@ pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 
 pub use crate::model::user::{NewUser, User, UserResponse};
 
-pub use crate::model::staged_data::StagedData;
+pub use crate::model::staged_data::{StagedData, StagedDirStats};
 
 pub use crate::model::remote::Remote;
