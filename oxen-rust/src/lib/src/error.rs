@@ -49,6 +49,11 @@ impl OxenError {
         OxenError::basic_str(&err)
     }
 
+    pub fn commit_id_does_not_exist<T: AsRef<str>>(commit_id: T) -> OxenError {
+        let err = format!("Error: could not find commit: {}", commit_id.as_ref());
+        OxenError::basic_str(&err)
+    }
+
     pub fn local_parent_link_broken<T: AsRef<str>>(commit_id: T) -> OxenError {
         let err = format!("Broken link to parent commit: {}", commit_id.as_ref());
         OxenError::basic_str(&err)

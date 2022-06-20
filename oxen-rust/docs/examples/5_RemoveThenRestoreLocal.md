@@ -1,12 +1,13 @@
 
 # Delete & Restore data
 
-The purpose of this tutorial is to show you how to restore data that has been removed from a repository, granted that it has been committed at some point.
+The purpose of this tutorial is to show you how to restore data that has been removed from a repository, given that it has been committed at some point.
 
-Clone the repo
+Unzip sample data and initialize an oxen repository.
 
 ```shell
 unzip SmallCatDog.zip
+cd SmallCatDog
 ```
 
 Pull all the data
@@ -49,13 +50,6 @@ Checkout `remove-data` branch to remove the file again
 
 ```shell
 oxen checkout remove-data
-```
-
-TODO: fix error message if you try to checkout branch that does not exist
-```
-gregschoeninger@GMac ~/D/SmallCatDog> oxen checkout remove-train
-checkout commit: remove-train
-Commit db currupted, could not find commit: remove-train
 ```
 
 TODO: Broken workflow, adding one file in a directory, checking out main, checking back out that branch with the one removal removes the whole directory
