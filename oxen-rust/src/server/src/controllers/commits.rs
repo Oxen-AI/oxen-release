@@ -48,7 +48,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => {
-                match api::local::repositories::get_commit_stats_from_id(&repository, &commit_id) {
+                match api::local::repositories::get_commit_stats_from_id(&repository, commit_id) {
                     Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_CREATED),
@@ -161,7 +161,7 @@ fn p_get_parent(
 }
 
 fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
-    let repo = LocalRepository::new(&repo_dir)?;
+    let repo = LocalRepository::new(repo_dir)?;
     let commits = command::log(&repo)?;
     Ok(ListCommitResponse::success(commits))
 }
@@ -224,8 +224,8 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
 
 pub async fn upload(
     req: HttpRequest,
-    mut body: web::Payload,   // the actual file body
-    data: web::Query<Commit>, // these are the query params -> struct
+    mut body: web::Payload,              // the actual file body
+    data: web::Query<Commit>,            // these are the query params -> struct
     branch_data: web::Query<BranchName>, // these are the query params -> struct
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -275,7 +275,7 @@ pub async fn upload(
     }
 }
 
-fn create_commit(repo_dir: &Path, branch: &String, commit: &Commit) -> Result<(), OxenError> {
+fn create_commit(repo_dir: &Path, branch: &str, commit: &Commit) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(repo_dir)?;
     let result = CommitWriter::new(&repo);
     match result {
@@ -283,7 +283,7 @@ fn create_commit(repo_dir: &Path, branch: &String, commit: &Commit) -> Result<()
             Ok(_) => {
                 let ref_writer = RefWriter::new(&repo)?;
                 // If branch doesn't exist create it
-                if !ref_writer.has_branch(&branch) {
+                if !ref_writer.has_branch(branch) {
                     ref_writer.create_branch(branch, &commit.id)?;
                 }
                 // Set the branch to point to the commit

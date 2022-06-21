@@ -89,7 +89,7 @@ mod tests {
     fn test_create_remote_branch() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|remote_repo| {
             let name = "my-branch";
-            let branch = api::remote::branches::create_or_get(&remote_repo, name)?;
+            let branch = api::remote::branches::create_or_get(remote_repo, name)?;
             assert_eq!(branch.name, name);
 
             Ok(())
@@ -100,9 +100,9 @@ mod tests {
     fn test_get_by_name() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|remote_repo| {
             let branch_name = "my-branch";
-            api::remote::branches::create_or_get(&remote_repo, branch_name)?;
+            api::remote::branches::create_or_get(remote_repo, branch_name)?;
 
-            let branch = api::remote::branches::get_by_name(&remote_repo, branch_name)?;
+            let branch = api::remote::branches::get_by_name(remote_repo, branch_name)?;
             assert!(branch.is_some());
             assert_eq!(branch.unwrap().name, branch_name);
 

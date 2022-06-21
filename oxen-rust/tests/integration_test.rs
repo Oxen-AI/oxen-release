@@ -819,8 +819,8 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
 
         // Track the rest of the files
         let full_dir = &repo.path;
-        let num_files = util::fs::rcount_files_in_dir(&full_dir);
-        command::add(&repo, &full_dir)?;
+        let num_files = util::fs::rcount_files_in_dir(full_dir);
+        command::add(&repo, full_dir)?;
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
         // Set the proper remote
@@ -1268,7 +1268,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(commit_history_dir.exists());
 
                 // make sure we can successfully open the db and read entries
-                let reader = CommitEntryReader::new(&cloned_repo, &commit)?;
+                let reader = CommitEntryReader::new(&cloned_repo, commit)?;
                 let entries = reader.list_entries();
                 assert!(entries.is_ok());
             }
@@ -1281,12 +1281,12 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
 #[test]
 fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
     test::run_empty_dir_test(|dir| {
-        test::populate_dir_with_training_data(&dir)?;
+        test::populate_dir_with_training_data(dir)?;
 
-        let repo = command::init(&dir)?;
+        let repo = command::init(dir)?;
         let commits = command::log(&repo)?;
         let commit = commits.last().unwrap();
-        let reader = CommitEntryReader::new(&repo, &commit)?;
+        let reader = CommitEntryReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
 
