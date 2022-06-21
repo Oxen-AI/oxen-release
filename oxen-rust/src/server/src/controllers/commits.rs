@@ -48,7 +48,7 @@ pub async fn index_branch(req: HttpRequest) -> HttpResponse {
 
     if let (Some(path), Some(branch_name)) = (path, branch_name) {
         let repo_dir = app_data.path.join(path);
-        match p_index_branch(&repo_dir, &branch_name) {
+        match p_index_branch(&repo_dir, branch_name) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {}", err);
@@ -407,7 +407,6 @@ mod tests {
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, repo_name)?;
 
-
         liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         command::commit(&repo, "first commit")?;
 
@@ -417,8 +416,18 @@ mod tests {
         liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::commit(&repo, "second commit")?;
 
-        let uri = format!("/repositories/{}/branches/{}/commits", repo_name, branch_name);
-        let req = test::request_with_two_params(&sync_dir, &uri, "repo_name", repo_name, "branch_name", branch_name);
+        let uri = format!(
+            "/repositories/{}/branches/{}/commits",
+            repo_name, branch_name
+        );
+        let req = test::request_with_two_params(
+            &sync_dir,
+            &uri,
+            "repo_name",
+            repo_name,
+            "branch_name",
+            branch_name,
+        );
 
         let resp = controllers::commits::index_branch(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -452,8 +461,18 @@ mod tests {
         command::commit(&repo, "second commit")?;
 
         // List commits from the first branch
-        let uri = format!("/repositories/{}/branches/{}/commits", repo_name, branch_name);
-        let req = test::request_with_two_params(&sync_dir, &uri, "repo_name", repo_name, "branch_name", og_branch.name);
+        let uri = format!(
+            "/repositories/{}/branches/{}/commits",
+            repo_name, branch_name
+        );
+        let req = test::request_with_two_params(
+            &sync_dir,
+            &uri,
+            "repo_name",
+            repo_name,
+            "branch_name",
+            og_branch.name,
+        );
 
         let resp = controllers::commits::index_branch(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
