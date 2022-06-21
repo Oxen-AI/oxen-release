@@ -1062,8 +1062,73 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
             let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
             command::pull(&cloned_repo)?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
-            // 3 test, 4 train, 1 labels
+            // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
+
+            Ok(())
+        })
+    })
+}
+
+// Make sure we can push again after pulling on the other side, then pull again
+#[test]
+fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // Track a dir
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Push it
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            command::pull(&cloned_repo)?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // 5 training files
+            assert_eq!(5, cloned_num_files);
+
+            // Create a branch to collab on
+            let branch_name = "adding-training-data";
+            command::create_checkout_branch(&cloned_repo, branch_name)?;
+
+            // Track some more data in the cloned repo
+            let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
+            let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
+            std::fs::copy(hotdog_path, &new_file_path)?;
+            command::add(&cloned_repo, &new_file_path)?;
+            command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
+
+            // Push it back
+            command::push_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+
+            // Pull it on the OG side
+            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+            let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
+            // Now there should be 6 train files
+            assert_eq!(6, og_num_files);
+
+            // Add another file on the OG side, and push it back
+            let hotdog_path = Path::new("data/test/images/hotdog_2.jpg");
+            let new_file_path = train_path.join("hotdog_2.jpg");
+            std::fs::copy(hotdog_path, &new_file_path)?;
+            command::add(&repo, &train_path)?;
+            let commit = command::commit(&repo, "Adding next file to train dir")?.unwrap();
+            println!("========== AFTER COMMIT {:?}", commit);
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+            println!("========== AFTER PUSH REMOTE BRANCH {:?}", commit);
+
+            // Pull it on the second side again
+            command::pull_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // Now there should be 7 train files
+            assert_eq!(7, cloned_num_files);
 
             Ok(())
         })

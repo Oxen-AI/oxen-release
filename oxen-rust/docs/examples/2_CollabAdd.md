@@ -44,8 +44,6 @@ $ oxen clone http://0.0.0.0:3000/repositories/SmallCatDog
 
 Pull the main branch
 
-*TODO* Fix progress bar on pull, it currently shows 0/0 the whole time
-
 ```shell
 oxen pull origin main
 ```

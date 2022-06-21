@@ -55,7 +55,7 @@ impl Indexer {
                 // recursively check commits against remote head
                 // and sync ones that have not been synced
                 let remote_stats = api::remote::commits::get_stats(&self.repository, &commit)?;
-                self.rpush_entries(&commit_reader, &remote_stats, &commit.id, 0)?;
+                self.rpush_entries(&commit_reader, &remote_stats, &head_commit.id, 0)?;
                 Ok(remote_repo)
             }
             Ok(None) => {
@@ -119,6 +119,7 @@ impl Indexer {
                     println!("No commits to push, remote is synced.");
                     return Ok(());
                 } else if stats.is_synced() {
+                    log::debug!("rpush_entries stats.is_synced {:?}", stats);
                     return Ok(());
                 }
             }
@@ -128,12 +129,17 @@ impl Indexer {
             if let Some(parent_id) = &commit.parent_id {
                 // Recursive call
                 self.rpush_entries(commit_reader, remote_stats, parent_id, depth + 1)?;
+            } else {
+                log::debug!("Unroll no parent_id on commit: {} -> '{}'", commit.id, commit.message);
             }
 
             let entries = self.read_unsynced_entries(&commit)?;
             if !entries.is_empty() {
                 // Unroll stack to post entries
+                log::debug!("Unroll push commit entries: {} -> '{}'", commit.id, commit.message);
                 self.push_entries(&entries, &commit)?;
+            } else {
+                log::debug!("Unroll no entries to push: {} -> '{}'", commit.id, commit.message);
             }
         } else {
             let err = format!("Err: could not find commit: {}", local_commit_id);
@@ -156,6 +162,9 @@ impl Indexer {
         commit: &Commit
     ) -> Result<(), OxenError> {
         println!("🐂 push {} files", entries.len());
+        for entry in entries.iter() {
+            log::debug!("push entry {:?}", entry.path);
+        }
 
         // len is usize and progressbar requires u64, I don't think we'll overflow...
         let size: u64 = unsafe { std::mem::transmute(entries.len()) };
@@ -245,7 +254,7 @@ impl Indexer {
         let remote_branch = api::remote::branches::get_by_name(&remote_repo, &rb.branch)?.ok_or(OxenError::basic_str(&remote_branch_err))?;
         match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
             Ok(Some(commit)) => {
-                log::debug!("Oxen pull got remote commit: {}", commit.id);
+                log::debug!("Oxen pull got remote commit: {} -> '{}'", commit.id, commit.message);
 
                 // TODO: Be able to pull a different branch than main
                 self.set_branch_name_for_commit(&rb.branch, &commit)?;
