@@ -1,14 +1,11 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-use liboxen::constants;
+use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use liboxen::view::{
-    ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage,
-};
-use liboxen::util;
+use liboxen::view::{ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage};
 
 use liboxen::model::{LocalRepository, RemoteRepository, RepositoryNew};
 
@@ -41,7 +38,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    let name: Option<&str> = req.match_info().get("name");
+    let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
@@ -103,7 +100,7 @@ fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
 pub async fn delete(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    let name: Option<&str> = req.match_info().get("name");
+    let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => match api::local::repositories::delete(&app_data.path, repository) {
@@ -140,13 +137,20 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                 Ok(Some(commit)) => {
                     match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
                         Ok(Some(entry)) => {
-                            let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR).join(&entry.id);
-                            let version_path = version_dir.join(entry.filename());
-                            log::debug!("get_file looking for {:?} -> {:?}", filepath, version_path);
+                            let version_path = util::fs::version_path(&repo, &entry);
+                            log::debug!(
+                                "get_file looking for {:?} -> {:?}",
+                                filepath,
+                                version_path
+                            );
                             Ok(NamedFile::open(version_path)?)
-                        },
+                        }
                         Ok(None) => {
-                            log::debug!("get_file entry not found for commit id {} -> {:?}", commit_id, filepath);
+                            log::debug!(
+                                "get_file entry not found for commit id {} -> {:?}",
+                                commit_id,
+                                filepath
+                            );
                             // gives a 404
                             Ok(NamedFile::open("")?)
                         }
@@ -156,13 +160,12 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                             Ok(NamedFile::open("")?)
                         }
                     }
-
-                },
+                }
                 Ok(None) => {
                     log::debug!("get_file commit not found {}", commit_id);
                     // gives a 404
                     Ok(NamedFile::open("")?)
-                },
+                }
                 Err(err) => {
                     log::error!("get_file get commit err: {:?}", err);
                     // gives a 404
@@ -185,10 +188,10 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
+    use chrono::Utc;
     use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{RepositoryNew, Commit};
-    use chrono::Utc;
+    use liboxen::model::{Commit, RepositoryNew};
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRemoteRepositoryResponse, RepositoryResponse};
@@ -244,7 +247,7 @@ mod tests {
         test::create_local_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::repositories::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -271,12 +274,12 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 date: Utc::now(),
-            }
+            },
         };
         let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, "/repositories");
 
-        let resp = controllers::repositories::create_or_get(req, String::from(data)).await;
+        let resp = controllers::repositories::create_or_get(req, data).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();

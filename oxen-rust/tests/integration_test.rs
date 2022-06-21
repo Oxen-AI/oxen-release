@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
-use liboxen::index::{CommitEntryReader};
+use liboxen::index::CommitEntryReader;
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -396,6 +396,29 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Modify and add the file deep in a sub dir
+        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let file_contents = "train/cat_1.jpg 0";
+        test::modify_txt_file(one_shot_path, file_contents)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 1);
+        // Add the top level directory, and make sure the modified file gets added
+        let annotation_dir_path = repo.path.join("annotations");
+        command::add(&repo, &annotation_dir_path)?;
+        let status = command::status(&repo)?;
+        status.print();
+        assert_eq!(status.added_files.len(), 1);
+        command::commit(&repo, "Changing one shot")?;
+        let status = command::status(&repo)?;
+        assert!(status.is_clean());
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Get the original branch name
@@ -418,18 +441,58 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         assert_eq!(status.modified_files.len(), 1);
         status.print();
         command::add(&repo, &one_shot_path)?;
-        log::debug!("---- after command add ----");
         let status = command::status(&repo)?;
         status.print();
         command::commit(&repo, "Changing one shot")?;
-        log::debug!("---- after command commit ----");
 
         // checkout OG and make sure it reverts
         command::checkout(&repo, &orig_branch.name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
 
-        log::debug!("---- after checkout OG ----");
+        // checkout branch again and make sure it reverts
+        command::checkout(&repo, branch_name)?;
+        let updated_content = util::fs::read_from_path(&one_shot_path)?;
+        assert_eq!(file_contents, updated_content);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Get the original branch name
+        let orig_branch = command::current_branch(&repo)?.unwrap();
+
+        // Track & commit all the data
+        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        command::add(&repo, &repo.path)?;
+        command::commit(&repo, "Adding one shot")?;
+
+        // Get OG file contents
+        let og_content = util::fs::read_from_path(&one_shot_path)?;
+
+        let branch_name = "feature/modify-data";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        let file_contents = "train/cat_1.jpg 0";
+        let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 1);
+        command::add(&repo, &one_shot_path)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 0);
+        assert_eq!(status.added_files.len(), 1);
+
+        let status = command::status(&repo)?;
+        status.print();
+        command::commit(&repo, "Changing one shot")?;
+
+        // checkout OG and make sure it reverts
+        command::checkout(&repo, &orig_branch.name)?;
+        let updated_content = util::fs::read_from_path(&one_shot_path)?;
+        assert_eq!(og_content, updated_content);
 
         // checkout branch again and make sure it reverts
         command::checkout(&repo, branch_name)?;
@@ -740,6 +803,43 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     })
 }
 
+// This broke when you tried to add the "." directory to add everything, after already committing the train directory.
+#[test]
+fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Make mutable copy so we can set remote
+        let mut repo = repo;
+
+        // Track the train dir
+        let train_dir = repo.path.join("train");
+
+        command::add(&repo, &train_dir)?;
+        // Commit the train dur
+        command::commit(&repo, "Adding training data")?;
+
+        // Track the rest of the files
+        let full_dir = &repo.path;
+        let num_files = util::fs::rcount_files_in_dir(full_dir);
+        command::add(&repo, full_dir)?;
+        let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Push the files
+        command::push(&repo)?;
+
+        let page_num = 1;
+        let page_size = num_files;
+        let entries = api::remote::entries::list_page(&repo, &commit.id, page_num, page_size)?;
+        assert_eq!(entries.total_entries, num_files);
+        assert_eq!(entries.entries.len(), num_files);
+
+        Ok(())
+    })
+}
+
 #[test]
 fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
@@ -830,6 +930,11 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             // Pull back from the OG Repo
             command::pull(&repo)?;
+            let old_repo_status = command::status(&repo)?;
+            old_repo_status.print();
+            // Make sure we don't modify the timestamps or anything of the OG data
+            assert!(old_repo_status.is_clean());
+
             let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
             assert!(pulled_send_it_back_path.exists());
             let pulled_contents = util::fs::read_from_path(&pulled_send_it_back_path)?;
@@ -955,8 +1060,127 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
             let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
             command::pull(&cloned_repo)?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
-            // 3 test, 4 train, 1 labels
+            // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
+
+            Ok(())
+        })
+    })
+}
+
+// Make sure we can push again after pulling on the other side, then pull again
+#[test]
+fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // Track a dir
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Push it
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            command::pull(&cloned_repo)?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // 5 training files
+            assert_eq!(5, cloned_num_files);
+            let og_commits = command::log(&repo)?;
+            let cloned_commits = command::log(&cloned_repo)?;
+            assert_eq!(og_commits.len(), cloned_commits.len());
+
+            // Create a branch to collab on
+            let branch_name = "adding-training-data";
+            command::create_checkout_branch(&cloned_repo, branch_name)?;
+
+            // Track some more data in the cloned repo
+            let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
+            let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
+            std::fs::copy(hotdog_path, &new_file_path)?;
+            command::add(&cloned_repo, &new_file_path)?;
+            command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
+
+            // Push it back
+            command::push_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+
+            // Pull it on the OG side
+            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+            let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
+            // Now there should be 6 train files
+            assert_eq!(6, og_num_files);
+
+            // Add another file on the OG side, and push it back
+            let hotdog_path = Path::new("data/test/images/hotdog_2.jpg");
+            let new_file_path = train_path.join("hotdog_2.jpg");
+            std::fs::copy(hotdog_path, &new_file_path)?;
+            command::add(&repo, &train_path)?;
+            let commit = command::commit(&repo, "Adding next file to train dir")?.unwrap();
+            println!("========== AFTER COMMIT {:?}", commit);
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+            println!("========== AFTER PUSH REMOTE BRANCH {:?}", commit);
+
+            // Pull it on the second side again
+            command::pull_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // Now there should be 7 train files
+            assert_eq!(7, cloned_num_files);
+
+            Ok(())
+        })
+    })
+}
+
+// Make sure we can push again after pulling on the other side, then pull again
+#[test]
+fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // Track a dir
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        // Set the proper remote
+        let remote = api::endpoint::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Push it
+        let remote_repo = command::push(&repo)?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test(|new_repo_dir| {
+            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            command::pull(&cloned_repo)?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // 5 training files
+            assert_eq!(5, cloned_num_files);
+
+            // Create a branch to collab on
+            let branch_name = "adding-training-data";
+            command::create_checkout_branch(&cloned_repo, branch_name)?;
+
+            // Track some more data in the cloned repo
+            let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
+            let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
+            std::fs::copy(hotdog_path, &new_file_path)?;
+            command::add(&cloned_repo, &new_file_path)?;
+            command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
+
+            // Push it back
+            command::push_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)?;
+
+            // Pull it on the OG side
+            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, &og_branch.name)?;
+            let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
+            // Now there should be still be 5 train files
+            assert_eq!(5, og_num_files);
 
             Ok(())
         })
@@ -978,7 +1202,8 @@ fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
         command::add(&repo, &new_filepath)?;
         command::commit(&repo, "Adding a new file")?.unwrap();
 
-        let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(constants::VERSIONS_DIR));
+        let version_dir =
+            util::fs::oxen_hidden_dir(&repo.path).join(Path::new(constants::VERSIONS_DIR));
         log::debug!("version_dir hash_filename: {:?}", filepath);
 
         let id = util::hasher::hash_filename(Path::new(filename));
@@ -1031,7 +1256,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
         test::run_empty_dir_test(|new_repo_dir| {
             let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
             command::pull(&cloned_repo)?;
-            
+
             // Get cloned history
             let cloned_history = command::log(&cloned_repo)?;
 
@@ -1046,7 +1271,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(commit_history_dir.exists());
 
                 // make sure we can successfully open the db and read entries
-                let reader = CommitEntryReader::new(&cloned_repo, &commit)?;
+                let reader = CommitEntryReader::new(&cloned_repo, commit)?;
                 let entries = reader.list_entries();
                 assert!(entries.is_ok());
             }
@@ -1056,16 +1281,15 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
     })
 }
 
-
 #[test]
 fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
     test::run_empty_dir_test(|dir| {
-        test::populate_dir_with_training_data(&dir)?;
+        test::populate_dir_with_training_data(dir)?;
 
-        let repo = command::init(&dir)?;
+        let repo = command::init(dir)?;
         let commits = command::log(&repo)?;
         let commit = commits.last().unwrap();
-        let reader = CommitEntryReader::new(&repo, &commit)?;
+        let reader = CommitEntryReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
 

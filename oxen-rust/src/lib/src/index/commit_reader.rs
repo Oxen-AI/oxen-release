@@ -1,6 +1,5 @@
-
-use crate::db;
 use crate::constants::COMMITS_DB;
+use crate::db;
 use crate::error::OxenError;
 use crate::index::CommitDBReader;
 use crate::model::Commit;
@@ -10,7 +9,6 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::str;
 
 use crate::model::LocalRepository;
-
 
 pub struct CommitReader {
     repository: LocalRepository,
@@ -25,9 +23,9 @@ impl CommitReader {
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it
-            let _db : DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
+            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
         }
-        
+
         Ok(CommitReader {
             repository: repository.clone(),
             db: DBWithThreadMode::open_for_read_only(&opts, &db_path, false)?,
@@ -47,7 +45,7 @@ impl CommitReader {
     pub fn history_from_commit_id(&self, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
         let mut commits: Vec<Commit> = vec![];
 
-        self.p_list_commits(&commit_id, &mut commits)?;
+        self.p_list_commits(commit_id, &mut commits)?;
         Ok(commits)
     }
 
@@ -63,8 +61,8 @@ impl CommitReader {
     }
 
     /// Get a commit object from an ID
-    pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<Commit>, OxenError> {
-        CommitDBReader::get_commit_by_id(&self.db, commit_id)
+    pub fn get_commit_by_id<S: AsRef<str>>(&self, commit_id: S) -> Result<Option<Commit>, OxenError> {
+        CommitDBReader::get_commit_by_id(&self.db, commit_id.as_ref())
     }
 
     fn p_list_commits(&self, commit_id: &str, commits: &mut Vec<Commit>) -> Result<(), OxenError> {
@@ -82,7 +80,7 @@ impl CommitReader {
 mod tests {
     use crate::constants::INITIAL_COMMIT_MSG;
     use crate::error::OxenError;
-    use crate::index::{CommitReader};
+    use crate::index::CommitReader;
     use crate::test;
 
     #[test]

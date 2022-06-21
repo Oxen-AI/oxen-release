@@ -2,7 +2,7 @@ use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
 use crate::index::Indexer;
-use crate::model::{Remote, RemoteRepository, Commit, RemoteBranch};
+use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -137,7 +137,7 @@ impl LocalRepository {
 
     pub fn get_remote(&self, name: &str) -> Option<Remote> {
         for remote in self.remotes.iter() {
-            if &remote.name == name {
+            if remote.name == name {
                 return Some(remote.clone());
             }
         }
@@ -146,7 +146,7 @@ impl LocalRepository {
 
     pub fn remote(&self) -> Option<Remote> {
         if let Some(name) = &self.remote_name {
-            self.get_remote(&name)
+            self.get_remote(name)
         } else {
             None
         }
@@ -184,7 +184,7 @@ impl LocalRepository {
         indexer.pull_all_commit_objects(&RemoteBranch::default())?;
 
         println!(
-            "🐂 cloned {} to {}\n\ncd {}\noxen pull",
+            "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
             url, dir_name, dir_name
         );
 
@@ -225,7 +225,7 @@ mod tests {
             let url = "http://0.0.0.0:3000/repositories/OxenData";
             let remote_name = "origin";
             local_repo.set_remote(remote_name, url);
-            let remote = local_repo.get_remote(&remote_name).unwrap();
+            let remote = local_repo.get_remote(remote_name).unwrap();
             assert_eq!(remote.name, remote_name);
             assert_eq!(remote.url, url);
 
@@ -239,7 +239,7 @@ mod tests {
             let remote_repo = api::remote::repositories::create(&local_repo)?;
 
             test::run_empty_dir_test(|dir| {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)?.unwrap();
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url, dir)?.unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);

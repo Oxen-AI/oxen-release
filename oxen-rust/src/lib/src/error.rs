@@ -45,7 +45,15 @@ impl OxenError {
     }
 
     pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {
-        let err = format!("Commit db currupted, could not find commit: {}", commit_id.as_ref());
+        let err = format!(
+            "Commit db currupted, could not find commit: {}",
+            commit_id.as_ref()
+        );
+        OxenError::basic_str(&err)
+    }
+
+    pub fn commit_id_does_not_exist<T: AsRef<str>>(commit_id: T) -> OxenError {
+        let err = format!("Error: could not find commit: {}", commit_id.as_ref());
         OxenError::basic_str(&err)
     }
 
@@ -63,7 +71,7 @@ impl OxenError {
 impl fmt::Display for OxenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let OxenError::Basic(err) = self {
-            write!(f, "{:?}", err)
+            write!(f, "{}", err)
         } else {
             write!(f, "{:?}", self)
         }

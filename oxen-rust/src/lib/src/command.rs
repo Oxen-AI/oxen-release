@@ -3,16 +3,13 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
+use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
-    CommitReader, CommitWriter,
-    CommitEntryReader,
-    Indexer,
-    RefReader, RefWriter,
-    Stager
+    CommitEntryReader, CommitReader, CommitWriter, Indexer, RefReader, RefWriter, Stager,
 };
-use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData, RemoteBranch};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -133,11 +130,11 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # Ok(())
 /// # }
 /// ```
-pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
+pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
-    let commit = head_commit(&repo)?;
+    let commit = head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
-    stager.add(path, &reader)?;
+    stager.add(path.as_ref(), &reader)?;
     Ok(())
 }
 
@@ -171,6 +168,7 @@ pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
     let status = status(repo)?;
     if status.is_clean() {
+        log::debug!("Cannot commit clean status...");
         return Ok(None);
     }
     let commit = p_commit(repo, &status, message)?;
@@ -223,6 +221,21 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(commits)
 }
 
+/// # Get the history for a specific branch
+pub fn log_branch_commit_history(
+    repo: &LocalRepository,
+    branch_name: &str,
+) -> Result<Vec<Commit>, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    if let Some(commit_id) = get_branch_commit_id(repo, branch_name)? {
+        let commits = committer.history_from_commit_id(&commit_id)?;
+        Ok(commits)
+    } else {
+        let err = format!("Branch does not exist: {}", branch_name);
+        Err(OxenError::basic_str(err))
+    }
+}
+
 /// # Create a new branch
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
@@ -236,14 +249,15 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenE
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
+pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
+    let value = value.as_ref();
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
             println!("Already on branch {}", value);
             return Ok(());
         }
 
-        println!("checkout branch: {}", value);
+        println!("Checkout branch: {}", value);
         set_working_branch(repo, value)?;
         set_head(repo, value)?;
     } else {
@@ -253,11 +267,11 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
             return Ok(());
         }
 
-        println!("checkout commit: {}", value);
+        println!("Checkout commit: {}", value);
         set_working_commit_id(repo, value)?;
         set_head(repo, value)?;
     }
-    
+
     Ok(())
 }
 
@@ -277,14 +291,17 @@ fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+fn get_branch_commit_id(repo: &LocalRepository, name: &str) -> Result<Option<String>, OxenError> {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => ref_reader.get_commit_id_for_branch(name),
+        _ => Err(OxenError::basic_str("Could not read reference for repo.")),
+    }
+}
+
 fn branch_exists(repo: &LocalRepository, name: &str) -> bool {
     match RefReader::new(repo) {
-        Ok(ref_reader) => {
-            ref_reader.has_branch(name)
-        },
-        _ => {
-            false
-        }
+        Ok(ref_reader) => ref_reader.has_branch(name),
+        _ => false,
     }
 }
 
@@ -297,11 +314,9 @@ fn already_on_branch(repo: &LocalRepository, name: &str) -> bool {
                     return true;
                 }
             }
-            return false;
-        },
-        _ => {
-            return false;
+            false
         }
+        _ => false,
     }
 }
 
@@ -314,11 +329,9 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
                     return true;
                 }
             }
-            return false;
-        },
-        _ => {
-            return false;
+            false
         }
+        _ => false,
     }
 }
 
@@ -326,14 +339,13 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
 /// This creates a branch with name,
 /// then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    println!("create and checkout branch: {}", name);
+    println!("Create and checkout branch: {}", name);
     let head_commit = head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
 
     ref_writer.create_branch(name, &head_commit.id)?;
     ref_writer.set_head(name);
     Ok(())
-
 }
 
 /// # List branches
@@ -362,6 +374,12 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commit = committer.head_commit()?;
     Ok(commit)
+}
+
+/// # Create a remote repository
+/// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
+pub fn create_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+    api::remote::repositories::create(repo)
 }
 
 /// # Set the remote for a repository
@@ -412,7 +430,11 @@ pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
 }
 
 /// Push to a specific remote
-pub fn push_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) -> Result<RemoteRepository, OxenError> {
+pub fn push_remote_branch(
+    repo: &LocalRepository,
+    remote: &str,
+    branch: &str,
+) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
@@ -423,7 +445,7 @@ pub fn push_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) ->
 
 /// Clone a repo from a url to a directory
 pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    LocalRepository::clone_remote(url, dst)?.ok_or(OxenError::remote_repo_not_found(url))
+    LocalRepository::clone_remote(url, dst)?.ok_or_else(|| OxenError::remote_repo_not_found(url))
 }
 
 /// Pull a repository's data from origin/main
@@ -435,7 +457,11 @@ pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 /// Pull a specific origin and branch
-pub fn pull_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) -> Result<(), OxenError> {
+pub fn pull_remote_branch(
+    repo: &LocalRepository,
+    remote: &str,
+    branch: &str,
+) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
