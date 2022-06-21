@@ -129,7 +129,7 @@ async fn p_create_entry(
     while let Some(item) = body.next().await {
         total_bytes += file.write(&item?)?;
     }
-    log::debug!("Wrote {} bytes to {:?}", total_bytes, version_path,);
+    log::debug!("Wrote {} bytes to for {:?} to {:?}", total_bytes, data.path, version_path,);
 
     Ok(HttpResponse::Ok().json(RemoteEntryResponse {
         status: String::from(STATUS_SUCCESS),
