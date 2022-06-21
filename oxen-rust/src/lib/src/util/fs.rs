@@ -9,6 +9,7 @@ use std::{fs, io};
 
 use crate::constants;
 use crate::error::OxenError;
+use crate::model::{CommitEntry, LocalRepository};
 
 pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
     PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
@@ -20,6 +21,13 @@ pub fn config_filepath(repo_path: &Path) -> PathBuf {
 
 pub fn repo_exists(repo_path: &Path) -> bool {
     oxen_hidden_dir(repo_path).exists()
+}
+
+pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
+    let version_dir = oxen_hidden_dir(&repo.path)
+        .join(constants::VERSIONS_DIR)
+        .join(&entry.id);
+    version_dir.join(entry.filename())
 }
 
 pub fn read_from_path(path: &Path) -> Result<String, OxenError> {

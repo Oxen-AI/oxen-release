@@ -61,8 +61,8 @@ impl CommitReader {
     }
 
     /// Get a commit object from an ID
-    pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<Commit>, OxenError> {
-        CommitDBReader::get_commit_by_id(&self.db, commit_id)
+    pub fn get_commit_by_id<S: AsRef<str>>(&self, commit_id: S) -> Result<Option<Commit>, OxenError> {
+        CommitDBReader::get_commit_by_id(&self.db, commit_id.as_ref())
     }
 
     fn p_list_commits(&self, commit_id: &str, commits: &mut Vec<Commit>) -> Result<(), OxenError> {

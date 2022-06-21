@@ -130,11 +130,11 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # Ok(())
 /// # }
 /// ```
-pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
+pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
-    stager.add(path, &reader)?;
+    stager.add(path.as_ref(), &reader)?;
     Ok(())
 }
 
@@ -249,7 +249,8 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenE
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
+pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
+    let value = value.as_ref();
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
             println!("Already on branch {}", value);

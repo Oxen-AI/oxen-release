@@ -5,6 +5,7 @@ use crate::index::{CommitEntryDBReader, CommitReader};
 use crate::model::{Commit, CommitEntry};
 use crate::util;
 
+use std::collections::HashSet;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::path::{Path, PathBuf};
 use std::str;
@@ -71,12 +72,24 @@ impl CommitEntryReader {
         Ok(paths)
     }
 
+    /// List entries in a vector when we need ordering
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
         let iter = self.db.iterator(IteratorMode::Start);
         for (_key, value) in iter {
             let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
             paths.push(entry);
+        }
+        Ok(paths)
+    }
+
+    /// List entries in a set for quick lookup
+    pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
+        let mut paths: HashSet<CommitEntry> = HashSet::new();
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (_key, value) in iter {
+            let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+            paths.insert(entry);
         }
         Ok(paths)
     }
