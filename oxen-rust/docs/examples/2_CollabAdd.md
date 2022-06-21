@@ -11,8 +11,6 @@ Remote url: http://0.0.0.0:3000/repositories/SmallCatDog
 
 Now let's set a remote named `origin` to this url. You can have multiple remotes with different URLs if you want to sync to different servers. For now we will just be working with `origin`
 
-*TODO* other commands for `oxen remote`. See `git remote --help` for examples.
-
 ```shell
 $ oxen set-remote origin http://0.0.0.0:3000/repositories/SmallCatDog
 ```
@@ -101,8 +99,6 @@ Now there should be the new images to work with
 ```shell
 ls train/
 ```
-
------ TUTORIAL BREAKS HERE.... ------
 
 Run your experiment, and add more cat images to balance out the set.
 
