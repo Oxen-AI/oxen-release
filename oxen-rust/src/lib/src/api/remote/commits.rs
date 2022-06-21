@@ -222,7 +222,12 @@ fn post_tarball_to_server(
     let name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!("/repositories/{}/commits?{}&branch={}", name, commit.to_uri_encoded(), branch_name);
+    let uri = format!(
+        "/repositories/{}/commits?{}&branch={}",
+        name,
+        commit.to_uri_encoded(),
+        branch_name
+    );
     let url = api::endpoint::url_from(&uri);
     log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client
@@ -261,7 +266,7 @@ mod tests {
     #[test]
     fn test_get_empty_remote_head() -> Result<(), OxenError> {
         test::run_empty_sync_repo_test(|local_repo, _remote_repo| {
-            let commit = command::head_commit(&local_repo)?;
+            let commit = command::head_commit(local_repo)?;
             let remote_head_result = api::remote::commits::get_stats(local_repo, &commit);
             assert!(remote_head_result.is_ok());
             Ok(())
@@ -281,7 +286,7 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(&local_repo)?.unwrap();
+            let branch = command::current_branch(local_repo)?.unwrap();
             // Commit the directory
             let commit = command::commit(
                 local_repo,
@@ -290,7 +295,8 @@ mod tests {
             .unwrap();
 
             // Post commit
-            let result_commit = api::remote::commits::post_commit_to_server(local_repo, &branch.name, &commit)?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(local_repo, &branch.name, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
 
             Ok(())

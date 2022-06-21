@@ -120,7 +120,7 @@ pub fn download_entry(
     repository: &LocalRepository,
     entry: &CommitEntry,
 ) -> Result<bool, OxenError> {
-    let remote = repository.remote().ok_or(OxenError::remote_not_set())?;
+    let remote = repository.remote().ok_or_else(OxenError::remote_not_set)?;
     let config = AuthConfig::default()?;
     let fpath = repository.path.join(&entry.path);
     log::debug!("download_remote_entry entry {:?}", entry.path);
@@ -196,7 +196,7 @@ mod tests {
             // Commit the directory
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
-            let committer = CommitEntryReader::new(&local_repo, &commit)?;
+            let committer = CommitEntryReader::new(local_repo, &commit)?;
             let entries = committer.list_unsynced_entries()?;
             assert!(!entries.is_empty());
 

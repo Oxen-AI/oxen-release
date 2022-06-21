@@ -181,11 +181,11 @@ fn main() {
         Some(("push", sub_matches)) => {
             let remote = sub_matches
                 .value_of("REMOTE")
-                .or_else(|| Some(DEFAULT_REMOTE_NAME))
+                .or(Some(DEFAULT_REMOTE_NAME))
                 .unwrap();
             let branch = sub_matches
                 .value_of("BRANCH")
-                .or_else(|| Some(DEFAULT_BRANCH_NAME))
+                .or(Some(DEFAULT_BRANCH_NAME))
                 .unwrap();
             match dispatch::push(remote, branch) {
                 Ok(_) => {}
@@ -197,11 +197,11 @@ fn main() {
         Some(("pull", sub_matches)) => {
             let remote = sub_matches
                 .value_of("REMOTE")
-                .or_else(|| Some(DEFAULT_REMOTE_NAME))
+                .or(Some(DEFAULT_REMOTE_NAME))
                 .unwrap();
             let branch = sub_matches
                 .value_of("BRANCH")
-                .or_else(|| Some(DEFAULT_BRANCH_NAME))
+                .or(Some(DEFAULT_BRANCH_NAME))
                 .unwrap();
             match dispatch::pull(remote, branch) {
                 Ok(_) => {}

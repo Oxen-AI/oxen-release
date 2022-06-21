@@ -27,7 +27,7 @@ fn create_prefixed_dir(base_dir: &str, prefix: &str) -> Result<PathBuf, OxenErro
     let repo_name = format!("{}_{}_{}", prefix, base_dir, uuid::Uuid::new_v4());
     let full_dir = Path::new(base_dir).join(repo_name);
     std::fs::create_dir_all(&full_dir)?;
-    Ok(full_dir.to_path_buf())
+    Ok(full_dir)
 }
 
 fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {

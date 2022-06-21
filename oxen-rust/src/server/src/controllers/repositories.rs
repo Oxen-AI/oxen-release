@@ -283,7 +283,7 @@ mod tests {
         let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, "/repositories");
 
-        let resp = controllers::repositories::create_or_get(req, String::from(data)).await;
+        let resp = controllers::repositories::create_or_get(req, data).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();

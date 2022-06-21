@@ -120,7 +120,7 @@ async fn p_create_entry(
 ) -> Result<HttpResponse, actix_web::Error> {
     // Write entry to versions dir
     let repo_dir = &sync_dir.join(&repository.name);
-    let version_dir = util::fs::oxen_hidden_dir(&repo_dir)
+    let version_dir = util::fs::oxen_hidden_dir(repo_dir)
         .join(constants::VERSIONS_DIR)
         .join(&data.id);
     let version_path = version_dir.join(data.filename());

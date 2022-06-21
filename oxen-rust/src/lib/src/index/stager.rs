@@ -250,7 +250,7 @@ impl Stager {
         }
 
         // compute the hash to know if it has changed
-        let hash = util::hasher::hash_file_contents(&path)?;
+        let hash = util::hasher::hash_file_contents(path)?;
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
@@ -348,7 +348,7 @@ impl Stager {
             }
 
             // Count in db from relative path
-            let num_added = self.list_keys_with_prefix(&path_str)?.len();
+            let num_added = self.list_keys_with_prefix(path_str)?.len();
 
             // Make sure we have some files added
             if num_added == 0 {
@@ -399,7 +399,7 @@ impl Stager {
             if local_path.is_file() {
                 // Return relative path with respect to the repo
                 let relative_path =
-                    util::fs::path_relative_to_dir(&local_path, &self.repository.path)?;
+                    util::fs::path_relative_to_dir(local_path, &self.repository.path)?;
 
                 // log::debug!("stager::list_modified_files considering path {:?}", relative_path);
 

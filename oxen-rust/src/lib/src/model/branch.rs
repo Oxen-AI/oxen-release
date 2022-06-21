@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BranchName {
-    pub branch: String
+    pub branch: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

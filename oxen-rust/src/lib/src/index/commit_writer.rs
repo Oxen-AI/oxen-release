@@ -116,15 +116,15 @@ impl CommitWriter {
         status: &StagedData,
     ) -> Result<(), OxenError> {
         // Write entries
-        let entry_writer = CommitEntryWriter::new(&self.repository, &commit)?;
+        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         // Commit all staged files from db
-        entry_writer.add_staged_entries(&commit, &status.added_files)?;
+        entry_writer.add_staged_entries(commit, &status.added_files)?;
 
         // Commit all staged dirs from db, and recursively add all the files
-        entry_writer.add_staged_dirs(&commit, &status.added_dirs)?;
+        entry_writer.add_staged_dirs(commit, &status.added_dirs)?;
 
         // Add to commits db id -> commit_json
-        self.add_commit_to_db(&commit)?;
+        self.add_commit_to_db(commit)?;
 
         // Move head to commit id
         let ref_writer = RefWriter::new(&self.repository)?;

@@ -23,7 +23,7 @@ impl CommitEntryReader {
         log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
         let db_path = util::fs::oxen_hidden_dir(&repository.path)
             .join(HISTORY_DIR)
-            .join(commit.id.to_owned());
+            .join(&commit.id);
         let opts = db::opts::default();
         Ok(CommitEntryReader {
             db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
@@ -193,7 +193,7 @@ mod tests {
 
             let reader = CommitEntryReader::new(&repo, &commit)?;
             let path = Path::new(filename);
-            assert!(reader.contains_path(&path)?);
+            assert!(reader.contains_path(path)?);
 
             Ok(())
         })

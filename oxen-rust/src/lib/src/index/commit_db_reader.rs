@@ -16,7 +16,7 @@ impl CommitDBReader {
         match ref_reader.head_commit_id() {
             Ok(commit_id) => {
                 let commit = CommitDBReader::get_commit_by_id(db, &commit_id)?
-                    .ok_or(OxenError::commit_db_corrupted(commit_id))?;
+                    .ok_or_else(|| OxenError::commit_db_corrupted(commit_id))?;
                 Ok(commit)
             }
             Err(err) => Err(err),
@@ -37,7 +37,7 @@ impl CommitDBReader {
         commit_id: &str,
     ) -> Result<Commit, OxenError> {
         let commit = CommitDBReader::get_commit_by_id(db, commit_id)?
-            .ok_or(OxenError::commit_db_corrupted(commit_id))?;
+            .ok_or_else(|| OxenError::commit_db_corrupted(commit_id))?;
         if let Some(parent_id) = &commit.parent_id {
             Ok(CommitDBReader::rget_root_commit(repo, db, parent_id)?)
         } else {

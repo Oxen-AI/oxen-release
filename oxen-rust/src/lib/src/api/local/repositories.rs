@@ -134,7 +134,7 @@ mod tests {
             let repo_new = RepositoryNew {
                 name: String::from(name),
                 root_commit: Commit {
-                    id: String::from(initial_commit_id),
+                    id: initial_commit_id,
                     parent_id: None,
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),

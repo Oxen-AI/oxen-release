@@ -17,7 +17,7 @@ pub fn hash_buffer(buffer: &[u8]) -> String {
 pub fn hash_filename(path: &Path) -> String {
     let name = path.to_str().unwrap();
     let bytes = name.as_bytes();
-    hash_buffer(&bytes)
+    hash_buffer(bytes)
 }
 
 pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {

@@ -9,7 +9,7 @@ pub fn get_entry_for_commit(
     commit: &Commit,
     path: &Path,
 ) -> Result<Option<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
     reader.get_entry(path)
 }
 
@@ -19,7 +19,7 @@ pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEnt
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
     reader.num_entries()
 }
 

@@ -15,7 +15,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
                 let view = ListBranchesResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
-                    branches: branches,
+                    branches,
                 };
                 HttpResponse::Ok().json(view)
             }
@@ -87,7 +87,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                         HttpResponse::Ok().json(BranchResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_FOUND),
-                            branch: branch,
+                            branch,
                         })
                     }
                     Ok(None) => match api::local::branches::create(&repository, &data.name) {
@@ -96,7 +96,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                             HttpResponse::Ok().json(BranchResponse {
                                 status: String::from(STATUS_SUCCESS),
                                 status_message: String::from(MSG_RESOURCE_CREATED),
-                                branch: branch,
+                                branch,
                             })
                         }
                         Err(err) => {

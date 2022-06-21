@@ -63,7 +63,7 @@ impl CommitEntryWriter {
                 let parent_commit_db_path =
                     CommitEntryWriter::commit_db_dir(&repo.path, &parent_id);
                 let current_commit_db_path =
-                    CommitEntryWriter::commit_db_dir(&repo.path, &commit_id);
+                    CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
                 log::debug!(
                     "COPY DB from {:?} => {:?}",
                     parent_commit_db_path,
@@ -80,12 +80,12 @@ impl CommitEntryWriter {
                     err
                 );
                 // We are creating initial commit, no parent
-                let commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, &commit_id);
+                let commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
                 if !commit_db_path.exists() {
                     std::fs::create_dir_all(&commit_db_path)?;
                 }
 
-                let ref_writer = RefWriter::new(&repo)?;
+                let ref_writer = RefWriter::new(repo)?;
                 // Set head to default name -> first commit
                 ref_writer.create_branch(DEFAULT_BRANCH_NAME, commit_id)?;
                 // Make sure head is pointing to that branch

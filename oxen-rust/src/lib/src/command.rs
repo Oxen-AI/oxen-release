@@ -132,7 +132,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// ```
 pub fn add(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
-    let commit = head_commit(&repo)?;
+    let commit = head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
     stager.add(path, &reader)?;
     Ok(())
@@ -291,11 +291,9 @@ fn already_on_branch(repo: &LocalRepository, name: &str) -> bool {
                     return true;
                 }
             }
-            return false;
+            false
         }
-        _ => {
-            return false;
-        }
+        _ => false,
     }
 }
 
@@ -308,11 +306,9 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
                     return true;
                 }
             }
-            return false;
+            false
         }
-        _ => {
-            return false;
-        }
+        _ => false,
     }
 }
 
@@ -426,7 +422,7 @@ pub fn push_remote_branch(
 
 /// Clone a repo from a url to a directory
 pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    LocalRepository::clone_remote(url, dst)?.ok_or(OxenError::remote_repo_not_found(url))
+    LocalRepository::clone_remote(url, dst)?.ok_or_else(|| OxenError::remote_repo_not_found(url))
 }
 
 /// Pull a repository's data from origin/main
