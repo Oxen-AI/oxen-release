@@ -9,6 +9,7 @@ pub mod ref_db_reader;
 pub mod ref_reader;
 pub mod ref_writer;
 pub mod stager;
+pub mod merger;
 
 pub use crate::index::commit_db_reader::CommitDBReader;
 pub use crate::index::commit_entry_db_reader::CommitEntryDBReader;
@@ -22,3 +23,4 @@ pub use crate::index::ref_db_reader::RefDBReader;
 pub use crate::index::ref_reader::RefReader;
 pub use crate::index::ref_writer::RefWriter;
 pub use crate::index::stager::Stager;
+pub use crate::index::merger::Merger;

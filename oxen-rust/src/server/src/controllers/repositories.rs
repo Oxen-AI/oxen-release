@@ -1,7 +1,6 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-use liboxen::constants;
 use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
@@ -138,10 +137,7 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                 Ok(Some(commit)) => {
                     match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
                         Ok(Some(entry)) => {
-                            let version_dir = util::fs::oxen_hidden_dir(&repo.path)
-                                .join(constants::VERSIONS_DIR)
-                                .join(&entry.id);
-                            let version_path = version_dir.join(entry.filename());
+                            let version_path = util::fs::version_path(&repo, &entry);
                             log::debug!(
                                 "get_file looking for {:?} -> {:?}",
                                 filepath,
