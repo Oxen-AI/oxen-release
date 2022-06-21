@@ -39,7 +39,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    let name: Option<&str> = req.match_info().get("name");
+    let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
@@ -101,7 +101,7 @@ fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
 pub async fn delete(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    let name: Option<&str> = req.match_info().get("name");
+    let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => match api::local::repositories::delete(&app_data.path, repository) {
@@ -251,7 +251,7 @@ mod tests {
         test::create_local_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::repositories::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);

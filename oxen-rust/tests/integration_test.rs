@@ -1091,6 +1091,9 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 5 training files
             assert_eq!(5, cloned_num_files);
+            let og_commits = command::log(&repo)?;
+            let cloned_commits = command::log(&cloned_repo)?;
+            assert_eq!(og_commits.len(), cloned_commits.len());
 
             // Create a branch to collab on
             let branch_name = "adding-training-data";

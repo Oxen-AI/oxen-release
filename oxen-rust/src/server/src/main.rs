@@ -109,11 +109,11 @@ async fn main() -> std::io::Result<()> {
                             .app_data(data.clone())
                             .wrap(HttpAuthentication::bearer(auth::validator::validate))
                             .route(
-                                "/repositories/{name}/commits",
+                                "/repositories/{repo_name}/commits",
                                 web::get().to(controllers::commits::index),
                             )
                             .route(
-                                "/repositories/{name}/commits",
+                                "/repositories/{repo_name}/commits",
                                 web::post().to(controllers::commits::upload),
                             )
                             .route(
@@ -137,11 +137,11 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::entries::list_entries),
                             )
                             .route(
-                                "/repositories/{name}/branches",
+                                "/repositories/{repo_name}/branches",
                                 web::get().to(controllers::branches::index),
                             )
                             .route(
-                                "/repositories/{name}/branches",
+                                "/repositories/{repo_name}/branches",
                                 web::post().to(controllers::branches::create_or_get),
                             )
                             .route(
@@ -149,7 +149,11 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::branches::show),
                             )
                             .route(
-                                "/repositories/{name}/entries",
+                                "/repositories/{repo_name}/branches/{branch_name}/commits",
+                                web::get().to(controllers::commits::index_branch),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/entries",
                                 web::post().to(controllers::entries::create),
                             )
                             .route(
@@ -161,11 +165,11 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::repositories::index),
                             )
                             .route(
-                                "/repositories/{name}",
+                                "/repositories/{repo_name}",
                                 web::get().to(controllers::repositories::show),
                             )
                             .route(
-                                "/repositories/{name}",
+                                "/repositories/{repo_name}",
                                 web::delete().to(controllers::repositories::delete),
                             )
                             .route(

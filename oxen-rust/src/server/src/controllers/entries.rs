@@ -29,7 +29,7 @@ pub async fn create(
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     // name of the repo
-    let name: &str = req.match_info().get("name").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(local_repo) => p_create_entry(&app_data.path, &local_repo, body, data).await,
         Err(err) => {
@@ -194,7 +194,7 @@ mod tests {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{name}/entries",
+                    "/repositories/{repo_name}/entries",
                     web::post().to(controllers::entries::create),
                 ),
         )

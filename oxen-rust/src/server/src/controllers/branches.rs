@@ -8,7 +8,7 @@ use liboxen::view::{BranchNew, BranchResponse, ListBranchesResponse, StatusMessa
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    let name: &str = req.match_info().get("name").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(repository) => match api::local::branches::list(&repository) {
             Ok(branches) => {
@@ -77,7 +77,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
 
     let data: Result<BranchNew, serde_json::Error> = serde_json::from_str(&body);
 
-    let name: &str = req.match_info().get("name").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
     match data {
         Ok(data) => match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => {
@@ -148,7 +148,7 @@ mod tests {
         let name = "Testing-Branches-1";
         test::create_local_repo(&sync_dir, name)?;
         let uri = format!("/repositories/{}/branches", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::branches::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -176,7 +176,7 @@ mod tests {
         api::local::branches::create(&repo, "branch-2")?;
 
         let uri = format!("/repositories/{}/branches", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::branches::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -236,7 +236,7 @@ mod tests {
             "name": "My-Branch-Name"
         }"#;
         let uri = format!("/repositories/{}/branches", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::branches::create_or_get(req, String::from(data)).await;
         assert_eq!(resp.status(), http::StatusCode::OK);

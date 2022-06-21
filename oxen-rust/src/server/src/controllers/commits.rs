@@ -23,7 +23,7 @@ use tar::Archive;
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    let path: Option<&str> = req.match_info().get("name");
+    let path: Option<&str> = req.match_info().get("repo_name");
 
     if let Some(path) = path {
         let repo_dir = app_data.path.join(path);
@@ -36,6 +36,27 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         }
     } else {
         let msg = "Could not find `name` param...";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+// List commits for a branch in repository
+pub async fn index_branch(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let path: Option<&str> = req.match_info().get("repo_name");
+    let branch_name: Option<&str> = req.match_info().get("branch_name");
+
+    if let (Some(path), Some(branch_name)) = (path, branch_name) {
+        let repo_dir = app_data.path.join(path);
+        match p_index_branch(&repo_dir, &branch_name) {
+            Ok(response) => HttpResponse::Ok().json(response),
+            Err(err) => {
+                let msg = format!("api err: {}", err);
+                HttpResponse::NotFound().json(StatusMessage::error(&msg))
+            }
+        }
+    } else {
+        let msg = "Could not find `repo_name` and `branch_name` param...";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -166,6 +187,12 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     Ok(ListCommitResponse::success(commits))
 }
 
+fn p_index_branch(repo_dir: &Path, branch_name: &str) -> Result<ListCommitResponse, OxenError> {
+    let repo = LocalRepository::new(repo_dir)?;
+    let commits = command::log_branch_commit_history(&repo, branch_name)?;
+    Ok(ListCommitResponse::success(commits))
+}
+
 pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
@@ -230,7 +257,7 @@ pub async fn upload(
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     // name to the repo, should be in url path so okay to unwap
-    let name: &str = req.match_info().get("name").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
 
     let branch = &branch_data.into_inner();
     log::debug!("upload commit for branch {:?}", branch.branch);
@@ -322,14 +349,14 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_controllers_respository_commits_index_empty() -> Result<(), OxenError> {
+    async fn test_controllers_commits_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, name)?;
 
         let uri = format!("/repositories/{}/commits", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::commits::index(req).await;
 
@@ -346,7 +373,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_controllers_respository_list_two_commits() -> Result<(), OxenError> {
+    async fn test_controllers_commits_list_two_commits() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let name = "Testing-Name";
@@ -358,7 +385,7 @@ mod tests {
         command::commit(&repo, "second commit")?;
 
         let uri = format!("/repositories/{}/commits", name);
-        let req = test::request_with_param(&sync_dir, &uri, "name", name);
+        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
 
         let resp = controllers::commits::index(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -366,6 +393,74 @@ mod tests {
         let list: ListCommitResponse = serde_json::from_str(text)?;
         // Plus the initial commit
         assert_eq!(list.commits.len(), 3);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_controllers_commits_list_commits_on_branch() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+
+        let repo_name = "Testing-Name";
+        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+
+
+        liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        command::commit(&repo, "first commit")?;
+
+        let branch_name = "feature/list-commits";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        command::commit(&repo, "second commit")?;
+
+        let uri = format!("/repositories/{}/branches/{}/commits", repo_name, branch_name);
+        let req = test::request_with_two_params(&sync_dir, &uri, "repo_name", repo_name, "branch_name", branch_name);
+
+        let resp = controllers::commits::index_branch(req).await;
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let list: ListCommitResponse = serde_json::from_str(text)?;
+        // Plus the initial commit
+        assert_eq!(list.commits.len(), 3);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    // Switch branches, add a commit, and only list commits from first branch
+    #[actix_web::test]
+    async fn test_controllers_commits_list_some_commits_on_branch() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+
+        let repo_name = "Testing-Name";
+        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        command::commit(&repo, "first commit")?;
+
+        let branch_name = "feature/list-commits";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        command::commit(&repo, "second commit")?;
+
+        // List commits from the first branch
+        let uri = format!("/repositories/{}/branches/{}/commits", repo_name, branch_name);
+        let req = test::request_with_two_params(&sync_dir, &uri, "repo_name", repo_name, "branch_name", og_branch.name);
+
+        let resp = controllers::commits::index_branch(req).await;
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let list: ListCommitResponse = serde_json::from_str(text)?;
+        // there should be 2 instead of the 3 total
+        assert_eq!(list.commits.len(), 2);
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
@@ -414,7 +509,7 @@ mod tests {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{name}/commits",
+                    "/repositories/{repo_name}/commits",
                     web::post().to(controllers::commits::upload),
                 ),
         )
