@@ -1,7 +1,7 @@
 use crate::model::RemoteEntry;
+use filetime::FileTime;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use filetime::FileTime;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
@@ -35,7 +35,7 @@ impl CommitEntry {
             is_synced: true,
             hash: self.hash.to_owned(),
             last_modified_seconds: self.last_modified_seconds,
-            last_modified_nanoseconds: self.last_modified_nanoseconds
+            last_modified_nanoseconds: self.last_modified_nanoseconds,
         }
     }
 
@@ -52,7 +52,7 @@ impl CommitEntry {
     }
 
     pub fn has_different_modification_time(&self, time: &FileTime) -> bool {
-        self.last_modified_nanoseconds != time.nanoseconds() ||
-        self.last_modified_seconds != time.unix_seconds()
+        self.last_modified_nanoseconds != time.nanoseconds()
+            || self.last_modified_seconds != time.unix_seconds()
     }
 }

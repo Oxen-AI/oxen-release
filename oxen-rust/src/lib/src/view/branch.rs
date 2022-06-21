@@ -1,4 +1,3 @@
-
 use crate::model::Branch;
 use serde::{Deserialize, Serialize};
 
@@ -11,7 +10,7 @@ pub struct BranchResponse {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BranchNew {
-    pub name: String
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

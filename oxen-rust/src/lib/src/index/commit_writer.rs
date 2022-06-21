@@ -1,8 +1,8 @@
-use crate::constants::{VERSIONS_DIR, COMMITS_DB};
 use crate::config::AuthConfig;
+use crate::constants::{COMMITS_DB, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{RefReader, RefWriter, CommitDBReader, CommitEntryWriter, CommitEntryReader};
+use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
 use crate::model::{Commit, StagedData};
 use crate::util;
 
@@ -94,11 +94,7 @@ impl CommitWriter {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit_obj(&commit_id, message)?;
-        log::debug!(
-            "COMMIT_START {} message [{}]",
-            commit.id,
-            commit.message,
-        );
+        log::debug!("COMMIT_START {} message [{}]", commit.id, commit.message,);
 
         // Write entries
         self.add_commit_from_status(&commit, status)?;
@@ -114,7 +110,11 @@ impl CommitWriter {
         self.add_commit_from_status(commit, &status)
     }
 
-    pub fn add_commit_from_status(&self, commit: &Commit, status: &StagedData) -> Result<(), OxenError> {
+    pub fn add_commit_from_status(
+        &self,
+        commit: &Commit,
+        status: &StagedData,
+    ) -> Result<(), OxenError> {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, &commit)?;
         // Commit all staged files from db
@@ -151,7 +151,7 @@ impl CommitWriter {
             // Don't do anything if we tried to switch to same commit
             return Ok(());
         }
-        
+
         // Keep track of directories, since we do not explicitly store which ones are tracked...
         // we will remove them later if no files exist in them.
         let mut candidate_dirs_to_rm: HashSet<PathBuf> = HashSet::new();
@@ -160,13 +160,20 @@ impl CommitWriter {
         // if they aren't in commit db we are switching to, remove them
         // Safe to unwrap because we check if it exists above
         let commit = CommitDBReader::get_commit_by_id(&self.commits_db, commit_id)?.unwrap();
-        log::debug!("set_working_repo_to_commit_id: Commit: {} => '{}'", commit_id, commit.message);
+        log::debug!(
+            "set_working_repo_to_commit_id: Commit: {} => '{}'",
+            commit_id,
+            commit.message
+        );
 
         // Two readers, one for HEAD and one for this current commit
         let head_entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
         let commit_entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
         let commit_entries = head_entry_reader.list_files()?;
-        log::debug!("set_working_repo_to_commit_id got {} entries in commit", commit_entries.len());
+        log::debug!(
+            "set_working_repo_to_commit_id got {} entries in commit",
+            commit_entries.len()
+        );
 
         for path in commit_entries.iter() {
             let repo_path = self.repository.path.join(path);
@@ -177,7 +184,8 @@ impl CommitWriter {
             if repo_path.is_file() {
                 log::debug!(
                     "set_working_repo_to_commit_id commit_id {} path {:?}",
-                    commit_id, path
+                    commit_id,
+                    path
                 );
 
                 // Keep track of parents to see if we clear them
@@ -238,7 +246,8 @@ impl CommitWriter {
             if !dst_path.exists() {
                 log::debug!(
                     "set_working_repo_to_commit_id restore file, she new 🙏 {:?} -> {:?}",
-                    version_path, dst_path
+                    version_path,
+                    dst_path
                 );
 
                 // mkdir if not exists for the parent
@@ -263,13 +272,15 @@ impl CommitWriter {
                     // we need to update working dir
                     log::debug!(
                         "set_working_repo_to_commit_id restore file diff hash 🙏 {:?} -> {:?}",
-                        version_path, dst_path
+                        version_path,
+                        dst_path
                     );
                     std::fs::copy(version_path, dst_path)?;
                 } else {
                     log::debug!(
                         "set_working_repo_to_commit_id hashes match! {:?} -> {:?}",
-                        version_path, dst_path
+                        version_path,
+                        dst_path
                     );
                 }
             }
@@ -323,7 +334,7 @@ impl CommitWriter {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::{CommitWriter, CommitEntryReader, CommitDBReader};
+    use crate::index::{CommitDBReader, CommitEntryReader, CommitWriter};
     use crate::model::StagedData;
     use crate::test;
 
@@ -370,7 +381,8 @@ mod tests {
             let commit = commit_writer.commit(&status, message)?;
             stager.unstage()?;
 
-            let commit_history = CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
+            let commit_history =
+                CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
 
             // always start with an initial commit
             assert_eq!(commit_history.len(), 2);

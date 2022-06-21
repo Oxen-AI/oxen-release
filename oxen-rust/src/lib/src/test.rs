@@ -107,7 +107,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
-    
+
     let local_repo = command::init(&repo_dir)?;
     let remote_repo = api::remote::repositories::create(&local_repo)?;
 

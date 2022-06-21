@@ -1,8 +1,7 @@
-
 use crate::command;
 use crate::error::OxenError;
-use crate::index::{RefReader};
-use crate::model::{LocalRepository, Branch};
+use crate::index::RefReader;
+use crate::model::{Branch, LocalRepository};
 
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
     let referencer = RefReader::new(repo)?;

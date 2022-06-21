@@ -2,7 +2,7 @@ use clap::{arg, Arg, Command};
 use env_logger::Env;
 use std::path::Path;
 
-use liboxen::constants::{DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME};
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 pub mod dispatch;
 
 fn main() {
@@ -20,7 +20,6 @@ fn main() {
                 .about("Initializes a local repository")
                 .arg(arg!(<PATH> "The directory to establish the repo in"))
                 .arg_required_else_help(true),
-                
         )
         .subcommand(
             Command::new("set-remote")
@@ -91,16 +90,19 @@ fn main() {
         )
         .subcommand(
             Command::new("pull")
-            .about("Pull the files up from a remote branch")
-            .arg(arg!(<REMOTE> "Remote you want to pull from"))
-            .arg(arg!(<BRANCH> "Branch name to pull")),
+                .about("Pull the files up from a remote branch")
+                .arg(arg!(<REMOTE> "Remote you want to pull from"))
+                .arg(arg!(<BRANCH> "Branch name to pull")),
         );
 
     let matches = command.get_matches();
 
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
-            let path = sub_matches.value_of("PATH").ok_or(".").expect("Must provide path to repository.");
+            let path = sub_matches
+                .value_of("PATH")
+                .ok_or(".")
+                .expect("Must provide path to repository.");
 
             match dispatch::init(path) {
                 Ok(_) => {}
@@ -109,14 +111,12 @@ fn main() {
                 }
             }
         }
-        Some(("create-remote", _sub_matches)) => {
-            match dispatch::create_remote() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
-                }
+        Some(("create-remote", _sub_matches)) => match dispatch::create_remote() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{}", err)
             }
-        }
+        },
         Some(("set-remote", sub_matches)) => {
             let name = sub_matches.value_of("NAME").expect("required");
             let url = sub_matches.value_of("URL").expect("required");
@@ -179,25 +179,37 @@ fn main() {
             }
         }
         Some(("push", sub_matches)) => {
-            let remote = sub_matches.value_of("REMOTE").or_else(|| { Some(DEFAULT_REMOTE_NAME) }).unwrap();
-            let branch = sub_matches.value_of("BRANCH").or_else(|| { Some(DEFAULT_BRANCH_NAME) }).unwrap();
+            let remote = sub_matches
+                .value_of("REMOTE")
+                .or_else(|| Some(DEFAULT_REMOTE_NAME))
+                .unwrap();
+            let branch = sub_matches
+                .value_of("BRANCH")
+                .or_else(|| Some(DEFAULT_BRANCH_NAME))
+                .unwrap();
             match dispatch::push(remote, branch) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
                 }
             }
-        },
+        }
         Some(("pull", sub_matches)) => {
-            let remote = sub_matches.value_of("REMOTE").or_else(|| { Some(DEFAULT_REMOTE_NAME) }).unwrap();
-            let branch = sub_matches.value_of("BRANCH").or_else(|| { Some(DEFAULT_BRANCH_NAME) }).unwrap();
+            let remote = sub_matches
+                .value_of("REMOTE")
+                .or_else(|| Some(DEFAULT_REMOTE_NAME))
+                .unwrap();
+            let branch = sub_matches
+                .value_of("BRANCH")
+                .or_else(|| Some(DEFAULT_BRANCH_NAME))
+                .unwrap();
             match dispatch::pull(remote, branch) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
                 }
             }
-        },
+        }
         Some(("clone", sub_matches)) => {
             let url = sub_matches.value_of("URL").expect("required");
             match dispatch::clone(url) {

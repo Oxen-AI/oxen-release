@@ -2,14 +2,14 @@ use crate::app_data::OxenAppData;
 
 use liboxen::api;
 use liboxen::constants;
-use liboxen::model::{LocalRepository, RemoteEntry, CommitEntry};
+use liboxen::model::{CommitEntry, LocalRepository, RemoteEntry};
+use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
-use liboxen::util;
 
-use serde::Deserialize;
 use actix_web::{web, HttpRequest, HttpResponse};
 use futures_util::stream::StreamExt as _;
+use serde::Deserialize;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -67,10 +67,14 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
                 );
                 match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
                     Ok(entries) => {
-                        log::debug!("list_entries commit {} got {} entries", commit_id, entries.len());
+                        log::debug!(
+                            "list_entries commit {} got {} entries",
+                            commit_id,
+                            entries.len()
+                        );
                         let entries: Vec<RemoteEntry> =
                             entries.into_iter().map(|entry| entry.to_remote()).collect();
-    
+
                         let total_entries: usize =
                             api::local::entries::count_for_commit(&repo, &commit)
                                 .unwrap_or(entries.len());
@@ -88,10 +92,11 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
                     }
                     Err(err) => {
                         log::error!("Unable to list repositories. Err: {}", err);
-                        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
                     }
                 }
-            },
+            }
             Ok(None) => {
                 log::debug!("Could not find commit with id {}", commit_id);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -115,7 +120,9 @@ async fn p_create_entry(
 ) -> Result<HttpResponse, actix_web::Error> {
     // Write entry to versions dir
     let repo_dir = &sync_dir.join(&repository.name);
-    let version_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::VERSIONS_DIR).join(&data.id);
+    let version_dir = util::fs::oxen_hidden_dir(&repo_dir)
+        .join(constants::VERSIONS_DIR)
+        .join(&data.id);
     let version_path = version_dir.join(data.filename());
 
     if let Some(parent) = version_path.parent() {
@@ -129,7 +136,12 @@ async fn p_create_entry(
     while let Some(item) = body.next().await {
         total_bytes += file.write(&item?)?;
     }
-    log::debug!("Wrote {} bytes to for {:?} to {:?}", total_bytes, data.path, version_path,);
+    log::debug!(
+        "Wrote {} bytes to for {:?} to {:?}",
+        total_bytes,
+        data.path,
+        version_path,
+    );
 
     Ok(HttpResponse::Ok().json(RemoteEntryResponse {
         status: String::from(STATUS_SUCCESS),
@@ -171,14 +183,11 @@ mod tests {
             is_synced: false,
             hash: String::from("1234"),
             last_modified_seconds: 1,
-            last_modified_nanoseconds: 2
+            last_modified_nanoseconds: 2,
         };
-        
+
         let payload = "🐂 💨";
-        let uri = format!(
-            "/repositories/{}/entries?{}",
-            name, entry.to_uri_encoded()
-        );
+        let uri = format!("/repositories/{}/entries?{}", name, entry.to_uri_encoded());
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData {
@@ -206,7 +215,9 @@ mod tests {
 
         // Make sure file actually exists on disk in versions dir
         let repo_dir = sync_dir.join(repo.name);
-        let version_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::VERSIONS_DIR).join(&entry.id);
+        let version_dir = util::fs::oxen_hidden_dir(&repo_dir)
+            .join(constants::VERSIONS_DIR)
+            .join(&entry.id);
         let uploaded_file = version_dir.join(entry.filename());
 
         assert!(uploaded_file.exists());

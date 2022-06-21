@@ -1,10 +1,14 @@
+use crate::error::OxenError;
 use crate::index::CommitEntryReader;
 use crate::model::{Commit, CommitEntry, LocalRepository};
-use crate::error::OxenError;
 
 use std::path::Path;
 
-pub fn get_entry_for_commit(repo: &LocalRepository, commit: &Commit, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
+pub fn get_entry_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: &Path,
+) -> Result<Option<CommitEntry>, OxenError> {
     let reader = CommitEntryReader::new(repo, &commit)?;
     reader.get_entry(path)
 }

@@ -1,39 +1,35 @@
 use crate::app_data::OxenAppData;
 
-
 use actix_web::{HttpRequest, HttpResponse};
 
-
 use liboxen::api;
-use liboxen::view::{
-    ListBranchesResponse, BranchResponse, BranchNew, StatusMessage,
-};
-use liboxen::view::http::{
-    MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
-};
+use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::{BranchNew, BranchResponse, ListBranchesResponse, StatusMessage};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let name: &str = req.match_info().get("name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
-        Ok(repository) => {
-            match api::local::branches::list(&repository) {
-                Ok(branches) => {
-                    let view = ListBranchesResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
-                        branches: branches,
-                    };
-                    HttpResponse::Ok().json(view)
-                }
-                Err(err) => {
-                    log::error!("Unable to list repositories. Err: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
+        Ok(repository) => match api::local::branches::list(&repository) {
+            Ok(branches) => {
+                let view = ListBranchesResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    branches: branches,
+                };
+                HttpResponse::Ok().json(view)
+            }
+            Err(err) => {
+                log::error!("Unable to list repositories. Err: {}", err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         },
         Err(err) => {
-            log::error!("Err api::local::branches::create could not get repo {} {:?}", name, err);
+            log::error!(
+                "Err api::local::branches::create could not get repo {} {:?}",
+                name,
+                err
+            );
             HttpResponse::InternalServerError().json(StatusMessage::resource_not_found())
         }
     }
@@ -53,7 +49,11 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                     branch,
                 }),
                 Ok(None) => {
-                    log::debug!("branch_name {} does not exist for repo: {}", branch_name, name);
+                    log::debug!(
+                        "branch_name {} does not exist for repo: {}",
+                        branch_name,
+                        name
+                    );
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                 }
                 Err(err) => {
@@ -101,17 +101,23 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                         }
                         Err(err) => {
                             log::error!("Err api::local::branches::create: {:?}", err);
-                            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                            HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error())
                         }
                     },
                     Err(err) => {
                         log::error!("Err api::local::branches::create: {:?}", err);
-                        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
                     }
                 }
-            },
+            }
             Err(err) => {
-                log::error!("Err api::local::branches::create could not get repo {} {:?}", name, err);
+                log::error!(
+                    "Err api::local::branches::create could not get repo {} {:?}",
+                    name,
+                    err
+                );
                 HttpResponse::InternalServerError().json(StatusMessage::resource_not_found())
             }
         },
@@ -127,10 +133,10 @@ mod tests {
     use actix_web::body::to_bytes;
 
     use liboxen::api;
-    use liboxen::error::OxenError;
     use liboxen::constants::DEFAULT_BRANCH_NAME;
+    use liboxen::error::OxenError;
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{ListBranchesResponse, BranchResponse};
+    use liboxen::view::{BranchResponse, ListBranchesResponse};
 
     use crate::controllers;
     use crate::test;
@@ -196,7 +202,14 @@ mod tests {
         api::local::branches::create(&repo, branch_name)?;
 
         let uri = format!("/repositories/{}/branches", repo_name);
-        let req = test::request_with_two_params(&sync_dir, &uri, "repo_name", repo_name, "branch_name", branch_name);
+        let req = test::request_with_two_params(
+            &sync_dir,
+            &uri,
+            "repo_name",
+            repo_name,
+            "branch_name",
+            branch_name,
+        );
 
         let resp = controllers::branches::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);

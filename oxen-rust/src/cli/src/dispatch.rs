@@ -138,7 +138,7 @@ pub fn status() -> Result<(), OxenError> {
             "On branch {} -> {}\n",
             current_branch.name, current_branch.commit_id
         );
-    } else { 
+    } else {
         let head = command::head_commit(&repository)?;
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",

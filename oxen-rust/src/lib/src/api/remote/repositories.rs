@@ -2,7 +2,7 @@ use crate::api;
 use crate::command;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{RemoteRepository, LocalRepository};
+use crate::model::{LocalRepository, RemoteRepository};
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 
