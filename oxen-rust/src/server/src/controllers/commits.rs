@@ -3,7 +3,7 @@ use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitWriter, RefWriter};
-use liboxen::model::{Commit, LocalRepository, RemoteRepository};
+use liboxen::model::{BranchName, Commit, LocalRepository, RemoteRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{
@@ -226,18 +226,25 @@ pub async fn upload(
     req: HttpRequest,
     mut body: web::Payload,   // the actual file body
     data: web::Query<Commit>, // these are the query params -> struct
+    branch_data: web::Query<BranchName>, // these are the query params -> struct
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     // name to the repo, should be in url path so okay to unwap
     let name: &str = req.match_info().get("name").unwrap();
+
+    let branch = &branch_data.into_inner();
+    log::debug!("upload commit for branch {:?}", branch.branch);
+
     match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(repo) => {
             let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
             // Create Commit from uri params
             let commit = &data.into_inner();
-            match create_commit(&repo.path, commit) {
+            match create_commit(&repo.path, &branch.branch, commit) {
                 Ok(_) => {
+                    log::debug!("Created commit on server {:?}", commit);
+
                     // Get tar.gz bytes for history/COMMIT_ID data
                     let mut bytes = web::BytesMut::new();
                     while let Some(item) = body.next().await {
@@ -268,14 +275,19 @@ pub async fn upload(
     }
 }
 
-fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
+fn create_commit(repo_dir: &Path, branch: &String, commit: &Commit) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(repo_dir)?;
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
             Ok(_) => {
                 let ref_writer = RefWriter::new(&repo)?;
-                ref_writer.set_head_commit_id(&commit.id)?;
+                // If branch doesn't exist create it
+                if !ref_writer.has_branch(&branch) {
+                    ref_writer.create_branch(branch, &commit.id)?;
+                }
+                // Set the branch to point to the commit
+                ref_writer.set_branch_commit_id(branch, &commit.id)?;
             }
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);
@@ -394,7 +406,7 @@ mod tests {
         tar.finish()?;
         let payload: Vec<u8> = tar.into_inner()?.finish()?;
 
-        let commit_query = Commit::to_uri_encoded(&commit);
+        let commit_query = format!("{}&branch=main", Commit::to_uri_encoded(&commit));
         let uri = format!("/repositories/{}/commits?{}", name, commit_query);
         let app = actix_web::test::init_service(
             App::new()

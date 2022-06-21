@@ -189,6 +189,7 @@ pub fn get_remote_parent_stats(
 
 pub fn post_commit_to_server(
     repository: &LocalRepository,
+    branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // zip up the rocksdb in history dir, and post to server
@@ -206,11 +207,12 @@ pub fn post_commit_to_server(
     tar.finish()?;
 
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    post_tarball_to_server(repository, commit, &buffer)
+    post_tarball_to_server(repository, branch, commit, &buffer)
 }
 
 fn post_tarball_to_server(
     repository: &LocalRepository,
+    branch_name: &str,
     commit: &Commit,
     buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
@@ -220,7 +222,7 @@ fn post_tarball_to_server(
     let name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!("/repositories/{}/commits?{}", name, commit.to_uri_encoded());
+    let uri = format!("/repositories/{}/commits?{}&branch={}", name, commit.to_uri_encoded(), branch_name);
     let url = api::endpoint::url_from(&uri);
     log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client
@@ -279,6 +281,7 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
+            let branch = command::current_branch(&local_repo)?.unwrap();
             // Commit the directory
             let commit = command::commit(
                 local_repo,
@@ -287,7 +290,7 @@ mod tests {
             .unwrap();
 
             // Post commit
-            let result_commit = api::remote::commits::post_commit_to_server(local_repo, &commit)?;
+            let result_commit = api::remote::commits::post_commit_to_server(local_repo, &branch.name, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
 
             Ok(())
