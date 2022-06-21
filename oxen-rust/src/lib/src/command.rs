@@ -222,7 +222,10 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 }
 
 /// # Get the history for a specific branch
-pub fn log_branch_commit_history(repo: &LocalRepository, branch_name: &str) -> Result<Vec<Commit>, OxenError> {
+pub fn log_branch_commit_history(
+    repo: &LocalRepository,
+    branch_name: &str,
+) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
     if let Some(commit_id) = get_branch_commit_id(repo, branch_name)? {
         let commits = committer.history_from_commit_id(&commit_id)?;
