@@ -30,7 +30,10 @@ pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, Oxen
     })
 }
 
-pub fn get_commit_stats_from_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<CommitStats>, OxenError> {
+pub fn get_commit_stats_from_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Option<CommitStats>, OxenError> {
     match api::local::commits::get_by_id(repo, commit_id) {
         Ok(Some(commit)) => {
             let reader = CommitEntryReader::new(repo, &commit)?;
@@ -39,10 +42,8 @@ pub fn get_commit_stats_from_id(repo: &LocalRepository, commit_id: &str) -> Resu
                 num_entries: reader.num_entries()?,
                 num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
             }))
-        },
-        Ok(None) => {
-            Ok(None)
-        },
+        }
+        Ok(None) => Ok(None),
         Err(err) => {
             log::error!("unable to get commit by id: {}", commit_id);
             Err(err)
@@ -72,7 +73,10 @@ pub fn list(sync_dir: &Path) -> Result<Vec<LocalRepository>, OxenError> {
     Ok(repos)
 }
 
-pub fn create_empty(sync_dir: &Path, new_repo: &RepositoryNew) -> Result<LocalRepository, OxenError> {
+pub fn create_empty(
+    sync_dir: &Path,
+    new_repo: &RepositoryNew,
+) -> Result<LocalRepository, OxenError> {
     let repo_dir = sync_dir.join(Path::new(&new_repo.name));
     if repo_dir.exists() {
         let err = format!("Repository already exists {:?}", repo_dir);
@@ -114,12 +118,12 @@ pub fn delete(sync_dir: &Path, repository: LocalRepository) -> Result<LocalRepos
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::constants;
     use crate::command;
+    use crate::constants;
     use crate::error::OxenError;
-    use crate::model::{LocalRepository, RepositoryNew, Commit};
-    use chrono::Utc;
+    use crate::model::{Commit, LocalRepository, RepositoryNew};
     use crate::test;
+    use chrono::Utc;
     use std::path::Path;
 
     #[test]
@@ -135,7 +139,7 @@ mod tests {
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
                     date: Utc::now(),
-                }
+                },
             };
             let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
 

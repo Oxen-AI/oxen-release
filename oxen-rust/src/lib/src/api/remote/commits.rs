@@ -1,6 +1,6 @@
 use crate::api;
-use crate::constants::HISTORY_DIR;
 use crate::config::{AuthConfig, HTTPConfig};
+use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitStats, LocalRepository};
 use crate::util;
@@ -8,13 +8,19 @@ use crate::view::{CommitResponse, CommitStatsResponse, RemoteRepositoryHeadRespo
 use std::path::Path;
 
 use flate2::read::GzDecoder;
-use tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use tar::Archive;
 
-pub fn get_stats(repository: &LocalRepository, commit: &Commit) -> Result<Option<CommitStats>, OxenError> {
+pub fn get_stats(
+    repository: &LocalRepository,
+    commit: &Commit,
+) -> Result<Option<CommitStats>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/{}/stats", repository.name, commit.id);
+    let uri = format!(
+        "/repositories/{}/commits/{}/stats",
+        repository.name, commit.id
+    );
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();
@@ -41,7 +47,10 @@ pub fn get_stats(repository: &LocalRepository, commit: &Commit) -> Result<Option
     }
 }
 
-pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
+pub fn get_by_id(
+    repository: &LocalRepository,
+    commit_id: &str,
+) -> Result<Option<Commit>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}/commits/{}", repository.name, commit_id);
     let url = api::endpoint::url_from(&uri);
@@ -73,9 +82,15 @@ pub fn get_by_id(repository: &LocalRepository, commit_id: &str) -> Result<Option
     }
 }
 
-pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
+pub fn download_commit_db_by_id(
+    repository: &LocalRepository,
+    commit_id: &str,
+) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/{}/commit_db", repository.name, commit_id);
+    let uri = format!(
+        "/repositories/{}/commits/{}/commit_db",
+        repository.name, commit_id
+    );
     let url = api::endpoint::url_from(&uri);
 
     let client = reqwest::blocking::Client::new();
@@ -94,7 +109,9 @@ pub fn download_commit_db_by_id(repository: &LocalRepository, commit_id: &str) -
 
         Ok(())
     } else {
-        Err(OxenError::basic_str("download_commit_db_by_id() Request failed"))
+        Err(OxenError::basic_str(
+            "download_commit_db_by_id() Request failed",
+        ))
     }
 }
 
@@ -164,7 +181,9 @@ pub fn get_remote_parent_stats(
             ))),
         }
     } else {
-        Err(OxenError::basic_str("get_remote_parent_stats() Request failed"))
+        Err(OxenError::basic_str(
+            "get_remote_parent_stats() Request failed",
+        ))
     }
 }
 
@@ -173,7 +192,9 @@ pub fn post_commit_to_server(
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // zip up the rocksdb in history dir, and post to server
-    let commit_dir = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.clone());
+    let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
+        .join(HISTORY_DIR)
+        .join(commit.id.clone());
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 

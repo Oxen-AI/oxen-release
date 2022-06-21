@@ -14,11 +14,11 @@ use crate::app_data::OxenAppData;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use std::path::Path;
 use tar::Archive;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
@@ -47,22 +47,25 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
     let commit_id: Option<&str> = req.match_info().get("commit_id");
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::repositories::get_commit_stats_from_id(&repository, &commit_id) {
-                Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
-                    repository: RemoteRepository::from_local(&repository),
-                    head: Some(commit),
-                }),
-                Ok(None) => {
-                    log::debug!("Could not get find commit id: {}", commit_id);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            Ok(repository) => {
+                match api::local::repositories::get_commit_stats_from_id(&repository, &commit_id) {
+                    Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        repository: RemoteRepository::from_local(&repository),
+                        head: Some(commit),
+                    }),
+                    Ok(None) => {
+                        log::debug!("Could not get find commit id: {}", commit_id);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                    Err(err) => {
+                        log::error!("Could not get find commit id: {}", err);
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
+                    }
                 }
-                Err(err) => {
-                    log::error!("Could not get find commit id: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            },
+            }
             Err(err) => {
                 log::error!("Could not find repo: {}", err);
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -163,7 +166,7 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     Ok(ListCommitResponse::success(commits))
 }
 
-pub async fn download_commit_db(req: HttpRequest,) -> HttpResponse {
+pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: Option<&str> = req.match_info().get("repo_name");
@@ -171,15 +174,12 @@ pub async fn download_commit_db(req: HttpRequest,) -> HttpResponse {
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(repository) => match api::local::commits::get_by_id(&repository, commit_id) {
-                Ok(Some(commit)) => {
-                    match compress_commit(&repository, &commit) {
-                        Ok(buffer) => {
-                            HttpResponse::Ok().body(buffer)
-                        },
-                        Err(err) => {
-                            log::error!("Error compressing commit: [{}] Err: {}", name, err);
-                            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                        }
+                Ok(Some(commit)) => match compress_commit(&repository, &commit) {
+                    Ok(buffer) => HttpResponse::Ok().body(buffer),
+                    Err(err) => {
+                        log::error!("Error compressing commit: [{}] Err: {}", name, err);
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
                     }
                 },
                 Ok(None) => {
@@ -205,7 +205,9 @@ pub async fn download_commit_db(req: HttpRequest,) -> HttpResponse {
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
     // zip up the rocksdb in history dir, and post to server
-    let commit_dir = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.clone());
+    let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
+        .join(HISTORY_DIR)
+        .join(commit.id.clone());
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 

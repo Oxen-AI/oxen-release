@@ -7,13 +7,9 @@ use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
-    CommitReader, CommitWriter,
-    CommitEntryReader,
-    Indexer,
-    RefReader, RefWriter,
-    Stager
+    CommitEntryReader, CommitReader, CommitWriter, Indexer, RefReader, RefWriter, Stager,
 };
-use crate::model::{Branch, Commit, LocalRepository, RemoteRepository, StagedData, RemoteBranch};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -259,7 +255,7 @@ pub fn checkout(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
         set_working_commit_id(repo, value)?;
         set_head(repo, value)?;
     }
-    
+
     Ok(())
 }
 
@@ -281,12 +277,8 @@ fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
 
 fn branch_exists(repo: &LocalRepository, name: &str) -> bool {
     match RefReader::new(repo) {
-        Ok(ref_reader) => {
-            ref_reader.has_branch(name)
-        },
-        _ => {
-            false
-        }
+        Ok(ref_reader) => ref_reader.has_branch(name),
+        _ => false,
     }
 }
 
@@ -300,7 +292,7 @@ fn already_on_branch(repo: &LocalRepository, name: &str) -> bool {
                 }
             }
             return false;
-        },
+        }
         _ => {
             return false;
         }
@@ -317,7 +309,7 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
                 }
             }
             return false;
-        },
+        }
         _ => {
             return false;
         }
@@ -335,7 +327,6 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), 
     ref_writer.create_branch(name, &head_commit.id)?;
     ref_writer.set_head(name);
     Ok(())
-
 }
 
 /// # List branches
@@ -420,7 +411,11 @@ pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
 }
 
 /// Push to a specific remote
-pub fn push_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) -> Result<RemoteRepository, OxenError> {
+pub fn push_remote_branch(
+    repo: &LocalRepository,
+    remote: &str,
+    branch: &str,
+) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
@@ -443,7 +438,11 @@ pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 /// Pull a specific origin and branch
-pub fn pull_remote_branch(repo: &LocalRepository, remote: &str, branch: &str) -> Result<(), OxenError> {
+pub fn pull_remote_branch(
+    repo: &LocalRepository,
+    remote: &str,
+    branch: &str,
+) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),

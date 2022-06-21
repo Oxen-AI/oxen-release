@@ -1,7 +1,7 @@
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
 use std::env;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use crate::model::{StagedEntry, StagedEntryStatus};
@@ -141,18 +141,18 @@ impl StagedData {
     fn print_added_dirs(&self) {
         for staged_dir in self.added_dirs.iter() {
             // Make sure we can grab the filename
-            let added_file_str = format!("  added:  {}/", staged_dir.path.to_str().unwrap()).green();
+            let added_file_str =
+                format!("  added:  {}/", staged_dir.path.to_str().unwrap()).green();
             let num_files_str = match staged_dir.num_files_staged {
-                1 => {
-                    Some(format!("with added {} file\n", staged_dir.num_files_staged))
-                }
+                1 => Some(format!("with added {} file\n", staged_dir.num_files_staged)),
                 0 => {
                     // Skip since we don't have any added files in this dir
                     None
                 }
-                _ => {
-                    Some(format!("with added {} files\n", staged_dir.num_files_staged))
-                }
+                _ => Some(format!(
+                    "with added {} files\n",
+                    staged_dir.num_files_staged
+                )),
             };
             if let Some(num_files_str) = num_files_str {
                 print!("{} {}", added_file_str, num_files_str);
@@ -225,13 +225,15 @@ impl StagedData {
                             format!("  removed:  {}", short_path.to_str().unwrap()).green();
                         println!("{}", added_file_str);
                     }
-                },
+                }
                 StagedEntryStatus::Modified => {
-                    let added_file_str = format!("  modified:  {}", short_path.to_str().unwrap()).green();
+                    let added_file_str =
+                        format!("  modified:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", added_file_str);
-                },
+                }
                 StagedEntryStatus::Added => {
-                    let added_file_str = format!("  added:  {}", short_path.to_str().unwrap()).green();
+                    let added_file_str =
+                        format!("  added:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", added_file_str);
                 }
             }

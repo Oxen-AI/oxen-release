@@ -2,7 +2,7 @@ use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
 use crate::index::Indexer;
-use crate::model::{Remote, RemoteRepository, Commit, RemoteBranch};
+use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
 

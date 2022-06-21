@@ -1,4 +1,4 @@
-use crate::constants::{REFS_DIR, HEAD_FILE};
+use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::RefDBReader;

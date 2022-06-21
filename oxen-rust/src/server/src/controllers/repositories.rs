@@ -2,13 +2,11 @@ use crate::app_data::OxenAppData;
 
 use liboxen::api;
 use liboxen::constants;
+use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use liboxen::view::{
-    ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage,
-};
-use liboxen::util;
+use liboxen::view::{ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage};
 
 use liboxen::model::{LocalRepository, RemoteRepository, RepositoryNew};
 
@@ -140,13 +138,23 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                 Ok(Some(commit)) => {
                     match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
                         Ok(Some(entry)) => {
-                            let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR).join(&entry.id);
+                            let version_dir = util::fs::oxen_hidden_dir(&repo.path)
+                                .join(constants::VERSIONS_DIR)
+                                .join(&entry.id);
                             let version_path = version_dir.join(entry.filename());
-                            log::debug!("get_file looking for {:?} -> {:?}", filepath, version_path);
+                            log::debug!(
+                                "get_file looking for {:?} -> {:?}",
+                                filepath,
+                                version_path
+                            );
                             Ok(NamedFile::open(version_path)?)
-                        },
+                        }
                         Ok(None) => {
-                            log::debug!("get_file entry not found for commit id {} -> {:?}", commit_id, filepath);
+                            log::debug!(
+                                "get_file entry not found for commit id {} -> {:?}",
+                                commit_id,
+                                filepath
+                            );
                             // gives a 404
                             Ok(NamedFile::open("")?)
                         }
@@ -156,13 +164,12 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                             Ok(NamedFile::open("")?)
                         }
                     }
-
-                },
+                }
                 Ok(None) => {
                     log::debug!("get_file commit not found {}", commit_id);
                     // gives a 404
                     Ok(NamedFile::open("")?)
-                },
+                }
                 Err(err) => {
                     log::error!("get_file get commit err: {:?}", err);
                     // gives a 404
@@ -185,10 +192,10 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
+    use chrono::Utc;
     use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{RepositoryNew, Commit};
-    use chrono::Utc;
+    use liboxen::model::{Commit, RepositoryNew};
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRemoteRepositoryResponse, RepositoryResponse};
@@ -271,7 +278,7 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 date: Utc::now(),
-            }
+            },
         };
         let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, "/repositories");

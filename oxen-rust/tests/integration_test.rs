@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
-use liboxen::index::{CommitEntryReader};
+use liboxen::index::CommitEntryReader;
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -398,7 +398,6 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
 #[test]
 fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-
         // Modify and add the file deep in a sub dir
         let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
         let file_contents = "train/cat_1.jpg 0";
@@ -418,7 +417,6 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
         Ok(())
     })
 }
-
 
 #[test]
 fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
@@ -814,7 +812,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
 
         // Track the train dir
         let train_dir = repo.path.join("train");
-        
+
         command::add(&repo, &train_dir)?;
         // Commit the train dur
         command::commit(&repo, "Adding training data")?;
@@ -1150,7 +1148,8 @@ fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
         command::add(&repo, &new_filepath)?;
         command::commit(&repo, "Adding a new file")?.unwrap();
 
-        let version_dir = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(constants::VERSIONS_DIR));
+        let version_dir =
+            util::fs::oxen_hidden_dir(&repo.path).join(Path::new(constants::VERSIONS_DIR));
         log::debug!("version_dir hash_filename: {:?}", filepath);
 
         let id = util::hasher::hash_filename(Path::new(filename));
@@ -1203,7 +1202,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
         test::run_empty_dir_test(|new_repo_dir| {
             let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
             command::pull(&cloned_repo)?;
-            
+
             // Get cloned history
             let cloned_history = command::log(&cloned_repo)?;
 
@@ -1227,7 +1226,6 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
         })
     })
 }
-
 
 #[test]
 fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {

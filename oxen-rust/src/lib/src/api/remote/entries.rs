@@ -1,10 +1,10 @@
 use crate::api;
-use crate::constants;
 use crate::config::{AuthConfig, HTTPConfig};
+use crate::constants;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry};
-use crate::view::{PaginatedEntries, RemoteEntryResponse};
 use crate::util;
+use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs;
 
@@ -12,7 +12,9 @@ const DEFAULT_PAGE_SIZE: usize = 10;
 
 pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
-    let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
+    let version_dir = util::fs::oxen_hidden_dir(&repository.path)
+        .join(constants::VERSIONS_DIR)
+        .join(&entry.id);
     let fullpath = version_dir.join(entry.filename());
     log::debug!("Creating remote entry: {:?} -> {:?}", entry.path, fullpath);
 
@@ -124,7 +126,10 @@ pub fn download_entry(
     log::debug!("download_remote_entry entry {:?}", entry.path);
 
     let filename = entry.path.to_str().unwrap();
-    let url = format!("{}/commits/{}/entries/{}", remote.url, entry.commit_id, filename);
+    let url = format!(
+        "{}/commits/{}/entries/{}",
+        remote.url, entry.commit_id, filename
+    );
     log::debug!("download_entry {}", url);
 
     let client = reqwest::blocking::Client::new();
@@ -150,7 +155,9 @@ pub fn download_entry(
         response.copy_to(&mut dest)?;
 
         // Copy to versions dir
-        let version_dir = util::fs::oxen_hidden_dir(&repository.path).join(constants::VERSIONS_DIR).join(&entry.id);
+        let version_dir = util::fs::oxen_hidden_dir(&repository.path)
+            .join(constants::VERSIONS_DIR)
+            .join(&entry.id);
         let version_path = version_dir.join(entry.filename());
 
         if let Some(parent) = version_path.parent() {
@@ -163,7 +170,7 @@ pub fn download_entry(
         std::fs::copy(fpath, version_path)?;
     } else {
         let err = format!("Could not download entry status: {}", status);
-        return Err(OxenError::basic_str(&err))
+        return Err(OxenError::basic_str(&err));
     }
 
     Ok(true)

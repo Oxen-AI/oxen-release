@@ -1,4 +1,3 @@
-
 use crate::error::OxenError;
 use rocksdb::{IteratorMode, DB};
 use std::str;
@@ -15,7 +14,10 @@ impl RefDBReader {
         }
     }
 
-    pub fn get_commit_id_for_branch(db: &DB, branch_name: &str) -> Result<Option<String>, OxenError> {
+    pub fn get_commit_id_for_branch(
+        db: &DB,
+        branch_name: &str,
+    ) -> Result<Option<String>, OxenError> {
         let bytes = branch_name.as_bytes();
         match db.get(bytes) {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&*value)?))),
@@ -35,7 +37,7 @@ impl RefDBReader {
                 (Ok(key_str), Ok(value)) => {
                     let ref_name = String::from(key_str);
                     let id = String::from(value);
-                    values.push((ref_name.clone(), id.clone(),));
+                    values.push((ref_name.clone(), id.clone()));
                 }
                 _ => {
                     eprintln!("Could not read utf8 val...")

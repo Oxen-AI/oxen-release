@@ -10,9 +10,9 @@ pub mod test;
 extern crate dotenv;
 extern crate log;
 
+use actix_http::KeepAlive;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
-use actix_http::{KeepAlive};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
 use env_logger::Env;
@@ -21,8 +21,7 @@ use std::path::Path;
 const ADD_USER_USAGE: &str =
     "Usage: `oxen-server add-user -e <email> -n <name> -o auth_config.toml`";
 
-const START_SERVER_USAGE: &str =
-    "Usage: `oxen-server start -h 0.0.0.0 -p 3000`";
+const START_SERVER_USAGE: &str = "Usage: `oxen-server start -h 0.0.0.0 -p 3000`";
 
 const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
@@ -97,10 +96,7 @@ async fn main() -> std::io::Result<()> {
 
     match matches.subcommand() {
         Some(("start", sub_matches)) => {
-            match (
-                sub_matches.value_of("ip"),
-                sub_matches.value_of("port"),
-            ) {
+            match (sub_matches.value_of("ip"), sub_matches.value_of("port")) {
                 (Some(host), Some(port)) => {
                     let port: u16 = port.parse::<u16>().expect(INVALID_PORT_MSG);
                     println!("Running 🐂 server on {}:{}", host, port);

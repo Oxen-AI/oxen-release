@@ -1,10 +1,9 @@
-
 use crate::error::OxenError;
 use crate::model::CommitEntry;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::str;
 use std::path::Path;
+use std::str;
 
 pub struct CommitEntryDBReader {}
 
@@ -17,7 +16,10 @@ impl CommitEntryDBReader {
         }
     }
 
-    pub fn get_entry(db: &DBWithThreadMode<MultiThreaded>, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
+    pub fn get_entry(
+        db: &DBWithThreadMode<MultiThreaded>,
+        path: &Path,
+    ) -> Result<Option<CommitEntry>, OxenError> {
         let key = path.to_str().unwrap();
         let bytes = key.as_bytes();
         match db.get(bytes) {
