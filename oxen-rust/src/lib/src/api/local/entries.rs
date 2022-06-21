@@ -1,11 +1,15 @@
+use crate::error::OxenError;
 use crate::index::CommitEntryReader;
 use crate::model::{Commit, CommitEntry, LocalRepository};
-use crate::error::OxenError;
 
 use std::path::Path;
 
-pub fn get_entry_for_commit(repo: &LocalRepository, commit: &Commit, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, &commit)?;
+pub fn get_entry_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: &Path,
+) -> Result<Option<CommitEntry>, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
     reader.get_entry(path)
 }
 
@@ -15,7 +19,7 @@ pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEnt
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
     reader.num_entries()
 }
 
@@ -81,7 +85,6 @@ mod tests {
             // Commit the dir
             command::add(&repo, &dir_to_add)?;
             let commit = command::commit(&repo, "Adding training data")?.unwrap();
-
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
 
@@ -91,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_count_many_dirs() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+        test::run_training_data_repo_test_no_commits(|repo| {
             // (files already created in helper)
             let num_files = util::fs::rcount_files_in_dir(&repo.path);
 

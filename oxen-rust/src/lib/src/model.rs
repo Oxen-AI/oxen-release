@@ -15,7 +15,7 @@ pub use crate::model::repository::remote_repository::RemoteRepository;
 pub use crate::model::commit::{Commit, CommitStats};
 
 // Branch
-pub use crate::model::branch::Branch;
+pub use crate::model::branch::{Branch, BranchName};
 pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry
@@ -25,6 +25,6 @@ pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 
 pub use crate::model::user::{NewUser, User, UserResponse};
 
-pub use crate::model::staged_data::StagedData;
+pub use crate::model::staged_data::{StagedData, StagedDirStats};
 
 pub use crate::model::remote::Remote;

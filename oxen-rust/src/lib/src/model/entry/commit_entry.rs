@@ -1,7 +1,8 @@
 use crate::model::RemoteEntry;
-use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use filetime::FileTime;
+use serde::{Deserialize, Serialize};
+use std::path::{PathBuf, Path};
+use std::hash::{Hash, Hasher};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
@@ -14,7 +15,33 @@ pub struct CommitEntry {
     pub last_modified_nanoseconds: u32,
 }
 
+// Hash on the path field so we can quickly look up
+impl PartialEq for CommitEntry {
+    fn eq(&self, other: &CommitEntry) -> bool {
+        self.path == other.path
+    }
+}
+impl Eq for CommitEntry {}
+impl Hash for CommitEntry {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
+
 impl CommitEntry {
+    // For HashSet search purposes
+    pub fn from_path<T: AsRef<Path>>(path: T) -> CommitEntry {
+        CommitEntry {
+            id: String::from(""),
+            commit_id: String::from(""),
+            path: path.as_ref().to_path_buf(),
+            is_synced: false,
+            hash: String::from(""),
+            last_modified_seconds: 0,
+            last_modified_nanoseconds: 0,
+        }
+    }
+
     pub fn filename(&self) -> PathBuf {
         PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
     }
@@ -35,7 +62,7 @@ impl CommitEntry {
             is_synced: true,
             hash: self.hash.to_owned(),
             last_modified_seconds: self.last_modified_seconds,
-            last_modified_nanoseconds: self.last_modified_nanoseconds
+            last_modified_nanoseconds: self.last_modified_nanoseconds,
         }
     }
 
@@ -52,7 +79,7 @@ impl CommitEntry {
     }
 
     pub fn has_different_modification_time(&self, time: &FileTime) -> bool {
-        self.last_modified_nanoseconds != time.nanoseconds() ||
-        self.last_modified_seconds != time.unix_seconds()
+        self.last_modified_nanoseconds != time.nanoseconds()
+            || self.last_modified_seconds != time.unix_seconds()
     }
 }

@@ -1,6 +1,6 @@
+use crate::util::oxen_date_format;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::util::oxen_date_format;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Commit {
@@ -30,7 +30,7 @@ impl Commit {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommitStats {
     pub commit: Commit,
-    pub num_entries: usize,      // this is how many entries are in our commit db
+    pub num_entries: usize, // this is how many entries are in our commit db
     pub num_synced_files: usize, // this is how many files are actually synced (in case we killed)
 }
 

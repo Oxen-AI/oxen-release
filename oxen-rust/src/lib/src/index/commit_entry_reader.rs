@@ -1,25 +1,30 @@
-
-use crate::db;
 use crate::constants::HISTORY_DIR;
+use crate::db;
 use crate::error::OxenError;
-use crate::index::{CommitReader, CommitEntryDBReader};
+use crate::index::{CommitEntryDBReader, CommitReader};
 use crate::model::{Commit, CommitEntry};
 use crate::util;
 
+use std::collections::HashSet;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::path::{Path, PathBuf};
 use std::str;
 
 use crate::model::LocalRepository;
 
-
 pub struct CommitEntryReader {
     db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl CommitEntryReader {
-    pub fn new(repository: &LocalRepository, commit: &Commit) -> Result<CommitEntryReader, OxenError> {
-        let db_path = util::fs::oxen_hidden_dir(&repository.path).join(HISTORY_DIR).join(commit.id.to_owned());
+    pub fn new(
+        repository: &LocalRepository,
+        commit: &Commit,
+    ) -> Result<CommitEntryReader, OxenError> {
+        log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
+        let db_path = util::fs::oxen_hidden_dir(&repository.path)
+            .join(HISTORY_DIR)
+            .join(&commit.id);
         let opts = db::opts::default();
         Ok(CommitEntryReader {
             db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
@@ -30,6 +35,10 @@ impl CommitEntryReader {
     pub fn new_from_head(repository: &LocalRepository) -> Result<CommitEntryReader, OxenError> {
         let commit_reader = CommitReader::new(repository)?;
         let commit = commit_reader.head_commit()?;
+        log::debug!(
+            "CommitEntryReader::new_from_head() commit_id: {}",
+            commit.id
+        );
         CommitEntryReader::new(repository, &commit)
     }
 
@@ -37,10 +46,7 @@ impl CommitEntryReader {
         Ok(self.db.iterator(IteratorMode::Start).count())
     }
 
-    pub fn get_path_hash(
-        &self,
-        path: &Path,
-    ) -> Result<String, OxenError> {
+    pub fn get_path_hash(&self, path: &Path) -> Result<String, OxenError> {
         let key = path.to_str().unwrap();
         let bytes = key.as_bytes();
         match self.db.get(bytes) {
@@ -66,6 +72,7 @@ impl CommitEntryReader {
         Ok(paths)
     }
 
+    /// List entries in a vector when we need ordering
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
         let iter = self.db.iterator(IteratorMode::Start);
@@ -76,7 +83,18 @@ impl CommitEntryReader {
         Ok(paths)
     }
 
-    /// Short circuits checking if there are any unsynced entries, instead of returning all 
+    /// List entries in a set for quick lookup
+    pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
+        let mut paths: HashSet<CommitEntry> = HashSet::new();
+        let iter = self.db.iterator(IteratorMode::Start);
+        for (_key, value) in iter {
+            let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+            paths.insert(entry);
+        }
+        Ok(paths)
+    }
+
+    /// Short circuits checking if there are any unsynced entries, instead of returning all
     /// unsynced then checking if empty it deserializes the entries and stops early
     /// if it finds one that is unsynced
     pub fn has_unsynced_entries(&self) -> Result<bool, OxenError> {
@@ -91,7 +109,11 @@ impl CommitEntryReader {
     }
 
     pub fn list_unsynced_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
-        Ok(self.list_entries()?.into_iter().filter(|entry| !entry.is_synced).collect())
+        Ok(self
+            .list_entries()?
+            .into_iter()
+            .filter(|entry| !entry.is_synced)
+            .collect())
     }
 
     pub fn list_entry_page(
@@ -123,7 +145,9 @@ impl CommitEntryReader {
 
     pub fn has_prefix_in_dir(&self, prefix: &Path) -> bool {
         match self.list_entries() {
-            Ok(entries) => entries.into_iter().any(|entry| entry.path.starts_with(prefix)),
+            Ok(entries) => entries
+                .into_iter()
+                .any(|entry| entry.path.starts_with(prefix)),
             _ => false,
         }
     }
@@ -141,11 +165,7 @@ impl CommitEntryReader {
     }
 
     pub fn has_file(&self, path: &Path) -> bool {
-        match self.get_entry(path) {
-            Ok(Some(_val)) => true,
-            Ok(None) => false,
-            Err(_err) => false,
-        }
+        CommitEntryDBReader::has_file(&self.db, path)
     }
 
     pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
@@ -186,7 +206,7 @@ mod tests {
 
             let reader = CommitEntryReader::new(&repo, &commit)?;
             let path = Path::new(filename);
-            assert!(reader.contains_path(&path)?);
+            assert!(reader.contains_path(path)?);
 
             Ok(())
         })

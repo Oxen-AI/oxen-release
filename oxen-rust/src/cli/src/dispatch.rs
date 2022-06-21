@@ -41,6 +41,16 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn create_remote() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    let remote = command::create_remote(&repo)?;
+    println!("Remote url: {}", remote.url);
+
+    Ok(())
+}
+
 pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
@@ -59,11 +69,11 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn push() -> Result<(), OxenError> {
+pub fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::push(&repository)?;
+    command::push_remote_branch(&repository, remote, branch)?;
     Ok(())
 }
 
@@ -128,7 +138,7 @@ pub fn status() -> Result<(), OxenError> {
             "On branch {} -> {}\n",
             current_branch.name, current_branch.commit_id
         );
-    } else { 
+    } else {
         let head = command::head_commit(&repository)?;
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",

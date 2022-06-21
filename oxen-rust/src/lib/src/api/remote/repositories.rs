@@ -2,7 +2,7 @@ use crate::api;
 use crate::command;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
-use crate::model::{RemoteRepository, LocalRepository};
+use crate::model::{LocalRepository, RemoteRepository};
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
 use serde_json::json;
 
@@ -85,9 +85,9 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
             }
         }
     } else {
-        Err(OxenError::basic_str(
-            "create_or_get() Could not create repo",
-        ))
+        let server = api::endpoint::server();
+        let err = format!("Create repository could not connect to remote on. Make sure you have the correct server and that it is running: {}", server);
+        Err(OxenError::basic_str(err))
     }
 }
 
