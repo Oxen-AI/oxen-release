@@ -221,6 +221,18 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(commits)
 }
 
+/// # Get the history for a specific branch
+pub fn log_branch_commit_history(repo: &LocalRepository, branch_name: &str) -> Result<Vec<Commit>, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    if let Some(commit_id) = get_branch_commit_id(repo, branch_name)? {
+        let commits = committer.history_from_commit_id(&commit_id)?;
+        Ok(commits)
+    } else {
+        let err = format!("Branch does not exist: {}", branch_name);
+        Err(OxenError::basic_str(err))
+    }
+}
+
 /// # Create a new branch
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
@@ -273,6 +285,13 @@ fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
     let ref_writer = RefWriter::new(repo)?;
     ref_writer.set_head(value);
     Ok(())
+}
+
+fn get_branch_commit_id(repo: &LocalRepository, name: &str) -> Result<Option<String>, OxenError> {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => ref_reader.get_commit_id_for_branch(name),
+        _ => Err(OxenError::basic_str("Could not read reference for repo.")),
+    }
 }
 
 fn branch_exists(repo: &LocalRepository, name: &str) -> bool {
