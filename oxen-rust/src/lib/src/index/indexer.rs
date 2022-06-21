@@ -40,7 +40,7 @@ impl Indexer {
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.head_commit()?;
-        self.rpush_missing_commit_objects(&head_commit)?;
+        self.rpush_missing_commit_objects(&head_commit, rb)?;
 
         let remote_branch = api::remote::branches::create_or_get(&remote_repo, &rb.branch)?;
         match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
@@ -69,7 +69,7 @@ impl Indexer {
         }
     }
 
-    fn rpush_missing_commit_objects(&self, local_commit: &Commit) -> Result<(), OxenError> {
+    fn rpush_missing_commit_objects(&self, local_commit: &Commit, rb: &RemoteBranch) -> Result<(), OxenError> {
         // check if commit exists on remote
         // if not, push the commit and it's dbs
         match api::remote::commits::get_by_id(&self.repository, &local_commit.id) {
@@ -80,6 +80,8 @@ impl Indexer {
                     remote_commit.id,
                     remote_commit.message
                 );
+
+                api::remote::commits::post_commit_to_server(&self.repository, &rb.branch, local_commit)?;
             }
             Ok(None) => {
                 // We don't have remote commit
@@ -90,10 +92,10 @@ impl Indexer {
                         api::local::commits::get_by_id(&self.repository, &parent_id)?
                             .ok_or(OxenError::local_parent_link_broken(&local_commit.id))?;
 
-                    self.rpush_missing_commit_objects(&local_parent)?;
+                    self.rpush_missing_commit_objects(&local_parent, rb)?;
 
                     // Unroll and post commits
-                    api::remote::commits::post_commit_to_server(&self.repository, local_commit)?;
+                    api::remote::commits::post_commit_to_server(&self.repository, &rb.branch, local_commit)?;
                 } else {
                     log::debug!(
                         "rpush_missing_commit_objects stop, no more local parents {} -> '{}'",
@@ -288,7 +290,7 @@ impl Indexer {
                     commit.message
                 );
 
-                // TODO: Be able to pull a different branch than main
+                // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit)?;
 
                 println!("🐂 fetching commit objects {}", commit.id);
