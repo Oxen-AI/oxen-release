@@ -52,15 +52,12 @@ impl Merger {
                             .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
 
         // Check which type of merge we need to do
-        log::debug!("is_fast_forward_merge START {} -> {}", merge_commit.id, merge_commit.message);
         self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)
     }
 
     /// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
     fn p_is_fast_forward_merge(&self, commit_reader: &CommitReader, head_commit: &Commit, search_commit: &Commit) -> Result<bool, OxenError> {
-        log::debug!("p_is_fast_forward_merge TRAVERSE: {} -> {}", search_commit.id, search_commit.message);
         if search_commit.id == head_commit.id {
-            log::debug!("p_is_fast_forward_merge found matching parent: {}", search_commit.id);
             return Ok(true)
         } else {
             for parent_id in search_commit.parent_ids.iter() {
@@ -69,7 +66,6 @@ impl Merger {
                 }
             }
         }
-        log::debug!("p_is_fast_forward_merge fell through... {}", search_commit.id);
         Ok(false)
     }
 
