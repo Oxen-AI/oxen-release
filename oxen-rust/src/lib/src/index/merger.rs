@@ -53,7 +53,13 @@ impl Merger {
             }
         }
 
-        // TODO: Remove all entries that are in HEAD but not in merge entries
+        // Remove all entries that are in HEAD but not in merge entries
+        for head_entry in head_entries.iter() {
+            if !merge_entries.contains(&head_entry) {
+                let path = self.repository.path.join(&head_entry.path);
+                std::fs::remove_file(path)?;
+            }
+        }
 
         Ok(None)
     }
@@ -69,7 +75,7 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_one_commit_fast_forward() -> Result<(), OxenError> {
+    fn test_one_commit_add_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Write and commit hello file to main branch
             let og_branch = command::current_branch(&repo)?.unwrap();
@@ -98,6 +104,51 @@ mod tests {
 
             // Now that we've merged in, world file should exist
             assert!(world_file.exists());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_one_commit_remove_fast_forward() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Write and add hello file
+            let og_branch = command::current_branch(&repo)?.unwrap();
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello");
+            command::add(&repo, hello_file)?;
+
+            // Write and add world file
+            let world_file = repo.path.join("world.txt");
+            util::fs::write_to_path(&world_file, "World");
+            command::add(&repo, &world_file)?;
+
+            // Commit two files
+            command::commit(&repo, "Adding hello & world files")?;
+
+            // Branch to remove world
+            let branch_name = "remove-world";
+            command::create_checkout_branch(&repo, branch_name)?;
+
+            // Remove the file
+            let world_file = repo.path.join("world.txt");
+            std::fs::remove_file(&world_file)?;
+
+            // Commit the removal
+            command::add(&repo, &world_file)?;
+            command::commit(&repo, "Removing world file")?;
+
+            // Checkout and merge additions
+            command::checkout(&repo, og_branch.name)?;
+            
+            // Make sure world file exists until we merge the removal in
+            assert!(world_file.exists());
+
+            let merger = Merger::new(&repo);
+            merger.merge(branch_name)?;
+
+            // Now that we've merged in, world file should not exist
+            assert!(!world_file.exists());
 
             Ok(())
         })
