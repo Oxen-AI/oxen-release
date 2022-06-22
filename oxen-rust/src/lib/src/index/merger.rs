@@ -1,6 +1,6 @@
 use crate::error::OxenError;
 use crate::index::{RefReader, CommitReader, CommitEntryReader};
-use crate::model::{Commit, LocalRepository};
+use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::util;
 
 pub struct Merger {
@@ -39,6 +39,7 @@ impl Merger {
         }
     }
 
+    /// Check if HEAD is *not* in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
     fn needs_threeway_merge(&self, head_commit: &Commit, merge_commit: &Commit) -> bool {
         false
     }
@@ -53,9 +54,14 @@ impl Merger {
 
         // Can just copy over all new versions since it is fast forward
         for merge_entry in merge_entries.iter() {
-            let version_file = util::fs::version_path(&self.repository, &merge_entry);
-            let dst_path = self.repository.path.join(&merge_entry.path);
-            std::fs::copy(version_file, dst_path)?;
+            // Only copy over if hash is different or it doesn't exist for performace
+            if let Some(head_entry) = head_entries.get(merge_entry) {
+                if head_entry.hash != merge_entry.hash {
+                    self.update_entry(&merge_entry)?;
+                }
+            } else {
+                self.update_entry(&merge_entry)?;
+            }
         }
 
         // Remove all entries that are in HEAD but not in merge entries
@@ -72,6 +78,13 @@ impl Merger {
     fn three_way_merge(&self, head_commit: Commit, merge_commit: Commit) -> Result<Commit, OxenError> {
         Ok(merge_commit)
     }
+
+    fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
+        let version_file = util::fs::version_path(&self.repository, &merge_entry);
+        let dst_path = self.repository.path.join(&merge_entry.path);
+        std::fs::copy(version_file, dst_path)?;
+        Ok(())
+    }
 }
 
 
@@ -84,7 +97,7 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_one_commit_add_fast_forward() -> Result<(), OxenError> {
+    fn test_merge_one_commit_add_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Write and commit hello file to main branch
             let og_branch = command::current_branch(&repo)?.unwrap();
@@ -119,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn test_one_commit_remove_fast_forward() -> Result<(), OxenError> {
+    fn test_merge_one_commit_remove_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Write and add hello file
             let og_branch = command::current_branch(&repo)?.unwrap();
@@ -164,7 +177,7 @@ mod tests {
     }
 
     #[test]
-    fn test_one_commit_modified_fast_forward() -> Result<(), OxenError> {
+    fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Write and add hello file
             let og_branch = command::current_branch(&repo)?.unwrap();
