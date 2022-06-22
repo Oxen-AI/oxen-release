@@ -4,7 +4,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitStats, LocalRepository};
 use crate::util;
-use crate::view::{CommitResponse, CommitStatsResponse, RemoteRepositoryHeadResponse};
+use crate::view::{CommitResponse, CommitParentsResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
 
 use flate2::read::GzDecoder;
@@ -118,10 +118,10 @@ pub fn download_commit_db_by_id(
 pub fn get_remote_parent(
     repository: &LocalRepository,
     commit_id: &str,
-) -> Result<Option<Commit>, OxenError> {
+) -> Result<Vec<Commit>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!(
-        "/repositories/{}/commits/{}/parent",
+        "/repositories/{}/commits/{}/parents",
         repository.name, commit_id
     );
     let url = api::endpoint::url_from(&uri);
@@ -135,9 +135,9 @@ pub fn get_remote_parent(
         .send()
     {
         let body = res.text()?;
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<CommitParentsResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(Some(j_res.commit)),
+            Ok(j_res) => Ok(j_res.parents),
             Err(err) => Err(OxenError::basic_str(&format!(
                 "get_remote_parent() Could not serialize response [{}]\n{}",
                 err, body
@@ -148,45 +148,7 @@ pub fn get_remote_parent(
     }
 }
 
-pub fn get_remote_parent_stats(
-    repository: &LocalRepository,
-    commit_id: &str,
-) -> Result<Option<CommitStats>, OxenError> {
-    let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/parent/stats",
-        repository.name, commit_id
-    );
-    let url = api::endpoint::url_from(&uri);
-    let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
-        )
-        .send()
-    {
-        if res.status() == 404 {
-            return Ok(None);
-        }
-
-        let body = res.text()?;
-        let response: Result<CommitStatsResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res.stats)),
-            Err(err) => Err(OxenError::basic_str(&format!(
-                "get_remote_parent_stats() Could not serialize response [{}]\n{}",
-                err, body
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "get_remote_parent_stats() Request failed",
-        ))
-    }
-}
-
+// TODO: Split into two chained API calls, one to create the commit, and one to upload the tarball
 pub fn post_commit_to_server(
     repository: &LocalRepository,
     branch: &str,
@@ -241,6 +203,7 @@ fn post_tarball_to_server(
     {
         let status = res.status();
         let body = res.text()?;
+        log::debug!("post_tarball_to_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response),

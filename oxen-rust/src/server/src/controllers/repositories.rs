@@ -270,7 +270,7 @@ mod tests {
             name: String::from("Testing-Name"),
             root_commit: Commit {
                 id: String::from("1234"),
-                parent_id: None,
+                parent_ids: vec![],
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 date: Utc::now(),

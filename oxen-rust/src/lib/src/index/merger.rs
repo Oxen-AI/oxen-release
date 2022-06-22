@@ -28,9 +28,8 @@ impl Merger {
         let merge_commit = commit_reader.get_commit_by_id(&merge_commit_id)?
                             .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
 
-        // TODO: 
-        //       we will have to find the lowest common ancestor and try to merge from there
-        if self.needs_threeway_merge(&head_commit, &merge_commit) {
+        // Check which type of merge we need to do
+        if self.needs_threeway_merge(&commit_reader, &head_commit, &merge_commit)? {
             let commit = self.three_way_merge(head_commit, merge_commit)?;
             Ok(commit)
         } else {
@@ -40,8 +39,17 @@ impl Merger {
     }
 
     /// Check if HEAD is *not* in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
-    fn needs_threeway_merge(&self, head_commit: &Commit, merge_commit: &Commit) -> bool {
-        false
+    fn needs_threeway_merge(&self, commit_reader: &CommitReader, head_commit: &Commit, search_commit: &Commit) -> Result<bool, OxenError> {
+        if search_commit.id == head_commit.id {
+            return Ok(true)
+        } else {
+            for parent_id in search_commit.parent_ids.iter() {
+                if let Some(parent) = commit_reader.get_commit_by_id(parent_id)? {
+                    self.needs_threeway_merge(commit_reader, head_commit, &parent)?;
+                }
+            }
+        }
+        Ok(false)
     }
 
     /// It is a fast forward merge if we cannot traverse cleanly back from merge to HEAD

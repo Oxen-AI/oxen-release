@@ -12,11 +12,15 @@ pub fn get_head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     committer.head_commit()
 }
 
-pub fn get_parent(repo: &LocalRepository, commit: &Commit) -> Result<Option<Commit>, OxenError> {
+pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
-    if let Some(parent_id) = &commit.parent_id {
-        committer.get_commit_by_id(parent_id)
-    } else {
-        Ok(None)
+    let mut commits: Vec<Commit> = vec![];
+    for commit_id in commit.parent_ids.iter() {
+        if let Some(commit) = committer.get_commit_by_id(commit_id)? {
+            commits.push(commit)
+        } else {
+            return Err(OxenError::commit_db_corrupted(commit_id));
+        }
     }
+    Ok(commits)
 }

@@ -129,8 +129,8 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::commits::download_commit_db),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/parent",
-                                web::get().to(controllers::commits::parent),
+                                "/repositories/{repo_name}/commits/{commit_id}/parents",
+                                web::get().to(controllers::commits::parents),
                             )
                             .route(
                                 "/repositories/{repo_name}/commits/{commit_id}/entries",

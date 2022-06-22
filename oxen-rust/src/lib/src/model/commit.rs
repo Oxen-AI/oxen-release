@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Commit {
     pub id: String,
-    pub parent_id: Option<String>,
+    pub parent_ids: Vec<String>,
     pub message: String,
     pub author: String,
     #[serde(with = "oxen_date_format")]

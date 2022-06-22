@@ -10,6 +10,13 @@ pub struct CommitResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct CommitParentsResponse {
+    pub status: String,
+    pub status_message: String,
+    pub parents: Vec<Commit>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct CommitStatsResponse {
     pub status: String,
     pub status_message: String,

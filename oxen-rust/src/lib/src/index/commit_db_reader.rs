@@ -38,11 +38,13 @@ impl CommitDBReader {
     ) -> Result<Commit, OxenError> {
         let commit = CommitDBReader::get_commit_by_id(db, commit_id)?
             .ok_or_else(|| OxenError::commit_db_corrupted(commit_id))?;
-        if let Some(parent_id) = &commit.parent_id {
-            Ok(CommitDBReader::rget_root_commit(repo, db, parent_id)?)
-        } else {
-            Ok(commit)
+
+        for parent_id in commit.parent_ids.iter() {
+            // Recursive call to self
+            CommitDBReader::rget_root_commit(repo, db, parent_id)?;
         }
+
+        Ok(commit)
     }
 
     pub fn get_commit_by_id(
@@ -95,7 +97,7 @@ impl CommitDBReader {
     ) -> Result<(), OxenError> {
         if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
             commits.push(commit.clone());
-            if let Some(parent_id) = &commit.parent_id {
+            for parent_id in commit.parent_ids.iter() {
                 CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
             }
         }

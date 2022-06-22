@@ -15,7 +15,7 @@ pub use crate::model::repository::remote_repository::RemoteRepository;
 pub use crate::model::commit::{Commit, CommitStats};
 
 // Branch
-pub use crate::model::branch::{Branch, BranchName};
+pub use crate::model::branch::Branch;
 pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry

@@ -135,7 +135,7 @@ mod tests {
                 name: String::from(name),
                 root_commit: Commit {
                     id: initial_commit_id,
-                    parent_id: None,
+                    parent_ids: vec![],
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
                     date: Utc::now(),
