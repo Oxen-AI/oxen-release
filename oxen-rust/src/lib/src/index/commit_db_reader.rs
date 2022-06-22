@@ -28,23 +28,36 @@ impl CommitDBReader {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<Commit, OxenError> {
         let head_commit = CommitDBReader::head_commit(repo, db)?;
-        CommitDBReader::rget_root_commit(repo, db, &head_commit.id)
+
+        // Kind of hacky, tired, couldn't think well, but using a vector to return from this recursive fn works
+        let mut commits: Vec<Commit> = vec![];
+        CommitDBReader::rget_root_commit(repo, db, &head_commit.id, &mut commits)?;
+        if let Some(root) = commits.first() {
+            Ok(root.to_owned())
+        } else {
+            log::error!("could not find root....");
+            Err(OxenError::commit_db_corrupted(head_commit.id))
+        }
     }
 
     fn rget_root_commit(
         repo: &LocalRepository,
         db: &DBWithThreadMode<MultiThreaded>,
         commit_id: &str,
-    ) -> Result<Commit, OxenError> {
+        commits: &mut Vec<Commit>,
+    ) -> Result<(), OxenError> {
         let commit = CommitDBReader::get_commit_by_id(db, commit_id)?
             .ok_or_else(|| OxenError::commit_db_corrupted(commit_id))?;
 
-        for parent_id in commit.parent_ids.iter() {
-            // Recursive call to self
-            CommitDBReader::rget_root_commit(repo, db, parent_id)?;
+        if commit.parent_ids.is_empty() {
+            commits.push(commit.clone());
         }
 
-        Ok(commit)
+        for parent_id in commit.parent_ids.iter() {
+            // Recursive call to this module
+            CommitDBReader::rget_root_commit(repo, db, parent_id, commits)?;
+        }
+        Ok(())
     }
 
     pub fn get_commit_by_id(

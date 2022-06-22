@@ -148,47 +148,93 @@ pub fn get_remote_parent(
     }
 }
 
-// TODO: Split into two chained API calls, one to create the commit, and one to upload the tarball
 pub fn post_commit_to_server(
     repository: &LocalRepository,
     branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
+    // First create commit on server
+    create_commit_obj_on_server(repository, branch, commit)?;
+
+    // Then zip up and send the history db
+    println!("Compressing commit {}", commit.id);
+
     // zip up the rocksdb in history dir, and post to server
     let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
         .join(HISTORY_DIR)
         .join(commit.id.clone());
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
-
-    println!("Compressing commit {}", commit.id);
+    
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
     tar.append_dir_all(&tar_subdir, commit_dir)?;
     tar.finish()?;
 
+    println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    post_tarball_to_server(repository, branch, commit, &buffer)
+    post_tarball_to_server(repository, commit, &buffer)
+}
+
+fn create_commit_obj_on_server(
+    repository: &LocalRepository,
+    branch_name: &str,
+    commit: &Commit,
+) -> Result<CommitResponse, OxenError> {
+    let config = AuthConfig::default()?;
+    let repo_name = &repository.name;
+    let client = reqwest::blocking::Client::new();
+
+    let uri = format!(
+        "/repositories/{}/branches/{}/commits",
+        repo_name,
+        branch_name
+    );
+
+    let body = serde_json::to_string(&commit).unwrap();
+    let url = api::endpoint::url_from(&uri);
+    log::debug!("create_commit_obj_on_server {}", url);
+    if let Ok(res) = client
+        .post(url)
+        .body(reqwest::blocking::Body::from(body.to_owned()))
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let status = res.status();
+        let body = res.text()?;
+        log::debug!("create_commit_obj_on_server got response {}", body);
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(response) => Ok(response),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "create_commit_obj_on_server Err serializing status_code[{}] \n\n{}",
+                status, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "create_commit_obj_on_server error sending data from file",
+        ))
+    }
 }
 
 fn post_tarball_to_server(
     repository: &LocalRepository,
-    branch_name: &str,
     commit: &Commit,
     buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    println!("Syncing commit {}...", commit.id);
-
     let name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
     let uri = format!(
-        "/repositories/{}/commits?{}&branch={}",
+        "/repositories/{}/commits/{}",
         name,
-        commit.to_uri_encoded(),
-        branch_name
+        commit.id
     );
     let url = api::endpoint::url_from(&uri);
     log::debug!("post_tarball_to_server {}", url);
