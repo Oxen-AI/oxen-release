@@ -29,26 +29,47 @@ impl Merger {
                             .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
 
         // Check which type of merge we need to do
-        if self.needs_threeway_merge(&commit_reader, &head_commit, &merge_commit)? {
-            let commit = self.three_way_merge(head_commit, merge_commit)?;
+        if self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)? {
+            let commit = self.fast_forward_merge(head_commit, merge_commit)?;
             Ok(commit)
         } else {
-            let commit = self.fast_forward_merge(head_commit, merge_commit)?;
+            let commit = self.three_way_merge(head_commit, merge_commit)?;
             Ok(commit)
         }
     }
 
-    /// Check if HEAD is *not* in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
-    fn needs_threeway_merge(&self, commit_reader: &CommitReader, head_commit: &Commit, search_commit: &Commit) -> Result<bool, OxenError> {
+    pub fn is_fast_forward_merge<S: AsRef<str>>(&self, branch_name: S) -> Result<bool, OxenError> {
+        let branch_name = branch_name.as_ref();
+        let ref_reader = RefReader::new(&self.repository)?;
+        let head_commit_id = ref_reader.head_commit_id()?;
+        let merge_commit_id = ref_reader.get_commit_id_for_branch(branch_name)?
+                                .ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;
+
+        let commit_reader = CommitReader::new(&self.repository)?;
+        let head_commit = commit_reader.get_commit_by_id(&head_commit_id)?
+                            .ok_or_else(|| OxenError::commit_db_corrupted(&head_commit_id))?;
+        let merge_commit = commit_reader.get_commit_by_id(&merge_commit_id)?
+                            .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
+
+        // Check which type of merge we need to do
+        log::debug!("is_fast_forward_merge START {} -> {}", merge_commit.id, merge_commit.message);
+        self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)
+    }
+
+    /// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
+    fn p_is_fast_forward_merge(&self, commit_reader: &CommitReader, head_commit: &Commit, search_commit: &Commit) -> Result<bool, OxenError> {
+        log::debug!("p_is_fast_forward_merge TRAVERSE: {} -> {}", search_commit.id, search_commit.message);
         if search_commit.id == head_commit.id {
+            log::debug!("p_is_fast_forward_merge found matching parent: {}", search_commit.id);
             return Ok(true)
         } else {
             for parent_id in search_commit.parent_ids.iter() {
                 if let Some(parent) = commit_reader.get_commit_by_id(parent_id)? {
-                    self.needs_threeway_merge(commit_reader, head_commit, &parent)?;
+                    return self.p_is_fast_forward_merge(commit_reader, head_commit, &parent);
                 }
             }
         }
+        log::debug!("p_is_fast_forward_merge fell through... {}", search_commit.id);
         Ok(false)
     }
 
@@ -231,6 +252,62 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Need to have main branch get ahead of branch so that you can traverse to directory to it, but they
+            // have a common ancestor
+            // Ex) We want to merge E into D
+            // A - C - D
+            //    \
+            //     B - E
+
+            let a_branch = command::current_branch(&repo)?.unwrap();
+            let a_path = repo.path.join("a.txt");
+            util::fs::write_to_path(&a_path, "a");
+            command::add(&repo, a_path)?;
+            command::commit(&repo, "Committing a.txt file")?;
+
+            // Make changes on B
+            let b_branch_name = "B";
+            command::create_checkout_branch(&repo, b_branch_name)?;
+            let b_path = repo.path.join("b.txt");
+            util::fs::write_to_path(&b_path, "b");
+            command::add(&repo, b_path)?;
+            command::commit(&repo, "Committing b.txt file")?;
+
+            // Checkout A again to make another change
+            command::checkout(&repo, &a_branch.name)?;
+            let c_path = repo.path.join("c.txt");
+            util::fs::write_to_path(&c_path, "c");
+            command::add(&repo, c_path)?;
+            command::commit(&repo, "Committing c.txt file")?;
+
+            let d_path = repo.path.join("d.txt");
+            util::fs::write_to_path(&d_path, "d");
+            command::add(&repo, d_path)?;
+            command::commit(&repo, "Committing d.txt file")?;
+
+            // Checkout B to make another change
+            command::checkout(&repo, b_branch_name)?;
+            let e_path = repo.path.join("e.txt");
+            util::fs::write_to_path(&e_path, "e");
+            command::add(&repo, e_path)?;
+            command::commit(&repo, "Committing e.txt file")?;
+
+            // Checkout the OG branch again so that we can merge into it
+            command::checkout(&repo, &a_branch.name)?;
+
+            // Make sure the merger can detect the three way merge
+            let merger = Merger::new(&repo);
+            let is_fast_forward = merger.is_fast_forward_merge(b_branch_name)?;
+            assert!(!is_fast_forward);
+
+            Ok(())
+        })
+    }
+
 
     // TODO test for merge conflicts (if main branch gets ahead, need to write detection logic for this)
 }
