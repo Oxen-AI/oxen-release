@@ -51,7 +51,7 @@ impl CommitWriter {
     fn create_commit_obj(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
         let ref_reader = RefReader::new(&self.repository)?;
         // Commit
-        //  - parent_commit_id (can be empty if root)
+        //  - parent_ids (can be empty if root)
         //  - message
         //  - date
         //  - author
@@ -60,17 +60,17 @@ impl CommitWriter {
                 // We have a parent
                 Ok(Commit {
                     id: String::from(id_str),
-                    parent_id: Some(parent_id),
+                    parent_ids: vec![parent_id],
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
                     date: Utc::now(),
                 })
             }
             Err(_) => {
-                // We are creating initial commit, no parent
+                // We are creating initial commit, no parents
                 Ok(Commit {
                     id: String::from(id_str),
-                    parent_id: None,
+                    parent_ids: vec![],
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
                     date: Utc::now(),

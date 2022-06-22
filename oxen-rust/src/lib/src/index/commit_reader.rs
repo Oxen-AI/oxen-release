@@ -68,7 +68,7 @@ impl CommitReader {
     fn p_list_commits(&self, commit_id: &str, commits: &mut Vec<Commit>) -> Result<(), OxenError> {
         if let Some(commit) = self.get_commit_by_id(commit_id)? {
             commits.push(commit.clone());
-            if let Some(parent_id) = &commit.parent_id {
+            for parent_id in commit.parent_ids.iter() {
                 self.p_list_commits(parent_id, commits)?;
             }
         }
