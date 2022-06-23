@@ -1,6 +1,7 @@
 use crate::util::oxen_date_format;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Commit {
@@ -10,6 +11,19 @@ pub struct Commit {
     pub author: String,
     #[serde(with = "oxen_date_format")]
     pub date: DateTime<Utc>,
+}
+
+// Hash on the id field so we can quickly look up
+impl PartialEq for Commit {
+    fn eq(&self, other: &Commit) -> bool {
+        self.id == other.id
+    }
+}
+impl Eq for Commit {}
+impl Hash for Commit {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 impl Commit {

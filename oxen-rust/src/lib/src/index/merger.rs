@@ -14,7 +14,7 @@ impl Merger {
         }
     }
 
-    /// # Merge a branch name into the current checked out branch
+    /// Merge a branch name into the current checked out branch
     pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Commit, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
@@ -38,6 +38,7 @@ impl Merger {
         }
     }
 
+    /// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
     pub fn is_fast_forward_merge<S: AsRef<str>>(&self, branch_name: S) -> Result<bool, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
@@ -55,7 +56,6 @@ impl Merger {
         self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)
     }
 
-    /// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
     fn p_is_fast_forward_merge(&self, commit_reader: &CommitReader, head_commit: &Commit, search_commit: &Commit) -> Result<bool, OxenError> {
         if search_commit.id == head_commit.id {
             return Ok(true)
@@ -100,10 +100,50 @@ impl Merger {
         Ok(merge_commit)
     }
 
+    /// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
+    pub fn lowest_common_ancestor<S: AsRef<str>>(&self, branch_name: S) -> Result<Commit, OxenError> {
+        let branch_name = branch_name.as_ref();
+        let ref_reader = RefReader::new(&self.repository)?;
+        let head_commit_id = ref_reader.head_commit_id()?;
+        let merge_commit_id = ref_reader.get_commit_id_for_branch(branch_name)?
+                                .ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;
+
+        let commit_reader = CommitReader::new(&self.repository)?;
+        let head_commit = commit_reader.get_commit_by_id(&head_commit_id)?
+                            .ok_or_else(|| OxenError::commit_db_corrupted(&head_commit_id))?;
+        let merge_commit = commit_reader.get_commit_by_id(&merge_commit_id)?
+                            .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
+
+        self.p_lowest_common_ancestor(&commit_reader, &head_commit, &merge_commit)
+    }
+
+    fn p_lowest_common_ancestor(&self, commit_reader: &CommitReader, head_commit: &Commit, merge_commit: &Commit) -> Result<Commit, OxenError> {
+        // Traverse the HEAD commit back to start, keeping map of Commit -> Depth(int)
+        let commit_depths_from_head = commit_reader.history_with_depth_from_commit(head_commit)?;
+
+        // Traverse the merge commit back
+        //   check at each step if ID is in the HEAD commit history
+        //   The lowest Depth Commit in HEAD should be the LCA
+        let commit_depths_from_search = commit_reader.history_with_depth_from_commit(merge_commit)?;
+        let mut min_depth = usize::MAX;
+        let mut lca: Commit = commit_depths_from_head.keys().next().unwrap().clone();
+        for (commit, _) in commit_depths_from_search.iter() {
+            if let Some(depth) = commit_depths_from_head.get(commit) {
+                if depth < &min_depth {
+                    min_depth = *depth;
+                    lca = commit.clone();
+                }
+            }
+        }
+
+        Ok(lca)
+    }
+
     fn three_way_merge(&self, head_commit: Commit, merge_commit: Commit) -> Result<Commit, OxenError> {
         Ok(merge_commit)
     }
 
+    // TODO: might want to move this into a util to restore from version path (in case of compression or other transforms)
     fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
         let version_file = util::fs::version_path(&self.repository, &merge_entry);
         let dst_path = self.repository.path.join(&merge_entry.path);
@@ -118,8 +158,56 @@ mod tests {
     use crate::command;
     use crate::error::OxenError;
     use crate::index::Merger;
+    use crate::model::{Commit, LocalRepository};
     use crate::util;
     use crate::test;
+
+    fn populate_threeway_merge_repo(repo: &LocalRepository, merge_branch_name: &str) -> Result<Commit, OxenError> {
+        // Need to have main branch get ahead of branch so that you can traverse to directory to it, but they
+        // have a common ancestor
+        // Ex) We want to merge E into D
+        // A - C - D
+        //    \
+        //     B - E
+
+        let a_branch = command::current_branch(&repo)?.unwrap();
+        let a_path = repo.path.join("a.txt");
+        util::fs::write_to_path(&a_path, "a");
+        command::add(&repo, a_path)?;
+        // Return the lowest common ancestor for the tests
+        let lca = command::commit(&repo, "Committing a.txt file")?;
+
+        // Make changes on B
+        command::create_checkout_branch(&repo, merge_branch_name)?;
+        let b_path = repo.path.join("b.txt");
+        util::fs::write_to_path(&b_path, "b");
+        command::add(&repo, b_path)?;
+        command::commit(&repo, "Committing b.txt file")?;
+
+        // Checkout A again to make another change
+        command::checkout(&repo, &a_branch.name)?;
+        let c_path = repo.path.join("c.txt");
+        util::fs::write_to_path(&c_path, "c");
+        command::add(&repo, c_path)?;
+        command::commit(&repo, "Committing c.txt file")?;
+
+        let d_path = repo.path.join("d.txt");
+        util::fs::write_to_path(&d_path, "d");
+        command::add(&repo, d_path)?;
+        command::commit(&repo, "Committing d.txt file")?;
+
+        // Checkout merge branch (B) to make another change
+        command::checkout(&repo, merge_branch_name)?;
+        let e_path = repo.path.join("e.txt");
+        util::fs::write_to_path(&e_path, "e");
+        command::add(&repo, e_path)?;
+        command::commit(&repo, "Committing e.txt file")?;
+
+        // Checkout the OG branch again so that we can merge into it
+        command::checkout(&repo, &a_branch.name)?;
+
+        Ok(lca.unwrap())
+    }
 
     #[test]
     fn test_merge_one_commit_add_fast_forward() -> Result<(), OxenError> {
@@ -252,58 +340,47 @@ mod tests {
     #[test]
     fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
-            // Need to have main branch get ahead of branch so that you can traverse to directory to it, but they
-            // have a common ancestor
-            // Ex) We want to merge E into D
-            // A - C - D
-            //    \
-            //     B - E
-
-            let a_branch = command::current_branch(&repo)?.unwrap();
-            let a_path = repo.path.join("a.txt");
-            util::fs::write_to_path(&a_path, "a");
-            command::add(&repo, a_path)?;
-            command::commit(&repo, "Committing a.txt file")?;
-
-            // Make changes on B
-            let b_branch_name = "B";
-            command::create_checkout_branch(&repo, b_branch_name)?;
-            let b_path = repo.path.join("b.txt");
-            util::fs::write_to_path(&b_path, "b");
-            command::add(&repo, b_path)?;
-            command::commit(&repo, "Committing b.txt file")?;
-
-            // Checkout A again to make another change
-            command::checkout(&repo, &a_branch.name)?;
-            let c_path = repo.path.join("c.txt");
-            util::fs::write_to_path(&c_path, "c");
-            command::add(&repo, c_path)?;
-            command::commit(&repo, "Committing c.txt file")?;
-
-            let d_path = repo.path.join("d.txt");
-            util::fs::write_to_path(&d_path, "d");
-            command::add(&repo, d_path)?;
-            command::commit(&repo, "Committing d.txt file")?;
-
-            // Checkout B to make another change
-            command::checkout(&repo, b_branch_name)?;
-            let e_path = repo.path.join("e.txt");
-            util::fs::write_to_path(&e_path, "e");
-            command::add(&repo, e_path)?;
-            command::commit(&repo, "Committing e.txt file")?;
-
-            // Checkout the OG branch again so that we can merge into it
-            command::checkout(&repo, &a_branch.name)?;
+            let merge_branch_name = "B"; // see populate function
+            populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo);
-            let is_fast_forward = merger.is_fast_forward_merge(b_branch_name)?;
+            let is_fast_forward = merger.is_fast_forward_merge(merge_branch_name)?;
             assert!(!is_fast_forward);
 
             Ok(())
         })
     }
 
+    #[test]
+    fn test_merge_get_lowest_common_ancestor() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let merge_branch_name = "B"; // see populate function
+            let lca = populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
-    // TODO test for merge conflicts (if main branch gets ahead, need to write detection logic for this)
+            // Make sure the merger can detect the three way merge
+            let merger = Merger::new(&repo);
+            let guess = merger.lowest_common_ancestor(merge_branch_name)?;
+            assert_eq!(lca.id, guess.id);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_merge_no_conflict_three_way_merge() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let merge_branch_name = "B"; // see populate function
+            populate_threeway_merge_repo(&repo, merge_branch_name)?;
+
+            // Make sure the merger can detect the three way merge
+            let merger = Merger::new(&repo);
+            let is_fast_forward = merger.is_fast_forward_merge(merge_branch_name)?;
+            assert!(!is_fast_forward);
+
+            Ok(())
+        })
+    }
+
+    // TODO: What to do if there are conflicts in the three way merge?
 }
