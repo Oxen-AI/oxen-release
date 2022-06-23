@@ -46,7 +46,7 @@ impl CommitReader {
     /// List the commit history starting at a commit id
     pub fn history_from_commit_id(&self, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
         let mut commits: Vec<Commit> = vec![];
-        CommitDBReader::history_from_commit_id(&self.db, commit_id, &mut commits);
+        CommitDBReader::history_from_commit_id(&self.db, commit_id, &mut commits)?;
         Ok(commits)
     }
 

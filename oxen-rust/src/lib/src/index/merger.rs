@@ -1,6 +1,6 @@
 use crate::error::OxenError;
 use crate::index::{RefReader, CommitReader, CommitEntryReader};
-use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::model::{Commit, CommitEntry, MergeConflict, LocalRepository};
 use crate::util;
 
 pub struct Merger {
@@ -14,8 +14,9 @@ impl Merger {
         }
     }
 
-    /// Merge a branch name into the current checked out branch
-    pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Commit, OxenError> {
+    /// Merge a branch name into the current checked out branch, returns the HEAD commit if successful,
+    /// and None if there were conflicts. Conflicts get written to disk so we can return to them to fix.
+    pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Option<Commit>, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
         let head_commit_id = ref_reader.head_commit_id()?;
@@ -31,9 +32,10 @@ impl Merger {
         // Check which type of merge we need to do
         if self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)? {
             let commit = self.fast_forward_merge(head_commit, merge_commit)?;
-            Ok(commit)
+            Ok(Some(commit))
         } else {
-            let commit = self.three_way_merge(head_commit, merge_commit)?;
+            let mut conflicts: Vec<MergeConflict> = vec![];
+            let commit = self.three_way_merge(&commit_reader, head_commit, merge_commit, &mut conflicts)?;
             Ok(commit)
         }
     }
@@ -139,8 +141,82 @@ impl Merger {
         Ok(lca)
     }
 
-    fn three_way_merge(&self, head_commit: Commit, merge_commit: Commit) -> Result<Commit, OxenError> {
-        Ok(merge_commit)
+    /// Will return None if the merge was unsuccessful, as well as populate the conflict files
+    fn three_way_merge(
+        &self,
+        commit_reader: &CommitReader,
+        head_commit: Commit,
+        merge_commit: Commit,
+        conflicts: &mut Vec<MergeConflict>
+    ) -> Result<Option<Commit>, OxenError> {
+        /*
+        https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
+
+        C = LCA
+        A = HEAD
+        B = Merge
+        D = Resulting merge commit
+
+        C - A - D
+          \   /
+            B
+
+        The three-way merge looks for sections which are the same in only two of the three files.
+        In this case, there are two versions of the section,
+            and the version which is in the common ancestor "C" is discarded,
+            while the version that differs is preserved in the output.
+        If "A" and "B" agree, that is what appears in the output.
+        A section that is the same in "A" and "C" outputs the changed version in "B",
+        and likewise a section that is the same in "B" and "C" outputs the version in "A".
+
+        Sections that are different in all three files are marked as a conflict situation and left for the user to resolve.
+        */
+
+        let lca = self.p_lowest_common_ancestor(commit_reader, &head_commit, &merge_commit)?;
+
+        let lca_entry_reader = CommitEntryReader::new(&self.repository, &lca)?;
+        let head_entry_reader = CommitEntryReader::new(&self.repository, &head_commit)?;
+        let merge_entry_reader = CommitEntryReader::new(&self.repository, &merge_commit)?;
+
+        let lca_entries = lca_entry_reader.list_entries_set()?;
+        let head_entries = head_entry_reader.list_entries_set()?;
+        let merge_entries = merge_entry_reader.list_entries_set()?;
+
+        for merge_entry in merge_entries.iter() {
+            // Check if the entry exists in all 3 commits
+            if let Some(head_entry) = head_entries.get(merge_entry) {
+                if let Some(lca_entry) = lca_entries.get(merge_entry) {
+                    // If HEAD and LCA are the same but Merge is different, take merge
+                    if head_entry.hash == lca_entry.hash {
+                        self.update_entry(merge_entry)?;
+                    }
+
+                    // If Merge and LCA are the same, but HEAD is different, take HEAD
+                    // Since we are already on HEAD, this means do nothing
+
+                    // If all three are different, mark as conflict
+                    if head_entry.hash != lca_entry.hash &&
+                       lca_entry.hash != merge_entry.hash &&
+                       head_entry.hash != merge_entry.hash {
+                        conflicts.push(MergeConflict {
+                            lca_entry: lca_entry.to_owned(),
+                            head_entry: head_entry.to_owned(),
+                            merge_entry: merge_entry.to_owned()
+                        });
+                    }
+                } // merge entry doesn't exist in LCA, which is fine, we will catch it in HEAD
+            } else {
+                // merge entry does not exist in HEAD, so create it
+                self.update_entry(merge_entry)?;
+            }
+        }
+
+        if conflicts.is_empty() {
+            // Create new merge commit
+            
+        }
+
+        Ok(None)
     }
 
     // TODO: might want to move this into a util to restore from version path (in case of compression or other transforms)
@@ -370,13 +446,22 @@ mod tests {
     #[test]
     fn test_merge_no_conflict_three_way_merge() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
-            let merge_branch_name = "B"; // see populate function
+            let merge_branch_name = "B"; 
+            // this will checkout main again so we can try to merge
             populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo);
-            let is_fast_forward = merger.is_fast_forward_merge(merge_branch_name)?;
-            assert!(!is_fast_forward);
+            merger.merge(merge_branch_name)?;
+        
+            // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
+            let file_prefixes = vec!["a", "b", "c", "d", "e"];
+            for prefix in file_prefixes.iter() {
+                let filename = format!("{}.txt", prefix);
+                let filepath = repo.path.join(filename);
+                println!("test_merge_no_conflict_three_way_merge checking file exists {:?}", filepath);
+                assert!(filepath.exists());
+            }
 
             Ok(())
         })
