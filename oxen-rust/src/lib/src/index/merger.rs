@@ -1,7 +1,21 @@
+use crate::command;
 use crate::error::OxenError;
 use crate::index::{RefReader, CommitReader, CommitEntryReader};
 use crate::model::{Commit, CommitEntry, MergeConflict, LocalRepository};
 use crate::util;
+
+// This is a struct to find the commits we want to merge
+struct MergeCommits {
+    lca: Commit,
+    head: Commit,
+    merge: Commit
+}
+
+impl MergeCommits {
+    pub fn is_fast_forward_merge(&self) -> bool {
+        self.lca.id == self.head.id
+    }
+}
 
 pub struct Merger {
     repository: LocalRepository
@@ -17,58 +31,59 @@ impl Merger {
     /// Merge a branch name into the current checked out branch, returns the HEAD commit if successful,
     /// and None if there were conflicts. Conflicts get written to disk so we can return to them to fix.
     pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Option<Commit>, OxenError> {
-        let branch_name = branch_name.as_ref();
-        let ref_reader = RefReader::new(&self.repository)?;
-        let head_commit_id = ref_reader.head_commit_id()?;
-        let merge_commit_id = ref_reader.get_commit_id_for_branch(branch_name)?
-                                .ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;
+        // This returns HEAD, LCA, and the Merge commits we can work with
+        let merge_commits = self.find_merge_commits(&branch_name)?;
 
-        let commit_reader = CommitReader::new(&self.repository)?;
-        let head_commit = commit_reader.get_commit_by_id(&head_commit_id)?
-                            .ok_or_else(|| OxenError::commit_db_corrupted(&head_commit_id))?;
-        let merge_commit = commit_reader.get_commit_by_id(&merge_commit_id)?
-                            .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
+        log::debug!("FOUND MERGE COMMITS:\nLCA: {} -> {}\nHEAD: {} -> {}\nMerge: {} -> {}",
+            merge_commits.lca.id, merge_commits.lca.message,
+            merge_commits.head.id, merge_commits.head.message,
+            merge_commits.merge.id, merge_commits.merge.message,
+        );
 
         // Check which type of merge we need to do
-        if self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)? {
-            let commit = self.fast_forward_merge(head_commit, merge_commit)?;
+        if merge_commits.is_fast_forward_merge() {
+            let commit = self.fast_forward_merge(merge_commits.head, merge_commits.merge)?;
             Ok(Some(commit))
         } else {
-            let mut conflicts: Vec<MergeConflict> = vec![];
-            let commit = self.three_way_merge(&commit_reader, head_commit, merge_commit, &mut conflicts)?;
-            Ok(commit)
+            let conflicts = self.three_way_merge(&merge_commits)?;
+            if conflicts.is_empty() {
+                let commit = self.create_merge_commit(&branch_name, &merge_commits)?;
+                Ok(Some(commit))
+            } else {
+                // TODO: write conflicts to disk
+                Ok(None)
+            }
         }
     }
 
-    /// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
-    pub fn is_fast_forward_merge<S: AsRef<str>>(&self, branch_name: S) -> Result<bool, OxenError> {
+    fn create_merge_commit<S: AsRef<str>>(&self, branch_name: S, merge_commits: &MergeCommits) -> Result<Commit, OxenError> {
+        command::add(&self.repository, &self.repository.path)?;
+        let commit_msg = format!("Merge branch '{}'", branch_name.as_ref());
+        command::commit(&self.repository, &commit_msg)?;
+        Ok(merge_commits.head.to_owned())
+    } 
+
+    // This will try to find the least common ancestor, and if the least common ancestor is HEAD, then we just
+    // fast forward, otherwise we need to three way merge
+    fn find_merge_commits<S: AsRef<str>>(&self, branch_name: S) -> Result<MergeCommits, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
         let head_commit_id = ref_reader.head_commit_id()?;
-        let merge_commit_id = ref_reader.get_commit_id_for_branch(branch_name)?
-                                .ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;
-
+        let merge_commit_id = ref_reader.get_commit_id_for_branch(branch_name)?.ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;
+        
         let commit_reader = CommitReader::new(&self.repository)?;
-        let head_commit = commit_reader.get_commit_by_id(&head_commit_id)?
+        let head = commit_reader.get_commit_by_id(&head_commit_id)?
                             .ok_or_else(|| OxenError::commit_db_corrupted(&head_commit_id))?;
-        let merge_commit = commit_reader.get_commit_by_id(&merge_commit_id)?
+        let merge = commit_reader.get_commit_by_id(&merge_commit_id)?
                             .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
 
-        // Check which type of merge we need to do
-        self.p_is_fast_forward_merge(&commit_reader, &head_commit, &merge_commit)
-    }
+        let lca = self.p_lowest_common_ancestor(&commit_reader, &head, &merge)?;
 
-    fn p_is_fast_forward_merge(&self, commit_reader: &CommitReader, head_commit: &Commit, search_commit: &Commit) -> Result<bool, OxenError> {
-        if search_commit.id == head_commit.id {
-            return Ok(true)
-        } else {
-            for parent_id in search_commit.parent_ids.iter() {
-                if let Some(parent) = commit_reader.get_commit_by_id(parent_id)? {
-                    return self.p_is_fast_forward_merge(commit_reader, head_commit, &parent);
-                }
-            }
-        }
-        Ok(false)
+        Ok(MergeCommits {
+            lca: lca.to_owned(),
+            head: head.to_owned(),
+            merge: merge.to_owned(),
+        })
     }
 
     /// It is a fast forward merge if we cannot traverse cleanly back from merge to HEAD
@@ -126,10 +141,10 @@ impl Merger {
         // Traverse the merge commit back
         //   check at each step if ID is in the HEAD commit history
         //   The lowest Depth Commit in HEAD should be the LCA
-        let commit_depths_from_search = commit_reader.history_with_depth_from_commit(merge_commit)?;
+        let commit_depths_from_merge = commit_reader.history_with_depth_from_commit(merge_commit)?;
         let mut min_depth = usize::MAX;
         let mut lca: Commit = commit_depths_from_head.keys().next().unwrap().clone();
-        for (commit, _) in commit_depths_from_search.iter() {
+        for (commit, _) in commit_depths_from_merge.iter() {
             if let Some(depth) = commit_depths_from_head.get(commit) {
                 if depth < &min_depth {
                     min_depth = *depth;
@@ -141,14 +156,11 @@ impl Merger {
         Ok(lca)
     }
 
-    /// Will return None if the merge was unsuccessful, as well as populate the conflict files
+    /// Will return conflicts if there are any to indicate that the merge was unsuccessful
     fn three_way_merge(
         &self,
-        commit_reader: &CommitReader,
-        head_commit: Commit,
-        merge_commit: Commit,
-        conflicts: &mut Vec<MergeConflict>
-    ) -> Result<Option<Commit>, OxenError> {
+        merge_commits: &MergeCommits,
+    ) -> Result<Vec<MergeConflict>, OxenError> {
         /*
         https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
 
@@ -172,16 +184,19 @@ impl Merger {
         Sections that are different in all three files are marked as a conflict situation and left for the user to resolve.
         */
 
-        let lca = self.p_lowest_common_ancestor(commit_reader, &head_commit, &merge_commit)?;
+        // We will return conflicts if there are any
+        let mut conflicts: Vec<MergeConflict> = vec![];
 
-        let lca_entry_reader = CommitEntryReader::new(&self.repository, &lca)?;
-        let head_entry_reader = CommitEntryReader::new(&self.repository, &head_commit)?;
-        let merge_entry_reader = CommitEntryReader::new(&self.repository, &merge_commit)?;
+        // Read all the entries from each commit into sets we can compare to one another
+        let lca_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.lca)?;
+        let head_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.head)?;
+        let merge_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.merge)?;
 
         let lca_entries = lca_entry_reader.list_entries_set()?;
         let head_entries = head_entry_reader.list_entries_set()?;
         let merge_entries = merge_entry_reader.list_entries_set()?;
 
+        // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
             // Check if the entry exists in all 3 commits
             if let Some(head_entry) = head_entries.get(merge_entry) {
@@ -191,6 +206,7 @@ impl Merger {
                         self.update_entry(merge_entry)?;
                     }
 
+                    // TODO: IS THIS CORRECT? Feels like we need to do something...
                     // If Merge and LCA are the same, but HEAD is different, take HEAD
                     // Since we are already on HEAD, this means do nothing
 
@@ -211,12 +227,7 @@ impl Merger {
             }
         }
 
-        if conflicts.is_empty() {
-            // Create new merge commit
-            
-        }
-
-        Ok(None)
+        Ok(conflicts)
     }
 
     // TODO: might want to move this into a util to restore from version path (in case of compression or other transforms)
@@ -421,7 +432,8 @@ mod tests {
 
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo);
-            let is_fast_forward = merger.is_fast_forward_merge(merge_branch_name)?;
+            let merge_commits = merger.find_merge_commits(merge_branch_name)?;
+            let is_fast_forward = merge_commits.is_fast_forward_merge();
             assert!(!is_fast_forward);
 
             Ok(())
@@ -450,6 +462,9 @@ mod tests {
             // this will checkout main again so we can try to merge
             populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
+            // Get commit history so that we can compare after the merge and make sure a merge commit was added
+            let og_commit_history = command::log(&repo)?;
+
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo);
             merger.merge(merge_branch_name)?;
@@ -462,6 +477,14 @@ mod tests {
                 println!("test_merge_no_conflict_three_way_merge checking file exists {:?}", filepath);
                 assert!(filepath.exists());
             }
+
+            // Make sure we added the merge commit
+            let post_merge_history = command::log(&repo)?;
+            assert_eq!(og_commit_history.len()+1, post_merge_history.len());
+
+            // Make sure the repo is clean
+            let status = command::status(&repo)?;
+            assert!(status.is_clean());
 
             Ok(())
         })
