@@ -2,6 +2,7 @@ use crate::error::OxenError;
 use crate::index::RefReader;
 use crate::model::{Commit, LocalRepository};
 
+use std::collections::HashMap;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::str;
 
@@ -95,8 +96,17 @@ impl CommitDBReader {
         commit: &Commit,
     ) -> Result<Vec<Commit>, OxenError> {
         let mut commit_msgs: Vec<Commit> = vec![];
-        // Start with head, and the get parents until there are no parents
         CommitDBReader::history_from_commit_id(db, &commit.id, &mut commit_msgs)?;
+        Ok(commit_msgs)
+    }
+
+    pub fn history_with_depth_from_commit(
+        db: &DBWithThreadMode<MultiThreaded>,
+        commit: &Commit,
+    ) -> Result<HashMap<Commit, usize>, OxenError> {
+        let mut commit_msgs: HashMap<Commit, usize> = HashMap::new();
+        let initial_depth: usize = 0;
+        CommitDBReader::history_with_depth_from_commit_id(db, &commit.id, &mut commit_msgs, initial_depth)?;
         Ok(commit_msgs)
     }
 
@@ -109,6 +119,21 @@ impl CommitDBReader {
             commits.push(commit.clone());
             for parent_id in commit.parent_ids.iter() {
                 CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn history_with_depth_from_commit_id(
+        db: &DBWithThreadMode<MultiThreaded>,
+        commit_id: &str,
+        commits: &mut HashMap<Commit, usize>,
+        depth: usize,
+    ) -> Result<(), OxenError> {
+        if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
+            commits.insert(commit.clone(), depth);
+            for parent_id in commit.parent_ids.iter() {
+                CommitDBReader::history_with_depth_from_commit_id(db, parent_id, commits, depth+1)?;
             }
         }
         Ok(())

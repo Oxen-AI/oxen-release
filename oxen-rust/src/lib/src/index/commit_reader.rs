@@ -5,6 +5,7 @@ use crate::index::CommitDBReader;
 use crate::model::Commit;
 use crate::util;
 
+use std::collections::HashMap;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::str;
 
@@ -37,6 +38,7 @@ impl CommitReader {
         CommitDBReader::head_commit(&self.repository, &self.db)
     }
 
+    /// Get the root commit of the db
     pub fn root_commit(&self) -> Result<Commit, OxenError> {
         CommitDBReader::root_commit(&self.repository, &self.db)
     }
@@ -44,8 +46,7 @@ impl CommitReader {
     /// List the commit history starting at a commit id
     pub fn history_from_commit_id(&self, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
         let mut commits: Vec<Commit> = vec![];
-
-        self.p_list_commits(commit_id, &mut commits)?;
+        CommitDBReader::history_from_commit_id(&self.db, commit_id, &mut commits);
         Ok(commits)
     }
 
@@ -53,6 +54,17 @@ impl CommitReader {
     pub fn history_from_head(&self) -> Result<Vec<Commit>, OxenError> {
         let head_commit = self.head_commit()?;
         CommitDBReader::history_from_commit(&self.db, &head_commit)
+    }
+
+    /// List the commit history from a commit keeping track of depth along the way
+    pub fn history_with_depth_from_commit(&self, commit: &Commit) -> Result<HashMap<Commit, usize>, OxenError> {
+        CommitDBReader::history_with_depth_from_commit(&self.db, &commit)
+    }
+
+    /// List the commit history from a commit keeping track of depth along the way
+    pub fn history_with_depth_from_head(&self) -> Result<HashMap<Commit, usize>, OxenError> {
+        let head = self.head_commit()?;
+        CommitDBReader::history_with_depth_from_commit(&self.db, &head)
     }
 
     /// See if a commit id exists
@@ -63,16 +75,6 @@ impl CommitReader {
     /// Get a commit object from an ID
     pub fn get_commit_by_id<S: AsRef<str>>(&self, commit_id: S) -> Result<Option<Commit>, OxenError> {
         CommitDBReader::get_commit_by_id(&self.db, commit_id.as_ref())
-    }
-
-    fn p_list_commits(&self, commit_id: &str, commits: &mut Vec<Commit>) -> Result<(), OxenError> {
-        if let Some(commit) = self.get_commit_by_id(commit_id)? {
-            commits.push(commit.clone());
-            for parent_id in commit.parent_ids.iter() {
-                self.p_list_commits(parent_id, commits)?;
-            }
-        }
-        Ok(())
     }
 }
 
