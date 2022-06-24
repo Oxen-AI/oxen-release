@@ -1,8 +1,14 @@
+use crate::constants::MERGE_DIR;
 use crate::command;
+use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::model::{Commit, CommitEntry, MergeConflict, LocalRepository};
 use crate::util;
+
+use std::path::Path;
+use rocksdb::{IteratorMode, DB};
+use std::str;
 
 // This is a struct to find the commits we want to merge
 struct MergeCommits {
@@ -18,14 +24,18 @@ impl MergeCommits {
 }
 
 pub struct Merger {
-    repository: LocalRepository
+    repository: LocalRepository,
+    merge_db: DB,
 }
 
 impl Merger {
-    pub fn new(repo: &LocalRepository) -> Merger {
-        Merger {
-            repository: repo.to_owned()
-        }
+    pub fn new(repo: &LocalRepository) -> Result<Merger, OxenError> {
+        let db_path = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR));
+        let opts = db::opts::default();
+        Ok(Merger {
+            repository: repo.to_owned(),
+            merge_db: DB::open(&opts, &db_path)?,
+        })
     }
 
     /// Merge a branch name into the current checked out branch, returns the HEAD commit if successful,
@@ -50,13 +60,36 @@ impl Merger {
                 let commit = self.create_merge_commit(&branch_name, &merge_commits)?;
                 Ok(Some(commit))
             } else {
-                // TODO: write conflicts to disk
-
-                
-
+                self.write_conflicts_to_disk(&conflicts)?;
                 Ok(None)
             }
         }
+    }
+
+    fn write_conflicts_to_disk(&self, conflicts: &Vec<MergeConflict>) -> Result<(), OxenError> {
+        for conflict in conflicts.iter() {
+            let key = conflict.head_entry.path.to_str().unwrap();
+            let key_bytes = key.as_bytes();
+            let val_json = serde_json::to_string(&conflict)?;
+
+            self.merge_db.put(key_bytes, val_json.as_bytes())?;
+        }
+
+        Ok(())
+    }
+
+    pub fn has_conflicts(&self) -> Result<bool, OxenError> {
+        Ok(self.merge_db.iterator(IteratorMode::Start).count() > 0)
+    }
+
+    pub fn list_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
+        let mut conflicts: Vec<MergeConflict> = vec![];
+        let iter = self.merge_db.iterator(IteratorMode::Start);
+        for (_key, value) in iter {
+            let entry: MergeConflict = serde_json::from_str(str::from_utf8(&*value)?)?;
+            conflicts.push(entry);
+        }
+        Ok(conflicts)
     }
 
     fn create_merge_commit<S: AsRef<str>>(&self, branch_name: S, merge_commits: &MergeCommits) -> Result<Commit, OxenError> {
@@ -337,7 +370,7 @@ mod tests {
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
 
-            let merger = Merger::new(&repo);
+            let merger = Merger::new(&repo)?;
             merger.merge(branch_name)?;
 
             // Now that we've merged in, world file should exist
@@ -382,7 +415,7 @@ mod tests {
             // Make sure world file exists until we merge the removal in
             assert!(world_file.exists());
 
-            let merger = Merger::new(&repo);
+            let merger = Merger::new(&repo)?;
             merger.merge(branch_name)?;
 
             // Now that we've merged in, world file should not exist
@@ -429,7 +462,7 @@ mod tests {
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, og_contents);
 
-            let merger = Merger::new(&repo);
+            let merger = Merger::new(&repo)?;
             merger.merge(branch_name)?;
 
             // Now that we've merged in, world file should be new content
@@ -447,7 +480,7 @@ mod tests {
             populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
             // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo);
+            let merger = Merger::new(&repo)?;
             let merge_commits = merger.find_merge_commits(merge_branch_name)?;
             let is_fast_forward = merge_commits.is_fast_forward_merge();
             assert!(!is_fast_forward);
@@ -463,7 +496,7 @@ mod tests {
             let lca = populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
             // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo);
+            let merger = Merger::new(&repo)?;
             let guess = merger.lowest_common_ancestor(merge_branch_name)?;
             assert_eq!(lca.id, guess.id);
 
@@ -479,7 +512,7 @@ mod tests {
             populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
             // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo);
+            let merger = Merger::new(&repo)?;
             let commit = merger.merge(merge_branch_name)?.unwrap();
 
             // Two way merge should have two parent IDs so we know where the merge came from
@@ -508,5 +541,86 @@ mod tests {
         })
     }
 
-    // TODO: Write test for conflicts in the 3 way merge
+    #[test]
+    fn test_merge_conflict_three_way_merge() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // This test has a conflict where user on the main line, and user on the branch, both modify a.txt
+
+            // Ex) We want to merge E into D to create F
+            // A - C - D - F
+            //    \      /
+            //     B - E
+
+            let a_branch = command::current_branch(&repo)?.unwrap();
+            let a_path = repo.path.join("a.txt");
+            util::fs::write_to_path(&a_path, "a");
+            command::add(&repo, &a_path)?;
+            // Return the lowest common ancestor for the tests
+            command::commit(&repo, "Committing a.txt file")?;
+
+            // Make changes on B
+            let merge_branch_name = "B";
+            command::create_checkout_branch(&repo, merge_branch_name)?;
+
+            // Add a text new text file
+            let b_path = repo.path.join("b.txt");
+            util::fs::write_to_path(&b_path, "b");
+            command::add(&repo, &b_path)?;
+
+            // Modify the text file a.txt
+            test::modify_txt_file(&a_path, "a modified from branch")?;
+            command::add(&repo, &a_path)?;
+
+            // Commit changes
+            command::commit(&repo, "Committing b.txt file")?;
+
+            // Checkout main branch again to make another change
+            command::checkout(&repo, &a_branch.name)?;
+
+            // Add new file c.txt on main branch
+            let c_path = repo.path.join("c.txt");
+            util::fs::write_to_path(&c_path, "c");
+            command::add(&repo, &c_path)?;
+
+            // Modify a.txt from main branch
+            test::modify_txt_file(&a_path, "a modified from main line")?;
+            command::add(&repo, &a_path)?;
+
+            // Commit changes to main branch
+            command::commit(&repo, "Committing c.txt file")?;
+
+            // Commit some more changes to main branch
+            let d_path = repo.path.join("d.txt");
+            util::fs::write_to_path(&d_path, "d");
+            command::add(&repo, &d_path)?;
+            command::commit(&repo, "Committing d.txt file")?;
+
+            // Checkout merge branch (B) to make another change
+            command::checkout(&repo, merge_branch_name)?;
+
+            // Add another branch
+            let e_path = repo.path.join("e.txt");
+            util::fs::write_to_path(&e_path, "e");
+            command::add(&repo, &e_path)?;
+            command::commit(&repo, "Committing e.txt file")?;
+
+            // Checkout the OG branch again so that we can merge into it
+            command::checkout(&repo, &a_branch.name)?;
+            
+            // Make sure the merger can detect the three way merge
+            let merger = Merger::new(&repo)?;
+            merger.merge(merge_branch_name)?;
+
+            let has_conflicts = merger.has_conflicts()?;
+            let conflicts = merger.list_conflicts()?;
+
+            assert!(has_conflicts);
+            assert_eq!(conflicts.len(), 1);
+
+            let local_a_path = util::fs::path_relative_to_dir(&a_path, &repo.path)?;
+            assert_eq!(conflicts[0].head_entry.path, local_a_path);
+
+            Ok(())
+        })
+    }
 }
