@@ -2,7 +2,7 @@ use crate::error::OxenError;
 use crate::index::RefReader;
 use crate::model::{Commit, LocalRepository};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::str;
 
@@ -94,8 +94,8 @@ impl CommitDBReader {
     pub fn history_from_commit(
         db: &DBWithThreadMode<MultiThreaded>,
         commit: &Commit,
-    ) -> Result<Vec<Commit>, OxenError> {
-        let mut commit_msgs: Vec<Commit> = vec![];
+    ) -> Result<HashSet<Commit>, OxenError> {
+        let mut commit_msgs: HashSet<Commit> = HashSet::new();
         CommitDBReader::history_from_commit_id(db, &commit.id, &mut commit_msgs)?;
         Ok(commit_msgs)
     }
@@ -113,10 +113,10 @@ impl CommitDBReader {
     pub fn history_from_commit_id(
         db: &DBWithThreadMode<MultiThreaded>,
         commit_id: &str,
-        commits: &mut Vec<Commit>,
+        commits: &mut HashSet<Commit>,
     ) -> Result<(), OxenError> {
         if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
-            commits.push(commit.clone());
+            commits.insert(commit.to_owned());
             for parent_id in commit.parent_ids.iter() {
                 CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
             }

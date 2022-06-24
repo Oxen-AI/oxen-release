@@ -1,5 +1,5 @@
 use crate::util::oxen_date_format;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 
@@ -10,7 +10,8 @@ pub struct Commit {
     pub message: String,
     pub author: String,
     #[serde(with = "oxen_date_format")]
-    pub date: DateTime<Utc>,
+    pub date: DateTime<Local>,
+    pub timestamp: i64,
 }
 
 // Hash on the id field so we can quickly look up
@@ -29,15 +30,6 @@ impl Hash for Commit {
 impl Commit {
     pub fn to_uri_encoded(&self) -> String {
         serde_url_params::to_string(&self).unwrap()
-    }
-
-    pub fn date_to_str(&self) -> String {
-        self.date.format("%Y-%m-%d %H:%M:%S").to_string()
-    }
-
-    pub fn date_from_str(date: &str) -> DateTime<Utc> {
-        let no_timezone = NaiveDateTime::parse_from_str(date, "%Y-%m-%d %H:%M:%S").unwrap();
-        DateTime::<Utc>::from_utc(no_timezone, Utc)
     }
 }
 

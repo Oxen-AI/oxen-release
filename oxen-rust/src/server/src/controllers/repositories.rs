@@ -188,7 +188,7 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
-    use chrono::Utc;
+    use chrono::Local;
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepositoryNew};
@@ -266,6 +266,7 @@ mod tests {
     #[actix_web::test]
     async fn test_respository_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
+        let timestamp = Local::now();
         let repo_new = RepositoryNew {
             name: String::from("Testing-Name"),
             root_commit: Commit {
@@ -273,7 +274,8 @@ mod tests {
                 parent_ids: vec![],
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
-                date: Utc::now(),
+                date: timestamp,
+                timestamp: timestamp.timestamp_nanos()
             },
         };
         let data = serde_json::to_string(&repo_new)?;
