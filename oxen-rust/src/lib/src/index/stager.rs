@@ -1,9 +1,10 @@
 use crate::constants;
 use crate::db;
 use crate::error::OxenError;
-use crate::index::CommitEntryReader;
+use crate::index::{CommitEntryReader, MergeConflictReader};
 use crate::model::{
-    CommitEntry, LocalRepository, StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
+    CommitEntry, LocalRepository, MergeConflict,
+    StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
 };
 use crate::util;
 
@@ -111,6 +112,8 @@ impl Stager {
         let modified_files = self.list_modified_files(entry_reader)?;
         log::debug!("STATUS: list_removed_files");
         let removed_files = self.list_removed_files(entry_reader)?;
+        log::debug!("STATUS: list_merge_conflicts");
+        let merge_conflicts = self.list_merge_conflicts()?;
         log::debug!("STATUS: ok");
         let status = StagedData {
             added_dirs,
@@ -119,8 +122,14 @@ impl Stager {
             untracked_files,
             modified_files,
             removed_files,
+            merge_conflicts,
         };
         Ok(status)
+    }
+
+    fn list_merge_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
+        let merger = MergeConflictReader::new(&self.repository)?;
+        merger.list_conflicts()
     }
 
     fn list_untracked_files_in_dir(

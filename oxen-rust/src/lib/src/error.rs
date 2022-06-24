@@ -44,6 +44,11 @@ impl OxenError {
         OxenError::basic_str(&err)
     }
 
+    pub fn local_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
+        let err = format!("Local branch `{}` not found", name.as_ref());
+        OxenError::basic_str(&err)
+    }
+
     pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {
         let err = format!(
             "Commit db currupted, could not find commit: {}",
