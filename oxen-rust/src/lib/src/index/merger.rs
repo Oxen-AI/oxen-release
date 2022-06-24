@@ -7,7 +7,7 @@ use crate::model::{Commit, CommitEntry, MergeConflict, LocalRepository};
 use crate::util;
 
 use std::path::Path;
-use rocksdb::{IteratorMode, DB};
+use rocksdb::DB;
 use std::str;
 
 // This is a struct to find the commits we want to merge
@@ -31,6 +31,7 @@ pub struct Merger {
 impl Merger {
     pub fn new(repo: &LocalRepository) -> Result<Merger, OxenError> {
         let db_path = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR));
+        log::debug!("Merger::new() DB {:?}", db_path);
         let opts = db::opts::default();
         Ok(Merger {
             repository: repo.to_owned(),
@@ -76,20 +77,6 @@ impl Merger {
         }
 
         Ok(())
-    }
-
-    pub fn has_conflicts(&self) -> Result<bool, OxenError> {
-        Ok(self.merge_db.iterator(IteratorMode::Start).count() > 0)
-    }
-
-    pub fn list_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
-        let mut conflicts: Vec<MergeConflict> = vec![];
-        let iter = self.merge_db.iterator(IteratorMode::Start);
-        for (_key, value) in iter {
-            let entry: MergeConflict = serde_json::from_str(str::from_utf8(&*value)?)?;
-            conflicts.push(entry);
-        }
-        Ok(conflicts)
     }
 
     fn create_merge_commit<S: AsRef<str>>(&self, branch_name: S, merge_commits: &MergeCommits) -> Result<Commit, OxenError> {
@@ -293,7 +280,7 @@ impl Merger {
 mod tests {
     use crate::command;
     use crate::error::OxenError;
-    use crate::index::Merger;
+    use crate::index::{CommitReader, Merger, MergeConflictReader};
     use crate::model::{Commit, LocalRepository};
     use crate::util;
     use crate::test;
@@ -513,10 +500,10 @@ mod tests {
 
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo)?;
-            let commit = merger.merge(merge_branch_name)?.unwrap();
+            let merge_commit = merger.merge(merge_branch_name)?.unwrap();
 
             // Two way merge should have two parent IDs so we know where the merge came from
-            assert_eq!(commit.parent_ids.len(), 2);
+            assert_eq!(merge_commit.parent_ids.len(), 2);
 
             // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
             let file_prefixes = vec!["a", "b", "c", "d", "e"];
@@ -528,14 +515,11 @@ mod tests {
             }
 
             // Make sure we added the merge commit
-            let post_merge_history = command::log(&repo)?;
+            let commit_reader = CommitReader::new(&repo)?;
+            let post_merge_history = commit_reader.history_from_head()?;
 
             // We should have the merge commit + the branch commits here
             assert_eq!(7, post_merge_history.len());
-
-            // Make sure the repo is clean
-            let status = command::status(&repo)?;
-            assert!(status.is_clean());
 
             Ok(())
         })
@@ -608,11 +592,14 @@ mod tests {
             command::checkout(&repo, &a_branch.name)?;
             
             // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo)?;
-            merger.merge(merge_branch_name)?;
+            {
+                let merger = Merger::new(&repo)?;
+                merger.merge(merge_branch_name)?;
+            }
 
-            let has_conflicts = merger.has_conflicts()?;
-            let conflicts = merger.list_conflicts()?;
+            let conflict_reader = MergeConflictReader::new(&repo)?;
+            let has_conflicts = conflict_reader.has_conflicts()?;
+            let conflicts = conflict_reader.list_conflicts()?;
 
             assert!(has_conflicts);
             assert_eq!(conflicts.len(), 1);

@@ -4,7 +4,7 @@ use std::env;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::model::{StagedEntry, StagedEntryStatus};
+use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus};
 use crate::util;
 
 // Used for a quick summary of directory
@@ -45,6 +45,7 @@ pub struct StagedData {
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
     pub removed_files: Vec<PathBuf>,
+    pub merge_conflicts: Vec<MergeConflict>,
 }
 
 impl StagedData {
@@ -56,6 +57,7 @@ impl StagedData {
             untracked_files: vec![],
             modified_files: vec![],
             removed_files: vec![],
+            merge_conflicts: vec![],
         }
     }
 
@@ -66,6 +68,7 @@ impl StagedData {
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
             && self.removed_files.is_empty()
+            && self.merge_conflicts.is_empty()
     }
 
     pub fn has_added_entries(&self) -> bool {
