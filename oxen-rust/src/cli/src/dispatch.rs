@@ -3,6 +3,7 @@ use liboxen::command;
 use liboxen::config::RemoteConfig;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::util;
 
 use colored::Colorize;
 use std::env;
@@ -120,7 +121,7 @@ pub fn log_commits() -> Result<(), OxenError> {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{}\n", commit_id_str);
         println!("Author: {}", commit.author);
-        println!("Date:   {}\n", commit.date);
+        println!("Date:   {}\n", commit.date.format(util::oxen_date_format::FORMAT));
         println!("    {}\n", commit.message);
     }
 

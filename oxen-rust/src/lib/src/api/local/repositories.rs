@@ -123,7 +123,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository, RepositoryNew};
     use crate::test;
-    use chrono::Utc;
+    use chrono::Local;
     use std::path::Path;
 
     #[test]
@@ -131,6 +131,7 @@ mod tests {
         test::run_empty_dir_test(|sync_dir| {
             let name: &str = "testing";
             let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
+            let timestamp = Local::now();
             let repo_new = RepositoryNew {
                 name: String::from(name),
                 root_commit: Commit {
@@ -138,7 +139,8 @@ mod tests {
                     parent_ids: vec![],
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
-                    date: Utc::now(),
+                    date: timestamp,
+                    timestamp: timestamp.timestamp_nanos()
                 },
             };
             let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;

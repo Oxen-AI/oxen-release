@@ -363,7 +363,7 @@ mod tests {
 
     use actix_web::body::to_bytes;
     use actix_web::{web, App};
-    use chrono::Utc;
+    use chrono::Local;
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::path::Path;
@@ -541,12 +541,14 @@ mod tests {
             og_branch.name,
         );
 
+        let timestamp = Local::now();
         let commit = Commit {
             id: String::from("1234"),
             parent_ids: vec![og_commits.first().unwrap().id.to_owned()],
             message: String::from("merge commit with multiple parents"),
             author: String::from("Ox"),
-            date: Utc::now()
+            date: timestamp,
+            timestamp: timestamp.timestamp_nanos(),
         };
         let commit_data = serde_json::to_string(&commit).unwrap();
 

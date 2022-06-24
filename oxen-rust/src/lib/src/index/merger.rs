@@ -1,6 +1,6 @@
 use crate::command;
 use crate::error::OxenError;
-use crate::index::{RefReader, CommitReader, CommitEntryReader};
+use crate::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::model::{Commit, CommitEntry, MergeConflict, LocalRepository};
 use crate::util;
 
@@ -51,16 +51,32 @@ impl Merger {
                 Ok(Some(commit))
             } else {
                 // TODO: write conflicts to disk
+
+                
+
                 Ok(None)
             }
         }
     }
 
     fn create_merge_commit<S: AsRef<str>>(&self, branch_name: S, merge_commits: &MergeCommits) -> Result<Commit, OxenError> {
-        command::add(&self.repository, &self.repository.path)?;
+        let repo = &self.repository;
+        command::add(repo, &repo.path)?;
         let commit_msg = format!("Merge branch '{}'", branch_name.as_ref());
-        command::commit(&self.repository, &commit_msg)?;
-        Ok(merge_commits.head.to_owned())
+        
+        // Create a commit with both parents
+        let reader = CommitEntryReader::new_from_head(repo)?;
+        let stager = Stager::new(repo)?;
+        let status = stager.status(&reader)?;
+        let commit_writer = CommitWriter::new(repo)?;
+        let parent_ids: Vec<String> = vec![
+            merge_commits.head.id.to_owned(),
+            merge_commits.merge.id.to_owned()
+        ];
+        let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
+        stager.unstage()?;
+
+        Ok(commit)
     } 
 
     // This will try to find the least common ancestor, and if the least common ancestor is HEAD, then we just
@@ -252,9 +268,9 @@ mod tests {
     fn populate_threeway_merge_repo(repo: &LocalRepository, merge_branch_name: &str) -> Result<Commit, OxenError> {
         // Need to have main branch get ahead of branch so that you can traverse to directory to it, but they
         // have a common ancestor
-        // Ex) We want to merge E into D
-        // A - C - D
-        //    \
+        // Ex) We want to merge E into D to create F
+        // A - C - D - F
+        //    \      /
         //     B - E
 
         let a_branch = command::current_branch(&repo)?.unwrap();
@@ -462,13 +478,13 @@ mod tests {
             // this will checkout main again so we can try to merge
             populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
-            // Get commit history so that we can compare after the merge and make sure a merge commit was added
-            let og_commit_history = command::log(&repo)?;
-
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo);
-            merger.merge(merge_branch_name)?;
-        
+            let commit = merger.merge(merge_branch_name)?.unwrap();
+
+            // Two way merge should have two parent IDs so we know where the merge came from
+            assert_eq!(commit.parent_ids.len(), 2);
+
             // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
             let file_prefixes = vec!["a", "b", "c", "d", "e"];
             for prefix in file_prefixes.iter() {
@@ -480,7 +496,9 @@ mod tests {
 
             // Make sure we added the merge commit
             let post_merge_history = command::log(&repo)?;
-            assert_eq!(og_commit_history.len()+1, post_merge_history.len());
+
+            // We should have the merge commit + the branch commits here
+            assert_eq!(7, post_merge_history.len());
 
             // Make sure the repo is clean
             let status = command::status(&repo)?;
@@ -490,5 +508,5 @@ mod tests {
         })
     }
 
-    // TODO: What to do if there are conflicts in the three way merge?
+    // TODO: Write test for conflicts in the 3 way merge
 }

@@ -6,7 +6,7 @@ use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefRead
 use crate::model::{Commit, StagedData};
 use crate::util;
 
-use chrono::Utc;
+use chrono::Local;
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
@@ -49,6 +49,7 @@ impl CommitWriter {
     }
 
     fn create_commit_obj(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
+        let timestamp = Local::now();
         let ref_reader = RefReader::new(&self.repository)?;
         // Commit
         //  - parent_ids (can be empty if root)
@@ -63,7 +64,8 @@ impl CommitWriter {
                     parent_ids: vec![parent_id],
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
-                    date: Utc::now(),
+                    date: timestamp,
+                    timestamp: timestamp.timestamp_nanos()
                 })
             }
             Err(_) => {
@@ -73,7 +75,8 @@ impl CommitWriter {
                     parent_ids: vec![],
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
-                    date: Utc::now(),
+                    date: Local::now(),
+                    timestamp: timestamp.timestamp_nanos()
                 })
             }
         }
@@ -89,18 +92,48 @@ impl CommitWriter {
     //     test/image_2.png -> b"{entry_json}"
     pub fn commit(&self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
         // Generate uniq id for this commit
-        let commit_id = format!("{}", uuid::Uuid::new_v4());
+        // TODO: should this be a hash of all the entries hashes to create a merkle tree?
+        //       merkle trees are inherently resistent to tampering, and are verifyable
+        //       if it's not to slow it seems like a win without too heavy of a lift
+        /*
+        Also, this: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
+            When you take a pull from remote or push your changes, 
+            git will check if the hash of the root are the same or not.
+            If it’s different, it will check for the left and right child nodes and will repeat
+            it until it finds exactly which leaf nodes changed and then only transfer that delta over the network.
+
+        This would make sense why hashes are computed at the "add" stage, before the commit stage
+        */
+        let commit_id = self.gen_commit_id();
 
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let commit = self.create_commit_obj(&commit_id, message)?;
-        log::debug!("COMMIT_START {} message [{}]", commit.id, commit.message,);
+        log::debug!("COMMIT_START {} -> [{}]", commit.id, commit.message,);
 
         // Write entries
         self.add_commit_from_status(&commit, status)?;
 
-        // println!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
+        log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
+        Ok(commit)
+    }
+
+    fn gen_commit_id(&self) -> String {
+        format!("{}", uuid::Uuid::new_v4())
+    }
+
+    pub fn commit_with_parent_ids(&self, status: &StagedData, parent_ids: Vec<String>, message: &str) -> Result<Commit, OxenError> {
+        let timestamp = Local::now();
+        let commit = Commit {
+            id: self.gen_commit_id(),
+            parent_ids: parent_ids,
+            message: String::from(message),
+            author: self.auth_cfg.user.name.clone(),
+            date: timestamp,
+            timestamp: timestamp.timestamp_nanos()
+        };
+        self.add_commit_from_status(&commit, status)?;
         Ok(commit)
     }
 
@@ -384,10 +417,8 @@ mod tests {
             let commit_history =
                 CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
 
-            // always start with an initial commit
+            // should be two commits now
             assert_eq!(commit_history.len(), 2);
-            assert_eq!(commit_history[0].id, commit.id);
-            assert_eq!(commit_history[0].message, message);
 
             // Check that the files are no longer staged
             let files = stager.list_added_files()?;
