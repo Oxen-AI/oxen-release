@@ -457,13 +457,16 @@ pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
     Ok(full_path)
 }
 
-pub fn write_txt_file_to_path(path: PathBuf, contents: &str) -> Result<PathBuf, OxenError> {
+pub fn write_txt_file_to_path<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
     let mut file = File::create(&path)?;
     file.write_all(contents.as_bytes())?;
-    Ok(path)
+    Ok(path.to_path_buf())
 }
 
-pub fn modify_txt_file(path: PathBuf, contents: &str) -> Result<PathBuf, OxenError> {
+pub fn modify_txt_file<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+
     // Overwrite
     if path.exists() {
         std::fs::remove_file(&path)?;
