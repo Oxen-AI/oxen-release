@@ -349,7 +349,7 @@ impl Indexer {
         {
             // Recursively sync the parents
             for parent in parents.iter() {
-                self.check_parent_and_pull_commit_objects(&parent)?;
+                self.check_parent_and_pull_commit_objects(parent)?;
             }
         }
 

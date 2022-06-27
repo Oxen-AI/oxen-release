@@ -1308,7 +1308,7 @@ fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
 
         // Add a "none" category on a branch
         let branch_name = "change-labels";
-        command::create_checkout_branch(&repo, &branch_name)?;
+        command::create_checkout_branch(&repo, branch_name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
         command::add(&repo, &labels_path)?;
@@ -1325,7 +1325,7 @@ fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
         let commit = command::merge(&repo, branch_name)?;
 
         // Make sure we didn't get a commit out of it
-        assert!(!commit.is_some());
+        assert!(commit.is_none());
 
         // Make sure we can access the conflicts in the status command
         let status = command::status(&repo)?;
@@ -1346,7 +1346,7 @@ fn test_can_add_merge_conflict() -> Result<(), OxenError> {
 
         // Add a "none" category on a branch
         let branch_name = "change-labels";
-        command::create_checkout_branch(&repo, &branch_name)?;
+        command::create_checkout_branch(&repo, branch_name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
         command::add(&repo, &labels_path)?;
@@ -1393,7 +1393,7 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
 
         // Add a "none" category on a branch
         let branch_name = "change-labels";
-        command::create_checkout_branch(&repo, &branch_name)?;
+        command::create_checkout_branch(&repo, branch_name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
         command::add(&repo, &labels_path)?;

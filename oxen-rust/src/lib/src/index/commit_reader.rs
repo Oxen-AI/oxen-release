@@ -62,7 +62,7 @@ impl CommitReader {
 
     /// List the commit history from a commit keeping track of depth along the way
     pub fn history_with_depth_from_commit(&self, commit: &Commit) -> Result<HashMap<Commit, usize>, OxenError> {
-        CommitDBReader::history_with_depth_from_commit(&self.db, &commit)
+        CommitDBReader::history_with_depth_from_commit(&self.db, commit)
     }
 
     /// List the commit history from a commit keeping track of depth along the way

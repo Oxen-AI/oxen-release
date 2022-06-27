@@ -81,7 +81,7 @@ impl Merger {
     fn write_conflicts_to_disk(
         &self,
         merge_commits: &MergeCommits,
-        conflicts: &Vec<MergeConflict>
+        conflicts: &[MergeConflict]
     ) -> Result<(), OxenError> {
         // Write two files which are the merge commit and head commit so that we can make these parents later
         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
@@ -138,9 +138,9 @@ impl Merger {
         let lca = self.p_lowest_common_ancestor(&commit_reader, &head, &merge)?;
 
         Ok(MergeCommits {
-            lca: lca.to_owned(),
-            head: head.to_owned(),
-            merge: merge.to_owned(),
+            lca,
+            head,
+            merge,
         })
     }
 
@@ -157,16 +157,16 @@ impl Merger {
             // Only copy over if hash is different or it doesn't exist for performace
             if let Some(head_entry) = head_entries.get(merge_entry) {
                 if head_entry.hash != merge_entry.hash {
-                    self.update_entry(&merge_entry)?;
+                    self.update_entry(merge_entry)?;
                 }
             } else {
-                self.update_entry(&merge_entry)?;
+                self.update_entry(merge_entry)?;
             }
         }
 
         // Remove all entries that are in HEAD but not in merge entries
         for head_entry in head_entries.iter() {
-            if !merge_entries.contains(&head_entry) {
+            if !merge_entries.contains(head_entry) {
                 let path = self.repository.path.join(&head_entry.path);
                 std::fs::remove_file(path)?;
             }
@@ -290,7 +290,7 @@ impl Merger {
 
     // TODO: might want to move this into a util to restore from version path (in case of compression or other transforms)
     fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
-        let version_file = util::fs::version_path(&self.repository, &merge_entry);
+        let version_file = util::fs::version_path(&self.repository, merge_entry);
         let dst_path = self.repository.path.join(&merge_entry.path);
         std::fs::copy(version_file, dst_path)?;
         Ok(())
@@ -315,41 +315,41 @@ mod tests {
         //    \      /
         //     B - E
 
-        let a_branch = command::current_branch(&repo)?.unwrap();
+        let a_branch = command::current_branch(repo)?.unwrap();
         let a_path = repo.path.join("a.txt");
         util::fs::write_to_path(&a_path, "a");
-        command::add(&repo, a_path)?;
+        command::add(repo, a_path)?;
         // Return the lowest common ancestor for the tests
-        let lca = command::commit(&repo, "Committing a.txt file")?;
+        let lca = command::commit(repo, "Committing a.txt file")?;
 
         // Make changes on B
-        command::create_checkout_branch(&repo, merge_branch_name)?;
+        command::create_checkout_branch(repo, merge_branch_name)?;
         let b_path = repo.path.join("b.txt");
         util::fs::write_to_path(&b_path, "b");
-        command::add(&repo, b_path)?;
-        command::commit(&repo, "Committing b.txt file")?;
+        command::add(repo, b_path)?;
+        command::commit(repo, "Committing b.txt file")?;
 
         // Checkout A again to make another change
-        command::checkout(&repo, &a_branch.name)?;
+        command::checkout(repo, &a_branch.name)?;
         let c_path = repo.path.join("c.txt");
         util::fs::write_to_path(&c_path, "c");
-        command::add(&repo, c_path)?;
-        command::commit(&repo, "Committing c.txt file")?;
+        command::add(repo, c_path)?;
+        command::commit(repo, "Committing c.txt file")?;
 
         let d_path = repo.path.join("d.txt");
         util::fs::write_to_path(&d_path, "d");
-        command::add(&repo, d_path)?;
-        command::commit(&repo, "Committing d.txt file")?;
+        command::add(repo, d_path)?;
+        command::commit(repo, "Committing d.txt file")?;
 
         // Checkout merge branch (B) to make another change
-        command::checkout(&repo, merge_branch_name)?;
+        command::checkout(repo, merge_branch_name)?;
         let e_path = repo.path.join("e.txt");
         util::fs::write_to_path(&e_path, "e");
-        command::add(&repo, e_path)?;
-        command::commit(&repo, "Committing e.txt file")?;
+        command::add(repo, e_path)?;
+        command::commit(repo, "Committing e.txt file")?;
 
         // Checkout the OG branch again so that we can merge into it
-        command::checkout(&repo, &a_branch.name)?;
+        command::checkout(repo, &a_branch.name)?;
 
         Ok(lca.unwrap())
     }

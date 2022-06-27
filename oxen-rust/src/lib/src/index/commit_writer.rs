@@ -163,7 +163,7 @@ impl CommitWriter {
         let timestamp = Local::now();
         let commit = Commit {
             id: self.gen_commit_id(),
-            parent_ids: parent_ids,
+            parent_ids,
             message: String::from(message),
             author: self.auth_cfg.user.name.clone(),
             date: timestamp,
