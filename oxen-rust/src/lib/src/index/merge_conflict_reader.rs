@@ -1,12 +1,12 @@
 use crate::constants::MERGE_DIR;
 use crate::db;
 use crate::error::OxenError;
+use crate::index::MergeConflictDBReader;
 use crate::model::{MergeConflict, LocalRepository};
 use crate::util;
 
 use std::path::Path;
-use rocksdb::{IteratorMode, DB};
-use std::str;
+use rocksdb::DB;
 
 pub struct MergeConflictReader {
     merge_db: DB,
@@ -30,16 +30,14 @@ impl MergeConflictReader {
     }
 
     pub fn has_conflicts(&self) -> Result<bool, OxenError> {
-        Ok(self.merge_db.iterator(IteratorMode::Start).count() > 0)
+        MergeConflictDBReader::has_conflicts(&self.merge_db)
     }
 
     pub fn list_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
-        let mut conflicts: Vec<MergeConflict> = vec![];
-        let iter = self.merge_db.iterator(IteratorMode::Start);
-        for (_key, value) in iter {
-            let entry: MergeConflict = serde_json::from_str(str::from_utf8(&*value)?)?;
-            conflicts.push(entry);
-        }
-        Ok(conflicts)
+        MergeConflictDBReader::list_conflicts(&self.merge_db)
+    }
+
+    pub fn has_file(&self, path: &Path) -> Result<bool, OxenError> {
+        MergeConflictDBReader::has_file(&self.merge_db, path)
     }
 }

@@ -1,8 +1,8 @@
-use crate::constants::MERGE_DIR;
+use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::command;
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
+use crate::index::{CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader, Stager};
 use crate::model::{Commit, CommitEntry, MergeConflict, LocalRepository};
 use crate::util;
 
@@ -61,13 +61,35 @@ impl Merger {
                 let commit = self.create_merge_commit(&branch_name, &merge_commits)?;
                 Ok(Some(commit))
             } else {
-                self.write_conflicts_to_disk(&conflicts)?;
+                self.write_conflicts_to_disk(&merge_commits, &conflicts)?;
                 Ok(None)
             }
         }
     }
 
-    fn write_conflicts_to_disk(&self, conflicts: &Vec<MergeConflict>) -> Result<(), OxenError> {
+    pub fn has_file(&self, path: &Path) -> Result<bool, OxenError> {
+        MergeConflictDBReader::has_file(&self.merge_db, path)
+    }
+
+    pub fn remove_conflict_path(&self, path: &Path) -> Result<(), OxenError> {
+        let path_str = path.to_str().unwrap();
+        let key = path_str.as_bytes();
+        self.merge_db.delete(key)?;
+        Ok(())
+    }
+
+    fn write_conflicts_to_disk(
+        &self,
+        merge_commits: &MergeCommits,
+        conflicts: &Vec<MergeConflict>
+    ) -> Result<(), OxenError> {
+        // Write two files which are the merge commit and head commit so that we can make these parents later
+        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+        let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
+        let orig_head_path = hidden_dir.join(ORIG_HEAD_FILE);
+        util::fs::write_to_path(&merge_head_path, &merge_commits.merge.id);
+        util::fs::write_to_path(&orig_head_path, &merge_commits.head.id);
+
         for conflict in conflicts.iter() {
             let key = conflict.head_entry.path.to_str().unwrap();
             let key_bytes = key.as_bytes();
