@@ -4,8 +4,8 @@ use crate::util;
 use filetime::FileTime;
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::path::{PathBuf, Path};
 use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {

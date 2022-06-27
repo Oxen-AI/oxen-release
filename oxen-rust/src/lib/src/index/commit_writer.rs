@@ -1,5 +1,5 @@
 use crate::config::AuthConfig;
-use crate::constants::{COMMITS_DB, VERSIONS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
@@ -69,7 +69,7 @@ impl CommitWriter {
                         message: String::from(message),
                         author: self.auth_cfg.user.name.clone(),
                         date: timestamp,
-                        timestamp: timestamp.timestamp_nanos()
+                        timestamp: timestamp.timestamp_nanos(),
                     })
                 }
             }
@@ -81,7 +81,7 @@ impl CommitWriter {
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
                     date: Local::now(),
-                    timestamp: timestamp.timestamp_nanos()
+                    timestamp: timestamp.timestamp_nanos(),
                 })
             }
         }
@@ -108,7 +108,7 @@ impl CommitWriter {
             message: String::from(message),
             author: self.auth_cfg.user.name.clone(),
             date: timestamp,
-            timestamp: timestamp.timestamp_nanos()
+            timestamp: timestamp.timestamp_nanos(),
         })
     }
 
@@ -133,7 +133,7 @@ impl CommitWriter {
         //       if it's not to slow it seems like a win without too heavy of a lift
         /*
         Also, this: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
-            When you take a pull from remote or push your changes, 
+            When you take a pull from remote or push your changes,
             git will check if the hash of the root are the same or not.
             If it’s different, it will check for the left and right child nodes and will repeat
             it until it finds exactly which leaf nodes changed and then only transfer that delta over the network.
@@ -159,7 +159,12 @@ impl CommitWriter {
         format!("{}", uuid::Uuid::new_v4())
     }
 
-    pub fn commit_with_parent_ids(&self, status: &StagedData, parent_ids: Vec<String>, message: &str) -> Result<Commit, OxenError> {
+    pub fn commit_with_parent_ids(
+        &self,
+        status: &StagedData,
+        parent_ids: Vec<String>,
+        message: &str,
+    ) -> Result<Commit, OxenError> {
         let timestamp = Local::now();
         let commit = Commit {
             id: self.gen_commit_id(),
@@ -167,7 +172,7 @@ impl CommitWriter {
             message: String::from(message),
             author: self.auth_cfg.user.name.clone(),
             date: timestamp,
-            timestamp: timestamp.timestamp_nanos()
+            timestamp: timestamp.timestamp_nanos(),
         };
         self.add_commit_from_status(&commit, status)?;
         Ok(commit)

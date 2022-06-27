@@ -34,7 +34,10 @@ impl CommitEntryDBReader {
             },
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("CommitEntryDBReader::get_entry Error reading db\nErr: {}", err);
+                let err = format!(
+                    "CommitEntryDBReader::get_entry Error reading db\nErr: {}",
+                    err
+                );
                 Err(OxenError::basic_str(&err))
             }
         }

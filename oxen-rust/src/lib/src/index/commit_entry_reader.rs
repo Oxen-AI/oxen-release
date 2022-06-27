@@ -5,8 +5,8 @@ use crate::index::{CommitEntryDBReader, CommitReader};
 use crate::model::{Commit, CommitEntry};
 use crate::util;
 
-use std::collections::HashSet;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 

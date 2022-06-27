@@ -4,7 +4,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitStats, LocalRepository};
 use crate::util;
-use crate::view::{CommitResponse, CommitParentsResponse, RemoteRepositoryHeadResponse};
+use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
 
 use flate2::read::GzDecoder;
@@ -135,7 +135,8 @@ pub fn get_remote_parent(
         .send()
     {
         let body = res.text()?;
-        let response: Result<CommitParentsResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<CommitParentsResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.parents),
             Err(err) => Err(OxenError::basic_str(&format!(
@@ -165,7 +166,7 @@ pub fn post_commit_to_server(
         .join(commit.id.clone());
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
-    
+
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
@@ -188,8 +189,7 @@ fn create_commit_obj_on_server(
 
     let uri = format!(
         "/repositories/{}/branches/{}/commits",
-        repo_name,
-        branch_name
+        repo_name, branch_name
     );
 
     let body = serde_json::to_string(&commit).unwrap();
@@ -231,11 +231,7 @@ fn post_tarball_to_server(
     let name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!(
-        "/repositories/{}/commits/{}",
-        name,
-        commit.id
-    );
+    let uri = format!("/repositories/{}/commits/{}", name, commit.id);
     let url = api::endpoint::url_from(&uri);
     log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client

@@ -5,8 +5,8 @@ use crate::index::CommitDBReader;
 use crate::model::Commit;
 use crate::util;
 
-use std::collections::{HashMap, HashSet};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::{HashMap, HashSet};
 use std::str;
 
 use crate::model::LocalRepository;
@@ -55,13 +55,18 @@ impl CommitReader {
     /// List the commit history from the HEAD commit
     pub fn history_from_head(&self) -> Result<Vec<Commit>, OxenError> {
         let head_commit = self.head_commit()?;
-        let mut commits: Vec<Commit> = CommitDBReader::history_from_commit(&self.db, &head_commit)?.into_iter().collect();
+        let mut commits: Vec<Commit> = CommitDBReader::history_from_commit(&self.db, &head_commit)?
+            .into_iter()
+            .collect();
         commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         Ok(commits)
     }
 
     /// List the commit history from a commit keeping track of depth along the way
-    pub fn history_with_depth_from_commit(&self, commit: &Commit) -> Result<HashMap<Commit, usize>, OxenError> {
+    pub fn history_with_depth_from_commit(
+        &self,
+        commit: &Commit,
+    ) -> Result<HashMap<Commit, usize>, OxenError> {
         CommitDBReader::history_with_depth_from_commit(&self.db, commit)
     }
 
@@ -77,7 +82,10 @@ impl CommitReader {
     }
 
     /// Get a commit object from an ID
-    pub fn get_commit_by_id<S: AsRef<str>>(&self, commit_id: S) -> Result<Option<Commit>, OxenError> {
+    pub fn get_commit_by_id<S: AsRef<str>>(
+        &self,
+        commit_id: S,
+    ) -> Result<Option<Commit>, OxenError> {
         CommitDBReader::get_commit_by_id(&self.db, commit_id.as_ref())
     }
 }

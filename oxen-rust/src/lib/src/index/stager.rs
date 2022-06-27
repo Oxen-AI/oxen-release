@@ -1,12 +1,10 @@
 use crate::constants;
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{
-    CommitEntryReader, Merger, MergeConflictReader
-};
+use crate::index::{CommitEntryReader, MergeConflictReader, Merger};
 use crate::model::{
-    CommitEntry, LocalRepository, MergeConflict,
-    StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
+    CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
+    StagedEntryStatus,
 };
 use crate::util;
 
@@ -69,7 +67,10 @@ impl Stager {
         // so we have to check if it is committed, and what the backup version is
         if !path.exists() {
             let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-            log::debug!("Stager.add() !path.exists() checking relative path: {:?}", relative_path);
+            log::debug!(
+                "Stager.add() !path.exists() checking relative path: {:?}",
+                relative_path
+            );
             // Since entries that are committed are only files.. we will have to have different logic for dirs
             if let Ok(Some(value)) = commit_reader.get_entry(&relative_path) {
                 self.add_removed_file(&relative_path, &value)?;
@@ -82,7 +83,10 @@ impl Stager {
                     self.add_removed_file(&entry.path, entry)?;
                 }
 
-                log::debug!("Stager.add() !path.exists() !files_in_dir.is_empty() {:?}", path);
+                log::debug!(
+                    "Stager.add() !path.exists() !files_in_dir.is_empty() {:?}",
+                    path
+                );
                 return Ok(());
             }
         }
@@ -284,7 +288,7 @@ impl Stager {
             log::debug!("add_file merger has file! {:?}", path);
             self.add_staged_entry_to_db(&path, &staged_entry)?;
             merger.remove_conflict_path(&path)?;
-            return Ok(path)
+            return Ok(path);
         }
 
         // Check if file has changed on disk
@@ -304,14 +308,18 @@ impl Stager {
         Ok(path)
     }
 
-    fn add_staged_entry_to_db(&self, path: &Path, staged_entry: &StagedEntry) -> Result<(), OxenError> {
+    fn add_staged_entry_to_db(
+        &self,
+        path: &Path,
+        staged_entry: &StagedEntry,
+    ) -> Result<(), OxenError> {
         let key = path.to_str().unwrap();
         let entry_json = serde_json::to_string(staged_entry)?;
 
         log::debug!("add_staged_entry_to_db {:?} -> {:?}", path, staged_entry);
 
         self.db.put(&key, entry_json.as_bytes())?;
-        
+
         Ok(())
     }
 

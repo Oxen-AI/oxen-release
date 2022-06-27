@@ -7,10 +7,7 @@ use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader,
-    CommitReader, CommitWriter,
-    Indexer, Merger,
-    RefReader, RefWriter, Stager,
+    CommitEntryReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 use crate::util;
@@ -355,13 +352,19 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), 
 /// Checks for simple fast forward merge, or if current branch has diverged from the merge branch
 /// it will perform a 3 way merge
 /// If there are conflicts, it will abort and show the conflicts to be resolved in the `status` command
-pub fn merge<S: AsRef<str>>(repo: &LocalRepository, branch_name: S) -> Result<Option<Commit>, OxenError> {
+pub fn merge<S: AsRef<str>>(
+    repo: &LocalRepository,
+    branch_name: S,
+) -> Result<Option<Commit>, OxenError> {
     let branch_name = branch_name.as_ref();
     if branch_exists(repo, branch_name) {
         if let Some(branch) = current_branch(repo)? {
             let merger = Merger::new(repo)?;
             if let Some(commit) = merger.merge(branch_name)? {
-                println!("Successfully merged `{}` into `{}`", branch_name, branch.name);
+                println!(
+                    "Successfully merged `{}` into `{}`",
+                    branch_name, branch.name
+                );
                 println!("HEAD -> {}", commit.id);
                 Ok(Some(commit))
             } else {
@@ -369,7 +372,9 @@ pub fn merge<S: AsRef<str>>(repo: &LocalRepository, branch_name: S) -> Result<Op
                 Ok(None)
             }
         } else {
-            Err(OxenError::basic_str("Must be on a branch to perform a merge."))
+            Err(OxenError::basic_str(
+                "Must be on a branch to perform a merge.",
+            ))
         }
     } else {
         Err(OxenError::local_branch_not_found(branch_name))

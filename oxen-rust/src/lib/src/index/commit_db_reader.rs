@@ -2,8 +2,8 @@ use crate::error::OxenError;
 use crate::index::RefReader;
 use crate::model::{Commit, LocalRepository};
 
-use std::collections::{HashMap, HashSet};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::{HashMap, HashSet};
 use std::str;
 
 pub struct CommitDBReader {}
@@ -56,7 +56,7 @@ impl CommitDBReader {
             match CommitDBReader::rget_root_commit(repo, db, parent_id) {
                 Ok(commit) => {
                     return Ok(commit);
-                },
+                }
                 Err(err) => {
                     log::error!("rget_root_commit cannot get root: {}", err);
                 }
@@ -113,7 +113,12 @@ impl CommitDBReader {
     ) -> Result<HashMap<Commit, usize>, OxenError> {
         let mut commit_msgs: HashMap<Commit, usize> = HashMap::new();
         let initial_depth: usize = 0;
-        CommitDBReader::history_with_depth_from_commit_id(db, &commit.id, &mut commit_msgs, initial_depth)?;
+        CommitDBReader::history_with_depth_from_commit_id(
+            db,
+            &commit.id,
+            &mut commit_msgs,
+            initial_depth,
+        )?;
         Ok(commit_msgs)
     }
 
@@ -140,7 +145,12 @@ impl CommitDBReader {
         if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
             commits.insert(commit.clone(), depth);
             for parent_id in commit.parent_ids.iter() {
-                CommitDBReader::history_with_depth_from_commit_id(db, parent_id, commits, depth+1)?;
+                CommitDBReader::history_with_depth_from_commit_id(
+                    db,
+                    parent_id,
+                    commits,
+                    depth + 1,
+                )?;
             }
         }
         Ok(())

@@ -275,7 +275,7 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 date: timestamp,
-                timestamp: timestamp.timestamp_nanos()
+                timestamp: timestamp.timestamp_nanos(),
             },
         };
         let data = serde_json::to_string(&repo_new)?;
