@@ -71,6 +71,12 @@ fn main() {
                 ),
         )
         .subcommand(
+            Command::new("merge")
+                .about("Merges a branch into the current checked out branch.")
+                .arg_required_else_help(true)
+                .arg(arg!(<BRANCH> "The name of the branch you want to merge in.")),
+        )
+        .subcommand(
             Command::new("clone")
                 .about("Clone a repository by its URL")
                 .arg_required_else_help(true)
@@ -176,6 +182,18 @@ fn main() {
                 }
             } else {
                 eprintln!("Err: Usage `oxen checkout <name>`");
+            }
+        }
+        Some(("merge", sub_matches)) => {
+            let branch = sub_matches
+                .value_of("BRANCH")
+                .or(Some(DEFAULT_BRANCH_NAME))
+                .unwrap();
+            match dispatch::merge(branch) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
             }
         }
         Some(("push", sub_matches)) => {

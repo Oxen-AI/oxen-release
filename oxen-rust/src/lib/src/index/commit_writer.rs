@@ -1,5 +1,5 @@
 use crate::config::AuthConfig;
-use crate::constants::{COMMITS_DB, VERSIONS_DIR};
+use crate::constants::{COMMITS_DB, VERSIONS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
@@ -58,15 +58,20 @@ impl CommitWriter {
         //  - author
         match ref_reader.head_commit_id() {
             Ok(parent_id) => {
-                // We have a parent
-                Ok(Commit {
-                    id: String::from(id_str),
-                    parent_ids: vec![parent_id],
-                    message: String::from(message),
-                    author: self.auth_cfg.user.name.clone(),
-                    date: timestamp,
-                    timestamp: timestamp.timestamp_nanos()
-                })
+                // We might be in a merge commit, in which case we would have multiple parents
+                if self.is_merge_commit() {
+                    self.create_merge_commit(id_str, message)
+                } else {
+                    // We have one parent
+                    Ok(Commit {
+                        id: String::from(id_str),
+                        parent_ids: vec![parent_id],
+                        message: String::from(message),
+                        author: self.auth_cfg.user.name.clone(),
+                        date: timestamp,
+                        timestamp: timestamp.timestamp_nanos()
+                    })
+                }
             }
             Err(_) => {
                 // We are creating initial commit, no parents
@@ -80,6 +85,37 @@ impl CommitWriter {
                 })
             }
         }
+    }
+
+    // Reads commit ids from merge commit files then removes them
+    fn create_merge_commit(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
+        let timestamp = Local::now();
+        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+        let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
+        let orig_head_path = hidden_dir.join(ORIG_HEAD_FILE);
+
+        // Read parent commit ids
+        let merge_commit_id = util::fs::read_from_path(&merge_head_path)?;
+        let head_commit_id = util::fs::read_from_path(&orig_head_path)?;
+
+        // Cleanup
+        std::fs::remove_file(merge_head_path)?;
+        std::fs::remove_file(orig_head_path)?;
+
+        Ok(Commit {
+            id: String::from(id_str),
+            parent_ids: vec![merge_commit_id, head_commit_id],
+            message: String::from(message),
+            author: self.auth_cfg.user.name.clone(),
+            date: timestamp,
+            timestamp: timestamp.timestamp_nanos()
+        })
+    }
+
+    fn is_merge_commit(&self) -> bool {
+        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+        let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
+        merge_head_path.exists()
     }
 
     // Create a db in the history/ dir under the id

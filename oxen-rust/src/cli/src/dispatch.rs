@@ -86,6 +86,14 @@ pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn merge(branch: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    command::merge(&repository, branch)?;
+    Ok(())
+}
+
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;

@@ -180,7 +180,7 @@ impl CommitEntryReader {
             Ok(Some(_value)) => Ok(true),
             Ok(None) => Ok(false),
             Err(err) => {
-                let err = format!("head_contains_file Error reading db\nErr: {}", err);
+                let err = format!("contains_path Error reading db\nErr: {}", err);
                 Err(OxenError::basic_str(&err))
             }
         }
