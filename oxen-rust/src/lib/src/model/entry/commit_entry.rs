@@ -49,7 +49,7 @@ impl CommitEntry {
         let current_dir = env::current_dir().unwrap();
         let repo_dir = util::fs::get_repo_root(&current_dir).expect("Oxen repo not found.");
         let repo = LocalRepository::from_dir(&repo_dir).unwrap();
-        util::fs::version_path(&repo, &self)
+        util::fs::version_path(&repo, self)
     }
 
     pub fn filename(&self) -> PathBuf {

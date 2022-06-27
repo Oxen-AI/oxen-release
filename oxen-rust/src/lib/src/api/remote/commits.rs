@@ -197,7 +197,7 @@ fn create_commit_obj_on_server(
     log::debug!("create_commit_obj_on_server {}", url);
     if let Ok(res) = client
         .post(url)
-        .body(reqwest::blocking::Body::from(body.to_owned()))
+        .body(reqwest::blocking::Body::from(body))
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),

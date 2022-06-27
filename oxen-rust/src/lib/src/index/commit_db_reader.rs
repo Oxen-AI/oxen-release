@@ -32,7 +32,7 @@ impl CommitDBReader {
 
         let commit = CommitDBReader::rget_root_commit(repo, db, &head_commit.id)?;
         if let Some(root) = commit {
-            Ok(root.to_owned())
+            Ok(root)
         } else {
             log::error!("could not find root....");
             Err(OxenError::commit_db_corrupted(head_commit.id))
@@ -53,7 +53,14 @@ impl CommitDBReader {
 
         for parent_id in commit.parent_ids.iter() {
             // Recursive call to this module
-            return CommitDBReader::rget_root_commit(repo, db, parent_id);
+            match CommitDBReader::rget_root_commit(repo, db, parent_id) {
+                Ok(commit) => {
+                    return Ok(commit);
+                },
+                Err(err) => {
+                    log::error!("rget_root_commit cannot get root: {}", err);
+                }
+            }
         }
         Ok(None)
     }

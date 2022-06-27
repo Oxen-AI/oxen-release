@@ -143,7 +143,7 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
                 Ok(parents) => HttpResponse::Ok().json(CommitParentsResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
-                    parents: parents,
+                    parents,
                 }),
                 Err(err) => {
                     log::debug!(
@@ -262,7 +262,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     match (api::local::repositories::get_by_name(&app_data.path, repo_name), data) {
         (Ok(repo), Ok(commit)) => {
             // Create Commit from uri params
-            match create_commit(&repo.path, &branch_name, &commit) {
+            match create_commit(&repo.path, branch_name, &commit) {
                 Ok(_) => {
                     HttpResponse::Ok().json(CommitResponse {
                         status: String::from(STATUS_SUCCESS),
@@ -298,7 +298,7 @@ pub async fn upload(
         Ok(repo) => {
             let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
-            match api::local::commits::get_by_id(&repo, &commit_id) {
+            match api::local::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
                     // Get tar.gz bytes for history/COMMIT_ID data
                     let mut bytes = web::BytesMut::new();
