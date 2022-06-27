@@ -2,11 +2,11 @@ use crate::constants::MERGE_DIR;
 use crate::db;
 use crate::error::OxenError;
 use crate::index::MergeConflictDBReader;
-use crate::model::{MergeConflict, LocalRepository};
+use crate::model::{LocalRepository, MergeConflict};
 use crate::util;
 
-use std::path::Path;
 use rocksdb::DB;
+use std::path::Path;
 
 pub struct MergeConflictReader {
     merge_db: DB,

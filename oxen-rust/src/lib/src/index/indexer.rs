@@ -344,9 +344,7 @@ impl Indexer {
 
     fn check_parent_and_pull_commit_objects(&self, commit: &Commit) -> Result<(), OxenError> {
         // If we have a parent on the remote
-        if let Ok(parents) =
-            api::remote::commits::get_remote_parent(&self.repository, &commit.id)
-        {
+        if let Ok(parents) = api::remote::commits::get_remote_parent(&self.repository, &commit.id) {
             // Recursively sync the parents
             for parent in parents.iter() {
                 self.check_parent_and_pull_commit_objects(parent)?;

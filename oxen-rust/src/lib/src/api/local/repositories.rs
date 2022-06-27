@@ -140,7 +140,7 @@ mod tests {
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
                     date: timestamp,
-                    timestamp: timestamp.timestamp_nanos()
+                    timestamp: timestamp.timestamp_nanos(),
                 },
             };
             let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;

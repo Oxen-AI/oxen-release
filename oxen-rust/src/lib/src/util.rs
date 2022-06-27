@@ -2,7 +2,7 @@ pub mod fs;
 pub mod hasher;
 
 pub mod oxen_date_format {
-    use chrono::{DateTime, TimeZone, Local};
+    use chrono::{DateTime, Local, TimeZone};
     use serde::{self, Deserialize, Deserializer, Serializer};
 
     pub const FORMAT: &str = "%a, %d %b %Y %H:%M:%S %z";
@@ -34,7 +34,8 @@ pub mod oxen_date_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Local.datetime_from_str(&s, FORMAT)
+        Local
+            .datetime_from_str(&s, FORMAT)
             .map_err(serde::de::Error::custom)
     }
 }

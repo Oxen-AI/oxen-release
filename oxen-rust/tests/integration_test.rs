@@ -1433,6 +1433,5 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
     })
 }
 
-
 // Thought exercise - merge "branch" instead of merge commit, because you will want to do one more experiment,
 // then fast forward to that branch

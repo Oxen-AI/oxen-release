@@ -7,7 +7,8 @@ use liboxen::model::{Commit, LocalRepository, RemoteRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{
-    CommitResponse, CommitParentsResponse, ListCommitResponse, RemoteRepositoryHeadResponse, StatusMessage,
+    CommitParentsResponse, CommitResponse, ListCommitResponse, RemoteRepositoryHeadResponse,
+    StatusMessage,
 };
 
 use crate::app_data::OxenAppData;
@@ -166,10 +167,7 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
     }
 }
 
-fn p_get_parents(
-    repository: &LocalRepository,
-    commit_id: &str,
-) -> Result<Vec<Commit>, OxenError> {
+fn p_get_parents(repository: &LocalRepository, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
     match api::local::commits::get_by_id(repository, commit_id) {
         Ok(Some(commit)) => api::local::commits::get_parents(repository, &commit),
         Ok(None) => Ok(vec![]),
@@ -245,7 +243,6 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     Ok(buffer)
 }
 
-
 pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     log::debug!("Got commit data: {}", body);
 
@@ -259,26 +256,30 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
 
     log::debug!("upload commit for branch {:?}", branch_name);
 
-    match (api::local::repositories::get_by_name(&app_data.path, repo_name), data) {
+    match (
+        api::local::repositories::get_by_name(&app_data.path, repo_name),
+        data,
+    ) {
         (Ok(repo), Ok(commit)) => {
             // Create Commit from uri params
             match create_commit(&repo.path, branch_name, &commit) {
-                Ok(_) => {
-                    HttpResponse::Ok().json(CommitResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
-                        commit: commit.to_owned(),
-                    })
-                },
+                Ok(_) => HttpResponse::Ok().json(CommitResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_CREATED),
+                    commit: commit.to_owned(),
+                }),
                 Err(err) => {
                     log::error!("Err create_commit: {}", err);
-                    HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error())
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
             }
-        },
+        }
         (repo_err, commit_err) => {
-            log::error!("Err api::local::repositories::get_by_name {:?} serialization err {:?}", repo_err, commit_err);
+            log::error!(
+                "Err api::local::repositories::get_by_name {:?} serialization err {:?}",
+                repo_err,
+                commit_err
+            );
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
@@ -287,7 +288,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
 /// Controller to upload the commit database
 pub async fn upload(
     req: HttpRequest,
-    mut body: web::Payload,              // the actual file body
+    mut body: web::Payload, // the actual file body
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     // name to the repo, should be in url path so okay to unwap
@@ -322,7 +323,8 @@ pub async fn upload(
                 }
                 Err(err) => {
                     log::debug!("Error finding commit [{}]: {}", commit_id, err);
-                    Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
                 }
             }
         }
@@ -561,7 +563,7 @@ mod tests {
 
         // There should be another commit now
         let commits = command::log(&repo)?;
-        assert_eq!(og_commits.len()+1, commits.len());
+        assert_eq!(og_commits.len() + 1, commits.len());
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;
