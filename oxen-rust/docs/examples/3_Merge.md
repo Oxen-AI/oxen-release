@@ -2,6 +2,18 @@
 
 Once you have added data that you are convinced improve the overall model and you want to merge the changes into the mainline there is the `oxen merge` command. In order to merge you must first checkout the branch you want to merge into. If you were following the example from [before](2_CollabAdd.md) this will be the `main` branch.
 
+If you weren't following the example before, you can clone and pull from this remote: 
+
+(TODO: have server running we can pull from)
+
+```shell
+oxen clone http://0.0.0.0:3000/repositories/SmallCatDog
+cd SmallCatDog
+oxen pull origin main
+```
+
+Otherwise just check out the main branch.
+
 ```shell
 oxen checkout main
 ```
@@ -29,18 +41,23 @@ Assuming we don't want to use this branch anymore you can delete it with the `-d
 oxen branch -d add-training-data
 ```
 
-Let's consider a more complicated scenario. Say we have three engineers working on the same dataset. Two of them have been adding more cats and dogs to our training dataset like above, but the third is in the process of adding a `human` category. If we are following best practices, we should have two separate branches for these to features so that we can work in parallel.
+Let's consider a more complicated scenario. Say we have multiple people working on the same dataset. One of them is tasked with adding a catch-all `none` category, but the other is in the process of adding a `human` category. If we are following best practices, we should have two separate branches for these to features so that we can work in parallel.
 
-The two engineers working on improving the cat vs dog accuracy might create a branch called `add-cats-and-dogs` and the other engineer might make a branch called `add-human-category`
+The person working on the `none` category might create a branch called `add-none-category` and the other person might make a branch called `add-human-category`
 
-From one workstation lets add and push the branch of more cats and dogs
+From one workstation lets start by adding the `none` category.
 
 ```shell
-$ oxen checkout -b add-cats-and-dogs
-$ for i in (seq 210 220) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end
-$ for i in (seq 210 220) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; end
-$ oxen add train
-$ oxen commit -m "adding 20 more cats and dogs"
+$ oxen checkout -b add-none-category # create & checkout branch
+$ echo "none" >> labels.txt # append the "none" category to our labels file
+$ oxen add labels.txt # stage the labels file
+$ oxen commit -m "added none label to labels file" # commit the change
+```
+
+Then add 10 random images from another directory. I happen to have to have tiny-imagenet
+
+```shell
+$ for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; end
 $ oxen push origin add-cats-and-dogs
 ```
 
