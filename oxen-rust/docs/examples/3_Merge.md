@@ -1,6 +1,6 @@
 # Merge Branches
 
-Once you have added data that you are convinced improve the overall model and you want to merge the changes into the mainline there is the `oxen merge` command. In order to merge you must first checkout the branch you want to merge into. If you were following the example from [before](2_CollabAdd.md) this will be the `main` branch.
+Once you have added data that you are convinced improve the overall model and you want to merge the changes into the mainline there is the `oxen merge` command. We will be starting from a repo that was initialized [here](2_CollabAdd.md).
 
 If you weren't following the example before, you can clone and pull from this remote: 
 
@@ -50,7 +50,7 @@ cat_1.jpg	cat_4.jpg	cat_7.jpg	dog_0.jpg	dog_200.jpg	dog_203.jpg	dog_206.jpg	dog_
 cat_2.jpg	cat_5.jpg	cat_8.jpg	dog_1.jpg	dog_201.jpg	dog_204.jpg	dog_207.jpg	dog_3.jpg	dog_6.jpg	dog_9.jpg
 ```
 
-Checkout the main branch again because it is the target we want to merge into
+Checkout the main branch again because it is the target we want to merge into.
 
 ```shell
 $ oxen checkout main
