@@ -44,6 +44,7 @@ impl Merger {
     /// Merge a branch name into the current checked out branch, returns the HEAD commit if successful,
     /// and None if there were conflicts. Conflicts get written to disk so we can return to them to fix.
     pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Option<Commit>, OxenError> {
+        let branch_name = branch_name.as_ref();
         // This returns HEAD, LCA, and the Merge commits we can work with
         let merge_commits = self.find_merge_commits(&branch_name)?;
 
@@ -62,6 +63,8 @@ impl Merger {
             let commit = self.fast_forward_merge(merge_commits.head, merge_commits.merge)?;
             Ok(Some(commit))
         } else {
+            log::debug!("Three way merge! {}", branch_name);
+
             let conflicts = self.three_way_merge(&merge_commits)?;
             if conflicts.is_empty() {
                 let commit = self.create_merge_commit(&branch_name, &merge_commits)?;
@@ -115,6 +118,8 @@ impl Merger {
         let repo = &self.repository;
         command::add(repo, &repo.path)?;
         let commit_msg = format!("Merge branch '{}'", branch_name.as_ref());
+
+        log::debug!("{}", commit_msg);
 
         // Create a commit with both parents
         let reader = CommitEntryReader::new_from_head(repo)?;
@@ -549,23 +554,26 @@ mod tests {
             // this will checkout main again so we can try to merge
             populate_threeway_merge_repo(&repo, merge_branch_name)?;
 
-            // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo)?;
-            let merge_commit = merger.merge(merge_branch_name)?.unwrap();
+            {
+                // Make sure the merger can detect the three way merge
+                let merger = Merger::new(&repo)?;
+                let merge_commit = merger.merge(merge_branch_name)?.unwrap();
 
-            // Two way merge should have two parent IDs so we know where the merge came from
-            assert_eq!(merge_commit.parent_ids.len(), 2);
+                // Two way merge should have two parent IDs so we know where the merge came from
+                assert_eq!(merge_commit.parent_ids.len(), 2);
 
-            // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
-            let file_prefixes = vec!["a", "b", "c", "d", "e"];
-            for prefix in file_prefixes.iter() {
-                let filename = format!("{}.txt", prefix);
-                let filepath = repo.path.join(filename);
-                println!(
-                    "test_merge_no_conflict_three_way_merge checking file exists {:?}",
-                    filepath
-                );
-                assert!(filepath.exists());
+                // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
+                let file_prefixes = vec!["a", "b", "c", "d", "e"];
+                for prefix in file_prefixes.iter() {
+                    let filename = format!("{}.txt", prefix);
+                    let filepath = repo.path.join(filename);
+                    println!(
+                        "test_merge_no_conflict_three_way_merge checking file exists {:?}",
+                        filepath
+                    );
+                    assert!(filepath.exists());
+                }
+
             }
 
             // Make sure we added the merge commit

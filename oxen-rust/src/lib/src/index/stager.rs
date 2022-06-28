@@ -283,10 +283,10 @@ impl Stager {
         };
 
         // Check if it is a merge conflict, then we can add it
-        let merger = Merger::new(&self.repository)?;
-        if merger.has_file(&path)? {
+        if self.is_merge_conflict(&path)? {
             log::debug!("add_file merger has file! {:?}", path);
             self.add_staged_entry_to_db(&path, &staged_entry)?;
+            let merger = Merger::new(&self.repository)?;
             merger.remove_conflict_path(&path)?;
             return Ok(path);
         }
@@ -306,6 +306,11 @@ impl Stager {
         self.add_staged_entry_to_db(&path, &staged_entry)?;
 
         Ok(path)
+    }
+
+    fn is_merge_conflict(&self, path: &Path) -> Result<bool, OxenError> {
+        let reader = MergeConflictReader::new(&self.repository)?;
+        reader.has_file(path)
     }
 
     fn add_staged_entry_to_db(
