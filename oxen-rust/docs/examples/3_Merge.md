@@ -12,13 +12,17 @@ cd SmallCatDog
 oxen pull origin main
 ```
 
-Otherwise just check out the main branch.
+Make sure that we have pulled all the entries on the branch. First let's make sure the branches are synced. TODO: Implement the `fetch` command.
 
 ```shell
-oxen checkout main
+$ oxen fetch
+
+Fetching remote branches...
+Downloading meta-data for branch: add-training-data
 ```
 
 To verify which branch you are on, as well as see the other branches that exist locally there is the `branch` command. To list them all use `-a`
+
 
 ```shell
 $ oxen branch -a
@@ -27,15 +31,51 @@ $ oxen branch -a
 add-training-data
 ```
 
-The asterisk next to the main branch indicates that we are on the main branch. We only have one branch that we could merge here, so let's merge it.
+The asterisk next to the main branch indicates that we are on the main branch.
+
+We need to checkout and pull the entries on the training data branch. TODO: Do we want to checkout the branch when you pull? Or make it separate commands?
 
 ```shell
-oxen merge add-training-data
+$ oxen pull origin add-training-data
 ```
 
-Since this branch was simply a set of additions that were added after the last change to the main branch, and no one made any changes inbetween our changes, it simply will fast-forward the changes to our commit.
+You should see the new images dog_200.jpg...dog_209.jpg in the train/ dir.
 
-Assuming we don't want to use this branch anymore you can delete it with the `-d` flag
+```shell
+$ ls train/
+
+cat_0.jpg	cat_3.jpg	cat_6.jpg	cat_9.jpg	dog_2.jpg	dog_202.jpg	dog_205.jpg	dog_208.jpg	dog_4.jpg	dog_7.jpg
+cat_1.jpg	cat_4.jpg	cat_7.jpg	dog_0.jpg	dog_200.jpg	dog_203.jpg	dog_206.jpg	dog_209.jpg	dog_5.jpg	dog_8.jpg
+cat_2.jpg	cat_5.jpg	cat_8.jpg	dog_1.jpg	dog_201.jpg	dog_204.jpg	dog_207.jpg	dog_3.jpg	dog_6.jpg	dog_9.jpg
+```
+
+Checkout the main branch again because it is the target we want to merge into
+
+```shell
+$ oxen checkout main
+
+Checkout branch: main
+Setting working directory to 11f6c5d5-f683-42b2-9d6e-a82172509eed
+```
+
+The images will temporarily disappear from the training data directory, until we merge in the branch/
+
+```shell
+$ oxen merge add-training-data
+
+Successfully merged `add-training-data` into `main`
+HEAD -> 7d6258e0-5956-4695-aa13-6844b3c73e6d
+```
+
+Since this branch was simply a set of additions that were added after the last change to the main branch, and no one made any changes inbetween our changes, it simply will fast-forward the changes to our commit. Now you should have all 30 images in the training directory again. We can see this by piping the output of the `ls` command into a line count command `wc -l`.
+
+```shell
+ls train | wc -l
+
+30
+```
+
+Assuming we don't want to use this branch anymore you can delete it with the `-d` flag. TODO: Implement this.
 
 ```shell
 oxen branch -d add-training-data
@@ -72,7 +112,14 @@ Now we have two branches that have added different labels. Let's say that the fi
 $ oxen checkout main
 $ oxen merge add-fish-label
 
+Successfully merged `add-fish-label` into `main`
+HEAD -> 90ecac05-8902-4764-b207-2e9adf5643c8
+```
 
+First merge goes smoothly again since it is simply an addition without any conflicts. Now let's try to merge in the `add-human-label` branch.
+
+```shell
+$ oxen merge add-human-label
 ```
 
 # TODO: this is a more complicated example than we need right now...

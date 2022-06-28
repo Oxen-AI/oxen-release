@@ -55,6 +55,24 @@ fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
         let commits = command::log(&repo)?;
         let initial_len = commits.len();
         command::commit(&repo, "Should not work")?;
+        let commits = command::log(&repo)?;
+        // We should not have added any commits
+        assert_eq!(commits.len(), initial_len);
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let commits = command::log(&repo)?;
+        let initial_len = commits.len();
+
+        let labels_path = repo.path.join("labels.txt");
+        util::fs::write_to_path(&labels_path, "changing this guy, but not committing");
+
+        command::commit(&repo, "Should not work")?;
+        let commits = command::log(&repo)?;
         // We should not have added any commits
         assert_eq!(commits.len(), initial_len);
         Ok(())

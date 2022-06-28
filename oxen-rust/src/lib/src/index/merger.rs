@@ -3,7 +3,8 @@ use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader, Stager,
+    CommitEntryReader, CommitReader, CommitWriter,
+    MergeConflictDBReader, RefReader, Stager, RefWriter
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, MergeConflict};
 use crate::util;
@@ -48,6 +49,9 @@ impl Merger {
         // This returns HEAD, LCA, and the Merge commits we can work with
         let merge_commits = self.find_merge_commits(&branch_name)?;
 
+        // User output
+        println!("Updating {} -> {}", merge_commits.head.id, merge_commits.merge.id);
+
         log::debug!(
             "FOUND MERGE COMMITS:\nLCA: {} -> {}\nHEAD: {} -> {}\nMerge: {} -> {}",
             merge_commits.lca.id,
@@ -60,6 +64,8 @@ impl Merger {
 
         // Check which type of merge we need to do
         if merge_commits.is_fast_forward_merge() {
+            // User output
+            println!("Fast-forward");
             let commit = self.fast_forward_merge(merge_commits.head, merge_commits.merge)?;
             Ok(Some(commit))
         } else {
@@ -190,6 +196,10 @@ impl Merger {
                 std::fs::remove_file(path)?;
             }
         }
+
+        // Move the HEAD forward to this commit
+        let ref_writer = RefWriter::new(&self.repository)?;
+        ref_writer.set_head_commit_id(&merge_commit.id)?;
 
         Ok(merge_commit)
     }
@@ -413,11 +423,16 @@ mod tests {
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
 
+            // Merge it
             let merger = Merger::new(&repo)?;
-            merger.merge(branch_name)?;
+            let commit = merger.merge(branch_name)?.unwrap();
 
             // Now that we've merged in, world file should exist
             assert!(world_file.exists());
+
+            // Check that HEAD has updated to the merge commit
+            let head_commit = command::head_commit(&repo)?;
+            assert_eq!(head_commit.id, commit.id);
 
             Ok(())
         })
@@ -667,6 +682,61 @@ mod tests {
 
             let local_a_path = util::fs::path_relative_to_dir(&a_path, &repo.path)?;
             assert_eq!(conflicts[0].head_entry.path, local_a_path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_merge_conflict_three_way_merge_post_merge_branch() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
+            // should have a conflict from the LCA
+
+            let og_branch = command::current_branch(&repo)?.unwrap();
+            let labels_path = repo.path.join("labels.txt");
+            util::fs::write_to_path(&labels_path, "cat\ndog");
+            command::add(&repo, &labels_path)?;
+            // Return the lowest common ancestor for the tests
+            command::commit(&repo, "Add initial labels.txt file with cat and dog")?;
+
+            // Add a fish label to the file on a branch
+            let fish_branch_name = "add-fish-label";
+            command::create_checkout_branch(&repo, fish_branch_name)?;
+            let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
+            command::add(&repo, &labels_path)?;
+            command::commit(&repo, "Adding fish to labels.txt file")?;
+
+            // Checkout main, and branch from it to another branch to add a human label
+            command::checkout(&repo, &og_branch.name)?;
+            let human_branch_name = "add-human-label";
+            command::create_checkout_branch(&repo, human_branch_name)?;
+            let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
+            command::add(&repo, &labels_path)?;
+            command::commit(&repo, "Adding human to labels.txt file")?;
+
+            // Checkout main again
+            command::checkout(&repo, &og_branch.name)?;
+
+            // Merge in a scope so that it closes the db
+            {
+                let merger = Merger::new(&repo)?;
+                merger.merge(fish_branch_name)?;
+            }
+
+            // Checkout main again, merge again
+            command::checkout(&repo, &og_branch.name)?;
+            {
+                let merger = Merger::new(&repo)?;
+                merger.merge(human_branch_name)?;
+            }
+
+            let conflict_reader = MergeConflictReader::new(&repo)?;
+            let has_conflicts = conflict_reader.has_conflicts()?;
+            let conflicts = conflict_reader.list_conflicts()?;
+
+            assert!(has_conflicts);
+            assert_eq!(conflicts.len(), 1);
 
             Ok(())
         })
