@@ -151,6 +151,9 @@ impl CommitWriter {
         self.add_commit_from_status(&commit, status)?;
 
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
+        
+        // User output
+        println!("Commit {} -> {}", commit.id, commit.message);
 
         Ok(commit)
     }

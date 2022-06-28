@@ -412,9 +412,11 @@ mod tests {
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, name)?;
 
-        liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        command::add(&repo, path)?;
         command::commit(&repo, "first commit")?;
-        liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
         let uri = format!("/repositories/{}/commits", name);
@@ -440,13 +442,15 @@ mod tests {
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, repo_name)?;
 
-        liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        command::add(&repo, path)?;
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
         let uri = format!(
@@ -484,13 +488,15 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, repo_name)?;
         let og_branch = command::current_branch(&repo)?.unwrap();
 
-        liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
+        command::add(&repo, path)?;
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
+        command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
         // List commits from the first branch
