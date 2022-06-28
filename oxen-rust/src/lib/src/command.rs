@@ -168,7 +168,9 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
     let status = status(repo)?;
     if !status.has_added_entries() {
-        println!("No files are staged, not committing. Stage a file or directory with `oxen add <file>`");
+        println!(
+            "No files are staged, not committing. Stage a file or directory with `oxen add <file>`"
+        );
         return Ok(None);
     }
     let commit = p_commit(repo, &status, message)?;
