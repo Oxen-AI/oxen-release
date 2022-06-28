@@ -18,11 +18,12 @@ Make sure that we have pulled all the entries on the branch. First let's make su
 $ oxen fetch
 
 Fetching remote branches...
+Checking branch: main
+Checking branch: add-training-data
 Downloading meta-data for branch: add-training-data
 ```
 
 To verify which branch you are on, as well as see the other branches that exist locally there is the `branch` command. To list them all use `-a`
-
 
 ```shell
 $ oxen branch -a
@@ -58,7 +59,7 @@ Checkout branch: main
 Setting working directory to 11f6c5d5-f683-42b2-9d6e-a82172509eed
 ```
 
-The images will temporarily disappear from the training data directory, until we merge in the branch/
+The images will temporarily disappear from the training data directory, until we merge in the branch.
 
 ```shell
 $ oxen merge add-training-data
@@ -81,7 +82,7 @@ Assuming we don't want to use this branch anymore you can delete it with the `-d
 oxen branch -d add-training-data
 ```
 
-Let's consider a more complicated scenario. Say we have multiple people working on the same dataset. One of them is tasked with adding a `fish` label, but the other is in the process of adding a `human` label. If we are following best practices, we should have two separate branches for these to features so that we can work in parallel.
+Let's consider a more complicated scenario. Say we have multiple people working on the same dataset. One of them is tasked with adding a `fish` category, but the other is in the process of adding a `human` category. If we are following best practices, we should have two separate branches for these to features so that we can work in parallel.
 
 The person working on the `fish` label might create a branch called `add-fish-label` and the other person might make a branch called `add-human-label`
 
@@ -92,10 +93,20 @@ $ oxen checkout -b add-fish-label # create & checkout branch
 $ echo "fish" >> labels.txt # append the "fish" label to our labels file
 $ oxen add labels.txt # stage the labels file
 $ oxen commit -m "added fish label to labels file" # commit the change
-$ oxen push origin add-fish-label # push the changes
 ```
 
-Then from another branch (or another workstation) let's try to add the humans label to the same file. TODO: if we have file name semantics... we can do custom merges where we could catch this scenario...?
+Then add 10 images of fish from another directory. In this example the user has [tiny-imagenet](https://www.kaggle.com/datasets/akash2sharma/tiny-imagenet) downloaded to their ~/Datasets/tiny-imagenet-200/ directory.
+
+```shell
+$ for i in (seq 0 9) ; cp ~/Datasets/tiny-imagenet-200/train/n01443537/images/n01443537_$i.JPEG train/fish_$i.jpg ; end # copy over 10 images of fish
+$ oxen add train # stage the train directory
+$ oxen commit -m "added ten images of fish to training data" # commit the changes
+$ oxen push origin add-fish-label # push to remote
+```
+
+Then from another branch (or another workstation) let's try to add the humans label to the same labels file (this will cause a conflict).
+
+TODO: if we have file name semantics... we can do custom merges where we could catch this scenario...?
 
 ```shell
 $ oxen checkout main # Make sure we are branching from the default main branch
@@ -103,64 +114,72 @@ $ oxen checkout -b add-human-label # create & checkout branch
 $ echo "human" >> labels.txt # append the "human" label to our labels file
 $ oxen add labels.txt # stage the labels file
 $ oxen commit -m "added human label to labels file" # commit the change
-$ oxen push origin add-human-label # push the changes
 ```
 
-Now we have two branches that have added different labels. Let's say that the fish branch merged in first.
+Then we add ten images of humans from this [human action recognition dataset](https://www.kaggle.com/datasets/meetnagadia/human-action-recognition-har-dataset).
+
+```shell
+$ for i in (seq 1 10) ; cp ~/Datasets/tiny-imagenet-200/HumanActionRecognition/train/Image_$i.jpg train/human_$i.jpg ; end # copy over 10 images of humans
+$ oxen add train # stage the changes
+$ oxen commit -m "add a new label of humans, with two new training images" # commit the changes
+$ oxen push origin add-human-label # push the changes to the remote
+```
+
+Now we have two branches that have added different labels and new images for each category. Let's say that the fish branch merged in first.
 
 ```shell
 $ oxen checkout main
 $ oxen merge add-fish-label
 
-Successfully merged `add-fish-label` into `main`
-HEAD -> 90ecac05-8902-4764-b207-2e9adf5643c8
+Updating 900b70e2-1724-45ec-9056-dc0aabb729c8 -> c245849a-92c4-4f4c-850a-4ca12f552de6
+Fast-forward
+Successfully merged `add-fish-category` into `main`
+HEAD -> c245849a-92c4-4f4c-850a-4ca12f552de6
 ```
 
 First merge goes smoothly again since it is simply an addition without any conflicts. Now let's try to merge in the `add-human-label` branch.
 
 ```shell
 $ oxen merge add-human-label
+
+Updating c245849a-92c4-4f4c-850a-4ca12f552de6 -> 894ccc6b-58bf-4593-a458-dd34f88b012f
+Automatic merge failed; fix conflicts and then commit the result.
 ```
 
-# TODO: this is a more complicated example than we need right now...
+We can now see that there were merge conflicts and the merge failed. If we look at the status we can see which files could not automatically be merged. 
 
-Then add 10 images of fish from another directory. In this example the user has [tiny-imagenet](https://www.kaggle.com/datasets/akash2sharma/tiny-imagenet) downloaded to their ~/Datasets/tiny-imagenet-200/ directory.
+TODO: How do we want to display/diff these changes? There is [this library](https://docs.rs/diffy/latest/diffy/index.html) for text files.
+
+Thoughts:
+* Make it easy to choose from the three versions
+* Less likely they want a line by line diff...even for labels or csv file...?
+* Tool to show images, audio, video next to eachother/
+
 
 ```shell
-$ for i in (seq 0 9) ; cp train/n01443537/images/n01443537_$i.JPEG train/fish_$i.jpg ; end
-$ oxen add train
-$ oxen commit -m "added ten images of fish to training data"
-$ oxen push origin add-fish-label
+$ oxen status
+
+On branch main -> c245849a-92c4-4f4c-850a-4ca12f552de6
+
+Unmerged paths:
+  (use "oxen add <file>..." to mark resolution)
+  both modified:  labels.txt
+
 ```
 
-Then from another branch lets add the humans label, as well add ten images of humans from this [human action recognition dataset](https://www.kaggle.com/datasets/meetnagadia/human-action-recognition-har-dataset).
+If we look at the file, it defaults to the version that was on the main branch in the HEAD commit.
 
 ```shell
-$ oxen checkout -b add-human-label # create branch
-$ cp ~/Downloads/human_0.jpg train/human_0.jpg # copy human image one
-$ cp ~/Downloads/human_1.jpg train/human_1.jpg # copy human image two
-$ echo "train/human_0.jpg 2" >> annotations/train_annotations.txt # edit annotations to include first human image
-$ echo "train/human_1.jpg 2" >> annotations/train_annotations.txt # edit annotations to include second human image
-$ echo "human" >> labels.txt # modify labels to include a human label
-$ oxen add train # stage the changes
-$ oxen commit -m "add a new label of humans, with two new training images" # commit the changes
-$ oxen push origin add-human-label # push the changes to the remote
+$ cat labels.txt
+cat
+dog
+fish
 ```
 
-We have run some tests on the cats and dogs branch and want to merge it in before we take on the challenge of adding more categories. To simply merge the cats and dogs in is simple, it's the same workflow we did previously.
-
-First make sure we have all the changes locally, then checkout the main branch. 
+Let's add back in the human category add the end of the file, add and commit it.
 
 ```shell
-$ oxen pull origin add-cats-and-dogs
-$ oxen checkout main
+$ echo "human" >> labels.txt
+$ oxen add labels.txt
+$ oxen commit -m "merge human label into labels.txt file"
 ```
-
-Then merge the `add-cats-and-dogs` branch
-
-```shell
-oxen merge add-cats-and-dogs
-```
-
-
-
