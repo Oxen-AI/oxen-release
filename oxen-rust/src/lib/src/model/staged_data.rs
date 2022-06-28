@@ -148,21 +148,21 @@ impl StagedData {
             let path = &conflict.head_entry.path;
             let added_file_str = format!("  both modified:  {}", path.to_str().unwrap()).red();
             println!("{}", added_file_str);
-            println!(
-                "    LCA {} {:?}",
-                conflict.lca_entry.commit_id,
-                conflict.lca_entry.version_file()
-            );
-            println!(
-                "    HEAD {} {:?}",
-                conflict.head_entry.commit_id,
-                conflict.head_entry.version_file()
-            );
-            println!(
-                "    MERGE {} {:?}",
-                conflict.merge_entry.commit_id,
-                conflict.merge_entry.version_file()
-            );
+            // println!(
+            //     "    LCA {} {:?}",
+            //     conflict.lca_entry.commit_id,
+            //     conflict.lca_entry.version_file()
+            // );
+            // println!(
+            //     "    HEAD {} {:?}",
+            //     conflict.head_entry.commit_id,
+            //     conflict.head_entry.version_file()
+            // );
+            // println!(
+            //     "    MERGE {} {:?}",
+            //     conflict.merge_entry.commit_id,
+            //     conflict.merge_entry.version_file()
+            // );
         }
         println!();
     }
