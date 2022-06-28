@@ -573,7 +573,6 @@ mod tests {
                     );
                     assert!(filepath.exists());
                 }
-
             }
 
             // Make sure we added the merge commit
