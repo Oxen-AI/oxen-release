@@ -3,8 +3,8 @@ use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitReader, CommitWriter,
-    MergeConflictDBReader, RefReader, Stager, RefWriter
+    CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader, RefWriter,
+    Stager,
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, MergeConflict};
 use crate::util;
@@ -50,7 +50,10 @@ impl Merger {
         let merge_commits = self.find_merge_commits(&branch_name)?;
 
         // User output
-        println!("Updating {} -> {}", merge_commits.head.id, merge_commits.merge.id);
+        println!(
+            "Updating {} -> {}",
+            merge_commits.head.id, merge_commits.merge.id
+        );
 
         log::debug!(
             "FOUND MERGE COMMITS:\nLCA: {} -> {}\nHEAD: {} -> {}\nMerge: {} -> {}",
