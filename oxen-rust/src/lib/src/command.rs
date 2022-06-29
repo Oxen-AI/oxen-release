@@ -383,10 +383,17 @@ pub fn merge<S: AsRef<str>>(
     }
 }
 
-/// # List branches
+/// # List local branches
 pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
     let ref_reader = RefReader::new(repo)?;
     let branches = ref_reader.list_branches()?;
+    Ok(branches)
+}
+
+/// # List remote branches
+pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
+    let remote_repo = RemoteRepository::from_local(repo);
+    let branches = api::remote::branches::list(&remote_repo)?;
     Ok(branches)
 }
 

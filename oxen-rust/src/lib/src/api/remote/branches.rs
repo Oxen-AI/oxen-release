@@ -2,7 +2,7 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{Branch, RemoteRepository};
-use crate::view::BranchResponse;
+use crate::view::{BranchResponse, ListBranchesResponse};
 
 use serde_json::json;
 
@@ -78,6 +78,42 @@ pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch
     }
 }
 
+pub fn list(
+    repository: &RemoteRepository,
+) -> Result<Vec<Branch>, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/repositories/{}/branches", repository.name);
+    let url = api::endpoint::url_from(&uri);
+
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let body = res.text()?;
+        let response: Result<ListBranchesResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.branches),
+            Err(err) => {
+                log::debug!(
+                    "remote::branches::list() Could not serialize response [{}] {}",
+                    err,
+                    body
+                );
+                Err(OxenError::basic_str("Could not list remote branches"))
+            }
+        }
+    } else {
+        let err = "Failed to list branches";
+        log::error!("remote::branches::list() err: {}", err);
+        Err(OxenError::basic_str(&err))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -97,7 +133,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_by_name() -> Result<(), OxenError> {
+    fn test_get_branch_by_name() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|remote_repo| {
             let branch_name = "my-branch";
             api::remote::branches::create_or_get(remote_repo, branch_name)?;
@@ -105,6 +141,23 @@ mod tests {
             let branch = api::remote::branches::get_by_name(remote_repo, branch_name)?;
             assert!(branch.is_some());
             assert_eq!(branch.unwrap().name, branch_name);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_remote_branches() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|remote_repo| {
+            api::remote::branches::create_or_get(remote_repo, "branch-1")?;
+            api::remote::branches::create_or_get(remote_repo, "branch-2")?;
+
+            let branches = api::remote::branches::list(remote_repo)?;
+            assert_eq!(branches.len(), 3);
+
+            assert!(branches.iter().any(|b| b.name == "branch-1"));
+            assert!(branches.iter().any(|b| b.name == "branch-2"));
+            assert!(branches.iter().any(|b| b.name == "main"));
 
             Ok(())
         })

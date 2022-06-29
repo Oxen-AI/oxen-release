@@ -204,7 +204,7 @@ pub fn list_branches() -> Result<(), OxenError> {
 pub fn list_remote_branches() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let branches = command::list_branches(&repository)?;
+    let branches = command::list_remote_branches(&repository)?;
 
     for branch in branches.iter() {
         if branch.is_head {

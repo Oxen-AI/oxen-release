@@ -4,9 +4,7 @@ use crate::index::RefReader;
 use crate::model::{Branch, LocalRepository};
 
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    let referencer = RefReader::new(repo)?;
-    let branches = referencer.list_branches()?;
-    Ok(branches)
+    command::list_branches(repo)
 }
 
 pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
