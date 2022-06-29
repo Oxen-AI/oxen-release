@@ -1,16 +1,16 @@
-# Developing a new CLI command
+# Add Library Code
 
 This guide is to help developers get up in running, as well as document some code paths in the repository.
 
 The project is split into three components in the `src` directory
 
-- `lib`
-- `cli`
-- `server`
+- `lib` A shared library that can be used in both the CLI and Server
+- `cli` The oxen CLI binary
+- `server` The oxen server binary
 
-The `cli` and the `server` share the `lib` as the common code path between them. Hence it is good to start implementing any code that you could see shared between the CLI and the Server in the shared libary.
+The `cli` and the `server` share the `lib` as the common code path between them. Hence it is good to start implementing any code that you could see shared between the CLI and the Server in the shared `lib`.
 
-Let's use the `oxen branch -a` comand as an example, which lists all the local branches in the repository. A useful entry point for all the commands is the [src/lib/src/command.rs](https://github.com/Oxen-AI/Oxen/blob/feature/merging/src/lib/src/command.rs). If you search for the `list_branches` function in this file you will see an example implementation.
+Let's use the `oxen branch -a` comand as an example, which lists all the local branches in the repository. A useful entry point for all the commands is the [src/lib/src/command.rs](https://github.com/Oxen-AI/Oxen/blob/main/src/lib/src/command.rs). If you search for the `list_branches` function in this file you will see an example implementation.
 
 ```rust
 /// # List branches
@@ -89,5 +89,7 @@ fn test_ref_reader_list_branches() -> Result<(), OxenError> {
     })
 }
 ```
+
+Feel free to browse the rest of the RefReader class to see the implementation, but most importantly we want to make sure we have high level tests for all of the functionality, and leave the implementation to you.
 
 Once your code is tested with unit tests, or integration tests, you can integrate it into the command line or server binaries. An example of hooking into the cli is [here](IntegrateCLICode.md) and an example of hooking into the server is [here](IntegrateServerCode.md).
