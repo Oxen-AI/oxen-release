@@ -20,7 +20,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
                 HttpResponse::Ok().json(view)
             }
             Err(err) => {
-                log::error!("Unable to list repositories. Err: {}", err);
+                log::error!("Unable to list branches. Err: {}", err);
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         },
