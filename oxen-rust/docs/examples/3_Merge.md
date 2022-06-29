@@ -12,7 +12,9 @@ cd SmallCatDog
 oxen pull origin main
 ```
 
-Make sure that we have pulled all the entries on the branch. First let's make sure the branches are synced. TODO: Implement the `fetch` command.
+Make sure that we have pulled all the entries on the branch. First let's make sure the branches are synced.
+
+TODO: Implement the `fetch` command.
 
 ```shell
 $ oxen fetch

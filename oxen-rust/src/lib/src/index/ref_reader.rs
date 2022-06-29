@@ -23,6 +23,7 @@ impl RefReader {
         if !refs_dir.exists() {
             std::fs::create_dir_all(&refs_dir)?;
             // open it then lose scope to close it
+            // so that we can read an empty one if it doesn't exist
             let _db = DB::open(&opts, &refs_dir)?;
         }
 
@@ -115,5 +116,33 @@ impl RefReader {
             Ok(None) => Ok(None),
             Err(err) => Err(err),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::command;
+    use crate::error::OxenError;
+    use crate::index::RefReader;
+    use crate::test;
+
+    #[test]
+    fn test_ref_reader_list_branches() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            command::create_branch(&repo, "feature/add-something")?;
+            command::create_branch(&repo, "bug/something-is-broken")?;
+
+            let ref_reader = RefReader::new(&repo)?;
+            let branches = ref_reader.list_branches()?;
+
+            // We start with the main branch, then added these two
+            assert_eq!(branches.len(), 3);
+
+            assert!(branches.iter().any(|b| b.name == "feature/add-something"));
+            assert!(branches.iter().any(|b| b.name == "bug/something-is-broken"));
+            assert!(branches.iter().any(|b| b.name == "main"));
+
+            Ok(())
+        })
     }
 }
