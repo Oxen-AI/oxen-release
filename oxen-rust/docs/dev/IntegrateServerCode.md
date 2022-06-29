@@ -52,15 +52,43 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 This contains the base directory looking for repositories in `app_data.path`. We can then look up the repository on disk with our `api::local::repositories` module.
 
 ```rust
+// ...
+
+// We can grab the `repo_name` parameter that was defined in main.rs when binding the server endpoint
 let name: &str = req.match_info().get("repo_name").unwrap();
-    // ...
+// Then given a base path and a name, find the repository on disk
+match api::local::repositories::get_by_name(&app_data.path, name) {
 
-    // We can grab the `repo_name` parameter that was defined in main.rs when binding the server endpoint
-    let name: &str = req.match_info().get("repo_name").unwrap();
-    // Then given a base path and a name, find the repository on disk
-    match api::local::repositories::get_by_name(&app_data.path, name) {
-
-    // ...
+// ...
 ```
 
-If we found the repository
+If we found the repository, we can try to list the branches, otherwise we return 404 or 500 internal server error if appropriate. The `api::local::branches::list` is just a wrapper around the `command::list` method we made earlier, but makes it clear if we are listing the branch model remotely or locally.
+
+```rust
+// ...
+
+Ok(Some(repository)) => match api::local::branches::list(&repository) {
+    Ok(branches) => {
+        let view = ListBranchesResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_FOUND),
+            branches,
+        };
+        HttpResponse::Ok().json(view)
+    }
+    Err(err) => {
+        log::error!("Unable to list branches. Err: {}", err);
+        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+    }
+},
+
+// ...
+```
+
+Next up we need a unit test to make sure the functionality works. See `test_branches_index_multiple_branches` and `test_branches_index_empty` for the unit test implementations.
+
+If you would like to see the API with `curl` on the command line you can run the server and use this curl command:
+
+```shell
+`curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/repositories/$REPO_NAME/branches"`
+```
