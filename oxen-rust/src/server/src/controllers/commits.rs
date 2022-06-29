@@ -69,7 +69,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
     let commit_id: Option<&str> = req.match_info().get("commit_id");
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => {
+            Ok(Some(repository)) => {
                 match api::local::repositories::get_commit_stats_from_id(&repository, commit_id) {
                     Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
                         status: String::from(STATUS_SUCCESS),
@@ -87,6 +87,13 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
                             .json(StatusMessage::internal_server_error())
                     }
                 }
+            }
+            Ok(None) => {
+                log::debug!(
+                    "404 could not get repo {}",
+                    name,
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             Err(err) => {
                 log::error!("Could not find repo: {}", err);
@@ -107,7 +114,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let commit_id: Option<&str> = req.match_info().get("commit_id");
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::commits::get_by_id(&repository, commit_id) {
+            Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
                 Ok(Some(commit)) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
@@ -122,9 +129,16 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                 }
             },
-            Err(err) => {
-                log::debug!("Could not find repo [{}]: {}", name, err);
+            Ok(None) => {
+                log::debug!(
+                    "404 could not get repo {}",
+                    name,
+                );
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -140,7 +154,7 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
     let commit_id: Option<&str> = req.match_info().get("commit_id");
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match p_get_parents(&repository, commit_id) {
+            Ok(Some(repository)) => match p_get_parents(&repository, commit_id) {
                 Ok(parents) => HttpResponse::Ok().json(CommitParentsResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
@@ -156,9 +170,16 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                 }
             },
+            Ok(None) => {
+                log::debug!(
+                    "404 could not get repo {}",
+                    name,
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
             Err(err) => {
                 log::debug!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -194,7 +215,7 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let commit_id: Option<&str> = req.match_info().get("commit_id");
     if let (Some(name), Some(commit_id)) = (name, commit_id) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::commits::get_by_id(&repository, commit_id) {
+            Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
                 Ok(Some(commit)) => match compress_commit(&repository, &commit) {
                     Ok(buffer) => HttpResponse::Ok().body(buffer),
                     Err(err) => {
@@ -212,9 +233,16 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                 }
             },
-            Err(err) => {
-                log::debug!("Could not find repo [{}]: {}", name, err);
+            Ok(None) => {
+                log::debug!(
+                    "404 could not get repo {}",
+                    name,
+                );
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -260,7 +288,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
         api::local::repositories::get_by_name(&app_data.path, repo_name),
         data,
     ) {
-        (Ok(repo), Ok(commit)) => {
+        (Ok(Some(repo)), Ok(commit)) => {
             // Create Commit from uri params
             match create_commit(&repo.path, branch_name, &commit) {
                 Ok(_) => HttpResponse::Ok().json(CommitResponse {
@@ -296,7 +324,7 @@ pub async fn upload(
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
     match api::local::repositories::get_by_name(&app_data.path, repo_name) {
-        Ok(repo) => {
+        Ok(Some(repo)) => {
             let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
             match api::local::commits::get_by_id(&repo, commit_id) {
@@ -327,6 +355,13 @@ pub async fn upload(
                         .json(StatusMessage::internal_server_error()))
                 }
             }
+        }
+        Ok(None) => {
+            log::debug!(
+                "404 could not get repo {}",
+                repo_name,
+            );
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
         }
         Err(repo_err) => {
             log::error!("Err get_by_name: {}", repo_err);

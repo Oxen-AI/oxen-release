@@ -8,16 +8,16 @@ use crate::util;
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn get_by_name(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
+pub fn get_by_name(sync_dir: &Path, name: &str) -> Result<Option<LocalRepository>, OxenError> {
     let repo_dir = sync_dir.join(name);
 
     if !repo_dir.exists() {
-        let err = format!("Repo does not exist: {:?}", repo_dir);
-        return Err(OxenError::basic_str(&err));
+        log::debug!("Repo does not exist: {:?}", repo_dir);
+        return Ok(None);
     }
 
     let repo = LocalRepository::from_dir(&repo_dir)?;
-    Ok(repo)
+    Ok(Some(repo))
 }
 
 pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, OxenError> {
@@ -191,7 +191,7 @@ mod tests {
         test::run_empty_dir_test(|sync_dir| {
             let name = "my-repo";
             let _ = command::init(&sync_dir.join(name))?;
-            let repo = api::local::repositories::get_by_name(sync_dir, name)?;
+            let repo = api::local::repositories::get_by_name(sync_dir, name)?.unwrap();
             assert_eq!(repo.name, name);
             Ok(())
         })

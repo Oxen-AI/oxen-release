@@ -41,14 +41,18 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+            Ok(Some(repository)) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
                 repository: remote_from_local(repository),
             }),
-            Err(err) => {
-                log::debug!("Could not find repo: {}", err);
+            Ok(None) => {
+                log::debug!("404 Could not find repo: {}", name);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::debug!("Err finding repo: {} => {:?}", name, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -59,11 +63,10 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::get_by_name(&app_data.path, &data.name) {
-            Ok(repository) => {
+            Ok(Some(repository)) => {
                 // Set the remote to this server
                 HttpResponse::Ok().json(RemoteRepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
@@ -71,7 +74,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     repository: remote_from_local(repository),
                 })
             }
-            Err(_) => match api::local::repositories::create_empty(&app_data.path, &data) {
+            _ => match api::local::repositories::create_empty(&app_data.path, &data) {
                 Ok(repository) => {
                     // Set the remote to this server
                     HttpResponse::Ok().json(RemoteRepositoryResponse {
@@ -81,10 +84,10 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     })
                 }
                 Err(err) => {
-                    log::error!("Err api::local::repositories::create: {:?}", err);
+                    log::error!("Err api::local::repositories::create_empty: {:?}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
-            },
+            }
         },
         Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),
     }
@@ -103,7 +106,7 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::repositories::delete(&app_data.path, repository) {
+            Ok(Some(repository)) => match api::local::repositories::delete(&app_data.path, repository) {
                 Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_DELETED),
@@ -114,9 +117,13 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
             },
+            Ok(None) => {
+                log::debug!("404 Could not find repo: {}", name);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
             Err(err) => {
                 log::error!("Delete could not find repo: {}", err);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -132,7 +139,7 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, repo_name) {
-        Ok(repo) => {
+        Ok(Some(repo)) => {
             match api::local::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
                     match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
@@ -172,6 +179,11 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                     Ok(NamedFile::open("")?)
                 }
             }
+        }
+        Ok(None) => {
+            log::debug!("404 Could not find repo: {}", repo_name);
+            // gives a 404
+            Ok(NamedFile::open("")?)
         }
         Err(err) => {
             log::error!("get_file get repo err: {:?}", err);

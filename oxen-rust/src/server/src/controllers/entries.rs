@@ -31,7 +31,14 @@ pub async fn create(
     // name of the repo
     let name: &str = req.match_info().get("repo_name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
-        Ok(local_repo) => p_create_entry(&app_data.path, &local_repo, body, data).await,
+        Ok(Some(repo)) => p_create_entry(&app_data.path, &repo, body, data).await,
+        Ok(None) => {
+            log::debug!(
+                "404 could not get repo {}",
+                name,
+            );
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+        }
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {}", err);
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
@@ -56,59 +63,66 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
         page_num,
         page_size,
     );
-    if let Ok(repo) = api::local::repositories::get_by_name(&app_data.path, name) {
-        log::debug!("list_entries got repo [{}]", name);
-        match api::local::commits::get_by_id(&repo, commit_id) {
-            Ok(Some(commit)) => {
-                log::debug!(
-                    "list_entries got commit [{}] '{}'",
-                    commit.id,
-                    commit.message
-                );
-                match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
-                    Ok(entries) => {
-                        log::debug!(
-                            "list_entries commit {} got {} entries",
-                            commit_id,
-                            entries.len()
-                        );
-                        let entries: Vec<RemoteEntry> =
-                            entries.into_iter().map(|entry| entry.to_remote()).collect();
+    match api::local::repositories::get_by_name(&app_data.path, name) {
+        Ok(Some(repo)) => {
+            log::debug!("list_entries got repo [{}]", name);
+            match api::local::commits::get_by_id(&repo, commit_id) {
+                Ok(Some(commit)) => {
+                    log::debug!(
+                        "list_entries got commit [{}] '{}'",
+                        commit.id,
+                        commit.message
+                    );
+                    match api::local::entries::list_page(&repo, &commit, page_num, page_size) {
+                        Ok(entries) => {
+                            log::debug!(
+                                "list_entries commit {} got {} entries",
+                                commit_id,
+                                entries.len()
+                            );
+                            let entries: Vec<RemoteEntry> =
+                                entries.into_iter().map(|entry| entry.to_remote()).collect();
 
-                        let total_entries: usize =
-                            api::local::entries::count_for_commit(&repo, &commit)
-                                .unwrap_or(entries.len());
-                        let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
-                        let view = PaginatedEntries {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_FOUND),
-                            page_size,
-                            page_number: page_num,
-                            total_pages: total_pages as usize,
-                            total_entries,
-                            entries,
-                        };
-                        HttpResponse::Ok().json(view)
-                    }
-                    Err(err) => {
-                        log::error!("Unable to list repositories. Err: {}", err);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
+                            let total_entries: usize =
+                                api::local::entries::count_for_commit(&repo, &commit)
+                                    .unwrap_or(entries.len());
+                            let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+                            let view = PaginatedEntries {
+                                status: String::from(STATUS_SUCCESS),
+                                status_message: String::from(MSG_RESOURCE_FOUND),
+                                page_size,
+                                page_number: page_num,
+                                total_pages: total_pages as usize,
+                                total_entries,
+                                entries,
+                            };
+                            HttpResponse::Ok().json(view)
+                        }
+                        Err(err) => {
+                            log::error!("Unable to list repositories. Err: {}", err);
+                            HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error())
+                        }
                     }
                 }
-            }
-            Ok(None) => {
-                log::debug!("Could not find commit with id {}", commit_id);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Unable to get commit id {}. Err: {}", commit_id, err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                Ok(None) => {
+                    log::debug!("Could not find commit with id {}", commit_id);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::error!("Unable to get commit id {}. Err: {}", commit_id, err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                }
             }
         }
-    } else {
-        log::debug!("Could not find repo with name {}", name);
-        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        Ok(None) => {
+            log::debug!("Could not find repo with name {}", name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        },
+        Err(err) => {
+            log::error!("Unable to get commit id {}. Err: {}", commit_id, err);
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
     }
 }
 
