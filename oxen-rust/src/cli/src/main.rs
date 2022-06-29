@@ -51,8 +51,19 @@ fn main() {
                     Arg::new("all")
                         .long("all")
                         .short('a')
-                        .help("List all the branches")
+                        .help("List all the local branches")
                         .conflicts_with("name")
+                        .conflicts_with("remote")
+                        .exclusive(true)
+                        .takes_value(false),
+                )
+                .arg(
+                    Arg::new("remote")
+                        .long("remote")
+                        .short('r')
+                        .help("List all the remote branches")
+                        .conflicts_with("name")
+                        .conflicts_with("all")
                         .exclusive(true)
                         .takes_value(false),
                 ),
@@ -159,6 +170,10 @@ fn main() {
         Some(("branch", sub_matches)) => {
             if sub_matches.is_present("all") {
                 if let Err(err) = dispatch::list_branches() {
+                    eprintln!("{}", err)
+                }
+            } else if sub_matches.is_present("remote") {
+                if let Err(err) = dispatch::list_remote_branches() {
                     eprintln!("{}", err)
                 }
             } else if let Some(name) = sub_matches.value_of("name") {

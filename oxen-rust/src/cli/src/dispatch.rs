@@ -201,6 +201,23 @@ pub fn list_branches() -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn list_remote_branches() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let branches = command::list_branches(&repository)?;
+
+    for branch in branches.iter() {
+        if branch.is_head {
+            let branch_str = format!("* {}", branch.name).green();
+            println!("{}", branch_str)
+        } else {
+            println!("{}", branch.name)
+        }
+    }
+
+    Ok(())
+}
+
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
     command::inspect(path)
 }
