@@ -14,7 +14,7 @@ pub fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
 pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}", name);
-    let url = api::endpoint::url_from(&uri);
+    let url = api::endpoint::url_from_config(&config, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -57,7 +57,7 @@ pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
 
 pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
-    let url = api::endpoint::url_from("/repositories");
+    let url = api::endpoint::url_from_config(&config, "/repositories");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": repository.name, "root_commit": root_commit });
 
@@ -93,12 +93,9 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
 
 pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}", repository.name);
-    let url = api::endpoint::url_from(&uri);
-
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
-        .delete(url)
+        .delete(repository.url)
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),
