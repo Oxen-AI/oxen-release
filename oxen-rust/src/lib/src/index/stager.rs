@@ -8,9 +8,10 @@ use crate::model::{
 };
 use crate::util;
 
+use indicatif::ProgressBar;
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
-// use std::convert::TryFrom;
+use rayon::prelude::*;
 use filetime::FileTime;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,6 +22,7 @@ pub const STAGED_DIR: &str = "staged";
 pub struct Stager {
     db: DB,
     pub repository: LocalRepository,
+    merger: Option<Merger>
 }
 
 impl Stager {
@@ -38,6 +40,21 @@ impl Stager {
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
             repository: repository.clone(),
+            merger: None
+        })
+    }
+
+    pub fn new_with_merge(repository: &LocalRepository) -> Result<Stager, OxenError> {
+        let dbpath = Stager::staging_dir(&repository.path);
+        log::debug!("Stager db_path {:?}", dbpath);
+        if !dbpath.exists() {
+            std::fs::create_dir_all(&dbpath)?;
+        }
+        let opts = db::opts::default();
+        Ok(Stager {
+            db: DB::open(&opts, &dbpath)?,
+            repository: repository.clone(),
+            merger: Some(Merger::new(&repository.clone())?)
         })
     }
 
@@ -190,10 +207,23 @@ impl Stager {
 
         log::debug!("Stager.add_dir {:?} -> {}", path, paths.len());
 
-        for path in paths.iter() {
+        println!("Adding files in directory: {:?}", path);
+        let size: u64 = unsafe { std::mem::transmute(paths.len()) };
+        let bar = ProgressBar::new(size);
+        paths.par_iter().for_each(|path| {
             let full_path = self.repository.path.join(path);
-            self.add_file(&full_path, entry_reader)?;
-        }
+            match self.add_file(&full_path, entry_reader) {
+                Ok(_) => {
+                    // all good
+                },
+                Err(err) => {
+                    log::error!("Could not add file: {:?}\nErr: {}", path, err);
+                }
+            }
+            bar.inc(1);
+        });
+
+        bar.finish();
 
         Ok(())
     }
@@ -283,13 +313,14 @@ impl Stager {
         };
 
         // Check if it is a merge conflict, then we can add it
-        if self.is_merge_conflict(&path)? {
-            log::debug!("add_file merger has file! {:?}", path);
-            self.add_staged_entry_to_db(&path, &staged_entry)?;
-            let merger = Merger::new(&self.repository)?;
-            merger.remove_conflict_path(&path)?;
-            return Ok(path);
-        }
+        if let Some(merger) = &self.merger {
+            if merger.has_file(&path)? {
+                log::debug!("add_file merger has file! {:?}", path);
+                self.add_staged_entry_to_db(&path, &staged_entry)?;
+                merger.remove_conflict_path(&path)?;
+                return Ok(path);
+            }
+        } 
 
         // Check if file has changed on disk
         if let Ok(Some(entry)) = entry_reader.get_entry(&path) {
@@ -306,11 +337,6 @@ impl Stager {
         self.add_staged_entry_to_db(&path, &staged_entry)?;
 
         Ok(path)
-    }
-
-    fn is_merge_conflict(&self, path: &Path) -> Result<bool, OxenError> {
-        let reader = MergeConflictReader::new(&self.repository)?;
-        reader.has_file(path)
     }
 
     fn add_staged_entry_to_db(
