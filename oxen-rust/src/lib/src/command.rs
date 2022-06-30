@@ -7,7 +7,7 @@ use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitReader, CommitWriter, Indexer, RefReader, RefWriter, Stager,
+    CommitEntryReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 use crate::util;
@@ -167,8 +167,10 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
     let status = status(repo)?;
-    if status.is_clean() {
-        log::debug!("Cannot commit clean status...");
+    if !status.has_added_entries() {
+        println!(
+            "No files are staged, not committing. Stage a file or directory with `oxen add <file>`"
+        );
         return Ok(None);
     }
     let commit = p_commit(repo, &status, message)?;
@@ -348,10 +350,50 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), 
     Ok(())
 }
 
-/// # List branches
+/// # Merge a branch into the current branch
+/// Checks for simple fast forward merge, or if current branch has diverged from the merge branch
+/// it will perform a 3 way merge
+/// If there are conflicts, it will abort and show the conflicts to be resolved in the `status` command
+pub fn merge<S: AsRef<str>>(
+    repo: &LocalRepository,
+    branch_name: S,
+) -> Result<Option<Commit>, OxenError> {
+    let branch_name = branch_name.as_ref();
+    if branch_exists(repo, branch_name) {
+        if let Some(branch) = current_branch(repo)? {
+            let merger = Merger::new(repo)?;
+            if let Some(commit) = merger.merge(branch_name)? {
+                println!(
+                    "Successfully merged `{}` into `{}`",
+                    branch_name, branch.name
+                );
+                println!("HEAD -> {}", commit.id);
+                Ok(Some(commit))
+            } else {
+                eprintln!("Automatic merge failed; fix conflicts and then commit the result.");
+                Ok(None)
+            }
+        } else {
+            Err(OxenError::basic_str(
+                "Must be on a branch to perform a merge.",
+            ))
+        }
+    } else {
+        Err(OxenError::local_branch_not_found(branch_name))
+    }
+}
+
+/// # List local branches
 pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
     let ref_reader = RefReader::new(repo)?;
     let branches = ref_reader.list_branches()?;
+    Ok(branches)
+}
+
+/// # List remote branches
+pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
+    let remote_repo = RemoteRepository::from_local(repo);
+    let branches = api::remote::branches::list(&remote_repo)?;
     Ok(branches)
 }
 

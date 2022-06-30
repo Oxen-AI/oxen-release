@@ -10,7 +10,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
-        Ok(repository) => match api::local::branches::list(&repository) {
+        Ok(Some(repository)) => match api::local::branches::list(&repository) {
             Ok(branches) => {
                 let view = ListBranchesResponse {
                     status: String::from(STATUS_SUCCESS),
@@ -20,17 +20,24 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
                 HttpResponse::Ok().json(view)
             }
             Err(err) => {
-                log::error!("Unable to list repositories. Err: {}", err);
+                log::error!("Unable to list branches. Err: {}", err);
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         },
+        Ok(None) => {
+            log::debug!(
+                "404 api::local::branches::create could not get repo {}",
+                name,
+            );
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
         Err(err) => {
             log::error!(
                 "Err api::local::branches::create could not get repo {} {:?}",
                 name,
                 err
             );
-            HttpResponse::InternalServerError().json(StatusMessage::resource_not_found())
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
 }
@@ -42,7 +49,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let branch_name: Option<&str> = req.match_info().get("branch_name");
     if let (Some(name), Some(branch_name)) = (name, branch_name) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::branches::get_by_name(&repository, branch_name) {
+            Ok(Some(repository)) => match api::local::branches::get_by_name(&repository, branch_name) {
                 Ok(Some(branch)) => HttpResponse::Ok().json(BranchResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
@@ -61,9 +68,16 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                 }
             },
+            Ok(None) => {
+                log::debug!(
+                    "404 api::local::branches::show could not get repo {}",
+                    name,
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
             Err(err) => {
                 log::debug!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                HttpResponse::NotFound().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -80,7 +94,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let name: &str = req.match_info().get("repo_name").unwrap();
     match data {
         Ok(data) => match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => {
+            Ok(Some(repository)) => {
                 match api::local::branches::get_by_name(&repository, &data.name) {
                     Ok(Some(branch)) => {
                         // Set the remote to this server
@@ -112,13 +126,20 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     }
                 }
             }
+            Ok(None) => {
+                log::debug!(
+                    "404 api::local::branches::create_or_get could not get repo {}",
+                    name,
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
             Err(err) => {
                 log::error!(
                     "Err api::local::branches::create could not get repo {} {:?}",
                     name,
                     err
                 );
-                HttpResponse::InternalServerError().json(StatusMessage::resource_not_found())
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         },
         Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),

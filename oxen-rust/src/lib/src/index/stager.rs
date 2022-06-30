@@ -1,9 +1,10 @@
 use crate::constants;
 use crate::db;
 use crate::error::OxenError;
-use crate::index::CommitEntryReader;
+use crate::index::{CommitEntryReader, MergeConflictReader, Merger};
 use crate::model::{
-    CommitEntry, LocalRepository, StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
+    CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
+    StagedEntryStatus,
 };
 use crate::util;
 
@@ -66,7 +67,10 @@ impl Stager {
         // so we have to check if it is committed, and what the backup version is
         if !path.exists() {
             let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-            // println!("Stager.add() checking relative path: {:?}", relative_path);
+            log::debug!(
+                "Stager.add() !path.exists() checking relative path: {:?}",
+                relative_path
+            );
             // Since entries that are committed are only files.. we will have to have different logic for dirs
             if let Ok(Some(value)) = commit_reader.get_entry(&relative_path) {
                 self.add_removed_file(&relative_path, &value)?;
@@ -79,6 +83,10 @@ impl Stager {
                     self.add_removed_file(&entry.path, entry)?;
                 }
 
+                log::debug!(
+                    "Stager.add() !path.exists() !files_in_dir.is_empty() {:?}",
+                    path
+                );
                 return Ok(());
             }
         }
@@ -111,6 +119,8 @@ impl Stager {
         let modified_files = self.list_modified_files(entry_reader)?;
         log::debug!("STATUS: list_removed_files");
         let removed_files = self.list_removed_files(entry_reader)?;
+        log::debug!("STATUS: list_merge_conflicts");
+        let merge_conflicts = self.list_merge_conflicts()?;
         log::debug!("STATUS: ok");
         let status = StagedData {
             added_dirs,
@@ -119,8 +129,14 @@ impl Stager {
             untracked_files,
             modified_files,
             removed_files,
+            merge_conflicts,
         };
         Ok(status)
+    }
+
+    fn list_merge_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
+        let merger = MergeConflictReader::new(&self.repository)?;
+        merger.list_conflicts()
     }
 
     fn list_untracked_files_in_dir(
@@ -132,7 +148,7 @@ impl Stager {
             .into_iter()
             .map(|file| util::fs::path_relative_to_dir(&file, &self.repository.path).unwrap())
             .filter(|file| {
-                log::debug!("list_untracked_files_in_dir {:?}", file);
+                // log::debug!("list_untracked_files_in_dir {:?}", file);
                 !self.file_is_in_index(file, entry_reader)
             })
             .collect()
@@ -243,7 +259,7 @@ impl Stager {
         entry_reader: &CommitEntryReader,
     ) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
-        // println!("Add file: {:?} to {:?}", path, self.repository.path);
+        log::debug!("Add file: {:?} to {:?}", path, self.repository.path);
         if !path.exists() {
             let err = format!("Err cannot stage non-existant file: {:?}", path);
             return Err(OxenError::basic_str(&err));
@@ -266,6 +282,16 @@ impl Stager {
             status: StagedEntryStatus::Added,
         };
 
+        // Check if it is a merge conflict, then we can add it
+        if self.is_merge_conflict(&path)? {
+            log::debug!("add_file merger has file! {:?}", path);
+            self.add_staged_entry_to_db(&path, &staged_entry)?;
+            let merger = Merger::new(&self.repository)?;
+            merger.remove_conflict_path(&path)?;
+            return Ok(path);
+        }
+
+        // Check if file has changed on disk
         if let Ok(Some(entry)) = entry_reader.get_entry(&path) {
             if entry.hash == hash {
                 // file has not changed, don't add it
@@ -277,11 +303,29 @@ impl Stager {
             }
         }
 
-        let key = path.to_str().unwrap();
-        let entry_json = serde_json::to_string(&staged_entry)?;
-        self.db.put(&key, entry_json.as_bytes())?;
+        self.add_staged_entry_to_db(&path, &staged_entry)?;
 
         Ok(path)
+    }
+
+    fn is_merge_conflict(&self, path: &Path) -> Result<bool, OxenError> {
+        let reader = MergeConflictReader::new(&self.repository)?;
+        reader.has_file(path)
+    }
+
+    fn add_staged_entry_to_db(
+        &self,
+        path: &Path,
+        staged_entry: &StagedEntry,
+    ) -> Result<(), OxenError> {
+        let key = path.to_str().unwrap();
+        let entry_json = serde_json::to_string(staged_entry)?;
+
+        log::debug!("add_staged_entry_to_db {:?} -> {:?}", path, staged_entry);
+
+        self.db.put(&key, entry_json.as_bytes())?;
+
+        Ok(())
     }
 
     fn list_keys_with_prefix(&self, path: &str) -> Result<Vec<String>, OxenError> {

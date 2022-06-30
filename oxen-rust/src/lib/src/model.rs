@@ -1,6 +1,7 @@
 pub mod branch;
 pub mod commit;
 pub mod entry;
+pub mod merge_conflict;
 pub mod remote;
 pub mod remote_branch;
 pub mod repository;
@@ -14,8 +15,11 @@ pub use crate::model::repository::remote_repository::RemoteRepository;
 // Commit
 pub use crate::model::commit::{Commit, CommitStats};
 
+// Merge
+pub use crate::model::merge_conflict::MergeConflict;
+
 // Branch
-pub use crate::model::branch::{Branch, BranchName};
+pub use crate::model::branch::Branch;
 pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry

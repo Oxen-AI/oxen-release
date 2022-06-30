@@ -51,8 +51,19 @@ fn main() {
                     Arg::new("all")
                         .long("all")
                         .short('a')
-                        .help("List all the branches")
+                        .help("List all the local branches")
                         .conflicts_with("name")
+                        .conflicts_with("remote")
+                        .exclusive(true)
+                        .takes_value(false),
+                )
+                .arg(
+                    Arg::new("remote")
+                        .long("remote")
+                        .short('r')
+                        .help("List all the remote branches")
+                        .conflicts_with("name")
+                        .conflicts_with("all")
                         .exclusive(true)
                         .takes_value(false),
                 ),
@@ -69,6 +80,12 @@ fn main() {
                         .exclusive(true)
                         .takes_value(true),
                 ),
+        )
+        .subcommand(
+            Command::new("merge")
+                .about("Merges a branch into the current checked out branch.")
+                .arg_required_else_help(true)
+                .arg(arg!(<BRANCH> "The name of the branch you want to merge in.")),
         )
         .subcommand(
             Command::new("clone")
@@ -155,6 +172,10 @@ fn main() {
                 if let Err(err) = dispatch::list_branches() {
                     eprintln!("{}", err)
                 }
+            } else if sub_matches.is_present("remote") {
+                if let Err(err) = dispatch::list_remote_branches() {
+                    eprintln!("{}", err)
+                }
             } else if let Some(name) = sub_matches.value_of("name") {
                 if let Err(err) = dispatch::create_branch(name) {
                     eprintln!("{}", err)
@@ -176,6 +197,18 @@ fn main() {
                 }
             } else {
                 eprintln!("Err: Usage `oxen checkout <name>`");
+            }
+        }
+        Some(("merge", sub_matches)) => {
+            let branch = sub_matches
+                .value_of("BRANCH")
+                .or(Some(DEFAULT_BRANCH_NAME))
+                .unwrap();
+            match dispatch::merge(branch) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
             }
         }
         Some(("push", sub_matches)) => {

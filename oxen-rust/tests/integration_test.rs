@@ -55,6 +55,24 @@ fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
         let commits = command::log(&repo)?;
         let initial_len = commits.len();
         command::commit(&repo, "Should not work")?;
+        let commits = command::log(&repo)?;
+        // We should not have added any commits
+        assert_eq!(commits.len(), initial_len);
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let commits = command::log(&repo)?;
+        let initial_len = commits.len();
+
+        let labels_path = repo.path.join("labels.txt");
+        util::fs::write_to_path(&labels_path, "changing this guy, but not committing");
+
+        command::commit(&repo, "Should not work")?;
+        let commits = command::log(&repo)?;
         // We should not have added any commits
         assert_eq!(commits.len(), initial_len);
         Ok(())
@@ -1296,3 +1314,142 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         Ok(())
     })
 }
+
+#[test]
+fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        // Add a "none" category on a branch
+        let branch_name = "change-labels";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding none category")?;
+
+        // Add a "person" category on a the main branch
+        command::checkout(&repo, &og_branch.name)?;
+
+        test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding person category")?;
+
+        // Try to merge in the changes
+        let commit = command::merge(&repo, branch_name)?;
+
+        // Make sure we didn't get a commit out of it
+        assert!(commit.is_none());
+
+        // Make sure we can access the conflicts in the status command
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_can_add_merge_conflict() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        // Add a "none" category on a branch
+        let branch_name = "change-labels";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding none category")?;
+
+        // Add a "person" category on a the main branch
+        command::checkout(&repo, &og_branch.name)?;
+
+        test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding person category")?;
+
+        // Try to merge in the changes
+        command::merge(&repo, branch_name)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        // Assume that we fixed the conflict and added the file
+        let path = status.merge_conflicts[0].head_entry.path.clone();
+        let fullpath = repo.path.join(path);
+        command::add(&repo, fullpath)?;
+
+        // Adding should add to added files
+        let status = command::status(&repo)?;
+
+        assert_eq!(status.added_files.len(), 1);
+
+        // Adding should get rid of the merge conflict
+        assert_eq!(status.merge_conflicts.len(), 0);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        // Add a "none" category on a branch
+        let branch_name = "change-labels";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding none category")?;
+
+        // Add a "person" category on a the main branch
+        command::checkout(&repo, &og_branch.name)?;
+
+        test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding person category")?;
+
+        // Try to merge in the changes
+        command::merge(&repo, branch_name)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        // Assume that we fixed the conflict and added the file
+        let path = status.merge_conflicts[0].head_entry.path.clone();
+        let fullpath = repo.path.join(path);
+        command::add(&repo, fullpath)?;
+
+        // Should commit, and then see full commit history
+        command::commit(&repo, "merging into main")?;
+
+        // Should have commits:
+        //  1) initial
+        //  2) add labels
+        //  3) change-labels branch modification
+        //  4) main branch modification
+        //  5) merge commit
+        let history = command::log(&repo)?;
+        assert_eq!(history.len(), 5);
+
+        Ok(())
+    })
+}
+
+// Thought exercise - merge "branch" instead of merge commit, because you will want to do one more experiment,
+// then fast forward to that branch

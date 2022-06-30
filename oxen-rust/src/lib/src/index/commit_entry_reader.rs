@@ -5,8 +5,8 @@ use crate::index::{CommitEntryDBReader, CommitReader};
 use crate::model::{Commit, CommitEntry};
 use crate::util;
 
-use std::collections::HashSet;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -180,7 +180,7 @@ impl CommitEntryReader {
             Ok(Some(_value)) => Ok(true),
             Ok(None) => Ok(false),
             Err(err) => {
-                let err = format!("head_contains_file Error reading db\nErr: {}", err);
+                let err = format!("contains_path Error reading db\nErr: {}", err);
                 Err(OxenError::basic_str(&err))
             }
         }

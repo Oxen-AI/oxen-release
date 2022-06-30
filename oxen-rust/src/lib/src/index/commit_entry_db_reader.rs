@@ -29,12 +29,15 @@ impl CommitEntryDBReader {
                     Ok(Some(entry))
                 }
                 Err(_) => Err(OxenError::basic_str(
-                    "get_local_entry_from_commit invalid entry",
+                    "CommitEntryDBReader::get_entry invalid entry",
                 )),
             },
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("get_local_entry_from_commit Error reading db\nErr: {}", err);
+                let err = format!(
+                    "CommitEntryDBReader::get_entry Error reading db\nErr: {}",
+                    err
+                );
                 Err(OxenError::basic_str(&err))
             }
         }

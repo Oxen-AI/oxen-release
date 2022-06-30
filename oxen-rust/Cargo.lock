@@ -1458,37 +1458,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "my-server"
-version = "0.1.0"
-dependencies = [
- "actix-files",
- "actix-http",
- "actix-service",
- "actix-web",
- "actix-web-httpauth",
- "chrono",
- "clap",
- "derive_more",
- "dotenv",
- "env_logger",
- "flate2",
- "futures",
- "futures-util",
- "hex",
- "jsonwebtoken",
- "liboxen",
- "log",
- "rand",
- "rand_core 0.5.1",
- "rocksdb",
- "serde",
- "serde_json",
- "tar",
- "uuid",
- "x25519-dalek",
-]
-
-[[package]]
 name = "native-tls"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1637,6 +1606,37 @@ dependencies = [
  "env_logger",
  "liboxen",
  "rpassword",
+]
+
+[[package]]
+name = "oxen-server"
+version = "0.1.0"
+dependencies = [
+ "actix-files",
+ "actix-http",
+ "actix-service",
+ "actix-web",
+ "actix-web-httpauth",
+ "chrono",
+ "clap",
+ "derive_more",
+ "dotenv",
+ "env_logger",
+ "flate2",
+ "futures",
+ "futures-util",
+ "hex",
+ "jsonwebtoken",
+ "liboxen",
+ "log",
+ "rand",
+ "rand_core 0.5.1",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "tar",
+ "uuid",
+ "x25519-dalek",
 ]
 
 [[package]]

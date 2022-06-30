@@ -113,7 +113,7 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::commits::index),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits",
+                                "/repositories/{repo_name}/commits/{commit_id}",
                                 web::post().to(controllers::commits::upload),
                             )
                             .route(
@@ -129,8 +129,8 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::commits::download_commit_db),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/parent",
-                                web::get().to(controllers::commits::parent),
+                                "/repositories/{repo_name}/commits/{commit_id}/parents",
+                                web::get().to(controllers::commits::parents),
                             )
                             .route(
                                 "/repositories/{repo_name}/commits/{commit_id}/entries",
@@ -151,6 +151,10 @@ async fn main() -> std::io::Result<()> {
                             .route(
                                 "/repositories/{repo_name}/branches/{branch_name}/commits",
                                 web::get().to(controllers::commits::index_branch),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/branches/{branch_name}/commits",
+                                web::post().to(controllers::commits::create),
                             )
                             .route(
                                 "/repositories/{repo_name}/entries",

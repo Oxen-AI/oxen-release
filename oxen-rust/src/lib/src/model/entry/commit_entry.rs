@@ -1,8 +1,11 @@
-use crate::model::RemoteEntry;
+use crate::model::{LocalRepository, RemoteEntry};
+use crate::util;
+
 use filetime::FileTime;
 use serde::{Deserialize, Serialize};
-use std::path::{PathBuf, Path};
+use std::env;
 use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
@@ -40,6 +43,13 @@ impl CommitEntry {
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
         }
+    }
+
+    pub fn version_file(&self) -> PathBuf {
+        let current_dir = env::current_dir().unwrap();
+        let repo_dir = util::fs::get_repo_root(&current_dir).expect("Oxen repo not found.");
+        let repo = LocalRepository::from_dir(&repo_dir).unwrap();
+        util::fs::version_path(&repo, self)
     }
 
     pub fn filename(&self) -> PathBuf {
