@@ -84,8 +84,7 @@ pub fn list(
     repository: &RemoteRepository,
 ) -> Result<Vec<Branch>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/branches");
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, "/branches");
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
