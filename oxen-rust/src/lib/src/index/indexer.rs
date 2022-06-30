@@ -94,7 +94,7 @@ impl Indexer {
             Ok(None) => {
                 // We don't have remote commit
                 // Recursively find local parent and remote parents
-                if let Some(parent_id) = &local_commit.parent_id {
+                for parent_id in local_commit.parent_ids.iter() {
                     // We should have a local parent if the local_commit has parent id
                     let local_parent = api::local::commits::get_by_id(&self.repository, parent_id)?
                         .ok_or_else(|| OxenError::local_parent_link_broken(&local_commit.id))?;
@@ -107,13 +107,13 @@ impl Indexer {
                         &rb.branch,
                         local_commit,
                     )?;
-                } else {
-                    log::debug!(
-                        "rpush_missing_commit_objects stop, no more local parents {} -> '{}'",
-                        local_commit.id,
-                        local_commit.message
-                    );
                 }
+
+                log::debug!(
+                    "rpush_missing_commit_objects stop, no more local parents {} -> '{}'",
+                    local_commit.id,
+                    local_commit.message
+                );
             }
             Err(err) => {
                 let err = format!("Could not push missing commit err: {}", err);
@@ -149,16 +149,16 @@ impl Indexer {
         }
 
         if let Some(commit) = commit_reader.get_commit_by_id(local_commit_id)? {
-            if let Some(parent_id) = &commit.parent_id {
+            for parent_id in commit.parent_ids.iter() {
                 // Recursive call
                 self.rpush_entries(commit_reader, remote_stats, parent_id, depth + 1)?;
-            } else {
-                log::debug!(
-                    "Unroll no parent_id on commit: {} -> '{}'",
-                    commit.id,
-                    commit.message
-                );
             }
+
+            log::debug!(
+                "Unroll no parent_id on commit: {} -> '{}'",
+                commit.id,
+                commit.message
+            );
 
             let entries = self.read_unsynced_entries(&commit)?;
             if !entries.is_empty() {
@@ -344,11 +344,11 @@ impl Indexer {
 
     fn check_parent_and_pull_commit_objects(&self, commit: &Commit) -> Result<(), OxenError> {
         // If we have a parent on the remote
-        if let Ok(Some(parent)) =
-            api::remote::commits::get_remote_parent(&self.repository, &commit.id)
-        {
-            // Recursively sync the parent
-            self.check_parent_and_pull_commit_objects(&parent)?;
+        if let Ok(parents) = api::remote::commits::get_remote_parent(&self.repository, &commit.id) {
+            // Recursively sync the parents
+            for parent in parents.iter() {
+                self.check_parent_and_pull_commit_objects(parent)?;
+            }
         }
 
         // Pulls dbs and commit object

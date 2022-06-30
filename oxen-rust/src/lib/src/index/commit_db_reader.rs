@@ -3,6 +3,7 @@ use crate::index::RefReader;
 use crate::model::{Commit, LocalRepository};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::{HashMap, HashSet};
 use std::str;
 
 pub struct CommitDBReader {}
@@ -28,21 +29,40 @@ impl CommitDBReader {
         db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<Commit, OxenError> {
         let head_commit = CommitDBReader::head_commit(repo, db)?;
-        CommitDBReader::rget_root_commit(repo, db, &head_commit.id)
+
+        let commit = CommitDBReader::rget_root_commit(repo, db, &head_commit.id)?;
+        if let Some(root) = commit {
+            Ok(root)
+        } else {
+            log::error!("could not find root....");
+            Err(OxenError::commit_db_corrupted(head_commit.id))
+        }
     }
 
     fn rget_root_commit(
         repo: &LocalRepository,
         db: &DBWithThreadMode<MultiThreaded>,
         commit_id: &str,
-    ) -> Result<Commit, OxenError> {
+    ) -> Result<Option<Commit>, OxenError> {
         let commit = CommitDBReader::get_commit_by_id(db, commit_id)?
             .ok_or_else(|| OxenError::commit_db_corrupted(commit_id))?;
-        if let Some(parent_id) = &commit.parent_id {
-            Ok(CommitDBReader::rget_root_commit(repo, db, parent_id)?)
-        } else {
-            Ok(commit)
+
+        if commit.parent_ids.is_empty() {
+            return Ok(Some(commit));
         }
+
+        for parent_id in commit.parent_ids.iter() {
+            // Recursive call to this module
+            match CommitDBReader::rget_root_commit(repo, db, parent_id) {
+                Ok(commit) => {
+                    return Ok(commit);
+                }
+                Err(err) => {
+                    log::error!("rget_root_commit cannot get root: {}", err);
+                }
+            }
+        }
+        Ok(None)
     }
 
     pub fn get_commit_by_id(
@@ -81,22 +101,56 @@ impl CommitDBReader {
     pub fn history_from_commit(
         db: &DBWithThreadMode<MultiThreaded>,
         commit: &Commit,
-    ) -> Result<Vec<Commit>, OxenError> {
-        let mut commit_msgs: Vec<Commit> = vec![];
-        // Start with head, and the get parents until there are no parents
+    ) -> Result<HashSet<Commit>, OxenError> {
+        let mut commit_msgs: HashSet<Commit> = HashSet::new();
         CommitDBReader::history_from_commit_id(db, &commit.id, &mut commit_msgs)?;
+        Ok(commit_msgs)
+    }
+
+    pub fn history_with_depth_from_commit(
+        db: &DBWithThreadMode<MultiThreaded>,
+        commit: &Commit,
+    ) -> Result<HashMap<Commit, usize>, OxenError> {
+        let mut commit_msgs: HashMap<Commit, usize> = HashMap::new();
+        let initial_depth: usize = 0;
+        CommitDBReader::history_with_depth_from_commit_id(
+            db,
+            &commit.id,
+            &mut commit_msgs,
+            initial_depth,
+        )?;
         Ok(commit_msgs)
     }
 
     pub fn history_from_commit_id(
         db: &DBWithThreadMode<MultiThreaded>,
         commit_id: &str,
-        commits: &mut Vec<Commit>,
+        commits: &mut HashSet<Commit>,
     ) -> Result<(), OxenError> {
         if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
-            commits.push(commit.clone());
-            if let Some(parent_id) = &commit.parent_id {
+            commits.insert(commit.to_owned());
+            for parent_id in commit.parent_ids.iter() {
                 CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn history_with_depth_from_commit_id(
+        db: &DBWithThreadMode<MultiThreaded>,
+        commit_id: &str,
+        commits: &mut HashMap<Commit, usize>,
+        depth: usize,
+    ) -> Result<(), OxenError> {
+        if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
+            commits.insert(commit.clone(), depth);
+            for parent_id in commit.parent_ids.iter() {
+                CommitDBReader::history_with_depth_from_commit_id(
+                    db,
+                    parent_id,
+                    commits,
+                    depth + 1,
+                )?;
             }
         }
         Ok(())

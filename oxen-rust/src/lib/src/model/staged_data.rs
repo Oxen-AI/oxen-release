@@ -4,7 +4,7 @@ use std::env;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::model::{StagedEntry, StagedEntryStatus};
+use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus};
 use crate::util;
 
 // Used for a quick summary of directory
@@ -45,6 +45,7 @@ pub struct StagedData {
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
     pub removed_files: Vec<PathBuf>,
+    pub merge_conflicts: Vec<MergeConflict>,
 }
 
 impl StagedData {
@@ -56,6 +57,7 @@ impl StagedData {
             untracked_files: vec![],
             modified_files: vec![],
             removed_files: vec![],
+            merge_conflicts: vec![],
         }
     }
 
@@ -66,6 +68,7 @@ impl StagedData {
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
             && self.removed_files.is_empty()
+            && self.merge_conflicts.is_empty()
     }
 
     pub fn has_added_entries(&self) -> bool {
@@ -84,6 +87,10 @@ impl StagedData {
         !self.untracked_dirs.is_empty() || !self.untracked_files.is_empty()
     }
 
+    pub fn has_merge_conflicts(&self) -> bool {
+        !self.merge_conflicts.is_empty()
+    }
+
     pub fn print(&self) {
         if self.is_clean() {
             println!("nothing to commit, working tree clean");
@@ -97,6 +104,10 @@ impl StagedData {
 
         if self.has_modified_entries() {
             self.print_modified();
+        }
+
+        if self.has_merge_conflicts() {
+            self.print_merge_conflicts();
         }
 
         if self.has_removed_entries() {
@@ -127,6 +138,32 @@ impl StagedData {
         println!("Modified files:");
         println!("  (use \"oxen add <file>...\" to update what will be committed)");
         self.print_modified_files();
+        println!();
+    }
+
+    pub fn print_merge_conflicts(&self) {
+        println!("Unmerged paths:");
+        println!("  (use \"oxen add <file>...\" to mark resolution)");
+        for conflict in self.merge_conflicts.iter() {
+            let path = &conflict.head_entry.path;
+            let added_file_str = format!("  both modified:  {}", path.to_str().unwrap()).red();
+            println!("{}", added_file_str);
+            // println!(
+            //     "    LCA {} {:?}",
+            //     conflict.lca_entry.commit_id,
+            //     conflict.lca_entry.version_file()
+            // );
+            // println!(
+            //     "    HEAD {} {:?}",
+            //     conflict.head_entry.commit_id,
+            //     conflict.head_entry.version_file()
+            // );
+            // println!(
+            //     "    MERGE {} {:?}",
+            //     conflict.merge_entry.commit_id,
+            //     conflict.merge_entry.version_file()
+            // );
+        }
         println!();
     }
 

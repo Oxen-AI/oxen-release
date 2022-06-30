@@ -7,7 +7,7 @@ use liboxen::view::http::{
 };
 use liboxen::view::{ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage};
 
-use liboxen::model::{LocalRepository, RemoteRepository, RepositoryNew};
+use liboxen::model::{RemoteRepository, RepositoryNew};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
@@ -19,7 +19,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         Ok(repos) => {
             let repos: Vec<RemoteRepository> = repos
                 .iter()
-                .map(|repo| remote_from_local(repo.clone()))
+                .map(|repo| RemoteRepository::from_local(&repo.clone()))
                 .collect();
             let view = ListRemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
@@ -41,14 +41,18 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+            Ok(Some(repository)) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: remote_from_local(repository),
+                repository: RemoteRepository::from_local(&repository),
             }),
-            Err(err) => {
-                log::debug!("Could not find repo: {}", err);
+            Ok(None) => {
+                log::debug!("404 Could not find repo: {}", name);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::debug!("Err finding repo: {} => {:?}", name, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -59,42 +63,34 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::get_by_name(&app_data.path, &data.name) {
-            Ok(repository) => {
+            Ok(Some(repository)) => {
                 // Set the remote to this server
                 HttpResponse::Ok().json(RemoteRepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
-                    repository: remote_from_local(repository),
+                    repository: RemoteRepository::from_local(&repository),
                 })
             }
-            Err(_) => match api::local::repositories::create_empty(&app_data.path, &data) {
+            _ => match api::local::repositories::create_empty(&app_data.path, &data) {
                 Ok(repository) => {
                     // Set the remote to this server
                     HttpResponse::Ok().json(RemoteRepositoryResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_CREATED),
-                        repository: remote_from_local(repository),
+                        repository: RemoteRepository::from_local(&repository),
                     })
                 }
                 Err(err) => {
-                    log::error!("Err api::local::repositories::create: {:?}", err);
+                    log::error!("Err api::local::repositories::create_empty: {:?}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
-            },
+            }
         },
         Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),
     }
-}
-
-fn remote_from_local(mut repository: LocalRepository) -> RemoteRepository {
-    let uri = format!("/repositories/{}", repository.name);
-    let remote = api::endpoint::url_from(&uri);
-    repository.set_remote(liboxen::constants::DEFAULT_REMOTE_NAME, &remote);
-    RemoteRepository::from_local(&repository)
 }
 
 pub async fn delete(req: HttpRequest) -> HttpResponse {
@@ -103,20 +99,24 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(repository) => match api::local::repositories::delete(&app_data.path, repository) {
+            Ok(Some(repository)) => match api::local::repositories::delete(&app_data.path, repository) {
                 Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_DELETED),
-                    repository: remote_from_local(repository),
+                    repository: RemoteRepository::from_local(&repository),
                 }),
                 Err(err) => {
                     log::error!("Error deleting repository: {}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
             },
+            Ok(None) => {
+                log::debug!("404 Could not find repo: {}", name);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
             Err(err) => {
                 log::error!("Delete could not find repo: {}", err);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -132,7 +132,7 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, repo_name) {
-        Ok(repo) => {
+        Ok(Some(repo)) => {
             match api::local::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
                     match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
@@ -173,6 +173,11 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                 }
             }
         }
+        Ok(None) => {
+            log::debug!("404 Could not find repo: {}", repo_name);
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
         Err(err) => {
             log::error!("get_file get repo err: {:?}", err);
             // gives a 404
@@ -188,7 +193,7 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
-    use chrono::Utc;
+    use chrono::Local;
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepositoryNew};
@@ -266,14 +271,16 @@ mod tests {
     #[actix_web::test]
     async fn test_respository_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
+        let timestamp = Local::now();
         let repo_new = RepositoryNew {
             name: String::from("Testing-Name"),
             root_commit: Commit {
                 id: String::from("1234"),
-                parent_id: None,
+                parent_ids: vec![],
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
-                date: Utc::now(),
+                date: timestamp,
+                timestamp: timestamp.timestamp_nanos(),
             },
         };
         let data = serde_json::to_string(&repo_new)?;

@@ -2,9 +2,9 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::model::{Commit, CommitStats, LocalRepository};
+use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
-use crate::view::{CommitResponse, CommitStatsResponse, RemoteRepositoryHeadResponse};
+use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
 
 use flate2::read::GzDecoder;
@@ -17,11 +17,9 @@ pub fn get_stats(
     commit: &Commit,
 ) -> Result<Option<CommitStats>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/stats",
-        repository.name, commit.id
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/stats", commit.id);
+    let repository = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&repository, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -52,8 +50,9 @@ pub fn get_by_id(
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/{}", repository.name, commit_id);
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}", commit_id);
+    let repository = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&repository, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -87,11 +86,9 @@ pub fn download_commit_db_by_id(
     commit_id: &str,
 ) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/commit_db",
-        repository.name, commit_id
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/commit_db", commit_id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -118,13 +115,11 @@ pub fn download_commit_db_by_id(
 pub fn get_remote_parent(
     repository: &LocalRepository,
     commit_id: &str,
-) -> Result<Option<Commit>, OxenError> {
+) -> Result<Vec<Commit>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/parent",
-        repository.name, commit_id
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/parents", commit_id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -135,9 +130,10 @@ pub fn get_remote_parent(
         .send()
     {
         let body = res.text()?;
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<CommitParentsResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(Some(j_res.commit)),
+            Ok(j_res) => Ok(j_res.parents),
             Err(err) => Err(OxenError::basic_str(&format!(
                 "get_remote_parent() Could not serialize response [{}]\n{}",
                 err, body
@@ -148,50 +144,17 @@ pub fn get_remote_parent(
     }
 }
 
-pub fn get_remote_parent_stats(
-    repository: &LocalRepository,
-    commit_id: &str,
-) -> Result<Option<CommitStats>, OxenError> {
-    let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/parent/stats",
-        repository.name, commit_id
-    );
-    let url = api::endpoint::url_from(&uri);
-    let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
-        )
-        .send()
-    {
-        if res.status() == 404 {
-            return Ok(None);
-        }
-
-        let body = res.text()?;
-        let response: Result<CommitStatsResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res.stats)),
-            Err(err) => Err(OxenError::basic_str(&format!(
-                "get_remote_parent_stats() Could not serialize response [{}]\n{}",
-                err, body
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "get_remote_parent_stats() Request failed",
-        ))
-    }
-}
-
 pub fn post_commit_to_server(
     repository: &LocalRepository,
     branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
+    // First create commit on server
+    create_commit_obj_on_server(repository, branch, commit)?;
+
+    // Then zip up and send the history db
+    println!("Compressing commit {}", commit.id);
+
     // zip up the rocksdb in history dir, and post to server
     let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
         .join(HISTORY_DIR)
@@ -199,36 +162,71 @@ pub fn post_commit_to_server(
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 
-    println!("Compressing commit {}", commit.id);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
     tar.append_dir_all(&tar_subdir, commit_dir)?;
     tar.finish()?;
 
+    println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    post_tarball_to_server(repository, branch, commit, &buffer)
+    post_tarball_to_server(repository, commit, &buffer)
+}
+
+fn create_commit_obj_on_server(
+    repository: &LocalRepository,
+    branch_name: &str,
+    commit: &Commit,
+) -> Result<CommitResponse, OxenError> {
+    let config = AuthConfig::default()?;
+    let client = reqwest::blocking::Client::new();
+
+    let uri = format!("/branches/{}/commits", branch_name);
+
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+
+    let body = serde_json::to_string(&commit).unwrap();
+    log::debug!("create_commit_obj_on_server {}", url);
+    if let Ok(res) = client
+        .post(url)
+        .body(reqwest::blocking::Body::from(body))
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let status = res.status();
+        let body = res.text()?;
+        log::debug!("create_commit_obj_on_server got response {}", body);
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(response) => Ok(response),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "create_commit_obj_on_server Err serializing status_code[{}] \n\n{}",
+                status, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "create_commit_obj_on_server error sending data from file",
+        ))
+    }
 }
 
 fn post_tarball_to_server(
     repository: &LocalRepository,
-    branch_name: &str,
     commit: &Commit,
     buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    println!("Syncing commit {}...", commit.id);
-
-    let name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!(
-        "/repositories/{}/commits?{}&branch={}",
-        name,
-        commit.to_uri_encoded(),
-        branch_name
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}", commit.id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+
     log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client
         .post(url)
@@ -241,6 +239,7 @@ fn post_tarball_to_server(
     {
         let status = res.status();
         let body = res.text()?;
+        log::debug!("post_tarball_to_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response),

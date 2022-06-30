@@ -3,6 +3,7 @@ use liboxen::command;
 use liboxen::config::RemoteConfig;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::util;
 
 use colored::Colorize;
 use std::env;
@@ -85,6 +86,14 @@ pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn merge(branch: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    command::merge(&repository, branch)?;
+    Ok(())
+}
+
 pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
@@ -120,7 +129,10 @@ pub fn log_commits() -> Result<(), OxenError> {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{}\n", commit_id_str);
         println!("Author: {}", commit.author);
-        println!("Date:   {}\n", commit.date);
+        println!(
+            "Date:   {}\n",
+            commit.date.format(util::oxen_date_format::FORMAT)
+        );
         println!("    {}\n", commit.message);
     }
 
@@ -176,6 +188,23 @@ pub fn list_branches() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let branches = command::list_branches(&repository)?;
+
+    for branch in branches.iter() {
+        if branch.is_head {
+            let branch_str = format!("* {}", branch.name).green();
+            println!("{}", branch_str)
+        } else {
+            println!("{}", branch.name)
+        }
+    }
+
+    Ok(())
+}
+
+pub fn list_remote_branches() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let branches = command::list_remote_branches(&repository)?;
 
     for branch in branches.iter() {
         if branch.is_head {

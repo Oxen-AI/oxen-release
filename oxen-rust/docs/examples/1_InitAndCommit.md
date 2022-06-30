@@ -2,16 +2,16 @@
 
 Oxen mirrors the commands from `git` that you know and love. This tutorial can serve as a refresher or a clean start if you have never used version control before.
 
-We will be working with an example dataset that you can download [here *TODO*](http://example.com/dataset). It is a smaller dataset created from the kaggle dataset found [here](https://www.kaggle.com/datasets/shaunthesheep/microsoft-catsvsdogs-dataset). It consists of 20 images of cats and dogs, along with some annotation files. 
+We will be working with an example dataset that you can download [here](https://github.com/Oxen-AI/Oxen/raw/main/data/datasets/SmallCatDog.zip). It is a smaller dataset created from the kaggle dataset found [here](https://www.kaggle.com/datasets/shaunthesheep/microsoft-catsvsdogs-dataset). It consists of 20 images of cats and dogs, along with some annotation files. 
 
 The goal of this tutorial is to show you how to stage and commit data so that you can have an auditable trail of where the data came from, as well as revert back to the data in different points of time.
 
 We have the sample dataset hosted HERE TODO. Start by downloading the dataset and entering the directory.
 
 ```shell
-$ wget http://example.com/dataset.zip .
-$ unzip dataset.zip
-$ cd dataset/
+$ wget https://github.com/Oxen-AI/Oxen/raw/main/data/datasets/SmallCatDog.zip .
+$ unzip SmallCatDog.zip
+$ cd SmallCatDog/
 ```
 
 Before working with the data, it is always good to see if there is an existing oxen repository.
@@ -28,7 +28,7 @@ If there is not one, you can create one with the `oxen init` command.
 $ oxen init .
 
 Initial commit 061d9dce-fb1f-4f1d-b5e7-d8d4145f82a9
-🐂 repository initialized at: "/Users/gregschoeninger/Datasets/SmallCatDog"
+🐂 repository initialized at: "~/Datasets/SmallCatDog"
 ```
 
 Check the status again and you will see the untracked files.

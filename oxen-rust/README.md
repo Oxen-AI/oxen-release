@@ -13,6 +13,8 @@ Includes:
 
 # Build & Run
 
+If you are a developer and want to learn more about adding code or the overall architecture [start here](docs/dev/AddLibraryCode.md). Otherwise a quick start to make sure everything is working follows.
+
 Build the binaries
 
 `cargo build`
@@ -58,7 +60,38 @@ To run with all debug output and run a specific test
 
 `oxen commit -m "added images"`
 
-`oxen push`
+`oxen push origin main`
+
+# Oxen Server
+
+## Structure
+
+Directories with repository names to simply sync data to, same internal file structure as your local repo
+
+/tmp/oxen_sync
+  /repo_name
+
+# APIs
+
+Server defaults to localhost 3000
+
+`set SERVER 0.0.0.0:3000`
+
+You can grab your auth token from the config file above (~/.oxen/auth_config.toml)
+
+`set TOKEN <YOUR_TOKEN>`
+
+## List Repositories
+
+`curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/repositories"`
+
+## Create Repository
+
+`curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"name": "MyRepo"}' "http://$SERVER/repositories"`
+
+## Add file
+
+`curl -v -H "Authorization: Bearer $TOKEN" -X POST --data-binary @/Users/gregschoeninger/Downloads/woof_meow.jpeg "http://$SERVER/repositories/MyRepo/entries?id=1234&path=woof_meow.jpeg&is_synced=true&hash=4321&commit_id=1234&extension=jpeg"`
 
 
 ## Local File Structure
@@ -128,34 +161,3 @@ To inspect any of the key value dbs below
     FILE_UUID_2/
       COMMIT_ID_1 (dog_2.jpg)
 ```
-
-# Oxen Server
-
-## Structure
-
-Directories with repository names to simply sync data to, same internal file structure as your local repo
-
-/tmp/oxen_sync
-  /repo_name
-
-# APIs
-
-Server defaults to localhost 3000
-
-`set SERVER 0.0.0.0:3000`
-
-You can grab your auth token from the config file above (~/.oxen/auth_config.toml)
-
-`set TOKEN <YOUR_TOKEN>`
-
-## List Repositories
-
-`curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/repositories"`
-
-## Create Repository
-
-`curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"name": "MyRepo"}' "http://$SERVER/repositories"`
-
-## Add file
-
-`curl -v -H "Authorization: Bearer $TOKEN" -X POST --data-binary @/Users/gregschoeninger/Downloads/woof_meow.jpeg "http://$SERVER/repositories/MyRepo/entries?id=1234&path=woof_meow.jpeg&is_synced=true&hash=4321&commit_id=1234&extension=jpeg"`

@@ -13,6 +13,12 @@ pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DB: &str = "commits";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
+/// merge/ is where any merge conflicts are stored so that we can get rid of them
+pub const MERGE_DIR: &str = "merge";
+
+/// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
+pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";
+pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
 
 // Default Remotes and Origins
 pub const DEFAULT_BRANCH_NAME: &str = "main";
