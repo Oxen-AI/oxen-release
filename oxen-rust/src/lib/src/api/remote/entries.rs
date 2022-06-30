@@ -2,7 +2,7 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository, RemoteEntry};
+use crate::model::{CommitEntry, LocalRepository, RemoteRepository, RemoteEntry};
 use crate::util;
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
@@ -21,12 +21,9 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
 
     let file = fs::File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
-    let uri = format!(
-        "/repositories/{}/entries?{}",
-        repository.name,
-        entry.to_uri_encoded()
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/entries?{}", entry.to_uri_encoded());
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
     log::debug!("create entry: {}", url);
     match client
         .post(url)
@@ -81,11 +78,9 @@ pub fn list_page(
     page_size: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/entries?page_num={}&page_size={}",
-        repository.name, commit_id, page_num, page_size
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/entries?page_num={}&page_size={}", commit_id, page_num, page_size);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(&url)

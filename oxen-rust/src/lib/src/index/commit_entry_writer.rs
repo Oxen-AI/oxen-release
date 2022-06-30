@@ -76,7 +76,7 @@ impl CommitEntryWriter {
             }
             Err(err) => {
                 log::debug!(
-                    "CommitEntryWriter::create_db_dir_for_commit_id do not have parent id {:?}",
+                    "CommitEntryWriter::create_db_dir_for_commit_id does not have parent id {:?}",
                     err
                 );
                 // We are creating initial commit, no parent

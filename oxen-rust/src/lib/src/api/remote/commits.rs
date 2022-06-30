@@ -2,7 +2,7 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::model::{Commit, CommitStats, LocalRepository};
+use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
 use std::path::Path;
@@ -17,11 +17,9 @@ pub fn get_stats(
     commit: &Commit,
 ) -> Result<Option<CommitStats>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/stats",
-        repository.name, commit.id
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/stats", commit.id);
+    let repository = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&repository, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -52,8 +50,9 @@ pub fn get_by_id(
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/commits/{}", repository.name, commit_id);
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}", commit_id);
+    let repository = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&repository, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -87,11 +86,9 @@ pub fn download_commit_db_by_id(
     commit_id: &str,
 ) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/commit_db",
-        repository.name, commit_id
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/commit_db", commit_id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -120,11 +117,9 @@ pub fn get_remote_parent(
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/repositories/{}/commits/{}/parents",
-        repository.name, commit_id
-    );
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}/parents", commit_id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -184,16 +179,14 @@ fn create_commit_obj_on_server(
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    let repo_name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!(
-        "/repositories/{}/branches/{}/commits",
-        repo_name, branch_name
-    );
+    let uri = format!("/branches/{}/commits", branch_name);
+
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
 
     let body = serde_json::to_string(&commit).unwrap();
-    let url = api::endpoint::url_from(&uri);
     log::debug!("create_commit_obj_on_server {}", url);
     if let Ok(res) = client
         .post(url)
@@ -228,11 +221,12 @@ fn post_tarball_to_server(
     buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    let name = &repository.name;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!("/repositories/{}/commits/{}", name, commit.id);
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/commits/{}", commit.id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+
     log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client
         .post(url)

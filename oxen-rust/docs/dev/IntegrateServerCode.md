@@ -85,10 +85,79 @@ Ok(Some(repository)) => match api::local::branches::list(&repository) {
 // ...
 ```
 
-Next up we need a unit test to make sure the functionality works. See `test_branches_index_multiple_branches` and `test_branches_index_empty` for the unit test implementations.
+Next up we need a unit test to make sure the functionality works. Actix
+
+```rust
+#[actix_web::test]
+async fn test_branches_index_multiple_branches() -> Result<(), OxenError> {
+    // Create unique name for sync directory so tests can run in parallel
+    let sync_dir = test::get_sync_dir()?;
+
+    // Repository Name
+    let name = "Testing-Branches-1";
+
+    // Create a local repository in the sync dir
+    let repo = test::create_local_repo(&sync_dir, name)?;
+    api::local::branches::create(&repo, "branch-1")?;
+    api::local::branches::create(&repo, "branch-2")?;
+
+    // uri format where we will fill in repo_name
+    let uri = format!("/repositories/{}/branches", name);
+
+    // Creates a actix_web::test::TestRequest with and fills in the URI param
+    let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+
+    // Call the controller function
+    let resp = controllers::branches::index(req).await;
+
+    // Test that response is what we want
+    assert_eq!(resp.status(), http::StatusCode::OK);
+    let body = to_bytes(resp.into_body()).await.unwrap();
+    let text = std::str::from_utf8(&body).unwrap();
+    // Serialization should be successfull
+    let list: ListBranchesResponse = serde_json::from_str(text)?;
+    // Validate data
+    // main + branch-1 + branch-2
+    assert_eq!(list.branches.len(), 3);
+    assert!(branches.iter().any(|b| b.name == "branch-1"));
+    assert!(branches.iter().any(|b| b.name == "branch-2"));
+    assert!(branches.iter().any(|b| b.name == "main"));
+
+    // cleanup directories
+    std::fs::remove_dir_all(sync_dir)?;
+
+    Ok(())
+}
+```
 
 If you would like to see the API with `curl` on the command line you can run the server and use this curl command:
 
 ```shell
 `curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/repositories/$REPO_NAME/branches"`
+
+{
+  "status": "success",
+  "status_message": "resource_found",
+  "branches": [
+    {
+      "name": "add-training-data",
+      "commit_id": "7d6258e0-5956-4695-aa13-6844b3c73e6d",
+      "is_head": false
+    },
+    {
+      "name": "main",
+      "commit_id": "11f6c5d5-f683-42b2-9d6e-a82172509eed",
+      "is_head": true
+    }
+  ]
+}
 ```
+
+In order to get a valid auth token you can run add a user to the server via
+
+```shell
+$ ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
+$ cat auth_config.toml | grep token
+```
+
+For more information on server setup look at the [Server Setup Documentation](../examples/0_ServerSetup.md)

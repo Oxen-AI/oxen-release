@@ -11,8 +11,8 @@ pub fn get_by_name(
     branch_name: &str,
 ) -> Result<Option<Branch>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/branches/{}", repository.name, branch_name);
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/branches/{}", branch_name);
+    let url = api::endpoint::url_from_repo(repository, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -45,8 +45,10 @@ pub fn get_by_name(
 
 pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/branches", repository.name);
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/branches");
+    let url = api::endpoint::url_from_repo(repository, &uri);
+    println!("create_or_get {}", url);
+
     let params = json!({ "name": name });
 
     let client = reqwest::blocking::Client::new();
@@ -82,8 +84,8 @@ pub fn list(
     repository: &RemoteRepository,
 ) -> Result<Vec<Branch>, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/repositories/{}/branches", repository.name);
-    let url = api::endpoint::url_from(&uri);
+    let uri = format!("/branches");
+    let url = api::endpoint::url_from_repo(repository, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client

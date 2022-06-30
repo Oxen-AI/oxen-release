@@ -175,6 +175,7 @@ where
     let path = empty_dir.join(name);
     let local_repo = command::init(&path)?;
     let repo = api::remote::repositories::create(&local_repo)?;
+    println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&repo) {

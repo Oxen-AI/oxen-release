@@ -35,7 +35,7 @@ Let's look at the [RefReader](https://github.com/Oxen-AI/Oxen/blob/main/src/lib/
 
 The RefReader has a local RocksDB that is a simple key value store of `branch_name` => `commit_id` and can read from this DB. There is also a [RefWriter](https://github.com/Oxen-AI/Oxen/blob/main/src/lib/src/index/ref_writer.rs) which is in charge of writing to this database, but for simplicity sake we will not be diving into it, and just using our `command::create_branch` interface to write branches.
 
-A good place to start is always with the unit test for the functionality you want to build. Built into the library are some useful unit test helps to instantiate unique directories we can use as repositories, and then clean up as the tests are run.
+A good place to start is always with the unit test for the functionality you want to build. Built into the library are some useful unit test helps to instantiate unique directory names so that the tests can run in parallel. We can initialize repositories in these directories and then clean up as the tests are run.
 
 An example of this is the `run_empty_local_repo_test` function that takes a closure with a repository as the parameter. This function takes care of creating a local repository, running the test, and cleaning up the repository on disk after the test has been run, even if it fails. There are more variations of these test closures [here](https://github.com/Oxen-AI/Oxen/blob/main/src/lib/src/test.rs) that start with fully committed training data, etc, to get rid of boilerplate work.
 
