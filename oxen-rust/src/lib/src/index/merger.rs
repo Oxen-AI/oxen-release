@@ -125,14 +125,19 @@ impl Merger {
         merge_commits: &MergeCommits,
     ) -> Result<Commit, OxenError> {
         let repo = &self.repository;
-        command::add(repo, &repo.path)?;
+        
+        // Stage changes
+        let stager = Stager::new(repo)?;
+        let commit = command::head_commit(repo)?;
+        let reader = CommitEntryReader::new(repo, &commit)?;
+        stager.add(&repo.path, &reader)?;
+
         let commit_msg = format!("Merge branch '{}'", branch_name.as_ref());
 
-        log::debug!("{}", commit_msg);
+        log::debug!("create_merge_commit {}", commit_msg);
 
         // Create a commit with both parents
         let reader = CommitEntryReader::new_from_head(repo)?;
-        let stager = Stager::new(repo)?;
         let status = stager.status(&reader)?;
         let commit_writer = CommitWriter::new(repo)?;
         let parent_ids: Vec<String> = vec![

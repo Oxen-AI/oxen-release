@@ -131,7 +131,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # }
 /// ```
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let stager = Stager::new(repo)?;
+    let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
     stager.add(path.as_ref(), &reader)?;

@@ -178,7 +178,9 @@ dog
 fish
 ```
 
-Let's add back in the human category add the end of the file, add and commit it.
+Let's add back in the human category add the end of the file, add and commit it. This will create the merge commit linking both parents where the conflict occurred.
+
+TODO: A command similar to `git log --oneline --graph --decorate --all` to display the tree.
 
 ```shell
 $ echo "human" >> labels.txt
