@@ -34,6 +34,10 @@ use std::str;
 /// ```
 pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(path);
+    if hidden_dir.exists() {
+        return Err(OxenError::basic_str("Oxen repository already exists."));
+    }
+
     std::fs::create_dir_all(hidden_dir)?;
     let config_path = util::fs::config_filepath(path);
     let repo = LocalRepository::new(path)?;
