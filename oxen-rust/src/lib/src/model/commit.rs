@@ -4,6 +4,16 @@ use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NewCommit {
+    pub parent_ids: Vec<String>,
+    pub message: String,
+    pub author: String,
+    #[serde(with = "oxen_date_format")]
+    pub date: DateTime<Local>,
+    pub timestamp: i64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Commit {
     pub id: String,
     pub parent_ids: Vec<String>,
@@ -28,6 +38,17 @@ impl Hash for Commit {
 }
 
 impl Commit {
+    pub fn from_new_and_id(new_commit: &NewCommit, id: String) -> Commit {
+        Commit {
+            id: id.to_owned(),
+            parent_ids: new_commit.parent_ids.to_owned(),
+            message: new_commit.message.to_owned(),
+            author: new_commit.author.to_owned(),
+            date: new_commit.date.to_owned(),
+            timestamp: new_commit.timestamp.to_owned(),
+        }
+    }
+
     pub fn to_uri_encoded(&self) -> String {
         serde_url_params::to_string(&self).unwrap()
     }

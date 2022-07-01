@@ -1,17 +1,15 @@
 use crate::error::OxenError;
-use std::collections::hash_map::DefaultHasher;
+use crate::model::{NewCommit, StagedEntry};
+
 use std::fs::File;
-use std::hash::{Hash, Hasher};
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use xxhash_rust::xxh3::xxh3_128;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
-    let mut hasher = DefaultHasher::new();
     let val = xxh3_128(buffer);
-    val.hash(&mut hasher);
-    format!("{:X}", hasher.finish())
+    format!("{val:x}")
 }
 
 pub fn hash_filename(path: &Path) -> String {
@@ -22,6 +20,21 @@ pub fn hash_filename(path: &Path) -> String {
 
 pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
     xxh3_128(buffer)
+}
+
+pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[(PathBuf, StagedEntry)]) -> String {
+    let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
+
+    for entry in entries.iter() {
+        let input = entry.1.hash.as_bytes();
+        commit_hasher.update(&input);
+    }
+
+    let commit_str = format!("{:?}", commit_data);
+    commit_hasher.update(&commit_str.as_bytes());
+
+    let val = commit_hasher.digest();
+    format!("{val:x}")
 }
 
 pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
