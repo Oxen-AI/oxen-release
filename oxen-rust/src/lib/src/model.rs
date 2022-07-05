@@ -13,7 +13,7 @@ pub use crate::model::repository::local_repository::{LocalRepository, Repository
 pub use crate::model::repository::remote_repository::RemoteRepository;
 
 // Commit
-pub use crate::model::commit::{Commit, CommitStats};
+pub use crate::model::commit::{Commit, CommitStats, NewCommit};
 
 // Merge
 pub use crate::model::merge_conflict::MergeConflict;

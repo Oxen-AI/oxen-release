@@ -34,6 +34,10 @@ use std::str;
 /// ```
 pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(path);
+    if hidden_dir.exists() {
+        return Err(OxenError::basic_str("Oxen repository already exists."));
+    }
+
     std::fs::create_dir_all(hidden_dir)?;
     let config_path = util::fs::config_filepath(path);
     let repo = LocalRepository::new(path)?;
@@ -131,7 +135,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # }
 /// ```
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let stager = Stager::new(repo)?;
+    let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
     stager.add(path.as_ref(), &reader)?;
