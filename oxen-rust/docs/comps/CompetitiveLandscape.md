@@ -1,8 +1,8 @@
 # Competitors
 
 - DVC
-- git lfs
 - Weights & Biases
+- git + git lfs (hugging face datasets)
 - perforce
 
 # Why Oxen?
@@ -11,7 +11,7 @@
     - Different datasets can be used with the same codebase
     - Share datasets without sharing code
     - Easy to accidentally commit data to the codebase
-- Datasets have many files, or long csvs that Oxen works well with natively
+- Datasets have many files, or long CSVs that Oxen works well with natively
 
 # DVC Comparison
 
@@ -47,3 +47,10 @@ Executed in    9.72 secs    fish           external
    usr time    2.68 secs    0.32 millis    2.68 secs
    sys time    5.79 secs    1.91 millis    5.79 secs
 ```
+
+
+# Wandb Comparison
+
+>>> wandb.log_artifact('img_align_celeba/', name='celeba_images', type='images')
+wandb: Adding directory to artifact (./img_align_celeba)... 
+Done. 70.1s

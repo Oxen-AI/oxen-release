@@ -3,7 +3,7 @@ use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE, VERSIONS_DIR
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{Commit, StagedData};
+use crate::model::{NewCommit, Commit, StagedData};
 use crate::util;
 
 use chrono::Local;
@@ -48,7 +48,7 @@ impl CommitWriter {
         })
     }
 
-    fn create_commit_obj(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
+    fn create_commit_data(&self, message: &str) -> Result<NewCommit, OxenError> {
         let timestamp = Local::now();
         let ref_reader = RefReader::new(&self.repository)?;
         // Commit
@@ -60,11 +60,10 @@ impl CommitWriter {
             Ok(parent_id) => {
                 // We might be in a merge commit, in which case we would have multiple parents
                 if self.is_merge_commit() {
-                    self.create_merge_commit(id_str, message)
+                    self.create_merge_commit(message)
                 } else {
                     // We have one parent
-                    Ok(Commit {
-                        id: String::from(id_str),
+                    Ok(NewCommit {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
                         author: self.auth_cfg.user.name.clone(),
@@ -75,8 +74,7 @@ impl CommitWriter {
             }
             Err(_) => {
                 // We are creating initial commit, no parents
-                Ok(Commit {
-                    id: String::from(id_str),
+                Ok(NewCommit {
                     parent_ids: vec![],
                     message: String::from(message),
                     author: self.auth_cfg.user.name.clone(),
@@ -88,7 +86,7 @@ impl CommitWriter {
     }
 
     // Reads commit ids from merge commit files then removes them
-    fn create_merge_commit(&self, id_str: &str, message: &str) -> Result<Commit, OxenError> {
+    fn create_merge_commit(&self, message: &str) -> Result<NewCommit, OxenError> {
         let timestamp = Local::now();
         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
         let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
@@ -102,8 +100,7 @@ impl CommitWriter {
         std::fs::remove_file(merge_head_path)?;
         std::fs::remove_file(orig_head_path)?;
 
-        Ok(Commit {
-            id: String::from(id_str),
+        Ok(NewCommit {
             parent_ids: vec![merge_commit_id, head_commit_id],
             message: String::from(message),
             author: self.auth_cfg.user.name.clone(),
@@ -121,18 +118,19 @@ impl CommitWriter {
     // Create a db in the history/ dir under the id
     // We will have something like:
     // history/
-    //   3a54208a-f792-45c1-8505-e325aa4ce5b3/
+    //   d7966d81ab35ffdf/
     //     annotations.txt -> b"{entry_json}"
     //     train/image_1.png -> b"{entry_json}"
     //     train/image_2.png -> b"{entry_json}"
     //     test/image_2.png -> b"{entry_json}"
     pub fn commit(&self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
         // Generate uniq id for this commit
-        // TODO: should this be a hash of all the entries hashes to create a merkle tree?
-        //       merkle trees are inherently resistent to tampering, and are verifyable
-        //       if it's not to slow it seems like a win without too heavy of a lift
+        // This is a hash of all the entries hashes to create a merkle tree
+        // merkle trees are inherently resistent to tampering, and are verifyable
+        // meaning we can check the validity of each commit+entries in the tree if we need
+
         /*
-        Also, this: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
+        Good Explaination: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
             When you take a pull from remote or push your changes,
             git will check if the hash of the root are the same or not.
             If it’s different, it will check for the left and right child nodes and will repeat
@@ -140,12 +138,14 @@ impl CommitWriter {
 
         This would make sense why hashes are computed at the "add" stage, before the commit stage
         */
-        let commit_id = self.gen_commit_id();
-
+        log::debug!("COMMIT_START"); // for debug logging / timing purposes
+        
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
-        let commit = self.create_commit_obj(&commit_id, message)?;
-        log::debug!("COMMIT_START {} -> [{}]", commit.id, commit.message,);
+        let new_commit = self.create_commit_data(message)?;
+        let commit = self.gen_commit(&new_commit, status);
+
+        log::debug!("COMMIT ID COMPUTED {} -> [{}]", commit.id, commit.message,);
 
         // Write entries
         self.add_commit_from_status(&commit, status)?;
@@ -158,8 +158,9 @@ impl CommitWriter {
         Ok(commit)
     }
 
-    fn gen_commit_id(&self) -> String {
-        format!("{}", uuid::Uuid::new_v4())
+    fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
+        let id = util::hasher::compute_commit_hash(commit_data, &status.added_files);
+        Commit::from_new_and_id(commit_data, id)
     }
 
     pub fn commit_with_parent_ids(
@@ -169,14 +170,15 @@ impl CommitWriter {
         message: &str,
     ) -> Result<Commit, OxenError> {
         let timestamp = Local::now();
-        let commit = Commit {
-            id: self.gen_commit_id(),
+        let commit = NewCommit {
             parent_ids,
             message: String::from(message),
             author: self.auth_cfg.user.name.clone(),
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         };
+        let id = util::hasher::compute_commit_hash(&commit, &status.added_files);
+        let commit = Commit::from_new_and_id(&commit, id);
         self.add_commit_from_status(&commit, status)?;
         Ok(commit)
     }
