@@ -18,7 +18,6 @@ use crate::model::LocalRepository;
 pub struct CommitWriter {
     pub commits_db: DBWithThreadMode<MultiThreaded>,
     versions_dir: PathBuf,
-    auth_cfg: AuthConfig,
     repository: LocalRepository,
 }
 
@@ -43,12 +42,12 @@ impl CommitWriter {
         Ok(CommitWriter {
             commits_db: DBWithThreadMode::open(&opts, &db_path)?,
             versions_dir: versions_path,
-            auth_cfg: AuthConfig::default().unwrap(),
             repository: repository.clone(),
         })
     }
 
     fn create_commit_data(&self, message: &str) -> Result<NewCommit, OxenError> {
+        let cfg = AuthConfig::default()?;
         let timestamp = Local::now();
         let ref_reader = RefReader::new(&self.repository)?;
         // Commit
@@ -66,7 +65,7 @@ impl CommitWriter {
                     Ok(NewCommit {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
-                        author: self.auth_cfg.user.name.clone(),
+                        author: cfg.user.name.clone(),
                         date: timestamp,
                         timestamp: timestamp.timestamp_nanos(),
                     })
@@ -77,7 +76,7 @@ impl CommitWriter {
                 Ok(NewCommit {
                     parent_ids: vec![],
                     message: String::from(message),
-                    author: self.auth_cfg.user.name.clone(),
+                    author: cfg.user.name.clone(),
                     date: Local::now(),
                     timestamp: timestamp.timestamp_nanos(),
                 })
@@ -87,6 +86,7 @@ impl CommitWriter {
 
     // Reads commit ids from merge commit files then removes them
     fn create_merge_commit(&self, message: &str) -> Result<NewCommit, OxenError> {
+        let cfg = AuthConfig::default()?;
         let timestamp = Local::now();
         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
         let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
@@ -103,7 +103,7 @@ impl CommitWriter {
         Ok(NewCommit {
             parent_ids: vec![merge_commit_id, head_commit_id],
             message: String::from(message),
-            author: self.auth_cfg.user.name.clone(),
+            author: cfg.user.name.clone(),
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         })
@@ -169,11 +169,12 @@ impl CommitWriter {
         parent_ids: Vec<String>,
         message: &str,
     ) -> Result<Commit, OxenError> {
+        let cfg = AuthConfig::default()?;
         let timestamp = Local::now();
         let commit = NewCommit {
             parent_ids,
             message: String::from(message),
-            author: self.auth_cfg.user.name.clone(),
+            author: cfg.user.name.clone(),
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         };
