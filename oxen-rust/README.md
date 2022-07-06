@@ -98,11 +98,17 @@ You can grab your auth token from the config file above (~/.oxen/auth_config.tom
 
 Create the docker image
 
-`docker build -t oxen/server:1 .`
+`docker build -t oxen/server:0.1.0 .`
 
 Run a container on port 3000 with a local filesystem mounted from /var/oxen/data on the host to /var/oxen/data in the container.
 
-`docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3000 oxen/server:1`
+`docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3000 oxen/server:0.1.0`
+
+Or use docker compose
+
+`docker-compose up -d reverse-proxy`
+
+`docker-compose up -d oxen`
 
 ## Local File Structure
 
