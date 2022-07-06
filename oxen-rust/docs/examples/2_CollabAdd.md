@@ -43,6 +43,7 @@ $ oxen clone http://0.0.0.0:3000/repositories/SmallCatDog
 Pull the main branch
 
 ```shell
+cd SmallCatDog
 oxen pull origin main
 ```
 
@@ -55,6 +56,9 @@ oxen checkout -b add-training-data
 Copy more images of dogs into the train directory.
 
 ```shell
+# bash
+for i in $(seq 200 209) ; do cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; done
+# fish
 for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/dog.$i.jpg train/dog_$i.jpg ; end
 ```
 
@@ -103,6 +107,9 @@ ls train/
 Run your experiment, and add more cat images to balance out the set.
 
 ```shell
+# bash
+for i in $(seq 200 209) ; do cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; done
+# fish
 for i in (seq 200 209) ; cp ~/Datasets/DogsVsCats/dogs-vs-cats-train/cat.$i.jpg train/cat_$i.jpg ; end
 ```
 
