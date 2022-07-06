@@ -2,7 +2,7 @@
 
 Once you have added data that you are convinced improve the overall model and you want to merge the changes into the mainline there is the `oxen merge` command. We will be starting from a repo that was initialized [here](2_CollabAdd.md).
 
-If you weren't following the example before, you can clone and pull from this remote: 
+If you weren't following the example before, you can clone and pull from this remote:
 
 (TODO: have server running we can pull from)
 
@@ -100,7 +100,11 @@ $ oxen commit -m "added fish label to labels file" # commit the change
 Then add 10 images of fish from another directory. In this example the user has [tiny-imagenet](https://www.kaggle.com/datasets/akash2sharma/tiny-imagenet) downloaded to their ~/Datasets/tiny-imagenet-200/ directory.
 
 ```shell
-$ for i in (seq 0 9) ; cp ~/Datasets/tiny-imagenet-200/train/n01443537/images/n01443537_$i.JPEG train/fish_$i.jpg ; end # copy over 10 images of fish
+# copy over 10 images of fish
+# bash
+$ for i in $(seq 200 209) ; do cp ~/Datasets/tiny-imagenet-200/train/n01443537/images/n01443537_$i.JPEG train/fish_$i.jpg ; done
+# fish
+$ for i in (seq 0 9) ; cp ~/Datasets/tiny-imagenet-200/train/n01443537/images/n01443537_$i.JPEG train/fish_$i.jpg ; end
 $ oxen add train # stage the train directory
 $ oxen commit -m "added ten images of fish to training data" # commit the changes
 $ oxen push origin add-fish-label # push to remote
@@ -121,7 +125,11 @@ $ oxen commit -m "added human label to labels file" # commit the change
 Then we add ten images of humans from this [human action recognition dataset](https://www.kaggle.com/datasets/meetnagadia/human-action-recognition-har-dataset).
 
 ```shell
-$ for i in (seq 1 10) ; cp ~/Datasets/tiny-imagenet-200/HumanActionRecognition/train/Image_$i.jpg train/human_$i.jpg ; end # copy over 10 images of humans
+# copy over 10 images of humans
+# bash
+$ for i in $(seq 200 209) ; do cp ~/Datasets/tiny-imagenet-200/HumanActionRecognition/train/Image_$i.jpg train/human_$i.jpg ; done
+# fish
+$ for i in (seq 1 10) ; cp ~/Datasets/tiny-imagenet-200/HumanActionRecognition/train/Image_$i.jpg train/human_$i.jpg ; end
 $ oxen add train # stage the changes
 $ oxen commit -m "add a new label of humans, with two new training images" # commit the changes
 $ oxen push origin add-human-label # push the changes to the remote

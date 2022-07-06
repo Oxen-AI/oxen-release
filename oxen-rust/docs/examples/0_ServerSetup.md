@@ -1,4 +1,3 @@
-
 # Developer Setup for CLI and Server
 
 Build the Oxen Server and Oxen CLI binaries
@@ -15,21 +14,15 @@ The user who needs access should copy the config to the ~/.oxen directory, which
 
 `mv auth_config.toml ~/.oxen/auth_config.toml`
 
-`cp ~/.oxen/auth_config.toml data/test/config/auth_config.toml`
-
 Run the server
 
 `./target/debug/oxen-server start`
 
 The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
 
-In fish shell an example would be
+For example
 
 `env SYNC_DIR=/Users/gregschoeninger/Data/oxen_server ./target/debug/oxen-server start`
-
-In bash shell
-
-`export SYNC_DIR=/Users/gregschoeninger/Data/oxen_server ./target/debug/oxen-server start`
 
 ```
 Running 🐂 server on 0.0.0.0:3000
@@ -42,4 +35,4 @@ If you want to change the default `IP ADDRESS` and `PORT` you can do so by passi
 
 `./target/debug/oxen-server start -i 0.0.0.0 -p 4004`
 
-To learn how to create a local Oxen repository and push it to the server see the [next tutorial](1_InitAndCommit.md). 
+To learn how to create a local Oxen repository and push it to the server see the [next tutorial](1_InitAndCommit.md).
