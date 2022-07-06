@@ -60,7 +60,7 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
     let url = api::endpoint::url_from_config(&config, "/repositories");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": repository.name, "root_commit": root_commit });
-    println!("Create remote: {}\n{:?}", url, params);
+    // println!("Create remote: {}", url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .post(url)
@@ -72,7 +72,7 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
         .send()
     {
         let body = res.text()?;
-        println!("Response: {}", body);
+        // println!("Response: {}", body);
         let response: Result<RemoteRepositoryResponse, serde_json::Error> =
             serde_json::from_str(&body);
         match response {
