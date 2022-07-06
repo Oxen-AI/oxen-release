@@ -94,6 +94,16 @@ You can grab your auth token from the config file above (~/.oxen/auth_config.tom
 `curl -v -H "Authorization: Bearer $TOKEN" -X POST --data-binary @/Users/gregschoeninger/Downloads/woof_meow.jpeg "http://$SERVER/repositories/MyRepo/entries?id=1234&path=woof_meow.jpeg&is_synced=true&hash=4321&commit_id=1234&extension=jpeg"`
 
 
+# Docker
+
+Create the docker image
+
+`docker build -t oxen/server:1 .`
+
+Run a container on port 3000 with a local filesystem mounted from /var/oxen/data on the host to /var/oxen/data in the container.
+
+`docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3000 oxen/server:1`
+
 ## Local File Structure
 
 To inspect any of the key value dbs below
