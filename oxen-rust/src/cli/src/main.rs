@@ -5,11 +5,13 @@ use std::path::Path;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 pub mod dispatch;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() {
     env_logger::init_from_env(Env::default());
 
     let command = Command::new("oxen")
-        .version("0.1.0")
+        .version(VERSION)
         .about("Data management toolchain")
         .subcommand_required(true)
         .arg_required_else_help(true)

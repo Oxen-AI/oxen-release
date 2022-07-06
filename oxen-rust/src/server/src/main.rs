@@ -18,6 +18,8 @@ use clap::{Arg, Command};
 use env_logger::Env;
 use std::path::Path;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 const ADD_USER_USAGE: &str =
     "Usage: `oxen-server add-user -e <email> -n <name> -o auth_config.toml`";
 
@@ -35,8 +37,8 @@ async fn main() -> std::io::Result<()> {
     };
 
     let command = Command::new("oxen-server")
-        .version("0.1.0")
-        .about("Oxen server")
+        .version(VERSION)
+        .about("Oxen Server")
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
@@ -99,7 +101,8 @@ async fn main() -> std::io::Result<()> {
             match (sub_matches.value_of("ip"), sub_matches.value_of("port")) {
                 (Some(host), Some(port)) => {
                     let port: u16 = port.parse::<u16>().expect(INVALID_PORT_MSG);
-                    println!("Running 🐂 server on {}:{}", host, port);
+                    println!("🐂 v{}", VERSION);
+                    println!("Running on {}:{}", host, port);
                     println!("Syncing to directory: {}", sync_dir);
 
                     let data = app_data::OxenAppData::from(&sync_dir);
@@ -107,6 +110,10 @@ async fn main() -> std::io::Result<()> {
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())
+                            .route(
+                                "/version",
+                                web::get().to(controllers::version::index),
+                            )
                             .wrap(HttpAuthentication::bearer(auth::validator::validate))
                             .route(
                                 "/repositories/{repo_name}/commits",
