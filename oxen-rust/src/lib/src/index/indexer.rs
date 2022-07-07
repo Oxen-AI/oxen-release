@@ -3,6 +3,7 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
+use std::{thread, time};
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
@@ -206,7 +207,21 @@ impl Indexer {
             match self.push_entry(&entry_writer, entry) {
                 Ok(_) => {}
                 Err(err) => {
-                    log::error!("Error pushing entry {:?} Err {}", entry, err)
+                    // Retry logic
+                    let total_tries = 3;
+                    let mut num_tries = 0;
+                    for i in 0..total_tries {
+                        let duration = time::Duration::from_secs(i+1);
+                        thread::sleep(duration);
+                        if let Ok(_) = self.push_entry(&entry_writer, entry) {
+                            break;
+                        }
+                        num_tries += 1;
+                    }
+
+                    if num_tries == total_tries {
+                        log::error!("Error pushing entry {:?} Err {}", entry, err);
+                    }
                 }
             }
             bar.inc(1);
