@@ -1,5 +1,5 @@
-use crate::constants;
 use crate::config::AuthConfig;
+use crate::constants;
 use crate::model::{Remote, RemoteRepository};
 use std::env;
 

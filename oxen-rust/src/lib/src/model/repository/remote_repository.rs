@@ -18,7 +18,10 @@ impl RemoteRepository {
                 .remote()
                 .unwrap_or_else(|| Remote {
                     name: String::from(DEFAULT_REMOTE_NAME),
-                    url: format!("http://{}:{}/repositories/{}", DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT, repository.name),
+                    url: format!(
+                        "http://{}:{}/repositories/{}",
+                        DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT, repository.name
+                    ),
                 })
                 .url,
         }

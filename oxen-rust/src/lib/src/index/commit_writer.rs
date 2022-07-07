@@ -3,7 +3,7 @@ use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE, VERSIONS_DIR
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{NewCommit, Commit, StagedData};
+use crate::model::{Commit, NewCommit, StagedData};
 use crate::util;
 
 use chrono::Local;
@@ -65,7 +65,7 @@ impl CommitWriter {
                     Ok(NewCommit {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
-                        author: cfg.user.name.clone(),
+                        author: cfg.user.name,
                         date: timestamp,
                         timestamp: timestamp.timestamp_nanos(),
                     })
@@ -76,7 +76,7 @@ impl CommitWriter {
                 Ok(NewCommit {
                     parent_ids: vec![],
                     message: String::from(message),
-                    author: cfg.user.name.clone(),
+                    author: cfg.user.name,
                     date: Local::now(),
                     timestamp: timestamp.timestamp_nanos(),
                 })
@@ -103,7 +103,7 @@ impl CommitWriter {
         Ok(NewCommit {
             parent_ids: vec![merge_commit_id, head_commit_id],
             message: String::from(message),
-            author: cfg.user.name.clone(),
+            author: cfg.user.name,
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         })
@@ -139,7 +139,7 @@ impl CommitWriter {
         This would make sense why hashes are computed at the "add" stage, before the commit stage
         */
         log::debug!("COMMIT_START"); // for debug logging / timing purposes
-        
+
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let new_commit = self.create_commit_data(message)?;
@@ -174,7 +174,7 @@ impl CommitWriter {
         let commit = NewCommit {
             parent_ids,
             message: String::from(message),
-            author: cfg.user.name.clone(),
+            author: cfg.user.name,
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         };

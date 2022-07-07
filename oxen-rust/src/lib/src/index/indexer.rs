@@ -208,10 +208,10 @@ impl Indexer {
             let total_tries = 5;
             let mut num_tries = 0;
             for i in 0..total_tries {
-                if let Ok(_) = self.push_entry(&entry_writer, entry) {
+                if self.push_entry(&entry_writer, entry).is_ok() {
                     break;
                 }
-                let duration = time::Duration::from_secs(i+1);
+                let duration = time::Duration::from_secs(i + 1);
                 thread::sleep(duration);
                 num_tries += 1;
             }
@@ -427,10 +427,10 @@ impl Indexer {
                 let total_tries = 5;
                 let mut num_tries = 0;
                 for i in 0..total_tries {
-                    if let Ok(_) = self.download_remote_entry(entry, &committer) {
+                    if self.download_remote_entry(entry, &committer).is_ok() {
                         break;
                     }
-                    let duration = time::Duration::from_secs(i+1);
+                    let duration = time::Duration::from_secs(i + 1);
                     thread::sleep(duration);
                     num_tries += 1;
                 }
