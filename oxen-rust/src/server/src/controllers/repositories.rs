@@ -63,7 +63,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    println!("controllers::repositories::create_or_get body:\n{}", body);
+    // println!("controllers::repositories::create_or_get body:\n{}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::get_by_name(&app_data.path, &data.name) {
