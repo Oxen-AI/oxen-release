@@ -80,9 +80,7 @@ pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch
     }
 }
 
-pub fn list(
-    repository: &RemoteRepository,
-) -> Result<Vec<Branch>, OxenError> {
+pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     let config = AuthConfig::default()?;
     let url = api::endpoint::url_from_repo(repository, "/branches");
 

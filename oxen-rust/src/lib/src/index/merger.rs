@@ -125,7 +125,7 @@ impl Merger {
         merge_commits: &MergeCommits,
     ) -> Result<Commit, OxenError> {
         let repo = &self.repository;
-        
+
         // Stage changes
         let stager = Stager::new(repo)?;
         let commit = command::head_commit(repo)?;
