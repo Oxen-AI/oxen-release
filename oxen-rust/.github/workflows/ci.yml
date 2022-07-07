@@ -60,6 +60,6 @@ jobs:
           toolchain: stable
           override: true
       - run: |
-        cargo build
-        ./target/debug/oxen-server start &
-        cargo test
+          cargo build
+          ./target/debug/oxen-server start &
+          cargo test
