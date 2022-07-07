@@ -65,7 +65,7 @@ impl CommitWriter {
                     Ok(NewCommit {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
-                        author: cfg.user.name.clone(),
+                        author: cfg.user.name,
                         date: timestamp,
                         timestamp: timestamp.timestamp_nanos(),
                     })
@@ -76,7 +76,7 @@ impl CommitWriter {
                 Ok(NewCommit {
                     parent_ids: vec![],
                     message: String::from(message),
-                    author: cfg.user.name.clone(),
+                    author: cfg.user.name,
                     date: Local::now(),
                     timestamp: timestamp.timestamp_nanos(),
                 })
@@ -103,7 +103,7 @@ impl CommitWriter {
         Ok(NewCommit {
             parent_ids: vec![merge_commit_id, head_commit_id],
             message: String::from(message),
-            author: cfg.user.name.clone(),
+            author: cfg.user.name,
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         })
@@ -174,7 +174,7 @@ impl CommitWriter {
         let commit = NewCommit {
             parent_ids,
             message: String::from(message),
-            author: cfg.user.name.clone(),
+            author: cfg.user.name,
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         };
