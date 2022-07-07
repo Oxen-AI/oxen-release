@@ -33,7 +33,6 @@ tar = "0.4.38"
 walkdir = "2"
 env_logger = "0.9.0"
 log = "0.4.17"
-actix-multipart = "0.4.0"
 futures-util = "0.3.21"
 threadpool = "1.8.1"
 xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
