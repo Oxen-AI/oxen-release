@@ -62,6 +62,7 @@ jobs:
       - run: |
           cargo build
           mkdir /tmp/oxen_sync/
+          mkdir data/test/runs
           ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
           cp auth_config.toml data/test/config/auth_config.toml
           ./target/debug/oxen-server start &
