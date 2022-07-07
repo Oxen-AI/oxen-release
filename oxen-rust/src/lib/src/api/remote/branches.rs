@@ -47,7 +47,7 @@ pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch
     let config = AuthConfig::default()?;
     let uri = format!("/branches");
     let url = api::endpoint::url_from_repo(repository, &uri);
-    println!("create_or_get {}", url);
+    // println!("create_or_get {}", url);
 
     let params = json!({ "name": name });
 
