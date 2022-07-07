@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "Oxen"
-version = "0.1.3"
+version = "0.1.0"
 dependencies = [
  "actix-files",
  "actix-http",
