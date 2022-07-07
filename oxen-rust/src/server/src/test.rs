@@ -14,6 +14,7 @@ pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
 
 pub fn create_local_repo(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
     let repo_dir = sync_dir.join(name);
+    std::fs::create_dir_all(&repo_dir)?;
     let repo = command::init(&repo_dir)?;
     Ok(repo)
 }
