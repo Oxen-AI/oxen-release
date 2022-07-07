@@ -8,7 +8,6 @@ version = "0.1.0"
 dependencies = [
  "actix-files",
  "actix-http",
- "actix-multipart",
  "actix-service",
  "actix-web",
  "actix-web-httpauth",
