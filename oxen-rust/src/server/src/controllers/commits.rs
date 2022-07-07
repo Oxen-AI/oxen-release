@@ -610,7 +610,7 @@ mod tests {
 
         // create random tarball to post.. currently no validation that it is a valid commit dir
         let path_to_compress = format!("history/{}", commit.id);
-        let commit_dir_name = format!("/tmp/oxen/commit/{}", commit.id);
+        let commit_dir_name = format!("data/test/runs/{}", commit.id);
         let commit_dir = Path::new(&commit_dir_name);
         std::fs::create_dir_all(commit_dir)?;
         // Write a random file to it
