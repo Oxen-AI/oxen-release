@@ -5,7 +5,7 @@ name: 🐂 Continuous integration
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -19,7 +19,7 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -35,7 +35,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -51,14 +51,10 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - uses: icepuma/rust-action@master
       - run: |
           cargo build
           mkdir /tmp/oxen_sync/
@@ -66,4 +62,3 @@ jobs:
           ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
           cp auth_config.toml data/test/config/auth_config.toml
           ./target/debug/oxen-server start &
-          cargo test -- --test-threads 1
