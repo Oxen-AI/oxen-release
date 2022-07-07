@@ -45,7 +45,7 @@ pub fn get_by_name(
 
 pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/branches");
+    let uri = "/branches".to_string();
     let url = api::endpoint::url_from_repo(repository, &uri);
     // println!("create_or_get {}", url);
 
@@ -80,9 +80,7 @@ pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch
     }
 }
 
-pub fn list(
-    repository: &RemoteRepository,
-) -> Result<Vec<Branch>, OxenError> {
+pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     let config = AuthConfig::default()?;
     let url = api::endpoint::url_from_repo(repository, "/branches");
 
