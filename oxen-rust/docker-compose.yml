@@ -1,0 +1,19 @@
+version: "2.6.1"
+services:
+  reverse-proxy:
+    # The official v2 Traefik docker image
+    image: traefik:v2.8
+    ports:
+      # The HTTP port
+      - "3000:80"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.yml:/traefik.yml
+  oxen:
+    image: oxen/server:0.1.0
+    volumes:
+      - /var/oxen/data:/var/oxen/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.oxen.rule=Host(`0.0.0.0`)"

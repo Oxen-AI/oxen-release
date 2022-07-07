@@ -3,6 +3,7 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
+use std::{thread, time};
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
@@ -203,12 +204,22 @@ impl Indexer {
 
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         entries.par_iter().for_each(|entry| {
-            match self.push_entry(&entry_writer, entry) {
-                Ok(_) => {}
-                Err(err) => {
-                    log::error!("Error pushing entry {:?} Err {}", entry, err)
+            // Retry logic
+            let total_tries = 5;
+            let mut num_tries = 0;
+            for i in 0..total_tries {
+                if let Ok(_) = self.push_entry(&entry_writer, entry) {
+                    break;
                 }
+                let duration = time::Duration::from_secs(i+1);
+                thread::sleep(duration);
+                num_tries += 1;
             }
+
+            if num_tries == total_tries {
+                log::error!("Error pushing entry {:?}", entry);
+            }
+
             bar.inc(1);
         });
 
@@ -412,12 +423,22 @@ impl Indexer {
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
             // Pull and write all the entries
             entries.par_iter().for_each(|entry| {
-                if let Err(err) = self.download_remote_entry(entry, &committer) {
-                    eprintln!(
-                        "Pull entry could not download entry {:?} Err: {:?}",
-                        entry.path, err
-                    );
+                // Retry logic
+                let total_tries = 5;
+                let mut num_tries = 0;
+                for i in 0..total_tries {
+                    if let Ok(_) = self.download_remote_entry(entry, &committer) {
+                        break;
+                    }
+                    let duration = time::Duration::from_secs(i+1);
+                    thread::sleep(duration);
+                    num_tries += 1;
                 }
+
+                if num_tries == total_tries {
+                    eprintln!("Pull entry could not download entry {:?}", entry.path);
+                }
+
                 bar.inc(1);
             });
 
