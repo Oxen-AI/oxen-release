@@ -108,7 +108,7 @@ Or use docker compose
 
 `docker-compose up -d reverse-proxy`
 
-`docker-compose up -d oxen`
+`docker-compose up -d --scale oxen=4 --no-recreate`
 
 ## Local File Structure
 
