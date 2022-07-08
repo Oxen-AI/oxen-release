@@ -1,6 +1,6 @@
 
 use liboxen::command;
-use liboxen::config::{RemoteConfig, AuthConfig};
+use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::util;
@@ -42,13 +42,14 @@ pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
 }
 
 pub fn set_host_global(host: &str) -> Result<(), OxenError> {
-    let mut remote_config = RemoteConfig::default()?;
+    let mut remote_config = RemoteConfig::new()?;
     remote_config.host = String::from(host);
     remote_config.save_default()?;
 
-    let mut auth_config = AuthConfig::default()?;
-    auth_config.host = String::from(host);
-    auth_config.save_default()?;
+    if let Ok(mut auth_config) = AuthConfig::default() {
+        auth_config.host = String::from(host);
+        auth_config.save_default()?;
+    }
 
     println!("Global host set to {}", host);
 

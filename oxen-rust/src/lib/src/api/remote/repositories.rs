@@ -1,6 +1,6 @@
 use crate::api;
 use crate::command;
-use crate::config::{RemoteConfig, AuthConfig, HTTPConfig};
+use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
@@ -63,7 +63,7 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
     // println!("Create remote: {}", url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
-        .post(url)
+        .post(url.to_owned())
         .json(&params)
         .header(
             reqwest::header::AUTHORIZATION,
@@ -86,8 +86,7 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
             }
         }
     } else {
-        let config = RemoteConfig::default()?;
-        let err = format!("Create repository could not connect to remote on. Make sure you have the correct server and that it is running: {}", config.host);
+        let err = format!("Create repository could not connect to {}. Make sure you have the correct server and that it is running.", url);
         Err(OxenError::basic_str(err))
     }
 }

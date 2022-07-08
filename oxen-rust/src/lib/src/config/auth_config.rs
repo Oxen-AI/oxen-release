@@ -64,7 +64,7 @@ impl AuthConfig {
 
             fs::create_dir_all(&oxen_dir)?;
             let config_file = oxen_dir.join(Path::new(AUTH_CONFIG_FILENAME));
-            println!("Saving config to {:?}", config_file);
+            log::debug!("Saving config to {:?}", config_file);
             self.save(&config_file)
         } else {
             Err(OxenError::basic_str(
