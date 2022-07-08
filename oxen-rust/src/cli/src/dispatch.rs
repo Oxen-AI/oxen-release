@@ -249,6 +249,17 @@ pub fn list_remote_branches() -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn show_current_branch() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    if let Some(current_branch) = command::current_branch(&repository)? {
+        println!("{}", current_branch.name);
+    }
+
+    Ok(())
+}
+
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
     command::inspect(path)
 }
