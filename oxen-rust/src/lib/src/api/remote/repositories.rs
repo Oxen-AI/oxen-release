@@ -1,6 +1,6 @@
 use crate::api;
 use crate::command;
-use crate::config::{AuthConfig, HTTPConfig};
+use crate::config::{RemoteConfig, AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::view::{RemoteRepositoryResponse, StatusMessage};
@@ -14,7 +14,7 @@ pub fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
 pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}", name);
-    let url = api::endpoint::url_from_config(&config, &uri);
+    let url = api::endpoint::url_from_auth_config(&config, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -57,7 +57,7 @@ pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
 
 pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
-    let url = api::endpoint::url_from_config(&config, "/repositories");
+    let url = api::endpoint::url_from_auth_config(&config, "/repositories");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": repository.name, "root_commit": root_commit });
     // println!("Create remote: {}", url);
@@ -86,8 +86,8 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
             }
         }
     } else {
-        let server = api::endpoint::server();
-        let err = format!("Create repository could not connect to remote on. Make sure you have the correct server and that it is running: {}", server);
+        let config = RemoteConfig::default()?;
+        let err = format!("Create repository could not connect to remote on. Make sure you have the correct server and that it is running: {}", config.host);
         Err(OxenError::basic_str(err))
     }
 }

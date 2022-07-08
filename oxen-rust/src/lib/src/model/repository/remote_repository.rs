@@ -1,4 +1,7 @@
-use crate::constants::{DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT, DEFAULT_REMOTE_NAME};
+use crate::api::endpoint;
+use crate::constants::{DEFAULT_REMOTE_NAME};
+use crate::config::RemoteConfig;
+use crate::error;
 use crate::model::{LocalRepository, Remote};
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +14,8 @@ pub struct RemoteRepository {
 
 impl RemoteRepository {
     pub fn from_local(repository: &LocalRepository) -> RemoteRepository {
+        let config = RemoteConfig::default().expect(error::REMOTE_CFG_NOT_FOUND);
+        let url = endpoint::url_from_remote_config(&config, &format!("/repositories/{}", repository.name));
         RemoteRepository {
             id: repository.id.clone(),
             name: repository.name.clone(),
@@ -18,7 +23,7 @@ impl RemoteRepository {
                 .remote()
                 .unwrap_or_else(|| Remote {
                     name: String::from(DEFAULT_REMOTE_NAME),
-                    url: format!("http://{}:{}/repositories/{}", DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT, repository.name),
+                    url: url,
                 })
                 .url,
         }

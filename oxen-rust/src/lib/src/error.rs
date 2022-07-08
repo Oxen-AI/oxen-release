@@ -3,6 +3,8 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+pub const REMOTE_CFG_NOT_FOUND: &str = "Remote configuration not found, run `oxen set-default-host <host>` to configure.";
+
 #[derive(Debug)]
 pub enum OxenError {
     IO(io::Error),
@@ -20,6 +22,10 @@ pub enum OxenError {
 impl OxenError {
     pub fn basic_str<T: AsRef<str>>(s: T) -> Self {
         OxenError::Basic(String::from(s.as_ref()))
+    }
+
+    pub fn remote_cfg_not_found() -> OxenError {
+        OxenError::basic_str(REMOTE_CFG_NOT_FOUND)
     }
 
     pub fn local_repo_not_found() -> OxenError {
