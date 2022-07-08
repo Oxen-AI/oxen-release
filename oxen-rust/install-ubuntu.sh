@@ -1,4 +1,27 @@
 
+# Install the raw deps
+sudo apt update
+sudo apt install -y fish
+sudo apt install -y apt-utils
+sudo apt install -y libclang-dev
+sudo apt install -y build-essential
+sudo apt install -y libssl-dev
+sudo apt install -y pkg-config
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo install cargo-build-deps
+
+# Install docker
+sudo apt-get install -y \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -i docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
 # SSH Keys
 ssh-keygen -t ed25519 -C "g@oxen.ai"
 ssh-add -K ~/.ssh/id_ed25519
@@ -11,20 +34,11 @@ cd Code/
 git clone git@github.com:Oxen-AI/Oxen.git
 cd Oxen/
 
-# Install the deps
-sudo apt-get install --assume-yes apt-utils
-sudo apt-get install -y libclang-dev
-sudo apt install build-essential
-sudo apt install libssl-dev
-sudo apt install pkg-config
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install cargo-build-deps
-
 # Build the server
 cargo build --release
 
 # Run the server with a user
-mkdir /home/ubuntu/Data/sync/
+mkdir -p /home/ubuntu/Data/sync/
 sudo env SYNC_DIR=/home/ubuntu/Data/sync/ ./target/release/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
 sudo env SYNC_DIR=/home/ubuntu/Data/sync/ ./target/release/oxen-server start -p 80
 
