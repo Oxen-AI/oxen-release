@@ -86,7 +86,7 @@ impl RemoteConfig {
             let hidden_dir = util::fs::oxen_hidden_dir(&home_dir);
             fs::create_dir_all(&hidden_dir)?;
             let config_file = hidden_dir.join(Path::new(REMOTE_CONFIG_FILENAME));
-            println!("Saving config to {:?}", config_file);
+            log::debug!("Saving config to {:?}", config_file);
             self.save(&config_file)
         } else {
             Err(OxenError::basic_str(
