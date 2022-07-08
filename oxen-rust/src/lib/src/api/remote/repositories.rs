@@ -94,9 +94,9 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
 pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
     let client = reqwest::blocking::Client::new();
-    log::debug!("Deleting repository: {}", repository.url);
+    log::debug!("Deleting repository: {}", repository.url());
     if let Ok(res) = client
-        .delete(repository.url)
+        .delete(repository.url())
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),

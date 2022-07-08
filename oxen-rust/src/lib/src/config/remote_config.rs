@@ -7,7 +7,7 @@ use crate::util;
 
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 // Default Hosts
 const DEFAULT_ORIGIN_HOST: &str = "hub.oxen.ai";
@@ -55,7 +55,11 @@ impl RemoteConfig {
         );
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
-            let config_file = oxen_dir.join(Path::new(REMOTE_CONFIG_FILENAME));
+            let mut config_file = oxen_dir.join(Path::new(REMOTE_CONFIG_FILENAME));
+            if std::env::var("TEST").is_ok() {
+                config_file = PathBuf::from("data/test/config/remote_config.toml");
+            }
+
             if config_file.exists() {
                 Ok(RemoteConfig::from(&config_file))
             } else {

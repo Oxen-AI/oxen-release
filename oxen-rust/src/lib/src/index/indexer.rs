@@ -530,7 +530,7 @@ mod tests {
             command::push(&repo)?;
 
             test::run_empty_dir_test(|new_repo_dir| {
-                let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+                let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -577,7 +577,7 @@ mod tests {
             command::push(&repo)?;
 
             test::run_empty_dir_test(|new_repo_dir| {
-                let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+                let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
