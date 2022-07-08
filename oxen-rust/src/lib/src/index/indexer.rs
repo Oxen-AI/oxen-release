@@ -507,7 +507,6 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
@@ -522,7 +521,7 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
 
             // Set the proper remote
-            let remote = api::endpoint::repo_url_from(&repo.name);
+            let remote = test::repo_url_from(&repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push it
@@ -560,7 +559,7 @@ mod tests {
     fn test_indexer_partial_pull_multiple_commits() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|mut repo| {
             // Set the proper remote
-            let remote = api::endpoint::repo_url_from(&repo.name);
+            let remote = test::repo_url_from(&repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");

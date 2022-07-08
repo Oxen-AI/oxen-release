@@ -732,7 +732,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
@@ -760,7 +760,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
@@ -805,7 +805,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding test data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
@@ -842,7 +842,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
@@ -887,7 +887,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
@@ -1005,7 +1005,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         command::commit(&repo, "Adding labels file")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
@@ -1067,7 +1067,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding test dir")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1096,7 +1096,7 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1166,7 +1166,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1264,7 +1264,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
         let local_history = command::log(&repo)?;
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it

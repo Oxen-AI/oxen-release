@@ -24,6 +24,12 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("set-default-host")
+                .about("Sets the default remote host in ~/.oxen/remote_config.toml")
+                .arg(arg!(<HOST> "The host ie: hub.oxen.ai or localhost"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("set-remote")
                 .about("Sets remote url for repository")
                 .arg(arg!(<NAME> "The remote name"))
@@ -136,6 +142,16 @@ fn main() {
                 eprintln!("{}", err)
             }
         },
+        Some(("set-default-host", sub_matches)) => {
+            let host = sub_matches.value_of("HOST").expect("required");
+
+            match dispatch::set_host_global(host) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
         Some(("set-remote", sub_matches)) => {
             let name = sub_matches.value_of("NAME").expect("required");
             let url = sub_matches.value_of("URL").expect("required");
@@ -272,7 +288,6 @@ fn main() {
                 .collect::<Vec<_>>();
 
             match ext {
-                "login" => dispatch::login(),
                 "commit" => dispatch::commit(args),
                 _ => {
                     println!("Unknown command {}", ext);

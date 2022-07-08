@@ -1,3 +1,4 @@
+
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
@@ -23,10 +24,6 @@ pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
 // Default Remotes and Origins
 pub const DEFAULT_BRANCH_NAME: &str = "main";
 pub const DEFAULT_REMOTE_NAME: &str = "origin";
-
-// Default Hosts
-pub const DEFAULT_ORIGIN_HOST: &str = "0.0.0.0";
-pub const DEFAULT_ORIGIN_PORT: &str = "3000";
 
 // Commits
 pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";

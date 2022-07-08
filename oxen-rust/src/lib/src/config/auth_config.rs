@@ -82,7 +82,7 @@ impl AuthConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{remote_config::DEFAULT_HOST, AuthConfig, HTTPConfig, RemoteConfig};
+    use crate::config::{AuthConfig, HTTPConfig, RemoteConfig};
     use crate::error::OxenError;
     use crate::model::User;
     use crate::test;
@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn test_read() {
         let config = AuthConfig::new(test::auth_cfg_file());
-        assert_eq!(config.host(), DEFAULT_HOST);
+        assert!(!config.host().is_empty());
         assert!(!config.user.name.is_empty());
     }
 
@@ -103,7 +103,7 @@ mod tests {
         orig_config.save(final_path)?;
 
         let config = AuthConfig::new(final_path);
-        assert_eq!(config.host, DEFAULT_HOST);
+        assert_eq!(config.host, orig_config.host);
         assert!(!config.user.name.is_empty());
         Ok(())
     }
@@ -117,7 +117,7 @@ mod tests {
         auth_config.save(final_path)?;
 
         let config = AuthConfig::new(final_path);
-        assert_eq!(config.host, DEFAULT_HOST);
+        assert_eq!(config.host, orig_config.host);
         assert_eq!(config.user.name, user.name);
         Ok(())
     }
