@@ -72,19 +72,12 @@ fn main() {
         .subcommand(
             Command::new("branch")
                 .about("Manage branches in repository")
-                .arg(
-                    Arg::new("name")
-                        .help("Name of the branch")
-                        .conflicts_with("all")
-                        .exclusive(true),
-                )
+                .arg(Arg::new("name").help("Name of the branch").exclusive(true))
                 .arg(
                     Arg::new("all")
                         .long("all")
                         .short('a')
                         .help("List all the local branches")
-                        .conflicts_with("name")
-                        .conflicts_with("remote")
                         .exclusive(true)
                         .takes_value(false),
                 )
@@ -93,8 +86,13 @@ fn main() {
                         .long("remote")
                         .short('r')
                         .help("List all the remote branches")
-                        .conflicts_with("name")
-                        .conflicts_with("all")
+                        .exclusive(true)
+                        .takes_value(false),
+                )
+                .arg(
+                    Arg::new("show-current")
+                        .long("show-current")
+                        .help("Print the current branch")
                         .exclusive(true)
                         .takes_value(false),
                 ),
@@ -242,8 +240,14 @@ fn main() {
                 if let Err(err) = dispatch::create_branch(name) {
                     eprintln!("{}", err)
                 }
+            } else if sub_matches.is_present("show-current") {
+                if let Err(err) = dispatch::show_current_branch() {
+                    eprintln!("{}", err)
+                }
             } else {
-                eprintln!("`oxen branch` must supply name or -a to list all")
+                if let Err(err) = dispatch::list_branches() {
+                    eprintln!("{}", err)
+                }
             }
         }
         Some(("checkout", sub_matches)) => {
