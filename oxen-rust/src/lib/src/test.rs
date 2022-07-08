@@ -17,9 +17,7 @@ const TEST_RUN_DIR: &str = "data/test/runs";
 
 pub fn repo_url_from(name: &str) -> String {
     // Tests always point to localhost
-    let config = RemoteConfig {
-        host: String::from("0.0.0.0:3000")
-    };
+    let config = RemoteConfig::from(Path::new("data/test/config/remote_config.toml"));
     let uri = format!("/repositories/{}", name);
     api::endpoint::url_from_remote_config(&config, &uri)
 }

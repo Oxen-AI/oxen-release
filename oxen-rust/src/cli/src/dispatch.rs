@@ -27,7 +27,7 @@ pub fn create_remote() -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let remote = command::create_remote(&repo)?;
-    println!("Remote url: {}", remote.url);
+    println!("Remote url: {}", remote.url());
 
     Ok(())
 }
