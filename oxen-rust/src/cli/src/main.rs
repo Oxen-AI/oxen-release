@@ -244,10 +244,8 @@ fn main() {
                 if let Err(err) = dispatch::show_current_branch() {
                     eprintln!("{}", err)
                 }
-            } else {
-                if let Err(err) = dispatch::list_branches() {
-                    eprintln!("{}", err)
-                }
+            } else if let Err(err) = dispatch::list_branches() {
+                eprintln!("{}", err)
             }
         }
         Some(("checkout", sub_matches)) => {
