@@ -71,8 +71,8 @@ impl RemoteConfig {
     }
 
     pub fn endpoint() -> String {
-        if DEFAULT_ORIGIN_PORT == "" {
-            return String::from(DEFAULT_ORIGIN_HOST)
+        if DEFAULT_ORIGIN_PORT.is_empty() {
+            String::from(DEFAULT_ORIGIN_HOST)
         } else {
             return format!("{}:{}", DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT)
         }

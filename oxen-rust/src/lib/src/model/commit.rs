@@ -40,7 +40,7 @@ impl Hash for Commit {
 impl Commit {
     pub fn from_new_and_id(new_commit: &NewCommit, id: String) -> Commit {
         Commit {
-            id: id.to_owned(),
+            id,
             parent_ids: new_commit.parent_ids.to_owned(),
             message: new_commit.message.to_owned(),
             author: new_commit.author.to_owned(),

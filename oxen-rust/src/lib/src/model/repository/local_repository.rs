@@ -58,10 +58,10 @@ impl LocalRepository {
             // generate new uuid locally
             id: repo.id.to_owned(),
             name: repo.name.to_owned(),
-            path: std::env::current_dir()?.join(repo.name.to_owned()),
+            path: std::env::current_dir()?.join(&repo.name),
             remotes: vec![Remote {
                 name: String::from(DEFAULT_REMOTE_NAME),
-                url: repo.url().to_owned(),
+                url: repo.url(),
             }],
             remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
         })
