@@ -1,4 +1,3 @@
-
 use crate::config::endpoint;
 use crate::config::AuthConfig;
 use crate::error::OxenError;
@@ -74,7 +73,7 @@ impl RemoteConfig {
         if DEFAULT_ORIGIN_PORT.is_empty() {
             String::from(DEFAULT_ORIGIN_HOST)
         } else {
-            return format!("{}:{}", DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT)
+            return format!("{}:{}", DEFAULT_ORIGIN_HOST, DEFAULT_ORIGIN_PORT);
         }
     }
 
@@ -127,13 +126,19 @@ mod tests {
     #[test]
     fn test_read() {
         let config = RemoteConfig::from(test::remote_cfg_file());
-        assert_eq!(config.http_endpoint(), format!("http://{}/api/v1", DEFAULT_HOST));
+        assert_eq!(
+            config.http_endpoint(),
+            format!("http://{}/api/v1", DEFAULT_HOST)
+        );
     }
 
     #[test]
     fn test_save() -> Result<(), OxenError> {
         let config = RemoteConfig::from(test::remote_cfg_file());
-        assert_eq!(config.http_endpoint(), format!("http://{}/api/v1", DEFAULT_HOST));
+        assert_eq!(
+            config.http_endpoint(),
+            format!("http://{}/api/v1", DEFAULT_HOST)
+        );
 
         let export_path = Path::new("/tmp/remote_config.toml");
         config.save(export_path)?;

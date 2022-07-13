@@ -1,5 +1,5 @@
+use crate::config::{AuthConfig, RemoteConfig};
 use crate::error::REMOTE_CFG_NOT_FOUND;
-use crate::config::{RemoteConfig, AuthConfig};
 use crate::model::{Remote, RemoteRepository};
 
 // TODO: Could do all of these with a trait...

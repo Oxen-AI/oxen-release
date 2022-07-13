@@ -1,4 +1,3 @@
-
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
