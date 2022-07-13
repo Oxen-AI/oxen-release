@@ -220,8 +220,7 @@ fn main() {
         Some(("merge", sub_matches)) => {
             let branch = sub_matches
                 .value_of("BRANCH")
-                .or(Some(DEFAULT_BRANCH_NAME))
-                .unwrap();
+                .unwrap_or(DEFAULT_BRANCH_NAME);
             match dispatch::merge(branch) {
                 Ok(_) => {}
                 Err(err) => {
@@ -232,12 +231,10 @@ fn main() {
         Some(("push", sub_matches)) => {
             let remote = sub_matches
                 .value_of("REMOTE")
-                .or(Some(DEFAULT_REMOTE_NAME))
-                .unwrap();
+                .unwrap_or(DEFAULT_REMOTE_NAME);
             let branch = sub_matches
                 .value_of("BRANCH")
-                .or(Some(DEFAULT_BRANCH_NAME))
-                .unwrap();
+                .unwrap_or(DEFAULT_BRANCH_NAME);
             match dispatch::push(remote, branch) {
                 Ok(_) => {}
                 Err(err) => {
@@ -248,12 +245,10 @@ fn main() {
         Some(("pull", sub_matches)) => {
             let remote = sub_matches
                 .value_of("REMOTE")
-                .or(Some(DEFAULT_REMOTE_NAME))
-                .unwrap();
+                .unwrap_or(DEFAULT_REMOTE_NAME);
             let branch = sub_matches
                 .value_of("BRANCH")
-                .or(Some(DEFAULT_BRANCH_NAME))
-                .unwrap();
+                .unwrap_or(DEFAULT_BRANCH_NAME);
             match dispatch::pull(remote, branch) {
                 Ok(_) => {}
                 Err(err) => {
