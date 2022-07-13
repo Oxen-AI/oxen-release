@@ -77,7 +77,7 @@ fn main() {
                     Arg::new("all")
                         .long("all")
                         .short('a')
-                        .help("List all the local branches")
+                        .help("List both local and remote branches")
                         .exclusive(true)
                         .takes_value(false),
                 )
@@ -229,7 +229,7 @@ fn main() {
         }
         Some(("branch", sub_matches)) => {
             if sub_matches.is_present("all") {
-                if let Err(err) = dispatch::list_branches() {
+                if let Err(err) = dispatch::list_all_branches() {
                     eprintln!("{}", err)
                 }
             } else if sub_matches.is_present("remote") {
