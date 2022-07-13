@@ -1,4 +1,3 @@
-
 use liboxen::config::RemoteConfig;
 use liboxen::model::NewUser;
 
@@ -216,7 +215,8 @@ async fn main() -> std::io::Result<()> {
                         };
                         match keygen.create(&new_user) {
                             Ok(user) => {
-                                let remote_config = RemoteConfig::default().expect(liboxen::error::REMOTE_CFG_NOT_FOUND);
+                                let remote_config = RemoteConfig::default()
+                                    .expect(liboxen::error::REMOTE_CFG_NOT_FOUND);
                                 let auth_config = remote_config.to_auth(&user);
                                 match auth_config.save(Path::new(output)) {
                                     Ok(_) => {

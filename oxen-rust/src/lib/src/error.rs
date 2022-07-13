@@ -3,7 +3,8 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-pub const REMOTE_CFG_NOT_FOUND: &str = "Remote configuration not found, run `oxen set-default-host <host>` to configure.";
+pub const REMOTE_CFG_NOT_FOUND: &str =
+    "Remote configuration not found, run `oxen set-default-host <host>` to configure.";
 
 #[derive(Debug)]
 pub enum OxenError {

@@ -3,7 +3,7 @@ use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE, VERSIONS_DIR
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{NewCommit, Commit, StagedData};
+use crate::model::{Commit, NewCommit, StagedData};
 use crate::util;
 
 use chrono::Local;
@@ -139,7 +139,7 @@ impl CommitWriter {
         This would make sense why hashes are computed at the "add" stage, before the commit stage
         */
         log::debug!("COMMIT_START"); // for debug logging / timing purposes
-        
+
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let new_commit = self.create_commit_data(message)?;

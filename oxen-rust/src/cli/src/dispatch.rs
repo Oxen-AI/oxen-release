@@ -1,4 +1,3 @@
-
 use liboxen::command;
 use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;

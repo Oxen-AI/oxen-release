@@ -211,7 +211,7 @@ impl Indexer {
                 if self.push_entry(&entry_writer, entry).is_ok() {
                     break;
                 }
-                let duration = time::Duration::from_secs(i+1);
+                let duration = time::Duration::from_secs(i + 1);
                 thread::sleep(duration);
                 num_tries += 1;
             }
@@ -430,7 +430,7 @@ impl Indexer {
                     if self.download_remote_entry(entry, &committer).is_ok() {
                         break;
                     }
-                    let duration = time::Duration::from_secs(i+1);
+                    let duration = time::Duration::from_secs(i + 1);
                     thread::sleep(duration);
                     num_tries += 1;
                 }
