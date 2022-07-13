@@ -225,7 +225,7 @@ pub fn list_branches() -> Result<(), OxenError> {
             let branch_str = format!("* {}", branch.name).green();
             println!("{}", branch_str)
         } else {
-            println!("{}", branch.name)
+            println!("  {}", branch.name)
         }
     }
 
@@ -238,13 +238,15 @@ pub fn list_remote_branches() -> Result<(), OxenError> {
     let branches = command::list_remote_branches(&repository)?;
 
     for branch in branches.iter() {
-        if branch.is_head {
-            let branch_str = format!("* {}", branch.name).green();
-            println!("{}", branch_str)
-        } else {
-            println!("{}", branch.name)
-        }
+        println!("  remotes/origin/{}", branch.name);
     }
+
+    Ok(())
+}
+
+pub fn list_all_branches() -> Result<(), OxenError> {
+    list_branches()?;
+    list_remote_branches()?;
 
     Ok(())
 }
