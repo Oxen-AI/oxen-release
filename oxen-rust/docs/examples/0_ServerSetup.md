@@ -4,6 +4,10 @@ Build the Oxen Server and Oxen CLI binaries
 
 `cargo build`
 
+The default host for a dev server is `0.0.0.0:3000`, this can always be changed with the `set-default-host` command.
+
+`./target/debug/oxen set-default-host 0.0.0.0:3000`
+
 Generate a config file that contains an access token to give it to the user to access to the server
 
 `./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml`
