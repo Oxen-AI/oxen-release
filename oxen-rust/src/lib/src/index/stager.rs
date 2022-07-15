@@ -207,7 +207,7 @@ impl Stager {
 
         log::debug!("Stager.add_dir {:?} -> {}", path, paths.len());
 
-        let short_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+        let short_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         println!("Adding files in directory: {:?}", short_path);
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
