@@ -89,10 +89,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
                 }
             }
             Ok(None) => {
-                log::debug!(
-                    "404 could not get repo {}",
-                    name,
-                );
+                log::debug!("404 could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             Err(err) => {
@@ -130,10 +127,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                 }
             },
             Ok(None) => {
-                log::debug!(
-                    "404 could not get repo {}",
-                    name,
-                );
+                log::debug!("404 could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             Err(err) => {
@@ -171,10 +165,7 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
                 }
             },
             Ok(None) => {
-                log::debug!(
-                    "404 could not get repo {}",
-                    name,
-                );
+                log::debug!("404 could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             Err(err) => {
@@ -234,10 +225,7 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
                 }
             },
             Ok(None) => {
-                log::debug!(
-                    "404 could not get repo {}",
-                    name,
-                );
+                log::debug!("404 could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             Err(err) => {
@@ -357,10 +345,7 @@ pub async fn upload(
             }
         }
         Ok(None) => {
-            log::debug!(
-                "404 could not get repo {}",
-                repo_name,
-            );
+            log::debug!("404 could not get repo {}", repo_name,);
             Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
         }
         Err(repo_err) => {
@@ -625,7 +610,7 @@ mod tests {
 
         // create random tarball to post.. currently no validation that it is a valid commit dir
         let path_to_compress = format!("history/{}", commit.id);
-        let commit_dir_name = format!("/tmp/oxen/commit/{}", commit.id);
+        let commit_dir_name = format!("data/test/runs/{}", commit.id);
         let commit_dir = Path::new(&commit_dir_name);
         std::fs::create_dir_all(commit_dir)?;
         // Write a random file to it

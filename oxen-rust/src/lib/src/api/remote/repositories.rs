@@ -14,7 +14,7 @@ pub fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
 pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}", name);
-    let url = api::endpoint::url_from_config(&config, &uri);
+    let url = api::endpoint::url_from_auth_config(&config, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -57,13 +57,13 @@ pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
 
 pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
-    let url = api::endpoint::url_from_config(&config, "/repositories");
+    let url = api::endpoint::url_from_auth_config(&config, "/repositories");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": repository.name, "root_commit": root_commit });
     // println!("Create remote: {}", url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
-        .post(url)
+        .post(url.to_owned())
         .json(&params)
         .header(
             reqwest::header::AUTHORIZATION,
@@ -86,8 +86,7 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
             }
         }
     } else {
-        let server = api::endpoint::server();
-        let err = format!("Create repository could not connect to remote on. Make sure you have the correct server and that it is running: {}", server);
+        let err = format!("Create repository could not connect to {}. Make sure you have the correct server and that it is running.", url);
         Err(OxenError::basic_str(err))
     }
 }
@@ -95,9 +94,9 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
 pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
     let client = reqwest::blocking::Client::new();
-    log::debug!("Deleting repository: {}", repository.url);
+    log::debug!("Deleting repository: {}", repository.url());
     if let Ok(res) = client
-        .delete(repository.url)
+        .delete(repository.url())
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),

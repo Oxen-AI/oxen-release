@@ -1,33 +1,12 @@
-use liboxen::api;
 use liboxen::command;
-use liboxen::config::RemoteConfig;
+use liboxen::config::{AuthConfig, RemoteConfig};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::util;
 
 use colored::Colorize;
 use std::env;
-use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
-
-pub fn login() -> Result<(), OxenError> {
-    println!("🐂 Login\n\nEnter your email:");
-    let mut email = String::new();
-    let stdin = io::stdin();
-    stdin.lock().read_line(&mut email).unwrap();
-    println!("Enter your password:");
-    let password = rpassword::read_password().unwrap();
-
-    // RemoteConfig tells us where to login
-    let remote_config = RemoteConfig::new()?;
-    let user = api::login(&remote_config, email.trim(), password.trim())?;
-
-    // AuthConfig is saved next to it with user token
-    let auth_config = remote_config.to_auth(&user);
-    auth_config.save_default()?;
-
-    Ok(())
-}
 
 pub fn init(path: &str) -> Result<(), OxenError> {
     let directory = std::fs::canonicalize(PathBuf::from(&path))?;
@@ -47,7 +26,7 @@ pub fn create_remote() -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let remote = command::create_remote(&repo)?;
-    println!("Remote url: {}", remote.url);
+    println!("Remote url: {}", remote.url());
 
     Ok(())
 }
@@ -57,6 +36,21 @@ pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
     command::set_remote(&mut repo, name, url)?;
+
+    Ok(())
+}
+
+pub fn set_host_global(host: &str) -> Result<(), OxenError> {
+    let mut remote_config = RemoteConfig::new()?;
+    remote_config.host = String::from(host);
+    remote_config.save_default()?;
+
+    if let Ok(mut auth_config) = AuthConfig::default() {
+        auth_config.host = String::from(host);
+        auth_config.save_default()?;
+    }
+
+    println!("Global host set to {}", host);
 
     Ok(())
 }

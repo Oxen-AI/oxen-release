@@ -49,30 +49,29 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let branch_name: Option<&str> = req.match_info().get("branch_name");
     if let (Some(name), Some(branch_name)) = (name, branch_name) {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(Some(repository)) => match api::local::branches::get_by_name(&repository, branch_name) {
-                Ok(Some(branch)) => HttpResponse::Ok().json(BranchResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
-                    branch,
-                }),
-                Ok(None) => {
-                    log::debug!(
-                        "branch_name {} does not exist for repo: {}",
-                        branch_name,
-                        name
-                    );
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            Ok(Some(repository)) => {
+                match api::local::branches::get_by_name(&repository, branch_name) {
+                    Ok(Some(branch)) => HttpResponse::Ok().json(BranchResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        branch,
+                    }),
+                    Ok(None) => {
+                        log::debug!(
+                            "branch_name {} does not exist for repo: {}",
+                            branch_name,
+                            name
+                        );
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                    Err(err) => {
+                        log::debug!("Err getting branch_name {}: {}", branch_name, err);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
                 }
-                Err(err) => {
-                    log::debug!("Err getting branch_name {}: {}", branch_name, err);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-            },
+            }
             Ok(None) => {
-                log::debug!(
-                    "404 api::local::branches::show could not get repo {}",
-                    name,
-                );
+                log::debug!("404 api::local::branches::show could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             Err(err) => {

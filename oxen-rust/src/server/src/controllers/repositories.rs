@@ -88,12 +88,15 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                     log::error!("Err api::local::repositories::create_or_get: {:?}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
-            }
+            },
         },
         Err(err) => {
-            log::error!("Err api::local::repositories::create_or_get parse error: {:?}", err);
+            log::error!(
+                "Err api::local::repositories::create_or_get parse error: {:?}",
+                err
+            );
             HttpResponse::BadRequest().json(StatusMessage::error("Invalid body."))
-        },
+        }
     }
 }
 
@@ -103,17 +106,20 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(Some(repository)) => match api::local::repositories::delete(&app_data.path, repository) {
-                Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_DELETED),
-                    repository: RemoteRepository::from_local(&repository),
-                }),
-                Err(err) => {
-                    log::error!("Error deleting repository: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            Ok(Some(repository)) => {
+                match api::local::repositories::delete(&app_data.path, repository) {
+                    Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_DELETED),
+                        repository: RemoteRepository::from_local(&repository),
+                    }),
+                    Err(err) => {
+                        log::error!("Error deleting repository: {}", err);
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
+                    }
                 }
-            },
+            }
             Ok(None) => {
                 log::debug!("404 Could not find repo: {}", name);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())

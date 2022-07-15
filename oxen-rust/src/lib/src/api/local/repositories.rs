@@ -61,7 +61,7 @@ pub fn list(sync_dir: &Path) -> Result<Vec<LocalRepository>, OxenError> {
         // if the directory has a .oxen dir, let's add it, otherwise ignore
         let local_dir = entry.path();
         let oxen_dir = util::fs::oxen_hidden_dir(local_dir);
-        log::debug!("api::local::entries::list got local dir {:?}", local_dir);
+        // log::debug!("api::local::entries::list got local dir {:?}", local_dir);
 
         if oxen_dir.exists() {
             if let Ok(repository) = LocalRepository::from_dir(local_dir) {

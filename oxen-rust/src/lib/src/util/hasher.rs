@@ -27,11 +27,11 @@ pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[(PathBuf, StagedE
 
     for entry in entries.iter() {
         let input = entry.1.hash.as_bytes();
-        commit_hasher.update(&input);
+        commit_hasher.update(input);
     }
 
     let commit_str = format!("{:?}", commit_data);
-    commit_hasher.update(&commit_str.as_bytes());
+    commit_hasher.update(commit_str.as_bytes());
 
     let val = commit_hasher.digest();
     format!("{val:x}")
