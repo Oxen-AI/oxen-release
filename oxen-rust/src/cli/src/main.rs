@@ -30,6 +30,12 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("set-auth-token")
+                .about("Sets the user authentication token in ~/.oxen/auth_config.toml")
+                .arg(arg!(<TOKEN> "You can get an auth_config.toml file from your admin or generate one on the server yourself."))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("set-remote")
                 .about("Sets remote url for repository")
                 .arg(arg!(<NAME> "The remote name"))
@@ -146,6 +152,16 @@ fn main() {
             let host = sub_matches.value_of("HOST").expect("required");
 
             match dispatch::set_host_global(host) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("set-auth-token", sub_matches)) => {
+            let token = sub_matches.value_of("TOKEN").expect("required");
+
+            match dispatch::set_auth_token(token) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)

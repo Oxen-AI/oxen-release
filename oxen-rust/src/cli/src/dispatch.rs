@@ -55,6 +55,18 @@ pub fn set_host_global(host: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn set_auth_token(token: &str) -> Result<(), OxenError> {
+    if let Ok(mut auth_config) = AuthConfig::default() {
+        auth_config.user.token = String::from(token);
+        auth_config.save_default()?;
+        println!("Authentication token set.");
+    } else {
+        eprintln!("Could not find ~/.oxen/auth_config.toml please contact your administrator.");
+    }
+
+    Ok(())
+}
+
 pub fn add(path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
