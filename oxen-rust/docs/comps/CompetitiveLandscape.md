@@ -121,3 +121,8 @@ Executed in  201.64 secs    fish           external
    usr time   69.33 secs    0.24 millis   69.33 secs
    sys time   26.74 secs    1.57 millis   26.74 secs
 
+
+
+CelebA 10k
+
+* push local (all threads) - 9.97 secs

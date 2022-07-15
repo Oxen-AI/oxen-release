@@ -203,24 +203,32 @@ impl Indexer {
         let bar = ProgressBar::new(size);
 
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        entries.par_iter().for_each(|entry| {
-            // Retry logic
-            let total_tries = 5;
-            let mut num_tries = 0;
-            for i in 0..total_tries {
-                if self.push_entry(&entry_writer, entry).is_ok() {
-                    break;
+        let num_chunks = 16;
+        let chunk_size = entries.len() / num_chunks;
+        entries.par_chunks(chunk_size).for_each(|chunk| {
+            println!("Pushing chunks with size: {}", chunk.len());
+            for entry in chunk.iter() {
+                // Retry logic
+                let total_tries = 5;
+                let mut num_tries = 0;
+                let mut num_sec = 1;
+                for _ in 0..total_tries {
+                    if self.push_entry(&entry_writer, entry).is_ok() {
+                        break;
+                    }
+                    num_sec = num_sec * 2;
+                    let duration = time::Duration::from_secs(num_sec);
+                    log::debug!("Error pushing entry {:?} sleeping {}s", entry.path, num_sec);
+                    thread::sleep(duration);
+                    num_tries += 1;
                 }
-                let duration = time::Duration::from_secs(i + 1);
-                thread::sleep(duration);
-                num_tries += 1;
-            }
 
-            if num_tries == total_tries {
-                log::error!("Error pushing entry {:?}", entry);
-            }
+                if num_tries == total_tries {
+                    log::error!("Error pushing entry {:?}", entry.path);
+                }
 
-            bar.inc(1);
+                bar.inc(1);
+            }
         });
 
         bar.finish();
