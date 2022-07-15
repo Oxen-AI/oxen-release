@@ -2,9 +2,7 @@ use crate::constants::{DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{RefReader, RefWriter};
-use crate::model::{
-    Commit, CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus,
-};
+use crate::model::{Commit, CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
 use crate::util;
 
 use filetime::FileTime;
@@ -143,7 +141,12 @@ impl CommitEntryWriter {
         }
     }
 
-    fn add_path_to_db(&self, new_commit: &Commit, staged_entry: &StagedEntry, path: &Path) -> Result<(), OxenError> {
+    fn add_path_to_db(
+        &self,
+        new_commit: &Commit,
+        staged_entry: &StagedEntry,
+        path: &Path,
+    ) -> Result<(), OxenError> {
         log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
 
         // then hash the actual file contents
@@ -185,28 +188,33 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    fn backup_file_to_versions_dir(
-        &self,
-        new_entry: &CommitEntry,
-    ) -> Result<(), OxenError> {
+    fn backup_file_to_versions_dir(&self, new_entry: &CommitEntry) -> Result<(), OxenError> {
         let full_path = self.repository.path.join(&new_entry.path);
         // create a copy to our versions directory
         // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
         // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
-        
+
         let versions_entry_path = util::fs::version_path(&self.repository, new_entry);
         let versions_entry_dir = versions_entry_path.parent().unwrap();
 
         if !versions_entry_dir.exists() {
             // it's the first time
-            log::debug!("Creating version dir for file: {:?} -> {:?}", new_entry.path, versions_entry_dir);
+            log::debug!(
+                "Creating version dir for file: {:?} -> {:?}",
+                new_entry.path,
+                versions_entry_dir
+            );
 
             // Create version dir
             std::fs::create_dir_all(versions_entry_dir)?;
         }
 
         if !versions_entry_path.exists() {
-            log::debug!("Copying commit entry for file: {:?} -> {:?}", new_entry.path, versions_entry_path);
+            log::debug!(
+                "Copying commit entry for file: {:?} -> {:?}",
+                new_entry.path,
+                versions_entry_path
+            );
             std::fs::copy(full_path, versions_entry_path)?;
         }
 

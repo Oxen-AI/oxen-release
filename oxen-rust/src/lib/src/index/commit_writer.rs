@@ -21,7 +21,6 @@ pub struct CommitWriter {
 }
 
 impl CommitWriter {
-
     pub fn commit_db_dir(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
     }
@@ -302,7 +301,7 @@ impl CommitWriter {
             }
 
             let dst_path = self.repository.path.join(path);
-            let version_path = util::fs::version_path(&self.repository, &entry);
+            let version_path = util::fs::version_path(&self.repository, entry);
 
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {

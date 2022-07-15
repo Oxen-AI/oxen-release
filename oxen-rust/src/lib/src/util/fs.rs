@@ -339,8 +339,8 @@ mod tests {
     use crate::constants;
     use crate::error::OxenError;
     use crate::model::CommitEntry;
-    use crate::util;
     use crate::test;
+    use crate::util;
 
     use std::path::{Path, PathBuf};
 
@@ -424,7 +424,12 @@ mod tests {
             let path = util::fs::version_path(&repo, &entry);
             let versions_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR);
             let relative_path = util::fs::path_relative_to_dir(&path, &versions_dir)?;
-            assert_eq!(relative_path, Path::new("59").join(Path::new("E029D4812AEBF0")).join(Path::new("1234.txt")));
+            assert_eq!(
+                relative_path,
+                Path::new("59")
+                    .join(Path::new("E029D4812AEBF0"))
+                    .join(Path::new("1234.txt"))
+            );
 
             Ok(())
         })
