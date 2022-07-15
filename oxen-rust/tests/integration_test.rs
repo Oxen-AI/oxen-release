@@ -1206,35 +1206,6 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 }
 
 #[test]
-fn test_only_store_changes_in_version_dir() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
-        // Track a file
-        let filename = "labels.txt";
-        let filepath = repo.path.join(filename);
-        command::add(&repo, &filepath)?;
-        command::commit(&repo, "Adding labels file")?.unwrap();
-
-        let new_filename = "new.txt";
-        let new_filepath = repo.path.join(new_filename);
-        util::fs::write_to_path(&new_filepath, "hallo");
-        command::add(&repo, &new_filepath)?;
-        command::commit(&repo, "Adding a new file")?.unwrap();
-
-        let version_dir =
-            util::fs::oxen_hidden_dir(&repo.path).join(Path::new(constants::VERSIONS_DIR));
-        log::debug!("version_dir hash_filename: {:?}", filepath);
-
-        let id = util::hasher::hash_filename(Path::new(filename));
-        let original_file_version_dir = version_dir.join(id);
-        log::debug!("version dir: {:?}", original_file_version_dir);
-        let num_files = util::fs::rcount_files_in_dir(&original_file_version_dir);
-        assert_eq!(num_files, 1);
-
-        Ok(())
-    })
-}
-
-#[test]
 fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|mut repo| {
         // First commit

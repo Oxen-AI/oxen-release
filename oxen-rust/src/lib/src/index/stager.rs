@@ -182,7 +182,6 @@ impl Stager {
         entry: &CommitEntry,
     ) -> Result<StagedEntry, OxenError> {
         let entry = StagedEntry {
-            id: entry.id.clone(),
             hash: entry.hash.clone(),
             status: StagedEntryStatus::Removed,
         };
@@ -305,10 +304,7 @@ impl Stager {
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
         let path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
 
-        log::debug!("add_file hash_filename: {:?}", path);
-        let id = util::hasher::hash_filename(&path);
         let mut staged_entry = StagedEntry {
-            id,
             hash: hash.to_owned(),
             status: StagedEntryStatus::Added,
         };
@@ -794,7 +790,6 @@ mod tests {
 
             // we should be able to fetch this entry json
             let entry = stager.get_entry(&relative_path).unwrap();
-            assert!(!entry.id.is_empty());
             assert!(!entry.hash.is_empty());
             assert_eq!(entry.status, StagedEntryStatus::Added);
 

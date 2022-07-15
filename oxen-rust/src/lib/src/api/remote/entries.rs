@@ -1,6 +1,5 @@
 use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
-use crate::constants;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
@@ -150,10 +149,7 @@ pub fn download_entry(
         response.copy_to(&mut dest)?;
 
         // Copy to versions dir
-        let version_dir = util::fs::oxen_hidden_dir(&repository.path)
-            .join(constants::VERSIONS_DIR)
-            .join(&entry.id);
-        let version_path = version_dir.join(entry.filename());
+        let version_path = util::fs::version_path(repository, entry);
 
         if let Some(parent) = version_path.parent() {
             if !parent.exists() {

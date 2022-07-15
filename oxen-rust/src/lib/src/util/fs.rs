@@ -24,9 +24,12 @@ pub fn repo_exists(repo_path: &Path) -> bool {
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
+    let topdir = &entry.hash[..2];
+    let subdir = &entry.hash[2..];
     let version_dir = oxen_hidden_dir(&repo.path)
         .join(constants::VERSIONS_DIR)
-        .join(&entry.id);
+        .join(topdir)
+        .join(subdir);
     version_dir.join(entry.filename())
 }
 
@@ -333,10 +336,13 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
 
 #[cfg(test)]
 mod tests {
+    use crate::constants;
     use crate::error::OxenError;
+    use crate::model::CommitEntry;
     use crate::util;
+    use crate::test;
 
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn file_path_relative_to_dir() -> Result<(), OxenError> {
@@ -402,5 +408,25 @@ mod tests {
         assert_eq!(relative, Path::new("other/dir"));
 
         Ok(())
+    }
+
+    #[test]
+    fn version_path() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let entry = CommitEntry {
+                commit_id: String::from("1234"),
+                path: PathBuf::from("hello_world.txt"),
+                is_synced: false,
+                hash: String::from("59E029D4812AEBF0"), // dir structure -> 59/E029D4812AEBF0
+                last_modified_seconds: 0,
+                last_modified_nanoseconds: 0,
+            };
+            let path = util::fs::version_path(&repo, &entry);
+            let versions_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR);
+            let relative_path = util::fs::path_relative_to_dir(&path, &versions_dir)?;
+            assert_eq!(relative_path, Path::new("59").join(Path::new("E029D4812AEBF0")).join(Path::new("1234.txt")));
+
+            Ok(())
+        })
     }
 }
