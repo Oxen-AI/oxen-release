@@ -3,12 +3,6 @@
 sudo apt update
 sudo apt install -y fish
 sudo apt install -y apt-utils
-sudo apt install -y libclang-dev
-sudo apt install -y build-essential
-sudo apt install -y libssl-dev
-sudo apt install -y pkg-config
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install cargo-build-deps
 
 # Install docker
 sudo apt-get install -y \
@@ -20,7 +14,8 @@ sudo mkdir -p /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 sudo apt-get update
-sudo apt-get install -i docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo chmod 666 /var/run/docker.sock
 
 # SSH Keys
 ssh-keygen -t ed25519 -C "g@oxen.ai"
@@ -33,6 +28,20 @@ mkdir Code
 cd Code/
 git clone git@github.com:Oxen-AI/Oxen.git
 cd Oxen/
+
+# Build docker
+docker build -t oxen/server:0.1.0 .
+docker compose up -d reverse-proxy
+
+# Build actual binary
+
+sudo apt install -y libclang-dev
+sudo apt install -y build-essential
+sudo apt install -y libssl-dev
+sudo apt install -y pkg-config
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo install cargo-build-deps
+
 
 # Build the server
 cargo build --release
