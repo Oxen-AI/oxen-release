@@ -8,11 +8,11 @@ use crate::model::{
 };
 use crate::util;
 
+use filetime::FileTime;
 use indicatif::ProgressBar;
+use rayon::prelude::*;
 use rocksdb::{IteratorMode, DB};
 use std::collections::HashSet;
-use rayon::prelude::*;
-use filetime::FileTime;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -22,7 +22,7 @@ pub const STAGED_DIR: &str = "staged";
 pub struct Stager {
     db: DB,
     pub repository: LocalRepository,
-    merger: Option<Merger>
+    merger: Option<Merger>,
 }
 
 impl Stager {
@@ -40,7 +40,7 @@ impl Stager {
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
             repository: repository.clone(),
-            merger: None
+            merger: None,
         })
     }
 
@@ -54,7 +54,7 @@ impl Stager {
         Ok(Stager {
             db: DB::open(&opts, &dbpath)?,
             repository: repository.clone(),
-            merger: Some(Merger::new(&repository.clone())?)
+            merger: Some(Merger::new(&repository.clone())?),
         })
     }
 
@@ -207,7 +207,8 @@ impl Stager {
 
         log::debug!("Stager.add_dir {:?} -> {}", path, paths.len());
 
-        println!("Adding files in directory: {:?}", path);
+        let short_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+        println!("Adding files in directory: {:?}", short_path);
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
         let bar = ProgressBar::new(size);
         paths.par_iter().for_each(|path| {
@@ -215,7 +216,7 @@ impl Stager {
             match self.add_file(&full_path, entry_reader) {
                 Ok(_) => {
                     // all good
-                },
+                }
                 Err(err) => {
                     log::error!("Could not add file: {:?}\nErr: {}", path, err);
                 }
@@ -320,7 +321,7 @@ impl Stager {
                 merger.remove_conflict_path(&path)?;
                 return Ok(path);
             }
-        } 
+        }
 
         // Check if file has changed on disk
         if let Ok(Some(entry)) = entry_reader.get_entry(&path) {
@@ -488,7 +489,12 @@ impl Stager {
 
                     if old_entry.has_different_modification_time(&mtime) {
                         // log::debug!("stager::list_modified_files modification times are different! {:?}", relative_path);
-                        paths.push(relative_path);
+
+                        // Then check the hashes, because the data might not be different, timestamp is just an optimization
+                        let hash = util::hasher::hash_file_contents(local_path)?;
+                        if hash != old_entry.hash {
+                            paths.push(relative_path);
+                        }
                     }
                 } else {
                     // log::debug!("stager::list_modified_files we don't have file in head commit {:?}", relative_path);
@@ -1186,7 +1192,7 @@ mod tests {
             assert_eq!(untracked_dirs.len(), 3);
 
             // Add the directory
-            let _ = stager.add_dir(&train_dir, &entry_reader)?;
+            stager.add_dir(&train_dir, &entry_reader)?;
             // Add one file
             let _ = stager.add_file(&base_file_1, &entry_reader)?;
 

@@ -33,10 +33,7 @@ pub async fn create(
     match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(Some(repo)) => p_create_entry(&app_data.path, &repo, body, data).await,
         Ok(None) => {
-            log::debug!(
-                "404 could not get repo {}",
-                name,
-            );
+            log::debug!("404 could not get repo {}", name,);
             Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
         }
         Err(err) => {
@@ -118,7 +115,7 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
         Ok(None) => {
             log::debug!("Could not find repo with name {}", name);
             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        },
+        }
         Err(err) => {
             log::error!("Unable to get commit id {}. Err: {}", commit_id, err);
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())

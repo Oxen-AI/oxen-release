@@ -1,5 +1,4 @@
-use liboxen::api;
-use liboxen::config::AuthConfig;
+use liboxen::config::RemoteConfig;
 use liboxen::model::NewUser;
 
 pub mod app_data;
@@ -216,14 +215,9 @@ async fn main() -> std::io::Result<()> {
                         };
                         match keygen.create(&new_user) {
                             Ok(user) => {
-                                let host: &str = &api::endpoint::host();
-                                let port: u16 = api::endpoint::port()
-                                    .parse::<u16>()
-                                    .expect(INVALID_PORT_MSG);
-                                let auth_config = AuthConfig {
-                                    host: format!("{}:{}", host, port),
-                                    user,
-                                };
+                                let remote_config = RemoteConfig::default()
+                                    .expect(liboxen::error::REMOTE_CFG_NOT_FOUND);
+                                let auth_config = remote_config.to_auth(&user);
                                 match auth_config.save(Path::new(output)) {
                                     Ok(_) => {
                                         println!("Saved config to: {}\n\nTo give user access have them put the file in home directory at ~/.oxen/auth_config.toml", output)

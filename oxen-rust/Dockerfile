@@ -1,7 +1,8 @@
 FROM rust:1.62 as builder
 
 USER root
-RUN apt-get update && apt-get install --assume-yes apt-utils
+RUN apt-get update
+RUN apt-get install -y apt-utils
 RUN apt-get install -y libclang-dev
 RUN cargo install cargo-build-deps
 

@@ -2,7 +2,7 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository, RemoteRepository, RemoteEntry};
+use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
@@ -78,7 +78,10 @@ pub fn list_page(
     page_size: usize,
 ) -> Result<PaginatedEntries, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!("/commits/{}/entries?page_num={}&page_size={}", commit_id, page_num, page_size);
+    let uri = format!(
+        "/commits/{}/entries?page_num={}&page_size={}",
+        commit_id, page_num, page_size
+    );
     let remote_repo = RemoteRepository::from_local(repository);
     let url = api::endpoint::url_from_repo(&remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
@@ -214,7 +217,7 @@ mod tests {
             let commit = command::commit(&repo, "Adding image")?.unwrap();
 
             // Set the proper remote
-            let remote = api::endpoint::repo_url_from(&repo.name);
+            let remote = test::repo_url_from(&repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push everything
@@ -242,7 +245,7 @@ mod tests {
             let commit = command::commit(&repo, "Adding image")?.unwrap();
 
             // Set the proper remote
-            let remote = api::endpoint::repo_url_from(&repo.name);
+            let remote = test::repo_url_from(&repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push
