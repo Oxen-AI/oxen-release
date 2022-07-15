@@ -9,13 +9,14 @@ use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
-    let sync_dir = PathBuf::from(format!("/tmp/oxen/tests/{}", uuid::Uuid::new_v4()));
+    let sync_dir = PathBuf::from(format!("data/test/runs/{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&sync_dir)?;
     Ok(sync_dir)
 }
 
 pub fn create_local_repo(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
     let repo_dir = sync_dir.join(name);
+    std::fs::create_dir_all(&repo_dir)?;
     let repo = command::init(&repo_dir)?;
     Ok(repo)
 }
