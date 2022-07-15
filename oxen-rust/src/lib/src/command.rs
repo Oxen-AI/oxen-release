@@ -24,7 +24,7 @@ use std::str;
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
 ///
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_init");
 /// command::init(base_dir)?;
 /// assert!(base_dir.join(".oxen").exists());
 ///
@@ -35,7 +35,8 @@ use std::str;
 pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(path);
     if hidden_dir.exists() {
-        return Err(OxenError::basic_str("Oxen repository already exists."));
+        let err = format!("Oxen repository already exists: {:?}", path);
+        return Err(OxenError::basic_str(err));
     }
 
     std::fs::create_dir_all(hidden_dir)?;
@@ -62,7 +63,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
 ///
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_status_1");
 /// // Initialize empty repo
 /// let repo = command::init(&base_dir)?;
 /// // Get status on repo
@@ -82,7 +83,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
 ///
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_status_2");
 /// // Initialize empty repo
 /// let repo = command::init(&base_dir)?;
 ///
@@ -120,7 +121,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # fn main() -> Result<(), OxenError> {
 ///
 /// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_add");
 /// let repo = command::init(base_dir)?;
 ///
 /// // Write file to disk
@@ -152,7 +153,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 /// # fn main() -> Result<(), OxenError> {
 ///
 /// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_commit");
 /// let repo = command::init(base_dir)?;
 ///
 /// // Write file to disk
@@ -208,7 +209,7 @@ fn p_commit(
 /// # fn main() -> Result<(), OxenError> {
 ///
 /// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_log");
 /// let repo = command::init(base_dir)?;
 ///
 /// // Print     commit history
@@ -446,7 +447,7 @@ pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(
 /// # fn main() -> Result<(), OxenError> {
 ///
 /// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir");
+/// let base_dir = Path::new("/tmp/repo_dir_push");
 /// let mut repo = command::init(base_dir)?;
 ///
 /// // Write file to disk

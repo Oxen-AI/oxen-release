@@ -102,7 +102,7 @@ Create the docker image
 
 Run a container on port 3000 with a local filesystem mounted from /var/oxen/data on the host to /var/oxen/data in the container.
 
-`docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3000 oxen/server:0.1.0`
+`docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3001 --name oxen oxen/server:0.1.0`
 
 Or use docker compose
 

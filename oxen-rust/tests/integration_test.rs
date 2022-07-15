@@ -732,7 +732,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
@@ -760,7 +760,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
@@ -805,7 +805,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding test data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
@@ -842,7 +842,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push the files
@@ -887,7 +887,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
@@ -906,7 +906,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
             let oxen_dir = cloned_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&cloned_repo)?;
@@ -1005,7 +1005,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         command::commit(&repo, "Adding labels file")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it real good
@@ -1013,7 +1013,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
             command::pull(&cloned_repo)?;
 
             // Modify the file in the cloned dir
@@ -1067,7 +1067,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding test dir")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1075,7 +1075,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
             command::pull(&cloned_repo)?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
@@ -1096,7 +1096,7 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1104,7 +1104,7 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
             command::pull(&cloned_repo)?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 5 training files
@@ -1166,7 +1166,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1174,7 +1174,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
             command::pull(&cloned_repo)?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 5 training files
@@ -1264,7 +1264,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
         let local_history = command::log(&repo)?;
 
         // Set the proper remote
-        let remote = api::endpoint::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Push it
@@ -1272,7 +1272,7 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
-            let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
+            let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
             command::pull(&cloned_repo)?;
 
             // Get cloned history
