@@ -53,15 +53,15 @@ impl LocalRepository {
         })
     }
 
-    pub fn from_remote(view: RemoteRepository) -> Result<LocalRepository, OxenError> {
+    pub fn from_remote(repo: RemoteRepository) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
             // generate new uuid locally
-            id: view.id.to_owned(),
-            name: view.name.to_owned(),
-            path: std::env::current_dir()?.join(view.name),
+            id: repo.id.to_owned(),
+            name: repo.name.to_owned(),
+            path: std::env::current_dir()?.join(&repo.name),
             remotes: vec![Remote {
                 name: String::from(DEFAULT_REMOTE_NAME),
-                url: view.url,
+                url: repo.url(),
             }],
             remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
         })
@@ -154,7 +154,7 @@ impl LocalRepository {
 
     fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
-        let url = repo.url.to_owned();
+        let url = repo.url();
         let dir_name = LocalRepository::dirname_from_url(&url)?;
         // if directory already exists -> return Err
         let repo_path = dst.join(&dir_name);
@@ -239,7 +239,7 @@ mod tests {
             let remote_repo = api::remote::repositories::create(&local_repo)?;
 
             test::run_empty_dir_test(|dir| {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.url, dir)?.unwrap();
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url(), dir)?.unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);

@@ -3,6 +3,7 @@
 
 use crate::api;
 use crate::command;
+use crate::config::RemoteConfig;
 use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
@@ -13,6 +14,13 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
+
+pub fn repo_url_from(name: &str) -> String {
+    // Tests always point to localhost
+    let config = RemoteConfig::from(Path::new("data/test/config/remote_config.toml"));
+    let uri = format!("/repositories/{}", name);
+    api::endpoint::url_from_remote_config(&config, &uri)
+}
 
 pub fn init_test_env() {
     let env = Env::default();
@@ -144,6 +152,7 @@ where
     populate_dir_with_training_data(&repo_dir)?;
 
     let remote_repo = api::remote::repositories::create(&local_repo)?;
+    println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
