@@ -9,7 +9,6 @@ pub enum StagedEntryStatus {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StagedEntry {
-    pub id: String,
     pub hash: String,
     pub status: StagedEntryStatus,
 }

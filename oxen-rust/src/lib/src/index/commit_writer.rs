@@ -1,5 +1,5 @@
 use crate::config::AuthConfig;
-use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE, VERSIONS_DIR};
+use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
@@ -17,14 +17,10 @@ use crate::model::LocalRepository;
 
 pub struct CommitWriter {
     pub commits_db: DBWithThreadMode<MultiThreaded>,
-    versions_dir: PathBuf,
     repository: LocalRepository,
 }
 
 impl CommitWriter {
-    pub fn versions_dir(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path).join(Path::new(VERSIONS_DIR))
-    }
 
     pub fn commit_db_dir(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
@@ -32,7 +28,6 @@ impl CommitWriter {
 
     pub fn new(repository: &LocalRepository) -> Result<CommitWriter, OxenError> {
         let db_path = CommitWriter::commit_db_dir(&repository.path);
-        let versions_path = CommitWriter::versions_dir(&repository.path);
 
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
@@ -41,7 +36,6 @@ impl CommitWriter {
         let opts = db::opts::default();
         Ok(CommitWriter {
             commits_db: DBWithThreadMode::open(&opts, &db_path)?,
-            versions_dir: versions_path,
             repository: repository.clone(),
         })
     }
@@ -200,9 +194,6 @@ impl CommitWriter {
         // Commit all staged files from db
         entry_writer.add_staged_entries(commit, &status.added_files)?;
 
-        // Commit all staged dirs from db, and recursively add all the files
-        entry_writer.add_staged_dirs(commit, &status.added_dirs)?;
-
         // Add to commits db id -> commit_json
         self.add_commit_to_db(commit)?;
 
@@ -311,16 +302,7 @@ impl CommitWriter {
             }
 
             let dst_path = self.repository.path.join(path);
-
-            // Check the versioned file hash
-            let version_filename = entry.filename();
-            let entry_version_dir = self.versions_dir.join(&entry.id);
-
-            for f in util::fs::rlist_files_in_dir(&entry_version_dir) {
-                log::debug!("VERSION FILE: {:?} version: {:?}", path, f);
-            }
-
-            let version_path = entry_version_dir.join(version_filename);
+            let version_path = util::fs::version_path(&self.repository, &entry);
 
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
