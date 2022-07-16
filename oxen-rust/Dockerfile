@@ -18,16 +18,12 @@ RUN cargo build-deps --release
 
 # copy the rest of the source and build the server
 COPY src src
-RUN cargo build --release --bin oxen-server --bin oxen
+RUN cargo build --release --bin oxen-server
 
 # Minimal image to run the binary (without Rust toolchain)
 FROM debian:bullseye-slim AS runtime
 WORKDIR /oxen-server
 COPY --from=builder /usr/src/oxen-server/target/release/oxen-server /usr/local/bin
-COPY --from=builder /usr/src/oxen-server/target/release/oxen /usr/local/bin
-RUN oxen set-default-host 0.0.0.0:3000
-ENV SYNC_DIR /var/oxen/data 
-RUN oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
 ENV SYNC_DIR=/var/oxen/data
 EXPOSE 3001
 CMD ["oxen-server", "start", "-p", "3001"]
