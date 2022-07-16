@@ -1,4 +1,7 @@
+use bytesize::ByteSize;
 use filetime::FileTime;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::fs;
@@ -193,20 +196,57 @@ impl Indexer {
     }
 
     fn push_entries(&self, entries: &[CommitEntry], commit: &Commit) -> Result<(), OxenError> {
-        println!("🐂 push {} files", entries.len());
+        println!("🐂 push {} files. Computing size...", entries.len());
+        let mut total_size: u64 = 0;
         for entry in entries.iter() {
             log::debug!("push entry {:?}", entry.path);
+            let full_path = self.repository.path.join(&entry.path);
+            let metadata = fs::metadata(full_path)?;
+            total_size += metadata.len();
         }
 
+        println!("Compressing {}...", ByteSize::b(total_size));
+
+        let num_chunks = num_cpus::get();
+
         // len is usize and progressbar requires u64, I don't think we'll overflow...
-        let size: u64 = unsafe { std::mem::transmute(entries.len()) };
+        let size: u64 = unsafe { std::mem::transmute(num_chunks) };
+        let compress_size: u64 = unsafe { std::mem::transmute(entries.len()) };
+        let compress_bar = ProgressBar::new(compress_size);
         let bar = ProgressBar::new(size);
 
-        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        let num_chunks = 16;
+        // let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         let chunk_size = entries.len() / num_chunks;
+
+        println!("Compressing and sending {} chunks ", num_chunks);
         entries.par_chunks(chunk_size).for_each(|chunk| {
-            println!("Pushing chunks with size: {}", chunk.len());
+            // 1) zip up entries into tarballs
+            let enc = GzEncoder::new(Vec::new(), Compression::fast());
+            let mut tar = tar::Builder::new(enc);
+            for entry in chunk.iter() {
+                let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+                let version_path = util::fs::version_path(&self.repository, entry);
+                let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+
+                tar.append_path_with_name(version_path, name).unwrap();
+                compress_bar.inc(1);
+            }
+
+            tar.finish().unwrap();
+            let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
+            // let size: u64 = unsafe { std::mem::transmute(buffer.len()) };
+
+            // println!("Pushing compressed chunk: {}", ByteSize::b(size).to_string());
+            api::remote::commits::post_tarball_to_server(&self.repository, commit, &buffer)
+                .unwrap();
+            // println!("done.");
+            bar.inc(1);
+
+            // 2) push each tar ball
+
+            // 3) write endpoint on other end to decompress
+
+            /*
             for entry in chunk.iter() {
                 // Retry logic
                 let total_tries = 5;
@@ -216,7 +256,7 @@ impl Indexer {
                     if self.push_entry(&entry_writer, entry).is_ok() {
                         break;
                     }
-                    num_sec = num_sec * 2;
+                    num_sec *= 2;
                     let duration = time::Duration::from_secs(num_sec);
                     log::debug!("Error pushing entry {:?} sleeping {}s", entry.path, num_sec);
                     thread::sleep(duration);
@@ -229,9 +269,11 @@ impl Indexer {
 
                 bar.inc(1);
             }
+            */
         });
 
         bar.finish();
+        compress_bar.finish();
 
         Ok(())
     }

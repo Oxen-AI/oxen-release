@@ -31,6 +31,11 @@ cd Oxen/
 
 # Build docker
 docker build -t oxen/server:0.1.0 .
+
+# Run in docker
+docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3001 --name oxen oxen/server:0.1.0
+
+# Or docker compose
 docker compose up -d reverse-proxy
 docker compose up -d --scale oxen=4 --no-recreate
 

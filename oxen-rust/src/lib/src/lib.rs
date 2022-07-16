@@ -8,6 +8,7 @@
 //! - `oxen push`
 //!
 
+extern crate bytesize;
 extern crate lazy_static;
 
 pub mod api;

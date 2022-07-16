@@ -5,8 +5,9 @@ use crate::error::OxenError;
 use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
-use std::path::Path;
 
+use std::path::Path;
+// use tokio::io::BufReader;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -215,7 +216,81 @@ fn create_commit_obj_on_server(
     }
 }
 
-fn post_tarball_to_server(
+/*pub async fn post_tarball_to_server(
+    repository: &LocalRepository,
+    commit: &Commit,
+    buffer: &[u8],
+) -> Result<CommitResponse, OxenError> {
+    let config = AuthConfig::default()?;
+    let client = reqwest::Client::new();
+
+    let uri = format!("/commits/{}", commit.id);
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+
+    let reader = BufReader::new(buffer);
+    // let async_stream = futures_util::stream::iter(buffer.iter());
+
+    // let async_stream = stream! {
+    //     for i in buffer.iter() {
+    //         println!("Stream read {}", i);
+    //         yield i;
+    //     }
+    // };
+
+    let async_stream = FramedRead::new(reader, BytesCodec::new())
+        .inspect_ok(|chunk| {
+            // do X with chunk...
+        });
+
+    let _ = reqwest::Client::new()
+        .post(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .body(reqwest::Body::wrap_stream(async_stream))
+        .send()
+        .await
+        .unwrap();
+
+    Err(OxenError::basic_str(
+        "post_tarball_to_server error sending data from file",
+    ))
+
+    // log::debug!("post_tarball_to_server {}", url);
+    // if let Ok(res) = client
+    //     .post(url)
+    //     // .body(reqwest::blocking::Body::from(buffer.to_owned()))
+    //     .body(reqwest::Body::wrap_stream(async_stream))
+    //     .header(
+    //         reqwest::header::AUTHORIZATION,
+    //         format!("Bearer {}", config.auth_token()),
+    //     )
+    //     .send()
+    //     .await
+    //     .unwrap()
+    // {
+    //     let status = res.status();
+    //     let body = res.text()?;
+    //     log::debug!("post_tarball_to_server got response {}", body);
+    //     let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+    //     match response {
+    //         Ok(response) => Ok(response),
+    //         Err(_) => Err(OxenError::basic_str(&format!(
+    //             "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
+    //             status, body
+    //         ))),
+    //     }
+    // } else {
+    //     Err(OxenError::basic_str(
+    //         "post_tarball_to_server error sending data from file",
+    //     ))
+    // }
+}
+*/
+
+pub fn post_tarball_to_server(
     repository: &LocalRepository,
     commit: &Commit,
     buffer: &[u8],
