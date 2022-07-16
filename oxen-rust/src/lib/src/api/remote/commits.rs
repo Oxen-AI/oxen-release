@@ -6,8 +6,8 @@ use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
 
-use std::time;
 use std::path::Path;
+use std::time;
 // use tokio::io::BufReader;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
