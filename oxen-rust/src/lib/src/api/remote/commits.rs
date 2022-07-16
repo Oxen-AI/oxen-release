@@ -6,6 +6,7 @@ use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
 
+use std::time;
 use std::path::Path;
 // use tokio::io::BufReader;
 use flate2::read::GzDecoder;
@@ -296,7 +297,9 @@ pub fn post_tarball_to_server(
     buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(time::Duration::from_secs(120))
+        .build()?;
 
     let uri = format!("/commits/{}", commit.id);
     let remote_repo = RemoteRepository::from_local(repository);
