@@ -207,7 +207,7 @@ impl Indexer {
 
         println!("Compressing {}...", ByteSize::b(total_size));
 
-        let num_chunks = num_cpus::get();
+        let num_chunks = 128; // num_cpus::get();
 
         // len is usize and progressbar requires u64, I don't think we'll overflow...
         let size: u64 = unsafe { std::mem::transmute(num_chunks) };
