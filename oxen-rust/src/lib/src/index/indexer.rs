@@ -12,9 +12,7 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefWriter};
-use crate::model::{
-    Commit, CommitEntry, CommitStats, LocalRepository, RemoteBranch, RemoteRepository,
-};
+use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 
 pub struct Indexer {
@@ -44,7 +42,11 @@ impl Indexer {
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.head_commit()?;
-        self.rpush_missing_commit_objects(&head_commit, rb)?;
+
+        // This method will check with server to find out what commits need to be pushed
+        // will fill in commits that are not synced
+        let mut unsynced_commits: Vec<Commit> = vec![];
+        self.rpush_missing_commit_objects(&head_commit, rb, &mut unsynced_commits)?;
 
         let remote_branch = api::remote::branches::create_or_get(&remote_repo, &rb.branch)?;
         match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
@@ -58,8 +60,7 @@ impl Indexer {
                 );
                 // recursively check commits against remote head
                 // and sync ones that have not been synced
-                let remote_stats = api::remote::commits::get_stats(&self.repository, &commit)?;
-                self.rpush_entries(&commit_reader, &remote_stats, &head_commit.id, 0)?;
+                self.rpush_entries(&unsynced_commits)?;
                 Ok(remote_repo)
             }
             Ok(None) => {
@@ -77,6 +78,7 @@ impl Indexer {
         &self,
         local_commit: &Commit,
         rb: &RemoteBranch,
+        unsynced_commits: &mut Vec<Commit>,
     ) -> Result<(), OxenError> {
         // check if commit exists on remote
         // if not, push the commit and it's dbs
@@ -89,11 +91,11 @@ impl Indexer {
                     remote_commit.message
                 );
 
-                api::remote::commits::post_commit_to_server(
-                    &self.repository,
-                    &rb.branch,
-                    local_commit,
-                )?;
+                // api::remote::commits::post_commit_to_server(
+                //     &self.repository,
+                //     &rb.branch,
+                //     local_commit,
+                // )?;
             }
             Ok(None) => {
                 // We don't have remote commit
@@ -103,7 +105,7 @@ impl Indexer {
                     let local_parent = api::local::commits::get_by_id(&self.repository, parent_id)?
                         .ok_or_else(|| OxenError::local_parent_link_broken(&local_commit.id))?;
 
-                    self.rpush_missing_commit_objects(&local_parent, rb)?;
+                    self.rpush_missing_commit_objects(&local_parent, rb, unsynced_commits)?;
 
                     // Unroll and post commits
                     api::remote::commits::post_commit_to_server(
@@ -111,6 +113,7 @@ impl Indexer {
                         &rb.branch,
                         local_commit,
                     )?;
+                    unsynced_commits.push(local_commit.to_owned());
                 }
 
                 log::debug!(
@@ -128,43 +131,16 @@ impl Indexer {
         Ok(())
     }
 
-    fn rpush_entries(
-        &self,
-        commit_reader: &CommitReader,
-        remote_stats: &Option<CommitStats>,
-        local_commit_id: &str,
-        depth: usize,
-    ) -> Result<(), OxenError> {
-        log::debug!(
-            "rpush_entries depth {} commit_id {}",
-            depth,
-            local_commit_id
-        );
-        if let Some(stats) = remote_stats {
-            if local_commit_id == stats.commit.id {
-                if depth == 0 && stats.is_synced() {
-                    println!("No commits to push, remote is synced.");
-                    return Ok(());
-                } else if stats.is_synced() {
-                    log::debug!("rpush_entries stats.is_synced {:?}", stats);
-                    return Ok(());
-                }
-            }
-        }
-
-        if let Some(commit) = commit_reader.get_commit_by_id(local_commit_id)? {
-            for parent_id in commit.parent_ids.iter() {
-                // Recursive call
-                self.rpush_entries(commit_reader, remote_stats, parent_id, depth + 1)?;
-            }
-
+    fn rpush_entries(&self, unsynced_commits: &Vec<Commit>) -> Result<(), OxenError> {
+        log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
+        for commit in unsynced_commits.iter() {
             log::debug!(
-                "Unroll no parent_id on commit: {} -> '{}'",
+                "Pushing commit entries: {} -> '{}'",
                 commit.id,
                 commit.message
             );
 
-            let entries = self.read_unsynced_entries(&commit)?;
+            let entries = self.read_unsynced_entries(commit)?;
             if !entries.is_empty() {
                 // Unroll stack to post entries
                 log::debug!(
@@ -172,7 +148,7 @@ impl Indexer {
                     commit.id,
                     commit.message
                 );
-                self.push_entries(&entries, &commit)?;
+                self.push_entries(&entries, commit)?;
             } else {
                 log::debug!(
                     "Unroll no entries to push: {} -> '{}'",
@@ -180,11 +156,7 @@ impl Indexer {
                     commit.message
                 );
             }
-        } else {
-            let err = format!("Err: could not find commit: {}", local_commit_id);
-            return Err(OxenError::basic_str(&err));
         }
-
         Ok(())
     }
 
@@ -192,38 +164,56 @@ impl Indexer {
         // In function scope to open and close this DB for a read, because we are going to write
         // to entries later
         let entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        // TODO: this doesn't work with multiple remotes...
         entry_reader.list_unsynced_entries()
     }
 
     fn push_entries(&self, entries: &[CommitEntry], commit: &Commit) -> Result<(), OxenError> {
-        println!("🐂 push {} files. Computing size...", entries.len());
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
-            log::debug!("push entry {:?}", entry.path);
+            log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
             let full_path = self.repository.path.join(&entry.path);
             let metadata = fs::metadata(full_path)?;
             total_size += metadata.len();
         }
+        println!(
+            "🐂 push {} files, compressing {}",
+            entries.len(),
+            ByteSize::b(total_size)
+        );
 
-        println!("Compressing {}...", ByteSize::b(total_size));
+        // TODO: compute optimal chunk size based on dataset size
+        let num_chunks = 128;
 
-        let num_chunks = 128; // num_cpus::get();
-
-        // len is usize and progressbar requires u64, I don't think we'll overflow...
+        // len is usize and progressbar requires u64, shouldn't overflow so should be fine
         let size: u64 = unsafe { std::mem::transmute(num_chunks) };
         let compress_size: u64 = unsafe { std::mem::transmute(entries.len()) };
         let compress_bar = ProgressBar::new(compress_size);
         let bar = ProgressBar::new(size);
 
-        // let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        let chunk_size = entries.len() / num_chunks;
+        let mut chunk_size = entries.len() / num_chunks;
+        if num_chunks > entries.len() {
+            chunk_size = entries.len();
+        }
 
+        // TODO: Clean this up... many places it could fail, but just want to get something working
         println!("Compressing and sending {} chunks ", num_chunks);
+        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         entries.par_chunks(chunk_size).for_each(|chunk| {
             // 1) zip up entries into tarballs
             let enc = GzEncoder::new(Vec::new(), Compression::fast());
             let mut tar = tar::Builder::new(enc);
             for entry in chunk.iter() {
+                // TODO: better way to check if is synced with remote
+                match entry_writer.set_is_synced(entry) {
+                    Ok(_) => {
+                        log::debug!("Entry is synced! {:?}", entry.path);
+                    }
+                    Err(err) => {
+                        log::error!("Error updating hash path: {:?} Err: {}", entry.path, err);
+                    }
+                }
+
                 let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
                 let version_path = util::fs::version_path(&self.repository, entry);
                 let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
@@ -241,10 +231,6 @@ impl Indexer {
                 .unwrap();
             // println!("done.");
             bar.inc(1);
-
-            // 2) push each tar ball
-
-            // 3) write endpoint on other end to decompress
 
             /*
             for entry in chunk.iter() {

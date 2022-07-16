@@ -970,11 +970,13 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             let pulled_contents = util::fs::read_from_path(&cloned_party_ppl_path)?;
             assert_eq!(pulled_contents, party_ppl_contents);
 
+            println!("----BEFORE-----");
             // Remove a file, add, commit, push the change
             std::fs::remove_file(&send_it_back_file_path)?;
             command::add(&cloned_repo, &send_it_back_file_path)?;
             command::commit(&cloned_repo, "Removing the send it back file")?;
             command::push(&cloned_repo)?;
+            println!("----AFTER-----");
 
             // Pull down the changes and make sure the file is removed
             command::pull(&repo)?;
