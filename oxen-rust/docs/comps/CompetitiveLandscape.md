@@ -126,3 +126,10 @@ Executed in  201.64 secs    fish           external
 CelebA 10k
 
 * push local (all threads) - 9.97 secs
+
+* pull AWS (all threads) - 174.49 secs
+
+Celeb 100k
+
+* pull AWS (all theads) - 71.75 mins
+
