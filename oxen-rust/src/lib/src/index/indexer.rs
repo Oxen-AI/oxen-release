@@ -176,6 +176,7 @@ impl Indexer {
             let metadata = fs::metadata(full_path)?;
             total_size += metadata.len();
         }
+
         println!(
             "🐂 push {} files, compressing {}",
             entries.len(),
@@ -199,7 +200,8 @@ impl Indexer {
         // TODO: Clean this up... many places it could fail, but just want to get something working
         println!("Compressing and sending {} chunks ", num_chunks);
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        entries.par_chunks(chunk_size).for_each(|chunk| {
+        entries.par_chunks(entries.len()).for_each(|chunk| {
+            log::debug!("Compressing {} entries", entries.len());
             // 1) zip up entries into tarballs
             let enc = GzEncoder::new(Vec::new(), Compression::fast());
             let mut tar = tar::Builder::new(enc);
@@ -207,7 +209,7 @@ impl Indexer {
                 // TODO: better way to check if is synced with remote
                 match entry_writer.set_is_synced(entry) {
                     Ok(_) => {
-                        log::debug!("Entry is synced! {:?}", entry.path);
+                        // log::debug!("Entry is synced! {:?}", entry.path);
                     }
                     Err(err) => {
                         log::error!("Error updating hash path: {:?} Err: {}", entry.path, err);
@@ -226,7 +228,7 @@ impl Indexer {
             let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
             // let size: u64 = unsafe { std::mem::transmute(buffer.len()) };
 
-            // println!("Pushing compressed chunk: {}", ByteSize::b(size).to_string());
+            log::debug!("Pushing compressed chunk: {}", ByteSize::b(size).to_string());
             api::remote::commits::post_tarball_to_server(&self.repository, commit, &buffer)
                 .unwrap();
             // println!("done.");
