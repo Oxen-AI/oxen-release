@@ -2,7 +2,7 @@ pub mod fs;
 pub mod hasher;
 pub mod read_progress;
 
-pub use crate::util::read_progress::{ReadProgress};
+pub use crate::util::read_progress::ReadProgress;
 
 pub mod oxen_date_format {
     use chrono::{DateTime, Local};

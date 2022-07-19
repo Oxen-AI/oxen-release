@@ -11,13 +11,13 @@ use std::path::Path;
 use std::str;
 use std::time;
 
+use tar::Archive;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
 use std::io::Cursor;
 use std::sync::Arc;
-use tar::Archive;
 
 pub fn get_stats(
     repository: &LocalRepository,
