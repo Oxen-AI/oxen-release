@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
-    pub id: String,
     pub commit_id: String, // need commit_id to restore
     pub path: PathBuf,
     pub is_synced: bool,
@@ -35,7 +34,6 @@ impl CommitEntry {
     // For HashSet search purposes
     pub fn from_path<T: AsRef<Path>>(path: T) -> CommitEntry {
         CommitEntry {
-            id: String::from(""),
             commit_id: String::from(""),
             path: path.as_ref().to_path_buf(),
             is_synced: false,
@@ -66,7 +64,6 @@ impl CommitEntry {
 
     pub fn to_synced(&self) -> CommitEntry {
         CommitEntry {
-            id: self.id.to_owned(),
             commit_id: self.commit_id.to_owned(),
             path: self.path.to_owned(),
             is_synced: true,
@@ -78,7 +75,6 @@ impl CommitEntry {
 
     pub fn to_remote(&self) -> RemoteEntry {
         RemoteEntry {
-            id: self.id.to_owned(),
             filename: self.path.to_str().unwrap_or("").to_string(),
             hash: self.hash.to_owned(),
         }

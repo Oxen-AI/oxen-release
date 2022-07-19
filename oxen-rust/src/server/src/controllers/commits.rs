@@ -317,15 +317,23 @@ pub async fn upload(
 
             match api::local::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
-                    // Get tar.gz bytes for history/COMMIT_ID data
                     let mut bytes = web::BytesMut::new();
                     while let Some(item) = body.next().await {
-                        bytes.extend_from_slice(&item?);
+                        bytes.extend_from_slice(&item.unwrap());
                     }
+                    println!("Got compressed data {} bytes", bytes.len());
 
-                    // Unpack tarball to our hidden dir
-                    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-                    archive.unpack(hidden_dir)?;
+                    std::thread::spawn(move || {
+                        // Get tar.gz bytes for history/COMMIT_ID data
+                        println!("Decompressing {} bytes", bytes.len());
+                        // Unpack tarball to our hidden dir
+                        let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+                        archive.unpack(hidden_dir).unwrap();
+                        println!("Done decompressing.");
+                    });
+                    // handle.join().unwrap();
+
+                    println!("Responding!");
 
                     Ok(HttpResponse::Ok().json(CommitResponse {
                         status: String::from(STATUS_SUCCESS),
@@ -334,11 +342,11 @@ pub async fn upload(
                     }))
                 }
                 Ok(None) => {
-                    log::debug!("Could not find commit [{}]", commit_id);
+                    log::error!("Could not find commit [{}]", commit_id);
                     Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
                 }
                 Err(err) => {
-                    log::debug!("Error finding commit [{}]: {}", commit_id, err);
+                    log::error!("Error finding commit [{}]: {}", commit_id, err);
                     Ok(HttpResponse::InternalServerError()
                         .json(StatusMessage::internal_server_error()))
                 }
