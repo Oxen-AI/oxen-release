@@ -1,4 +1,3 @@
-
 use indicatif::ProgressBar;
 use std::sync::Arc;
 
