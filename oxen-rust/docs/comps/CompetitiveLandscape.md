@@ -133,3 +133,11 @@ Celeb 100k
 
 * pull AWS (all theads) - 71.75 mins
 
+* push local (compress all in one) - 218.88 sec
+
+* push local (chunk and compress 128 chunks) - 126.69 sec
+
+* push local (chunk and compress 1024 chunks) - 85.42 sec
+
+
+

@@ -6,6 +6,7 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::{thread, time};
 
 use crate::api;
@@ -184,13 +185,8 @@ impl Indexer {
         );
 
         // TODO: compute optimal chunk size based on dataset size
-        let num_chunks = 128;
-
-        // len is usize and progressbar requires u64, shouldn't overflow so should be fine
-        let size: u64 = unsafe { std::mem::transmute(num_chunks) };
-        let compress_size: u64 = unsafe { std::mem::transmute(entries.len()) };
-        let compress_bar = ProgressBar::new(compress_size);
-        let bar = ProgressBar::new(size);
+        let num_chunks = 1024;
+        let bar = Arc::new(ProgressBar::new(total_size as u64));
 
         let mut chunk_size = entries.len() / num_chunks;
         if num_chunks > entries.len() {
@@ -200,7 +196,7 @@ impl Indexer {
         // TODO: Clean this up... many places it could fail, but just want to get something working
         println!("Compressing and sending {} chunks ", num_chunks);
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        entries.par_chunks(entries.len()).for_each(|chunk| {
+        entries.par_chunks(chunk_size).for_each(|chunk| {
             log::debug!("Compressing {} entries", entries.len());
             // 1) zip up entries into tarballs
             let enc = GzEncoder::new(Vec::new(), Compression::fast());
@@ -221,18 +217,15 @@ impl Indexer {
                 let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                 tar.append_path_with_name(version_path, name).unwrap();
-                compress_bar.inc(1);
             }
 
             tar.finish().unwrap();
             let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
             // let size: u64 = unsafe { std::mem::transmute(buffer.len()) };
 
-            log::debug!("Pushing compressed chunk: {}", ByteSize::b(size).to_string());
-            api::remote::commits::post_tarball_to_server(&self.repository, commit, &buffer)
+            api::remote::commits::post_tarball_to_server(&self.repository, commit, &buffer, &bar)
                 .unwrap();
             // println!("done.");
-            bar.inc(1);
 
             /*
             for entry in chunk.iter() {
@@ -259,9 +252,6 @@ impl Indexer {
             }
             */
         });
-
-        bar.finish();
-        compress_bar.finish();
 
         Ok(())
     }

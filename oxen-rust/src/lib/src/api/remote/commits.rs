@@ -9,14 +9,14 @@ use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadRes
 use std::path::Path;
 use std::str;
 use std::time;
-use indicatif::ProgressBar;
+
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use indicatif::ProgressBar;
+use std::io::Cursor;
+use std::sync::Arc;
 use tar::Archive;
-use std::net::TcpStream;
-use std::io::Write;
-
 
 pub fn get_stats(
     repository: &LocalRepository,
@@ -176,7 +176,9 @@ pub fn post_commit_to_server(
 
     println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    post_tarball_to_server(repository, commit, &buffer)
+    let pb = Arc::new(ProgressBar::new(buffer.len() as u64));
+    let response = post_tarball_to_server(repository, commit, &buffer, &pb)?;
+    Ok(response)
 }
 
 fn create_commit_obj_on_server(
@@ -223,184 +225,48 @@ fn create_commit_obj_on_server(
 
 struct DownloadProgress<R> {
     inner: R,
-    progress_bar: ProgressBar,
+    progress_bar: Arc<ProgressBar>,
 }
 
 impl<R: std::io::Read> std::io::Read for DownloadProgress<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        println!("Read {}", buf.len());
-        self.inner.read(buf).map(|n| {
-            println!("Read inside {}", n);
-            
+        let size = self.inner.read(buf).map(|n| {
             self.progress_bar.inc(n as u64);
             n
-        })
+        });
+        if self.progress_bar.elapsed() >= self.progress_bar.duration() {
+            self.progress_bar.finish();
+        }
+        size
     }
-
-
 }
-
 
 pub fn post_tarball_to_server(
     repository: &LocalRepository,
     commit: &Commit,
     buffer: &[u8],
+    upload_progress: &Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    let client = reqwest::blocking::Client::builder()
-        .timeout(time::Duration::from_secs(120))
-        .build()?;
 
     let uri = format!("/commits/{}", commit.id);
     let remote_repo = RemoteRepository::from_local(repository);
     let url = api::endpoint::url_from_repo(&remote_repo, &uri);
 
-    log::debug!("post_tarball_to_server {}", url);
-    
-    
-    let total = buffer.len();
-    println!("Sending {} bytes", total);
-    let pb = ProgressBar::new(total as u64);
-    let mut source = DownloadProgress {
-        progress_bar: pb,
-        inner: client
-            .post(url)
-            .body(reqwest::blocking::Body::from(buffer.to_owned()))
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", config.auth_token()),
-            )
-            .send()?,
+    // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
+    let cursor = Cursor::new(Vec::from(buffer));
+    let upload_source = DownloadProgress {
+        progress_bar: upload_progress.clone(),
+        inner: cursor,
     };
 
-    println!("Copying {} bytes", total);
-    let mut writer: Vec<u8> = vec![];
-    std::io::copy(&mut source, &mut writer)?;
-    println!("Done sending {} bytes", total);
-
-    // I know this is shitty but why the fuck doesn't rust have better tooling for upload with progress...?
-    let text = str::from_utf8(&writer)?;
-    let chunks = text.split("\n");
-    let text = chunks.last().unwrap();
-
-    println!("Got response: {}", text);
-
-    let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(text);
-    match response {
-        Ok(response) => Ok(response),
-        Err(_) => Err(OxenError::basic_str(&format!(
-            "post_tarball_to_server Err serializing",
-        ))),
-    }
-}
-
-
-/*
-pub fn post_tarball_to_server(
-    repository: &LocalRepository,
-    commit: &Commit,
-    buffer: &[u8],
-) -> Result<CommitResponse, OxenError> {
-    let config = AuthConfig::default()?;
-    // let client = reqwest::blocking::Client::builder()
-    //     .timeout(time::Duration::from_secs(120))
-    //     .build()?;
-
-    let uri = format!("/repositories/{}/commits/{}", repository.name, commit.id);
-    // let remote_repo = RemoteRepository::from_local(repository);
-    // let url = api::endpoint::url_from_repo(&remote_repo, &uri);
-
-    log::debug!("CONNECT post_tarball_to_server");
-    let host = config.host();
-    let mut conn = TcpStream::connect(host)?;
-    
-    log::debug!("WRITE post_tarball_to_server");
-    let bytes = format!("POST {} HTTP/1.1\r\n", uri);
-    conn.write_all(bytes.as_bytes())?;
-
-    let bytes = format!("Host: {}\r\n", host);
-    conn.write_all(bytes.as_bytes())?;
-
-    let bytes = format!("Authorization: Bearer {}\r\n", config.auth_token());
-    conn.write_all(bytes.as_bytes())?;
-
-    conn.write_all(b"Content-Type: application/octet-stream\r\n")?;
-
-    let total = buffer.len();
-    let bytes = format!("Content-Length: {}\r\n", total);
-    conn.write_all(bytes.as_bytes())?;
-
-    conn.write_all(b"\r\n")?;
-
-    let mut sent: usize = 0;
-
-    for bytes in buffer.chunks(1000) {
-        log::debug!("Sending chunk size {}/{}", sent, total);
-        conn.write_all(bytes)?;
-        sent += bytes.len();
-    }
-
-    log::debug!("READ {}/{} post_tarball_to_server", sent, total);
-
-    println!("Sending {} bytes", total);
-    let pb = ProgressBar::new(total as u64);
-    let mut source = DownloadProgress {
-        progress_bar: pb,
-        inner: conn,
-    };
-
-    // let mut reader = ProgressReader::new(&mut source, |progress: usize| {
-    //     println!("Come on...progress {}", progress);
-    // });
-
-    let mut writer: Vec<u8> = vec![];
-    std::io::copy(&mut source, &mut writer)?;
-    println!("Done sending {} bytes", total);
-
-    log::debug!("DONE sent {} response {} post_tarball_to_server", sent, writer.len());
-
-    // I know this is shitty but why the fuck doesn't rust have better tooling for upload with progress...?
-    let text = str::from_utf8(&writer)?;
-    let chunks = text.split("\n");
-    let text = chunks.last().unwrap();
-
-    println!("Got response: {}", text);
-
-    Ok(CommitResponse {
-        status: String::from("ya"),
-        status_message: String::from("ya"),
-        commit: commit.to_owned()
-    })
-
-    // let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(text);
-    // match response {
-    //     Ok(response) => Ok(response),
-    //     Err(_) => Err(OxenError::basic_str(&format!(
-    //         "post_tarball_to_server Err serializing",
-    //     ))),
-    // }
-}
-*/
-
-/*
-pub fn post_tarball_to_server(
-    repository: &LocalRepository,
-    commit: &Commit,
-    buffer: &[u8],
-) -> Result<CommitResponse, OxenError> {
-    let config = AuthConfig::default()?;
     let client = reqwest::blocking::Client::builder()
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    let uri = format!("/commits/{}", commit.id);
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
-
-    log::debug!("post_tarball_to_server {}", url);
     if let Ok(res) = client
         .post(url)
-        .body(reqwest::blocking::Body::from(buffer.to_owned()))
+        .body(reqwest::blocking::Body::new(upload_source))
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),
@@ -424,7 +290,6 @@ pub fn post_tarball_to_server(
         ))
     }
 }
-*/
 
 #[cfg(test)]
 mod tests {
