@@ -91,12 +91,6 @@ impl Indexer {
                     remote_commit.id,
                     remote_commit.message
                 );
-
-                // api::remote::commits::post_commit_to_server(
-                //     &self.repository,
-                //     &rb.branch,
-                //     local_commit,
-                // )?;
             }
             Ok(None) => {
                 // We don't have remote commit
