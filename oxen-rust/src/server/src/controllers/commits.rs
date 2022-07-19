@@ -397,6 +397,7 @@ mod tests {
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::path::Path;
+    use std::thread;
 
     use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
@@ -663,6 +664,9 @@ mod tests {
         assert_eq!(resp.commit.message, commit.message);
         assert_eq!(resp.commit.author, commit.author);
         assert_eq!(resp.commit.parent_ids.len(), commit.parent_ids.len());
+
+        // We unzip in a background thread, so give it a second
+        thread::sleep(std::time::Duration::from_secs(1));
 
         // Make sure we unzipped the tar ball
         let uploaded_file = sync_dir
