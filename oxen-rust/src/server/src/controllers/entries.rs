@@ -1,7 +1,6 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-use liboxen::constants;
 use liboxen::model::{CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -13,7 +12,6 @@ use serde::Deserialize;
 
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
 
 #[derive(Deserialize, Debug)]
 pub struct PageNumQuery {
@@ -31,7 +29,7 @@ pub async fn create(
     // name of the repo
     let name: &str = req.match_info().get("repo_name").unwrap();
     match api::local::repositories::get_by_name(&app_data.path, name) {
-        Ok(Some(repo)) => p_create_entry(&app_data.path, &repo, body, data).await,
+        Ok(Some(repo)) => p_create_entry(&repo, body, data).await,
         Ok(None) => {
             log::debug!("404 could not get repo {}", name,);
             Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
@@ -124,17 +122,12 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
 }
 
 async fn p_create_entry(
-    sync_dir: &Path,
     repository: &LocalRepository,
     mut body: web::Payload,
     data: web::Query<CommitEntry>,
 ) -> Result<HttpResponse, actix_web::Error> {
     // Write entry to versions dir
-    let repo_dir = &sync_dir.join(&repository.name);
-    let version_dir = util::fs::oxen_hidden_dir(repo_dir)
-        .join(constants::VERSIONS_DIR)
-        .join(&data.id);
-    let version_path = version_dir.join(data.filename());
+    let version_path = util::fs::version_path(repository, &data);
 
     if let Some(parent) = version_path.parent() {
         if !parent.exists() {
@@ -163,12 +156,10 @@ async fn p_create_entry(
 
 #[cfg(test)]
 mod tests {
-
     use actix_web::{web, App};
     use std::path::{Path, PathBuf};
 
     use liboxen::command;
-    use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::CommitEntry;
     use liboxen::util;
@@ -188,7 +179,6 @@ mod tests {
         let repo = test::create_local_repo(&sync_dir, name)?;
 
         let entry = CommitEntry {
-            id: String::from("321i9"),
             commit_id: String::from("4312"),
             path: PathBuf::from("file.txt"),
             is_synced: false,
@@ -225,11 +215,7 @@ mod tests {
         assert_eq!(entry_resp.entry.hash, entry.hash);
 
         // Make sure file actually exists on disk in versions dir
-        let repo_dir = sync_dir.join(repo.name);
-        let version_dir = util::fs::oxen_hidden_dir(&repo_dir)
-            .join(constants::VERSIONS_DIR)
-            .join(&entry.id);
-        let uploaded_file = version_dir.join(entry.filename());
+        let uploaded_file = util::fs::version_path(&repo, &entry);
 
         assert!(uploaded_file.exists());
         // Make sure file contents are the same as the payload

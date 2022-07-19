@@ -5,11 +5,17 @@ use crate::error::OxenError;
 use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
+
 use std::path::Path;
+use std::str;
+use std::time;
 
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use indicatif::ProgressBar;
+use std::io::Cursor;
+use std::sync::Arc;
 use tar::Archive;
 
 pub fn get_stats(
@@ -170,7 +176,9 @@ pub fn post_commit_to_server(
 
     println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    post_tarball_to_server(repository, commit, &buffer)
+    let pb = Arc::new(ProgressBar::new(buffer.len() as u64));
+    let response = post_tarball_to_server(repository, commit, &buffer, &pb)?;
+    Ok(response)
 }
 
 fn create_commit_obj_on_server(
@@ -215,22 +223,50 @@ fn create_commit_obj_on_server(
     }
 }
 
-fn post_tarball_to_server(
+struct DownloadProgress<R> {
+    inner: R,
+    progress_bar: Arc<ProgressBar>,
+}
+
+impl<R: std::io::Read> std::io::Read for DownloadProgress<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let size = self.inner.read(buf).map(|n| {
+            self.progress_bar.inc(n as u64);
+            n
+        });
+        if self.progress_bar.elapsed() >= self.progress_bar.duration() {
+            self.progress_bar.finish();
+        }
+        size
+    }
+}
+
+pub fn post_tarball_to_server(
     repository: &LocalRepository,
     commit: &Commit,
     buffer: &[u8],
+    upload_progress: &Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
     let config = AuthConfig::default()?;
-    let client = reqwest::blocking::Client::new();
 
     let uri = format!("/commits/{}", commit.id);
     let remote_repo = RemoteRepository::from_local(repository);
     let url = api::endpoint::url_from_repo(&remote_repo, &uri);
 
-    log::debug!("post_tarball_to_server {}", url);
+    // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
+    let cursor = Cursor::new(Vec::from(buffer));
+    let upload_source = DownloadProgress {
+        progress_bar: upload_progress.clone(),
+        inner: cursor,
+    };
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(time::Duration::from_secs(120))
+        .build()?;
+
     if let Ok(res) = client
         .post(url)
-        .body(reqwest::blocking::Body::from(buffer.to_owned()))
+        .body(reqwest::blocking::Body::new(upload_source))
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),

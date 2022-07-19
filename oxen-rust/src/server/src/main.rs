@@ -9,7 +9,8 @@ pub mod test;
 extern crate dotenv;
 extern crate log;
 
-use actix_http::KeepAlive;
+// use actix_http::KeepAlive;
+// use std::time;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -189,7 +190,9 @@ async fn main() -> std::io::Result<()> {
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))
                     })
-                    .keep_alive(KeepAlive::Disabled) // Server was running out of or closing connections if I didn't do this..🤔
+                    // .shutdown_timeout(120)
+                    // .client_request_timeout(time::Duration::from_secs(120))
+                    // .keep_alive(KeepAlive::Disabled) // Server was running out of or closing connections if I didn't do this..🤔
                     .bind((host, port))?
                     .run()
                     .await
