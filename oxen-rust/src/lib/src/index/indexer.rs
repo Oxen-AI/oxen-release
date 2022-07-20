@@ -9,7 +9,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::api;
-use crate::command;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefWriter};
@@ -291,7 +290,6 @@ impl Indexer {
 
     pub fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
-        let current_head = command::head_commit(&self.repository)?;
         self.pull_all_commit_objects_then(rb, |commit| {
             // Sync the HEAD commit data
             let limit: usize = 0; // zero means pull all
@@ -428,18 +426,21 @@ impl Indexer {
         Ok(entries[0..limit].to_vec())
     }
 
-    fn get_missing_content_ids(&self, entries: &Vec<CommitEntry>) -> Vec<String> {
+    fn get_missing_content_ids(&self, entries: &Vec<CommitEntry>) -> (Vec<String>, u64) {
         let mut content_ids: Vec<String> = vec![];
 
+        // TODO: return total size here too for progress bar
+        let mut size: u64 = 0;
         for entry in entries.iter() {
             let version_path = util::fs::version_path(&self.repository, entry);
             if !version_path.exists() {
                 let version_path = util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
                 content_ids.push(String::from(version_path.to_str().unwrap()));
+                size += entry.num_bytes;
             }
         }
 
-        content_ids
+        (content_ids, size)
     }
 
     fn pull_entries_for_commit(&self, commit: &Commit, limit: usize) -> Result<(), OxenError> {
@@ -454,11 +455,11 @@ impl Indexer {
             let total = if limit > 0 { limit } else { entries.len() };
             println!("🐂 pulling commit {} with {} entries", commit.id, total);
 
-            let content_ids = self.get_missing_content_ids(&entries);
+            let (content_ids, size) = self.get_missing_content_ids(&entries);
 
             // TODO: compute optimal chunk size based on dataset size
             let num_chunks = 1024;
-            let bar = Arc::new(ProgressBar::new(num_chunks as u64));
+            let bar = Arc::new(ProgressBar::new(size as u64));
 
             let mut chunk_size = entries.len() / num_chunks;
             if num_chunks > entries.len() {
@@ -468,19 +469,19 @@ impl Indexer {
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
 
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
-                api::remote::entries::download_content_ids(&self.repository, &commit.id, chunk).unwrap();
-                bar.inc(1);
+                api::remote::entries::download_content_ids(&self.repository, &commit.id, chunk, &bar).unwrap();
             });
             bar.finish();
 
             println!("Unpacking...");
-            for entry in entries.iter() {
+            let bar = Arc::new(ProgressBar::new(entries.len() as u64));
+            entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path);
                 if self.should_copy_entry(&entry, &filepath) {
                     if let Some(parent) = filepath.parent() {
                         if !parent.exists() {
                             log::debug!("Create parent dir {:?}", parent);
-                            std::fs::create_dir_all(parent)?;
+                            std::fs::create_dir_all(parent).unwrap();
                         }
                     }
 
@@ -488,15 +489,16 @@ impl Indexer {
                     if let Ok(_) = std::fs::copy(&version_path, &filepath) {
                         // we good
                     } else {
-                        eprintln!("Could not copy file {:?} -> {:?}", version_path, filepath);
+                        eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
                     }
                     
                     let metadata = fs::metadata(filepath).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);
-                    committer.set_file_timestamps(entry, &mtime)?;
+                    committer.set_file_timestamps(entry, &mtime).unwrap();
                 }
-            }
-
+                bar.inc(1);
+            });
+            bar.finish();
         }
 
         // Cleanup files that shouldn't be there

@@ -418,6 +418,7 @@ mod tests {
                 path: PathBuf::from("hello_world.txt"),
                 is_synced: false,
                 hash: String::from("59E029D4812AEBF0"), // dir structure -> 59/E029D4812AEBF0
+                num_bytes: 0,
                 last_modified_seconds: 0,
                 last_modified_nanoseconds: 0,
             };
