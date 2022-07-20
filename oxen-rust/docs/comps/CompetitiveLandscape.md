@@ -28,6 +28,10 @@ $ dvc init
 $ git commit -m "Initialize DVC"
 
 $ dvc add img_align_celeba/
+
+$ dvc remote add -f -d storage s3://dvc-test-celeba
+
+$ dvc push
 ```
 
 The `dvc add` command computes all the hashes of the data, as well as copies it all over to a directory as far as I can tell. It takes awhile....To be exact:
@@ -129,6 +133,10 @@ CelebA 10k
 
 * pull AWS (all threads) - 174.49 secs
 
+* push local (chunks) - 8.22 secs
+
+* pull local (chunks) - 8.79 secs
+
 Celeb 100k
 
 * pull AWS (all theads) - 71.75 mins
@@ -137,7 +145,8 @@ Celeb 100k
 
 * push local (chunk and compress 128 chunks) - 126.69 sec
 
-* push local (chunk and compress 1024 chunks) - 85.42 sec
+* push local (chunk and compress 1024 chunks) - 65.94 sec
 
+* pull local (chunk and compress 1024 chunks) - 94.58 secs
 
 

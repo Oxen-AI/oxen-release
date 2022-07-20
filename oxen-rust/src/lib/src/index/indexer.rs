@@ -4,10 +4,10 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
+use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use std::{thread, time};
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
@@ -46,8 +46,9 @@ impl Indexer {
 
         // This method will check with server to find out what commits need to be pushed
         // will fill in commits that are not synced
-        let mut unsynced_commits: Vec<Commit> = vec![];
+        let mut unsynced_commits: VecDeque<Commit> = VecDeque::new();
         self.rpush_missing_commit_objects(&head_commit, rb, &mut unsynced_commits)?;
+        let last_commit = unsynced_commits.pop_front().unwrap();
 
         let remote_branch = api::remote::branches::create_or_get(&remote_repo, &rb.branch)?;
         match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
@@ -61,7 +62,7 @@ impl Indexer {
                 );
                 // recursively check commits against remote head
                 // and sync ones that have not been synced
-                self.rpush_entries(&unsynced_commits)?;
+                self.rpush_entries(&last_commit, &unsynced_commits)?;
                 Ok(remote_repo)
             }
             Ok(None) => {
@@ -79,7 +80,7 @@ impl Indexer {
         &self,
         local_commit: &Commit,
         rb: &RemoteBranch,
-        unsynced_commits: &mut Vec<Commit>,
+        unsynced_commits: &mut VecDeque<Commit>,
     ) -> Result<(), OxenError> {
         // check if commit exists on remote
         // if not, push the commit and it's dbs
@@ -91,12 +92,7 @@ impl Indexer {
                     remote_commit.id,
                     remote_commit.message
                 );
-
-                // api::remote::commits::post_commit_to_server(
-                //     &self.repository,
-                //     &rb.branch,
-                //     local_commit,
-                // )?;
+                unsynced_commits.push_back(local_commit.to_owned());
             }
             Ok(None) => {
                 // We don't have remote commit
@@ -114,7 +110,7 @@ impl Indexer {
                         &rb.branch,
                         local_commit,
                     )?;
-                    unsynced_commits.push(local_commit.to_owned());
+                    unsynced_commits.push_back(local_commit.to_owned());
                 }
 
                 log::debug!(
@@ -132,41 +128,52 @@ impl Indexer {
         Ok(())
     }
 
-    fn rpush_entries(&self, unsynced_commits: &Vec<Commit>) -> Result<(), OxenError> {
+    fn rpush_entries(
+        &self,
+        head_commit: &Commit,
+        unsynced_commits: &VecDeque<Commit>,
+    ) -> Result<(), OxenError> {
         log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
+        let mut last_commit = head_commit.clone();
         for commit in unsynced_commits.iter() {
-            log::debug!(
+            println!(
                 "Pushing commit entries: {} -> '{}'",
-                commit.id,
-                commit.message
+                commit.id, commit.message
             );
 
-            let entries = self.read_unsynced_entries(commit)?;
+            let entries = self.read_unsynced_entries(&last_commit, commit)?;
             if !entries.is_empty() {
-                // Unroll stack to post entries
-                log::debug!(
-                    "Unroll push commit entries: {} -> '{}'",
-                    commit.id,
-                    commit.message
-                );
                 self.push_entries(&entries, commit)?;
-            } else {
-                log::debug!(
-                    "Unroll no entries to push: {} -> '{}'",
-                    commit.id,
-                    commit.message
-                );
             }
+            last_commit = commit.clone();
         }
         Ok(())
     }
 
-    fn read_unsynced_entries(&self, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
+    fn read_unsynced_entries(
+        &self,
+        last_commit: &Commit,
+        this_commit: &Commit,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
         // In function scope to open and close this DB for a read, because we are going to write
         // to entries later
-        let entry_reader = CommitEntryReader::new(&self.repository, commit)?;
-        // TODO: this doesn't work with multiple remotes...
-        entry_reader.list_unsynced_entries()
+        let this_entry_reader = CommitEntryReader::new(&self.repository, this_commit)?;
+        let last_entry_reader = CommitEntryReader::new(&self.repository, last_commit)?;
+
+        let mut entries_to_sync: Vec<CommitEntry> = vec![];
+        for entry in this_entry_reader.list_entries()? {
+            // If hashes are different, or it is a new entry, we'll push it
+            if let Some(old_entry) = last_entry_reader.get_entry(&entry.path)? {
+                if old_entry.hash != entry.hash {
+                    entries_to_sync.push(entry);
+                }
+            } else {
+                entries_to_sync.push(entry);
+            }
+        }
+
+        Ok(entries_to_sync)
     }
 
     fn push_entries(&self, entries: &[CommitEntry], commit: &Commit) -> Result<(), OxenError> {
@@ -194,24 +201,12 @@ impl Indexer {
         }
 
         // TODO: Clean this up... many places it could fail, but just want to get something working
-        println!("Compressing and sending {} chunks ", num_chunks);
-        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         entries.par_chunks(chunk_size).for_each(|chunk| {
             log::debug!("Compressing {} entries", entries.len());
             // 1) zip up entries into tarballs
             let enc = GzEncoder::new(Vec::new(), Compression::fast());
             let mut tar = tar::Builder::new(enc);
             for entry in chunk.iter() {
-                // TODO: better way to check if is synced with remote
-                match entry_writer.set_is_synced(entry) {
-                    Ok(_) => {
-                        // log::debug!("Entry is synced! {:?}", entry.path);
-                    }
-                    Err(err) => {
-                        log::error!("Error updating hash path: {:?} Err: {}", entry.path, err);
-                    }
-                }
-
                 let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
                 let version_path = util::fs::version_path(&self.repository, entry);
                 let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
@@ -256,48 +251,8 @@ impl Indexer {
         Ok(())
     }
 
-    pub fn push_entry(
-        &self,
-        entry_writer: &CommitEntryWriter,
-        entry: &CommitEntry,
-    ) -> Result<(), OxenError> {
-        /*
-        Check if the entry is synced or not, if it is not, go back and make sure
-        all parent commit versions are synced as well
-        */
-        if entry.is_synced {
-            return Ok(());
-        }
-
-        // Upload entry to server
-        match api::remote::entries::create(&self.repository, entry) {
-            Ok(_entry) => {
-                // The last thing we do is update is_synced for the entry in the local db
-                // after it has been posted to the server, so that even if the process
-                // is killed, and we don't get here, the worst thing that can happen
-                // is we re-upload it.
-                match entry_writer.set_is_synced(entry) {
-                    Ok(_) => {
-                        log::debug!("Entry is synced! {:?}", entry.path);
-                        Ok(())
-                    }
-                    Err(err) => {
-                        let err =
-                            format!("Error updating hash path: {:?} Err: {}", entry.path, err);
-                        Err(OxenError::basic_str(&err))
-                    }
-                }
-            }
-            Err(err) => {
-                let err = format!("Error uploading {:?} {}", entry.path, err);
-                Err(OxenError::basic_str(&err))
-            }
-        }
-    }
-
     pub fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
-
         self.pull_all_commit_objects_then(rb, |commit| {
             // Sync the HEAD commit data
             let limit: usize = 0; // zero means pull all
@@ -434,6 +389,24 @@ impl Indexer {
         Ok(entries[0..limit].to_vec())
     }
 
+    fn get_missing_content_ids(&self, entries: &[CommitEntry]) -> (Vec<String>, u64) {
+        let mut content_ids: Vec<String> = vec![];
+
+        // TODO: return total size here too for progress bar
+        let mut size: u64 = 0;
+        for entry in entries.iter() {
+            let version_path = util::fs::version_path(&self.repository, entry);
+            if !version_path.exists() {
+                let version_path =
+                    util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
+                content_ids.push(String::from(version_path.to_str().unwrap()));
+                size += entry.num_bytes;
+            }
+        }
+
+        (content_ids, size)
+    }
+
     fn pull_entries_for_commit(&self, commit: &Commit, limit: usize) -> Result<(), OxenError> {
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!(
@@ -445,31 +418,54 @@ impl Indexer {
         if !entries.is_empty() {
             let total = if limit > 0 { limit } else { entries.len() };
             println!("🐂 pulling commit {} with {} entries", commit.id, total);
-            let size: u64 = unsafe { std::mem::transmute(total) };
-            let bar = ProgressBar::new(size);
+
+            let (content_ids, size) = self.get_missing_content_ids(&entries);
+
+            // TODO: compute optimal chunk size based on dataset size
+            let num_chunks = 1024;
+            let bar = Arc::new(ProgressBar::new(size as u64));
+
+            let mut chunk_size = entries.len() / num_chunks;
+            if num_chunks > entries.len() {
+                chunk_size = entries.len();
+            }
 
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
-            // Pull and write all the entries
+
+            content_ids.par_chunks(chunk_size).for_each(|chunk| {
+                api::remote::entries::download_content_ids(
+                    &self.repository,
+                    &commit.id,
+                    chunk,
+                    &bar,
+                )
+                .unwrap();
+            });
+            bar.finish();
+
+            println!("Unpacking...");
+            let bar = Arc::new(ProgressBar::new(entries.len() as u64));
             entries.par_iter().for_each(|entry| {
-                // Retry logic
-                let total_tries = 5;
-                let mut num_tries = 0;
-                for i in 0..total_tries {
-                    if self.download_remote_entry(entry, &committer).is_ok() {
-                        break;
+                let filepath = self.repository.path.join(&entry.path);
+                if self.should_copy_entry(entry, &filepath) {
+                    if let Some(parent) = filepath.parent() {
+                        if !parent.exists() {
+                            log::debug!("Create parent dir {:?}", parent);
+                            std::fs::create_dir_all(parent).unwrap();
+                        }
                     }
-                    let duration = time::Duration::from_secs(i + 1);
-                    thread::sleep(duration);
-                    num_tries += 1;
-                }
 
-                if num_tries == total_tries {
-                    eprintln!("Pull entry could not download entry {:?}", entry.path);
-                }
+                    let version_path = util::fs::version_path(&self.repository, entry);
+                    if std::fs::copy(&version_path, &filepath).is_err() {
+                        eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
+                    }
 
+                    let metadata = fs::metadata(filepath).unwrap();
+                    let mtime = FileTime::from_last_modification_time(&metadata);
+                    committer.set_file_timestamps(entry, &mtime).unwrap();
+                }
                 bar.inc(1);
             });
-
             bar.finish();
         }
 
@@ -490,32 +486,7 @@ impl Indexer {
         Ok(())
     }
 
-    fn download_remote_entry(
-        &self,
-        entry: &CommitEntry,
-        committer: &CommitEntryWriter,
-    ) -> Result<(), OxenError> {
-        let fpath = self.repository.path.join(&entry.path);
-        log::debug!("should_download_entry? {:?}", entry.path);
-        if self.should_download_entry(entry, &fpath) {
-            if api::remote::entries::download_entry(&self.repository, entry)? {
-                log::debug!("Downloaded entry {:?}", entry.path);
-            } else {
-                log::debug!("Did not download entry {:?}", entry.path);
-            }
-        } else {
-            log::debug!("Skip download entry {:?}", entry.path);
-        }
-
-        // Always update modified time to last pulled
-        let metadata = fs::metadata(fpath).unwrap();
-        let mtime = FileTime::from_last_modification_time(&metadata);
-        committer.set_file_timestamps(entry, &mtime)?;
-
-        Ok(())
-    }
-
-    fn should_download_entry(&self, entry: &CommitEntry, path: &Path) -> bool {
+    fn should_copy_entry(&self, entry: &CommitEntry, path: &Path) -> bool {
         !path.exists() || self.path_hash_is_different(entry, path)
     }
 

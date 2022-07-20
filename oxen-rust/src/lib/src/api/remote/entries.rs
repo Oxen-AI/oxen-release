@@ -3,9 +3,18 @@ use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
+use crate::util::ReadProgress;
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use indicatif::ProgressBar;
 use std::fs;
+use std::io::prelude::*;
+use std::io::Cursor;
+use std::sync::Arc;
+use tar::Archive;
 
 const DEFAULT_PAGE_SIZE: usize = 10;
 
@@ -109,6 +118,89 @@ pub fn list_page(
     }
 }
 
+pub fn download_entries(
+    repository: &LocalRepository,
+    commit_id: &str,
+    page_num: &usize,
+    page_size: &usize,
+) -> Result<(), OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!(
+        "/commits/{}/download_entries?page_num={}&page_size={}",
+        commit_id, page_num, page_size
+    );
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(&url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let status = res.status();
+        if reqwest::StatusCode::OK == status {
+            let mut archive = Archive::new(GzDecoder::new(res));
+            archive.unpack(&repository.path)?;
+
+            Ok(())
+        } else {
+            let err = format!(
+                "api::entries::download_entries Err request failed [{}] {}",
+                status, url
+            );
+            Err(OxenError::basic_str(&err))
+        }
+    } else {
+        let err = format!("api::entries::download_entries Err request failed: {}", url);
+        Err(OxenError::basic_str(&err))
+    }
+}
+
+pub fn download_content_ids(
+    repository: &LocalRepository,
+    commit_id: &str,
+    content_ids: &[String],
+    download_progress: &Arc<ProgressBar>,
+) -> Result<(), OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/commits/{}/download_content_ids", commit_id);
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+    for content_id in content_ids.iter() {
+        let line = format!("{}\n", content_id);
+        encoder.write_all(line.as_bytes())?;
+    }
+    let body = encoder.finish()?;
+
+    let remote_repo = RemoteRepository::from_local(repository);
+    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+
+    let client = reqwest::blocking::Client::new()
+        .post(&url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .body(body);
+
+    let mut source = ReadProgress {
+        progress_bar: download_progress.clone(),
+        inner: client.send()?,
+    };
+
+    let mut buffer: Vec<u8> = vec![];
+    std::io::copy(&mut source, &mut buffer)?;
+
+    let cursor = Cursor::new(buffer);
+    let mut archive = Archive::new(GzDecoder::new(cursor));
+    archive.unpack(&repository.path)?;
+
+    Ok(())
+}
+
 /// Returns true if we downloaded the entry, and false if it already exists
 pub fn download_entry(
     repository: &LocalRepository,
@@ -188,7 +280,7 @@ mod tests {
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
             let committer = CommitEntryReader::new(local_repo, &commit)?;
-            let entries = committer.list_unsynced_entries()?;
+            let entries = committer.list_entries()?;
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();

@@ -4,6 +4,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
 use crate::util;
+use crate::util::ReadProgress;
 use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
 
 use std::path::Path;
@@ -223,24 +224,6 @@ fn create_commit_obj_on_server(
     }
 }
 
-struct DownloadProgress<R> {
-    inner: R,
-    progress_bar: Arc<ProgressBar>,
-}
-
-impl<R: std::io::Read> std::io::Read for DownloadProgress<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let size = self.inner.read(buf).map(|n| {
-            self.progress_bar.inc(n as u64);
-            n
-        });
-        if self.progress_bar.elapsed() >= self.progress_bar.duration() {
-            self.progress_bar.finish();
-        }
-        size
-    }
-}
-
 pub fn post_tarball_to_server(
     repository: &LocalRepository,
     commit: &Commit,
@@ -255,7 +238,7 @@ pub fn post_tarball_to_server(
 
     // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
     let cursor = Cursor::new(Vec::from(buffer));
-    let upload_source = DownloadProgress {
+    let upload_source = ReadProgress {
         progress_bar: upload_progress.clone(),
         inner: cursor,
     };

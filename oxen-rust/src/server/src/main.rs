@@ -144,6 +144,14 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::entries::list_entries),
                             )
                             .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/download_page",
+                                web::get().to(controllers::entries::download_page),
+                            )
+                            .route(
+                                "/repositories/{repo_name}/commits/{commit_id}/download_content_ids",
+                                web::post().to(controllers::entries::download_content_ids),
+                            )
+                            .route(
                                 "/repositories/{repo_name}/branches",
                                 web::get().to(controllers::branches::index),
                             )

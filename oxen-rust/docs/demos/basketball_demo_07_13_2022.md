@@ -325,21 +325,15 @@ Cleaning up
 
 Pushing
 - Looks like we are pushing data twice when not needed
+```bash
+$ oxen add train/
+$ oxen commit -m "adding train"
+$ oxen add test/
+$ oxen commit -m "adding test"
+```
 
 Failed Push, or corrupted data on server
 - If one or more files fail on the push, or the server isn't synced, we should compute hash on server and repush
-
-Checkout Performace
-- Seems like we are doing more copies than needed..?
-
-Content Address-able FS
-- We are addressing by filename but should have mapping from filename -> content and not copy over multiple times
-
-Switching branches
-
-- create branch experiment/300-images
-- create branch experiment/900-images
-- switch between those two multiple times
 
 PERFORMANCE
 
