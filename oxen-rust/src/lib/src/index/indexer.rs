@@ -4,10 +4,10 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
+use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use std::collections::VecDeque;
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
@@ -80,7 +80,7 @@ impl Indexer {
         &self,
         local_commit: &Commit,
         rb: &RemoteBranch,
-        unsynced_commits: &mut VecDeque<Commit>
+        unsynced_commits: &mut VecDeque<Commit>,
     ) -> Result<(), OxenError> {
         // check if commit exists on remote
         // if not, push the commit and it's dbs
@@ -128,14 +128,17 @@ impl Indexer {
         Ok(())
     }
 
-    fn rpush_entries(&self, head_commit: &Commit, unsynced_commits: &VecDeque<Commit>) -> Result<(), OxenError> {
+    fn rpush_entries(
+        &self,
+        head_commit: &Commit,
+        unsynced_commits: &VecDeque<Commit>,
+    ) -> Result<(), OxenError> {
         log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
         let mut last_commit = head_commit.clone();
         for commit in unsynced_commits.iter() {
             println!(
                 "Pushing commit entries: {} -> '{}'",
-                commit.id,
-                commit.message
+                commit.id, commit.message
             );
 
             let entries = self.read_unsynced_entries(&last_commit, commit)?;
@@ -147,13 +150,17 @@ impl Indexer {
         Ok(())
     }
 
-    fn read_unsynced_entries(&self, last_commit: &Commit, this_commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
+    fn read_unsynced_entries(
+        &self,
+        last_commit: &Commit,
+        this_commit: &Commit,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
         println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
         // In function scope to open and close this DB for a read, because we are going to write
         // to entries later
         let this_entry_reader = CommitEntryReader::new(&self.repository, this_commit)?;
         let last_entry_reader = CommitEntryReader::new(&self.repository, last_commit)?;
-        
+
         let mut entries_to_sync: Vec<CommitEntry> = vec![];
         for entry in this_entry_reader.list_entries()? {
             // If hashes are different, or it is a new entry, we'll push it
@@ -161,7 +168,6 @@ impl Indexer {
                 if old_entry.hash != entry.hash {
                     entries_to_sync.push(entry);
                 }
-                
             } else {
                 entries_to_sync.push(entry);
             }
