@@ -7,9 +7,9 @@ use rayon::prelude::*;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use std::{thread, time};
 
 use crate::api;
+use crate::command;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefWriter};
@@ -291,7 +291,7 @@ impl Indexer {
 
     pub fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
-
+        let current_head = command::head_commit(&self.repository)?;
         self.pull_all_commit_objects_then(rb, |commit| {
             // Sync the HEAD commit data
             let limit: usize = 0; // zero means pull all
@@ -428,6 +428,20 @@ impl Indexer {
         Ok(entries[0..limit].to_vec())
     }
 
+    fn get_missing_content_ids(&self, entries: &Vec<CommitEntry>) -> Vec<String> {
+        let mut content_ids: Vec<String> = vec![];
+
+        for entry in entries.iter() {
+            let version_path = util::fs::version_path(&self.repository, entry);
+            if !version_path.exists() {
+                let version_path = util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
+                content_ids.push(String::from(version_path.to_str().unwrap()));
+            }
+        }
+
+        content_ids
+    }
+
     fn pull_entries_for_commit(&self, commit: &Commit, limit: usize) -> Result<(), OxenError> {
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!(
@@ -439,32 +453,50 @@ impl Indexer {
         if !entries.is_empty() {
             let total = if limit > 0 { limit } else { entries.len() };
             println!("🐂 pulling commit {} with {} entries", commit.id, total);
-            let size: u64 = unsafe { std::mem::transmute(total) };
-            let bar = ProgressBar::new(size);
+
+            let content_ids = self.get_missing_content_ids(&entries);
+
+            // TODO: compute optimal chunk size based on dataset size
+            let num_chunks = 1024;
+            let bar = Arc::new(ProgressBar::new(num_chunks as u64));
+
+            let mut chunk_size = entries.len() / num_chunks;
+            if num_chunks > entries.len() {
+                chunk_size = entries.len();
+            }
 
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
-            // Pull and write all the entries
-            entries.par_iter().for_each(|entry| {
-                // Retry logic
-                let total_tries = 5;
-                let mut num_tries = 0;
-                for i in 0..total_tries {
-                    if self.download_remote_entry(entry, &committer).is_ok() {
-                        break;
-                    }
-                    let duration = time::Duration::from_secs(i + 1);
-                    thread::sleep(duration);
-                    num_tries += 1;
-                }
 
-                if num_tries == total_tries {
-                    eprintln!("Pull entry could not download entry {:?}", entry.path);
-                }
-
+            content_ids.par_chunks(chunk_size).for_each(|chunk| {
+                api::remote::entries::download_content_ids(&self.repository, &commit.id, chunk).unwrap();
                 bar.inc(1);
             });
-
             bar.finish();
+
+            println!("Unpacking...");
+            for entry in entries.iter() {
+                let filepath = self.repository.path.join(&entry.path);
+                if self.should_copy_entry(&entry, &filepath) {
+                    if let Some(parent) = filepath.parent() {
+                        if !parent.exists() {
+                            log::debug!("Create parent dir {:?}", parent);
+                            std::fs::create_dir_all(parent)?;
+                        }
+                    }
+
+                    let version_path = util::fs::version_path(&self.repository, &entry);
+                    if let Ok(_) = std::fs::copy(&version_path, &filepath) {
+                        // we good
+                    } else {
+                        eprintln!("Could not copy file {:?} -> {:?}", version_path, filepath);
+                    }
+                    
+                    let metadata = fs::metadata(filepath).unwrap();
+                    let mtime = FileTime::from_last_modification_time(&metadata);
+                    committer.set_file_timestamps(entry, &mtime)?;
+                }
+            }
+
         }
 
         // Cleanup files that shouldn't be there
@@ -484,32 +516,7 @@ impl Indexer {
         Ok(())
     }
 
-    fn download_remote_entry(
-        &self,
-        entry: &CommitEntry,
-        committer: &CommitEntryWriter,
-    ) -> Result<(), OxenError> {
-        let fpath = self.repository.path.join(&entry.path);
-        log::debug!("should_download_entry? {:?}", entry.path);
-        if self.should_download_entry(entry, &fpath) {
-            if api::remote::entries::download_entry(&self.repository, entry)? {
-                log::debug!("Downloaded entry {:?}", entry.path);
-            } else {
-                log::debug!("Did not download entry {:?}", entry.path);
-            }
-        } else {
-            log::debug!("Skip download entry {:?}", entry.path);
-        }
-
-        // Always update modified time to last pulled
-        let metadata = fs::metadata(fpath).unwrap();
-        let mtime = FileTime::from_last_modification_time(&metadata);
-        committer.set_file_timestamps(entry, &mtime)?;
-
-        Ok(())
-    }
-
-    fn should_download_entry(&self, entry: &CommitEntry, path: &Path) -> bool {
+    fn should_copy_entry(&self, entry: &CommitEntry, path: &Path) -> bool {
         !path.exists() || self.path_hash_is_different(entry, path)
     }
 
