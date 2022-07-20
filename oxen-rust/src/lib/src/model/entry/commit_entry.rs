@@ -13,6 +13,7 @@ pub struct CommitEntry {
     pub path: PathBuf,
     pub is_synced: bool,
     pub hash: String,
+    pub num_bytes: u64,
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
 }
@@ -38,6 +39,7 @@ impl CommitEntry {
             path: path.as_ref().to_path_buf(),
             is_synced: false,
             hash: String::from(""),
+            num_bytes: 0,
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
         }
@@ -68,6 +70,7 @@ impl CommitEntry {
             path: self.path.to_owned(),
             is_synced: true,
             hash: self.hash.to_owned(),
+            num_bytes: self.num_bytes,
             last_modified_seconds: self.last_modified_seconds,
             last_modified_nanoseconds: self.last_modified_nanoseconds,
         }

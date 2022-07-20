@@ -111,6 +111,7 @@ impl CommitEntryWriter {
             path: entry.path.to_owned(),
             is_synced: entry.is_synced,
             hash: entry.hash.to_owned(),
+            num_bytes: entry.num_bytes,
             last_modified_seconds: time.unix_seconds(),
             last_modified_nanoseconds: time.nanoseconds(),
         };
@@ -153,8 +154,10 @@ impl CommitEntryWriter {
         let full_path = self.repository.path.join(path);
 
         // Get last modified time
-        let metadata = fs::metadata(full_path).unwrap();
+        let metadata = fs::metadata(&full_path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
+
+        let metadata = fs::metadata(&full_path)?;
 
         // Create entry object to as json
         let entry = CommitEntry {
@@ -162,6 +165,7 @@ impl CommitEntryWriter {
             path: path.to_path_buf(),
             hash: staged_entry.hash.to_owned(),
             is_synced: false, // so we know to sync
+            num_bytes: metadata.len(),
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
         };

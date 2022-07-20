@@ -3,6 +3,7 @@ use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
+use crate::util::ReadProgress;
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
 use std::fs;
@@ -11,6 +12,9 @@ use std::io::prelude::*;
 use flate2::read::GzDecoder;
 use flate2::Compression;
 use flate2::write::GzEncoder;
+use std::sync::Arc;
+use indicatif::ProgressBar;
+use std::io::Cursor;
 
 const DEFAULT_PAGE_SIZE: usize = 10;
 
@@ -156,6 +160,7 @@ pub fn download_content_ids(
     repository: &LocalRepository,
     commit_id: &str,
     content_ids: &[String],
+    download_progress: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!(
@@ -172,30 +177,28 @@ pub fn download_content_ids(
 
     let remote_repo = RemoteRepository::from_local(repository);
     let url = api::endpoint::url_from_repo(&remote_repo, &uri);
-    let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client
+
+    let client = reqwest::blocking::Client::new()
         .post(&url)
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),
         )
-        .body(body)
-        .send()
-    {
-        let status = res.status();
-        if reqwest::StatusCode::OK == status {
-            let mut archive = Archive::new(GzDecoder::new(res));
-            archive.unpack(&repository.path)?;
+        .body(body);
 
-            Ok(())
-        } else {
-            let err = format!("api::entries::download_entries Err request failed [{}] {}", status, url);
-            Err(OxenError::basic_str(&err))
-        }
-    } else {
-        let err = format!("api::entries::download_entries Err request failed: {}", url);
-        Err(OxenError::basic_str(&err))
-    }
+    let mut source = ReadProgress {
+        progress_bar: download_progress.clone(),
+        inner: client.send()?,
+    };
+
+    let mut buffer: Vec<u8> = vec![];
+    std::io::copy(&mut source, &mut buffer)?;
+
+    let cursor = Cursor::new(Vec::from(buffer));
+    let mut archive = Archive::new(GzDecoder::new(cursor));
+    archive.unpack(&repository.path)?;
+
+    Ok(())
 }
 
 /// Returns true if we downloaded the entry, and false if it already exists

@@ -129,6 +129,10 @@ CelebA 10k
 
 * pull AWS (all threads) - 174.49 secs
 
+* push local (chunks) - 8.22 secs
+
+* pull local (chunks) - 8.79 secs
+
 Celeb 100k
 
 * pull AWS (all theads) - 71.75 mins
@@ -137,7 +141,8 @@ Celeb 100k
 
 * push local (chunk and compress 128 chunks) - 126.69 sec
 
-* push local (chunk and compress 1024 chunks) - 85.42 sec
+* push local (chunk and compress 1024 chunks) - 65.94 sec
 
+* pull local (chunk and compress 1024 chunks) - 94.58 secs
 
 
