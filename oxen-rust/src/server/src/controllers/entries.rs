@@ -9,15 +9,15 @@ use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCE
 use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
-use flate2::write::GzEncoder;
-use flate2::read::GzDecoder;
-use flate2::Compression;
 
-use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::Path;
 
 #[derive(Deserialize, Debug)]
 pub struct PageNumQuery {
@@ -52,24 +52,24 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
 
     let name: &str = req.match_info().get("repo_name").unwrap();
 
-
-    log::debug!(
-        "download_content_ids repo name [{}]",
-        name,
-    );
+    log::debug!("download_content_ids repo name [{}]", name,);
     match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(Some(repo)) => {
             let mut bytes = web::BytesMut::new();
             while let Some(item) = body.next().await {
                 bytes.extend_from_slice(&item.unwrap());
             }
-            log::debug!("download_content_ids got repo [{}] and content_ids size {}", name, bytes.len());
-            
+            log::debug!(
+                "download_content_ids got repo [{}] and content_ids size {}",
+                name,
+                bytes.len()
+            );
+
             let mut gz = GzDecoder::new(&bytes[..]);
             let mut line_delimited_files = String::new();
             gz.read_to_string(&mut line_delimited_files).unwrap();
 
-            let content_files: Vec<&str> = line_delimited_files.split("\n").collect();
+            let content_files: Vec<&str> = line_delimited_files.split('\n').collect();
 
             let enc = GzEncoder::new(Vec::new(), Compression::default());
             let mut tar = tar::Builder::new(enc);
@@ -77,7 +77,8 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
             for content_file in content_files.iter() {
                 let version_path = repo.path.join(content_file);
                 if version_path.exists() && !content_file.is_empty() {
-                    tar.append_path_with_name(version_path, content_file).unwrap();
+                    tar.append_path_with_name(version_path, content_file)
+                        .unwrap();
                 }
             }
 
@@ -120,8 +121,13 @@ pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) ->
                 Ok((entries, commit)) => match compress_entries(&repo, &commit, &entries.entries) {
                     Ok(buffer) => HttpResponse::Ok().body(buffer),
                     Err(err) => {
-                        log::error!("Unable to get compress {} entries Err: {}", entries.entries.len(), err);
-                        HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                        log::error!(
+                            "Unable to get compress {} entries Err: {}",
+                            entries.entries.len(),
+                            err
+                        );
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
                     }
                 },
                 Err(status_message) => HttpResponse::InternalServerError().json(status_message),
@@ -138,7 +144,11 @@ pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) ->
     }
 }
 
-fn compress_entries(repo: &LocalRepository, commit: &Commit, entries: &Vec<RemoteEntry>) -> Result<Vec<u8>, OxenError> {
+fn compress_entries(
+    repo: &LocalRepository,
+    commit: &Commit,
+    entries: &[RemoteEntry],
+) -> Result<Vec<u8>, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -150,7 +160,11 @@ fn compress_entries(repo: &LocalRepository, commit: &Commit, entries: &Vec<Remot
             let version_path = util::fs::version_path(repo, &entry);
             tar.append_path_with_name(version_path, filename)?;
         } else {
-            log::error!("Could not read entry {} from commit {}", filename, commit.id);
+            log::error!(
+                "Could not read entry {} from commit {}",
+                filename,
+                commit.id
+            );
         }
     }
 
@@ -219,9 +233,8 @@ fn get_entries_for_page(
                     let entries: Vec<RemoteEntry> =
                         entries.into_iter().map(|entry| entry.to_remote()).collect();
 
-                    let total_entries: usize =
-                        api::local::entries::count_for_commit(repo, &commit)
-                            .unwrap_or(entries.len());
+                    let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
+                        .unwrap_or(entries.len());
                     let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
                     let view = PaginatedEntries {
                         status: String::from(STATUS_SUCCESS),
@@ -288,9 +301,9 @@ async fn p_create_entry(
 #[cfg(test)]
 mod tests {
     use actix_web::{web, App};
+    use flate2::read::GzDecoder;
     use std::path::{Path, PathBuf};
     use tar::Archive;
-    use flate2::read::GzDecoder;
 
     use liboxen::command;
     use liboxen::error::OxenError;
