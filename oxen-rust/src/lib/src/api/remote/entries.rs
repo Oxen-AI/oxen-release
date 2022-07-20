@@ -280,7 +280,7 @@ mod tests {
             let commit = command::commit(local_repo, "Adding image")?.unwrap();
 
             let committer = CommitEntryReader::new(local_repo, &commit)?;
-            let entries = committer.list_unsynced_entries()?;
+            let entries = committer.list_entries()?;
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();
