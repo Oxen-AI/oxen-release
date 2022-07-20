@@ -156,7 +156,13 @@ impl Indexer {
         
         let mut entries_to_sync: Vec<CommitEntry> = vec![];
         for entry in this_entry_reader.list_entries()? {
-            if !last_entry_reader.contains_path(&entry.path)? {
+            // If hashes are different, or it is a new entry, we'll push it
+            if let Some(old_entry) = last_entry_reader.get_entry(&entry.path)? {
+                if old_entry.hash != entry.hash {
+                    entries_to_sync.push(entry);
+                }
+                
+            } else {
                 entries_to_sync.push(entry);
             }
         }
