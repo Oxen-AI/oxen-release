@@ -94,28 +94,6 @@ impl CommitEntryReader {
         Ok(paths)
     }
 
-    /// Short circuits checking if there are any unsynced entries, instead of returning all
-    /// unsynced then checking if empty it deserializes the entries and stops early
-    /// if it finds one that is unsynced
-    pub fn has_unsynced_entries(&self) -> Result<bool, OxenError> {
-        let iter = self.db.iterator(IteratorMode::Start);
-        for (_key, value) in iter {
-            let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-            if !entry.is_synced {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
-    pub fn list_unsynced_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
-        Ok(self
-            .list_entries()?
-            .into_iter()
-            .filter(|entry| !entry.is_synced)
-            .collect())
-    }
-
     pub fn list_entry_page(
         &self,
         page_num: usize,

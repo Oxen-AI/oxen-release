@@ -109,8 +109,8 @@ impl CommitEntryWriter {
         let entry = CommitEntry {
             commit_id: entry.commit_id.to_owned(),
             path: entry.path.to_owned(),
-            is_synced: entry.is_synced,
             hash: entry.hash.to_owned(),
+            num_bytes: entry.num_bytes,
             last_modified_seconds: time.unix_seconds(),
             last_modified_nanoseconds: time.nanoseconds(),
         };
@@ -121,21 +121,6 @@ impl CommitEntryWriter {
             Ok(_) => Ok(()),
             Err(err) => {
                 let err = format!("set_file_timestamps() Err: {}", err);
-                Err(OxenError::basic_str(&err))
-            }
-        }
-    }
-
-    pub fn set_is_synced(&self, entry: &CommitEntry) -> Result<(), OxenError> {
-        let key = entry.path.to_str().unwrap();
-        let bytes = key.as_bytes();
-        let entry = entry.to_synced();
-        let json_str = serde_json::to_string(&entry)?;
-        let data = json_str.as_bytes();
-        match self.db.put(bytes, data) {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                let err = format!("set_is_synced() Err: {}", err);
                 Err(OxenError::basic_str(&err))
             }
         }
@@ -153,15 +138,17 @@ impl CommitEntryWriter {
         let full_path = self.repository.path.join(path);
 
         // Get last modified time
-        let metadata = fs::metadata(full_path).unwrap();
+        let metadata = fs::metadata(&full_path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
+
+        let metadata = fs::metadata(&full_path)?;
 
         // Create entry object to as json
         let entry = CommitEntry {
             commit_id: new_commit.id.to_owned(),
             path: path.to_path_buf(),
             hash: staged_entry.hash.to_owned(),
-            is_synced: false, // so we know to sync
+            num_bytes: metadata.len(),
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
         };

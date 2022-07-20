@@ -26,11 +26,11 @@ pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize
 pub fn list_page(
     repo: &LocalRepository,
     commit: &Commit,
-    page_num: usize,
-    page_size: usize,
+    page_num: &usize,
+    page_size: &usize,
 ) -> Result<Vec<CommitEntry>, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
-    reader.list_entry_page(page_num, page_size)
+    reader.list_entry_page(*page_num, *page_size)
 }
 
 #[cfg(test)]
@@ -119,8 +119,9 @@ mod tests {
             command::add(&repo, &dir_to_add)?;
             let commit = command::commit(&repo, "Adding training data")?.unwrap();
 
+            let page_num = 1;
             let page_size = 3;
-            let entries = api::local::entries::list_page(&repo, &commit, 1, page_size)?;
+            let entries = api::local::entries::list_page(&repo, &commit, &page_num, &page_size)?;
             assert_eq!(entries.len(), page_size);
 
             Ok(())
