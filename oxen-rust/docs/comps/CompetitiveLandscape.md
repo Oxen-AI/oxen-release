@@ -28,6 +28,10 @@ $ dvc init
 $ git commit -m "Initialize DVC"
 
 $ dvc add img_align_celeba/
+
+$ dvc remote add -f -d storage s3://dvc-test-celeba
+
+$ dvc push
 ```
 
 The `dvc add` command computes all the hashes of the data, as well as copies it all over to a directory as far as I can tell. It takes awhile....To be exact:

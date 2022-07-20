@@ -327,7 +327,6 @@ mod tests {
         let entry = CommitEntry {
             commit_id: String::from("4312"),
             path: PathBuf::from("file.txt"),
-            is_synced: false,
             hash: String::from("1234"),
             num_bytes: 0,
             last_modified_seconds: 1,
