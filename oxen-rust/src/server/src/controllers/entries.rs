@@ -12,6 +12,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use flate2::write::GzEncoder;
+use flate2::read::GzDecoder;
 use flate2::Compression;
 
 use std::path::Path;
@@ -46,7 +47,56 @@ pub async fn create(
     }
 }
 
-pub async fn download_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
+pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let name: &str = req.match_info().get("repo_name").unwrap();
+
+
+    log::debug!(
+        "download_content_ids repo name [{}]",
+        name,
+    );
+    match api::local::repositories::get_by_name(&app_data.path, name) {
+        Ok(Some(repo)) => {
+            let mut bytes = web::BytesMut::new();
+            while let Some(item) = body.next().await {
+                bytes.extend_from_slice(&item.unwrap());
+            }
+            log::debug!("download_content_ids got repo [{}] and content_ids size {}", name, bytes.len());
+            
+            let mut gz = GzDecoder::new(&bytes[..]);
+            let mut line_delimited_files = String::new();
+            gz.read_to_string(&mut line_delimited_files).unwrap();
+
+            let content_files: Vec<&str> = line_delimited_files.split("\n").collect();
+
+            let enc = GzEncoder::new(Vec::new(), Compression::default());
+            let mut tar = tar::Builder::new(enc);
+
+            for content_file in content_files.iter() {
+                let version_path = repo.path.join(content_file);
+                if version_path.exists() && !content_file.is_empty() {
+                    tar.append_path_with_name(version_path, content_file).unwrap();
+                }
+            }
+
+            tar.finish().unwrap();
+            let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
+            HttpResponse::Ok().body(buffer)
+        }
+        Ok(None) => {
+            log::debug!("Could not find repo with name {}", name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Unable to get repository {}. Err: {}", name, err);
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let name: &str = req.match_info().get("repo_name").unwrap();
@@ -57,7 +107,7 @@ pub async fn download_entries(req: HttpRequest, query: web::Query<PageNumQuery>)
     let page_size: usize = query.page_size.unwrap_or(10);
 
     log::debug!(
-        "list_entries repo name [{}] commit_id [{}] page_num {} page_size {}",
+        "download_entries repo name [{}] commit_id [{}] page_num {} page_size {}",
         name,
         commit_id,
         page_num,
@@ -65,7 +115,7 @@ pub async fn download_entries(req: HttpRequest, query: web::Query<PageNumQuery>)
     );
     match api::local::repositories::get_by_name(&app_data.path, name) {
         Ok(Some(repo)) => {
-            log::debug!("list_entries got repo [{}]", name);
+            log::debug!("download_entries got repo [{}]", name);
             match get_entries_for_page(&repo, commit_id, page_num, page_size) {
                 Ok((entries, commit)) => match compress_entries(&repo, &commit, &entries.entries) {
                     Ok(buffer) => HttpResponse::Ok().body(buffer),
@@ -155,14 +205,14 @@ fn get_entries_for_page(
     match api::local::commits::get_by_id(repo, commit_id) {
         Ok(Some(commit)) => {
             log::debug!(
-                "list_entries got commit [{}] '{}'",
+                "get_entries_for_page got commit [{}] '{}'",
                 commit.id,
                 commit.message
             );
-            match api::local::entries::list_page(repo, &commit, page_num, page_size) {
+            match api::local::entries::list_page(repo, &commit, &page_num, &page_size) {
                 Ok(entries) => {
                     log::debug!(
-                        "list_entries commit {} got {} entries",
+                        "get_entries_for_page commit {} got {} entries",
                         commit_id,
                         entries.len()
                     );
@@ -385,7 +435,7 @@ mod tests {
         let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
 
         // Use the api list the files from the commit
-        let uri = format!("/repositories/{}/commits/{}/download_entries", name, commit.id);
+        let uri = format!("/repositories/{}/commits/{}/download_page", name, commit.id);
         println!("Hit uri {}", uri);
         let app = actix_web::test::init_service(
             App::new()
@@ -393,8 +443,8 @@ mod tests {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{repo_name}/commits/{commit_id}/download_entries",
-                    web::get().to(controllers::entries::download_entries),
+                    "/repositories/{repo_name}/commits/{commit_id}/download_page",
+                    web::get().to(controllers::entries::download_page),
                 ),
         )
         .await;
