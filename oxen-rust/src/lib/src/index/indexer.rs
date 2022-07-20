@@ -426,7 +426,7 @@ impl Indexer {
         Ok(entries[0..limit].to_vec())
     }
 
-    fn get_missing_content_ids(&self, entries: &Vec<CommitEntry>) -> (Vec<String>, u64) {
+    fn get_missing_content_ids(&self, entries: &[CommitEntry]) -> (Vec<String>, u64) {
         let mut content_ids: Vec<String> = vec![];
 
         // TODO: return total size here too for progress bar
@@ -434,7 +434,8 @@ impl Indexer {
         for entry in entries.iter() {
             let version_path = util::fs::version_path(&self.repository, entry);
             if !version_path.exists() {
-                let version_path = util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
+                let version_path =
+                    util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
                 content_ids.push(String::from(version_path.to_str().unwrap()));
                 size += entry.num_bytes;
             }
@@ -469,7 +470,13 @@ impl Indexer {
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
 
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
-                api::remote::entries::download_content_ids(&self.repository, &commit.id, chunk, &bar).unwrap();
+                api::remote::entries::download_content_ids(
+                    &self.repository,
+                    &commit.id,
+                    chunk,
+                    &bar,
+                )
+                .unwrap();
             });
             bar.finish();
 
@@ -477,7 +484,7 @@ impl Indexer {
             let bar = Arc::new(ProgressBar::new(entries.len() as u64));
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path);
-                if self.should_copy_entry(&entry, &filepath) {
+                if self.should_copy_entry(entry, &filepath) {
                     if let Some(parent) = filepath.parent() {
                         if !parent.exists() {
                             log::debug!("Create parent dir {:?}", parent);
@@ -485,13 +492,11 @@ impl Indexer {
                         }
                     }
 
-                    let version_path = util::fs::version_path(&self.repository, &entry);
-                    if let Ok(_) = std::fs::copy(&version_path, &filepath) {
-                        // we good
-                    } else {
+                    let version_path = util::fs::version_path(&self.repository, entry);
+                    if std::fs::copy(&version_path, &filepath).is_err() {
                         eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
                     }
-                    
+
                     let metadata = fs::metadata(filepath).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);
                     committer.set_file_timestamps(entry, &mtime).unwrap();

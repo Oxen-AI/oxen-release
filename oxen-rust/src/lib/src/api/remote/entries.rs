@@ -6,15 +6,15 @@ use crate::util;
 use crate::util::ReadProgress;
 use crate::view::{PaginatedEntries, RemoteEntryResponse};
 
-use std::fs;
-use tar::Archive;
-use std::io::prelude::*;
 use flate2::read::GzDecoder;
-use flate2::Compression;
 use flate2::write::GzEncoder;
-use std::sync::Arc;
+use flate2::Compression;
 use indicatif::ProgressBar;
+use std::fs;
+use std::io::prelude::*;
 use std::io::Cursor;
+use std::sync::Arc;
+use tar::Archive;
 
 const DEFAULT_PAGE_SIZE: usize = 10;
 
@@ -147,7 +147,10 @@ pub fn download_entries(
 
             Ok(())
         } else {
-            let err = format!("api::entries::download_entries Err request failed [{}] {}", status, url);
+            let err = format!(
+                "api::entries::download_entries Err request failed [{}] {}",
+                status, url
+            );
             Err(OxenError::basic_str(&err))
         }
     } else {
@@ -163,10 +166,7 @@ pub fn download_content_ids(
     download_progress: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
-    let uri = format!(
-        "/commits/{}/download_content_ids",
-        commit_id
-    );
+    let uri = format!("/commits/{}/download_content_ids", commit_id);
 
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     for content_id in content_ids.iter() {
@@ -194,7 +194,7 @@ pub fn download_content_ids(
     let mut buffer: Vec<u8> = vec![];
     std::io::copy(&mut source, &mut buffer)?;
 
-    let cursor = Cursor::new(Vec::from(buffer));
+    let cursor = Cursor::new(buffer);
     let mut archive = Archive::new(GzDecoder::new(cursor));
     archive.unpack(&repository.path)?;
 
