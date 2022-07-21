@@ -1,5 +1,6 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::config::AuthConfig;
 use liboxen::constants;
 use liboxen::error::OxenError;
 use liboxen::index::CommitEntryReader;
@@ -733,7 +734,11 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_url_from(&repo.name);
-        let remote_repo = command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create the repo
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -762,7 +767,11 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_url_from(&repo.name);
-        let remote_repo = command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create the remote repo
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
 
         // Push the files
         command::push(&repo)?;
@@ -808,7 +817,11 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_url_from(&repo.name);
-        let remote_repo = command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create the remote repo
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
 
         // Push the files
         command::push(&repo)?;
@@ -846,7 +859,11 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_url_from(&repo.name);
-        let remote_repo = command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create the remote repo
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
 
         // Push the files
         command::push(&repo)?;
@@ -894,8 +911,12 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+        // Create the remote repo
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
         // Push it real good
-        let remote_repo = command::push(&repo)?;
+        command::push(&repo)?;
 
         // Add a new file
         let party_ppl_filename = "party_ppl.txt";
@@ -1014,8 +1035,12 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
         // Push it real good
-        let remote_repo = command::push(&repo)?;
+        command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
@@ -1076,8 +1101,12 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
         // Push it
-        let remote_repo = command::push(&repo)?;
+        command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
@@ -1105,8 +1134,12 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
         // Push it
-        let remote_repo = command::push(&repo)?;
+        command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
@@ -1175,8 +1208,12 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
         // Push it
-        let remote_repo = command::push(&repo)?;
+        command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
@@ -1244,8 +1281,12 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
         let remote = test::repo_url_from(&repo.name);
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
         // Push it
-        let remote_repo = command::push(&repo)?;
+        command::push(&repo)?;
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test(|new_repo_dir| {
