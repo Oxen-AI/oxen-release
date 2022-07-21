@@ -397,9 +397,12 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 
 /// # List remote branches
 pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    let remote_repo = RemoteRepository::from_local(repo);
-    let branches = api::remote::branches::list(&remote_repo)?;
-    Ok(branches)
+    if let Some(remote_repo) = api::remote::repositories::get_by_name(&repo.name)? {
+        let branches = api::remote::branches::list(&remote_repo)?;
+        Ok(branches)
+    } else {
+        Err(OxenError::remote_repo_not_found(&repo.name))
+    }
 }
 
 /// # Get the current branch
@@ -425,16 +428,20 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Create a remote repository
 /// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
-pub fn create_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(repo)
+pub fn create_remote(repo: &LocalRepository, host: &str) -> Result<RemoteRepository, OxenError> {
+    api::remote::repositories::create(repo, host)
 }
 
 /// # Set the remote for a repository
 /// Tells the CLI where to push the changes to
-pub fn set_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(), OxenError> {
+pub fn set_remote(
+    repo: &mut LocalRepository,
+    name: &str,
+    url: &str,
+) -> Result<RemoteRepository, OxenError> {
     repo.set_remote(name, url);
     repo.save_default()?;
-    Ok(())
+    Ok(RemoteRepository::from_local(repo, url))
 }
 
 /// # Get a log of all the commits

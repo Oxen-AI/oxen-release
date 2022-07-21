@@ -238,7 +238,7 @@ Untracked files:
 
 `oxen commit -m "adding images"`
 
-`oxen create-remote`
+`oxen create-remote hub.oxen.ai`
 
 `oxen set-remote origin http://hub.oxen.ai/repositories/BasketballActionRecognition`
 

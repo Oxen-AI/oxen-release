@@ -1,4 +1,4 @@
-use crate::model::{CommitStats, LocalRepository, RemoteRepository};
+use crate::model::{LocalRepository, RemoteRepository};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -15,25 +15,10 @@ pub struct RepositoryResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RemoteRepositoryResponse {
+pub struct ListRepositoryResponse {
     pub status: String,
     pub status_message: String,
-    pub repository: RemoteRepository,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct RemoteRepositoryHeadResponse {
-    pub status: String,
-    pub status_message: String,
-    pub repository: RemoteRepository,
-    pub head: Option<CommitStats>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ListRemoteRepositoryResponse {
-    pub status: String,
-    pub status_message: String,
-    pub repositories: Vec<RemoteRepository>,
+    pub repositories: Vec<RepositoryView>,
 }
 
 impl RepositoryView {

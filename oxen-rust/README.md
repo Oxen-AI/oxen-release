@@ -156,7 +156,7 @@ To inspect any of the key value dbs below
 
       filename -> { (filename is where we copy the version back to)
         "hash" => "FILE_HASH", (use this to know if a file was different)
-        "is_synced" => false (used to know if it has been synced to server yet)
+        ... other meta data
       }
 
     COMMIT_HASH_2/

@@ -3,7 +3,7 @@
 
 use crate::api;
 use crate::command;
-use crate::config::RemoteConfig;
+use crate::config::{AuthConfig, HTTPConfig, RemoteConfig};
 use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
@@ -117,7 +117,8 @@ where
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
 
     let local_repo = command::init(&repo_dir)?;
-    let remote_repo = api::remote::repositories::create(&local_repo)?;
+    let config = AuthConfig::default()?;
+    let remote_repo = api::remote::repositories::create(&local_repo, config.host())?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -151,7 +152,8 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
 
-    let remote_repo = api::remote::repositories::create(&local_repo)?;
+    let config = AuthConfig::default()?;
+    let remote_repo = api::remote::repositories::create(&local_repo, config.host())?;
     println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
@@ -183,7 +185,8 @@ where
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
     let local_repo = command::init(&path)?;
-    let repo = api::remote::repositories::create(&local_repo)?;
+    let config = AuthConfig::default()?;
+    let repo = api::remote::repositories::create(&local_repo, config.host())?;
     println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd

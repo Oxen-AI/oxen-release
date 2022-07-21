@@ -24,7 +24,7 @@ pub struct LocalRepository {
     pub name: String,
     pub path: PathBuf,
     remote_name: Option<String>, // this is the current remote name
-    remotes: Vec<Remote>,
+    pub remotes: Vec<Remote>,
 }
 
 impl LocalRepository {
@@ -53,15 +53,15 @@ impl LocalRepository {
         })
     }
 
-    pub fn from_remote(repo: RemoteRepository) -> Result<LocalRepository, OxenError> {
+    pub fn from_remote(repo: RemoteRepository, path: &Path) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
             // generate new uuid locally
             id: repo.id.to_owned(),
             name: repo.name.to_owned(),
-            path: std::env::current_dir()?.join(&repo.name),
+            path: path.to_owned(),
             remotes: vec![Remote {
                 name: String::from(DEFAULT_REMOTE_NAME),
-                url: repo.url(),
+                url: repo.url,
             }],
             remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
         })
@@ -154,7 +154,7 @@ impl LocalRepository {
 
     fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
-        let url = repo.url();
+        let url = String::from(&repo.url);
         let dir_name = LocalRepository::dirname_from_url(&url)?;
         // if directory already exists -> return Err
         let repo_path = dst.join(&dir_name);
@@ -172,7 +172,7 @@ impl LocalRepository {
 
         // save Repository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
-        let mut local_repo = LocalRepository::from_remote(repo)?;
+        let mut local_repo = LocalRepository::from_remote(repo, &repo_path)?;
         local_repo.path = repo_path;
         local_repo.set_remote("origin", &url);
 
@@ -205,6 +205,7 @@ impl LocalRepository {
 mod tests {
     use crate::api;
     use crate::command;
+    use crate::config::{AuthConfig, HTTPConfig};
     use crate::error::OxenError;
     use crate::model::LocalRepository;
     use crate::test;
@@ -236,10 +237,11 @@ mod tests {
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let remote_repo = api::remote::repositories::create(&local_repo)?;
+            let config = AuthConfig::default()?;
+            let remote_repo = api::remote::repositories::create(&local_repo, config.host())?;
 
             test::run_empty_dir_test(|dir| {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.url(), dir)?.unwrap();
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url, dir)?.unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);
