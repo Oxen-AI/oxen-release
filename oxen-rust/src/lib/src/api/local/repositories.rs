@@ -97,9 +97,11 @@ pub fn create_empty(
     let local_repo = LocalRepository::new(&repo_dir)?;
     local_repo.save(&config_path)?;
 
-    // Write the root commit
-    let commit_writer = CommitWriter::new(&local_repo)?;
-    commit_writer.add_commit_from_empty_status(&new_repo.root_commit)?;
+    if let Some(root_commit) = &new_repo.root_commit {
+        // Write the root commit
+        let commit_writer = CommitWriter::new(&local_repo)?;
+        commit_writer.add_commit_from_empty_status(root_commit)?;
+    }
 
     Ok(local_repo)
 }
@@ -134,14 +136,14 @@ mod tests {
             let timestamp = Local::now();
             let repo_new = RepositoryNew {
                 name: String::from(name),
-                root_commit: Commit {
+                root_commit: Some(Commit {
                     id: initial_commit_id,
                     parent_ids: vec![],
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
                     date: timestamp,
                     timestamp: timestamp.timestamp_nanos(),
-                },
+                }),
             };
             let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
 

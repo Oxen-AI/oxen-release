@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RepositoryNew {
     pub name: String,
-    pub root_commit: Commit,
+    pub root_commit: Option<Commit>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
