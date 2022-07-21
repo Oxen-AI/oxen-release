@@ -34,10 +34,11 @@ impl Indexer {
             .get_remote(&rb.remote)
             .ok_or_else(OxenError::remote_not_set)?;
 
-        // Create or fetch the remote repository
+        log::debug!("Pushing to remote {:?}", remote);
+        // Repo should be created before this step
         let remote_repo = match api::remote::repositories::get_by_url(&remote.url) {
             Ok(Some(repo)) => repo,
-            _ => api::remote::repositories::create(&self.repository)?,
+            _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
         };
 
         // Push unsynced commit db and history dbs
@@ -47,11 +48,11 @@ impl Indexer {
         // This method will check with server to find out what commits need to be pushed
         // will fill in commits that are not synced
         let mut unsynced_commits: VecDeque<Commit> = VecDeque::new();
-        self.rpush_missing_commit_objects(&head_commit, rb, &mut unsynced_commits)?;
+        self.rpush_missing_commit_objects(&remote_repo, &head_commit, rb, &mut unsynced_commits)?;
         let last_commit = unsynced_commits.pop_front().unwrap();
 
         let remote_branch = api::remote::branches::create_or_get(&remote_repo, &rb.branch)?;
-        match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
+        match api::remote::commits::get_by_id(&remote_repo, &remote_branch.commit_id) {
             Ok(Some(commit)) => {
                 log::debug!(
                     "push {} {} got commit {} '{}'",
@@ -62,7 +63,7 @@ impl Indexer {
                 );
                 // recursively check commits against remote head
                 // and sync ones that have not been synced
-                self.rpush_entries(&last_commit, &unsynced_commits)?;
+                self.rpush_entries(&remote_repo, &last_commit, &unsynced_commits)?;
                 Ok(remote_repo)
             }
             Ok(None) => {
@@ -78,13 +79,14 @@ impl Indexer {
 
     fn rpush_missing_commit_objects(
         &self,
+        remote_repo: &RemoteRepository,
         local_commit: &Commit,
         rb: &RemoteBranch,
         unsynced_commits: &mut VecDeque<Commit>,
     ) -> Result<(), OxenError> {
         // check if commit exists on remote
         // if not, push the commit and it's dbs
-        match api::remote::commits::get_by_id(&self.repository, &local_commit.id) {
+        match api::remote::commits::get_by_id(remote_repo, &local_commit.id) {
             Ok(Some(remote_commit)) => {
                 // We have remote commit, stop syncing
                 log::debug!(
@@ -102,11 +104,17 @@ impl Indexer {
                     let local_parent = api::local::commits::get_by_id(&self.repository, parent_id)?
                         .ok_or_else(|| OxenError::local_parent_link_broken(&local_commit.id))?;
 
-                    self.rpush_missing_commit_objects(&local_parent, rb, unsynced_commits)?;
+                    self.rpush_missing_commit_objects(
+                        remote_repo,
+                        &local_parent,
+                        rb,
+                        unsynced_commits,
+                    )?;
 
                     // Unroll and post commits
                     api::remote::commits::post_commit_to_server(
                         &self.repository,
+                        remote_repo,
                         &rb.branch,
                         local_commit,
                     )?;
@@ -130,6 +138,7 @@ impl Indexer {
 
     fn rpush_entries(
         &self,
+        remote_repo: &RemoteRepository,
         head_commit: &Commit,
         unsynced_commits: &VecDeque<Commit>,
     ) -> Result<(), OxenError> {
@@ -143,7 +152,7 @@ impl Indexer {
 
             let entries = self.read_unsynced_entries(&last_commit, commit)?;
             if !entries.is_empty() {
-                self.push_entries(&entries, commit)?;
+                self.push_entries(remote_repo, &entries, commit)?;
             }
             last_commit = commit.clone();
         }
@@ -176,7 +185,12 @@ impl Indexer {
         Ok(entries_to_sync)
     }
 
-    fn push_entries(&self, entries: &[CommitEntry], commit: &Commit) -> Result<(), OxenError> {
+    fn push_entries(
+        &self,
+        remote_repo: &RemoteRepository,
+        entries: &[CommitEntry],
+        commit: &Commit,
+    ) -> Result<(), OxenError> {
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
             log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
@@ -218,7 +232,7 @@ impl Indexer {
             let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
             // let size: u64 = unsafe { std::mem::transmute(buffer.len()) };
 
-            api::remote::commits::post_tarball_to_server(&self.repository, commit, &buffer, &bar)
+            api::remote::commits::post_tarball_to_server(remote_repo, commit, &buffer, &bar)
                 .unwrap();
             // println!("done.");
 
@@ -253,10 +267,21 @@ impl Indexer {
 
     pub fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
+
+        let remote = self
+            .repository
+            .get_remote(&rb.remote)
+            .ok_or_else(OxenError::remote_not_set)?;
+
+        let remote_repo = match api::remote::repositories::get_by_url(&remote.url) {
+            Ok(Some(repo)) => repo,
+            _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
+        };
+
         self.pull_all_commit_objects_then(rb, |commit| {
             // Sync the HEAD commit data
             let limit: usize = 0; // zero means pull all
-            self.pull_entries_for_commit(&commit, limit)?;
+            self.pull_entries_for_commit(&remote_repo, &commit, limit)?;
             Ok(())
         })
     }
@@ -287,7 +312,7 @@ impl Indexer {
         let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
         let remote_branch = api::remote::branches::get_by_name(&remote_repo, &rb.branch)?
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
-        match api::remote::commits::get_by_id(&self.repository, &remote_branch.commit_id) {
+        match api::remote::commits::get_by_id(&remote_repo, &remote_branch.commit_id) {
             Ok(Some(commit)) => {
                 log::debug!(
                     "Oxen pull got remote commit: {} -> '{}'",
@@ -300,7 +325,7 @@ impl Indexer {
 
                 println!("🐂 fetching commit objects {}", commit.id);
                 // Sync the commit objects
-                self.rpull_missing_commit_objects(&commit)?;
+                self.rpull_missing_commit_objects(&remote_repo, &commit)?;
 
                 then(commit)?;
             }
@@ -323,45 +348,57 @@ impl Indexer {
     }
 
     /// Just pull the commit db and history dbs that are missing (not the entries)
-    fn rpull_missing_commit_objects(&self, remote_head_commit: &Commit) -> Result<(), OxenError> {
+    fn rpull_missing_commit_objects(
+        &self,
+        remote_repo: &RemoteRepository,
+        remote_head_commit: &Commit,
+    ) -> Result<(), OxenError> {
         // See if we have the DB pulled
         let commit_db_dir = util::fs::oxen_hidden_dir(&self.repository.path)
             .join(HISTORY_DIR)
             .join(remote_head_commit.id.clone());
         if !commit_db_dir.exists() {
             // We don't have db locally, so pull it
-            self.check_parent_and_pull_commit_objects(remote_head_commit)?;
+            self.check_parent_and_pull_commit_objects(remote_repo, remote_head_commit)?;
         } // else we are synced
 
         Ok(())
     }
 
-    fn check_parent_and_pull_commit_objects(&self, commit: &Commit) -> Result<(), OxenError> {
+    fn check_parent_and_pull_commit_objects(
+        &self,
+        remote_repo: &RemoteRepository,
+        commit: &Commit,
+    ) -> Result<(), OxenError> {
         // If we have a parent on the remote
-        if let Ok(parents) = api::remote::commits::get_remote_parent(&self.repository, &commit.id) {
+        if let Ok(parents) = api::remote::commits::get_remote_parent(remote_repo, &commit.id) {
             // Recursively sync the parents
             for parent in parents.iter() {
-                self.check_parent_and_pull_commit_objects(parent)?;
+                self.check_parent_and_pull_commit_objects(remote_repo, parent)?;
             }
         }
 
         // Pulls dbs and commit object
-        self.pull_commit_data_objects(commit)?;
+        self.pull_commit_data_objects(remote_repo, commit)?;
 
         Ok(())
     }
 
-    fn pull_commit_data_objects(&self, commit: &Commit) -> Result<(), OxenError> {
+    fn pull_commit_data_objects(
+        &self,
+        remote_repo: &RemoteRepository,
+        commit: &Commit,
+    ) -> Result<(), OxenError> {
         log::debug!(
             "pull_commit_data_objects {} `{}`",
             commit.id,
             commit.message
         );
         // Download the specific commit_db that holds all the entries
-        api::remote::commits::download_commit_db_by_id(&self.repository, &commit.id)?;
+        api::remote::commits::download_commit_db_by_id(&self.repository, remote_repo, &commit.id)?;
 
         // Get commit and write it to local DB
-        let remote_commit = api::remote::commits::get_by_id(&self.repository, &commit.id)?.unwrap();
+        let remote_commit = api::remote::commits::get_by_id(remote_repo, &commit.id)?.unwrap();
         let writer = CommitWriter::new(&self.repository)?;
         writer.add_commit_to_db(&remote_commit)
     }
@@ -369,11 +406,12 @@ impl Indexer {
     // For unit testing a half synced commit
     pub fn pull_entries_for_commit_with_limit(
         &self,
+        remote_repo: &RemoteRepository,
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
-        self.pull_commit_data_objects(commit)?;
-        self.pull_entries_for_commit(commit, limit)
+        self.pull_commit_data_objects(remote_repo, commit)?;
+        self.pull_entries_for_commit(remote_repo, commit, limit)
     }
 
     fn read_pulled_commit_entries(
@@ -407,7 +445,12 @@ impl Indexer {
         (content_ids, size)
     }
 
-    fn pull_entries_for_commit(&self, commit: &Commit, limit: usize) -> Result<(), OxenError> {
+    fn pull_entries_for_commit(
+        &self,
+        remote_repo: &RemoteRepository,
+        commit: &Commit,
+        limit: usize,
+    ) -> Result<(), OxenError> {
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!(
             "🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}",
@@ -435,6 +478,7 @@ impl Indexer {
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
                 api::remote::entries::download_content_ids(
                     &self.repository,
+                    remote_repo,
                     &commit.id,
                     chunk,
                     &bar,
@@ -507,6 +551,7 @@ impl Indexer {
 #[cfg(test)]
 mod tests {
     use crate::command;
+    use crate::config::AuthConfig;
     use crate::constants;
     use crate::error::OxenError;
     use crate::index::Indexer;
@@ -523,13 +568,13 @@ mod tests {
             let remote = test::repo_url_from(&repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            // Push it
-            let remote_repo = command::push(&repo)?;
+            let config = AuthConfig::default()?;
+            let remote_repo = command::create_remote(&repo, &config.host)?;
 
             command::push(&repo)?;
 
             test::run_empty_dir_test(|new_repo_dir| {
-                let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
+                let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -537,7 +582,7 @@ mod tests {
                 let latest_commit = commits.first().unwrap();
                 let page_size = 2;
                 let limit = page_size;
-                indexer.pull_entries_for_commit_with_limit(latest_commit, limit)?;
+                indexer.pull_entries_for_commit_with_limit(&remote_repo, latest_commit, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(num_files, limit);
@@ -571,19 +616,22 @@ mod tests {
             // Commit the file
             command::commit(&repo, "Adding testing data")?;
 
+            // Create remote
+            let config = AuthConfig::default()?;
+            let remote_repo = command::create_remote(&repo, &config.host)?;
+
             // Push it
-            let remote_repo = command::push(&repo)?;
             command::push(&repo)?;
 
             test::run_empty_dir_test(|new_repo_dir| {
-                let cloned_repo = command::clone(&remote_repo.url(), new_repo_dir)?;
+                let cloned_repo = command::clone(&remote_repo.url, new_repo_dir)?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
                 let commits = command::log(&repo)?;
                 let last_commit = commits.first().unwrap();
                 let limit = 7;
-                indexer.pull_entries_for_commit_with_limit(last_commit, limit)?;
+                indexer.pull_entries_for_commit_with_limit(&remote_repo, last_commit, limit)?;
 
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(num_files, limit);
