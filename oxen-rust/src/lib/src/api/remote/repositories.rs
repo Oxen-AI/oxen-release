@@ -3,18 +3,18 @@ use crate::command;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
-use crate::view::{RemoteRepositoryResponse, StatusMessage};
+use crate::view::{RepositoryResponse, StatusMessage};
 use serde_json::json;
-
-pub fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
-    let name = LocalRepository::dirname_from_url(url)?;
-    get_by_name(&name)
-}
 
 pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/repositories/{}", name);
     let url = api::endpoint::url_from_auth_config(&config, &uri);
+    get_by_url(&url)
+}
+
+pub fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
+    let config = AuthConfig::default()?;
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -31,33 +31,34 @@ pub fn get_by_name(name: &str) -> Result<Option<RemoteRepository>, OxenError> {
 
         let body = res.text()?;
         log::debug!(
-            "repositories::get_by_name status[{}] body:\n{}",
+            "repositories::get_by_url {}\nstatus[{}] {}",
+            url,
             status,
             body
         );
 
-        let response: Result<RemoteRepositoryResponse, serde_json::Error> =
-            serde_json::from_str(&body);
+        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(Some(j_res.repository)),
+            Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, url))),
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(&format!(
-                    "api::repositories::get_by_name() Could not serialize repository [{}]",
-                    name
+                    "api::repositories::get_by_url() Could not serialize repository [{}]",
+                    url
                 )))
             }
         }
     } else {
         Err(OxenError::basic_str(
-            "api::repositories::get_by_name() Request failed",
+            "api::repositories::get_by_url() Request failed",
         ))
     }
 }
 
-pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+pub fn create(repository: &LocalRepository, host: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
-    let url = api::endpoint::url_from_auth_config(&config, "/repositories");
+    let url = format!("http://{}/repositories", host);
+    let repo_url = format!("{}/{}", url, repository.name);
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": repository.name, "root_commit": root_commit });
     // println!("Create remote: {}", url);
@@ -73,10 +74,9 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
     {
         let body = res.text()?;
         // println!("Response: {}", body);
-        let response: Result<RemoteRepositoryResponse, serde_json::Error> =
-            serde_json::from_str(&body);
+        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(response) => Ok(response.repository),
+            Ok(response) => Ok(RemoteRepository::from_view(&response.repository, &repo_url)),
             Err(err) => {
                 let err = format!(
                     "Could not create or find repository [{}]: {}\n{}",
@@ -94,9 +94,9 @@ pub fn create(repository: &LocalRepository) -> Result<RemoteRepository, OxenErro
 pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
     let client = reqwest::blocking::Client::new();
-    log::debug!("Deleting repository: {}", repository.url());
+    log::debug!("Deleting repository: {}", repository.url);
     if let Ok(res) = client
-        .delete(repository.url())
+        .delete(repository.url)
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),
@@ -124,13 +124,15 @@ pub fn delete(repository: RemoteRepository) -> Result<StatusMessage, OxenError> 
 mod tests {
 
     use crate::api;
+    use crate::config::{AuthConfig, HTTPConfig};
     use crate::error::OxenError;
     use crate::test;
 
     #[test]
     fn test_create_remote_repository() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let repository = api::remote::repositories::create(&local_repo)?;
+            let auth_config = AuthConfig::default()?;
+            let repository = api::remote::repositories::create(&local_repo, auth_config.host())?;
             println!("got repository: {:?}", repository);
             assert_eq!(repository.name, local_repo.name);
 
@@ -143,7 +145,8 @@ mod tests {
     #[test]
     fn test_get_by_name() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let repository = api::remote::repositories::create(&local_repo)?;
+            let auth_config = AuthConfig::default()?;
+            let repository = api::remote::repositories::create(&local_repo, auth_config.host())?;
             let url_repo = api::remote::repositories::get_by_name(&local_repo.name)?.unwrap();
 
             assert_eq!(repository.id, url_repo.id);
@@ -158,7 +161,8 @@ mod tests {
     #[test]
     fn test_delete_repository() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let repository = api::remote::repositories::create(&local_repo)?;
+            let auth_config = AuthConfig::default()?;
+            let repository = api::remote::repositories::create(&local_repo, auth_config.host())?;
 
             // delete
             api::remote::repositories::delete(repository)?;

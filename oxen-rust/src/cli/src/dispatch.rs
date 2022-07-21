@@ -21,12 +21,15 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn create_remote() -> Result<(), OxenError> {
+pub fn create_remote(host: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo)?;
-    println!("Remote url: {}", remote.url());
+    let remote = command::create_remote(&repo, host)?;
+    println!(
+        "Remote created for {}\n\noxen set-remote origin {}",
+        repo.name, remote.url
+    );
 
     Ok(())
 }
@@ -36,6 +39,28 @@ pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
     command::set_remote(&mut repo, name, url)?;
+
+    Ok(())
+}
+
+pub fn list_remotes() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    for remote in repo.remotes.iter() {
+        println!("{}", remote.name);
+    }
+
+    Ok(())
+}
+
+pub fn list_remotes_verbose() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    for remote in repo.remotes.iter() {
+        println!("{}\t{}", remote.name, remote.url);
+    }
 
     Ok(())
 }

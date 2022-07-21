@@ -18,9 +18,13 @@ use tar::Archive;
 
 const DEFAULT_PAGE_SIZE: usize = 10;
 
-pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<RemoteEntry, OxenError> {
+pub fn create(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    entry: &CommitEntry,
+) -> Result<RemoteEntry, OxenError> {
     let config = AuthConfig::default()?;
-    let fullpath = util::fs::version_path(repository, entry);
+    let fullpath = util::fs::version_path(local_repo, entry);
     log::debug!("Creating remote entry: {:?} -> {:?}", entry.path, fullpath);
 
     if !fullpath.exists() {
@@ -30,8 +34,7 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
     let file = fs::File::open(&fullpath)?;
     let client = reqwest::blocking::Client::new();
     let uri = format!("/entries?{}", entry.to_uri_encoded());
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
     log::debug!("create entry: {}", url);
     match client
         .post(url)
@@ -64,7 +67,7 @@ pub fn create(repository: &LocalRepository, entry: &CommitEntry) -> Result<Remot
 }
 
 pub fn first_page(
-    repository: &LocalRepository,
+    repository: &RemoteRepository,
     commit_id: &str,
 ) -> Result<PaginatedEntries, OxenError> {
     let page_num = 1;
@@ -72,7 +75,7 @@ pub fn first_page(
 }
 
 pub fn nth_page(
-    repository: &LocalRepository,
+    repository: &RemoteRepository,
     commit_id: &str,
     page_num: usize,
 ) -> Result<PaginatedEntries, OxenError> {
@@ -80,7 +83,7 @@ pub fn nth_page(
 }
 
 pub fn list_page(
-    repository: &LocalRepository,
+    remote_repo: &RemoteRepository,
     commit_id: &str,
     page_num: usize,
     page_size: usize,
@@ -90,8 +93,7 @@ pub fn list_page(
         "/commits/{}/entries?page_num={}&page_size={}",
         commit_id, page_num, page_size
     );
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(&url)
@@ -119,7 +121,8 @@ pub fn list_page(
 }
 
 pub fn download_entries(
-    repository: &LocalRepository,
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
     commit_id: &str,
     page_num: &usize,
     page_size: &usize,
@@ -129,8 +132,7 @@ pub fn download_entries(
         "/commits/{}/download_entries?page_num={}&page_size={}",
         commit_id, page_num, page_size
     );
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(&url)
@@ -143,7 +145,7 @@ pub fn download_entries(
         let status = res.status();
         if reqwest::StatusCode::OK == status {
             let mut archive = Archive::new(GzDecoder::new(res));
-            archive.unpack(&repository.path)?;
+            archive.unpack(&local_repo.path)?;
 
             Ok(())
         } else {
@@ -160,7 +162,8 @@ pub fn download_entries(
 }
 
 pub fn download_content_ids(
-    repository: &LocalRepository,
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
     commit_id: &str,
     content_ids: &[String],
     download_progress: &Arc<ProgressBar>,
@@ -175,8 +178,7 @@ pub fn download_content_ids(
     }
     let body = encoder.finish()?;
 
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
     let client = reqwest::blocking::Client::new()
         .post(&url)
@@ -196,7 +198,8 @@ pub fn download_content_ids(
 
     let cursor = Cursor::new(buffer);
     let mut archive = Archive::new(GzDecoder::new(cursor));
-    archive.unpack(&repository.path)?;
+
+    archive.unpack(&local_repo.path)?;
 
     Ok(())
 }
@@ -272,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_create_entry() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
             // Track an image
             let image_file = local_repo.path.join("train").join("dog_1.jpg");
             command::add(local_repo, &image_file)?;
@@ -284,7 +287,8 @@ mod tests {
             assert!(!entries.is_empty());
 
             let entry = entries.last().unwrap();
-            let result = api::remote::entries::create(local_repo, entry);
+            let result = api::remote::entries::create(local_repo, remote_repo, entry);
+            println!("{:?}", result);
             assert!(result.is_ok());
 
             Ok(())
@@ -293,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_list_entries_all_in_one_page() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
             // Make mutable copy so we can set the remote
             let mut repo = local_repo.clone();
 
@@ -311,7 +315,7 @@ mod tests {
             // Push everything
             command::push(&repo)?;
 
-            let entries = api::remote::entries::list_page(&repo, &commit.id, 1, num_files)?;
+            let entries = api::remote::entries::list_page(remote_repo, &commit.id, 1, num_files)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
@@ -321,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_list_entries_first_page_of_two() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
             // Make mutable copy so we can set the remote
             let mut repo = local_repo.clone();
 
@@ -340,7 +344,7 @@ mod tests {
             command::push(&repo)?;
 
             let page_size = 3;
-            let entries = api::remote::entries::list_page(&repo, &commit.id, 1, page_size)?;
+            let entries = api::remote::entries::list_page(remote_repo, &commit.id, 1, page_size)?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.page_size, page_size);
             assert_eq!(entries.total_pages, 2);

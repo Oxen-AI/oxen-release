@@ -5,9 +5,9 @@ use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
-use liboxen::view::{ListRemoteRepositoryResponse, RemoteRepositoryResponse, StatusMessage};
+use liboxen::view::{ListRepositoryResponse, RepositoryResponse, RepositoryView, StatusMessage};
 
-use liboxen::model::{RemoteRepository, RepositoryNew};
+use liboxen::model::RepositoryNew;
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
@@ -17,11 +17,11 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     match api::local::repositories::list(&app_data.path) {
         Ok(repos) => {
-            let repos: Vec<RemoteRepository> = repos
+            let repos: Vec<RepositoryView> = repos
                 .iter()
-                .map(|repo| RemoteRepository::from_local(&repo.clone()))
+                .map(|repo| RepositoryView::from_local(repo.clone()))
                 .collect();
-            let view = ListRemoteRepositoryResponse {
+            let view = ListRepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
                 repositories: repos,
@@ -41,10 +41,10 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let Some(name) = name {
         match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(Some(repository)) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+            Ok(Some(repository)) => HttpResponse::Ok().json(RepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: RemoteRepository::from_local(&repository),
+                repository: RepositoryView::from_local(repository),
             }),
             Ok(None) => {
                 log::debug!("404 Could not find repo: {}", name);
@@ -69,19 +69,19 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
         Ok(data) => match api::local::repositories::get_by_name(&app_data.path, &data.name) {
             Ok(Some(repository)) => {
                 // Set the remote to this server
-                HttpResponse::Ok().json(RemoteRepositoryResponse {
+                HttpResponse::Ok().json(RepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
-                    repository: RemoteRepository::from_local(&repository),
+                    repository: RepositoryView::from_local(repository),
                 })
             }
             _ => match api::local::repositories::create_empty(&app_data.path, &data) {
                 Ok(repository) => {
                     // Set the remote to this server
-                    HttpResponse::Ok().json(RemoteRepositoryResponse {
+                    HttpResponse::Ok().json(RepositoryResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_CREATED),
-                        repository: RemoteRepository::from_local(&repository),
+                        repository: RepositoryView::from_local(repository),
                     })
                 }
                 Err(err) => {
@@ -108,10 +108,10 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
         match api::local::repositories::get_by_name(&app_data.path, name) {
             Ok(Some(repository)) => {
                 match api::local::repositories::delete(&app_data.path, repository) {
-                    Ok(repository) => HttpResponse::Ok().json(RemoteRepositoryResponse {
+                    Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_DELETED),
-                        repository: RemoteRepository::from_local(&repository),
+                        repository: RepositoryView::from_local(repository),
                     }),
                     Err(err) => {
                         log::error!("Error deleting repository: {}", err);
@@ -209,7 +209,7 @@ mod tests {
     use liboxen::model::{Commit, RepositoryNew};
 
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{ListRemoteRepositoryResponse, RepositoryResponse};
+    use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
 
     use crate::controllers;
     use crate::test;
@@ -224,7 +224,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListRemoteRepositoryResponse = serde_json::from_str(text)?;
+        let list: ListRepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 0);
 
         // cleanup
@@ -245,7 +245,7 @@ mod tests {
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        let list: ListRemoteRepositoryResponse = serde_json::from_str(text)?;
+        let list: ListRepositoryResponse = serde_json::from_str(text)?;
         assert_eq!(list.repositories.len(), 2);
 
         // cleanup

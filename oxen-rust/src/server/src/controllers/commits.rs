@@ -3,13 +3,10 @@ use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitWriter, RefWriter};
-use liboxen::model::{Commit, LocalRepository, RemoteRepository};
+use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{
-    CommitParentsResponse, CommitResponse, ListCommitResponse, RemoteRepositoryHeadResponse,
-    StatusMessage,
-};
+use liboxen::view::{CommitParentsResponse, CommitResponse, ListCommitResponse, StatusMessage};
 
 use crate::app_data::OxenAppData;
 
@@ -58,48 +55,6 @@ pub async fn index_branch(req: HttpRequest) -> HttpResponse {
         }
     } else {
         let msg = "Could not find `repo_name` and `branch_name` param...";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
-}
-
-pub async fn stats(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(name), Some(commit_id)) = (name, commit_id) {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
-            Ok(Some(repository)) => {
-                match api::local::repositories::get_commit_stats_from_id(&repository, commit_id) {
-                    Ok(Some(commit)) => HttpResponse::Ok().json(RemoteRepositoryHeadResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
-                        repository: RemoteRepository::from_local(&repository),
-                        head: Some(commit),
-                    }),
-                    Ok(None) => {
-                        log::debug!("Could not get find commit id: {}", commit_id);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                    Err(err) => {
-                        log::error!("Could not get find commit id: {}", err);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("404 could not get repo {}", name,);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not find repo: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        log::error!("bad request: {:?}", req);
-        let msg = "Could not find `repo_name` or `commit_id` param...";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }

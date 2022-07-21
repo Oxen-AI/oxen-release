@@ -2,10 +2,10 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::model::{Commit, CommitStats, LocalRepository, RemoteRepository};
+use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::util::ReadProgress;
-use crate::view::{CommitParentsResponse, CommitResponse, RemoteRepositoryHeadResponse};
+use crate::view::{CommitParentsResponse, CommitResponse};
 
 use std::path::Path;
 use std::str;
@@ -19,47 +19,14 @@ use std::io::Cursor;
 use std::sync::Arc;
 use tar::Archive;
 
-pub fn get_stats(
-    repository: &LocalRepository,
-    commit: &Commit,
-) -> Result<Option<CommitStats>, OxenError> {
-    let config = AuthConfig::default()?;
-    let uri = format!("/commits/{}/stats", commit.id);
-    let repository = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&repository, &uri);
-
-    let client = reqwest::blocking::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
-        )
-        .send()
-    {
-        let body = res.text()?;
-        let response: Result<RemoteRepositoryHeadResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(j_res.head),
-            Err(err) => Err(OxenError::basic_str(&format!(
-                "get_remote_head() Could not serialize response [{}]\n{}",
-                err, body
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str("get_remote_head() Request failed"))
-    }
-}
-
 pub fn get_by_id(
-    repository: &LocalRepository,
+    repository: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/commits/{}", commit_id);
-    let repository = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri);
+    log::debug!("remote::commits::get_by_id {}", url);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -89,13 +56,13 @@ pub fn get_by_id(
 }
 
 pub fn download_commit_db_by_id(
-    repository: &LocalRepository,
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<(), OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/commits/{}/commit_db", commit_id);
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
@@ -107,7 +74,7 @@ pub fn download_commit_db_by_id(
         .send()
     {
         // Unpack tarball to our hidden dir
-        let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
+        let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
         let mut archive = Archive::new(GzDecoder::new(res));
         archive.unpack(hidden_dir)?;
 
@@ -120,13 +87,12 @@ pub fn download_commit_db_by_id(
 }
 
 pub fn get_remote_parent(
-    repository: &LocalRepository,
+    remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
     let config = AuthConfig::default()?;
     let uri = format!("/commits/{}/parents", commit_id);
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -152,18 +118,19 @@ pub fn get_remote_parent(
 }
 
 pub fn post_commit_to_server(
-    repository: &LocalRepository,
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
     branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // First create commit on server
-    create_commit_obj_on_server(repository, branch, commit)?;
+    create_commit_obj_on_server(remote_repo, branch, commit)?;
 
     // Then zip up and send the history db
     println!("Compressing commit {}", commit.id);
 
     // zip up the rocksdb in history dir, and post to server
-    let commit_dir = util::fs::oxen_hidden_dir(&repository.path)
+    let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
         .join(commit.id.clone());
     // This will be the subdir within the tarball
@@ -178,12 +145,12 @@ pub fn post_commit_to_server(
     println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
     let pb = Arc::new(ProgressBar::new(buffer.len() as u64));
-    let response = post_tarball_to_server(repository, commit, &buffer, &pb)?;
+    let response = post_tarball_to_server(remote_repo, commit, &buffer, &pb)?;
     Ok(response)
 }
 
 fn create_commit_obj_on_server(
-    repository: &LocalRepository,
+    remote_repo: &RemoteRepository,
     branch_name: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
@@ -191,9 +158,7 @@ fn create_commit_obj_on_server(
     let client = reqwest::blocking::Client::new();
 
     let uri = format!("/branches/{}/commits", branch_name);
-
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);
@@ -225,7 +190,7 @@ fn create_commit_obj_on_server(
 }
 
 pub fn post_tarball_to_server(
-    repository: &LocalRepository,
+    remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
     upload_progress: &Arc<ProgressBar>,
@@ -233,8 +198,7 @@ pub fn post_tarball_to_server(
     let config = AuthConfig::default()?;
 
     let uri = format!("/commits/{}", commit.id);
-    let remote_repo = RemoteRepository::from_local(repository);
-    let url = api::endpoint::url_from_repo(&remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
     // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
     let cursor = Cursor::new(Vec::from(buffer));
@@ -282,18 +246,8 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_get_empty_remote_head() -> Result<(), OxenError> {
-        test::run_empty_sync_repo_test(|local_repo, _remote_repo| {
-            let commit = command::head_commit(local_repo)?;
-            let remote_head_result = api::remote::commits::get_stats(local_repo, &commit);
-            assert!(remote_head_result.is_ok());
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_post_commit_to_server() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, _remote_repo| {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
             // Track the annotations dir
             // has format
             //   annotations/
@@ -313,8 +267,12 @@ mod tests {
             .unwrap();
 
             // Post commit
-            let result_commit =
-                api::remote::commits::post_commit_to_server(local_repo, &branch.name, &commit)?;
+            let result_commit = api::remote::commits::post_commit_to_server(
+                local_repo,
+                remote_repo,
+                &branch.name,
+                &commit,
+            )?;
             assert_eq!(result_commit.commit.id, commit.id);
 
             Ok(())
