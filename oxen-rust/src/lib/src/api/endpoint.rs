@@ -8,7 +8,7 @@ pub fn url_from_remote(remote: &Remote, uri: &str) -> String {
 }
 
 pub fn url_from_repo(remote: &RemoteRepository, uri: &str) -> String {
-    format!("{}{}", remote.url(), uri)
+    format!("{}{}", remote.url, uri)
 }
 
 pub fn repo_url(remote: &RemoteRepository) -> String {

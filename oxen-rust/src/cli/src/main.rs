@@ -36,11 +36,28 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
+            Command::new("create-remote")
+                .about("Creates a remote repository with the name on the host")
+                .arg(arg!(<HOST> "The remote host"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("set-remote")
                 .about("Sets remote url for repository")
                 .arg(arg!(<NAME> "The remote name"))
                 .arg(arg!(<URL> "The remote url"))
                 .arg_required_else_help(true),
+        )
+        .subcommand(
+            Command::new("remote")
+                .about("Manage set of tracked repositories")
+                .arg(
+                    Arg::new("verbose")
+                        .long("verbose")
+                        .short('v')
+                        .help("Be a little more verbose and show remote url after name.")
+                        .takes_value(false),
+                )
         )
         .subcommand(
             Command::new("status").about("See at what files are ready to be added or committed"),
@@ -142,12 +159,16 @@ fn main() {
                 }
             }
         }
-        Some(("create-remote", _sub_matches)) => match dispatch::create_remote() {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{}", err)
+        Some(("create-remote", sub_matches)) => {
+            let host = sub_matches.value_of("HOST").expect("required");
+
+            match dispatch::create_remote(host) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
             }
-        },
+        }
         Some(("set-default-host", sub_matches)) => {
             let host = sub_matches.value_of("HOST").expect("required");
 
@@ -156,6 +177,13 @@ fn main() {
                 Err(err) => {
                     eprintln!("{}", err)
                 }
+            }
+        }
+        Some(("remote", sub_matches)) => {
+            if sub_matches.is_present("verbose") {
+                dispatch::list_remotes_verbose().expect("Unable to list remotes.");
+            } else {
+                dispatch::list_remotes().expect("Unable to list remotes.");
             }
         }
         Some(("set-auth-token", sub_matches)) => {
