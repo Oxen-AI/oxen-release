@@ -15,32 +15,35 @@ use std::path::PathBuf;
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    match api::local::repositories::list(&app_data.path) {
-        Ok(repos) => {
-            let repos: Vec<RepositoryView> = repos
+    let namespace: Option<&str> = req.match_info().get("namespace");
+
+    if let Some(namespace) = namespace {
+        let namespace_path = &app_data.path.join(namespace);
+
+        let repos: Vec<RepositoryView> =
+            api::local::repositories::list_repos_in_namespace(namespace_path)
                 .iter()
                 .map(|repo| RepositoryView::from_local(repo.clone()))
                 .collect();
-            let view = ListRepositoryResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_FOUND),
-                repositories: repos,
-            };
-            HttpResponse::Ok().json(view)
-        }
-        Err(err) => {
-            log::error!("Unable to list repositories. Err: {}", err);
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
+        let view = ListRepositoryResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_FOUND),
+            repositories: repos,
+        };
+        HttpResponse::Ok().json(view)
+    } else {
+        let msg = "Could not find `namespace` param...";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
-    if let Some(name) = name {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
+    if let (Some(name), Some(namespace)) = (name, namespace) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => HttpResponse::Ok().json(RepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
@@ -56,43 +59,33 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Could not find `name` param...";
+        let msg = "Could not find `name` or `namespace` param...";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 
-pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
+pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    // println!("controllers::repositories::create_or_get body:\n{}", body);
+    // println!("controllers::repositories::create body:\n{}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => match api::local::repositories::get_by_name(&app_data.path, &data.name) {
-            Ok(Some(repository)) => {
+        Ok(data) => match api::local::repositories::create_empty(&app_data.path, &data) {
+            Ok(repository) => {
                 // Set the remote to this server
                 HttpResponse::Ok().json(RepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    status_message: String::from(MSG_RESOURCE_CREATED),
                     repository: RepositoryView::from_local(repository),
                 })
             }
-            _ => match api::local::repositories::create_empty(&app_data.path, &data) {
-                Ok(repository) => {
-                    // Set the remote to this server
-                    HttpResponse::Ok().json(RepositoryResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
-                        repository: RepositoryView::from_local(repository),
-                    })
-                }
-                Err(err) => {
-                    log::error!("Err api::local::repositories::create_or_get: {:?}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            },
+            Err(err) => {
+                log::error!("Err api::local::repositories::create: {:?}", err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
         },
         Err(err) => {
             log::error!(
-                "Err api::local::repositories::create_or_get parse error: {:?}",
+                "Err api::local::repositories::create parse error: {:?}",
                 err
             );
             HttpResponse::BadRequest().json(StatusMessage::error("Invalid body."))
@@ -103,9 +96,10 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
 pub async fn delete(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
-    if let Some(name) = name {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
+    if let (Some(name), Some(namespace)) = (name, namespace) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => {
                 match api::local::repositories::delete(&app_data.path, repository) {
                     Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
@@ -137,11 +131,12 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
 
 pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    // TODO: look up file from commit in version dir and return that one
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
-    match api::local::repositories::get_by_name(&app_data.path, repo_name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
         Ok(Some(repo)) => {
             match api::local::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
@@ -218,7 +213,9 @@ mod tests {
     async fn test_repository_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
-        let req = test::request(&sync_dir, "/repositories");
+        let namespace = "repositories";
+        let uri = format!("/oxen/{}", namespace);
+        let req = test::namespace_request(&sync_dir, &uri, namespace);
 
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -237,10 +234,12 @@ mod tests {
     async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
-        test::create_local_repo(&sync_dir, "Testing-1")?;
-        test::create_local_repo(&sync_dir, "Testing-2")?;
+        let namespace = "Test-Namespace";
+        test::create_local_repo(&sync_dir, namespace, "Testing-1")?;
+        test::create_local_repo(&sync_dir, namespace, "Testing-2")?;
 
-        let req = test::request(&sync_dir, "/repositories");
+        let uri = format!("/oxen/{}", namespace);
+        let req = test::namespace_request(&sync_dir, &uri, namespace);
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -258,11 +257,12 @@ mod tests {
     async fn test_respository_show() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Test-Namespace";
         let name = "Testing-Name";
-        test::create_local_repo(&sync_dir, name)?;
+        test::create_local_repo(&sync_dir, namespace, name)?;
 
-        let uri = format!("/repositories/{}", name);
-        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+        let uri = format!("/oxen/{}/{}", namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::repositories::show(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -284,6 +284,7 @@ mod tests {
         let timestamp = Local::now();
         let repo_new = RepositoryNew {
             name: String::from("Testing-Name"),
+            namespace: String::from("Testing-Namespace"),
             root_commit: Some(Commit {
                 id: String::from("1234"),
                 parent_ids: vec![],
@@ -296,7 +297,7 @@ mod tests {
         let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, "/repositories");
 
-        let resp = controllers::repositories::create_or_get(req, data).await;
+        let resp = controllers::repositories::create(req, data).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();

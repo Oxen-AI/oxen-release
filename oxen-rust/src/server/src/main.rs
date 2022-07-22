@@ -116,80 +116,80 @@ async fn main() -> std::io::Result<()> {
                             )
                             .wrap(HttpAuthentication::bearer(auth::validator::validate))
                             .route(
-                                "/repositories/{repo_name}/commits",
+                                "/oxen/{namespace}/{repo_name}/commits",
                                 web::get().to(controllers::commits::index),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
                                 web::post().to(controllers::commits::upload),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
                                 web::get().to(controllers::commits::show),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/commit_db",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/commit_db",
                                 web::get().to(controllers::commits::download_commit_db),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/parents",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/parents",
                                 web::get().to(controllers::commits::parents),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/entries",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries",
                                 web::get().to(controllers::entries::list_entries),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/download_page",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_page",
                                 web::get().to(controllers::entries::download_page),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/download_content_ids",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_content_ids",
                                 web::post().to(controllers::entries::download_content_ids),
                             )
                             .route(
-                                "/repositories/{repo_name}/branches",
+                                "/oxen/{namespace}/{repo_name}/branches",
                                 web::get().to(controllers::branches::index),
                             )
                             .route(
-                                "/repositories/{repo_name}/branches",
+                                "/oxen/{namespace}/{repo_name}/branches",
                                 web::post().to(controllers::branches::create_or_get),
                             )
                             .route(
-                                "/repositories/{repo_name}/branches/{branch_name}",
+                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}",
                                 web::get().to(controllers::branches::show),
                             )
                             .route(
-                                "/repositories/{repo_name}/branches/{branch_name}/commits",
+                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}/commits",
                                 web::get().to(controllers::commits::index_branch),
                             )
                             .route(
-                                "/repositories/{repo_name}/branches/{branch_name}/commits",
+                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}/commits",
                                 web::post().to(controllers::commits::create),
                             )
                             .route(
-                                "/repositories/{repo_name}/entries",
+                                "/oxen/{namespace}/{repo_name}/entries",
                                 web::post().to(controllers::entries::create),
                             )
                             .route(
-                                "/repositories/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
                                 web::get().to(controllers::repositories::get_file),
                             )
                             .route(
-                                "/repositories",
+                                "/oxen/{namespace}",
                                 web::get().to(controllers::repositories::index),
                             )
                             .route(
-                                "/repositories/{repo_name}",
+                                "/oxen/{namespace}/{repo_name}",
                                 web::get().to(controllers::repositories::show),
                             )
                             .route(
-                                "/repositories/{repo_name}",
+                                "/oxen/{namespace}/{repo_name}",
                                 web::delete().to(controllers::repositories::delete),
                             )
                             .route(
-                                "/repositories",
-                                web::post().to(controllers::repositories::create_or_get),
+                                "/oxen/{namespace}",
+                                web::post().to(controllers::repositories::create),
                             )
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))

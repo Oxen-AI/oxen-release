@@ -32,9 +32,9 @@ pub async fn create(
 ) -> Result<HttpResponse, actix_web::Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    // name of the repo
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
-    match api::local::repositories::get_by_name(&app_data.path, name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => p_create_entry(&repo, body, data).await,
         Ok(None) => {
             log::debug!("404 could not get repo {}", name,);
@@ -50,10 +50,9 @@ pub async fn create(
 pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
-
-    log::debug!("download_content_ids repo name [{}]", name,);
-    match api::local::repositories::get_by_name(&app_data.path, name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             let mut bytes = web::BytesMut::new();
             while let Some(item) = body.next().await {
@@ -100,6 +99,7 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
 pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
@@ -114,7 +114,7 @@ pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) ->
         page_num,
         page_size,
     );
-    match api::local::repositories::get_by_name(&app_data.path, name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             log::debug!("download_entries got repo [{}]", name);
             match get_entries_for_page(&repo, commit_id, page_num, page_size) {
@@ -177,6 +177,7 @@ fn compress_entries(
 pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
@@ -191,7 +192,7 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
         page_num,
         page_size,
     );
-    match api::local::repositories::get_by_name(&app_data.path, name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             log::debug!("list_entries got repo [{}]", name);
             match get_entries_for_page(&repo, commit_id, page_num, page_size) {
@@ -321,8 +322,9 @@ mod tests {
 
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
 
         let entry = CommitEntry {
             commit_id: String::from("4312"),
@@ -334,14 +336,19 @@ mod tests {
         };
 
         let payload = "🐂 💨";
-        let uri = format!("/repositories/{}/entries?{}", name, entry.to_uri_encoded());
+        let uri = format!(
+            "/oxen/{}/{}/entries?{}",
+            namespace,
+            name,
+            entry.to_uri_encoded()
+        );
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{repo_name}/entries",
+                    "/oxen/{namespace}/{repo_name}/entries",
                     web::post().to(controllers::entries::create),
                 ),
         )
@@ -379,8 +386,9 @@ mod tests {
 
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
 
         // write files to dir
         liboxen::test::populate_dir_with_training_data(&repo.path)?;
@@ -394,7 +402,7 @@ mod tests {
         let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
 
         // Use the api list the files from the commit
-        let uri = format!("/repositories/{}/commits/{}/entries", name, commit.id);
+        let uri = format!("/oxen/{}/{}/commits/{}/entries", namespace, name, commit.id);
         println!("Hit uri {}", uri);
         let app = actix_web::test::init_service(
             App::new()
@@ -402,7 +410,7 @@ mod tests {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{repo_name}/commits/{commit_id}/entries",
+                    "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries",
                     web::get().to(controllers::entries::list_entries),
                 ),
         )
@@ -431,10 +439,11 @@ mod tests {
 
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         let name_2 = "Testing-Name-2";
-        let repo = test::create_local_repo(&sync_dir, name)?;
-        let repo_2 = test::create_local_repo(&sync_dir, name_2)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
+        let repo_2 = test::create_local_repo(&sync_dir, namespace, name_2)?;
 
         // write files to dir
         liboxen::test::populate_dir_with_training_data(&repo.path)?;
@@ -448,7 +457,10 @@ mod tests {
         let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
 
         // Use the api list the files from the commit
-        let uri = format!("/repositories/{}/commits/{}/download_page", name, commit.id);
+        let uri = format!(
+            "/oxen/{}/{}/commits/{}/download_page",
+            namespace, name, commit.id
+        );
         println!("Hit uri {}", uri);
         let app = actix_web::test::init_service(
             App::new()
@@ -456,7 +468,7 @@ mod tests {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{repo_name}/commits/{commit_id}/download_page",
+                    "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_page",
                     web::get().to(controllers::entries::download_page),
                 ),
         )
@@ -465,6 +477,8 @@ mod tests {
         let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
         let resp = actix_web::test::call_service(&app, req).await;
         println!("GOT RESP STATUS: {}", resp.response().status());
+        assert_eq!(200, resp.response().status());
+
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
 
         let mut archive = Archive::new(GzDecoder::new(bytes.as_ref()));

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RemoteRepository {
-    pub id: String,
+    pub namespace: String,
     pub name: String,
     pub url: String,
 }
@@ -12,7 +12,7 @@ pub struct RemoteRepository {
 impl RemoteRepository {
     pub fn from_view(repository: &RepositoryView, url: &str) -> RemoteRepository {
         RemoteRepository {
-            id: repository.id.clone(),
+            namespace: repository.namespace.clone(),
             name: repository.name.clone(),
             url: String::from(url),
         }
@@ -20,7 +20,7 @@ impl RemoteRepository {
 
     pub fn from_local(repository: &LocalRepository, url: &str) -> RemoteRepository {
         RemoteRepository {
-            id: repository.id.clone(),
+            namespace: repository.namespace.clone(),
             name: repository.name.clone(),
             url: String::from(url),
         }

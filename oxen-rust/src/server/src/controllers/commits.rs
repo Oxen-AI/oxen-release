@@ -21,15 +21,16 @@ use tar::Archive;
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    let path: Option<&str> = req.match_info().get("repo_name");
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let repo_name: Option<&str> = req.match_info().get("repo_name");
 
-    if let Some(path) = path {
-        let repo_dir = app_data.path.join(path);
+    if let (Some(namespace), Some(repo_name)) = (namespace, repo_name) {
+        let repo_dir = app_data.path.join(namespace).join(repo_name);
         match p_index(&repo_dir) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
-                let msg = format!("api err: {}", err);
-                HttpResponse::NotFound().json(StatusMessage::error(&msg))
+                log::error!("api err: {}", err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
         }
     } else {
@@ -41,11 +42,14 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 // List commits for a branch in repository
 pub async fn index_branch(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    let path: Option<&str> = req.match_info().get("repo_name");
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let repo_name: Option<&str> = req.match_info().get("repo_name");
     let branch_name: Option<&str> = req.match_info().get("branch_name");
 
-    if let (Some(path), Some(branch_name)) = (path, branch_name) {
-        let repo_dir = app_data.path.join(path);
+    if let (Some(namespace), Some(repo_name), Some(branch_name)) =
+        (namespace, repo_name, branch_name)
+    {
+        let repo_dir = app_data.path.join(namespace).join(repo_name);
         match p_index_branch(&repo_dir, branch_name) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
@@ -62,10 +66,11 @@ pub async fn index_branch(req: HttpRequest) -> HttpResponse {
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(name), Some(commit_id)) = (name, commit_id) {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
+    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
                 Ok(Some(commit)) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
@@ -91,7 +96,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `repo_name` and `commit_id` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -99,10 +104,11 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 pub async fn parents(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(name), Some(commit_id)) = (name, commit_id) {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
+    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => match p_get_parents(&repository, commit_id) {
                 Ok(parents) => HttpResponse::Ok().json(CommitParentsResponse {
                     status: String::from(STATUS_SUCCESS),
@@ -129,7 +135,7 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `repo_name` and `commit_id` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -157,10 +163,11 @@ fn p_index_branch(repo_dir: &Path, branch_name: &str) -> Result<ListCommitRespon
 pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(name), Some(commit_id)) = (name, commit_id) {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
+    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
                 Ok(Some(commit)) => match compress_commit(&repository, &commit) {
                     Ok(buffer) => HttpResponse::Ok().body(buffer),
@@ -189,7 +196,7 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `repo_name` and `commit_id` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -222,13 +229,14 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     log::debug!("Serialized commit data: {:?}", data);
 
     // name to the repo, should be in url path so okay to unwap
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let branch_name: &str = req.match_info().get("branch_name").unwrap();
 
     log::debug!("upload commit for branch {:?}", branch_name);
 
     match (
-        api::local::repositories::get_by_name(&app_data.path, repo_name),
+        api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name),
         data,
     ) {
         (Ok(Some(repo)), Ok(commit)) => {
@@ -263,10 +271,12 @@ pub async fn upload(
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     // name to the repo, should be in url path so okay to unwap
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
-    match api::local::repositories::get_by_name(&app_data.path, repo_name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
         Ok(Some(repo)) => {
             let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
@@ -280,7 +290,7 @@ pub async fn upload(
 
                     std::thread::spawn(move || {
                         // Get tar.gz bytes for history/COMMIT_ID data
-                        println!("Decompressing {} bytes", bytes.len());
+                        println!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
                         // Unpack tarball to our hidden dir
                         let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
                         archive.unpack(hidden_dir).unwrap();
@@ -369,16 +379,18 @@ mod tests {
     async fn test_controllers_commits_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Name";
-        test::create_local_repo(&sync_dir, name)?;
+        test::create_local_repo(&sync_dir, namespace, name)?;
 
-        let uri = format!("/repositories/{}/commits", name);
-        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+        let uri = format!("/oxen/{}/{}/commits", namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await;
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
+        println!("Got response: {}", text);
         let list: ListCommitResponse = serde_json::from_str(text)?;
         // Plus the initial commit
         assert_eq!(list.commits.len(), 1);
@@ -393,8 +405,9 @@ mod tests {
     async fn test_controllers_commits_list_two_commits() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         command::add(&repo, path)?;
@@ -403,8 +416,8 @@ mod tests {
         command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
-        let uri = format!("/repositories/{}/commits", name);
-        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+        let uri = format!("/oxen/{}/{}/commits", namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -423,8 +436,9 @@ mod tests {
     async fn test_controllers_commits_list_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         command::add(&repo, path)?;
@@ -438,13 +452,13 @@ mod tests {
         command::commit(&repo, "second commit")?;
 
         let uri = format!(
-            "/repositories/{}/branches/{}/commits",
-            repo_name, branch_name
+            "/oxen/{}/{}/branches/{}/commits",
+            namespace, repo_name, branch_name
         );
-        let req = test::request_with_two_params(
+        let req = test::repo_request_with_param(
             &sync_dir,
             &uri,
-            "repo_name",
+            namespace,
             repo_name,
             "branch_name",
             branch_name,
@@ -468,8 +482,9 @@ mod tests {
     async fn test_controllers_commits_list_some_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
@@ -485,13 +500,13 @@ mod tests {
 
         // List commits from the first branch
         let uri = format!(
-            "/repositories/{}/branches/{}/commits",
-            repo_name, branch_name
+            "/oxen/{}/{}/branches/{}/commits",
+            namespace, repo_name, branch_name
         );
-        let req = test::request_with_two_params(
+        let req = test::repo_request_with_param(
             &sync_dir,
             &uri,
-            "repo_name",
+            namespace,
             repo_name,
             "branch_name",
             og_branch.name,
@@ -514,20 +529,21 @@ mod tests {
     async fn test_controllers_commits_create_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let og_branch = command::current_branch(&repo)?.unwrap();
         let og_commits = command::log(&repo)?;
 
         // List commits from the first branch
         let uri = format!(
-            "/repositories/{}/branches/{}/commits",
-            repo_name, og_branch.name
+            "/oxen/{}/{}/branches/{}/commits",
+            namespace, repo_name, og_branch.name
         );
-        let req = test::request_with_two_params(
+        let req = test::repo_request_with_param(
             &sync_dir,
             &uri,
-            "repo_name",
+            namespace,
             repo_name,
             "branch_name",
             og_branch.name,
@@ -565,8 +581,9 @@ mod tests {
     async fn test_controllers_commits_upload() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello");
         command::add(&repo, &hello_file)?;
@@ -591,14 +608,14 @@ mod tests {
         tar.finish()?;
         let payload: Vec<u8> = tar.into_inner()?.finish()?;
 
-        let uri = format!("/repositories/{}/commits/{}", repo_name, commit.id);
+        let uri = format!("/oxen/{}/{}/commits/{}", namespace, repo_name, commit.id);
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData {
                     path: sync_dir.clone(),
                 })
                 .route(
-                    "/repositories/{repo_name}/commits/{commit_id}",
+                    "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
                     web::post().to(controllers::commits::upload),
                 ),
         )
@@ -625,10 +642,12 @@ mod tests {
 
         // Make sure we unzipped the tar ball
         let uploaded_file = sync_dir
-            .join(repo.name)
+            .join(namespace)
+            .join(repo_name)
             .join(OXEN_HIDDEN_DIR)
             .join(path_to_compress)
             .join(zipped_filename);
+        println!("Looking for file: {:?}", uploaded_file);
         assert!(uploaded_file.exists());
         assert_eq!(
             util::fs::read_from_path(&uploaded_file)?,

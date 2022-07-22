@@ -447,6 +447,7 @@ pub fn set_remote(
 /// # Get a log of all the commits
 ///
 /// ```
+/// # use liboxen::api;
 /// use liboxen::command;
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
@@ -468,12 +469,15 @@ pub fn set_remote(
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::set_remote(&mut repo, "origin", "http://hub.oxen.ai/repositories/hello");
+/// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
+///
+/// let remote_repo = command::create_remote(&repo, "0.0.0.0:3000")?;
 ///
 /// // Push the file
 /// command::push(&repo);
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
+/// # api::remote::repositories::delete(remote_repo)?;
 /// # Ok(())
 /// # }
 /// ```

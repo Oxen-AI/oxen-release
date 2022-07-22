@@ -1,6 +1,7 @@
 use crate::api;
 use crate::command;
 use crate::config::{AuthConfig, HTTPConfig};
+use crate::constants;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::view::{RepositoryResponse, StatusMessage};
@@ -57,11 +58,12 @@ pub fn get_by_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
 
 pub fn create(repository: &LocalRepository, host: &str) -> Result<RemoteRepository, OxenError> {
     let config = AuthConfig::default()?;
-    let url = format!("http://{}/repositories", host);
+    let uri = format!("/{}", constants::DEFAULT_NAMESPACE);
+    let url = api::endpoint::url_from_host(host, &uri);
     let repo_url = format!("{}/{}", url, repository.name);
     let root_commit = command::root_commit(repository)?;
-    let params = json!({ "name": repository.name, "root_commit": root_commit });
-    // println!("Create remote: {}", url);
+    let params = json!({ "name": repository.name, "namespace": repository.namespace, "root_commit": root_commit });
+    log::debug!("Create remote: {}", url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .post(url.to_owned())
@@ -149,7 +151,8 @@ mod tests {
             let repository = api::remote::repositories::create(&local_repo, auth_config.host())?;
             let url_repo = api::remote::repositories::get_by_name(&local_repo.name)?.unwrap();
 
-            assert_eq!(repository.id, url_repo.id);
+            assert_eq!(repository.namespace, url_repo.namespace);
+            assert_eq!(repository.name, url_repo.name);
 
             // cleanup
             api::remote::repositories::delete(repository)?;

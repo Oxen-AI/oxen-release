@@ -14,8 +14,12 @@ pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
     Ok(sync_dir)
 }
 
-pub fn create_local_repo(sync_dir: &Path, name: &str) -> Result<LocalRepository, OxenError> {
-    let repo_dir = sync_dir.join(name);
+pub fn create_local_repo(
+    sync_dir: &Path,
+    namespace: &str,
+    name: &str,
+) -> Result<LocalRepository, OxenError> {
+    let repo_dir = sync_dir.join(namespace).join(name);
     std::fs::create_dir_all(&repo_dir)?;
     let repo = command::init(&repo_dir)?;
     Ok(repo)
@@ -52,6 +56,52 @@ pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
         .to_http_request()
 }
 
+pub fn namespace_request(
+    sync_dir: &Path,
+    uri: &str,
+    repo_namespace: impl Into<Cow<'static, str>>,
+) -> actix_web::HttpRequest {
+    actix_web::test::TestRequest::with_uri(uri)
+        .app_data(OxenAppData {
+            path: sync_dir.to_path_buf(),
+        })
+        .param("namespace", repo_namespace)
+        .to_http_request()
+}
+
+pub fn repo_request(
+    sync_dir: &Path,
+    uri: &str,
+    repo_namespace: impl Into<Cow<'static, str>>,
+    repo_name: impl Into<Cow<'static, str>>,
+) -> actix_web::HttpRequest {
+    actix_web::test::TestRequest::with_uri(uri)
+        .app_data(OxenAppData {
+            path: sync_dir.to_path_buf(),
+        })
+        .param("namespace", repo_namespace)
+        .param("repo_name", repo_name)
+        .to_http_request()
+}
+
+pub fn repo_request_with_param(
+    sync_dir: &Path,
+    uri: &str,
+    repo_namespace: impl Into<Cow<'static, str>>,
+    repo_name: impl Into<Cow<'static, str>>,
+    key: impl Into<Cow<'static, str>>,
+    val: impl Into<Cow<'static, str>>,
+) -> actix_web::HttpRequest {
+    actix_web::test::TestRequest::with_uri(uri)
+        .app_data(OxenAppData {
+            path: sync_dir.to_path_buf(),
+        })
+        .param("namespace", repo_namespace)
+        .param("repo_name", repo_name)
+        .param(key, val)
+        .to_http_request()
+}
+
 pub fn request_with_param(
     sync_dir: &Path,
     uri: &str,
@@ -63,23 +113,6 @@ pub fn request_with_param(
             path: sync_dir.to_path_buf(),
         })
         .param(key, val)
-        .to_http_request()
-}
-
-pub fn request_with_two_params(
-    sync_dir: &Path,
-    uri: &str,
-    key_1: impl Into<Cow<'static, str>>,
-    val_1: impl Into<Cow<'static, str>>,
-    key_2: impl Into<Cow<'static, str>>,
-    val_2: impl Into<Cow<'static, str>>,
-) -> actix_web::HttpRequest {
-    actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-        })
-        .param(key_1, val_1)
-        .param(key_2, val_2)
         .to_http_request()
 }
 
