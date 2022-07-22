@@ -23,7 +23,7 @@ fn test_command_init() -> Result<(), OxenError> {
         assert!(config_file.exists());
 
         // Name and id will be random but should be populated
-        assert!(!repo.id.is_empty());
+        assert!(!repo.namespace.is_empty());
         assert!(!repo.name.is_empty());
 
         // We make an initial parent commit and branch called "main"
