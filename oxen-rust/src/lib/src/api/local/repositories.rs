@@ -2,7 +2,7 @@ use crate::api;
 use crate::command;
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::{CommitEntryReader, CommitWriter};
+use crate::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
 
@@ -136,6 +136,10 @@ pub fn create_empty(
     let config_path = util::fs::config_filepath(&repo_dir);
     let local_repo = LocalRepository::new(&repo_dir)?;
     local_repo.save(&config_path)?;
+
+    // Create HEAD file and point it to DEFAULT_BRANCH_NAME
+    let ref_writer = RefWriter::new(&local_repo)?;
+    ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
 
     if let Some(root_commit) = &new_repo.root_commit {
         // Write the root commit
