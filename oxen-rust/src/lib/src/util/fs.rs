@@ -313,12 +313,6 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
             } else {
                 break;
             }
-        } else {
-            let err = format!(
-                "util::fs::path_relative_to_dir Invalid filename {:?}",
-                mut_path
-            );
-            return Err(OxenError::basic_str(&err));
         }
 
         mut_path.pop();
