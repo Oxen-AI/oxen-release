@@ -330,7 +330,7 @@ fn already_on_branch(repo: &LocalRepository, name: &str) -> bool {
 fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
     match RefReader::new(repo) {
         Ok(ref_reader) => {
-            if let Ok(head_commit_id) = ref_reader.head_commit_id() {
+            if let Ok(Some(head_commit_id)) = ref_reader.head_commit_id() {
                 // If we are already on the branch, do nothing
                 if head_commit_id == commit_id {
                     return true;
@@ -397,7 +397,9 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 
 /// # List remote branches
 pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    if let Some(remote_repo) = api::remote::repositories::get_by_name(&repo.name)? {
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_namespace_and_name(&repo.namespace, &repo.name)?
+    {
         let branches = api::remote::branches::list(&remote_repo)?;
         Ok(branches)
     } else {

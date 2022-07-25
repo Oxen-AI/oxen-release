@@ -45,16 +45,15 @@ pub fn get_by_name(
 
 pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
     let config = AuthConfig::default()?;
-    let uri = "/branches".to_string();
-    let url = api::endpoint::url_from_repo(repository, &uri);
-    // println!("create_or_get {}", url);
+    let url = api::endpoint::url_from_repo(repository, "/branches");
+    log::debug!("create_or_get {}", url);
 
-    let params = json!({ "name": name });
+    let params = serde_json::to_string(&json!({ "name": name }))?;
 
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .post(url)
-        .json(&params)
+        .body(params)
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),

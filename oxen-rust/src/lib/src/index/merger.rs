@@ -155,7 +155,9 @@ impl Merger {
     fn find_merge_commits<S: AsRef<str>>(&self, branch_name: S) -> Result<MergeCommits, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
-        let head_commit_id = ref_reader.head_commit_id()?;
+        let head_commit_id = ref_reader
+            .head_commit_id()?
+            .ok_or_else(OxenError::head_not_found)?;
         let merge_commit_id = ref_reader
             .get_commit_id_for_branch(branch_name)?
             .ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;
@@ -219,7 +221,9 @@ impl Merger {
     ) -> Result<Commit, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
-        let head_commit_id = ref_reader.head_commit_id()?;
+        let head_commit_id = ref_reader
+            .head_commit_id()?
+            .ok_or_else(OxenError::head_not_found)?;
         let merge_commit_id = ref_reader
             .get_commit_id_for_branch(branch_name)?
             .ok_or_else(|| OxenError::commit_db_corrupted(branch_name))?;

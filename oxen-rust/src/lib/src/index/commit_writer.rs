@@ -49,7 +49,7 @@ impl CommitWriter {
         //  - date
         //  - author
         match ref_reader.head_commit_id() {
-            Ok(parent_id) => {
+            Ok(Some(parent_id)) => {
                 // We might be in a merge commit, in which case we would have multiple parents
                 if self.is_merge_commit() {
                     self.create_merge_commit(message)
@@ -64,7 +64,7 @@ impl CommitWriter {
                     })
                 }
             }
-            Err(_) => {
+            _ => {
                 // We are creating initial commit, no parents
                 Ok(NewCommit {
                     parent_ids: vec![],

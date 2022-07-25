@@ -27,14 +27,14 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         },
         Ok(None) => {
             log::debug!(
-                "404 api::local::branches::create could not get repo {}",
+                "404 api::local::branches::index could not get repo {}",
                 name,
             );
             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
         }
         Err(err) => {
             log::error!(
-                "Err api::local::branches::create could not get repo {} {:?}",
+                "Err api::local::branches::index could not get repo {} {:?}",
                 name,
                 err
             );
@@ -90,6 +90,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    println!("controllers::branches::create_or_get() got body: {}", body);
     let data: Result<BranchNew, serde_json::Error> = serde_json::from_str(&body);
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -126,7 +127,10 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                         }
                     },
                     Err(err) => {
-                        log::error!("Err api::local::branches::create: {:?}", err);
+                        log::error!(
+                            "Err api::local::branches::create_or_get get_by_name {:?}",
+                            err
+                        );
                         HttpResponse::InternalServerError()
                             .json(StatusMessage::internal_server_error())
                     }
@@ -141,7 +145,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
             }
             Err(err) => {
                 log::error!(
-                    "Err api::local::branches::create could not get repo {} {:?}",
+                    "Err api::local::branches::create_or_get could not get repo {} {:?}",
                     name,
                     err
                 );

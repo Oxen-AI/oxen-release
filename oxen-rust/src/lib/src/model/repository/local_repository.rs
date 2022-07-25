@@ -94,8 +94,8 @@ impl LocalRepository {
 
     pub fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!("clone_remote {} -> {:?}", url, dst);
-        let name = LocalRepository::dirname_from_url(url)?;
-        match api::remote::repositories::get_by_name(&name) {
+        let repo = LocalRepository::repo_new_from_url(url)?;
+        match api::remote::repositories::get_by_namespace_and_name(&repo.namespace, &repo.name) {
             Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst)?)),
             Ok(None) => Ok(None),
             Err(_) => {
@@ -153,11 +153,11 @@ impl LocalRepository {
     fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
         let url = String::from(&repo.url);
-        let dir_name = LocalRepository::dirname_from_url(&url)?;
+        let repo_new = LocalRepository::repo_new_from_url(&url)?;
         // if directory already exists -> return Err
-        let repo_path = dst.join(&dir_name);
+        let repo_path = dst.join(&repo_new.name);
         if repo_path.exists() {
-            let err = format!("Directory already exists: {}", dir_name);
+            let err = format!("Directory already exists: {}", repo_new.name);
             return Err(OxenError::basic_str(&err));
         }
 
@@ -183,19 +183,27 @@ impl LocalRepository {
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
-            url, dir_name, dir_name
+            url, repo_new.name, repo_new.name
         );
 
         Ok(local_repo)
     }
 
-    pub fn dirname_from_url(url: &str) -> Result<String, OxenError> {
+    pub fn repo_new_from_url(url: &str) -> Result<RepositoryNew, OxenError> {
         let uri = url.parse::<Uri>()?;
-        if let Some(dirname) = uri.path().split('/').last() {
-            Ok(String::from(dirname))
-        } else {
-            Err(OxenError::basic_str(""))
+        let mut split_path: Vec<&str> = uri.path().split('/').collect();
+
+        if split_path.len() < 3 {
+            return Err(OxenError::basic_str("Invalid repo url"));
         }
+
+        let name = split_path.pop().unwrap();
+        let namespace = split_path.pop().unwrap();
+        Ok(RepositoryNew {
+            name: String::from(name),
+            namespace: String::from(namespace),
+            root_commit: None,
+        })
     }
 }
 
@@ -213,8 +221,9 @@ mod tests {
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
         let url = "http://0.0.0.0:3000/repositories/OxenData";
-        let dirname = LocalRepository::dirname_from_url(url)?;
-        assert_eq!(dirname, "OxenData");
+        let repo = LocalRepository::repo_new_from_url(url)?;
+        assert_eq!(repo.name, "OxenData");
+        assert_eq!(repo.namespace, "OxenData");
         Ok(())
     }
 

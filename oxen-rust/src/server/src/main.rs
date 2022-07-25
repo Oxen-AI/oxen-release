@@ -188,7 +188,7 @@ async fn main() -> std::io::Result<()> {
                                 web::delete().to(controllers::repositories::delete),
                             )
                             .route(
-                                "/oxen/{namespace}",
+                                "/oxen/repositories",
                                 web::post().to(controllers::repositories::create),
                             )
                             .wrap(Logger::default())
