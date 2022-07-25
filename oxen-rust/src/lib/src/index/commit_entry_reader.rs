@@ -126,7 +126,7 @@ impl CommitEntryReader {
         search_dir: &Path,
         page_num: usize,
         page_size: usize,
-    ) -> Result<Vec<DirEntry>, OxenError> {
+    ) -> Result<(Vec<DirEntry>, usize), OxenError> {
         let root_dir = Path::new("./");
         let dir_components_count = search_dir.components().count();
 
@@ -193,11 +193,22 @@ impl CommitEntryReader {
         // Combine all paths, starting with dirs
         dir_paths.append(&mut file_paths);
 
-        if (start_idx + page_size) > dir_paths.len() {
-            Ok(dir_paths)
-        } else {
+        let count = dir_paths.len();
+        log::debug!(
+            "list_directory page_num {} page_size {} start_index {} total {}",
+            page_num,
+            page_size,
+            start_idx,
+            count
+        );
+        if (start_idx + page_size) < dir_paths.len() {
             let subset: Vec<DirEntry> = dir_paths[start_idx..(start_idx + page_size)].to_vec();
-            Ok(subset)
+            Ok((subset, count))
+        } else if (start_idx < dir_paths.len()) && (start_idx + page_size) >= dir_paths.len() {
+            let subset: Vec<DirEntry> = dir_paths[start_idx..dir_paths.len()].to_vec();
+            Ok((subset, count))
+        } else {
+            Ok((vec![], count))
         }
     }
 
@@ -278,11 +289,12 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitEntryReader::new(&repo, commit)?;
-            let dir_entries = reader.list_directory(Path::new("./"), 1, 10)?;
+            let (dir_entries, size) = reader.list_directory(Path::new("./"), 1, 10)?;
             for entry in dir_entries.iter() {
                 println!("{:?}", entry);
             }
 
+            assert_eq!(size, 5);
             assert_eq!(dir_entries.len(), 5);
             assert_eq!(
                 dir_entries
@@ -305,9 +317,26 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitEntryReader::new(&repo, commit)?;
-            let dir_entries = reader.list_directory(Path::new("train"), 1, 10)?;
+            let (dir_entries, size) = reader.list_directory(Path::new("train"), 1, 10)?;
 
+            assert_eq!(size, 5);
             assert_eq!(dir_entries.len(), 5);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_entry_reader_list_train_directory_subset() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = command::log(&repo)?;
+            let commit = commits.first().unwrap();
+
+            let reader = CommitEntryReader::new(&repo, commit)?;
+            let (dir_entries, size) = reader.list_directory(Path::new("train"), 2, 3)?;
+
+            assert_eq!(size, 5);
+            assert_eq!(dir_entries.len(), 2);
 
             Ok(())
         })

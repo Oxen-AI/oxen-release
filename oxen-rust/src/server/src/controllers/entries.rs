@@ -295,16 +295,14 @@ fn list_directory_for_commit(
             match api::local::entries::list_directory(
                 repo, &commit, directory, &page_num, &page_size,
             ) {
-                Ok(entries) => {
+                Ok((entries, total_entries)) => {
                     log::debug!(
                         "list_directory_for_commit commit {} got {} entries",
                         commit_id,
                         entries.len()
                     );
 
-                    let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
-                        .unwrap_or(entries.len());
-                    let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+                    let total_pages = total_entries as f64 / page_size as f64;
                     let view = PaginatedDirEntries {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),

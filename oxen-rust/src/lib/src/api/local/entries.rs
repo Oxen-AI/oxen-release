@@ -39,7 +39,7 @@ pub fn list_directory(
     directory: &Path,
     page_num: &usize,
     page_size: &usize,
-) -> Result<Vec<DirEntry>, OxenError> {
+) -> Result<(Vec<DirEntry>, usize), OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     reader.list_directory(directory, *page_num, *page_size)
 }
