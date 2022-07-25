@@ -1,6 +1,6 @@
 use crate::error::OxenError;
 use crate::index::CommitEntryReader;
-use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::model::{Commit, CommitEntry, DirEntry, LocalRepository};
 
 use std::path::Path;
 
@@ -31,6 +31,17 @@ pub fn list_page(
 ) -> Result<Vec<CommitEntry>, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     reader.list_entry_page(*page_num, *page_size)
+}
+
+pub fn list_directory(
+    repo: &LocalRepository,
+    commit: &Commit,
+    directory: &Path,
+    page_num: &usize,
+    page_size: &usize,
+) -> Result<Vec<DirEntry>, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    reader.list_directory(directory, *page_num, *page_size)
 }
 
 #[cfg(test)]

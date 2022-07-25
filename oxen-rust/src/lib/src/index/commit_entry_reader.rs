@@ -2,11 +2,11 @@ use crate::constants::HISTORY_DIR;
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitEntryDBReader, CommitReader};
-use crate::model::{Commit, CommitEntry};
+use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -121,6 +121,86 @@ impl CommitEntryReader {
         Ok(paths)
     }
 
+    pub fn list_directory(
+        &self,
+        search_dir: &Path,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<Vec<DirEntry>, OxenError> {
+        let root_dir = Path::new("./");
+        let dir_components_count = search_dir.components().count();
+
+        let mut base_dirs: HashSet<PathBuf> = HashSet::new();
+
+        let mut dir_paths: Vec<DirEntry> = vec![];
+        let mut file_paths: Vec<DirEntry> = vec![];
+        let iter = self.db.iterator(IteratorMode::Start);
+        // Do not go negative, and start from 0
+        let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+        let start_idx = start_page * page_size;
+        for (key, _value) in iter {
+            let path_str = str::from_utf8(&*key)?;
+            let path = Path::new(&path_str);
+            // Find all the base dirs within this directory
+            if path.starts_with(search_dir) {
+                let subpath = util::fs::path_relative_to_dir(path, search_dir)?;
+                let mut components = subpath.components().collect::<VecDeque<_>>();
+
+                // Get uniq top level dirs
+                if let Some(base_dir) = components.pop_front() {
+                    let base_path: &Path = base_dir.as_ref();
+                    if base_dirs.insert(base_path.to_path_buf()) {
+                        dir_paths.push(DirEntry {
+                            filename: String::from(base_path.to_str().unwrap()),
+                            is_dir: true,
+                        })
+                    }
+                }
+
+                // Get all files that are in this dir level
+                if !components.is_empty() && (components.len() - 1) == dir_components_count {
+                    file_paths.push(DirEntry {
+                        filename: String::from(subpath.to_str().unwrap()),
+                        is_dir: false,
+                    })
+                }
+            }
+
+            // If searching for root
+            if search_dir == root_dir {
+                let mut components = path.components().collect::<VecDeque<_>>();
+                if let Some(base_dir) = components.pop_front() {
+                    let base_path: &Path = base_dir.as_ref();
+                    if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf())
+                    {
+                        dir_paths.push(DirEntry {
+                            filename: String::from(base_path.to_str().unwrap()),
+                            is_dir: true,
+                        })
+                    }
+                }
+
+                // zero since we popped
+                if components.is_empty() {
+                    file_paths.push(DirEntry {
+                        filename: String::from(path.to_str().unwrap()),
+                        is_dir: false,
+                    })
+                }
+            }
+        }
+
+        // Combine all paths, starting with dirs
+        dir_paths.append(&mut file_paths);
+
+        if (start_idx + page_size) > dir_paths.len() {
+            Ok(dir_paths)
+        } else {
+            let subset: Vec<DirEntry> = dir_paths[start_idx..(start_idx + page_size)].to_vec();
+            Ok(subset)
+        }
+    }
+
     pub fn has_prefix_in_dir(&self, prefix: &Path) -> bool {
         match self.list_entries() {
             Ok(entries) => entries
@@ -170,6 +250,7 @@ mod tests {
     use crate::command;
     use crate::error::OxenError;
     use crate::index::CommitEntryReader;
+
     use crate::test;
 
     use std::path::Path;
@@ -185,6 +266,48 @@ mod tests {
             let reader = CommitEntryReader::new(&repo, &commit)?;
             let path = Path::new(filename);
             assert!(reader.contains_path(path)?);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_entry_reader_list_top_level_directory() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = command::log(&repo)?;
+            let commit = commits.first().unwrap();
+
+            let reader = CommitEntryReader::new(&repo, commit)?;
+            let dir_entries = reader.list_directory(Path::new("./"), 1, 10)?;
+            for entry in dir_entries.iter() {
+                println!("{:?}", entry);
+            }
+
+            assert_eq!(dir_entries.len(), 5);
+            assert_eq!(
+                dir_entries
+                    .clone()
+                    .into_iter()
+                    .filter(|e| !e.is_dir)
+                    .count(),
+                2
+            );
+            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir).count(), 3);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_entry_reader_list_train_directory() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = command::log(&repo)?;
+            let commit = commits.first().unwrap();
+
+            let reader = CommitEntryReader::new(&repo, commit)?;
+            let dir_entries = reader.list_directory(Path::new("train"), 1, 10)?;
+
+            assert_eq!(dir_entries.len(), 5);
 
             Ok(())
         })

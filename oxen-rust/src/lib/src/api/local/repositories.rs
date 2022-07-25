@@ -134,7 +134,8 @@ pub fn create_empty(
 
     // Create config file
     let config_path = util::fs::config_filepath(&repo_dir);
-    let local_repo = LocalRepository::new(&repo_dir)?;
+    let mut local_repo = LocalRepository::new(&repo_dir)?;
+    local_repo.namespace = new_repo.namespace.clone();
     local_repo.save(&config_path)?;
 
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME

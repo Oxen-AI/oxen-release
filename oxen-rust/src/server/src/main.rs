@@ -140,6 +140,10 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::entries::list_entries),
                             )
                             .route(
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/files",
+                                web::get().to(controllers::entries::list_files),
+                            )
+                            .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_page",
                                 web::get().to(controllers::entries::download_page),
                             )
