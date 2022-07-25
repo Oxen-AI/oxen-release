@@ -100,13 +100,11 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// # }
 /// ```
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
-    if !hidden_dir.exists() {
-        return Err(OxenError::local_repo_not_found());
-    }
-
+    log::debug!("status before new_from_head");
     let reader = CommitEntryReader::new_from_head(repository)?;
+    log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
+    log::debug!("status before stager.status");
     let status = stager.status(&reader)?;
     Ok(status)
 }

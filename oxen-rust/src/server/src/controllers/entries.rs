@@ -73,11 +73,18 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
             let enc = GzEncoder::new(Vec::new(), Compression::default());
             let mut tar = tar::Builder::new(enc);
 
+            log::debug!("Got {} content ids", content_files.len());
             for content_file in content_files.iter() {
                 let version_path = repo.path.join(content_file);
                 if version_path.exists() && !content_file.is_empty() {
                     tar.append_path_with_name(version_path, content_file)
                         .unwrap();
+                } else {
+                    log::error!(
+                        "Could not find content: {:?} -> {:?}",
+                        content_file,
+                        version_path
+                    );
                 }
             }
 

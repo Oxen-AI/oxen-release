@@ -85,6 +85,9 @@ impl Indexer {
                     remote_commit.id,
                     remote_commit.message
                 );
+
+                log::debug!("unsynced_commits.push_back root {:?}", local_commit);
+                unsynced_commits.push_back(local_commit.to_owned());
             }
             Ok(None) => {
                 log::debug!(
@@ -131,7 +134,7 @@ impl Indexer {
                         &rb.branch,
                         local_commit,
                     )?;
-                    log::debug!("unsynced_commits.push_back last {:?}", local_commit);
+                    log::debug!("unsynced_commits.push_back root {:?}", local_commit);
                     unsynced_commits.push_back(local_commit.to_owned());
                 }
             }
@@ -481,8 +484,11 @@ impl Indexer {
                 chunk_size = entries.len();
             }
 
+            log::debug!(
+                "pull_entries_for_commit got {} missing content IDs",
+                content_ids.len()
+            );
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
-
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
                 api::remote::entries::download_content_ids(
                     &self.repository,
@@ -510,11 +516,11 @@ impl Indexer {
                     let version_path = util::fs::version_path(&self.repository, entry);
                     if std::fs::copy(&version_path, &filepath).is_err() {
                         eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
+                    } else {
+                        let metadata = fs::metadata(filepath).unwrap();
+                        let mtime = FileTime::from_last_modification_time(&metadata);
+                        committer.set_file_timestamps(entry, &mtime).unwrap();
                     }
-
-                    let metadata = fs::metadata(filepath).unwrap();
-                    let mtime = FileTime::from_last_modification_time(&metadata);
-                    committer.set_file_timestamps(entry, &mtime).unwrap();
                 }
                 bar.inc(1);
             });

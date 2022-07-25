@@ -223,7 +223,7 @@ mod tests {
         let url = "http://0.0.0.0:3000/repositories/OxenData";
         let repo = LocalRepository::repo_new_from_url(url)?;
         assert_eq!(repo.name, "OxenData");
-        assert_eq!(repo.namespace, "OxenData");
+        assert_eq!(repo.namespace, "repositories");
         Ok(())
     }
 
