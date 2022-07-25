@@ -138,8 +138,13 @@ pub fn create_empty(
     local_repo.save(&config_path)?;
 
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
-    let ref_writer = RefWriter::new(&local_repo)?;
-    ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
+    {
+        // Make go out of scope to release LOCK
+        log::debug!("create_empty BEFORE ref writer: {:?}", local_repo.path);
+        let ref_writer = RefWriter::new(&local_repo)?;
+        ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
+        log::debug!("create_empty AFTER ref writer: {:?}", local_repo.path);
+    }
 
     if let Some(root_commit) = &new_repo.root_commit {
         // Write the root commit
@@ -175,7 +180,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_local_repository_api_create_empty() -> Result<(), OxenError> {
+    fn test_local_repository_api_create_empty_with_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";

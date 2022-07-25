@@ -185,10 +185,10 @@ fn test_command_checkout_commit_id() -> Result<(), OxenError> {
         // We checkout the previous commit
         command::checkout(&repo, &first_commit.unwrap().id)?;
 
-        // Then we do not have the world file anymore
+        // // Then we do not have the world file anymore
         assert!(!world_file.exists());
 
-        // Check status
+        // // Check status
         let status = command::status(&repo)?;
         assert!(status.is_clean());
 

@@ -1,6 +1,7 @@
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::db;
 use crate::error::OxenError;
+use crate::index::CommitReader;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
 
@@ -11,6 +12,7 @@ use std::str;
 pub struct RefReader {
     refs_db: DB,
     head_file: PathBuf,
+    repository: LocalRepository,
 }
 
 impl RefReader {
@@ -30,6 +32,7 @@ impl RefReader {
         Ok(RefReader {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
             head_file: head_filename,
+            repository: repository.clone(),
         })
     }
 
@@ -77,9 +80,15 @@ impl RefReader {
 
         if let Some(head_ref) = head_ref {
             if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
+                log::debug!("RefReader::head_commit_id got commit id {}", commit_id);
                 Ok(Some(commit_id))
             } else {
-                Ok(Some(head_ref))
+                let commit_reader = CommitReader::new(&self.repository)?;
+                if commit_reader.commit_id_exists(&head_ref) {
+                    Ok(Some(head_ref))
+                } else {
+                    Ok(None)
+                }
             }
         } else {
             Ok(None)
