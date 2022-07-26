@@ -141,7 +141,7 @@ async fn main() -> std::io::Result<()> {
                             )
                             .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/files",
-                                web::get().to(controllers::entries::list_files),
+                                web::get().to(controllers::entries::list_files_for_commit),
                             )
                             .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_page",
@@ -178,6 +178,10 @@ async fn main() -> std::io::Result<()> {
                             .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
                                 web::get().to(controllers::repositories::get_file),
+                            )
+                            .route(
+                                "/oxen/{namespace}/{repo_name}/files",
+                                web::get().to(controllers::entries::list_files_for_head),
                             )
                             .route(
                                 "/oxen/{namespace}",

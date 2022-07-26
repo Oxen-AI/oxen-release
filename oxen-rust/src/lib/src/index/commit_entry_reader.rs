@@ -128,7 +128,11 @@ impl CommitEntryReader {
         page_size: usize,
     ) -> Result<(Vec<DirEntry>, usize), OxenError> {
         let root_dir = Path::new("./");
-        let dir_components_count = search_dir.components().count();
+        let mut search_dir = search_dir.to_path_buf();
+        if !search_dir.starts_with(&root_dir) {
+            search_dir = root_dir.join(&search_dir);
+        }
+        let search_components_count = search_dir.components().count();
 
         let mut base_dirs: HashSet<PathBuf> = HashSet::new();
 
@@ -139,17 +143,19 @@ impl CommitEntryReader {
         let start_page = if page_num == 0 { 0 } else { page_num - 1 };
         let start_idx = start_page * page_size;
         for (key, _value) in iter {
-            let path_str = str::from_utf8(&*key)?;
+            let path_str = format!("{}{}", root_dir.to_str().unwrap(), str::from_utf8(&*key)?);
             let path = Path::new(&path_str);
+            log::debug!("Considering {:?} starts with {:?}", path, search_dir);
             // Find all the base dirs within this directory
-            if path.starts_with(search_dir) {
-                let subpath = util::fs::path_relative_to_dir(path, search_dir)?;
+            if path.starts_with(&search_dir) {
+                let path_components_count = path.components().count();
+                let subpath = util::fs::path_relative_to_dir(path, &search_dir)?;
                 let mut components = subpath.components().collect::<VecDeque<_>>();
 
                 // Get uniq top level dirs
                 if let Some(base_dir) = components.pop_front() {
                     let base_path: &Path = base_dir.as_ref();
-                    if base_dirs.insert(base_path.to_path_buf()) {
+                    if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf()) {
                         dir_paths.push(DirEntry {
                             filename: String::from(base_path.to_str().unwrap()),
                             is_dir: true,
@@ -158,32 +164,9 @@ impl CommitEntryReader {
                 }
 
                 // Get all files that are in this dir level
-                if !components.is_empty() && (components.len() - 1) == dir_components_count {
+                if (path_components_count - 1) == search_components_count {
                     file_paths.push(DirEntry {
                         filename: String::from(subpath.to_str().unwrap()),
-                        is_dir: false,
-                    })
-                }
-            }
-
-            // If searching for root
-            if search_dir == root_dir {
-                let mut components = path.components().collect::<VecDeque<_>>();
-                if let Some(base_dir) = components.pop_front() {
-                    let base_path: &Path = base_dir.as_ref();
-                    if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf())
-                    {
-                        dir_paths.push(DirEntry {
-                            filename: String::from(base_path.to_str().unwrap()),
-                            is_dir: true,
-                        })
-                    }
-                }
-
-                // zero since we popped
-                if components.is_empty() {
-                    file_paths.push(DirEntry {
-                        filename: String::from(path.to_str().unwrap()),
                         is_dir: false,
                     })
                 }
@@ -311,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_entry_reader_list_train_directory() -> Result<(), OxenError> {
+    fn test_commit_entry_reader_list_train_directory_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
@@ -321,6 +304,22 @@ mod tests {
 
             assert_eq!(size, 5);
             assert_eq!(dir_entries.len(), 5);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_entry_reader_list_train_sub_directory_full() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = command::log(&repo)?;
+            let commit = commits.first().unwrap();
+
+            let reader = CommitEntryReader::new(&repo, commit)?;
+            let (dir_entries, size) = reader.list_directory(Path::new("annotations/train"), 1, 10)?;
+
+            assert_eq!(size, 2);
+            assert_eq!(dir_entries.len(), 2);
 
             Ok(())
         })
