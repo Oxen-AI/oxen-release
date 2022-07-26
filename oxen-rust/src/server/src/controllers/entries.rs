@@ -225,7 +225,70 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
     }
 }
 
-pub async fn list_files(
+pub async fn list_files_for_head(
+    req: HttpRequest,
+    query: web::Query<DirectoryPageNumQuery>,
+) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
+
+    // default to first page with first ten values
+    let page_num: usize = query.page_num.unwrap_or(1);
+    let page_size: usize = query.page_size.unwrap_or(10);
+    let directory = query
+        .directory
+        .clone()
+        .unwrap_or_else(|| String::from("./"));
+    let directory = Path::new(&directory);
+
+    log::debug!(
+        "list_files_for_head repo name [{}] directory: {:?} page_num {} page_size {}",
+        name,
+        directory,
+        page_num,
+        page_size,
+    );
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+        Ok(Some(repo)) => {
+            log::debug!("list_files_for_head got repo [{}]", name);
+            if let Ok(commit) = api::local::commits::get_head_commit(&repo) {
+                match list_directory_for_commit(&repo, &commit.id, directory, page_num, page_size) {
+                    Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
+                    Err(status_message) => HttpResponse::InternalServerError().json(status_message),
+                }
+            } else {
+                log::debug!("list_files_for_head Could not find head commit for repo {}", name);
+                HttpResponse::Ok().json(PaginatedDirEntries {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    page_size: 0,
+                    page_number: 0,
+                    total_pages: 0,
+                    total_entries: 0,
+                    entries: vec![],
+                })
+            }
+        }
+        Ok(None) => {
+            log::debug!("list_files_for_head Could not find repo with name {}", name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!(
+                "list_files_for_head Unable to list directory {:?} in repo {}/{} for. Err: {}",
+                directory,
+                namespace,
+                name,
+                err
+            );
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+pub async fn list_files_for_commit(
     req: HttpRequest,
     query: web::Query<DirectoryPageNumQuery>,
 ) -> HttpResponse {
