@@ -145,7 +145,7 @@ impl CommitEntryReader {
         for (key, _value) in iter {
             let path_str = format!("{}{}", root_dir.to_str().unwrap(), str::from_utf8(&*key)?);
             let path = Path::new(&path_str);
-            log::debug!("Considering {:?} starts with {:?}", path, search_dir);
+            // log::debug!("Considering {:?} starts with {:?}", path, search_dir);
             // Find all the base dirs within this directory
             if path.starts_with(&search_dir) {
                 let path_components_count = path.components().count();

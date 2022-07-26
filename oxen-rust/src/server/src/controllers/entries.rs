@@ -82,8 +82,12 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
 
             log::debug!("Got {} content ids", content_files.len());
             for content_file in content_files.iter() {
+                if !content_file.is_empty() {
+                    continue;
+                }
+                
                 let version_path = repo.path.join(content_file);
-                if version_path.exists() && !content_file.is_empty() {
+                if version_path.exists() {
                     tar.append_path_with_name(version_path, content_file)
                         .unwrap();
                 } else {
