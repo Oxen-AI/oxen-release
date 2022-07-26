@@ -176,8 +176,12 @@ async fn main() -> std::io::Result<()> {
                                 web::post().to(controllers::entries::create),
                             )
                             .route(
+                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}/entries/{filename:.*}",
+                                web::get().to(controllers::repositories::get_file_for_branch),
+                            )
+                            .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
-                                web::get().to(controllers::repositories::get_file),
+                                web::get().to(controllers::repositories::get_file_for_commit_id),
                             )
                             .route(
                                 "/oxen/{namespace}/{repo_name}/files",

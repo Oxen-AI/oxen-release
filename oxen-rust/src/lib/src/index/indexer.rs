@@ -289,7 +289,7 @@ impl Indexer {
             _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
         };
 
-        self.pull_all_commit_objects_then(rb, |commit| {
+        self.pull_all_commit_objects_then(&remote_repo, rb, |commit| {
             // Sync the HEAD commit data
             let limit: usize = 0; // zero means pull all
             self.pull_entries_for_commit(&remote_repo, &commit, limit)?;
@@ -297,8 +297,8 @@ impl Indexer {
         })
     }
 
-    pub fn pull_all_commit_objects(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
-        self.pull_all_commit_objects_then(rb, |_commit| {
+    pub fn pull_all_commit_objects(&self, remote_repo: &RemoteRepository, rb: &RemoteBranch) -> Result<(), OxenError> {
+        self.pull_all_commit_objects_then(remote_repo, rb, |_commit| {
             // then nothing
             Ok(())
         })
@@ -306,20 +306,13 @@ impl Indexer {
 
     pub fn pull_all_commit_objects_then<F>(
         &self,
+        remote_repo: &RemoteRepository,
         rb: &RemoteBranch,
         then: F,
     ) -> Result<(), OxenError>
     where
         F: FnOnce(Commit) -> Result<(), OxenError>,
     {
-        let remote = self
-            .repository
-            .get_remote(&rb.remote)
-            .ok_or_else(OxenError::remote_not_set)?;
-
-        // Get the remote commit from branch name, and try to recursively pull subsequent commits
-        let remote_repo = api::remote::repositories::get_by_remote_url(&remote.url)?
-            .ok_or_else(|| OxenError::remote_repo_not_found(&rb.remote))?;
         let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
         let remote_branch = api::remote::branches::get_by_name(&remote_repo, &rb.branch)?
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
