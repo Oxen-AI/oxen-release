@@ -179,7 +179,8 @@ impl LocalRepository {
 
         // Pull all commit objects, but not entries
         let indexer = Indexer::new(&local_repo)?;
-        indexer.pull_all_commit_objects(&RemoteBranch::default())?;
+        let remote_repo = RemoteRepository::from_local(&local_repo, &url);
+        indexer.pull_all_commit_objects(&remote_repo, &RemoteBranch::default())?;
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",

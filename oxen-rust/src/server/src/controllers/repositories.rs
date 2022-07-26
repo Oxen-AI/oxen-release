@@ -7,11 +7,11 @@ use liboxen::view::http::{
 };
 use liboxen::view::{ListRepositoryResponse, RepositoryResponse, RepositoryView, StatusMessage};
 
-use liboxen::model::RepositoryNew;
+use liboxen::model::{RepositoryNew, LocalRepository};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -129,45 +129,21 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
+pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    let branch_name: &str = req.match_info().get("branch_name").unwrap();
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
-            match api::local::commits::get_by_id(&repo, commit_id) {
-                Ok(Some(commit)) => {
-                    match api::local::entries::get_entry_for_commit(&repo, &commit, &filepath) {
-                        Ok(Some(entry)) => {
-                            let version_path = util::fs::version_path(&repo, &entry);
-                            log::debug!(
-                                "get_file looking for {:?} -> {:?}",
-                                filepath,
-                                version_path
-                            );
-                            Ok(NamedFile::open(version_path)?)
-                        }
-                        Ok(None) => {
-                            log::debug!(
-                                "get_file entry not found for commit id {} -> {:?}",
-                                commit_id,
-                                filepath
-                            );
-                            // gives a 404
-                            Ok(NamedFile::open("")?)
-                        }
-                        Err(err) => {
-                            log::error!("get_file get entry err: {:?}", err);
-                            // gives a 404
-                            Ok(NamedFile::open("")?)
-                        }
-                    }
+            match api::local::branches::get_by_name(&repo, branch_name) {
+                Ok(Some(branch)) => {
+                    p_get_file_for_commit_id(&repo, &branch.commit_id, &filepath)
                 }
                 Ok(None) => {
-                    log::debug!("get_file commit not found {}", commit_id);
+                    log::debug!("get_file_for_branch branch_name not found {}", branch_name);
                     // gives a 404
                     Ok(NamedFile::open("")?)
                 }
@@ -184,7 +160,73 @@ pub async fn get_file(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
             Ok(NamedFile::open("")?)
         }
         Err(err) => {
+            log::error!("get_file_for_branch get repo err: {:?}", err);
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
+    }
+}
+
+pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => {
+            p_get_file_for_commit_id(&repo, &commit_id, &filepath)
+        }
+        Ok(None) => {
+            log::debug!("404 Could not find repo: {}", repo_name);
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
+        Err(err) => {
             log::error!("get_file get repo err: {:?}", err);
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
+    }
+}
+
+fn p_get_file_for_commit_id(repo: &LocalRepository, commit_id: &str, filepath: &Path) -> Result<NamedFile, actix_web::Error> {
+    match api::local::commits::get_by_id(repo, commit_id) {
+        Ok(Some(commit)) => {
+            match api::local::entries::get_entry_for_commit(&repo, &commit, filepath) {
+                Ok(Some(entry)) => {
+                    let version_path = util::fs::version_path(&repo, &entry);
+                    log::debug!(
+                        "p_get_file_for_commit_id looking for {:?} -> {:?}",
+                        filepath,
+                        version_path
+                    );
+                    Ok(NamedFile::open(version_path)?)
+                }
+                Ok(None) => {
+                    log::debug!(
+                        "p_get_file_for_commit_id entry not found for commit id {} -> {:?}",
+                        commit_id,
+                        filepath
+                    );
+                    // gives a 404
+                    Ok(NamedFile::open("")?)
+                }
+                Err(err) => {
+                    log::error!("p_get_file_for_commit_id get entry err: {:?}", err);
+                    // gives a 404
+                    Ok(NamedFile::open("")?)
+                }
+            }
+        }
+        Ok(None) => {
+            log::debug!("p_get_file_for_commit_id commit not found {}", commit_id);
+            // gives a 404
+            Ok(NamedFile::open("")?)
+        }
+        Err(err) => {
+            log::error!("p_get_file_for_commit_id get commit err: {:?}", err);
             // gives a 404
             Ok(NamedFile::open("")?)
         }
