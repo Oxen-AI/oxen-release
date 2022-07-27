@@ -42,6 +42,7 @@ pub fn get_by_id(
         }
 
         let body = res.text()?;
+        log::debug!("api::remote::commits::get_by_id Got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),

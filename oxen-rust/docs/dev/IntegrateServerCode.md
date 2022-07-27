@@ -30,7 +30,7 @@ HttpServer::new(move || {
         .wrap(HttpAuthentication::bearer(auth::validator::validate))
         // Add an endpoint for listing branches
         .route(
-            "/repositories/{repo_name}/branches",
+            "/oxen/{namespace}/{repo_name}/branches",
             web::get().to(controllers::branches::index),
         )
 })
@@ -55,9 +55,10 @@ This contains the base directory looking for repositories in `app_data.path`. We
 // ...
 
 // We can grab the `repo_name` parameter that was defined in main.rs when binding the server endpoint
+let namespace: &str = req.match_info().get("namespace").unwrap();
 let name: &str = req.match_info().get("repo_name").unwrap();
 // Then given a base path and a name, find the repository on disk
-match api::local::repositories::get_by_name(&app_data.path, name) {
+match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
 
 // ...
 ```
@@ -94,18 +95,19 @@ async fn test_branches_index_multiple_branches() -> Result<(), OxenError> {
     let sync_dir = test::get_sync_dir()?;
 
     // Repository Name
+    let namespace = "Testing-Namespace";
     let name = "Testing-Branches-1";
 
     // Create a local repository in the sync dir
-    let repo = test::create_local_repo(&sync_dir, name)?;
+    let repo = test::create_local_repo(&sync_dir, namespace, name)?;
     api::local::branches::create(&repo, "branch-1")?;
     api::local::branches::create(&repo, "branch-2")?;
 
     // uri format where we will fill in repo_name
-    let uri = format!("/repositories/{}/branches", name);
+    let uri = format!("/oxen/{}/{}/branches", namespace, name);
 
     // Creates a actix_web::test::TestRequest with and fills in the URI param
-    let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+    let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
     // Call the controller function
     let resp = controllers::branches::index(req).await;

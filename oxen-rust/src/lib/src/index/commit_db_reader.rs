@@ -15,11 +15,12 @@ impl CommitDBReader {
     ) -> Result<Commit, OxenError> {
         let ref_reader = RefReader::new(repo)?;
         match ref_reader.head_commit_id() {
-            Ok(commit_id) => {
+            Ok(Some(commit_id)) => {
                 let commit = CommitDBReader::get_commit_by_id(db, &commit_id)?
                     .ok_or_else(|| OxenError::commit_db_corrupted(commit_id))?;
                 Ok(commit)
             }
+            Ok(None) => Err(OxenError::head_not_found()),
             Err(err) => Err(err),
         }
     }

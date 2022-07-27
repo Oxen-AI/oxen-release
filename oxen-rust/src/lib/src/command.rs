@@ -100,13 +100,11 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// # }
 /// ```
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(&repository.path);
-    if !hidden_dir.exists() {
-        return Err(OxenError::local_repo_not_found());
-    }
-
+    log::debug!("status before new_from_head");
     let reader = CommitEntryReader::new_from_head(repository)?;
+    log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
+    log::debug!("status before stager.status");
     let status = stager.status(&reader)?;
     Ok(status)
 }
@@ -330,7 +328,7 @@ fn already_on_branch(repo: &LocalRepository, name: &str) -> bool {
 fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
     match RefReader::new(repo) {
         Ok(ref_reader) => {
-            if let Ok(head_commit_id) = ref_reader.head_commit_id() {
+            if let Ok(Some(head_commit_id)) = ref_reader.head_commit_id() {
                 // If we are already on the branch, do nothing
                 if head_commit_id == commit_id {
                     return true;
@@ -397,7 +395,9 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 
 /// # List remote branches
 pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    if let Some(remote_repo) = api::remote::repositories::get_by_name(&repo.name)? {
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_namespace_and_name(&repo.namespace, &repo.name)?
+    {
         let branches = api::remote::branches::list(&remote_repo)?;
         Ok(branches)
     } else {
@@ -447,6 +447,7 @@ pub fn set_remote(
 /// # Get a log of all the commits
 ///
 /// ```
+/// # use liboxen::api;
 /// use liboxen::command;
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
@@ -468,12 +469,15 @@ pub fn set_remote(
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::set_remote(&mut repo, "origin", "http://hub.oxen.ai/repositories/hello");
+/// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
+///
+/// let remote_repo = command::create_remote(&repo, "0.0.0.0:3000")?;
 ///
 /// // Push the file
 /// command::push(&repo);
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
+/// # api::remote::repositories::delete(remote_repo)?;
 /// # Ok(())
 /// # }
 /// ```

@@ -1,4 +1,4 @@
-use crate::model::{CommitEntry, RemoteEntry};
+use crate::model::{CommitEntry, DirEntry, RemoteEntry};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -20,6 +20,17 @@ pub struct PaginatedEntries {
     pub status: String,
     pub status_message: String,
     pub entries: Vec<RemoteEntry>,
+    pub page_size: usize,
+    pub page_number: usize,
+    pub total_pages: usize,
+    pub total_entries: usize,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct PaginatedDirEntries {
+    pub status: String,
+    pub status_message: String,
+    pub entries: Vec<DirEntry>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,

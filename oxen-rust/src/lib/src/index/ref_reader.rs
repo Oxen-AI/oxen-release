@@ -1,6 +1,7 @@
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::db;
 use crate::error::OxenError;
+use crate::index::CommitReader;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
 
@@ -11,6 +12,7 @@ use std::str;
 pub struct RefReader {
     refs_db: DB,
     head_file: PathBuf,
+    repository: LocalRepository,
 }
 
 impl RefReader {
@@ -30,6 +32,7 @@ impl RefReader {
         Ok(RefReader {
             refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
             head_file: head_filename,
+            repository: repository.clone(),
         })
     }
 
@@ -44,6 +47,11 @@ impl RefReader {
 
     pub fn get_current_branch(&self) -> Result<Option<Branch>, OxenError> {
         let ref_name = self.read_head_ref()?;
+        if ref_name.is_none() {
+            return Ok(None);
+        }
+
+        let ref_name = ref_name.unwrap();
         if let Some(id) = self.get_commit_id_for_branch(&ref_name)? {
             Ok(Some(Branch {
                 name: ref_name,
@@ -67,35 +75,52 @@ impl RefReader {
         }
     }
 
-    pub fn head_commit_id(&self) -> Result<String, OxenError> {
+    pub fn head_commit_id(&self) -> Result<Option<String>, OxenError> {
         let head_ref = self.read_head_ref()?;
-        if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
-            Ok(commit_id)
+
+        if let Some(head_ref) = head_ref {
+            if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
+                log::debug!("RefReader::head_commit_id got commit id {}", commit_id);
+                Ok(Some(commit_id))
+            } else {
+                let commit_reader = CommitReader::new(&self.repository)?;
+                if commit_reader.commit_id_exists(&head_ref) {
+                    Ok(Some(head_ref))
+                } else {
+                    Ok(None)
+                }
+            }
         } else {
-            Ok(head_ref)
+            Ok(None)
         }
     }
 
-    pub fn read_head_ref(&self) -> Result<String, OxenError> {
+    pub fn read_head_ref(&self) -> Result<Option<String>, OxenError> {
         // Should probably lock before reading...
         // but not a lot of parallel action going on here
-        util::fs::read_from_path(&self.head_file)
+        if self.head_file.exists() {
+            Ok(Some(util::fs::read_from_path(&self.head_file)?))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn list_branches(&self) -> Result<Vec<Branch>, OxenError> {
         let mut branch_names: Vec<Branch> = vec![];
-        let head_ref = self.read_head_ref()?;
+        let maybe_head_ref = self.read_head_ref()?;
         let iter = self.refs_db.iterator(IteratorMode::Start);
         for (key, value) in iter {
             match (str::from_utf8(&*key), str::from_utf8(&*value)) {
                 (Ok(key_str), Ok(value)) => {
-                    let ref_name = String::from(key_str);
-                    let id = String::from(value);
-                    branch_names.push(Branch {
-                        name: ref_name.clone(),
-                        commit_id: id.clone(),
-                        is_head: (ref_name == head_ref),
-                    });
+                    if let Some(head_ref) = &maybe_head_ref {
+                        let ref_name = String::from(key_str);
+                        let id = String::from(value);
+                        branch_names.push(Branch {
+                            name: ref_name.clone(),
+                            commit_id: id.clone(),
+                            is_head: (ref_name == head_ref.clone()),
+                        });
+                    }
                 }
                 _ => {
                     eprintln!("Could not read utf8 val...")
@@ -106,7 +131,12 @@ impl RefReader {
     }
 
     pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
-        let head_commit_id = self.head_commit_id()?;
+        let maybe_head_id = self.head_commit_id()?;
+        if maybe_head_id.is_none() {
+            return Ok(None);
+        }
+
+        let head_commit_id = maybe_head_id.unwrap();
         match self.get_commit_id_for_branch(name) {
             Ok(Some(commit_id)) => Ok(Some(Branch {
                 name: name.to_string(),

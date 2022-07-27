@@ -8,8 +8,9 @@ use liboxen::view::{BranchNew, BranchResponse, ListBranchesResponse, StatusMessa
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
-    match api::local::repositories::get_by_name(&app_data.path, name) {
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repository)) => match api::local::branches::list(&repository) {
             Ok(branches) => {
                 let view = ListBranchesResponse {
@@ -26,14 +27,14 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         },
         Ok(None) => {
             log::debug!(
-                "404 api::local::branches::create could not get repo {}",
+                "404 api::local::branches::index could not get repo {}",
                 name,
             );
             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
         }
         Err(err) => {
             log::error!(
-                "Err api::local::branches::create could not get repo {} {:?}",
+                "Err api::local::branches::index could not get repo {} {:?}",
                 name,
                 err
             );
@@ -45,10 +46,11 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     let branch_name: Option<&str> = req.match_info().get("branch_name");
-    if let (Some(name), Some(branch_name)) = (name, branch_name) {
-        match api::local::repositories::get_by_name(&app_data.path, name) {
+    if let (Some(namespace), Some(name), Some(branch_name)) = (namespace, name, branch_name) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => {
                 match api::local::branches::get_by_name(&repository, branch_name) {
                     Ok(Some(branch)) => HttpResponse::Ok().json(BranchResponse {
@@ -80,7 +82,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `repo_name` and `branch_name` params";
+        let msg = "Must supply `namespace`, `repo_name` and `branch_name` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -88,11 +90,17 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
+    println!("controllers::branches::create_or_get() got body: {}", body);
     let data: Result<BranchNew, serde_json::Error> = serde_json::from_str(&body);
 
+    let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
     match data {
-        Ok(data) => match api::local::repositories::get_by_name(&app_data.path, name) {
+        Ok(data) => match api::local::repositories::get_by_namespace_and_name(
+            &app_data.path,
+            namespace,
+            name,
+        ) {
             Ok(Some(repository)) => {
                 match api::local::branches::get_by_name(&repository, &data.name) {
                     Ok(Some(branch)) => {
@@ -119,7 +127,10 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                         }
                     },
                     Err(err) => {
-                        log::error!("Err api::local::branches::create: {:?}", err);
+                        log::error!(
+                            "Err api::local::branches::create_or_get get_by_name {:?}",
+                            err
+                        );
                         HttpResponse::InternalServerError()
                             .json(StatusMessage::internal_server_error())
                     }
@@ -134,7 +145,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
             }
             Err(err) => {
                 log::error!(
-                    "Err api::local::branches::create could not get repo {} {:?}",
+                    "Err api::local::branches::create_or_get could not get repo {} {:?}",
                     name,
                     err
                 );
@@ -165,10 +176,11 @@ mod tests {
     async fn test_branches_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
-        test::create_local_repo(&sync_dir, name)?;
-        let uri = format!("/repositories/{}/branches", name);
-        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+        test::create_local_repo(&sync_dir, namespace, name)?;
+        let uri = format!("/oxen/{}/{}/branches", namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -190,13 +202,14 @@ mod tests {
     async fn test_branches_index_multiple_branches() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
-        let repo = test::create_local_repo(&sync_dir, name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
         api::local::branches::create(&repo, "branch-1")?;
         api::local::branches::create(&repo, "branch-2")?;
 
-        let uri = format!("/repositories/{}/branches", name);
-        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+        let uri = format!("/oxen/{}/{}/branches", namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -216,16 +229,17 @@ mod tests {
     async fn test_branch_show() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let repo_name = "Testing-Branches-1";
-        let repo = test::create_local_repo(&sync_dir, repo_name)?;
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let branch_name = "branch-1";
         api::local::branches::create(&repo, branch_name)?;
 
-        let uri = format!("/repositories/{}/branches", repo_name);
-        let req = test::request_with_two_params(
+        let uri = format!("/oxen/{}/{}/branches", namespace, repo_name);
+        let req = test::repo_request_with_param(
             &sync_dir,
             &uri,
-            "repo_name",
+            namespace,
             repo_name,
             "branch_name",
             branch_name,
@@ -248,15 +262,16 @@ mod tests {
     async fn test_branch_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
+        let namespace = "Testing-Namespace";
         let name = "Testing-Branches-Create";
-        test::create_local_repo(&sync_dir, name)?;
+        test::create_local_repo(&sync_dir, namespace, name)?;
 
         let data = r#"
         {
             "name": "My-Branch-Name"
         }"#;
-        let uri = format!("/repositories/{}/branches", name);
-        let req = test::request_with_param(&sync_dir, &uri, "repo_name", name);
+        let uri = format!("/oxen/{}/{}/branches", namespace, name);
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::create_or_get(req, String::from(data)).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
