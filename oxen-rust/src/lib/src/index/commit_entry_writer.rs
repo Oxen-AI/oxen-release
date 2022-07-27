@@ -51,7 +51,7 @@ impl CommitEntryWriter {
     ) -> Result<PathBuf, OxenError> {
         // either copy over parent db as a starting point, or start new
         match CommitEntryWriter::head_commit_id(repo) {
-            Ok(parent_id) => {
+            Ok(Some(parent_id)) => {
                 log::debug!(
                     "CommitEntryWriter::create_db_dir_for_commit_id have parent_id {}",
                     parent_id
@@ -71,10 +71,9 @@ impl CommitEntryWriter {
                 // return current commit path, so we can add to it
                 Ok(current_commit_db_path)
             }
-            Err(err) => {
+            _ => {
                 log::debug!(
-                    "CommitEntryWriter::create_db_dir_for_commit_id does not have parent id {:?}",
-                    err
+                    "CommitEntryWriter::create_db_dir_for_commit_id does not have parent id",
                 );
                 // We are creating initial commit, no parent
                 let commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
@@ -94,7 +93,7 @@ impl CommitEntryWriter {
         }
     }
 
-    fn head_commit_id(repo: &LocalRepository) -> Result<String, OxenError> {
+    fn head_commit_id(repo: &LocalRepository) -> Result<Option<String>, OxenError> {
         let ref_reader = RefReader::new(repo)?;
         ref_reader.head_commit_id()
     }

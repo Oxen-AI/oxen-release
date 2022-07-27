@@ -1,5 +1,5 @@
 use crate::api;
-use crate::constants::DEFAULT_REMOTE_NAME;
+use crate::constants;
 use crate::error::OxenError;
 use crate::index::Indexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
@@ -14,13 +14,14 @@ use std::path::{Path, PathBuf};
 /// and we need the root commit so that we do not generate a new one on creation on the server
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RepositoryNew {
+    pub namespace: String,
     pub name: String,
     pub root_commit: Option<Commit>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LocalRepository {
-    pub id: String,
+    pub namespace: String,
     pub name: String,
     pub path: PathBuf,
     remote_name: Option<String>, // this is the current remote name
@@ -33,8 +34,7 @@ impl LocalRepository {
         // we're assuming the path is valid...
         let name = path.file_name().unwrap().to_str().unwrap();
         Ok(LocalRepository {
-            // generate new uuid locally
-            id: format!("{}", uuid::Uuid::new_v4()),
+            namespace: String::from(constants::DEFAULT_NAMESPACE),
             name: String::from(name),
             path: path.to_path_buf(),
             remotes: vec![],
@@ -44,8 +44,7 @@ impl LocalRepository {
 
     pub fn from_view(view: RepositoryView) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
-            // generate new uuid locally
-            id: view.id.clone(),
+            namespace: view.namespace.clone(),
             name: view.name.clone(),
             path: std::env::current_dir()?.join(view.name),
             remotes: vec![],
@@ -55,15 +54,14 @@ impl LocalRepository {
 
     pub fn from_remote(repo: RemoteRepository, path: &Path) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
-            // generate new uuid locally
-            id: repo.id.to_owned(),
+            namespace: repo.namespace.to_owned(),
             name: repo.name.to_owned(),
             path: path.to_owned(),
             remotes: vec![Remote {
-                name: String::from(DEFAULT_REMOTE_NAME),
+                name: String::from(constants::DEFAULT_REMOTE_NAME),
                 url: repo.url,
             }],
-            remote_name: Some(String::from(DEFAULT_REMOTE_NAME)),
+            remote_name: Some(String::from(constants::DEFAULT_REMOTE_NAME)),
         })
     }
 
@@ -96,8 +94,8 @@ impl LocalRepository {
 
     pub fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!("clone_remote {} -> {:?}", url, dst);
-        let name = LocalRepository::dirname_from_url(url)?;
-        match api::remote::repositories::get_by_name(&name) {
+        let repo = LocalRepository::repo_new_from_url(url)?;
+        match api::remote::repositories::get_by_namespace_and_name(&repo.namespace, &repo.name) {
             Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst)?)),
             Ok(None) => Ok(None),
             Err(_) => {
@@ -155,11 +153,11 @@ impl LocalRepository {
     fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
         let url = String::from(&repo.url);
-        let dir_name = LocalRepository::dirname_from_url(&url)?;
+        let repo_new = LocalRepository::repo_new_from_url(&url)?;
         // if directory already exists -> return Err
-        let repo_path = dst.join(&dir_name);
+        let repo_path = dst.join(&repo_new.name);
         if repo_path.exists() {
-            let err = format!("Directory already exists: {}", dir_name);
+            let err = format!("Directory already exists: {}", repo_new.name);
             return Err(OxenError::basic_str(&err));
         }
 
@@ -181,23 +179,32 @@ impl LocalRepository {
 
         // Pull all commit objects, but not entries
         let indexer = Indexer::new(&local_repo)?;
-        indexer.pull_all_commit_objects(&RemoteBranch::default())?;
+        let remote_repo = RemoteRepository::from_local(&local_repo, &url);
+        indexer.pull_all_commit_objects(&remote_repo, &RemoteBranch::default())?;
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
-            url, dir_name, dir_name
+            url, repo_new.name, repo_new.name
         );
 
         Ok(local_repo)
     }
 
-    pub fn dirname_from_url(url: &str) -> Result<String, OxenError> {
+    pub fn repo_new_from_url(url: &str) -> Result<RepositoryNew, OxenError> {
         let uri = url.parse::<Uri>()?;
-        if let Some(dirname) = uri.path().split('/').last() {
-            Ok(String::from(dirname))
-        } else {
-            Err(OxenError::basic_str(""))
+        let mut split_path: Vec<&str> = uri.path().split('/').collect();
+
+        if split_path.len() < 3 {
+            return Err(OxenError::basic_str("Invalid repo url"));
         }
+
+        let name = split_path.pop().unwrap();
+        let namespace = split_path.pop().unwrap();
+        Ok(RepositoryNew {
+            name: String::from(name),
+            namespace: String::from(namespace),
+            root_commit: None,
+        })
     }
 }
 
@@ -215,8 +222,9 @@ mod tests {
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
         let url = "http://0.0.0.0:3000/repositories/OxenData";
-        let dirname = LocalRepository::dirname_from_url(url)?;
-        assert_eq!(dirname, "OxenData");
+        let repo = LocalRepository::repo_new_from_url(url)?;
+        assert_eq!(repo.name, "OxenData");
+        assert_eq!(repo.namespace, "repositories");
         Ok(())
     }
 
@@ -247,7 +255,7 @@ mod tests {
                 let config_path = local_repo.path.join(&cfg_fname);
                 assert!(config_path.exists());
                 assert_eq!(local_repo.name, local_repo.name);
-                assert_eq!(local_repo.id, local_repo.id);
+                assert_eq!(local_repo.namespace, local_repo.namespace);
 
                 let repository = LocalRepository::from_cfg(&config_path);
                 assert!(repository.is_ok());
@@ -268,7 +276,7 @@ mod tests {
     fn test_read_cfg() -> Result<(), OxenError> {
         let path = test::repo_cfg_file();
         let repo = LocalRepository::from_cfg(path)?;
-        assert_eq!(repo.id, "0af558cc-a57c-4197-a442-50eb889e9495");
+        assert_eq!(repo.namespace, "0af558cc-a57c-4197-a442-50eb889e9495");
         assert_eq!(repo.name, "Mini-Dogs-Vs-Cats");
         assert_eq!(repo.path, Path::new("/tmp/Mini-Dogs-Vs-Cats"));
         Ok(())
@@ -282,7 +290,7 @@ mod tests {
         orig_repo.save(final_path)?;
 
         let repo = LocalRepository::from_cfg(final_path)?;
-        assert_eq!(repo.id, orig_repo.id);
+        assert_eq!(repo.namespace, orig_repo.namespace);
         assert_eq!(repo.name, orig_repo.name);
 
         std::fs::remove_file(final_path)?;

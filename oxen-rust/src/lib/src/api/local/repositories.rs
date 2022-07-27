@@ -1,15 +1,20 @@
 use crate::api;
 use crate::command;
+use crate::constants;
 use crate::error::OxenError;
-use crate::index::{CommitEntryReader, CommitWriter};
+use crate::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
 
 use std::path::Path;
 use walkdir::WalkDir;
 
-pub fn get_by_name(sync_dir: &Path, name: &str) -> Result<Option<LocalRepository>, OxenError> {
-    let repo_dir = sync_dir.join(name);
+pub fn get_by_namespace_and_name(
+    sync_dir: &Path,
+    namespace: &str,
+    name: &str,
+) -> Result<Option<LocalRepository>, OxenError> {
+    let repo_dir = sync_dir.join(namespace).join(name);
 
     if !repo_dir.exists() {
         log::debug!("Repo does not exist: {:?}", repo_dir);
@@ -51,17 +56,50 @@ pub fn get_commit_stats_from_id(
     }
 }
 
-pub fn list(sync_dir: &Path) -> Result<Vec<LocalRepository>, OxenError> {
+pub fn list_namespaces(sync_dir: &Path) -> Result<Vec<String>, OxenError> {
     log::debug!(
-        "api::local::entries::list repositories for dir: {:?}",
+        "api::local::entries::list_namespaces repositories for sync dir: {:?}",
         sync_dir
     );
+    let mut namespaces: Vec<String> = vec![];
+    for path in std::fs::read_dir(sync_dir)? {
+        let path = path.unwrap().path();
+        if is_namespace_dir(&path) {
+            let name = path.file_name().unwrap().to_str().unwrap();
+            namespaces.push(String::from(name));
+        }
+    }
+
+    Ok(namespaces)
+}
+
+fn is_namespace_dir(path: &Path) -> bool {
+    if let Some(name) = path.to_str() {
+        // Make sure it is a directory, that doesn't start with .oxen and has repositories in it
+        return path.is_dir()
+            && !name.starts_with(constants::OXEN_HIDDEN_DIR)
+            && !list_repos_in_namespace(path).is_empty();
+    }
+    false
+}
+
+pub fn list_repos_in_namespace(namespace_path: &Path) -> Vec<LocalRepository> {
+    log::debug!(
+        "api::local::entries::list_repos_in_namespace repositories for dir: {:?}",
+        namespace_path
+    );
     let mut repos: Vec<LocalRepository> = vec![];
-    for entry in WalkDir::new(&sync_dir).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(&namespace_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         // if the directory has a .oxen dir, let's add it, otherwise ignore
         let local_dir = entry.path();
         let oxen_dir = util::fs::oxen_hidden_dir(local_dir);
-        // log::debug!("api::local::entries::list got local dir {:?}", local_dir);
+        log::debug!(
+            "api::local::entries::list_repos_in_namespace got local dir {:?}",
+            local_dir
+        );
 
         if oxen_dir.exists() {
             if let Ok(repository) = LocalRepository::from_dir(local_dir) {
@@ -70,14 +108,16 @@ pub fn list(sync_dir: &Path) -> Result<Vec<LocalRepository>, OxenError> {
         }
     }
 
-    Ok(repos)
+    repos
 }
 
 pub fn create_empty(
     sync_dir: &Path,
     new_repo: &RepositoryNew,
 ) -> Result<LocalRepository, OxenError> {
-    let repo_dir = sync_dir.join(Path::new(&new_repo.name));
+    let repo_dir = sync_dir
+        .join(&new_repo.namespace)
+        .join(Path::new(&new_repo.name));
     if repo_dir.exists() {
         let err = format!("Repository already exists {:?}", repo_dir);
         return Err(OxenError::basic_str(&err));
@@ -94,8 +134,18 @@ pub fn create_empty(
 
     // Create config file
     let config_path = util::fs::config_filepath(&repo_dir);
-    let local_repo = LocalRepository::new(&repo_dir)?;
+    let mut local_repo = LocalRepository::new(&repo_dir)?;
+    local_repo.namespace = new_repo.namespace.clone();
     local_repo.save(&config_path)?;
+
+    // Create HEAD file and point it to DEFAULT_BRANCH_NAME
+    {
+        // Make go out of scope to release LOCK
+        log::debug!("create_empty BEFORE ref writer: {:?}", local_repo.path);
+        let ref_writer = RefWriter::new(&local_repo)?;
+        ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
+        log::debug!("create_empty AFTER ref writer: {:?}", local_repo.path);
+    }
 
     if let Some(root_commit) = &new_repo.root_commit {
         // Write the root commit
@@ -107,7 +157,9 @@ pub fn create_empty(
 }
 
 pub fn delete(sync_dir: &Path, repository: LocalRepository) -> Result<LocalRepository, OxenError> {
-    let repo_dir = sync_dir.join(Path::new(&repository.name));
+    let repo_dir = sync_dir
+        .join(Path::new(&repository.namespace))
+        .join(Path::new(&repository.name));
     if !repo_dir.exists() {
         let err = format!("Repository does not exist {:?}", repo_dir);
         return Err(OxenError::basic_str(&err));
@@ -129,12 +181,14 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_local_repository_api_create_empty() -> Result<(), OxenError> {
+    fn test_local_repository_api_create_empty_with_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
-            let name: &str = "testing";
+            let namespace: &str = "test-namespace";
+            let name: &str = "test-repo-name";
             let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
             let timestamp = Local::now();
             let repo_new = RepositoryNew {
+                namespace: String::from(namespace),
                 name: String::from(name),
                 root_commit: Some(Commit {
                     id: initial_commit_id,
@@ -149,7 +203,9 @@ mod tests {
 
             assert_eq!(repo.name, name);
 
-            let repo_path = Path::new(&sync_dir).join(Path::new(name));
+            let repo_path = Path::new(&sync_dir)
+                .join(Path::new(namespace))
+                .join(Path::new(name));
             assert!(repo_path.exists());
 
             // Test that we can successful load a repository from that dir
@@ -161,27 +217,86 @@ mod tests {
     }
 
     #[test]
-    fn test_local_repository_api_create_list_one() -> Result<(), OxenError> {
+    fn test_local_repository_api_create_empty_no_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
-            let name: &str = "testing";
-            let repo_dir = sync_dir.join(name);
-            command::init(&repo_dir)?;
-            let repos = api::local::repositories::list(sync_dir)?;
-            assert_eq!(repos.len(), 1);
-            assert_eq!(repos[0].name, name);
+            let namespace: &str = "test-namespace";
+            let name: &str = "test-repo-name";
+            let repo_new = RepositoryNew {
+                namespace: String::from(namespace),
+                name: String::from(name),
+                root_commit: None,
+            };
+            let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
+
+            assert_eq!(repo.name, name);
+
+            let repo_path = Path::new(&sync_dir)
+                .join(Path::new(namespace))
+                .join(Path::new(name));
+            assert!(repo_path.exists());
+
+            // Test that we can successful load a repository from that dir
+            let repo = LocalRepository::from_dir(&repo_path)?;
+            assert_eq!(repo.name, name);
 
             Ok(())
         })
     }
 
     #[test]
-    fn test_local_repository_api_create_list_multiple() -> Result<(), OxenError> {
+    fn test_local_repository_api_list_namespaces_one() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
-            let _ = command::init(&sync_dir.join("testing1"))?;
-            let _ = command::init(&sync_dir.join("testing2"))?;
-            let _ = command::init(&sync_dir.join("testing3"))?;
+            let namespace: &str = "test-namespace";
+            let name: &str = "cool-repo";
 
-            let repos = api::local::repositories::list(sync_dir)?;
+            let namespace_dir = sync_dir.join(namespace);
+            std::fs::create_dir_all(&namespace_dir)?;
+            let repo_dir = namespace_dir.join(name);
+            command::init(&repo_dir)?;
+
+            let namespaces = api::local::repositories::list_namespaces(sync_dir)?;
+            assert_eq!(namespaces.len(), 1);
+            assert_eq!(namespaces[0], namespace);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_local_repository_api_list_multiple_namespaces() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|sync_dir| {
+            let namespace_1 = "my-namespace-1";
+            let namespace_1_dir = sync_dir.join(namespace_1);
+
+            let namespace_2 = "my-namespace-2";
+            let namespace_2_dir = sync_dir.join(namespace_2);
+
+            // We will not create any repos in the last namespace, to test that it gets filtered out
+            let namespace_3 = "my-namespace-3";
+            let _ = sync_dir.join(namespace_3);
+
+            let _ = command::init(&namespace_1_dir.join("testing1"))?;
+            let _ = command::init(&namespace_1_dir.join("testing2"))?;
+            let _ = command::init(&namespace_2_dir.join("testing3"))?;
+
+            let repos = api::local::repositories::list_namespaces(sync_dir)?;
+            assert_eq!(repos.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_local_repository_api_list_multiple_within_namespace() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|sync_dir| {
+            let namespace = "my-namespace";
+            let namespace_dir = sync_dir.join(namespace);
+
+            let _ = command::init(&namespace_dir.join("testing1"))?;
+            let _ = command::init(&namespace_dir.join("testing2"))?;
+            let _ = command::init(&namespace_dir.join("testing3"))?;
+
+            let repos = api::local::repositories::list_repos_in_namespace(&namespace_dir);
             assert_eq!(repos.len(), 3);
 
             Ok(())
@@ -191,9 +306,15 @@ mod tests {
     #[test]
     fn test_local_repository_api_get_by_name() -> Result<(), OxenError> {
         test::run_empty_dir_test(|sync_dir| {
+            let namespace = "my-namespace";
             let name = "my-repo";
-            let _ = command::init(&sync_dir.join(name))?;
-            let repo = api::local::repositories::get_by_name(sync_dir, name)?.unwrap();
+            let repo_dir = sync_dir.join(namespace).join(name);
+            std::fs::create_dir_all(&repo_dir)?;
+
+            let _ = command::init(&repo_dir)?;
+            let repo =
+                api::local::repositories::get_by_namespace_and_name(sync_dir, namespace, name)?
+                    .unwrap();
             assert_eq!(repo.name, name);
             Ok(())
         })

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RepositoryView {
-    pub id: String,
+    pub namespace: String,
     pub name: String,
 }
 
@@ -24,14 +24,14 @@ pub struct ListRepositoryResponse {
 impl RepositoryView {
     pub fn from_local(repository: LocalRepository) -> RepositoryView {
         RepositoryView {
-            id: repository.id.clone(),
+            namespace: repository.namespace.clone(),
             name: repository.name,
         }
     }
 
     pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
         RepositoryView {
-            id: repository.id.clone(),
+            namespace: repository.namespace.clone(),
             name: repository.name,
         }
     }
