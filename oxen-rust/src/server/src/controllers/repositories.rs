@@ -7,11 +7,11 @@ use liboxen::view::http::{
 };
 use liboxen::view::{ListRepositoryResponse, RepositoryResponse, RepositoryView, StatusMessage};
 
-use liboxen::model::{RepositoryNew, LocalRepository};
+use liboxen::model::{LocalRepository, RepositoryNew};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -139,9 +139,7 @@ pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, actix_we
     {
         Ok(Some(repo)) => {
             match api::local::branches::get_by_name(&repo, branch_name) {
-                Ok(Some(branch)) => {
-                    p_get_file_for_commit_id(&repo, &branch.commit_id, &filepath)
-                }
+                Ok(Some(branch)) => p_get_file_for_commit_id(&repo, &branch.commit_id, &filepath),
                 Ok(None) => {
                     log::debug!("get_file_for_branch branch_name not found {}", branch_name);
                     // gives a 404
@@ -175,9 +173,7 @@ pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, actix
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
-        Ok(Some(repo)) => {
-            p_get_file_for_commit_id(&repo, &commit_id, &filepath)
-        }
+        Ok(Some(repo)) => p_get_file_for_commit_id(&repo, commit_id, &filepath),
         Ok(None) => {
             log::debug!("404 Could not find repo: {}", repo_name);
             // gives a 404
@@ -191,12 +187,16 @@ pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, actix
     }
 }
 
-fn p_get_file_for_commit_id(repo: &LocalRepository, commit_id: &str, filepath: &Path) -> Result<NamedFile, actix_web::Error> {
+fn p_get_file_for_commit_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+    filepath: &Path,
+) -> Result<NamedFile, actix_web::Error> {
     match api::local::commits::get_by_id(repo, commit_id) {
         Ok(Some(commit)) => {
-            match api::local::entries::get_entry_for_commit(&repo, &commit, filepath) {
+            match api::local::entries::get_entry_for_commit(repo, &commit, filepath) {
                 Ok(Some(entry)) => {
-                    let version_path = util::fs::version_path(&repo, &entry);
+                    let version_path = util::fs::version_path(repo, &entry);
                     log::debug!(
                         "p_get_file_for_commit_id looking for {:?} -> {:?}",
                         filepath,

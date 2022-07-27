@@ -297,7 +297,11 @@ impl Indexer {
         })
     }
 
-    pub fn pull_all_commit_objects(&self, remote_repo: &RemoteRepository, rb: &RemoteBranch) -> Result<(), OxenError> {
+    pub fn pull_all_commit_objects(
+        &self,
+        remote_repo: &RemoteRepository,
+        rb: &RemoteBranch,
+    ) -> Result<(), OxenError> {
         self.pull_all_commit_objects_then(remote_repo, rb, |_commit| {
             // then nothing
             Ok(())
@@ -314,9 +318,9 @@ impl Indexer {
         F: FnOnce(Commit) -> Result<(), OxenError>,
     {
         let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
-        let remote_branch = api::remote::branches::get_by_name(&remote_repo, &rb.branch)?
+        let remote_branch = api::remote::branches::get_by_name(remote_repo, &rb.branch)?
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
-        match api::remote::commits::get_by_id(&remote_repo, &remote_branch.commit_id) {
+        match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id) {
             Ok(Some(commit)) => {
                 log::debug!(
                     "Oxen pull got remote commit: {} -> '{}'",
@@ -329,7 +333,7 @@ impl Indexer {
 
                 println!("🐂 fetching commit objects {}", commit.id);
                 // Sync the commit objects
-                self.rpull_missing_commit_objects(&remote_repo, &commit)?;
+                self.rpull_missing_commit_objects(remote_repo, &commit)?;
 
                 then(commit)?;
             }
