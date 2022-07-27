@@ -155,7 +155,8 @@ impl CommitEntryReader {
                 // Get uniq top level dirs
                 if let Some(base_dir) = components.pop_front() {
                     let base_path: &Path = base_dir.as_ref();
-                    if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf()) {
+                    if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf())
+                    {
                         dir_paths.push(DirEntry {
                             filename: String::from(base_path.to_str().unwrap()),
                             is_dir: true,
@@ -165,6 +166,7 @@ impl CommitEntryReader {
 
                 // Get all files that are in this dir level
                 if (path_components_count - 1) == search_components_count {
+                    // TODO: add in author and last modified given the CommitEntry commit_id
                     file_paths.push(DirEntry {
                         filename: String::from(subpath.to_str().unwrap()),
                         is_dir: false,
@@ -316,7 +318,8 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitEntryReader::new(&repo, commit)?;
-            let (dir_entries, size) = reader.list_directory(Path::new("annotations/train"), 1, 10)?;
+            let (dir_entries, size) =
+                reader.list_directory(Path::new("annotations/train"), 1, 10)?;
 
             assert_eq!(size, 2);
             assert_eq!(dir_entries.len(), 2);
