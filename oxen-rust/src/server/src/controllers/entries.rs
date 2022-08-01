@@ -82,7 +82,7 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
 
             log::debug!("Got {} content ids", content_files.len());
             for content_file in content_files.iter() {
-                if !content_file.is_empty() {
+                if content_file.is_empty() {
                     // last line might be empty on split \n
                     continue;
                 }
