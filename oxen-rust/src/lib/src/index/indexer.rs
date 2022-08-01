@@ -41,6 +41,16 @@ impl Indexer {
             _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
         };
 
+        // Create the branch, fail silently for now because first one might fail if no HEAD on the server
+        match api::remote::branches::create_or_get(&remote_repo, &rb.branch) {
+            Ok(branch) => {
+                log::debug!("Successfully Created remote branch {:?}", branch.name);
+            }
+            Err(err) => {
+                log::debug!("Could not create remote branch. Err: {:?}", err);
+            }
+        }
+
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.head_commit()?;
@@ -487,14 +497,19 @@ impl Indexer {
             );
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
-                api::remote::entries::download_content_ids(
+                if let Err(error) = api::remote::entries::download_content_ids(
                     &self.repository,
                     remote_repo,
                     &commit.id,
                     chunk,
                     &bar,
-                )
-                .unwrap();
+                ) {
+                    log::error!(
+                        "Could not download content IDs for chunk of size {}\n{}",
+                        chunk.len(),
+                        error
+                    );
+                }
             });
             bar.finish();
 
