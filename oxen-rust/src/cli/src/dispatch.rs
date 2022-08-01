@@ -43,6 +43,15 @@ pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn remove_remote(name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let mut repo = LocalRepository::from_dir(&repo_dir)?;
+
+    command::remove_remote(&mut repo, name)?;
+
+    Ok(())
+}
+
 pub fn list_remotes() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;

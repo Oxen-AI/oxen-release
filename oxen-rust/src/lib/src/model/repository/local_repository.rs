@@ -124,6 +124,16 @@ impl LocalRepository {
         }
     }
 
+    pub fn remove_remote(&mut self, name: &str) {
+        let mut new_remotes: Vec<Remote> = vec![];
+        for i in 0..self.remotes.len() {
+            if self.remotes[i].name != name {
+                new_remotes.push(self.remotes[i].clone());
+            }
+        }
+        self.remotes = new_remotes;
+    }
+
     pub fn has_remote(&self, name: &str) -> bool {
         for remote in self.remotes.iter() {
             if remote.name == name {
@@ -237,6 +247,26 @@ mod tests {
             let remote = local_repo.get_remote(remote_name).unwrap();
             assert_eq!(remote.name, remote_name);
             assert_eq!(remote.url, url);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_remove_remote() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|mut local_repo| {
+            let origin_url = "http://0.0.0.0:3000/repositories/OxenData";
+            let origin_name = "origin";
+
+            let other_url = "http://0.0.0.0:4000/repositories/OxenData";
+            let other_name = "other";
+            local_repo.set_remote(origin_name, origin_url);
+            local_repo.set_remote(other_name, other_url);
+
+            // Remove and make sure we cannot get again
+            local_repo.remove_remote(origin_name);
+            let remote = local_repo.get_remote(origin_name);
+            assert!(remote.is_none());
 
             Ok(())
         })
