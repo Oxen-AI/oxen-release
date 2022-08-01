@@ -498,7 +498,11 @@ impl Indexer {
                     chunk,
                     &bar,
                 ) {
-                    log::error!("Could not download content IDs for chunk of size {}\n{}", chunk.len(), error);
+                    log::error!(
+                        "Could not download content IDs for chunk of size {}\n{}",
+                        chunk.len(),
+                        error
+                    );
                 }
             });
             bar.finish();
