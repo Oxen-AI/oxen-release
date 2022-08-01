@@ -1249,6 +1249,38 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|mut repo| {
+        // Track a dir
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
+        // Push it
+        command::push(&repo)?;
+
+        let new_branch_name = "my-branch";
+        command::create_checkout_branch(&repo, new_branch_name)?;
+
+        // Push new branch, without any new commits, should still create the branch
+        command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)?;
+
+        let remote_branches = api::remote::branches::list(&remote_repo)?;
+        assert_eq!(2, remote_branches.len());
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|mut repo| {
         // First commit

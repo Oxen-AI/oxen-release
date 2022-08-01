@@ -41,6 +41,10 @@ impl Indexer {
             _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
         };
 
+        // Create the branch
+        let branch = api::remote::branches::create_or_get(&remote_repo, &rb.branch)?;
+        log::debug!("Got remote branch {:?}", branch.name);
+
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.head_commit()?;
