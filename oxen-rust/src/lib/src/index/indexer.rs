@@ -45,7 +45,7 @@ impl Indexer {
         match api::remote::branches::create_or_get(&remote_repo, &rb.branch) {
             Ok(branch) => {
                 log::debug!("Successfully Created remote branch {:?}", branch.name);
-            },
+            }
             Err(err) => {
                 log::debug!("Could not create remote branch. Err: {:?}", err);
             }
