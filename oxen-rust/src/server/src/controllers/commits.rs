@@ -2,11 +2,13 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
-use liboxen::index::{CommitWriter, RefWriter};
+use liboxen::index::{CommitValidator, CommitWriter, RefWriter};
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{CommitParentsResponse, CommitResponse, ListCommitResponse, StatusMessage};
+use liboxen::view::{
+    CommitParentsResponse, CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage,
+};
 
 use crate::app_data::OxenAppData;
 
@@ -15,8 +17,14 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
+use serde::Deserialize;
 use std::path::Path;
 use tar::Archive;
+
+#[derive(Deserialize, Debug)]
+pub struct SizeQuery {
+    size: usize,
+}
 
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
@@ -74,9 +82,57 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
                 Ok(Some(commit)) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
                     commit,
                 }),
+                Ok(None) => {
+                    log::debug!("commit_id {} does not exist for repo: {}", commit_id, name);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::debug!("Err getting commit_id {}: {}", commit_id, err);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+            },
+            Ok(None) => {
+                log::debug!("404 could not get repo {}", name,);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not find repo [{}]: {}", name, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        }
+    } else {
+        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let commit_id: Option<&str> = req.match_info().get("commit_id");
+    let size = query.size;
+
+    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+            Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
+                Ok(Some(commit)) => {
+                    let mut is_valid = false;
+                    let validator = CommitValidator::new(&repository);
+                    if let Ok(result) = validator.has_all_data(&commit, size) {
+                        is_valid = result;
+                    }
+
+                    HttpResponse::Ok().json(IsValidStatusMessage {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_FOUND),
+                        is_valid,
+                    })
+                }
                 Ok(None) => {
                     log::debug!("commit_id {} does not exist for repo: {}", commit_id, name);
                     HttpResponse::NotFound().json(StatusMessage::resource_not_found())

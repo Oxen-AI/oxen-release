@@ -72,6 +72,11 @@ impl Indexer {
         Ok(remote_repo)
     }
 
+    fn read_num_local_entries(&self, commit: &Commit) -> Result<usize, OxenError> {
+        let entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        entry_reader.num_entries()
+    }
+
     fn rpush_missing_commit_objects(
         &self,
         remote_repo: &RemoteRepository,
@@ -79,29 +84,35 @@ impl Indexer {
         rb: &RemoteBranch,
         unsynced_commits: &mut VecDeque<Commit>,
     ) -> Result<(), OxenError> {
+        let num_entries = self.read_num_local_entries(local_commit)?;
         log::debug!(
-            "rpush_missing_commit_objects START, checking local {} -> '{}'",
+            "rpush_missing_commit_objects START, checking local with {} entries {} -> '{}'",
+            num_entries,
             local_commit.id,
             local_commit.message
         );
 
         // check if commit exists on remote
         // if not, push the commit and it's dbs
-        match api::remote::commits::get_by_id(remote_repo, &local_commit.id) {
-            Ok(Some(remote_commit)) => {
+        match api::remote::commits::commit_is_synced(remote_repo, &local_commit.id, num_entries) {
+            Ok(true) => {
                 // We have remote commit, stop syncing
                 log::debug!(
-                    "rpush_missing_commit_objects stop, we have remote parent {} -> '{}'",
-                    remote_commit.id,
-                    remote_commit.message
+                    "rpush_missing_commit_objects STOP, we have remote parent {} -> '{}'",
+                    local_commit.id,
+                    local_commit.message
                 );
 
-                log::debug!("unsynced_commits.push_back root {:?}", local_commit);
+                log::debug!(
+                    "rpush_missing_commit_objects unsynced_commits.push_back root {:?}",
+                    local_commit
+                );
+                // Add the last one because we are going to pop it off
                 unsynced_commits.push_back(local_commit.to_owned());
             }
-            Ok(None) => {
+            Ok(false) => {
                 log::debug!(
-                    "Didn't find remote parent: {} -> '{}'",
+                    "rpush_missing_commit_objects CONTINUE Didn't find remote parent: {} -> '{}'",
                     local_commit.id,
                     local_commit.message
                 );
@@ -126,7 +137,10 @@ impl Indexer {
                         &rb.branch,
                         local_commit,
                     )?;
-                    log::debug!("unsynced_commits.push_back parent {:?}", local_commit);
+                    log::debug!(
+                        "rpush_missing_commit_objects unsynced_commits.push_back parent {:?}",
+                        local_commit
+                    );
                     unsynced_commits.push_back(local_commit.to_owned());
                 }
 
@@ -214,7 +228,7 @@ impl Indexer {
     ) -> Result<(), OxenError> {
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
-            log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
+            // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
             let full_path = self.repository.path.join(&entry.path);
             let metadata = fs::metadata(full_path)?;
             total_size += metadata.len();
@@ -235,7 +249,6 @@ impl Indexer {
             chunk_size = entries.len();
         }
 
-        // TODO: Clean this up... many places it could fail, but just want to get something working
         entries.par_chunks(chunk_size).for_each(|chunk| {
             log::debug!("Compressing {} entries", entries.len());
             // 1) zip up entries into tarballs
@@ -249,38 +262,16 @@ impl Indexer {
                 tar.append_path_with_name(version_path, name).unwrap();
             }
 
+            // TODO: Clean this up... many places it could fail, but just want to get something working
             tar.finish().unwrap();
             let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
-            // let size: u64 = unsafe { std::mem::transmute(buffer.len()) };
 
-            api::remote::commits::post_tarball_to_server(remote_repo, commit, &buffer, &bar)
-                .unwrap();
-            // println!("done.");
-
-            /*
-            for entry in chunk.iter() {
-                // Retry logic
-                let total_tries = 5;
-                let mut num_tries = 0;
-                let mut num_sec = 1;
-                for _ in 0..total_tries {
-                    if self.push_entry(&entry_writer, entry).is_ok() {
-                        break;
-                    }
-                    num_sec *= 2;
-                    let duration = time::Duration::from_secs(num_sec);
-                    log::debug!("Error pushing entry {:?} sleeping {}s", entry.path, num_sec);
-                    thread::sleep(duration);
-                    num_tries += 1;
-                }
-
-                if num_tries == total_tries {
-                    log::error!("Error pushing entry {:?}", entry.path);
-                }
-
-                bar.inc(1);
+            // We will at least check the content on the server and push again if this fails
+            if let Err(err) =
+                api::remote::commits::post_tarball_to_server(remote_repo, commit, &buffer, &bar)
+            {
+                log::error!("Could not upload commit: {}", err);
             }
-            */
         });
 
         Ok(())
