@@ -5,7 +5,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::util::ReadProgress;
-use crate::view::{CommitParentsResponse, CommitResponse};
+use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
 
 use std::path::Path;
 use std::str;
@@ -53,6 +53,39 @@ pub fn get_by_id(
         }
     } else {
         Err(OxenError::basic_str("get_commit_by_id() Request failed"))
+    }
+}
+
+pub fn commit_is_synced(
+    remote_repo: &RemoteRepository,
+    commit_id: &str,
+    num_entries: usize,
+) -> Result<bool, OxenError> {
+    let config = AuthConfig::default()?;
+    let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    log::debug!("commit_is_synced checking URL: {}", url);
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let body = res.text()?;
+        log::debug!("commit_is_synced got response body: {}", body);
+        let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.is_valid),
+            Err(err) => {
+                log::debug!("Error getting remote commit {}", err);
+                Ok(false)
+            }
+        }
+    } else {
+        Err(OxenError::basic_str("commit_is_synced() Request failed"))
     }
 }
 
@@ -243,11 +276,16 @@ pub fn post_tarball_to_server(
 mod tests {
     use crate::api;
     use crate::command;
+    use crate::config::AuthConfig;
+    use crate::constants;
     use crate::error::OxenError;
+    use crate::index::CommitEntryReader;
     use crate::test;
 
+    use std::thread;
+
     #[test]
-    fn test_post_commit_to_server() -> Result<(), OxenError> {
+    fn test_remote_commits_post_commit_to_server() -> Result<(), OxenError> {
         test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
             // Track the annotations dir
             // has format
@@ -275,6 +313,82 @@ mod tests {
                 &commit,
             )?;
             assert_eq!(result_commit.commit.id, commit.id);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_remote_commits_commit_is_valid() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|local_repo| {
+            let mut local_repo = local_repo;
+            let commit_history = command::log(&local_repo)?;
+            let commit = commit_history.first().unwrap();
+
+            // Set the proper remote
+            let remote = test::repo_url_from(&local_repo.name);
+            command::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let config = AuthConfig::default()?;
+            let remote_repo = command::create_remote(&local_repo, &config.host)?;
+
+            // Push it
+            command::push(&local_repo)?;
+
+            let commit_entry_reader = CommitEntryReader::new(&local_repo, commit)?;
+            let num_entries = commit_entry_reader.num_entries()?;
+
+            // We unzip in a background thread, so give it a second
+            thread::sleep(std::time::Duration::from_secs(1));
+
+            let is_synced =
+                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)?;
+            assert!(is_synced);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_remote_commits_is_not_valid() -> Result<(), OxenError> {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
+            // Track the annotations dir
+            // has format
+            //   annotations/
+            //     train/
+            //       one_shot.txt
+            //       annotations.txt
+            //     test/
+            //       annotations.txt
+            let annotations_dir = local_repo.path.join("annotations");
+            command::add(local_repo, &annotations_dir)?;
+            let branch = command::current_branch(local_repo)?.unwrap();
+            // Commit the directory
+            let commit = command::commit(
+                local_repo,
+                "Adding annotations data dir, which has two levels",
+            )?
+            .unwrap();
+
+            // Post commit but not the actual files
+            let result_commit = api::remote::commits::post_commit_to_server(
+                local_repo,
+                remote_repo,
+                &branch.name,
+                &commit,
+            )?;
+            assert_eq!(result_commit.commit.id, commit.id);
+            let commit_entry_reader = CommitEntryReader::new(local_repo, &commit)?;
+            let num_entries = commit_entry_reader.num_entries()?;
+
+            // We unzip in a background thread, so give it a second
+            thread::sleep(std::time::Duration::from_secs(1));
+
+            // Should not be synced because we didn't actually post the files
+            let is_synced =
+                api::remote::commits::commit_is_synced(remote_repo, &commit.id, num_entries)?;
+            assert!(!is_synced);
 
             Ok(())
         })

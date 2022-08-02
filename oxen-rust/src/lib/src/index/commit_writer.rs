@@ -3,7 +3,7 @@ use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{Commit, NewCommit, StagedData};
+use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
 use crate::util;
 
 use chrono::Local;
@@ -152,7 +152,12 @@ impl CommitWriter {
     }
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
-        let id = util::hasher::compute_commit_hash(commit_data, &status.added_files);
+        let entries: Vec<StagedEntry> = status
+            .added_files
+            .iter()
+            .map(|(_, entry)| entry.clone())
+            .collect();
+        let id = util::hasher::compute_commit_hash(commit_data, &entries);
         Commit::from_new_and_id(commit_data, id)
     }
 
@@ -171,7 +176,12 @@ impl CommitWriter {
             date: timestamp,
             timestamp: timestamp.timestamp_nanos(),
         };
-        let id = util::hasher::compute_commit_hash(&commit, &status.added_files);
+        let entries: Vec<StagedEntry> = status
+            .added_files
+            .iter()
+            .map(|(_, entry)| entry.clone())
+            .collect();
+        let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
         self.add_commit_from_status(&commit, status)?;
         Ok(commit)

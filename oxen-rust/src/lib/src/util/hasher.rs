@@ -1,10 +1,10 @@
 use crate::error::OxenError;
-use crate::model::{NewCommit, StagedEntry};
+use crate::model::{ContentHashable, NewCommit};
 
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use xxhash_rust::xxh3::xxh3_128;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
@@ -16,11 +16,12 @@ pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
     xxh3_128(buffer)
 }
 
-pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[(PathBuf, StagedEntry)]) -> String {
+pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[impl ContentHashable]) -> String {
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
 
     for entry in entries.iter() {
-        let input = entry.1.hash.as_bytes();
+        let hash = entry.content_hash();
+        let input = hash.as_bytes();
         commit_hasher.update(input);
     }
 

@@ -1,4 +1,4 @@
-use crate::model::{LocalRepository, RemoteEntry};
+use crate::model::{ContentHashable, LocalRepository, RemoteEntry};
 use crate::util;
 
 use filetime::FileTime;
@@ -15,6 +15,12 @@ pub struct CommitEntry {
     pub num_bytes: u64,
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
+}
+
+impl ContentHashable for CommitEntry {
+    fn content_hash(&self) -> String {
+        self.hash.clone()
+    }
 }
 
 // Hash on the path field so we can quickly look up
