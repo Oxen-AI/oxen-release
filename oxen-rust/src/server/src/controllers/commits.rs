@@ -82,7 +82,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
             Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
                 Ok(Some(commit)) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
                     commit,
                 }),
                 Ok(None) => {
@@ -129,7 +129,7 @@ pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpRe
 
                     HttpResponse::Ok().json(IsValidStatusMessage {
                         status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
+                        status_message: String::from(MSG_RESOURCE_FOUND),
                         is_valid,
                     })
                 }
