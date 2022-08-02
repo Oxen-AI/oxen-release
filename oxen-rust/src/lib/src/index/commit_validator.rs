@@ -34,6 +34,11 @@ impl CommitValidator {
         for entry in entries.iter() {
             let version_path = util::fs::version_path(&self.repository, entry);
             if !version_path.exists() {
+                log::debug!(
+                    "Could not find version path for {:?} -> {:?}",
+                    entry.path,
+                    version_path
+                );
                 return Ok(None);
             }
 

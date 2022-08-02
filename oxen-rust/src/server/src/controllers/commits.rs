@@ -109,7 +109,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn is_valid(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpResponse {
+pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: Option<&str> = req.match_info().get("namespace");
