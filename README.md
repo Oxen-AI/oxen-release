@@ -1,9 +1,9 @@
-# oxen-release
-Official repository for docs and releases of the Oxen Server and Oxen CLI 
+# 🐂 oxen-release
+Official repository for docs and releases of the Oxen Server and Oxen CLI.
 
 # Overview
 
-The Oxen CLI mirrors git in many ways, so if you are comfortable versioning code with git, you should be relatively comfortable versioning your datasets with Oxen.
+The Oxen CLI mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, you should be relatively comfortable versioning your datasets with Oxen.
 
 # Basic Commands
 
