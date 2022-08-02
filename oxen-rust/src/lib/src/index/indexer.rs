@@ -72,6 +72,11 @@ impl Indexer {
         Ok(remote_repo)
     }
 
+    fn read_num_local_entries(&self, commit: &Commit) -> Result<usize, OxenError> {
+        let entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        entry_reader.num_entries()
+    }
+
     fn rpush_missing_commit_objects(
         &self,
         remote_repo: &RemoteRepository,
@@ -79,29 +84,35 @@ impl Indexer {
         rb: &RemoteBranch,
         unsynced_commits: &mut VecDeque<Commit>,
     ) -> Result<(), OxenError> {
+        let num_entries = self.read_num_local_entries(local_commit)?;
         log::debug!(
-            "rpush_missing_commit_objects START, checking local {} -> '{}'",
+            "rpush_missing_commit_objects START, checking local with {} entries {} -> '{}'",
+            num_entries,
             local_commit.id,
             local_commit.message
         );
 
         // check if commit exists on remote
         // if not, push the commit and it's dbs
-        match api::remote::commits::get_by_id(remote_repo, &local_commit.id) {
-            Ok(Some(remote_commit)) => {
+        match api::remote::commits::commit_is_synced(remote_repo, &local_commit.id, num_entries) {
+            Ok(true) => {
                 // We have remote commit, stop syncing
                 log::debug!(
-                    "rpush_missing_commit_objects stop, we have remote parent {} -> '{}'",
-                    remote_commit.id,
-                    remote_commit.message
+                    "rpush_missing_commit_objects STOP, we have remote parent {} -> '{}'",
+                    local_commit.id,
+                    local_commit.message
                 );
 
-                log::debug!("unsynced_commits.push_back root {:?}", local_commit);
+                log::debug!(
+                    "rpush_missing_commit_objects unsynced_commits.push_back root {:?}",
+                    local_commit
+                );
+                // Add the last one because we are going to pop it off
                 unsynced_commits.push_back(local_commit.to_owned());
             }
-            Ok(None) => {
+            Ok(false) => {
                 log::debug!(
-                    "Didn't find remote parent: {} -> '{}'",
+                    "rpush_missing_commit_objects CONTINUE Didn't find remote parent: {} -> '{}'",
                     local_commit.id,
                     local_commit.message
                 );
@@ -126,7 +137,10 @@ impl Indexer {
                         &rb.branch,
                         local_commit,
                     )?;
-                    log::debug!("unsynced_commits.push_back parent {:?}", local_commit);
+                    log::debug!(
+                        "rpush_missing_commit_objects unsynced_commits.push_back parent {:?}",
+                        local_commit
+                    );
                     unsynced_commits.push_back(local_commit.to_owned());
                 }
 
@@ -214,7 +228,7 @@ impl Indexer {
     ) -> Result<(), OxenError> {
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
-            log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
+            // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
             let full_path = self.repository.path.join(&entry.path);
             let metadata = fs::metadata(full_path)?;
             total_size += metadata.len();

@@ -64,6 +64,7 @@ pub fn commit_is_synced(
     let config = AuthConfig::default()?;
     let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    log::debug!("commit_is_synced checking URL: {}", url);
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -74,13 +75,14 @@ pub fn commit_is_synced(
         .send()
     {
         let body = res.text()?;
+        log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.is_valid),
-            Err(err) => Err(OxenError::basic_str(&format!(
-                "commit_is_synced() Could not serialize response [{}]\n{}",
-                err, body
-            ))),
+            Err(err) => {
+                log::debug!("Error getting remote commit {}", err);
+                Ok(false)
+            }
         }
     } else {
         Err(OxenError::basic_str("commit_is_synced() Request failed"))
