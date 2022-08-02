@@ -1,3 +1,4 @@
+use crate::model::ContentHashable;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
@@ -11,4 +12,10 @@ pub enum StagedEntryStatus {
 pub struct StagedEntry {
     pub hash: String,
     pub status: StagedEntryStatus,
+}
+
+impl ContentHashable for StagedEntry {
+    fn content_hash(&self) -> String {
+        self.hash.clone()
+    }
 }

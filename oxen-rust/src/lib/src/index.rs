@@ -3,6 +3,7 @@ pub mod commit_entry_db_reader;
 pub mod commit_entry_reader;
 pub mod commit_entry_writer;
 pub mod commit_reader;
+pub mod commit_validator;
 pub mod commit_writer;
 pub mod indexer;
 pub mod merge_conflict_db_reader;
@@ -18,6 +19,7 @@ pub use crate::index::commit_entry_db_reader::CommitEntryDBReader;
 pub use crate::index::commit_entry_reader::CommitEntryReader;
 pub use crate::index::commit_entry_writer::CommitEntryWriter;
 pub use crate::index::commit_reader::CommitReader;
+pub use crate::index::commit_validator::CommitValidator;
 pub use crate::index::commit_writer::CommitWriter;
 pub use crate::index::indexer::Indexer;
 
