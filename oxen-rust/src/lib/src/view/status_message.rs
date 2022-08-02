@@ -7,6 +7,13 @@ pub struct StatusMessage {
     pub status_message: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct IsValidStatusMessage {
+    pub status: String,
+    pub status_message: String,
+    pub is_valid: bool,
+}
+
 impl StatusMessage {
     pub fn success(msg: &str) -> StatusMessage {
         StatusMessage {

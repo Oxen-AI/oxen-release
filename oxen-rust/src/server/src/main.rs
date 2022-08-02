@@ -128,6 +128,10 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::commits::show),
                             )
                             .route(
+                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/is_valid",
+                                web::get().to(controllers::commits::is_valid),
+                            )
+                            .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/commit_db",
                                 web::get().to(controllers::commits::download_commit_db),
                             )

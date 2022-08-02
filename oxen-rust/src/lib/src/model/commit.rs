@@ -13,6 +13,18 @@ pub struct NewCommit {
     pub timestamp: i64,
 }
 
+impl NewCommit {
+    pub fn from_commit(commit: &Commit) -> NewCommit {
+        NewCommit {
+            parent_ids: commit.parent_ids.to_owned(),
+            message: commit.message.to_owned(),
+            author: commit.author.to_owned(),
+            date: commit.date.to_owned(),
+            timestamp: commit.timestamp.to_owned(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Commit {
     pub id: String,

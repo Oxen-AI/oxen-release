@@ -235,7 +235,6 @@ impl Indexer {
             chunk_size = entries.len();
         }
 
-        // TODO: Clean this up... many places it could fail, but just want to get something working
         entries.par_chunks(chunk_size).for_each(|chunk| {
             log::debug!("Compressing {} entries", entries.len());
             // 1) zip up entries into tarballs
@@ -249,38 +248,16 @@ impl Indexer {
                 tar.append_path_with_name(version_path, name).unwrap();
             }
 
+            // TODO: Clean this up... many places it could fail, but just want to get something working
             tar.finish().unwrap();
             let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
-            // let size: u64 = unsafe { std::mem::transmute(buffer.len()) };
 
-            api::remote::commits::post_tarball_to_server(remote_repo, commit, &buffer, &bar)
-                .unwrap();
-            // println!("done.");
-
-            /*
-            for entry in chunk.iter() {
-                // Retry logic
-                let total_tries = 5;
-                let mut num_tries = 0;
-                let mut num_sec = 1;
-                for _ in 0..total_tries {
-                    if self.push_entry(&entry_writer, entry).is_ok() {
-                        break;
-                    }
-                    num_sec *= 2;
-                    let duration = time::Duration::from_secs(num_sec);
-                    log::debug!("Error pushing entry {:?} sleeping {}s", entry.path, num_sec);
-                    thread::sleep(duration);
-                    num_tries += 1;
-                }
-
-                if num_tries == total_tries {
-                    log::error!("Error pushing entry {:?}", entry.path);
-                }
-
-                bar.inc(1);
+            // We will at least check the content on the server and push again if this fails
+            if let Err(err) =
+                api::remote::commits::post_tarball_to_server(remote_repo, commit, &buffer, &bar)
+            {
+                log::error!("Could not upload commit: {}", err);
             }
-            */
         });
 
         Ok(())
