@@ -444,6 +444,14 @@ pub fn set_remote(
     Ok(RemoteRepository::from_local(repo, url))
 }
 
+/// # Remove the remote for a repository
+/// If you added a remote you no longer want, can remove it by supplying the name
+pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenError> {
+    repo.remove_remote(name);
+    repo.save_default()?;
+    Ok(())
+}
+
 /// # Get a log of all the commits
 ///
 /// ```
