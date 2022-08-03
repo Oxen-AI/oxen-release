@@ -1366,6 +1366,118 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_delete_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Get the original branches
+        let og_branches = command::list_branches(&repo)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Must checkout main again before deleting
+        command::checkout(&repo, og_branch.name)?;
+
+        // Now we can delete
+        command::delete_branch(&repo, branch_name)?;
+
+        // Should be same num as og_branches
+        let leftover_branches = command::list_branches(&repo)?;
+        assert_eq!(og_branches.len(), leftover_branches.len());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch that moves us ahead of main
+        if command::delete_branch(&repo, branch_name).is_ok() {
+            panic!("Should not be able to delete the branch you are on");
+        }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch that moves us ahead of main
+        if command::force_delete_branch(&repo, branch_name).is_ok() {
+            panic!("Should not be able to force delete the branch you are on");
+        }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let og_branches = command::list_branches(&repo)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        // Checkout main again
+        command::checkout(&repo, og_branch.name)?;
+
+        // Should not be able to delete `my-branch` because it is ahead of `main`
+        if command::delete_branch(&repo, branch_name).is_ok() {
+            panic!("Should not be able to delete the branch that is ahead of the one you are on");
+        }
+
+        // Should be one less branch
+        let leftover_branches = command::list_branches(&repo)?;
+        assert_eq!(og_branches.len(), leftover_branches.len() - 1);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let og_branches = command::list_branches(&repo)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        // Checkout main again
+        command::checkout(&repo, og_branch.name)?;
+
+        // Force delete
+        command::force_delete_branch(&repo, branch_name)?;
+
+        // Should be one less branch
+        let leftover_branches = command::list_branches(&repo)?;
+        assert_eq!(og_branches.len(), leftover_branches.len());
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         let labels_path = repo.path.join("labels.txt");

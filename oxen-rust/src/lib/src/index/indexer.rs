@@ -270,7 +270,7 @@ impl Indexer {
             if let Err(err) =
                 api::remote::commits::post_tarball_to_server(remote_repo, commit, &buffer, &bar)
             {
-                log::error!("Could not upload commit: {}", err);
+                eprintln!("Could not upload commit: {}", err);
             }
         });
 

@@ -43,7 +43,7 @@ impl OxenError {
     }
 
     pub fn remote_not_set() -> OxenError {
-        OxenError::basic_str("Remote not set. `oxen set-remote <remote-name> <url>`")
+        OxenError::basic_str("Remote not set. `oxen remote add <name> <url>`")
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
