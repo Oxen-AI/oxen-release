@@ -85,8 +85,6 @@ fn main() {
                         .long("all")
                         .short('a')
                         .help("List all the local branches")
-                        .conflicts_with("name")
-                        .conflicts_with("remote")
                         .exclusive(true)
                         .takes_value(false),
                 )
@@ -95,10 +93,24 @@ fn main() {
                         .long("remote")
                         .short('r')
                         .help("List all the remote branches")
-                        .conflicts_with("name")
-                        .conflicts_with("all")
                         .exclusive(true)
                         .takes_value(false),
+                )
+                .arg(
+                    Arg::new("force-delete")
+                        .long("force-delete")
+                        .short('D')
+                        .help("Force remove the local branch")
+                        .exclusive(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("delete")
+                        .long("delete")
+                        .short('d')
+                        .help("Remove the local branch if it is safe to")
+                        .exclusive(true)
+                        .takes_value(true),
                 ),
         )
         .subcommand(
@@ -258,6 +270,14 @@ fn main() {
                 }
             } else if let Some(name) = sub_matches.value_of("name") {
                 if let Err(err) = dispatch::create_branch(name) {
+                    eprintln!("{}", err)
+                }
+            } else if let Some(name) = sub_matches.value_of("delete") {
+                if let Err(err) = dispatch::delete_branch(name) {
+                    eprintln!("{}", err)
+                }
+            } else if let Some(name) = sub_matches.value_of("force-delete") {
+                if let Err(err) = dispatch::force_delete_branch(name) {
                     eprintln!("{}", err)
                 }
             } else {

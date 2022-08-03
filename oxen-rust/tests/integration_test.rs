@@ -750,6 +750,8 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
+        api::remote::repositories::delete(remote_repo)?;
+
         Ok(())
     })
 }
@@ -792,6 +794,8 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
+        api::remote::repositories::delete(remote_repo)?;
+
         Ok(())
     })
 }
@@ -832,6 +836,8 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
             api::remote::entries::list_page(&remote_repo, &commit.id, page_num, page_size)?;
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
+
+        api::remote::repositories::delete(remote_repo)?;
 
         Ok(())
     })
@@ -874,6 +880,8 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
             api::remote::entries::list_page(&remote_repo, &commit.id, page_num, page_size)?;
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
+
+        api::remote::repositories::delete(remote_repo)?;
 
         Ok(())
     })
@@ -1008,6 +1016,8 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
             assert!(!pulled_send_it_back_path.exists());
 
+            api::remote::repositories::delete(remote_repo)?;
+
             Ok(())
         })
     })
@@ -1075,6 +1085,8 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             command::pull(&cloned_repo)?;
             assert!(!cloned_filepath.exists());
 
+            api::remote::repositories::delete(remote_repo)?;
+
             Ok(())
         })
     })
@@ -1115,6 +1127,8 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
+
+            api::remote::repositories::delete(remote_repo)?;
 
             Ok(())
         })
@@ -1188,6 +1202,8 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             // Now there should be 7 train files
             assert_eq!(7, cloned_num_files);
 
+            api::remote::repositories::delete(remote_repo)?;
+
             Ok(())
         })
     })
@@ -1243,6 +1259,8 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
             // Now there should be still be 5 train files
             assert_eq!(5, og_num_files);
 
+            api::remote::repositories::delete(remote_repo)?;
+
             Ok(())
         })
     })
@@ -1276,12 +1294,45 @@ fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
         let remote_branches = api::remote::branches::list(&remote_repo)?;
         assert_eq!(2, remote_branches.len());
 
+        api::remote::repositories::delete(remote_repo)?;
+
         Ok(())
     })
 }
 
 #[test]
-fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
+fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|mut repo| {
+        // Set the proper remote
+        let remote = test::repo_url_from(&repo.name);
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let config = AuthConfig::default()?;
+        let remote_repo = command::create_remote(&repo, &config.host)?;
+
+        // Push it
+        if command::push_remote_branch(
+            &repo,
+            constants::DEFAULT_REMOTE_NAME,
+            "branch-does-not-exist",
+        )
+        .is_ok()
+        {
+            panic!("Should not be able to push branch that does not exist");
+        }
+
+        let remote_branches = api::remote::branches::list(&remote_repo)?;
+        assert_eq!(1, remote_branches.len());
+
+        api::remote::repositories::delete(remote_repo)?;
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_pull_full_commit_history() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|mut repo| {
         // First commit
         let filename = "labels.txt";
@@ -1344,6 +1395,8 @@ fn test_we_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(entries.is_ok());
             }
 
+            api::remote::repositories::delete(remote_repo)?;
+
             Ok(())
         })
     })
@@ -1360,6 +1413,118 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         let reader = CommitEntryReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_delete_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Get the original branches
+        let og_branches = command::list_branches(&repo)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Must checkout main again before deleting
+        command::checkout(&repo, og_branch.name)?;
+
+        // Now we can delete
+        command::delete_branch(&repo, branch_name)?;
+
+        // Should be same num as og_branches
+        let leftover_branches = command::list_branches(&repo)?;
+        assert_eq!(og_branches.len(), leftover_branches.len());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch that moves us ahead of main
+        if command::delete_branch(&repo, branch_name).is_ok() {
+            panic!("Should not be able to delete the branch you are on");
+        }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch that moves us ahead of main
+        if command::force_delete_branch(&repo, branch_name).is_ok() {
+            panic!("Should not be able to force delete the branch you are on");
+        }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let og_branches = command::list_branches(&repo)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        // Checkout main again
+        command::checkout(&repo, og_branch.name)?;
+
+        // Should not be able to delete `my-branch` because it is ahead of `main`
+        if command::delete_branch(&repo, branch_name).is_ok() {
+            panic!("Should not be able to delete the branch that is ahead of the one you are on");
+        }
+
+        // Should be one less branch
+        let leftover_branches = command::list_branches(&repo)?;
+        assert_eq!(og_branches.len(), leftover_branches.len() - 1);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let og_branches = command::list_branches(&repo)?;
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let branch_name = "my-branch";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add another commit on this branch
+        let labels_path = repo.path.join("labels.txt");
+        command::add(&repo, &labels_path)?;
+        command::commit(&repo, "adding initial labels file")?;
+
+        // Checkout main again
+        command::checkout(&repo, og_branch.name)?;
+
+        // Force delete
+        command::force_delete_branch(&repo, branch_name)?;
+
+        // Should be one less branch
+        let leftover_branches = command::list_branches(&repo)?;
+        assert_eq!(og_branches.len(), leftover_branches.len());
 
         Ok(())
     })
