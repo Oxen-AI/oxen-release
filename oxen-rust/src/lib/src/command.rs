@@ -251,6 +251,63 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenE
     ref_writer.create_branch(name, &head_commit.id)
 }
 
+/// # Delete a local branch
+/// Checks to make sure the branch has been merged or pushed before deleting.
+pub fn delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    if let Ok(Some(branch)) = current_branch(repo) {
+        if branch.name == name {
+            let err = format!("Err: Cannot delete current checked out branch '{}'", name);
+            return Err(OxenError::basic_str(&err));
+        }
+    }
+
+    if branch_has_been_merged(repo, name)? {
+        let ref_writer = RefWriter::new(repo)?;
+        ref_writer.delete_branch(name)
+    } else {
+        let err = format!("Err: The branch '{}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {}'.", name, name);
+        Err(OxenError::basic_str(&err))
+    }
+}
+
+fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
+    let ref_reader = RefReader::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+
+    if let Some(branch_commit_id) = ref_reader.get_commit_id_for_branch(name)? {
+        if let Some(commit_id) = ref_reader.head_commit_id()? {
+            let history = commit_reader.history_from_commit_id(&commit_id)?;
+            for commit in history.iter() {
+                if commit.id == branch_commit_id {
+                    return Ok(true);
+                }
+            }
+            // We didn't find commit
+            Ok(false)
+        } else {
+            // Cannot check if it has been merged if we are in a detached HEAD state
+            Ok(false)
+        }
+    } else {
+        let err = format!("Err: The branch '{}' does not exist.", name);
+        Err(OxenError::basic_str(&err))
+    }
+}
+
+/// # Force delete a local branch
+/// Caution! Will delete a local branch without checking if it has been merged or pushed.
+pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    if let Ok(Some(branch)) = current_branch(repo) {
+        if branch.name == name {
+            let err = format!("Err: Cannot delete current checked out branch '{}'", name);
+            return Err(OxenError::basic_str(&err));
+        }
+    }
+
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.delete_branch(name)
+}
+
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
