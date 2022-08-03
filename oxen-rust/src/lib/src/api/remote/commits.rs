@@ -346,6 +346,8 @@ mod tests {
                 api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)?;
             assert!(is_synced);
 
+            api::remote::repositories::delete(remote_repo)?;
+
             Ok(())
         })
     }

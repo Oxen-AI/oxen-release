@@ -45,6 +45,16 @@ impl RefWriter {
         }
     }
 
+    pub fn delete_branch(&self, name: &str) -> Result<(), OxenError> {
+        if !self.has_branch(name) {
+            let err = format!("Branch does not exist: {}", name);
+            Err(OxenError::basic_str(&err))
+        } else {
+            self.refs_db.delete(name)?;
+            Ok(())
+        }
+    }
+
     pub fn set_branch_commit_id(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
         self.refs_db.put(name, commit_id)?;
         Ok(())
@@ -178,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn test_referencer_list_branches_empty() -> Result<(), OxenError> {
+    fn test_ref_writer_list_branches_empty() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
             // always start with a default branch
             let branches = referencer.list_branches()?;
@@ -189,7 +199,7 @@ mod tests {
     }
 
     #[test]
-    fn test_referencer_list_branches_one() -> Result<(), OxenError> {
+    fn test_ref_writer_list_branches_one() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
             let name = "my-branch";
             let commit_id = format!("{}", uuid::Uuid::new_v4());
@@ -203,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn test_referencer_list_branches_many() -> Result<(), OxenError> {
+    fn test_ref_writer_list_branches_many() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
             // we always start with a default branch
             referencer.create_branch("name_1", "1")?;
@@ -217,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn test_referencer_create_branch_same_name() -> Result<(), OxenError> {
+    fn test_ref_writer_create_branch_same_name() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
             referencer.create_branch("my-fun-name", "1")?;
 
@@ -228,6 +238,25 @@ mod tests {
             // We should still only have two branches, default on and this one
             let branches = referencer.list_branches()?;
             assert_eq!(branches.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_ref_writer_delete_branch() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let name = "my-branch-name";
+            referencer.create_branch(name, "1")?;
+            let og_branches = referencer.list_branches()?;
+            let og_branch_count = og_branches.len();
+
+            // Delete branch
+            referencer.delete_branch(name)?;
+
+            // Should have one less branch than after creation
+            let branches = referencer.list_branches()?;
+            assert_eq!(branches.len(), og_branch_count - 1);
 
             Ok(())
         })

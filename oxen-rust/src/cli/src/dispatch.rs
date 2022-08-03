@@ -210,6 +210,20 @@ pub fn create_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn delete_branch(name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::delete_branch(&repository, name)?;
+    Ok(())
+}
+
+pub fn force_delete_branch(name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::force_delete_branch(&repository, name)?;
+    Ok(())
+}
+
 pub fn checkout(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
