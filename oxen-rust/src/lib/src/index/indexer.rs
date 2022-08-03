@@ -12,7 +12,9 @@ use std::sync::Arc;
 use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::index::{CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefWriter};
+use crate::index::{
+    CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
+};
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 
@@ -28,6 +30,10 @@ impl Indexer {
     }
 
     pub fn push(&self, rb: &RemoteBranch) -> Result<RemoteRepository, OxenError> {
+        if !self.local_branch_exists(&rb.branch)? {
+            return Err(OxenError::local_branch_not_found(&rb.branch));
+        }
+
         println!("🐂 Oxen push {} {}", rb.remote, rb.branch);
         let remote = self
             .repository
@@ -70,6 +76,11 @@ impl Indexer {
         // and sync ones that have not been synced
         self.rpush_entries(&remote_repo, &last_commit, &unsynced_commits)?;
         Ok(remote_repo)
+    }
+
+    fn local_branch_exists(&self, name: &str) -> Result<bool, OxenError> {
+        let ref_reader = RefReader::new(&self.repository)?;
+        Ok(ref_reader.has_branch(name))
     }
 
     fn read_num_local_entries(&self, commit: &Commit) -> Result<usize, OxenError> {
@@ -567,6 +578,7 @@ impl Indexer {
 
 #[cfg(test)]
 mod tests {
+    use crate::api;
     use crate::command;
     use crate::config::AuthConfig;
     use crate::constants;
@@ -611,6 +623,8 @@ mod tests {
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(og_num_files, num_files);
 
+                api::remote::repositories::delete(remote_repo)?;
+
                 Ok(())
             })
         })
@@ -652,6 +666,8 @@ mod tests {
 
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(num_files, limit);
+
+                api::remote::repositories::delete(remote_repo)?;
 
                 Ok(())
             })
