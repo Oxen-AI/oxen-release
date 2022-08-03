@@ -42,15 +42,17 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
-            Command::new("set-remote")
-                .about("Sets remote url for repository")
-                .arg(arg!(<NAME> "The remote name"))
-                .arg(arg!(<URL> "The remote url"))
-                .arg_required_else_help(true),
-        )
-        .subcommand(
             Command::new("remote")
                 .about("Manage set of tracked repositories")
+                .subcommand(
+                    Command::new("add")
+                        .arg(arg!(<NAME> "The remote name"))
+                        .arg(arg!(<URL> "The remote url"))
+                    )
+                .subcommand(
+                    Command::new("remove")
+                        .arg(arg!(<NAME> "The name of the remote you want to remove"))
+                    )
                 .arg(
                     Arg::new("verbose")
                         .long("verbose")
@@ -180,7 +182,34 @@ fn main() {
             }
         }
         Some(("remote", sub_matches)) => {
-            if sub_matches.is_present("verbose") {
+            if let Some(subcommand) = sub_matches.subcommand() {
+                match subcommand {
+                    ("add", sub_matches) => {
+                        let name = sub_matches.value_of("NAME").expect("required");
+                        let url = sub_matches.value_of("URL").expect("required");
+
+                        match dispatch::set_remote(name, url) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("remove", sub_matches) => {
+                        let name = sub_matches.value_of("NAME").expect("required");
+
+                        match dispatch::remove_remote(name) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    (command, _) => {
+                        eprintln!("Invalid subcommand: {}", command)
+                    }
+                }
+            } else if sub_matches.is_present("verbose") {
                 dispatch::list_remotes_verbose().expect("Unable to list remotes.");
             } else {
                 dispatch::list_remotes().expect("Unable to list remotes.");
@@ -190,17 +219,6 @@ fn main() {
             let token = sub_matches.value_of("TOKEN").expect("required");
 
             match dispatch::set_auth_token(token) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
-                }
-            }
-        }
-        Some(("set-remote", sub_matches)) => {
-            let name = sub_matches.value_of("NAME").expect("required");
-            let url = sub_matches.value_of("URL").expect("required");
-
-            match dispatch::set_remote(name, url) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
