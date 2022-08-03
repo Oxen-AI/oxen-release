@@ -77,8 +77,8 @@ fn main() {
                 .arg(
                     Arg::new("name")
                         .help("Name of the branch")
-                        .conflicts_with("all")
-                        .exclusive(true),
+                        .exclusive(true)
+                        .takes_value(true),
                 )
                 .arg(
                     Arg::new("all")
@@ -136,6 +136,13 @@ fn main() {
             Command::new("push")
                 .about("Push the the files to the remote branch")
                 .arg(arg!(<REMOTE> "Remote you want to pull from"))
+                .arg(
+                    Arg::new("delete")
+                        .long("delete")
+                        .short('d')
+                        .help("Remove the remote branch")
+                        .takes_value(false),
+                )
                 .arg(arg!(<BRANCH> "Branch name to pull")),
         )
         .subcommand(
@@ -297,10 +304,15 @@ fn main() {
             let branch = sub_matches
                 .value_of("BRANCH")
                 .unwrap_or(DEFAULT_BRANCH_NAME);
-            match dispatch::push(remote, branch) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+
+            if sub_matches.is_present("delete") {
+                println!("Delete remote branch {}/{}", remote, branch);
+            } else {
+                match dispatch::push(remote, branch) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }
