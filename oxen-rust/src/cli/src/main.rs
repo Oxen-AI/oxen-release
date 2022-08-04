@@ -76,17 +76,12 @@ fn main() {
         .subcommand(
             Command::new("branch")
                 .about("Manage branches in repository")
-                .arg(
-                    Arg::new("name")
-                        .help("Name of the branch")
-                        .exclusive(true)
-                        .takes_value(true),
-                )
+                .arg(Arg::new("name").help("Name of the branch").exclusive(true))
                 .arg(
                     Arg::new("all")
                         .long("all")
                         .short('a')
-                        .help("List all the local branches")
+                        .help("List both local and remote branches")
                         .exclusive(true)
                         .takes_value(false),
                 )
@@ -110,6 +105,13 @@ fn main() {
                         .short('d')
                         .help("Remove the local branch if it is safe to")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::new("show-current")
+                        .long("show-current")
+                        .help("Print the current branch")
+                        .exclusive(true)
+                        .takes_value(false),
                 ),
         )
         .subcommand(
@@ -269,7 +271,7 @@ fn main() {
         }
         Some(("branch", sub_matches)) => {
             if sub_matches.is_present("all") {
-                if let Err(err) = dispatch::list_branches() {
+                if let Err(err) = dispatch::list_all_branches() {
                     eprintln!("{}", err)
                 }
             } else if let Some(remote_name) = sub_matches.value_of("remote") {
@@ -292,8 +294,12 @@ fn main() {
                 if let Err(err) = dispatch::force_delete_branch(name) {
                     eprintln!("{}", err)
                 }
-            } else {
-                eprintln!("`oxen branch` must supply name or -a to list all")
+            } else if sub_matches.is_present("show-current") {
+                if let Err(err) = dispatch::show_current_branch() {
+                    eprintln!("{}", err)
+                }
+            } else if let Err(err) = dispatch::list_branches() {
+                eprintln!("{}", err)
             }
         }
         Some(("checkout", sub_matches)) => {

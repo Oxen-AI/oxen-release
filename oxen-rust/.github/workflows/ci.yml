@@ -47,7 +47,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings
+          args: --no-deps -- -D warnings
 
   test:
     name: Test Suite
