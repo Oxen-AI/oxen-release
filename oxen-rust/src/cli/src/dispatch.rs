@@ -217,6 +217,13 @@ pub fn delete_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::delete_remote_branch(&repository, remote_name, branch_name)?;
+    Ok(())
+}
+
 pub fn force_delete_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -255,13 +262,13 @@ pub fn list_branches() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn list_remote_branches() -> Result<(), OxenError> {
+pub fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let remotes = command::list_remote_branches(&repository)?;
+    let remotes = command::list_remote_branches(&repository, name)?;
 
     for branch in remotes.iter() {
-        println!("{}/{}", branch.remote, branch.branch);
+        println!("{}\t{}", branch.remote, branch.branch);
     }
 
     Ok(())

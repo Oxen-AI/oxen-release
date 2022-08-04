@@ -168,6 +168,10 @@ async fn main() -> std::io::Result<()> {
                                 web::get().to(controllers::branches::show),
                             )
                             .route(
+                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}",
+                                web::delete().to(controllers::branches::delete),
+                            )
+                            .route(
                                 "/oxen/{namespace}/{repo_name}/branches/{branch_name}/commits",
                                 web::get().to(controllers::commits::index_branch),
                             )

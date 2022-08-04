@@ -47,6 +47,16 @@ fn create_empty_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
     create_prefixed_dir(base_dir, "dir")
 }
 
+pub fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+    let config = AuthConfig::default()?;
+    command::create_remote(
+        repo,
+        constants::DEFAULT_NAMESPACE,
+        &repo.dirname(),
+        &config.host,
+    )
+}
+
 /// # Run a unit test on a test repo directory
 ///
 /// This function will create a directory with a uniq name

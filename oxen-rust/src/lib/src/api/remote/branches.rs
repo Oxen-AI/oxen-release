@@ -112,14 +112,17 @@ pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     }
 }
 
-pub fn delete(repository: &RemoteRepository, branch: &Branch) -> Result<StatusMessage, OxenError> {
+pub fn delete(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<StatusMessage, OxenError> {
     let config = AuthConfig::default()?;
     let client = reqwest::blocking::Client::new();
-    let uri = format!("/branches/{}", branch.name);
+    let uri = format!("/branches/{}", branch_name);
     let url = api::endpoint::url_from_repo(repository, &uri);
     log::debug!("Deleting branch: {}", url);
     if let Ok(res) = client
-        .delete(repository.url.clone())
+        .delete(url)
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()),
@@ -203,7 +206,7 @@ mod tests {
             let branch = branch.unwrap();
             assert_eq!(branch.name, branch_name);
 
-            api::remote::branches::delete(remote_repo, &branch)?;
+            api::remote::branches::delete(remote_repo, branch_name)?;
 
             let deleted_branch = api::remote::branches::get_by_name(remote_repo, branch_name)?;
             assert!(deleted_branch.is_none());

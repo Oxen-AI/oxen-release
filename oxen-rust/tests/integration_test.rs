@@ -1,6 +1,5 @@
 use liboxen::api;
 use liboxen::command;
-use liboxen::config::AuthConfig;
 use liboxen::constants;
 use liboxen::error::OxenError;
 use liboxen::index::CommitEntryReader;
@@ -733,13 +732,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -773,13 +766,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push the files
         command::push(&repo)?;
@@ -830,13 +817,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push the files
         command::push(&repo)?;
@@ -879,13 +860,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push the files
         command::push(&repo)?;
@@ -936,13 +911,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -1067,13 +1036,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -1140,13 +1103,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1180,13 +1137,7 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1261,13 +1212,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1308,7 +1253,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 }
 
 #[test]
-fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
+fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|mut repo| {
         // Track a dir
         let train_path = repo.path.join("train");
@@ -1320,13 +1265,7 @@ fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1347,6 +1286,38 @@ fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_delete_remote_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|mut repo| {
+        // Set the proper remote
+        let remote = test::repo_url_from(&repo.dirname());
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo)?;
+
+        // Push it
+        command::push(&repo)?;
+
+        // Create new branch
+        let new_branch_name = "my-branch";
+        command::create_checkout_branch(&repo, new_branch_name)?;
+
+        // Push new branch
+        command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)?;
+
+        // Delete the branch
+        api::remote::branches::delete(&remote_repo, new_branch_name)?;
+
+        let remote_branches = api::remote::branches::list(&remote_repo)?;
+        assert_eq!(1, remote_branches.len());
+
+        api::remote::repositories::delete(&remote_repo)?;
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|mut repo| {
         // Set the proper remote
@@ -1354,13 +1325,7 @@ fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         if command::push_remote_branch(
@@ -1416,13 +1381,7 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(
-            &repo,
-            constants::DEFAULT_NAMESPACE,
-            &repo.dirname(),
-            &config.host,
-        )?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;

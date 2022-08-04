@@ -156,6 +156,59 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     }
 }
 
+pub async fn delete(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let branch_name: Option<&str> = req.match_info().get("branch_name");
+    if let (Some(name), Some(namespace), Some(branch_name)) = (name, namespace, branch_name) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+            Ok(Some(repository)) => {
+                match api::local::branches::get_by_name(&repository, branch_name) {
+                    Ok(Some(branch)) => {
+                        match api::local::branches::force_delete(&repository, branch_name) {
+                            Ok(_) => HttpResponse::Ok().json(BranchResponse {
+                                status: String::from(STATUS_SUCCESS),
+                                status_message: String::from(MSG_RESOURCE_CREATED),
+                                branch,
+                            }),
+                            Err(err) => {
+                                log::error!("Delete could not delete branch: {}", err);
+                                HttpResponse::InternalServerError()
+                                    .json(StatusMessage::internal_server_error())
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        log::debug!(
+                            "branch_name {} does not exist for repo: {}",
+                            branch_name,
+                            name
+                        );
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                    Err(err) => {
+                        log::debug!("Err getting branch_name {}: {}", branch_name, err);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                }
+            }
+            Ok(None) => {
+                log::debug!("404 Could not find repo: {}", name);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Delete could not find repo: {}", err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        }
+    } else {
+        let msg = "Neet to supply `name`, `namespace`, and `branch` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
