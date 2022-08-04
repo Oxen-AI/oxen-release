@@ -255,7 +255,7 @@ pub fn list_branches() -> Result<(), OxenError> {
             let branch_str = format!("* {}", branch.name).green();
             println!("{}", branch_str)
         } else {
-            println!("{}", branch.name)
+            println!("  {}", branch.name)
         }
     }
 
@@ -269,6 +269,28 @@ pub fn list_remote_branches(name: &str) -> Result<(), OxenError> {
 
     for branch in remotes.iter() {
         println!("{}\t{}", branch.remote, branch.branch);
+    }
+    Ok(())
+}
+
+pub fn list_all_branches() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    list_branches()?;
+
+    for remote in repository.remotes.iter() {
+        list_remote_branches(&remote.name)?;
+    }
+
+    Ok(())
+}
+
+pub fn show_current_branch() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    if let Some(current_branch) = command::current_branch(&repository)? {
+        println!("{}", current_branch.name);
     }
 
     Ok(())
