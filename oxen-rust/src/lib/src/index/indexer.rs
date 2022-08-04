@@ -227,6 +227,7 @@ impl Indexer {
                 entries_to_sync.push(entry);
             }
         }
+        println!("Got {} entries to sync", entries_to_sync.len());
 
         Ok(entries_to_sync)
     }
@@ -240,9 +241,15 @@ impl Indexer {
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
             // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
-            let full_path = self.repository.path.join(&entry.path);
-            let metadata = fs::metadata(full_path)?;
-            total_size += metadata.len();
+            let version_path = util::fs::version_path(&self.repository, entry);
+            match fs::metadata(&version_path) {
+                Ok(metadata) => {
+                    total_size += metadata.len();
+                }
+                Err(err) => {
+                    log::error!("Err getting metadata on {:?}\n{:?}", version_path, err);
+                }
+            }
         }
 
         println!(

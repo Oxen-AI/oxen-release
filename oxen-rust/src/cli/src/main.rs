@@ -95,15 +95,13 @@ fn main() {
                         .long("remote")
                         .short('r')
                         .help("List all the remote branches")
-                        .exclusive(true)
-                        .takes_value(false),
+                        .takes_value(true),
                 )
                 .arg(
                     Arg::new("force-delete")
                         .long("force-delete")
                         .short('D')
                         .help("Force remove the local branch")
-                        .exclusive(true)
                         .takes_value(true),
                 )
                 .arg(
@@ -111,7 +109,6 @@ fn main() {
                         .long("delete")
                         .short('d')
                         .help("Remove the local branch if it is safe to")
-                        .exclusive(true)
                         .takes_value(true),
                 ),
         )
@@ -275,8 +272,12 @@ fn main() {
                 if let Err(err) = dispatch::list_branches() {
                     eprintln!("{}", err)
                 }
-            } else if sub_matches.is_present("remote") {
-                if let Err(err) = dispatch::list_remote_branches() {
+            } else if let Some(remote_name) = sub_matches.value_of("remote") {
+                if let Some(branch_name) = sub_matches.value_of("delete") {
+                    if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name) {
+                        eprintln!("{}", err)
+                    }
+                } else if let Err(err) = dispatch::list_remote_branches(remote_name) {
                     eprintln!("{}", err)
                 }
             } else if let Some(name) = sub_matches.value_of("name") {
