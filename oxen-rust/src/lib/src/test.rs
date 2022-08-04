@@ -4,6 +4,7 @@
 use crate::api;
 use crate::command;
 use crate::config::{AuthConfig, HTTPConfig, RemoteConfig};
+use crate::constants;
 use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
@@ -18,7 +19,7 @@ const TEST_RUN_DIR: &str = "data/test/runs";
 pub fn repo_url_from(name: &str) -> String {
     // Tests always point to localhost
     let config = RemoteConfig::from(Path::new("data/test/config/remote_config.toml"));
-    let uri = format!("/repositories/{}", name);
+    let uri = format!("/{}/{}", constants::DEFAULT_NAMESPACE, name);
     api::endpoint::url_from_remote_config(&config, &uri)
 }
 
@@ -118,7 +119,11 @@ where
 
     let local_repo = command::init(&repo_dir)?;
     let config = AuthConfig::default()?;
-    let remote_repo = api::remote::repositories::create(&local_repo, config.host())?;
+
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -132,7 +137,7 @@ where
     std::fs::remove_dir_all(&repo_dir)?;
 
     // Cleanup remote repo
-    api::remote::repositories::delete(remote_repo)?;
+    api::remote::repositories::delete(&remote_repo)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -153,7 +158,11 @@ where
     populate_dir_with_training_data(&repo_dir)?;
 
     let config = AuthConfig::default()?;
-    let remote_repo = api::remote::repositories::create(&local_repo, config.host())?;
+
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
     println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
@@ -168,7 +177,7 @@ where
     std::fs::remove_dir_all(&repo_dir)?;
 
     // Cleanup remote repo
-    api::remote::repositories::delete(remote_repo)?;
+    api::remote::repositories::delete(&remote_repo)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -186,7 +195,9 @@ where
     let path = empty_dir.join(name);
     let local_repo = command::init(&path)?;
     let config = AuthConfig::default()?;
-    let repo = api::remote::repositories::create(&local_repo, config.host())?;
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let repo = api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
     println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd
@@ -198,7 +209,7 @@ where
     });
 
     // Cleanup remote repo
-    api::remote::repositories::delete(repo)?;
+    api::remote::repositories::delete(&repo)?;
 
     // Cleanup Local
     std::fs::remove_dir_all(path)?;

@@ -1,4 +1,4 @@
-use crate::model::{LocalRepository, RemoteRepository};
+use crate::model::{RemoteRepository, RepositoryNew};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -22,17 +22,17 @@ pub struct ListRepositoryResponse {
 }
 
 impl RepositoryView {
-    pub fn from_local(repository: LocalRepository) -> RepositoryView {
+    pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
         RepositoryView {
             namespace: repository.namespace.clone(),
             name: repository.name,
         }
     }
 
-    pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
+    pub fn from_new(repository: &RepositoryNew) -> RepositoryView {
         RepositoryView {
             namespace: repository.namespace.clone(),
-            name: repository.name,
+            name: repository.name.clone(),
         }
     }
 }

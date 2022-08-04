@@ -309,7 +309,7 @@ mod tests {
             let commit = command::commit(&repo, "Adding image")?.unwrap();
 
             // Set the proper remote
-            let remote = test::repo_url_from(&repo.name);
+            let remote = test::repo_url_from(&remote_repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push everything
@@ -337,7 +337,7 @@ mod tests {
             let commit = command::commit(&repo, "Adding image")?.unwrap();
 
             // Set the proper remote
-            let remote = test::repo_url_from(&repo.name);
+            let remote = test::repo_url_from(&remote_repo.name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push

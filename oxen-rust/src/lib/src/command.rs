@@ -9,7 +9,9 @@ use crate::error::OxenError;
 use crate::index::{
     CommitEntryReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
-use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
+use crate::model::{
+    Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
+};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -451,15 +453,20 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 }
 
 /// # List remote branches
-pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    if let Some(remote_repo) =
-        api::remote::repositories::get_by_namespace_and_name(&repo.namespace, &repo.name)?
-    {
-        let branches = api::remote::branches::list(&remote_repo)?;
-        Ok(branches)
-    } else {
-        Err(OxenError::remote_repo_not_found(&repo.name))
+pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<RemoteBranch>, OxenError> {
+    let mut branches: Vec<RemoteBranch> = vec![];
+    for remote in repo.remotes.iter() {
+        log::debug!("Considering remote: {:?}", remote);
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
+            for branch in api::remote::branches::list(&remote_repo)? {
+                branches.push(RemoteBranch {
+                    remote: remote.name.clone(),
+                    branch: branch.name.clone(),
+                });
+            }
+        }
     }
+    Ok(branches)
 }
 
 /// # Get the current branch
@@ -485,8 +492,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Create a remote repository
 /// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
-pub fn create_remote(repo: &LocalRepository, host: &str) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(repo, host)
+pub fn create_remote(
+    repo: &LocalRepository,
+    namespace: &str,
+    name: &str,
+    host: &str,
+) -> Result<RemoteRepository, OxenError> {
+    api::remote::repositories::create(repo, namespace, name, host)
 }
 
 /// # Set the remote for a repository
@@ -498,7 +510,8 @@ pub fn set_remote(
 ) -> Result<RemoteRepository, OxenError> {
     repo.set_remote(name, url);
     repo.save_default()?;
-    Ok(RemoteRepository::from_local(repo, url))
+    let repo = RepositoryNew::from_url(url)?;
+    Ok(RemoteRepository::from_new(&repo, url))
 }
 
 /// # Remove the remote for a repository
@@ -536,13 +549,13 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// // Set the remote server
 /// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "0.0.0.0:3000")?;
+/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000")?;
 ///
 /// // Push the file
 /// command::push(&repo);
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
-/// # api::remote::repositories::delete(remote_repo)?;
+/// # api::remote::repositories::delete(&remote_repo)?;
 /// # Ok(())
 /// # }
 /// ```

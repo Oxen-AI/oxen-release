@@ -5,6 +5,7 @@ use crate::error::OxenError;
 use crate::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
+use crate::view::RepositoryView;
 
 use std::path::Path;
 use walkdir::WalkDir;
@@ -134,8 +135,7 @@ pub fn create_empty(
 
     // Create config file
     let config_path = util::fs::config_filepath(&repo_dir);
-    let mut local_repo = LocalRepository::new(&repo_dir)?;
-    local_repo.namespace = new_repo.namespace.clone();
+    let local_repo = LocalRepository::new(&repo_dir)?;
     local_repo.save(&config_path)?;
 
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
@@ -156,7 +156,7 @@ pub fn create_empty(
     Ok(local_repo)
 }
 
-pub fn delete(sync_dir: &Path, repository: LocalRepository) -> Result<LocalRepository, OxenError> {
+pub fn delete(sync_dir: &Path, repository: RepositoryView) -> Result<RepositoryView, OxenError> {
     let repo_dir = sync_dir
         .join(Path::new(&repository.namespace))
         .join(Path::new(&repository.name));
@@ -199,9 +199,7 @@ mod tests {
                     timestamp: timestamp.timestamp_nanos(),
                 }),
             };
-            let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
-
-            assert_eq!(repo.name, name);
+            let _repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -209,8 +207,7 @@ mod tests {
             assert!(repo_path.exists());
 
             // Test that we can successful load a repository from that dir
-            let repo = LocalRepository::from_dir(&repo_path)?;
-            assert_eq!(repo.name, name);
+            let _repo = LocalRepository::from_dir(&repo_path)?;
 
             Ok(())
         })
@@ -226,9 +223,7 @@ mod tests {
                 name: String::from(name),
                 root_commit: None,
             };
-            let repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
-
-            assert_eq!(repo.name, name);
+            let _repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -236,8 +231,7 @@ mod tests {
             assert!(repo_path.exists());
 
             // Test that we can successful load a repository from that dir
-            let repo = LocalRepository::from_dir(&repo_path)?;
-            assert_eq!(repo.name, name);
+            let _repo = LocalRepository::from_dir(&repo_path)?;
 
             Ok(())
         })
@@ -312,10 +306,9 @@ mod tests {
             std::fs::create_dir_all(&repo_dir)?;
 
             let _ = command::init(&repo_dir)?;
-            let repo =
+            let _repo =
                 api::local::repositories::get_by_namespace_and_name(sync_dir, namespace, name)?
                     .unwrap();
-            assert_eq!(repo.name, name);
             Ok(())
         })
     }

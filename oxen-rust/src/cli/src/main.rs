@@ -38,6 +38,8 @@ fn main() {
         .subcommand(
             Command::new("create-remote")
                 .about("Creates a remote repository with the name on the host")
+                .arg(arg!(<NAMESPACE> "The namespace you would like to use"))
+                .arg(arg!(<NAME> "The remote host"))
                 .arg(arg!(<HOST> "The remote host"))
                 .arg_required_else_help(true),
         )
@@ -181,9 +183,11 @@ fn main() {
             }
         }
         Some(("create-remote", sub_matches)) => {
+            let namespace = sub_matches.value_of("NAMESPACE").expect("required");
+            let name = sub_matches.value_of("NAME").expect("required");
             let host = sub_matches.value_of("HOST").expect("required");
 
-            match dispatch::create_remote(host) {
+            match dispatch::create_remote(namespace, name, host) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
