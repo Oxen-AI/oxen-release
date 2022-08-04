@@ -1,4 +1,4 @@
-use crate::model::LocalRepository;
+use crate::model::RepositoryNew;
 use crate::view::RepositoryView;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ impl RemoteRepository {
         }
     }
 
-    pub fn from_local(repository: &LocalRepository, url: &str) -> RemoteRepository {
+    pub fn from_new(repository: &RepositoryNew, url: &str) -> RemoteRepository {
         RemoteRepository {
             namespace: repository.namespace.clone(),
             name: repository.name.clone(),

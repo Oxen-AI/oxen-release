@@ -13,6 +13,7 @@ pub enum OxenError {
     TomlSer(toml::ser::Error),
     TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
+    URL(url::ParseError),
     JSON(serde_json::Error),
     HTTP(reqwest::Error),
     Encoding(std::str::Utf8Error),
@@ -121,6 +122,12 @@ impl From<toml::de::Error> for OxenError {
 impl From<http::uri::InvalidUri> for OxenError {
     fn from(error: http::uri::InvalidUri) -> Self {
         OxenError::URI(error)
+    }
+}
+
+impl From<url::ParseError> for OxenError {
+    fn from(error: url::ParseError) -> Self {
+        OxenError::URL(error)
     }
 }
 

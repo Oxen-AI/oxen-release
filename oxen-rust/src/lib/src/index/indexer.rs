@@ -594,11 +594,13 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
 
             // Set the proper remote
-            let remote = test::repo_url_from(&repo.name);
+            let name = repo.dirname();
+            let remote = test::repo_url_from(&name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let config = AuthConfig::default()?;
-            let remote_repo = command::create_remote(&repo, &config.host)?;
+            let remote_repo =
+                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, &config.host)?;
 
             command::push(&repo)?;
 
@@ -623,7 +625,7 @@ mod tests {
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(og_num_files, num_files);
 
-                api::remote::repositories::delete(remote_repo)?;
+                api::remote::repositories::delete(&remote_repo)?;
 
                 Ok(())
             })
@@ -634,7 +636,8 @@ mod tests {
     fn test_indexer_partial_pull_multiple_commits() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|mut repo| {
             // Set the proper remote
-            let remote = test::repo_url_from(&repo.name);
+            let name = repo.dirname();
+            let remote = test::repo_url_from(&name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
@@ -649,7 +652,8 @@ mod tests {
 
             // Create remote
             let config = AuthConfig::default()?;
-            let remote_repo = command::create_remote(&repo, &config.host)?;
+            let remote_repo =
+                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, &config.host)?;
 
             // Push it
             command::push(&repo)?;
@@ -667,7 +671,7 @@ mod tests {
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(num_files, limit);
 
-                api::remote::repositories::delete(remote_repo)?;
+                api::remote::repositories::delete(&remote_repo)?;
 
                 Ok(())
             })
