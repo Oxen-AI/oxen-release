@@ -326,12 +326,18 @@ mod tests {
             let commit = commit_history.first().unwrap();
 
             // Set the proper remote
-            let remote = test::repo_url_from(&local_repo.name);
+            let name = local_repo.dirname();
+            let remote = test::repo_url_from(&name);
             command::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
             let config = AuthConfig::default()?;
-            let remote_repo = command::create_remote(&local_repo, &config.host)?;
+            let remote_repo = command::create_remote(
+                &local_repo,
+                constants::DEFAULT_NAMESPACE,
+                &local_repo.dirname(),
+                &config.host,
+            )?;
 
             // Push it
             command::push(&local_repo)?;
@@ -346,7 +352,7 @@ mod tests {
                 api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)?;
             assert!(is_synced);
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })

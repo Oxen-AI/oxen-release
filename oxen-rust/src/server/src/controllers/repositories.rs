@@ -23,7 +23,10 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         let repos: Vec<RepositoryView> =
             api::local::repositories::list_repos_in_namespace(namespace_path)
                 .iter()
-                .map(|repo| RepositoryView::from_local(repo.clone()))
+                .map(|repo| RepositoryView {
+                    name: repo.dirname(),
+                    namespace: namespace.to_string(),
+                })
                 .collect();
         let view = ListRepositoryResponse {
             status: String::from(STATUS_SUCCESS),
@@ -44,10 +47,13 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let (Some(name), Some(namespace)) = (name, namespace) {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => HttpResponse::Ok().json(RepositoryResponse {
+            Ok(Some(_)) => HttpResponse::Ok().json(RepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: RepositoryView::from_local(repository),
+                repository: RepositoryView {
+                    namespace: String::from(namespace),
+                    name: String::from(name),
+                },
             }),
             Ok(None) => {
                 log::debug!("404 Could not find repo: {}", name);
@@ -70,12 +76,15 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::create_empty(&app_data.path, &data) {
-            Ok(repository) => {
+            Ok(_) => {
                 // Set the remote to this server
                 HttpResponse::Ok().json(RepositoryResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
-                    repository: RepositoryView::from_local(repository),
+                    repository: RepositoryView {
+                        namespace: data.namespace,
+                        name: data.name,
+                    },
                 })
             }
             Err(err) => {
@@ -100,12 +109,16 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let (Some(name), Some(namespace)) = (name, namespace) {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => {
+            Ok(Some(_)) => {
+                let repository = RepositoryView {
+                    namespace: String::from(namespace),
+                    name: String::from(name),
+                };
                 match api::local::repositories::delete(&app_data.path, repository) {
                     Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_DELETED),
-                        repository: RepositoryView::from_local(repository),
+                        repository,
                     }),
                     Err(err) => {
                         log::error!("Error deleting repository: {}", err);

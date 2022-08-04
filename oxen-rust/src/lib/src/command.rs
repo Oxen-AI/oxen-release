@@ -9,7 +9,9 @@ use crate::error::OxenError;
 use crate::index::{
     CommitEntryReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
-use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
+use crate::model::{
+    Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
+};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -252,60 +254,37 @@ pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenE
 }
 
 /// # Delete a local branch
-/// Checks to make sure the branch has been merged or pushed before deleting.
+/// Checks to make sure the branch has been merged before deleting.
 pub fn delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    if let Ok(Some(branch)) = current_branch(repo) {
-        if branch.name == name {
-            let err = format!("Err: Cannot delete current checked out branch '{}'", name);
-            return Err(OxenError::basic_str(&err));
-        }
-    }
-
-    if branch_has_been_merged(repo, name)? {
-        let ref_writer = RefWriter::new(repo)?;
-        ref_writer.delete_branch(name)
-    } else {
-        let err = format!("Err: The branch '{}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {}'.", name, name);
-        Err(OxenError::basic_str(&err))
-    }
+    api::local::branches::delete(repo, name)
 }
 
-fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    let commit_reader = CommitReader::new(repo)?;
-
-    if let Some(branch_commit_id) = ref_reader.get_commit_id_for_branch(name)? {
-        if let Some(commit_id) = ref_reader.head_commit_id()? {
-            let history = commit_reader.history_from_commit_id(&commit_id)?;
-            for commit in history.iter() {
-                if commit.id == branch_commit_id {
-                    return Ok(true);
-                }
+/// # Delete a remote branch
+pub fn delete_remote_branch(
+    repo: &LocalRepository,
+    remote: &str,
+    branch_name: &str,
+) -> Result<(), OxenError> {
+    if let Some(remote) = repo.get_remote(remote) {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
+            if let Some(branch) = api::remote::branches::get_by_name(&remote_repo, branch_name)? {
+                api::remote::branches::delete(&remote_repo, &branch.name)?;
+                Ok(())
+            } else {
+                Err(OxenError::remote_branch_not_found(branch_name))
             }
-            // We didn't find commit
-            Ok(false)
         } else {
-            // Cannot check if it has been merged if we are in a detached HEAD state
-            Ok(false)
+            Err(OxenError::remote_repo_not_found(&remote.url))
         }
     } else {
-        let err = format!("Err: The branch '{}' does not exist.", name);
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::remote_not_set())
     }
 }
 
 /// # Force delete a local branch
 /// Caution! Will delete a local branch without checking if it has been merged or pushed.
 pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    if let Ok(Some(branch)) = current_branch(repo) {
-        if branch.name == name {
-            let err = format!("Err: Cannot delete current checked out branch '{}'", name);
-            return Err(OxenError::basic_str(&err));
-        }
-    }
-
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.delete_branch(name)
+    api::local::branches::force_delete(repo, name)
 }
 
 /// # Checkout a branch or commit id
@@ -451,15 +430,22 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 }
 
 /// # List remote branches
-pub fn list_remote_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    if let Some(remote_repo) =
-        api::remote::repositories::get_by_namespace_and_name(&repo.namespace, &repo.name)?
-    {
-        let branches = api::remote::branches::list(&remote_repo)?;
-        Ok(branches)
-    } else {
-        Err(OxenError::remote_repo_not_found(&repo.name))
+pub fn list_remote_branches(
+    repo: &LocalRepository,
+    name: &str,
+) -> Result<Vec<RemoteBranch>, OxenError> {
+    let mut branches: Vec<RemoteBranch> = vec![];
+    if let Some(remote) = repo.get_remote(name) {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
+            for branch in api::remote::branches::list(&remote_repo)? {
+                branches.push(RemoteBranch {
+                    remote: remote.name.clone(),
+                    branch: branch.name.clone(),
+                });
+            }
+        }
     }
+    Ok(branches)
 }
 
 /// # Get the current branch
@@ -485,8 +471,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Create a remote repository
 /// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
-pub fn create_remote(repo: &LocalRepository, host: &str) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(repo, host)
+pub fn create_remote(
+    repo: &LocalRepository,
+    namespace: &str,
+    name: &str,
+    host: &str,
+) -> Result<RemoteRepository, OxenError> {
+    api::remote::repositories::create(repo, namespace, name, host)
 }
 
 /// # Set the remote for a repository
@@ -498,7 +489,8 @@ pub fn set_remote(
 ) -> Result<RemoteRepository, OxenError> {
     repo.set_remote(name, url);
     repo.save_default()?;
-    Ok(RemoteRepository::from_local(repo, url))
+    let repo = RepositoryNew::from_url(url)?;
+    Ok(RemoteRepository::from_new(&repo, url))
 }
 
 /// # Remove the remote for a repository
@@ -536,13 +528,13 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// // Set the remote server
 /// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "0.0.0.0:3000")?;
+/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000")?;
 ///
 /// // Push the file
 /// command::push(&repo);
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
-/// # api::remote::repositories::delete(remote_repo)?;
+/// # api::remote::repositories::delete(&remote_repo)?;
 /// # Ok(())
 /// # }
 /// ```

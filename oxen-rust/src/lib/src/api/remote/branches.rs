@@ -2,7 +2,7 @@ use crate::api;
 use crate::config::{AuthConfig, HTTPConfig};
 use crate::error::OxenError;
 use crate::model::{Branch, RemoteRepository};
-use crate::view::{BranchResponse, ListBranchesResponse};
+use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
 
 use serde_json::json;
 
@@ -112,6 +112,40 @@ pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     }
 }
 
+pub fn delete(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<StatusMessage, OxenError> {
+    let config = AuthConfig::default()?;
+    let client = reqwest::blocking::Client::new();
+    let uri = format!("/branches/{}", branch_name);
+    let url = api::endpoint::url_from_repo(repository, &uri);
+    log::debug!("Deleting branch: {}", url);
+    if let Ok(res) = client
+        .delete(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()),
+        )
+        .send()
+    {
+        let status = res.status();
+        let body = res.text()?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::basic_str(&format!(
+                "status_code[{}], could not delete branch \n\n{}",
+                status, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::branches::delete() Request failed",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -156,6 +190,26 @@ mod tests {
             assert!(branches.iter().any(|b| b.name == "branch-1"));
             assert!(branches.iter().any(|b| b.name == "branch-2"));
             assert!(branches.iter().any(|b| b.name == "main"));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_delete_branch() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|remote_repo| {
+            let branch_name = "my-branch";
+            api::remote::branches::create_or_get(remote_repo, branch_name)?;
+
+            let branch = api::remote::branches::get_by_name(remote_repo, branch_name)?;
+            assert!(branch.is_some());
+            let branch = branch.unwrap();
+            assert_eq!(branch.name, branch_name);
+
+            api::remote::branches::delete(remote_repo, branch_name)?;
+
+            let deleted_branch = api::remote::branches::get_by_name(remote_repo, branch_name)?;
+            assert!(deleted_branch.is_none());
 
             Ok(())
         })
