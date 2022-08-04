@@ -21,14 +21,14 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn create_remote(host: &str) -> Result<(), OxenError> {
+pub fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo, host)?;
+    let remote = command::create_remote(&repo, namespace, name, host)?;
     println!(
         "Remote created for {}\n\noxen set-remote origin {}",
-        repo.name, remote.url
+        name, remote.url
     );
 
     Ok(())
@@ -217,6 +217,13 @@ pub fn delete_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::delete_remote_branch(&repository, remote_name, branch_name)?;
+    Ok(())
+}
+
 pub fn force_delete_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -255,18 +262,13 @@ pub fn list_branches() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn list_remote_branches() -> Result<(), OxenError> {
+pub fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let branches = command::list_remote_branches(&repository)?;
+    let remotes = command::list_remote_branches(&repository, name)?;
 
-    for branch in branches.iter() {
-        if branch.is_head {
-            let branch_str = format!("* {}", branch.name).green();
-            println!("{}", branch_str)
-        } else {
-            println!("{}", branch.name)
-        }
+    for branch in remotes.iter() {
+        println!("{}\t{}", branch.remote, branch.branch);
     }
 
     Ok(())

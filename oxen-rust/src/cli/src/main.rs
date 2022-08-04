@@ -38,6 +38,8 @@ fn main() {
         .subcommand(
             Command::new("create-remote")
                 .about("Creates a remote repository with the name on the host")
+                .arg(arg!(<NAMESPACE> "The namespace you would like to use"))
+                .arg(arg!(<NAME> "The remote host"))
                 .arg(arg!(<HOST> "The remote host"))
                 .arg_required_else_help(true),
         )
@@ -77,8 +79,8 @@ fn main() {
                 .arg(
                     Arg::new("name")
                         .help("Name of the branch")
-                        .conflicts_with("all")
-                        .exclusive(true),
+                        .exclusive(true)
+                        .takes_value(true),
                 )
                 .arg(
                     Arg::new("all")
@@ -93,15 +95,13 @@ fn main() {
                         .long("remote")
                         .short('r')
                         .help("List all the remote branches")
-                        .exclusive(true)
-                        .takes_value(false),
+                        .takes_value(true),
                 )
                 .arg(
                     Arg::new("force-delete")
                         .long("force-delete")
                         .short('D')
                         .help("Force remove the local branch")
-                        .exclusive(true)
                         .takes_value(true),
                 )
                 .arg(
@@ -109,7 +109,6 @@ fn main() {
                         .long("delete")
                         .short('d')
                         .help("Remove the local branch if it is safe to")
-                        .exclusive(true)
                         .takes_value(true),
                 ),
         )
@@ -148,6 +147,13 @@ fn main() {
             Command::new("push")
                 .about("Push the the files to the remote branch")
                 .arg(arg!(<REMOTE> "Remote you want to pull from"))
+                .arg(
+                    Arg::new("delete")
+                        .long("delete")
+                        .short('d')
+                        .help("Remove the remote branch")
+                        .takes_value(false),
+                )
                 .arg(arg!(<BRANCH> "Branch name to pull")),
         )
         .subcommand(
@@ -174,9 +180,11 @@ fn main() {
             }
         }
         Some(("create-remote", sub_matches)) => {
+            let namespace = sub_matches.value_of("NAMESPACE").expect("required");
+            let name = sub_matches.value_of("NAME").expect("required");
             let host = sub_matches.value_of("HOST").expect("required");
 
-            match dispatch::create_remote(host) {
+            match dispatch::create_remote(namespace, name, host) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
@@ -264,8 +272,12 @@ fn main() {
                 if let Err(err) = dispatch::list_branches() {
                     eprintln!("{}", err)
                 }
-            } else if sub_matches.is_present("remote") {
-                if let Err(err) = dispatch::list_remote_branches() {
+            } else if let Some(remote_name) = sub_matches.value_of("remote") {
+                if let Some(branch_name) = sub_matches.value_of("delete") {
+                    if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name) {
+                        eprintln!("{}", err)
+                    }
+                } else if let Err(err) = dispatch::list_remote_branches(remote_name) {
                     eprintln!("{}", err)
                 }
             } else if let Some(name) = sub_matches.value_of("name") {
@@ -317,10 +329,15 @@ fn main() {
             let branch = sub_matches
                 .value_of("BRANCH")
                 .unwrap_or(DEFAULT_BRANCH_NAME);
-            match dispatch::push(remote, branch) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+
+            if sub_matches.is_present("delete") {
+                println!("Delete remote branch {}/{}", remote, branch);
+            } else {
+                match dispatch::push(remote, branch) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }

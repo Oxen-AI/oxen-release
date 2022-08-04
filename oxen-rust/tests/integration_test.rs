@@ -1,6 +1,5 @@
 use liboxen::api;
 use liboxen::command;
-use liboxen::config::AuthConfig;
 use liboxen::constants;
 use liboxen::error::OxenError;
 use liboxen::index::CommitEntryReader;
@@ -21,10 +20,6 @@ fn test_command_init() -> Result<(), OxenError> {
         let config_file = util::fs::config_filepath(repo_dir);
         assert!(hidden_dir.exists());
         assert!(config_file.exists());
-
-        // Name and id will be random but should be populated
-        assert!(!repo.namespace.is_empty());
-        assert!(!repo.name.is_empty());
 
         // We make an initial parent commit and branch called "main"
         // just to make our lives easier down the line
@@ -733,12 +728,11 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -750,7 +744,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
-        api::remote::repositories::delete(remote_repo)?;
+        api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
     })
@@ -768,12 +762,11 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push the files
         command::push(&repo)?;
@@ -794,7 +787,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
-        api::remote::repositories::delete(remote_repo)?;
+        api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
     })
@@ -820,12 +813,11 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding test data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push the files
         command::push(&repo)?;
@@ -837,7 +829,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
-        api::remote::repositories::delete(remote_repo)?;
+        api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
     })
@@ -864,12 +856,11 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push the files
         command::push(&repo)?;
@@ -881,7 +872,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
-        api::remote::repositories::delete(remote_repo)?;
+        api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
     })
@@ -916,12 +907,11 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -1016,7 +1006,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
             assert!(!pulled_send_it_back_path.exists());
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })
@@ -1042,12 +1032,11 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         command::commit(&repo, "Adding labels file")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it real good
         command::push(&repo)?;
@@ -1085,7 +1074,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             command::pull(&cloned_repo)?;
             assert!(!cloned_filepath.exists());
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })
@@ -1110,12 +1099,11 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding test dir")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1128,7 +1116,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })
@@ -1145,12 +1133,11 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1202,7 +1189,7 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             // Now there should be 7 train files
             assert_eq!(7, cloned_num_files);
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })
@@ -1221,12 +1208,11 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1259,7 +1245,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
             // Now there should be still be 5 train files
             assert_eq!(5, og_num_files);
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })
@@ -1267,7 +1253,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 }
 
 #[test]
-fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
+fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|mut repo| {
         // Track a dir
         let train_path = repo.path.join("train");
@@ -1275,12 +1261,11 @@ fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1294,7 +1279,39 @@ fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
         let remote_branches = api::remote::branches::list(&remote_repo)?;
         assert_eq!(2, remote_branches.len());
 
-        api::remote::repositories::delete(remote_repo)?;
+        api::remote::repositories::delete(&remote_repo)?;
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_delete_remote_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|mut repo| {
+        // Set the proper remote
+        let remote = test::repo_url_from(&repo.dirname());
+        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo)?;
+
+        // Push it
+        command::push(&repo)?;
+
+        // Create new branch
+        let new_branch_name = "my-branch";
+        command::create_checkout_branch(&repo, new_branch_name)?;
+
+        // Push new branch
+        command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)?;
+
+        // Delete the branch
+        api::remote::branches::delete(&remote_repo, new_branch_name)?;
+
+        let remote_branches = api::remote::branches::list(&remote_repo)?;
+        assert_eq!(1, remote_branches.len());
+
+        api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
     })
@@ -1304,12 +1321,11 @@ fn test_push_branch_with_no_new_commits() -> Result<(), OxenError> {
 fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|mut repo| {
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         if command::push_remote_branch(
@@ -1325,7 +1341,7 @@ fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
         let remote_branches = api::remote::branches::list(&remote_repo)?;
         assert_eq!(1, remote_branches.len());
 
-        api::remote::repositories::delete(remote_repo)?;
+        api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
     })
@@ -1361,12 +1377,11 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
         let local_history = command::log(&repo)?;
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.name);
+        let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let config = AuthConfig::default()?;
-        let remote_repo = command::create_remote(&repo, &config.host)?;
+        let remote_repo = test::create_remote_repo(&repo)?;
 
         // Push it
         command::push(&repo)?;
@@ -1395,7 +1410,7 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(entries.is_ok());
             }
 
-            api::remote::repositories::delete(remote_repo)?;
+            api::remote::repositories::delete(&remote_repo)?;
 
             Ok(())
         })

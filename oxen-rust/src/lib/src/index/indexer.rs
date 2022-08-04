@@ -227,6 +227,7 @@ impl Indexer {
                 entries_to_sync.push(entry);
             }
         }
+        println!("Got {} entries to sync", entries_to_sync.len());
 
         Ok(entries_to_sync)
     }
@@ -240,9 +241,15 @@ impl Indexer {
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
             // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
-            let full_path = self.repository.path.join(&entry.path);
-            let metadata = fs::metadata(full_path)?;
-            total_size += metadata.len();
+            let version_path = util::fs::version_path(&self.repository, entry);
+            match fs::metadata(&version_path) {
+                Ok(metadata) => {
+                    total_size += metadata.len();
+                }
+                Err(err) => {
+                    log::error!("Err getting metadata on {:?}\n{:?}", version_path, err);
+                }
+            }
         }
 
         println!(
@@ -594,11 +601,13 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
 
             // Set the proper remote
-            let remote = test::repo_url_from(&repo.name);
+            let name = repo.dirname();
+            let remote = test::repo_url_from(&name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let config = AuthConfig::default()?;
-            let remote_repo = command::create_remote(&repo, &config.host)?;
+            let remote_repo =
+                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, &config.host)?;
 
             command::push(&repo)?;
 
@@ -623,7 +632,7 @@ mod tests {
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(og_num_files, num_files);
 
-                api::remote::repositories::delete(remote_repo)?;
+                api::remote::repositories::delete(&remote_repo)?;
 
                 Ok(())
             })
@@ -634,7 +643,8 @@ mod tests {
     fn test_indexer_partial_pull_multiple_commits() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|mut repo| {
             // Set the proper remote
-            let remote = test::repo_url_from(&repo.name);
+            let name = repo.dirname();
+            let remote = test::repo_url_from(&name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
@@ -649,7 +659,8 @@ mod tests {
 
             // Create remote
             let config = AuthConfig::default()?;
-            let remote_repo = command::create_remote(&repo, &config.host)?;
+            let remote_repo =
+                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, &config.host)?;
 
             // Push it
             command::push(&repo)?;
@@ -667,7 +678,7 @@ mod tests {
                 let num_files = util::fs::rcount_files_in_dir(new_repo_dir);
                 assert_eq!(num_files, limit);
 
-                api::remote::repositories::delete(remote_repo)?;
+                api::remote::repositories::delete(&remote_repo)?;
 
                 Ok(())
             })
