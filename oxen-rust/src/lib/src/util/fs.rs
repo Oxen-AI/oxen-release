@@ -83,6 +83,62 @@ pub fn read_lines(path: &Path) -> Vec<String> {
     lines
 }
 
+pub fn read_lines_paginated(path: &Path, start: usize, size: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    match File::open(&path) {
+        Ok(file) => {
+            let mut reader = BufReader::new(file);
+            let mut i = 0;
+            let mut line = String::from("");
+            while let Ok(len) = reader.read_line(&mut line) {
+                if i >= (start + size) || 0 == len {
+                    break;
+                }
+
+                if i >= start {
+                    lines.push(line.trim().to_string());
+                }
+                line.clear();
+                i += 1;
+            }
+        }
+        Err(_) => {
+            eprintln!("Could not open staging file {}", path.display())
+        }
+    }
+    lines
+}
+
+pub fn read_lines_paginated_ret_size(
+    path: &Path,
+    start: usize,
+    size: usize,
+) -> (Vec<String>, usize) {
+    let mut i = 0;
+    let mut lines: Vec<String> = Vec::new();
+    match File::open(&path) {
+        Ok(file) => {
+            let mut reader = BufReader::new(file);
+            let mut line = String::from("");
+            while let Ok(len) = reader.read_line(&mut line) {
+                if 0 == len {
+                    break;
+                }
+
+                if i >= start && i < (start + size) {
+                    lines.push(line.trim().to_string());
+                }
+                line.clear();
+                i += 1;
+            }
+        }
+        Err(_) => {
+            eprintln!("Could not open staging file {}", path.display())
+        }
+    }
+    (lines, i)
+}
+
 pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
     match fs::read_dir(dir) {
