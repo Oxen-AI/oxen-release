@@ -5,6 +5,7 @@ pub mod app_data;
 pub mod auth;
 pub mod controllers;
 pub mod test;
+pub mod view;
 
 extern crate dotenv;
 extern crate log;
@@ -182,6 +183,10 @@ async fn main() -> std::io::Result<()> {
                             .route(
                                 "/oxen/{namespace}/{repo_name}/entries",
                                 web::post().to(controllers::entries::create),
+                            )
+                            .route(
+                                "/oxen/{namespace}/{repo_name}/lines/{resource:.*}",
+                                web::get().to(controllers::entries::list_lines_in_file),
                             )
                             .route(
                                 "/oxen/{namespace}/{repo_name}/branches/{branch_name}/entries/{filename:.*}",
