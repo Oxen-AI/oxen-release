@@ -5,7 +5,7 @@ use crate::view::PaginatedLinesResponse;
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitEntryReader, CommitReader, RefReader};
-use liboxen::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteEntry};
+use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedDirEntries, PaginatedEntries, RemoteEntryResponse, StatusMessage};
@@ -232,11 +232,12 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
     }
 }
 
-// Parses a path looking for either a commit id or a branch name, returns None of neither exist
+/// Returns commit_id,filepath
+/// Parses a path looking for either a commit id or a branch name, returns None of neither exist
 fn parse_resource(
     repo: &LocalRepository,
     path: &Path,
-) -> Result<Option<(Option<Branch>, Option<Commit>, PathBuf)>, OxenError> {
+) -> Result<Option<(String, PathBuf)>, OxenError> {
     let mut components = path.components().collect::<Vec<_>>();
     let commit_reader = CommitReader::new(repo)?;
 
@@ -253,7 +254,7 @@ fn parse_resource(
                     file_path = file_path.join(component_path);
                 }
             }
-            return Ok(Some((None, Some(commit), file_path)));
+            return Ok(Some((commit.id, file_path)));
         }
     }
 
@@ -277,20 +278,11 @@ fn parse_resource(
         let branch_name = branch_path.to_str().unwrap();
         log::debug!("parse_resource looking for branch {}", branch_name);
         if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
-            return Ok(Some((Some(branch), None, file_path)));
+            return Ok(Some((branch.commit_id, file_path)));
         }
     }
 
     Ok(None)
-}
-
-/// Returns commit_id,filepath
-fn get_filepath_from_resource(repo: &LocalRepository, path: &Path) -> Option<(String, PathBuf)> {
-    match parse_resource(repo, path) {
-        Ok(Some((Some(branch), None, path))) => Some((branch.commit_id, path)),
-        Ok(Some((None, Some(commit), path))) => Some((commit.id, path)),
-        _ => None,
-    }
 }
 
 pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
@@ -314,7 +306,7 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             log::debug!("list_lines_in_file got repo [{}]", name);
-            if let Some((commit_id, filepath)) = get_filepath_from_resource(&repo, &resource) {
+            if let Ok(Some((commit_id, filepath))) = parse_resource(&repo, &resource) {
                 log::debug!(
                     "list_lines_in_file got commit_id [{}] and filepath {:?}",
                     commit_id,
@@ -661,11 +653,8 @@ mod tests {
             let path = Path::new(&path_str);
 
             match controllers::entries::parse_resource(&repo, path) {
-                Ok(Some((Some(_branch), None, _path))) => {
-                    panic!("Should not return a branch");
-                }
-                Ok(Some((None, Some(ret_commit), path))) => {
-                    assert_eq!(commit.id, ret_commit.id);
+                Ok(Some((commit_id, path))) => {
+                    assert_eq!(commit.id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
                 }
                 _ => {
@@ -681,19 +670,16 @@ mod tests {
     fn test_parse_resource_for_branch() -> Result<(), OxenError> {
         liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my-branch";
-            command::create_checkout_branch(&repo, branch_name)?;
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
 
             let path_str = format!("{}/annotations/train/one_shot.txt", branch_name);
             let path = Path::new(&path_str);
 
             match controllers::entries::parse_resource(&repo, path) {
-                Ok(Some((Some(branch), None, path))) => {
+                Ok(Some((commit_id, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
-                    assert_eq!(branch.name, branch_name);
+                    assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
-                }
-                Ok(Some((None, Some(_ret_commit), _path))) => {
-                    panic!("Should not return a commit");
                 }
                 _ => {
                     panic!("Should return a branch");
@@ -708,19 +694,16 @@ mod tests {
     fn test_parse_resource_for_long_branch_name() -> Result<(), OxenError> {
         liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my/crazy/branch/name";
-            command::create_checkout_branch(&repo, branch_name)?;
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
 
             let path_str = format!("{}/annotations/train/one_shot.txt", branch_name);
             let path = Path::new(&path_str);
 
             match controllers::entries::parse_resource(&repo, path) {
-                Ok(Some((Some(branch), None, path))) => {
+                Ok(Some((commit_id, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
-                    assert_eq!(branch.name, branch_name);
+                    assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
-                }
-                Ok(Some((None, Some(_ret_commit), _path))) => {
-                    panic!("Should not return a commit");
                 }
                 _ => {
                     panic!("Should return a branch");

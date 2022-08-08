@@ -379,14 +379,14 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
 /// # Create a branch and check it out in one go
 /// This creates a branch with name,
 /// then switches HEAD to point to the branch
-pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     println!("Create and checkout branch: {}", name);
     let head_commit = head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
 
-    ref_writer.create_branch(name, &head_commit.id)?;
+    let branch = ref_writer.create_branch(name, &head_commit.id)?;
     ref_writer.set_head(name);
-    Ok(())
+    Ok(branch)
 }
 
 /// # Merge a branch into the current branch
