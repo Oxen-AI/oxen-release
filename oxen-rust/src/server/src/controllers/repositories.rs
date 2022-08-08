@@ -1,6 +1,7 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
+use liboxen::error::OxenError;
 use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
@@ -200,46 +201,36 @@ pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, actix
     }
 }
 
+pub fn get_version_path_for_commit_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+    filepath: &Path,
+) -> Result<PathBuf, OxenError> {
+    match api::local::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
+            Some(entry) => Ok(util::fs::version_path(repo, &entry)),
+            None => Err(OxenError::local_file_not_found(filepath)),
+        },
+        None => Err(OxenError::commit_id_does_not_exist(commit_id)),
+    }
+}
+
 fn p_get_file_for_commit_id(
     repo: &LocalRepository,
     commit_id: &str,
     filepath: &Path,
 ) -> Result<NamedFile, actix_web::Error> {
-    match api::local::commits::get_by_id(repo, commit_id) {
-        Ok(Some(commit)) => {
-            match api::local::entries::get_entry_for_commit(repo, &commit, filepath) {
-                Ok(Some(entry)) => {
-                    let version_path = util::fs::version_path(repo, &entry);
-                    log::debug!(
-                        "p_get_file_for_commit_id looking for {:?} -> {:?}",
-                        filepath,
-                        version_path
-                    );
-                    Ok(NamedFile::open(version_path)?)
-                }
-                Ok(None) => {
-                    log::debug!(
-                        "p_get_file_for_commit_id entry not found for commit id {} -> {:?}",
-                        commit_id,
-                        filepath
-                    );
-                    // gives a 404
-                    Ok(NamedFile::open("")?)
-                }
-                Err(err) => {
-                    log::error!("p_get_file_for_commit_id get entry err: {:?}", err);
-                    // gives a 404
-                    Ok(NamedFile::open("")?)
-                }
-            }
-        }
-        Ok(None) => {
-            log::debug!("p_get_file_for_commit_id commit not found {}", commit_id);
-            // gives a 404
-            Ok(NamedFile::open("")?)
+    match get_version_path_for_commit_id(repo, commit_id, filepath) {
+        Ok(version_path) => {
+            log::debug!(
+                "p_get_file_for_commit_id looking for {:?} -> {:?}",
+                filepath,
+                version_path
+            );
+            Ok(NamedFile::open(version_path)?)
         }
         Err(err) => {
-            log::error!("p_get_file_for_commit_id get commit err: {:?}", err);
+            log::error!("p_get_file_for_commit_id get entry err: {:?}", err);
             // gives a 404
             Ok(NamedFile::open("")?)
         }

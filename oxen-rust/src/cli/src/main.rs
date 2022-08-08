@@ -3,6 +3,7 @@ use env_logger::Env;
 use std::path::Path;
 
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use liboxen::util;
 pub mod dispatch;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -163,6 +164,13 @@ fn main() {
                 .about("Pull the files up from a remote branch")
                 .arg(arg!(<REMOTE> "Remote you want to pull from"))
                 .arg(arg!(<BRANCH> "Branch name to pull")),
+        )
+        .subcommand(
+            Command::new("read-lines")
+                .about("Read a set of lines from a file without loading it all into memory")
+                .arg(arg!(<PATH> "Path to file you want to read"))
+                .arg(arg!(<START> "Start index of file"))
+                .arg(arg!(<LENGTH> "Length you want to read")),
         );
 
     let matches = command.get_matches();
@@ -379,6 +387,26 @@ fn main() {
                     println!("Err: {}", err)
                 }
             }
+        }
+        Some(("read-lines", sub_matches)) => {
+            let path_str = sub_matches.value_of("PATH").expect("required");
+            let start: usize = sub_matches
+                .value_of("START")
+                .unwrap_or("0")
+                .parse::<usize>()
+                .unwrap();
+            let length: usize = sub_matches
+                .value_of("LENGTH")
+                .unwrap_or("10")
+                .parse::<usize>()
+                .unwrap();
+
+            let path = Path::new(path_str);
+            let (lines, size) = util::fs::read_lines_paginated_ret_size(path, start, length);
+            for line in lines.iter() {
+                println!("{}", line);
+            }
+            println!("Total: {}", size);
         }
         // TODO: Get these in the help command instead of just falling back
         Some((ext, sub_matches)) => {
