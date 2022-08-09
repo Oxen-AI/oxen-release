@@ -5,6 +5,10 @@ Official repository for docs and releases of the Oxen Server and Oxen CLI.
 
 The Oxen CLI mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, you should be relatively comfortable versioning your datasets with Oxen.
 
+# Installation
+
+Navigate to [releases](https://github.com/Oxen-AI/oxen-release/releases) and download the latest version for your workstation.
+
 # Basic Commands
 
 Here is a quick refresher of common commands translated to Oxen.
