@@ -41,14 +41,28 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
         return Err(OxenError::basic_str(err));
     }
 
+    // Cleanup the .oxen dir if init fails
+    match p_init(path) {
+        Ok(result) => Ok(result),
+        Err(error) => {
+            std::fs::remove_dir_all(hidden_dir)?;
+            Err(error)
+        }
+    }
+}
+
+fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
+    let hidden_dir = util::fs::oxen_hidden_dir(path);
+
     std::fs::create_dir_all(hidden_dir)?;
     let config_path = util::fs::config_filepath(path);
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
 
-    if let Ok(commit) = commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG) {
-        println!("Initial commit {}", commit.id);
-    }
+    let commit = commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
+    println!("Initial commit {}", commit.id);
+
+    // TODO: cleanup .oxen on failure
 
     Ok(repo)
 }

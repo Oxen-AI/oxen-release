@@ -40,7 +40,7 @@ impl AuthConfig {
 
     pub fn default() -> Result<AuthConfig, OxenError> {
         let err = String::from(
-            "AuthConfig::default() not configuration found, acquire an auth_config.toml file from your administrator.",
+            "~/.oxen/auth_config.toml not found, acquire the proper file from your administrator.",
         );
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);

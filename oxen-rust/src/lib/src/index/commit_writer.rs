@@ -52,9 +52,11 @@ impl CommitWriter {
             Ok(Some(parent_id)) => {
                 // We might be in a merge commit, in which case we would have multiple parents
                 if self.is_merge_commit() {
+                    log::debug!("Create merge commit...");
                     self.create_merge_commit(message)
                 } else {
                     // We have one parent
+                    log::debug!("Create commit with parent {:?}", parent_id);
                     Ok(NewCommit {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
@@ -66,6 +68,7 @@ impl CommitWriter {
             }
             _ => {
                 // We are creating initial commit, no parents
+                log::debug!("Create initial commit...");
                 Ok(NewCommit {
                     parent_ids: vec![],
                     message: String::from(message),
@@ -136,9 +139,10 @@ impl CommitWriter {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         let new_commit = self.create_commit_data(message)?;
-        let commit = self.gen_commit(&new_commit, status);
+        log::debug!("Created commit obj {:?}", new_commit);
 
-        log::debug!("COMMIT ID COMPUTED {} -> [{}]", commit.id, commit.message,);
+        let commit = self.gen_commit(&new_commit, status);
+        log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message,);
 
         // Write entries
         self.add_commit_from_status(&commit, status)?;
@@ -152,12 +156,14 @@ impl CommitWriter {
     }
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
+        log::debug!("gen_commit from {} files", status.added_files.len());
         let entries: Vec<StagedEntry> = status
             .added_files
             .iter()
             .map(|(_, entry)| entry.clone())
             .collect();
         let id = util::hasher::compute_commit_hash(commit_data, &entries);
+        log::debug!("gen_commit id {}", id);
         Commit::from_new_and_id(commit_data, id)
     }
 
