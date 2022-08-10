@@ -40,7 +40,7 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str("Error: HEAD not found.")
+        OxenError::basic_str("Error: HEAD not found")
     }
 
     pub fn remote_not_set() -> OxenError {
