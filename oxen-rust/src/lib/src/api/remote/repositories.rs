@@ -1,6 +1,6 @@
 use crate::api;
 use crate::command;
-use crate::config::{AuthConfig, HTTPConfig};
+use crate::config::UserConfig;
 use crate::constants;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository, RepositoryNew};
@@ -29,14 +29,14 @@ pub fn get_by_remote_url(url: &str) -> Result<Option<RemoteRepository>, OxenErro
 }
 
 pub fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let client = reqwest::blocking::Client::new();
     log::debug!("api::remote::repositories::get_by_url({})", url);
     if let Ok(res) = client
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -77,7 +77,7 @@ pub fn create(
     name: &str,
     host: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/{}", constants::DEFAULT_NAMESPACE);
     let url = api::endpoint::url_from_host(host, &uri);
     let repo_url = format!("{}/{}", url, name);
@@ -90,7 +90,7 @@ pub fn create(
         .json(&params)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -114,14 +114,14 @@ pub fn create(
 }
 
 pub fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let client = reqwest::blocking::Client::new();
     log::debug!("Deleting repository: {}", repository.url);
     if let Ok(res) = client
         .delete(repository.url.clone())
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -146,7 +146,6 @@ pub fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError>
 mod tests {
 
     use crate::api;
-    use crate::config::{AuthConfig, HTTPConfig};
     use crate::constants;
     use crate::error::OxenError;
     use crate::test;
@@ -154,15 +153,10 @@ mod tests {
     #[test]
     fn test_create_remote_repository() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let auth_config = AuthConfig::default()?;
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
-            let repository = api::remote::repositories::create(
-                &local_repo,
-                namespace,
-                &name,
-                auth_config.host(),
-            )?;
+            let repository =
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
             println!("got repository: {:?}", repository);
             assert_eq!(repository.name, name);
 
@@ -175,15 +169,10 @@ mod tests {
     #[test]
     fn test_get_by_name() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let auth_config = AuthConfig::default()?;
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
-            let repository = api::remote::repositories::create(
-                &local_repo,
-                namespace,
-                &name,
-                auth_config.host(),
-            )?;
+            let repository =
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
             let url_repo = api::remote::repositories::get_by_remote_url(&repository.url)?.unwrap();
 
             assert_eq!(repository.namespace, url_repo.namespace);
@@ -199,15 +188,10 @@ mod tests {
     #[test]
     fn test_delete_repository() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let auth_config = AuthConfig::default()?;
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
-            let repository = api::remote::repositories::create(
-                &local_repo,
-                namespace,
-                &name,
-                auth_config.host(),
-            )?;
+            let repository =
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
 
             // delete
             api::remote::repositories::delete(&repository)?;

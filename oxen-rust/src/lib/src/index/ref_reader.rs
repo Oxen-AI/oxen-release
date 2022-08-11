@@ -77,20 +77,30 @@ impl RefReader {
 
     pub fn head_commit_id(&self) -> Result<Option<String>, OxenError> {
         let head_ref = self.read_head_ref()?;
+        log::debug!("Got HEAD ref {:?}", head_ref);
 
         if let Some(head_ref) = head_ref {
             if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
-                log::debug!("RefReader::head_commit_id got commit id {}", commit_id);
+                log::debug!(
+                    "RefReader::head_commit_id got commit id for branch {}",
+                    commit_id
+                );
                 Ok(Some(commit_id))
             } else {
+                log::debug!(
+                    "RefReader::head_commit_id looking for head_ref {}",
+                    head_ref
+                );
                 let commit_reader = CommitReader::new(&self.repository)?;
                 if commit_reader.commit_id_exists(&head_ref) {
                     Ok(Some(head_ref))
                 } else {
+                    log::debug!("Commit id does not exist {:?}", head_ref);
                     Ok(None)
                 }
             }
         } else {
+            log::debug!("Head ref is none {:?}", head_ref);
             Ok(None)
         }
     }
@@ -98,9 +108,11 @@ impl RefReader {
     pub fn read_head_ref(&self) -> Result<Option<String>, OxenError> {
         // Should probably lock before reading...
         // but not a lot of parallel action going on here
+        log::debug!("Looking for HEAD at {:?}", self.head_file);
         if self.head_file.exists() {
             Ok(Some(util::fs::read_from_path(&self.head_file)?))
         } else {
+            log::debug!("HEAD not found at {:?}", self.head_file);
             Ok(None)
         }
     }

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::{AuthConfig, HTTPConfig};
+use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
@@ -23,7 +23,7 @@ pub fn create(
     remote_repo: &RemoteRepository,
     entry: &CommitEntry,
 ) -> Result<RemoteEntry, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let fullpath = util::fs::version_path(local_repo, entry);
     log::debug!("Creating remote entry: {:?} -> {:?}", entry.path, fullpath);
 
@@ -41,7 +41,7 @@ pub fn create(
         .body(file)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -88,7 +88,7 @@ pub fn list_page(
     page_num: usize,
     page_size: usize,
 ) -> Result<PaginatedEntries, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!(
         "/commits/{}/entries?page_num={}&page_size={}",
         commit_id, page_num, page_size
@@ -99,7 +99,7 @@ pub fn list_page(
         .get(&url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -127,7 +127,7 @@ pub fn download_entries(
     page_num: &usize,
     page_size: &usize,
 ) -> Result<(), OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!(
         "/commits/{}/download_entries?page_num={}&page_size={}",
         commit_id, page_num, page_size
@@ -138,7 +138,7 @@ pub fn download_entries(
         .get(&url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -168,7 +168,7 @@ pub fn download_content_ids(
     content_ids: &[String],
     download_progress: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/download_content_ids", commit_id);
 
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
@@ -184,7 +184,7 @@ pub fn download_content_ids(
         .post(&url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .body(body);
 
@@ -210,7 +210,7 @@ pub fn download_entry(
     entry: &CommitEntry,
 ) -> Result<bool, OxenError> {
     let remote = repository.remote().ok_or_else(OxenError::remote_not_set)?;
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let fpath = repository.path.join(&entry.path);
     log::debug!("download_remote_entry entry {:?}", entry.path);
 
@@ -226,7 +226,7 @@ pub fn download_entry(
         .get(&url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()?;
 

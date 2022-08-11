@@ -1,5 +1,6 @@
 use liboxen::command;
-use liboxen::config::{AuthConfig, RemoteConfig};
+use liboxen::config::UserConfig;
+use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::util;
@@ -74,28 +75,47 @@ pub fn list_remotes_verbose() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn set_host_global(host: &str) -> Result<(), OxenError> {
-    let mut remote_config = RemoteConfig::new()?;
-    remote_config.host = String::from(host);
-    remote_config.save_default()?;
-
-    if let Ok(mut auth_config) = AuthConfig::default() {
-        auth_config.host = String::from(host);
-        auth_config.save_default()?;
+pub fn set_auth_token(token: &str) -> Result<(), OxenError> {
+    if let Ok(mut config) = UserConfig::default() {
+        config.token = Some(String::from(token));
+        config.save_default()?;
+        println!("Authentication token set.");
+    } else {
+        eprintln!("{}", error::EMAIL_AND_NAME_NOT_FOUND);
     }
-
-    println!("Global host set to {}", host);
 
     Ok(())
 }
 
-pub fn set_auth_token(token: &str) -> Result<(), OxenError> {
-    if let Ok(mut auth_config) = AuthConfig::default() {
-        auth_config.user.token = String::from(token);
-        auth_config.save_default()?;
-        println!("Authentication token set.");
+pub fn set_user_name(name: &str) -> Result<(), OxenError> {
+    if let Ok(mut config) = UserConfig::default() {
+        config.name = String::from(name);
+        config.save_default()?;
     } else {
-        eprintln!("Could not find ~/.oxen/auth_config.toml please contact your administrator.");
+        // Create for first time
+        let config = UserConfig {
+            name: String::from(name),
+            email: String::from(""),
+            token: None,
+        };
+        config.save_default()?;
+    }
+
+    Ok(())
+}
+
+pub fn set_user_email(email: &str) -> Result<(), OxenError> {
+    if let Ok(mut config) = UserConfig::default() {
+        config.email = String::from(email);
+        config.save_default()?;
+    } else {
+        // Create for first time
+        let config = UserConfig {
+            name: String::from(""),
+            email: String::from(email),
+            token: None,
+        };
+        config.save_default()?;
     }
 
     Ok(())
