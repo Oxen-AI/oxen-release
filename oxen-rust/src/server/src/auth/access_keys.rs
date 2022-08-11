@@ -12,7 +12,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub const SECRET_KEY_FILENAME: &str = "SECRET_KEY_BASE";
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JWTClaim {
     id: String,
     name: String,

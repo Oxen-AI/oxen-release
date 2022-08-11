@@ -1,7 +1,7 @@
 use crate::model::ContentHashable;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub enum StagedEntryStatus {
     Added,
     Modified,
