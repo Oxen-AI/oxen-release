@@ -25,16 +25,29 @@ fn main() {
                 .arg_required_else_help(true),
         )
         .subcommand(
-            Command::new("set-default-host")
-                .about("Sets the default remote host in ~/.oxen/remote_config.toml")
-                .arg(arg!(<HOST> "The host ie: hub.oxen.ai or localhost"))
-                .arg_required_else_help(true),
-        )
-        .subcommand(
-            Command::new("set-auth-token")
-                .about("Sets the user authentication token in ~/.oxen/auth_config.toml")
-                .arg(arg!(<TOKEN> "You can get an auth_config.toml file from your admin or generate one on the server yourself."))
-                .arg_required_else_help(true),
+            Command::new("config")
+                .about("Sets the user configuration in ~/.oxen/user_config.toml")
+                .arg(
+                    Arg::new("name")
+                        .long("name")
+                        .short('n')
+                        .help("Set the name you want your commits to be saved as.")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("email")
+                        .long("email")
+                        .short('e')
+                        .help("Set the email you want your commits to be saved as.")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("auth-token")
+                        .long("auth-token")
+                        .short('t')
+                        .help("Set the authentication token to communicate with a secure oxen-server.")
+                        .takes_value(true),
+                )
         )
         .subcommand(
             Command::new("create-remote")
@@ -201,16 +214,6 @@ fn main() {
                 }
             }
         }
-        Some(("set-default-host", sub_matches)) => {
-            let host = sub_matches.value_of("HOST").expect("required");
-
-            match dispatch::set_host_global(host) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
-                }
-            }
-        }
         Some(("remote", sub_matches)) => {
             if let Some(subcommand) = sub_matches.subcommand() {
                 match subcommand {
@@ -245,13 +248,31 @@ fn main() {
                 dispatch::list_remotes().expect("Unable to list remotes.");
             }
         }
-        Some(("set-auth-token", sub_matches)) => {
-            let token = sub_matches.value_of("TOKEN").expect("required");
+        Some(("config", sub_matches)) => {
+            if let Some(token) = sub_matches.value_of("auth-token") {
+                match dispatch::set_auth_token(token) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            }
 
-            match dispatch::set_auth_token(token) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+            if let Some(name) = sub_matches.value_of("name") {
+                match dispatch::set_user_name(name) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            }
+
+            if let Some(email) = sub_matches.value_of("email") {
+                match dispatch::set_user_email(email) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }

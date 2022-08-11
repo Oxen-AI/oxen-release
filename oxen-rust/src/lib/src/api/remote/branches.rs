@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::{AuthConfig, HTTPConfig};
+use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::{Branch, RemoteRepository};
 use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
@@ -10,7 +10,7 @@ pub fn get_by_name(
     repository: &RemoteRepository,
     branch_name: &str,
 ) -> Result<Option<Branch>, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/branches/{}", branch_name);
     let url = api::endpoint::url_from_repo(repository, &uri);
 
@@ -19,7 +19,7 @@ pub fn get_by_name(
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -44,7 +44,7 @@ pub fn get_by_name(
 }
 
 pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let url = api::endpoint::url_from_repo(repository, "/branches");
     log::debug!("create_or_get {}", url);
 
@@ -56,7 +56,7 @@ pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch
         .body(params)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -80,7 +80,7 @@ pub fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch
 }
 
 pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let url = api::endpoint::url_from_repo(repository, "/branches");
 
     let client = reqwest::blocking::Client::new();
@@ -88,7 +88,7 @@ pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -116,7 +116,7 @@ pub fn delete(
     repository: &RemoteRepository,
     branch_name: &str,
 ) -> Result<StatusMessage, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let client = reqwest::blocking::Client::new();
     let uri = format!("/branches/{}", branch_name);
     let url = api::endpoint::url_from_repo(repository, &uri);
@@ -125,7 +125,7 @@ pub fn delete(
         .delete(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {

@@ -12,7 +12,7 @@ use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub const SECRET_KEY_FILENAME: &str = "SECRET_KEY_BASE";
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct JWTClaim {
     id: String,
     name: String,
@@ -95,10 +95,9 @@ impl AccessKeyManager {
                 let encoded_claim = serde_json::to_string(&user_claims)?;
                 self.db.put(&token, encoded_claim)?;
                 Ok(User {
-                    id: user_claims.id.to_owned(),
                     name: user_claims.name.to_owned(),
                     email: user_claims.email.to_owned(),
-                    token,
+                    token: Some(token),
                 })
             }
             Err(_) => {
@@ -186,7 +185,7 @@ mod tests {
                 email: String::from("ox@oxen.ai"),
             };
             let user = keygen.create(&new_user)?;
-            assert!(!user.token.is_empty());
+            assert!(!user.token.unwrap().is_empty());
 
             Ok(())
         })
@@ -201,7 +200,7 @@ mod tests {
                 email: String::from("ox@oxen.ai"),
             };
             let user = keygen.create(&new_user)?;
-            let fetched_claim = keygen.get_claim(&user.token)?;
+            let fetched_claim = keygen.get_claim(&user.token.unwrap())?;
             assert!(fetched_claim.is_some());
             let fetched_claim = fetched_claim.unwrap();
             assert_eq!(new_user.email, fetched_claim.email);
@@ -220,7 +219,7 @@ mod tests {
                 email: String::from("ox@oxen.ai"),
             };
             let user = keygen.create(&new_user)?;
-            let is_valid = keygen.token_is_valid(&user.token);
+            let is_valid = keygen.token_is_valid(&user.token.unwrap());
             assert!(is_valid);
             Ok(())
         })

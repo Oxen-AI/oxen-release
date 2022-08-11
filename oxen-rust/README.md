@@ -24,15 +24,15 @@ Build the binaries
 
 Generate a config file and token to give user access to the server
 
-`./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml`
+`./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml`
 
 Copy the config to the default locations
 
 `mkdir ~/.oxen`
 
-`mv auth_config.toml ~/.oxen/auth_config.toml`
+`mv user_config.toml ~/.oxen/user_config.toml`
 
-`cp ~/.oxen/auth_config.toml data/test/config/auth_config.toml`
+`cp ~/.oxen/user_config.toml data/test/config/user_config.toml`
 
 Run the server
 
@@ -79,7 +79,7 @@ Server defaults to localhost 3000
 
 `set SERVER 0.0.0.0:3000`
 
-You can grab your auth token from the config file above (~/.oxen/auth_config.toml)
+You can grab your auth token from the config file above (~/.oxen/user_config.toml)
 
 `set TOKEN <YOUR_TOKEN>`
 
@@ -164,11 +164,9 @@ To inspect any of the key value dbs below
     COMMIT_HASH_3/
 
   versions/ (copies of original files, versioned with commit ids)
-    // TODO: make subdirs based on first two chars of hash, which would mean we have ~16^2=256 top level dirs, then 256 in /////       each, which would spread out the data nicely. If you take logbase 256 that means we can have a billion examples ///       split into the 4 levels easily
-    //      (I think git does something somewhat similar?)
     //
-    //       ex) 59E029D4812AEBF0 -> 59/E0/29D4812AEBF0
-    //           72617025710EBB55 -> 72/61/7025710EBB55
+    //       ex) 59E029D4812AEBF0 -> 59/E029D4812AEBF0
+    //           72617025710EBB55 -> 72/617025710EBB55
     //
     // TODO: use best lossless compression type based on file type, fall back to zlib or something for rest
     // TODO: maybe create watcher program to catch and intercept on write? Is this possible?

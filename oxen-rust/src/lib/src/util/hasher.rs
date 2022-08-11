@@ -18,13 +18,14 @@ pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
 
 pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[impl ContentHashable]) -> String {
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
-
+    log::debug!("Hashing {} entries", entries.len());
     for entry in entries.iter() {
         let hash = entry.content_hash();
         let input = hash.as_bytes();
         commit_hasher.update(input);
     }
 
+    log::debug!("Hashing commit data {:?}", commit_data);
     let commit_str = format!("{:?}", commit_data);
     commit_hasher.update(commit_str.as_bytes());
 

@@ -3,8 +3,11 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
-pub const REMOTE_CFG_NOT_FOUND: &str =
-    "Remote configuration not found, run `oxen set-default-host <host>` to configure.";
+pub const EMAIL_AND_NAME_NOT_FOUND: &str =
+    "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
+
+pub const AUTH_TOKEN_NOT_FOUND: &str =
+    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth-token <TOKEN>\n";
 
 #[derive(Debug)]
 pub enum OxenError {
@@ -26,12 +29,16 @@ impl OxenError {
         OxenError::Basic(String::from(s.as_ref()))
     }
 
-    pub fn remote_cfg_not_found() -> OxenError {
-        OxenError::basic_str(REMOTE_CFG_NOT_FOUND)
-    }
-
     pub fn local_repo_not_found() -> OxenError {
         OxenError::basic_str("No oxen repository exists, looking for directory: .oxen")
+    }
+
+    pub fn email_and_name_not_set() -> OxenError {
+        OxenError::basic_str(EMAIL_AND_NAME_NOT_FOUND)
+    }
+
+    pub fn auth_token_not_set() -> OxenError {
+        OxenError::basic_str(AUTH_TOKEN_NOT_FOUND)
     }
 
     pub fn remote_repo_not_found<T: AsRef<str>>(url: T) -> OxenError {
@@ -40,11 +47,11 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str("Error: HEAD not found.")
+        OxenError::basic_str("Err: HEAD not found")
     }
 
     pub fn remote_not_set() -> OxenError {
-        OxenError::basic_str("Remote not set. `oxen remote add <name> <url>`")
+        OxenError::basic_str("Err: Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n")
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
