@@ -9,6 +9,15 @@ The Oxen CLI mirrors [git](https://git-scm.com/) in many ways, so if you are com
 
 Navigate to [releases](https://github.com/Oxen-AI/oxen-release/releases) and download the latest version for your workstation.
 
+OR
+
+Install on homebrew with:
+
+```bash
+brew tap Oxen-AI/oxen
+brew install oxen
+```
+
 # Basic Commands
 
 Here is a quick refresher of common commands translated to Oxen.
