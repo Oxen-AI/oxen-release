@@ -24,15 +24,15 @@ Build the binaries
 
 Generate a config file and token to give user access to the server
 
-`./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml`
+`./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml`
 
 Copy the config to the default locations
 
 `mkdir ~/.oxen`
 
-`mv auth_config.toml ~/.oxen/auth_config.toml`
+`mv user_config.toml ~/.oxen/user_config.toml`
 
-`cp ~/.oxen/auth_config.toml data/test/config/auth_config.toml`
+`cp ~/.oxen/user_config.toml data/test/config/user_config.toml`
 
 Run the server
 
@@ -79,7 +79,7 @@ Server defaults to localhost 3000
 
 `set SERVER 0.0.0.0:3000`
 
-You can grab your auth token from the config file above (~/.oxen/auth_config.toml)
+You can grab your auth token from the config file above (~/.oxen/user_config.toml)
 
 `set TOKEN <YOUR_TOKEN>`
 

@@ -13,8 +13,8 @@ We use the [reqwest](https://docs.rs/reqwest/latest/reqwest/) library to make ht
 pub fn list(
     repository: &RemoteRepository,
 ) -> Result<Vec<Branch>, OxenError> {
-    // Auth Config reads ~/.oxen/auth_config.toml to get the user access token and other relevant info
-    let config = AuthConfig::default()?;
+    // Auth Config reads ~/.oxen/user_config.toml to get the user access token and other relevant info
+    let config = UserConfig::default()?;
 
     // url_from_repo will prepend the repositories url to the uri you provide
     // Should look like: http://{REMOTE}/repositories/{REPO_NAME}/branches
@@ -24,10 +24,10 @@ pub fn list(
     let client = reqwest::blocking::Client::new();
     if let Ok(res) = client
         .get(url)
-        // Grab the authentication token from AuthConfig
+        // Grab the authentication token from UserConfig
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         // Make requeest
         .send()

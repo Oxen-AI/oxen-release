@@ -24,7 +24,10 @@ use std::str;
 /// # use liboxen::command;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
+/// # use liboxen::test;
+///
 /// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
 ///
 /// let base_dir = Path::new("/tmp/repo_dir_init");
 /// command::init(base_dir)?;
@@ -77,7 +80,10 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// use liboxen::command;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
+/// # use liboxen::test;
+///
 /// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
 ///
 /// let base_dir = Path::new("/tmp/repo_dir_status_1");
 /// // Initialize empty repo
@@ -97,7 +103,10 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
+/// # use liboxen::test;
+///
 /// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
 ///
 /// let base_dir = Path::new("/tmp/repo_dir_status_2");
 /// // Initialize empty repo
@@ -132,7 +141,10 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
+/// # use liboxen::test;
+///
 /// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
 ///
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir_add");
@@ -162,9 +174,11 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 /// ```
 /// use liboxen::command;
 /// use liboxen::util;
+/// # use liboxen::test;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
 ///
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir_commit");
@@ -218,9 +232,11 @@ fn p_commit(
 ///
 /// ```
 /// use liboxen::command;
+/// # use liboxen::test;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
 ///
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir_log");
@@ -519,12 +535,13 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 ///
 /// ```
 /// # use liboxen::api;
+/// # use liboxen::test;
 /// use liboxen::command;
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
-///
+/// # test::init_test_env();
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir_push");
 /// let mut repo = command::init(base_dir)?;
@@ -574,7 +591,11 @@ pub fn push_remote_branch(
 
 /// Clone a repo from a url to a directory
 pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    LocalRepository::clone_remote(url, dst)?.ok_or_else(|| OxenError::remote_repo_not_found(url))
+    match LocalRepository::clone_remote(url, dst) {
+        Ok(Some(repo)) => Ok(repo),
+        Ok(None) => Err(OxenError::remote_repo_not_found(url)),
+        Err(err) => Err(err),
+    }
 }
 
 /// Pull a repository's data from origin/main

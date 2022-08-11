@@ -54,6 +54,6 @@ ln -s /path/to/release/build/oxen /usr/local/bin/oxen
 
 # Run the server with a user
 mkdir -p /home/ubuntu/Data/sync/
-sudo env SYNC_DIR=/home/ubuntu/Data/sync/ ./target/release/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
+sudo env SYNC_DIR=/home/ubuntu/Data/sync/ ./target/release/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
 sudo env SYNC_DIR=/home/ubuntu/Data/sync/ ./target/release/oxen-server start -p 80
 
