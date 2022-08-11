@@ -1,4 +1,4 @@
-use liboxen::config::RemoteConfig;
+use liboxen::config::UserConfig;
 use liboxen::model::NewUser;
 
 pub mod app_data;
@@ -22,7 +22,7 @@ use std::path::Path;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const ADD_USER_USAGE: &str =
-    "Usage: `oxen-server add-user -e <email> -n <name> -o auth_config.toml`";
+    "Usage: `oxen-server add-user -e <email> -n <name> -o user_config.toml`";
 
 const START_SERVER_USAGE: &str = "Usage: `oxen-server start -h 0.0.0.0 -p 3000`";
 
@@ -89,7 +89,7 @@ async fn main() -> std::io::Result<()> {
                     Arg::new("output")
                         .long("output")
                         .short('o')
-                        .default_value("auth_config.toml")
+                        .default_value("user_config.toml")
                         .default_missing_value("always")
                         .help("Where to write the output config file to give to the user")
                         .takes_value(true),
@@ -244,20 +244,18 @@ async fn main() -> std::io::Result<()> {
                         };
                         match keygen.create(&new_user) {
                             Ok(user) => {
-                                let remote_config = RemoteConfig::default()
-                                    .expect(liboxen::error::REMOTE_CFG_NOT_FOUND);
-                                let auth_config = remote_config.to_auth(&user);
-                                match auth_config.save(Path::new(output)) {
+                                let cfg = UserConfig::from_user(&user);
+                                match cfg.save(Path::new(output)) {
                                     Ok(_) => {
-                                        println!("Saved config to: {}\n\nTo give user access have them put the file in home directory at ~/.oxen/auth_config.toml", output)
+                                        println!("User access token created in {}:\n\n{}\n\nTo give user access have them run the command `oxen set-auth-token <TOKEN>`", output, user.token.unwrap())
                                     }
-                                    Err(err) => {
-                                        eprintln!("Error saving config: {}", err)
+                                    Err(error) => {
+                                        eprintln!("Err: {:?}", error);
                                     }
                                 }
                             }
                             Err(err) => {
-                                eprintln!("Error adding user: {}", err)
+                                eprintln!("Err: {}", err)
                             }
                         }
                     }

@@ -44,7 +44,8 @@ impl Indexer {
         // Repo should be created before this step
         let remote_repo = match api::remote::repositories::get_by_remote_url(&remote.url) {
             Ok(Some(repo)) => repo,
-            _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
+            Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+            Err(err) => return Err(err),
         };
 
         // Create the branch, fail silently for now because first one might fail if no HEAD on the server
@@ -305,7 +306,8 @@ impl Indexer {
 
         let remote_repo = match api::remote::repositories::get_by_remote_url(&remote.url) {
             Ok(Some(repo)) => repo,
-            _ => return Err(OxenError::remote_repo_not_found(&remote.url)),
+            Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+            Err(err) => return Err(err),
         };
 
         self.pull_all_commit_objects_then(&remote_repo, rb, |commit| {
@@ -587,7 +589,6 @@ impl Indexer {
 mod tests {
     use crate::api;
     use crate::command;
-    use crate::config::AuthConfig;
     use crate::constants;
     use crate::error::OxenError;
     use crate::index::Indexer;
@@ -605,9 +606,12 @@ mod tests {
             let remote = test::repo_url_from(&name);
             command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let config = AuthConfig::default()?;
-            let remote_repo =
-                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, &config.host)?;
+            let remote_repo = command::create_remote(
+                &repo,
+                constants::DEFAULT_NAMESPACE,
+                &name,
+                test::TEST_HOST,
+            )?;
 
             command::push(&repo)?;
 
@@ -658,9 +662,12 @@ mod tests {
             command::commit(&repo, "Adding testing data")?;
 
             // Create remote
-            let config = AuthConfig::default()?;
-            let remote_repo =
-                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, &config.host)?;
+            let remote_repo = command::create_remote(
+                &repo,
+                constants::DEFAULT_NAMESPACE,
+                &name,
+                test::TEST_HOST,
+            )?;
 
             // Push it
             command::push(&repo)?;

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::{AuthConfig, HTTPConfig};
+use crate::config::UserConfig;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
@@ -23,7 +23,7 @@ pub fn get_by_id(
     repository: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/commits/{}", commit_id);
     let url = api::endpoint::url_from_repo(repository, &uri);
     log::debug!("remote::commits::get_by_id {}", url);
@@ -33,7 +33,7 @@ pub fn get_by_id(
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -61,7 +61,7 @@ pub fn commit_is_synced(
     commit_id: &str,
     num_entries: usize,
 ) -> Result<bool, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
     log::debug!("commit_is_synced checking URL: {}", url);
@@ -70,7 +70,7 @@ pub fn commit_is_synced(
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -94,7 +94,7 @@ pub fn download_commit_db_by_id(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<(), OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/commit_db", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
@@ -103,7 +103,7 @@ pub fn download_commit_db_by_id(
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -124,7 +124,7 @@ pub fn get_remote_parent(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/parents", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
     let client = reqwest::blocking::Client::new();
@@ -132,7 +132,7 @@ pub fn get_remote_parent(
         .get(url)
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -188,7 +188,7 @@ fn create_commit_obj_on_server(
     branch_name: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
     let client = reqwest::blocking::Client::new();
 
     let uri = format!("/branches/{}/commits", branch_name);
@@ -201,7 +201,7 @@ fn create_commit_obj_on_server(
         .body(reqwest::blocking::Body::from(body))
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -229,7 +229,7 @@ pub fn post_tarball_to_server(
     buffer: &[u8],
     upload_progress: &Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
-    let config = AuthConfig::default()?;
+    let config = UserConfig::default()?;
 
     let uri = format!("/commits/{}", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
@@ -250,7 +250,7 @@ pub fn post_tarball_to_server(
         .body(reqwest::blocking::Body::new(upload_source))
         .header(
             reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()),
+            format!("Bearer {}", config.auth_token()?),
         )
         .send()
     {
@@ -276,7 +276,6 @@ pub fn post_tarball_to_server(
 mod tests {
     use crate::api;
     use crate::command;
-    use crate::config::AuthConfig;
     use crate::constants;
     use crate::error::OxenError;
     use crate::index::CommitEntryReader;
@@ -331,12 +330,11 @@ mod tests {
             command::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
-            let config = AuthConfig::default()?;
             let remote_repo = command::create_remote(
                 &local_repo,
                 constants::DEFAULT_NAMESPACE,
                 &local_repo.dirname(),
-                &config.host,
+                test::TEST_HOST,
             )?;
 
             // Push it

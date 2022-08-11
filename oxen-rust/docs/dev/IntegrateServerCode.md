@@ -158,8 +158,8 @@ If you would like to see the API with `curl` on the command line you can run the
 In order to get a valid auth token you can run add a user to the server via
 
 ```shell
-$ ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output auth_config.toml
-$ cat auth_config.toml | grep token
+$ ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+$ cat user_config.toml | grep token
 ```
 
 For more information on server setup look at the [Server Setup Documentation](../examples/0_ServerSetup.md)

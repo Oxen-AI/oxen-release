@@ -217,7 +217,6 @@ impl LocalRepository {
 mod tests {
     use crate::api;
     use crate::command;
-    use crate::config::{AuthConfig, HTTPConfig};
     use crate::constants;
     use crate::error::OxenError;
     use crate::model::{LocalRepository, RepositoryNew};
@@ -271,11 +270,10 @@ mod tests {
     #[test]
     fn test_clone_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|local_repo| {
-            let config = AuthConfig::default()?;
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let remote_repo =
-                api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
 
             test::run_empty_dir_test(|dir| {
                 let local_repo = LocalRepository::clone_remote(&remote_repo.url, dir)?.unwrap();

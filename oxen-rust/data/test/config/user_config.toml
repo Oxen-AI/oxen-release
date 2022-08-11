@@ -1,7 +1,4 @@
-host = "0.0.0.0:3000"
 
-[user]
-id = "8dbce3c3-8e8d-46f6-8d1c-784552dc8631"
+email = "ox@oxen.ai"
+name = "Oxen"
 token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjhkYmNlM2MzLThlOGQtNDZmNi04ZDFjLTc4NDU1MmRjODYzMSIsIm5hbWUiOiJncmVnIiwiZW1haWwiOiJnQG94ZW4uYWkifQ.xGLwbZtnIapddbHLRfaUlxA6HaFS92UZmOtiRp1GWaE"
-email = "g@oxen.ai"
-name = "greg"

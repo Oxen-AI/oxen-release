@@ -3,7 +3,6 @@
 
 use crate::api;
 use crate::command;
-use crate::config::{AuthConfig, HTTPConfig, RemoteConfig};
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
@@ -15,12 +14,12 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
+pub const TEST_HOST: &str = "0.0.0.0:3000";
 
 pub fn repo_url_from(name: &str) -> String {
     // Tests always point to localhost
-    let config = RemoteConfig::from(Path::new("data/test/config/remote_config.toml"));
     let uri = format!("/{}/{}", constants::DEFAULT_NAMESPACE, name);
-    api::endpoint::url_from_remote_config(&config, &uri)
+    api::endpoint::url_from_host(TEST_HOST, &uri)
 }
 
 pub fn init_test_env() {
@@ -48,12 +47,11 @@ fn create_empty_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 }
 
 pub fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    let config = AuthConfig::default()?;
     command::create_remote(
         repo,
         constants::DEFAULT_NAMESPACE,
         &repo.dirname(),
-        &config.host,
+        TEST_HOST,
     )
 }
 
@@ -128,12 +126,10 @@ where
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
 
     let local_repo = command::init(&repo_dir)?;
-    let config = AuthConfig::default()?;
 
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
+    let remote_repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
@@ -167,12 +163,9 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
 
-    let config = AuthConfig::default()?;
-
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
+    let remote_repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST)?;
     println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
@@ -204,10 +197,9 @@ where
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
     let local_repo = command::init(&path)?;
-    let config = AuthConfig::default()?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let repo = api::remote::repositories::create(&local_repo, namespace, &name, config.host())?;
+    let repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST)?;
     println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd
@@ -344,12 +336,8 @@ where
     Ok(())
 }
 
-pub fn remote_cfg_file() -> &'static Path {
-    Path::new("data/test/config/remote_config.toml")
-}
-
-pub fn auth_cfg_file() -> &'static Path {
-    Path::new("data/test/config/auth_config.toml")
+pub fn user_cfg_file() -> &'static Path {
+    Path::new("data/test/config/user_config.toml")
 }
 
 pub fn repo_cfg_file() -> &'static Path {
