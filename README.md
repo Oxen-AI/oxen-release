@@ -22,6 +22,14 @@ brew install oxen
 
 Here is a quick refresher of common commands translated to Oxen.
 
+## Setup User
+
+For your commit log, you will have to setup your local Oxen user name and email
+
+```bash
+oxen config --name <NAME> --email <EMAIL>
+```
+
 ## Create Repository
 
 First create a new directory, navigate into it, and perform
@@ -32,7 +40,13 @@ oxen init .
 
 ## Checkout a Repository
 
-If you want to grab a repository from a remote server use the URL provided by Oxen Hub, or your own Oxen Server instance.
+If you have not setup your authentication token, please message us on Slack to get an account for [OxenHub](http://hub.oxen.ai) and we will give you a token.
+
+```bash
+oxen config --auth-token <TOKEN>
+```
+
+To clone a repository from remote server you can use the URL supplied in [OxenHub](http://hub.oxen.ai) or your own Oxen Server instance.
 
 ```bash
 oxen clone http://hub.oxen.ai/username/RepoName
