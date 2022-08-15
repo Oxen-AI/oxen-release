@@ -40,6 +40,14 @@ Run the server
 
 The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
 
+To run the server with live reload, first install cargo-watch
+
+`cargo install cargo-watch`
+
+Then run the server like this
+
+`cargo watch -- cargo run --bin oxen-server start`
+
 # Unit & Integration Tests
 
 Make sure your server is running on the default port and host, then run
