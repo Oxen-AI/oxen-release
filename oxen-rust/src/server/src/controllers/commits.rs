@@ -71,6 +71,11 @@ pub async fn index_branch(req: HttpRequest) -> HttpResponse {
     }
 }
 
+pub async fn commit_history(_req: HttpRequest) -> HttpResponse {
+    log::error!("commit_history not implemented");
+    HttpResponse::NotImplemented().json(StatusMessage::not_implemented())
+}
+
 pub async fn show(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
