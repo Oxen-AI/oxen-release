@@ -1,0 +1,21 @@
+_id: req_wrk_a338448f888541f8a5fb7e5c31f1298eb8ba3ae8
+type: Request
+parentId: fld_wrk_a338448f888541f8a5fb7e5c31f1298eeb8d3fd3
+modified: 1660677626822
+created: 1660677626822
+url: "{{ base_url }}/oxen/{{ namespace }}/{{ repoName }}/commits"
+name: Create a new commit
+description: ""
+method: POST
+body: {}
+parameters: []
+headers: []
+authentication: {}
+metaSortKey: -1660677626822
+isPrivate: false
+settingStoreCookies: true
+settingSendCookies: true
+settingDisableRenderRequestBody: false
+settingEncodeUrl: true
+settingRebuildPath: true
+settingFollowRedirects: global
