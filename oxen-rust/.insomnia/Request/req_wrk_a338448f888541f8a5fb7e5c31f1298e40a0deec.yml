@@ -1,0 +1,21 @@
+_id: req_wrk_a338448f888541f8a5fb7e5c31f1298e40a0deec
+type: Request
+parentId: fld_wrk_a338448f888541f8a5fb7e5c31f1298e52a9ce4a
+modified: 1660677626807
+created: 1660677626807
+url: "{{ base_url }}/oxen/{{ namespace }}/{{ repoName }}/branches/{{ branchName }}"
+name: Delete a branch
+description: ""
+method: DELETE
+body: {}
+parameters: []
+headers: []
+authentication: {}
+metaSortKey: -1660677626807
+isPrivate: false
+settingStoreCookies: true
+settingSendCookies: true
+settingDisableRenderRequestBody: false
+settingEncodeUrl: true
+settingRebuildPath: true
+settingFollowRedirects: global

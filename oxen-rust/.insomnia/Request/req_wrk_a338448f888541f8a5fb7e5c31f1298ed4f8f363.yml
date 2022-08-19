@@ -1,0 +1,21 @@
+_id: req_wrk_a338448f888541f8a5fb7e5c31f1298ed4f8f363
+type: Request
+parentId: fld_wrk_a338448f888541f8a5fb7e5c31f1298e7ee737c8
+modified: 1660677626805
+created: 1660677626805
+url: "{{ base_url }}/oxen/{{ namespace }}/{{ repoName }}/dir/{{ resource }}"
+name: List directory for resource
+description: ""
+method: GET
+body: {}
+parameters: []
+headers: []
+authentication: {}
+metaSortKey: -1660677626805
+isPrivate: false
+settingStoreCookies: true
+settingSendCookies: true
+settingDisableRenderRequestBody: false
+settingEncodeUrl: true
+settingRebuildPath: true
+settingFollowRedirects: global

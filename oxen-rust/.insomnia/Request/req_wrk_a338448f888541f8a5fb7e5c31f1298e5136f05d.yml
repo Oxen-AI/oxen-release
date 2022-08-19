@@ -1,0 +1,21 @@
+_id: req_wrk_a338448f888541f8a5fb7e5c31f1298e5136f05d
+type: Request
+parentId: fld_wrk_a338448f888541f8a5fb7e5c31f1298eeb8d3fd3
+modified: 1660677626824
+created: 1660677626824
+url: "{{ base_url }}/oxen/{{ namespace }}/{{ repoName }}/commits"
+name: List commits for the default branch
+description: ""
+method: GET
+body: {}
+parameters: []
+headers: []
+authentication: {}
+metaSortKey: -1660677626824
+isPrivate: false
+settingStoreCookies: true
+settingSendCookies: true
+settingDisableRenderRequestBody: false
+settingEncodeUrl: true
+settingRebuildPath: true
+settingFollowRedirects: global

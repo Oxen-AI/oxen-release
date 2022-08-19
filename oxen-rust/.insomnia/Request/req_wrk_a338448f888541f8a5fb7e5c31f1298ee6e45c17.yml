@@ -1,0 +1,30 @@
+_id: req_wrk_a338448f888541f8a5fb7e5c31f1298ee6e45c17
+type: Request
+parentId: fld_wrk_a338448f888541f8a5fb7e5c31f1298e7d98ad90
+modified: 1660677701073
+created: 1660677626832
+url: "{{ base_url }}/oxen/repositories"
+name: Create a new repository
+description: ""
+method: POST
+body:
+  mimeType: application/json
+  text: |-
+    {
+      "namespace": "string",
+      "name": "string"
+    }
+parameters: []
+headers:
+  - name: Content-Type
+    value: application/json
+    id: pair_74716b83d55848488b14691aa848f222
+authentication: {}
+metaSortKey: -1660677626832
+isPrivate: false
+settingStoreCookies: true
+settingSendCookies: true
+settingDisableRenderRequestBody: false
+settingEncodeUrl: true
+settingRebuildPath: true
+settingFollowRedirects: global
