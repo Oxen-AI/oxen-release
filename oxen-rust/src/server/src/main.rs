@@ -14,7 +14,7 @@ extern crate log;
 // use std::time;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
-use actix_web_httpauth::middleware::HttpAuthentication;
+// use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
 use env_logger::Env;
 use std::path::Path;
@@ -115,7 +115,6 @@ async fn main() -> std::io::Result<()> {
                                 "/version",
                                 web::get().to(controllers::version::index),
                             )
-                            .wrap(HttpAuthentication::bearer(auth::validator::validate))
                             .route(
                                 "/oxen/{namespace}/{repo_name}/commits",
                                 web::get().to(controllers::commits::index),
@@ -143,10 +142,6 @@ async fn main() -> std::io::Result<()> {
                             .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries",
                                 web::get().to(controllers::entries::list_entries),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/files",
-                                web::get().to(controllers::entries::list_files_for_commit),
                             )
                             .route(
                                 "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_page",
@@ -187,6 +182,10 @@ async fn main() -> std::io::Result<()> {
                             .route(
                                 "/oxen/{namespace}/{repo_name}/lines/{resource:.*}",
                                 web::get().to(controllers::entries::list_lines_in_file),
+                            )
+                            .route(
+                                "/oxen/{namespace}/{repo_name}/dir/{resource:.*}",
+                                web::get().to(controllers::entries::list_files_for_resource),
                             )
                             .route(
                                 "/oxen/{namespace}/{repo_name}/branches/{branch_name}/entries/{filename:.*}",
