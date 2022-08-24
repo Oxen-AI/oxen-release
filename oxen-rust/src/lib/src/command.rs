@@ -169,6 +169,23 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     Ok(())
 }
 
+pub fn restore<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let commit = head_commit(repo)?;
+    let reader = CommitEntryReader::new(repo, &commit)?;
+
+    if let Some(entry) = reader.get_entry(path)? {
+        let version_path = util::fs::version_path(repo, &entry);
+        let working_path = repo.path.join(path);
+        std::fs::copy(version_path, working_path)?;
+        println!("Restored file {:?}", path);
+        Ok(())
+    } else {
+        let error = format!("Could not restore file: {:?}", path);
+        Err(OxenError::basic_str(error))
+    }
+}
+
 /// # Commit the staged files in the repo
 ///
 /// ```

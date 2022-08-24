@@ -140,6 +140,33 @@ fn test_command_commit_file() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_command_restore_file() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test(|repo| {
+        // Write to file
+        let hello_filename = "hello.txt";
+        let hello_file = repo.path.join(hello_filename);
+        util::fs::write_to_path(&hello_file, "Hello World");
+
+        // Track the file
+        command::add(&repo, &hello_file)?;
+        // Commit the file
+        command::commit(&repo, "My message")?;
+
+        // Remove the file from disk
+        std::fs::remove_file(&hello_file)?;
+
+        // Check that it doesn't exist, then it does after we restore it
+        assert!(!hello_file.exists());
+        // Restore takes the filename not the full path to the test repo
+        // ie: "hello.txt" instead of data/test/runs/repo_data/test/runs_fc1544ab-cd55-4344-aa13-5360dc91d0fe/hello.txt
+        command::restore(&repo, &hello_filename)?;
+        assert!(hello_file.exists());
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // This shouldn't work
