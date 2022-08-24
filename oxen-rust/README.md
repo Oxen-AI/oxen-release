@@ -175,3 +175,29 @@ To inspect any of the key value dbs below
     FILE_HASH_DIRS_2/
       COMMIT_ID_1 (dog_2.jpg)
 ```
+
+# Homebrew Release
+
+Preparing the binary
+
+```bash
+cargo build --release
+```
+
+Create a tar archive that we will upload to github releases
+
+```bash
+cd target/release
+tar -czf oxen-mac.tar.gz oxen
+```
+
+Get the sha256 hash of the archive
+
+```bash
+shasum -a 256 oxen-mac.tar.gz
+```
+
+Upload it to our releases github repository [https://github.com/Oxen-AI/oxen-release](https://github.com/Oxen-AI/oxen-release)
+
+Then update our homebrew Formula in this repository [https://github.com/Oxen-AI/homebrew-oxen](https://github.com/Oxen-AI/homebrew-oxen) to point to the correct release.
+

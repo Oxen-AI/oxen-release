@@ -16,6 +16,44 @@
     - Easy to accidentally commit data to the codebase
 - Datasets have many files, or long CSVs that Oxen works well with natively
 
+# git lfs Comparison
+
+CelebA 10K
+
+```shell
+$ git init .
+
+$ git lfs track examples/
+
+$ git add .gitattributes
+
+$ git add examples
+
+$ git commit -m "adding examples"
+```
+
+`git add`
+
+```shell
+time git add examples
+
+________________________________________________________
+Executed in    5.88 secs    fish           external
+   usr time    1.37 secs    0.09 millis    1.37 secs
+   sys time    3.34 secs    3.32 millis    3.34 secs
+```
+
+`git commit -m "adding examples"`
+
+```shell
+time commit -m "adding examples"
+
+________________________________________________________
+Executed in    1.83 secs      fish           external
+   usr time  173.26 millis    0.28 millis  172.98 millis
+   sys time  393.70 millis    1.54 millis  392.16 millis
+```
+
 # DVC Comparison
 
 For DVC you put your data within a git repository. There is also an option to do without an existing version control system...TODO look into this.
