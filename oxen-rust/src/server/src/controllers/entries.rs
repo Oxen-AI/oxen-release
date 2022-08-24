@@ -238,8 +238,11 @@ fn parse_resource(
     repo: &LocalRepository,
     path: &Path,
 ) -> Result<Option<(String, PathBuf)>, OxenError> {
+    log::debug!("parse_resource checking path {:?}", path);
+
     let mut components = path.components().collect::<Vec<_>>();
     let commit_reader = CommitReader::new(repo)?;
+    let ref_reader = RefReader::new(repo)?;
 
     // See if the first component is the commit id
     if let Some(first_component) = components.first() {
@@ -256,13 +259,23 @@ fn parse_resource(
             }
             return Ok(Some((commit.id, file_path)));
         }
+
+        if components.len() == 1 {
+            log::debug!("Checking if only component is branch");
+            if let Some(branch) = ref_reader.get_branch_by_name(maybe_commit_id)? {
+                return Ok(Some((branch.commit_id, PathBuf::new())));
+            }
+        }
     }
 
     // See if the component has a valid branch name in it
-    let ref_reader = RefReader::new(repo)?;
+    
     let mut file_path = PathBuf::new();
+    log::debug!("parse_resource checking for branchs in {} components", components.len());
     while let Some(component) = components.pop() {
+        
         let component_path: &Path = component.as_ref();
+        log::debug!("parse_resource popped component_path {:?}", component_path);
         if file_path == PathBuf::new() {
             file_path = component_path.to_path_buf();
         } else {
@@ -425,7 +438,7 @@ pub async fn list_files_for_head(
     }
 }
 
-pub async fn list_files_for_commit(
+pub async fn list_files_for_resource(
     req: HttpRequest,
     query: web::Query<DirectoryPageNumQuery>,
 ) -> HttpResponse {
@@ -433,31 +446,32 @@ pub async fn list_files_for_commit(
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
-    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     // default to first page with first ten values
     let page_num: usize = query.page_num.unwrap_or(1);
     let page_size: usize = query.page_size.unwrap_or(10);
-    let directory = query
-        .directory
-        .clone()
-        .unwrap_or_else(|| String::from("./"));
-    let directory = Path::new(&directory);
 
     log::debug!(
-        "list_files repo name [{}] commit_id [{}] directory: {:?} page_num {} page_size {}",
+        "list_files repo name [{}] resource: {:?} page_num {} page_size {}",
         name,
-        commit_id,
-        directory,
+        resource,
         page_num,
         page_size,
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             log::debug!("list_files got repo [{}]", name);
-            match list_directory_for_commit(&repo, commit_id, directory, page_num, page_size) {
-                Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
-                Err(status_message) => HttpResponse::InternalServerError().json(status_message),
+            if let Ok(Some((commit_id, directory))) = parse_resource(&repo, &resource) {
+                log::debug!("list_files got commit id {} and directory [{:?}]", commit_id, directory);
+
+                match list_directory_for_commit(&repo, &commit_id, &directory, page_num, page_size) {
+                    Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
+                    Err(status_message) => HttpResponse::InternalServerError().json(status_message),
+                }
+            } else {
+              log::debug!("list_files Could not parse resource {:?}", resource);
+              HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
         }
         Ok(None) => {
@@ -466,11 +480,10 @@ pub async fn list_files_for_commit(
         }
         Err(err) => {
             log::error!(
-                "list_files Unable to list directory {:?} in repo {}/{} for commit {}. Err: {}",
-                directory,
+                "list_files Unable to list resource {:?} in repo {}/{} Err: {}",
+                resource,
                 namespace,
                 name,
-                commit_id,
                 err
             );
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -667,6 +680,28 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_resource_for_commit_home_dir() -> Result<(), OxenError> {
+        liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
+            let history = command::log(&repo)?;
+            let commit = history.first().unwrap();
+            let path_str = format!("{}", commit.id);
+            let path = Path::new(&path_str);
+
+            match controllers::entries::parse_resource(&repo, path) {
+                Ok(Some((commit_id, path))) => {
+                    assert_eq!(commit.id, commit_id);
+                    assert_eq!(path, PathBuf::new());
+                }
+                _ => {
+                    panic!("Should return a commit");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_parse_resource_for_branch() -> Result<(), OxenError> {
         liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my-branch";
@@ -691,6 +726,55 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_resource_for_branch_home_dir() -> Result<(), OxenError> {
+        liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "my-branch";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+
+            let path_str = format!("{}", branch_name);
+            let path = Path::new(&path_str);
+
+            match controllers::entries::parse_resource(&repo, path) {
+                Ok(Some((commit_id, path))) => {
+                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    assert_eq!(branch.commit_id, commit_id);
+                    assert_eq!(path, PathBuf::new());
+                }
+                _ => {
+                    panic!("Should return a branch");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_parse_resource_for_branch_home_dir_with_slash() -> Result<(), OxenError> {
+        liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "my-branch";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+
+            let path_str = format!("{}/", branch_name);
+            let path = Path::new(&path_str);
+
+            match controllers::entries::parse_resource(&repo, path) {
+                Ok(Some((commit_id, path))) => {
+                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    assert_eq!(branch.commit_id, commit_id);
+                    assert_eq!(path, PathBuf::new());
+                }
+                error => {
+                    println!("Got Error: {:?}", error);
+                    panic!("Should return a branch");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_parse_resource_for_long_branch_name() -> Result<(), OxenError> {
         liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my/crazy/branch/name";
@@ -704,6 +788,31 @@ mod tests {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
+                }
+                _ => {
+                    panic!("Should return a branch");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    fn test_parse_resource_for_single_branch_name_one_dir() -> Result<(), OxenError> {
+        liboxen::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "my-branch";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+
+            let path_str = format!("{}/annotations", branch_name);
+            let path = Path::new(&path_str);
+
+            match controllers::entries::parse_resource(&repo, path) {
+                Ok(Some((commit_id, path))) => {
+                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    assert_eq!(branch.commit_id, commit_id);
+                    assert_eq!(path, Path::new("annotations"));
                 }
                 _ => {
                     panic!("Should return a branch");
