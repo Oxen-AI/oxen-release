@@ -301,11 +301,13 @@ mod tests {
 
     #[actix_web::test]
     async fn test_respository_show() -> Result<(), OxenError> {
+        log::info!("starting test");
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Test-Namespace";
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
+        log::info!("test created local repo: {}", name);
 
         let uri = format!("/oxen/{}/{}", namespace, name);
         let req = test::repo_request(&sync_dir, &uri, namespace, name);

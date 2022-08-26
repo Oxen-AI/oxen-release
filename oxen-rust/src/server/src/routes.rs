@@ -37,7 +37,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::put().to(controllers::commits::upload),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_id}/history",
+        "/{namespace}/{repo_name}/commits/{branch_or_commit}/history",
         web::get().to(controllers::commits::commit_history),
     )
     .route(

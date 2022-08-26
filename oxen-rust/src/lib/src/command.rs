@@ -259,17 +259,22 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 }
 
 /// # Get the history for a specific branch
-pub fn log_branch_commit_history(
+pub fn log_branch_or_commit_history(
     repo: &LocalRepository,
-    branch_name: &str,
+    branch_or_commit: &str,
 ) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
-    if let Some(commit_id) = get_branch_commit_id(repo, branch_name)? {
-        let commits = committer.history_from_commit_id(&commit_id)?;
-        Ok(commits)
-    } else {
-        let err = format!("Branch does not exist: {}", branch_name);
-        Err(OxenError::basic_str(err))
+    let commit_id = match get_branch_commit_id(repo, branch_or_commit)? {
+        Some(branch_commit_id) => branch_commit_id,
+        None => String::from(branch_or_commit),
+    };
+
+    log::debug!("log_branch_or_commit_history: commit_id: {}", commit_id);
+    match committer.history_from_commit_id(&commit_id) {
+        Ok(commits) => Ok(commits),
+        Err(_) => Err(OxenError::local_branch_or_commit_not_found(
+            branch_or_commit,
+        )),
     }
 }
 

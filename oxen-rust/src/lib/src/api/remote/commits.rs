@@ -154,11 +154,10 @@ pub fn get_remote_parent(
 pub fn post_commit_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // First create commit on server
-    create_commit_obj_on_server(remote_repo, branch, commit)?;
+    create_commit_obj_on_server(remote_repo, commit)?;
 
     // Then zip up and send the history db
     println!("Compressing commit {}", commit.id);
@@ -185,14 +184,12 @@ pub fn post_commit_to_server(
 
 fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     let config = UserConfig::default()?;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!("/branches/{}/commits", branch_name);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, "/commits");
 
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);

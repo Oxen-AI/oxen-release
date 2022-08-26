@@ -146,7 +146,6 @@ impl Indexer {
                     api::remote::commits::post_commit_to_server(
                         &self.repository,
                         remote_repo,
-                        &rb.branch,
                         local_commit,
                     )?;
                     log::debug!(
@@ -167,7 +166,6 @@ impl Indexer {
                     api::remote::commits::post_commit_to_server(
                         &self.repository,
                         remote_repo,
-                        &rb.branch,
                         local_commit,
                     )?;
                     log::debug!("unsynced_commits.push_back root {:?}", local_commit);

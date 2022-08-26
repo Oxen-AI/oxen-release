@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
-use liboxen::index::{CommitValidator, CommitWriter, RefWriter};
+use liboxen::index::{CommitValidator, CommitWriter};
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -47,18 +47,18 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     }
 }
 
-// List commits for a branch in repository
-pub async fn index_branch(req: HttpRequest) -> HttpResponse {
+// List history for a branch or commit
+pub async fn commit_history(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
-    let branch_name: Option<&str> = req.match_info().get("branch_name");
+    let branch_or_commit: Option<&str> = req.match_info().get("branch_or_commit");
 
-    if let (Some(namespace), Some(repo_name), Some(branch_name)) =
-        (namespace, repo_name, branch_name)
+    if let (Some(namespace), Some(repo_name), Some(branch_or_commit)) =
+        (namespace, repo_name, branch_or_commit)
     {
         let repo_dir = app_data.path.join(namespace).join(repo_name);
-        match p_index_branch(&repo_dir, branch_name) {
+        match p_index_branch_or_commit_history(&repo_dir, branch_or_commit) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {}", err);
@@ -66,14 +66,9 @@ pub async fn index_branch(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Could not find `repo_name` and `branch_name` param...";
+        let msg = "Must supply `namespace`, `repo_name` and `branch_or_commit` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
-}
-
-pub async fn commit_history(_req: HttpRequest) -> HttpResponse {
-    log::error!("commit_history not implemented");
-    HttpResponse::NotImplemented().json(StatusMessage::not_implemented())
 }
 
 pub async fn show(req: HttpRequest) -> HttpResponse {
@@ -215,9 +210,13 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     Ok(ListCommitResponse::success(commits))
 }
 
-fn p_index_branch(repo_dir: &Path, branch_name: &str) -> Result<ListCommitResponse, OxenError> {
+fn p_index_branch_or_commit_history(
+    repo_dir: &Path,
+    branch_or_commit: &str,
+) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
-    let commits = command::log_branch_commit_history(&repo, branch_name)?;
+    let commits = command::log_branch_or_commit_history(&repo, branch_or_commit)?;
+    log::debug!("controllers::commits: : {:#?}", commits);
     Ok(ListCommitResponse::success(commits))
 }
 
@@ -292,9 +291,6 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     // name to the repo, should be in url path so okay to unwap
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let branch_name: &str = req.match_info().get("branch_name").unwrap();
-
-    log::debug!("upload commit for branch {:?}", branch_name);
 
     match (
         api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name),
@@ -302,7 +298,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     ) {
         (Ok(Some(repo)), Ok(commit)) => {
             // Create Commit from uri params
-            match create_commit(&repo.path, branch_name, &commit) {
+            match create_commit(&repo.path, &commit) {
                 Ok(_) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
@@ -389,19 +385,20 @@ pub async fn upload(
     }
 }
 
-fn create_commit(repo_dir: &Path, branch: &str, commit: &Commit) -> Result<(), OxenError> {
+fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(repo_dir)?;
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
             Ok(_) => {
-                let ref_writer = RefWriter::new(&repo)?;
-                // If branch doesn't exist create it
-                if !ref_writer.has_branch(branch) {
-                    ref_writer.create_branch(branch, &commit.id)?;
-                }
-                // Set the branch to point to the commit
-                ref_writer.set_branch_commit_id(branch, &commit.id)?;
+                // Ok(());
+                // let ref_writer = RefWriter::new(&repo)?;
+                // // If branch doesn't exist create it
+                // if !ref_writer.has_branch(branch) {
+                //     ref_writer.create_branch(branch, &commit.id)?;
+                // }
+                // // Set the branch to point to the commit
+                // ref_writer.set_branch_commit_id(branch, &commit.id)?;
             }
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);

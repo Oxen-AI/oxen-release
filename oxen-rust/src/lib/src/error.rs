@@ -86,6 +86,14 @@ impl OxenError {
         let err = format!("Could not find local file: {:?}", path.as_ref());
         OxenError::basic_str(&err)
     }
+
+    pub fn local_branch_or_commit_not_found<T: AsRef<str>>(name: T) -> OxenError {
+        let err = format!(
+            "Local branch or commit reference `{}` not found",
+            name.as_ref()
+        );
+        OxenError::basic_str(&err)
+    }
 }
 
 impl fmt::Display for OxenError {
