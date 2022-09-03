@@ -52,13 +52,13 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
-    let branch_or_commit: Option<&str> = req.match_info().get("branch_or_commit");
+    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
 
-    if let (Some(namespace), Some(repo_name), Some(branch_or_commit)) =
-        (namespace, repo_name, branch_or_commit)
+    if let (Some(namespace), Some(repo_name), Some(commit_or_branch)) =
+        (namespace, repo_name, commit_or_branch)
     {
         let repo_dir = app_data.path.join(namespace).join(repo_name);
-        match p_index_branch_or_commit_history(&repo_dir, branch_or_commit) {
+        match p_index_commit_or_branch_history(&repo_dir, commit_or_branch) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {}", err);
@@ -66,7 +66,7 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `namespace`, `repo_name` and `branch_or_commit` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
@@ -111,37 +111,44 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 
 pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_id: Option<&str> = req.match_info().get("commit_id");
+    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
     let size = query.size;
 
-    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+    if let (Some(namespace), Some(name), Some(commit_or_branch)) =
+        (namespace, name, commit_or_branch)
+    {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
-                Ok(Some(commit)) => {
-                    let mut is_valid = false;
-                    let validator = CommitValidator::new(&repository);
-                    if let Ok(result) = validator.has_all_data(&commit, size) {
-                        is_valid = result;
-                    }
+            Ok(Some(repository)) => {
+                match api::local::commits::get_by_id_or_branch(&repository, commit_or_branch) {
+                    Ok(Some(commit)) => {
+                        let mut is_valid = false;
+                        let validator = CommitValidator::new(&repository);
+                        if let Ok(result) = validator.has_all_data(&commit, size) {
+                            is_valid = result;
+                        }
 
-                    HttpResponse::Ok().json(IsValidStatusMessage {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
-                        is_valid,
-                    })
+                        HttpResponse::Ok().json(IsValidStatusMessage {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_FOUND),
+                            is_valid,
+                        })
+                    }
+                    Ok(None) => {
+                        log::debug!(
+                            "commit or branch {} does not exist for repo: {}",
+                            commit_or_branch,
+                            name
+                        );
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                    Err(err) => {
+                        log::debug!("Err getting commit or branch {}: {}", commit_or_branch, err);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
                 }
-                Ok(None) => {
-                    log::debug!("commit_id {} does not exist for repo: {}", commit_id, name);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-                Err(err) => {
-                    log::debug!("Err getting commit_id {}: {}", commit_id, err);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-            },
+            }
             Ok(None) => {
                 log::debug!("404 could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -152,20 +159,22 @@ pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpRe
             }
         }
     } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 
 pub async fn parents(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
+
+    if let (Some(namespace), Some(name), Some(commit_or_branch)) =
+        (namespace, name, commit_or_branch)
+    {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => match p_get_parents(&repository, commit_id) {
+            Ok(Some(repository)) => match p_get_parents(&repository, commit_or_branch) {
                 Ok(parents) => HttpResponse::Ok().json(CommitParentsResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
@@ -174,7 +183,7 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
                 Err(err) => {
                     log::debug!(
                         "Error finding parent for commit {} in repo {}\nErr: {}",
-                        commit_id,
+                        commit_or_branch,
                         name,
                         err
                     );
@@ -191,16 +200,18 @@ pub async fn parents(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }
 
-fn p_get_parents(repository: &LocalRepository, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
-    match api::local::commits::get_by_id(repository, commit_id) {
-        Ok(Some(commit)) => api::local::commits::get_parents(repository, &commit),
-        Ok(None) => Ok(vec![]),
-        Err(err) => Err(err),
+fn p_get_parents(
+    repository: &LocalRepository,
+    commit_or_branch: &str,
+) -> Result<Vec<Commit>, OxenError> {
+    match api::local::commits::get_by_id_or_branch(repository, commit_or_branch)? {
+        Some(commit) => api::local::commits::get_parents(repository, &commit),
+        None => Ok(vec![]),
     }
 }
 
@@ -210,42 +221,46 @@ fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     Ok(ListCommitResponse::success(commits))
 }
 
-fn p_index_branch_or_commit_history(
+fn p_index_commit_or_branch_history(
     repo_dir: &Path,
-    branch_or_commit: &str,
+    commit_or_branch: &str,
 ) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
-    let commits = command::log_branch_or_commit_history(&repo, branch_or_commit)?;
+    let commits = command::log_commit_or_branch_history(&repo, commit_or_branch)?;
     log::debug!("controllers::commits: : {:#?}", commits);
     Ok(ListCommitResponse::success(commits))
 }
 
 pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
+    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
+
+    if let (Some(namespace), Some(name), Some(commit_or_branch)) =
+        (namespace, name, commit_or_branch)
+    {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
-                Ok(Some(commit)) => match compress_commit(&repository, &commit) {
-                    Ok(buffer) => HttpResponse::Ok().body(buffer),
-                    Err(err) => {
-                        log::error!("Error compressing commit: [{}] Err: {}", name, err);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
+            Ok(Some(repository)) => {
+                match api::local::commits::get_by_id_or_branch(&repository, commit_or_branch) {
+                    Ok(Some(commit)) => match compress_commit(&repository, &commit) {
+                        Ok(buffer) => HttpResponse::Ok().body(buffer),
+                        Err(err) => {
+                            log::error!("Error compressing commit: [{}] Err: {}", name, err);
+                            HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error())
+                        }
+                    },
+                    Ok(None) => {
+                        log::debug!("Could not find commit [{}]", name);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                     }
-                },
-                Ok(None) => {
-                    log::debug!("Could not find commit [{}]", name);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    Err(err) => {
+                        log::error!("Error finding commit: [{}] Err: {}", name, err);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
                 }
-                Err(err) => {
-                    log::error!("Error finding commit: [{}] Err: {}", name, err);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-            },
+            }
             Ok(None) => {
                 log::debug!("404 could not get repo {}", name,);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -256,7 +271,7 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
             }
         }
     } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
+        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
         HttpResponse::BadRequest().json(StatusMessage::error(msg))
     }
 }

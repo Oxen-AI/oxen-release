@@ -37,19 +37,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::put().to(controllers::commits::upload),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{branch_or_commit}/history",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch}/history",
         web::get().to(controllers::commits::commit_history),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_id}/parents",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch}/parents",
         web::get().to(controllers::commits::parents),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_id}/is_synced",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch}/is_synced",
         web::get().to(controllers::commits::is_synced),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_id}/commit_db",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch}/commit_db",
         web::get().to(controllers::commits::download_commit_db),
     )
     // ----- Branches ----- //
