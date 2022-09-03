@@ -87,7 +87,7 @@ impl OxenError {
         OxenError::basic_str(&err)
     }
 
-    pub fn local_branch_or_commit_not_found<T: AsRef<str>>(name: T) -> OxenError {
+    pub fn local_commit_or_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!(
             "Local branch or commit reference `{}` not found",
             name.as_ref()
