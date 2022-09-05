@@ -69,6 +69,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/branches/{branch_name}",
         web::delete().to(controllers::branches::delete),
     )
+    .route(
+        "/{namespace}/{repo_name}/branches/{branch_name}",
+        web::put().to(controllers::branches::update),
+    )
     // .route(
     //     "/{namespace}/{repo_name}/branches/{branch_name}/commits",
     //     web::get().to(controllers::commits::index_branch),

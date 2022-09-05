@@ -405,16 +405,7 @@ fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
-            Ok(_) => {
-                // Ok(());
-                // let ref_writer = RefWriter::new(&repo)?;
-                // // If branch doesn't exist create it
-                // if !ref_writer.has_branch(branch) {
-                //     ref_writer.create_branch(branch, &commit.id)?;
-                // }
-                // // Set the branch to point to the commit
-                // ref_writer.set_branch_commit_id(branch, &commit.id)?;
-            }
+            Ok(_) => {}
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);
             }
