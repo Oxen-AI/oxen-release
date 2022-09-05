@@ -13,6 +13,11 @@ pub struct BranchNew {
     pub name: String,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct BranchUpdate {
+    pub commit_id: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListBranchesResponse {
     pub status: String,
