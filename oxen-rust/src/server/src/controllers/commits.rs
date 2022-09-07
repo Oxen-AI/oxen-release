@@ -437,10 +437,11 @@ mod tests {
 
     use crate::app_data::OxenAppData;
     use crate::controllers;
-    use crate::test;
+    use crate::test::{self, init_test_env};
 
     #[actix_web::test]
     async fn test_controllers_commits_index_empty() -> Result<(), OxenError> {
+        init_test_env();
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";

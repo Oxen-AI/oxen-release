@@ -293,7 +293,6 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(local_repo)?.unwrap();
             // Commit the directory
             let commit = command::commit(
                 local_repo,
@@ -302,12 +301,8 @@ mod tests {
             .unwrap();
 
             // Post commit
-            let result_commit = api::remote::commits::post_commit_to_server(
-                local_repo,
-                remote_repo,
-                &branch.name,
-                &commit,
-            )?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(local_repo, remote_repo, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
 
             Ok(())
@@ -366,7 +361,6 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(local_repo)?.unwrap();
             // Commit the directory
             let commit = command::commit(
                 local_repo,
@@ -375,12 +369,8 @@ mod tests {
             .unwrap();
 
             // Post commit but not the actual files
-            let result_commit = api::remote::commits::post_commit_to_server(
-                local_repo,
-                remote_repo,
-                &branch.name,
-                &commit,
-            )?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(local_repo, remote_repo, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
             let commit_entry_reader = CommitEntryReader::new(local_repo, &commit)?;
             let num_entries = commit_entry_reader.num_entries()?;
