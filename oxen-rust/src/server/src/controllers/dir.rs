@@ -12,7 +12,6 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use std::path::{Path, PathBuf};
 
 pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    log::debug!("got here");
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
@@ -32,7 +31,6 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            log::debug!("dir::get repo [{}]", name);
             if let Ok(Some((commit_id, filepath))) =
                 util::resource::parse_resource(&repo, &resource)
             {
