@@ -516,19 +516,12 @@ mod tests {
         command::commit(&repo, "second commit")?;
 
         let uri = format!(
-            "/oxen/{}/{}/branches/{}/commits",
+            "/oxen/{}/{}/commits/{}/history",
             namespace, repo_name, branch_name
         );
-        let req = test::repo_request_with_param(
-            &sync_dir,
-            &uri,
-            namespace,
-            repo_name,
-            "branch_name",
-            branch_name,
-        );
+        let req = test::repo_request(&sync_dir, &uri, namespace, repo_name);
 
-        let resp = controllers::commits::index_branch(req).await;
+        let resp = controllers::commits::commit_history(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -564,19 +557,12 @@ mod tests {
 
         // List commits from the first branch
         let uri = format!(
-            "/oxen/{}/{}/branches/{}/commits",
-            namespace, repo_name, branch_name
+            "/oxen/{}/{}/commits/{}/history",
+            namespace, repo_name, og_branch.name
         );
-        let req = test::repo_request_with_param(
-            &sync_dir,
-            &uri,
-            namespace,
-            repo_name,
-            "branch_name",
-            og_branch.name,
-        );
+        let req = test::repo_request(&sync_dir, &uri, namespace, repo_name);
 
-        let resp = controllers::commits::index_branch(req).await;
+        let resp = controllers::commits::commit_history(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;

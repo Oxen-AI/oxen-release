@@ -73,6 +73,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/branches/{branch_name}",
         web::put().to(controllers::branches::update),
     )
+    // ----- Dir ----- //
+    .route(
+        "/{namespace}/{repo_name}/dir/{resource:.*}",
+        web::get().to(controllers::dir::get),
+    )
+
     // .route(
     //     "/{namespace}/{repo_name}/branches/{branch_name}/commits",
     //     web::get().to(controllers::commits::index_branch),
@@ -113,8 +119,5 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     //     "/{namespace}/{repo_name}/files",
     //     web::get().to(controllers::entries::list_files_for_head),
     // )
-    .route(
-        "/{namespace}/{repo_name}/dir/{resource:.*}",
-        web::get().to(controllers::dir::get),
-    );
+    ;
 }
