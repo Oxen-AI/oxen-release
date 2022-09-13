@@ -193,25 +193,39 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
-    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     // default to first page with first ten values
     let page_num: usize = query.page_num.unwrap_or(1);
     let page_size: usize = query.page_size.unwrap_or(10);
 
     log::debug!(
-        "list_entries repo name [{}] commit_id [{}] page_num {} page_size {}",
+        "list_entries repo name [{}] resource [{:?}] page_num {} page_size {}",
         name,
-        commit_id,
+        resource,
         page_num,
         page_size,
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            log::debug!("list_entries got repo [{}]", name);
-            match get_entries_for_page(&repo, commit_id, page_num, page_size) {
-                Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
-                Err(status_message) => HttpResponse::InternalServerError().json(status_message),
+            if let Ok(Some((commit_id, filepath))) =
+                util::resource::parse_resource(&repo, &resource)
+            {
+                log::debug!(
+                    "entries::list_entries commit_id [{}] and filepath {:?}",
+                    commit_id,
+                    filepath
+                );
+                match get_entries_for_page(&repo, &commit_id, page_num, page_size) {
+                    Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
+                    Err(status_message) => HttpResponse::InternalServerError().json(status_message),
+                }
+            } else {
+                log::debug!(
+                    "entries::list_entries could not find resource from uri {:?}",
+                    resource
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
         }
         Ok(None) => {
@@ -219,7 +233,7 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
         }
         Err(err) => {
-            log::error!("Unable to get commit id {}. Err: {}", commit_id, err);
+            log::error!("Unable to get resource {:?}. Err: {}", resource, err);
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
