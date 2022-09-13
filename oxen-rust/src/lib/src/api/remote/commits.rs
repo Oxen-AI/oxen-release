@@ -228,7 +228,7 @@ pub fn post_tarball_to_server(
 ) -> Result<CommitResponse, OxenError> {
     let config = UserConfig::default()?;
 
-    let uri = format!("/commits/{}", commit.id);
+    let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
     // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
