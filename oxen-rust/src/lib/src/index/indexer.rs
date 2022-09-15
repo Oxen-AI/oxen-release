@@ -506,10 +506,9 @@ impl Indexer {
             );
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
-                if let Err(error) = api::remote::entries::download_content_ids(
+                if let Err(error) = api::remote::entries::download_content_by_ids(
                     &self.repository,
                     remote_repo,
-                    &commit.id,
                     chunk,
                     &bar,
                 ) {
