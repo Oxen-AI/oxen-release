@@ -78,27 +78,35 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/dir/{resource:.*}",
         web::get().to(controllers::dir::get),
     )
+    // ----- File ----- //
+    // .route(
+    //     "/{namespace}/{repo_name}/file/{resource:.*}",
+    //     web::get().to(controllers::file::get),
+    // )
+    // ----- Versions ----- //
+    .route(
+        "/{namespace}/{repo_name}/versions",
+        web::post().to(controllers::entries::download_content_by_ids),
+    )
+
+    // .route(
+    //     "/{namespace}/{repo_name}/commits/{commit_id}/entries",
+    //     web::get().to(controllers::entries::list_entries),
+    // )
 
     // .route(
     //     "/{namespace}/{repo_name}/branches/{branch_name}/commits",
     //     web::get().to(controllers::commits::index_branch),
     // )
     // .route(
-    //     "/{namespace}/{repo_name}/commits/{commit_id}/entries",
-    //     web::get().to(controllers::entries::list_entries),
-    // )
-    // .route(
     //     "/{namespace}/{repo_name}/commits/{commit_id}/files",
     //     web::get().to(controllers::entries::list_files_for_commit),
     // )
-    .route(
-        "/{namespace}/{repo_name}/commits/{commit_id}/download_page",
-        web::get().to(controllers::entries::download_page),
-    )
-    .route(
-        "/{namespace}/{repo_name}/commits/{commit_id}/download_content_ids",
-        web::post().to(controllers::entries::download_content_ids),
-    )
+    // .route(
+    //     "/{namespace}/{repo_name}/commits/{commit_id}/download_page",
+    //     web::get().to(controllers::entries::download_page),
+    // )
+
     .route(
         "/{namespace}/{repo_name}/entries",
         web::post().to(controllers::entries::create),

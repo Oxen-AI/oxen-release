@@ -49,7 +49,7 @@ pub async fn create(
     }
 }
 
-pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> HttpResponse {
+pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -61,7 +61,7 @@ pub async fn download_content_ids(req: HttpRequest, mut body: web::Payload) -> H
                 bytes.extend_from_slice(&item.unwrap());
             }
             log::debug!(
-                "download_content_ids got repo [{}] and content_ids size {}",
+                "download_content_by_ids got repo [{}] and content_ids size {}",
                 name,
                 bytes.len()
             );
