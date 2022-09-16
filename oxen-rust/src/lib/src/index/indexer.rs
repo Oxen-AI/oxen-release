@@ -76,6 +76,14 @@ impl Indexer {
         // recursively check commits against remote head
         // and sync ones that have not been synced
         self.rpush_entries(&remote_repo, &last_commit, &unsynced_commits)?;
+
+        // update the branch after everything else is synced
+        log::debug!(
+            "Updating remote branch {:?} to commit {:?}",
+            &rb.branch,
+            &head_commit
+        );
+        api::remote::branches::update(&remote_repo, &rb.branch, &head_commit)?;
         Ok(remote_repo)
     }
 
