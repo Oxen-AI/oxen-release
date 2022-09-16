@@ -37,19 +37,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::post().to(controllers::commits::upload),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_or_branch}/history",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch:.*}/history",
         web::get().to(controllers::commits::commit_history),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_or_branch}/parents",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch:.*}/parents",
         web::get().to(controllers::commits::parents),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_or_branch}/is_synced",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch:.*}/is_synced",
         web::get().to(controllers::commits::is_synced),
     )
     .route(
-        "/{namespace}/{repo_name}/commits/{commit_or_branch}/commit_db",
+        "/{namespace}/{repo_name}/commits/{commit_or_branch:.*}/commit_db",
         web::get().to(controllers::commits::download_commit_db),
     )
     // ----- Branches ----- //
@@ -62,15 +62,15 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::post().to(controllers::branches::create_or_get),
     )
     .route(
-        "/{namespace}/{repo_name}/branches/{branch_name}",
+        "/{namespace}/{repo_name}/branches/{branch_name:.*}",
         web::get().to(controllers::branches::show),
     )
     .route(
-        "/{namespace}/{repo_name}/branches/{branch_name}",
+        "/{namespace}/{repo_name}/branches/{branch_name:.*}",
         web::delete().to(controllers::branches::delete),
     )
     .route(
-        "/{namespace}/{repo_name}/branches/{branch_name}",
+        "/{namespace}/{repo_name}/branches/{branch_name:.*}",
         web::put().to(controllers::branches::update),
     )
     // ----- Dir ----- //
