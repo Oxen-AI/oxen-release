@@ -1,7 +1,7 @@
 use crate::api;
 use crate::config::UserConfig;
 use crate::error::OxenError;
-use crate::model::{Branch, RemoteRepository};
+use crate::model::{Branch, Commit, RemoteRepository};
 use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
 
 use serde_json::json;
@@ -112,6 +112,46 @@ pub fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     }
 }
 
+pub fn update(
+    repository: &RemoteRepository,
+    branch_name: &str,
+    commit: &Commit,
+) -> Result<Branch, OxenError> {
+    let config = UserConfig::default()?;
+    let uri = format!("/branches/{}", branch_name);
+    let url = api::endpoint::url_from_repo(repository, &uri);
+    log::debug!("remote::branches::update url: {}", url);
+
+    let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
+
+    let client = reqwest::blocking::Client::new();
+    if let Ok(res) = client
+        .put(url)
+        .body(params)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()?),
+        )
+        .send()
+    {
+        let body = res.text()?;
+        let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(response) => Ok(response.branch),
+            Err(err) => {
+                let err = format!(
+                    "Could not update branch [{}]: {}\n{}",
+                    repository.name, err, body
+                );
+                Err(OxenError::basic_str(&err))
+            }
+        }
+    } else {
+        let msg = format!("Could not update branch {}", branch_name);
+        log::error!("remote::branches::update() {}", msg);
+        Err(OxenError::basic_str(&msg))
+    }
+}
 pub fn delete(
     repository: &RemoteRepository,
     branch_name: &str,
