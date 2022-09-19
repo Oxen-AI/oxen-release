@@ -756,7 +756,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         let mut repo = repo;
         // Track the train dir
         let train_dir = repo.path.join("train");
-        let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
+        let num_train_files = util::fs::rcount_files_in_dir(&train_dir);
         command::add(&repo, &train_dir)?;
         // Commit the train dur
         command::commit(&repo, "Adding training data")?;
@@ -773,7 +773,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 
         // Track the test dir
         let test_dir = repo.path.join("test");
-        num_files += util::fs::rcount_files_in_dir(&test_dir);
+        let num_test_files = util::fs::count_files_in_dir(&test_dir);
         command::add(&repo, &test_dir)?;
         let commit = command::commit(&repo, "Adding test data")?.unwrap();
 
@@ -781,11 +781,19 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::push(&repo)?;
 
         let page_num = 1;
-        let page_size = num_files;
-        let entries =
-            api::remote::entries::list_page(&remote_repo, &commit.id, page_num, page_size)?;
-        assert_eq!(entries.total_entries, num_files);
-        assert_eq!(entries.entries.len(), num_files);
+        let page_size = num_train_files + num_test_files + 5;
+        let train_entries =
+            api::remote::dir::list_dir(&remote_repo, &commit.id, "/train", page_num, page_size)?;
+        let test_entries =
+            api::remote::dir::list_dir(&remote_repo, &commit.id, "/test", page_num, page_size)?;
+        assert_eq!(
+            train_entries.total_entries + test_entries.total_entries,
+            num_train_files + num_test_files
+        );
+        assert_eq!(
+            train_entries.entries.len() + test_entries.entries.len(),
+            num_train_files + num_test_files
+        );
 
         api::remote::repositories::delete(&remote_repo)?;
 
