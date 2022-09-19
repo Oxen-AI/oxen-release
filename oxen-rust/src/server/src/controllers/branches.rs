@@ -277,7 +277,7 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_branches_index_empty() -> Result<(), OxenError> {
+    async fn test_controllers_branches_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_branches_index_multiple_branches() -> Result<(), OxenError> {
+    async fn test_controllers_branches_index_multiple_branches() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
@@ -330,7 +330,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_branch_show() -> Result<(), OxenError> {
+    async fn test_controllers_branch_show() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
@@ -363,7 +363,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_branch_create() -> Result<(), OxenError> {
+    async fn test_controllers_branch_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
