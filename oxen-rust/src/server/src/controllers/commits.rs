@@ -285,7 +285,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 
-    println!("Compressing commit {}", commit.id);
+    log::debug!("Compressing commit {}", commit.id);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
@@ -358,19 +358,17 @@ pub async fn upload(
                     while let Some(item) = body.next().await {
                         bytes.extend_from_slice(&item.unwrap());
                     }
-                    println!("Got compressed data {} bytes", bytes.len());
+                    log::debug!("Got compressed data {} bytes", bytes.len());
 
                     std::thread::spawn(move || {
                         // Get tar.gz bytes for history/COMMIT_ID data
-                        println!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
+                        log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
                         // Unpack tarball to our hidden dir
                         let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
                         archive.unpack(hidden_dir).unwrap();
-                        println!("Done decompressing.");
+                        log::debug!("Done decompressing.");
                     });
                     // handle.join().unwrap();
-
-                    println!("Responding!");
 
                     Ok(HttpResponse::Ok().json(CommitResponse {
                         status: String::from(STATUS_SUCCESS),
@@ -422,7 +420,6 @@ mod tests {
 
     use actix_web::body::to_bytes;
     use actix_web::{web, App};
-    use chrono::Local;
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use std::path::Path;
@@ -431,7 +428,6 @@ mod tests {
     use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
-    use liboxen::model::Commit;
     use liboxen::util;
     use liboxen::view::{CommitResponse, ListCommitResponse};
 
@@ -520,7 +516,14 @@ mod tests {
             "/oxen/{}/{}/commits/{}/history",
             namespace, repo_name, branch_name
         );
-        let req = test::repo_request(&sync_dir, &uri, namespace, repo_name);
+        let req = test::repo_request_with_param(
+            &sync_dir,
+            &uri,
+            namespace,
+            repo_name,
+            "commit_or_branch",
+            branch_name,
+        );
 
         let resp = controllers::commits::commit_history(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -561,7 +564,14 @@ mod tests {
             "/oxen/{}/{}/commits/{}/history",
             namespace, repo_name, og_branch.name
         );
-        let req = test::repo_request(&sync_dir, &uri, namespace, repo_name);
+        let req = test::repo_request_with_param(
+            &sync_dir,
+            &uri,
+            namespace,
+            repo_name,
+            "commit_or_branch",
+            og_branch.name,
+        );
 
         let resp = controllers::commits::commit_history(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -569,58 +579,6 @@ mod tests {
         let list: ListCommitResponse = serde_json::from_str(text)?;
         // there should be 2 instead of the 3 total
         assert_eq!(list.commits.len(), 2);
-
-        // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
-
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn test_controllers_commits_create_on_branch() -> Result<(), OxenError> {
-        let sync_dir = test::get_sync_dir()?;
-
-        let namespace = "Testing-Namespace";
-        let repo_name = "Testing-Name";
-        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-        let og_branch = command::current_branch(&repo)?.unwrap();
-        let og_commits = command::log(&repo)?;
-
-        // List commits from the first branch
-        let uri = format!(
-            "/oxen/{}/{}/branches/{}/commits",
-            namespace, repo_name, og_branch.name
-        );
-        let req = test::repo_request_with_param(
-            &sync_dir,
-            &uri,
-            namespace,
-            repo_name,
-            "branch_name",
-            og_branch.name,
-        );
-
-        let timestamp = Local::now();
-        let commit = Commit {
-            id: String::from("1234"),
-            parent_ids: vec![og_commits.first().unwrap().id.to_owned()],
-            message: String::from("merge commit with multiple parents"),
-            author: String::from("Ox"),
-            date: timestamp,
-            timestamp: timestamp.timestamp_nanos(),
-        };
-        let commit_data = serde_json::to_string(&commit).unwrap();
-
-        let resp = controllers::commits::create(req, commit_data).await;
-        let body = to_bytes(resp.into_body()).await.unwrap();
-        let text = std::str::from_utf8(&body).unwrap();
-        let commit_resp: CommitResponse = serde_json::from_str(text)?;
-        // the response shouild be valid
-        assert_eq!(commit_resp.commit.id, commit.id);
-
-        // There should be another commit now
-        let commits = command::log(&repo)?;
-        assert_eq!(og_commits.len() + 1, commits.len());
 
         // cleanup
         std::fs::remove_dir_all(sync_dir)?;

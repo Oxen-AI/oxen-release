@@ -14,9 +14,9 @@ use std::path::{Path, PathBuf};
 pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     // default to first page with first ten values
     let page_num: usize = query.page_num.unwrap_or(1);
@@ -117,5 +117,71 @@ fn list_directory_for_commit(
             );
             Err(StatusMessage::internal_server_error())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{web, App};
+    use std::path::Path;
+
+    use liboxen::command;
+    use liboxen::error::OxenError;
+    use liboxen::util;
+    use liboxen::view::PaginatedDirEntries;
+
+    use crate::app_data::OxenAppData;
+    use crate::controllers;
+    use crate::test;
+    #[actix_web::test]
+    async fn test_controllers_dir_list_directory() -> Result<(), OxenError> {
+        test::init_test_env();
+
+        let sync_dir = test::get_sync_dir()?;
+
+        let namespace = "Testing-Namespace";
+        let name = "Testing-Name";
+        let repo = test::create_local_repo(&sync_dir, namespace, name)?;
+
+        // write files to dir
+        liboxen::test::populate_dir_with_training_data(&repo.path)?;
+
+        // add the full dir
+        let train_dir = repo.path.join(Path::new("train"));
+        let num_entries = util::fs::rcount_files_in_dir(&train_dir);
+        command::add(&repo, &train_dir)?;
+
+        // commit the changes
+        let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
+
+        // Use the api list the files from the commit
+        let uri = format!("/oxen/{}/{}/dir/{}/train/", namespace, name, commit.id);
+        let app = actix_web::test::init_service(
+            App::new()
+                .app_data(OxenAppData {
+                    path: sync_dir.clone(),
+                })
+                .route(
+                    "/oxen/{namespace}/{repo_name}/dir/{resource:.*}",
+                    web::get().to(controllers::dir::get),
+                ),
+        )
+        .await;
+
+        let req = actix_web::test::TestRequest::get().uri(&uri).to_request();
+        let resp = actix_web::test::call_service(&app, req).await;
+        println!("GOT RESP STATUS: {}", resp.response().status());
+        let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
+        let body = std::str::from_utf8(&bytes).unwrap();
+        println!("GOT BODY: {}", body);
+        let entries_resp: PaginatedDirEntries = serde_json::from_str(body)?;
+
+        // Make sure we can fetch all the entries
+        assert_eq!(entries_resp.total_entries, num_entries);
+
+        // cleanup
+        std::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
     }
 }
