@@ -84,6 +84,10 @@ impl Indexer {
             &head_commit
         );
         api::remote::branches::update(&remote_repo, &rb.branch, &head_commit)?;
+        println!(
+            "Updated remote branch {} to {}",
+            &rb.branch, &head_commit.id
+        );
         Ok(remote_repo)
     }
 
@@ -394,8 +398,15 @@ impl Indexer {
             .join(remote_head_commit.id.clone());
         if !commit_db_dir.exists() {
             // We don't have db locally, so pull it
+            log::debug!(
+                "commit db for {} not found, pull from remote",
+                remote_head_commit.id
+            );
             self.check_parent_and_pull_commit_objects(remote_repo, remote_head_commit)?;
-        } // else we are synced
+        } else {
+            // else we are synced
+            log::debug!("commit db for {} already downloaded", remote_head_commit.id);
+        }
 
         Ok(())
     }
