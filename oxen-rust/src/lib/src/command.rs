@@ -297,7 +297,7 @@ pub fn create_branch(
     let ref_writer = RefWriter::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     if commit_reader.commit_id_exists(commit_id) {
-        ref_writer.create_branch(name, &commit_id)
+        ref_writer.create_branch(name, commit_id)
     } else {
         Err(OxenError::commit_id_does_not_exist(commit_id))
     }
