@@ -48,16 +48,6 @@ impl Indexer {
             Err(err) => return Err(err),
         };
 
-        // Create the branch, fail silently for now because first one might fail if no HEAD on the server
-        match api::remote::branches::create_or_get(&remote_repo, &rb.branch) {
-            Ok(branch) => {
-                log::debug!("Successfully Created remote branch {:?}", branch.name);
-            }
-            Err(err) => {
-                log::debug!("Could not create remote branch. Err: {:?}", err);
-            }
-        }
-
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.head_commit()?;

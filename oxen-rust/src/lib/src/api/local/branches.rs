@@ -12,26 +12,23 @@ pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>,
     referencer.get_branch_by_name(name)
 }
 
-pub fn get_or_create(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
     let referencer = RefReader::new(repo)?;
     match referencer.get_branch_by_name(name)? {
-        Some(branch) => Ok(branch),
-        None => create(repo, name),
+        Some(branch) => {
+            // Set the branch to point to the commit
+            let ref_writer = RefWriter::new(&repo)?;
+            match ref_writer.set_branch_commit_id(name, commit_id) {
+                Ok(()) => Ok(branch),
+                Err(err) => Err(err),
+            }
+        }
+        None => command::create_branch(repo, name, commit_id),
     }
 }
 
 pub fn create(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
-    command::create_branch(repo, name)
-}
-
-pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
-    let branch = get_or_create(repo, name)?;
-    // Set the branch to point to the commit
-    let ref_writer = RefWriter::new(&repo)?;
-    match ref_writer.set_branch_commit_id(name, commit_id) {
-        Ok(()) => Ok(branch),
-        Err(err) => Err(err),
-    }
+    command::create_branch_from_head(repo, name)
 }
 
 pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {

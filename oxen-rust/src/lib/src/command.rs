@@ -278,14 +278,29 @@ pub fn log_commit_or_branch_history(
     }
 }
 
-/// # Create a new branch
+/// # Create a new branch from the head commit
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
-pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn create_branch_from_head(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     let ref_writer = RefWriter::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     let head_commit = commit_reader.head_commit()?;
     ref_writer.create_branch(name, &head_commit.id)
+}
+
+/// # Create a local branch from a specific commit id
+pub fn create_branch(
+    repo: &LocalRepository,
+    name: &str,
+    commit_id: &str,
+) -> Result<Branch, OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    if commit_reader.commit_id_exists(commit_id) {
+        ref_writer.create_branch(name, &commit_id)
+    } else {
+        Err(OxenError::commit_id_does_not_exist(commit_id))
+    }
 }
 
 /// # Delete a local branch
