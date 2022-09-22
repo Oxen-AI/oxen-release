@@ -17,7 +17,7 @@ pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Bra
     match referencer.get_branch_by_name(name)? {
         Some(branch) => {
             // Set the branch to point to the commit
-            let ref_writer = RefWriter::new(&repo)?;
+            let ref_writer = RefWriter::new(repo)?;
             match ref_writer.set_branch_commit_id(name, commit_id) {
                 Ok(()) => Ok(branch),
                 Err(err) => Err(err),
