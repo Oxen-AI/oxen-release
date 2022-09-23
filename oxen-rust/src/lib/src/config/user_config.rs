@@ -39,6 +39,11 @@ impl UserConfig {
             if config_file.exists() {
                 Ok(UserConfig::new(&config_file))
             } else {
+                log::warn!(
+                    "unable to find config file at {:?}. Current working directory is {:?}",
+                    config_file,
+                    std::env::current_dir().unwrap()
+                );
                 Err(OxenError::Basic(String::from(
                     error::EMAIL_AND_NAME_NOT_FOUND,
                 )))

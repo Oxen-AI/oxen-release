@@ -258,29 +258,49 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(commits)
 }
 
-/// # Get the history for a specific branch
-pub fn log_branch_commit_history(
+/// # Get the history for a specific branch or commit
+pub fn log_commit_or_branch_history(
     repo: &LocalRepository,
-    branch_name: &str,
+    commit_or_branch: &str,
 ) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
-    if let Some(commit_id) = get_branch_commit_id(repo, branch_name)? {
-        let commits = committer.history_from_commit_id(&commit_id)?;
-        Ok(commits)
-    } else {
-        let err = format!("Branch does not exist: {}", branch_name);
-        Err(OxenError::basic_str(err))
+    let commit_id = match get_branch_commit_id(repo, commit_or_branch)? {
+        Some(branch_commit_id) => branch_commit_id,
+        None => String::from(commit_or_branch),
+    };
+
+    log::debug!("log_commit_or_branch_history: commit_id: {}", commit_id);
+    match committer.history_from_commit_id(&commit_id) {
+        Ok(commits) => Ok(commits),
+        Err(_) => Err(OxenError::local_commit_or_branch_not_found(
+            commit_or_branch,
+        )),
     }
 }
 
-/// # Create a new branch
+/// # Create a new branch from the head commit
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
-pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn create_branch_from_head(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     let ref_writer = RefWriter::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     let head_commit = commit_reader.head_commit()?;
     ref_writer.create_branch(name, &head_commit.id)
+}
+
+/// # Create a local branch from a specific commit id
+pub fn create_branch(
+    repo: &LocalRepository,
+    name: &str,
+    commit_id: &str,
+) -> Result<Branch, OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    if commit_reader.commit_id_exists(commit_id) {
+        ref_writer.create_branch(name, commit_id)
+    } else {
+        Err(OxenError::commit_id_does_not_exist(commit_id))
+    }
 }
 
 /// # Delete a local branch

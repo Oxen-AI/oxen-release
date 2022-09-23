@@ -154,11 +154,10 @@ pub fn get_remote_parent(
 pub fn post_commit_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // First create commit on server
-    create_commit_obj_on_server(remote_repo, branch, commit)?;
+    create_commit_obj_on_server(remote_repo, commit)?;
 
     // Then zip up and send the history db
     println!("Compressing commit {}", commit.id);
@@ -185,14 +184,12 @@ pub fn post_commit_to_server(
 
 fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     let config = UserConfig::default()?;
     let client = reqwest::blocking::Client::new();
 
-    let uri = format!("/branches/{}/commits", branch_name);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, "/commits");
 
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);
@@ -231,7 +228,7 @@ pub fn post_tarball_to_server(
 ) -> Result<CommitResponse, OxenError> {
     let config = UserConfig::default()?;
 
-    let uri = format!("/commits/{}", commit.id);
+    let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
     // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
@@ -296,7 +293,6 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(local_repo)?.unwrap();
             // Commit the directory
             let commit = command::commit(
                 local_repo,
@@ -305,12 +301,8 @@ mod tests {
             .unwrap();
 
             // Post commit
-            let result_commit = api::remote::commits::post_commit_to_server(
-                local_repo,
-                remote_repo,
-                &branch.name,
-                &commit,
-            )?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(local_repo, remote_repo, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
 
             Ok(())
@@ -369,7 +361,6 @@ mod tests {
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
             command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(local_repo)?.unwrap();
             // Commit the directory
             let commit = command::commit(
                 local_repo,
@@ -378,12 +369,8 @@ mod tests {
             .unwrap();
 
             // Post commit but not the actual files
-            let result_commit = api::remote::commits::post_commit_to_server(
-                local_repo,
-                remote_repo,
-                &branch.name,
-                &commit,
-            )?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(local_repo, remote_repo, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
             let commit_entry_reader = CommitEntryReader::new(local_repo, &commit)?;
             let num_entries = commit_entry_reader.num_entries()?;

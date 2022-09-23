@@ -40,6 +40,14 @@ Run the server
 
 The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
 
+To run the server with live reload, first install cargo-watch
+
+`cargo install cargo-watch`
+
+Then run the server like this
+
+`cargo watch -- cargo run --bin oxen-server start`
+
 # Unit & Integration Tests
 
 Make sure your server is running on the default port and host, then run
@@ -175,3 +183,29 @@ To inspect any of the key value dbs below
     FILE_HASH_DIRS_2/
       COMMIT_ID_1 (dog_2.jpg)
 ```
+
+# Homebrew Release
+
+Preparing the binary
+
+```bash
+cargo build --release
+```
+
+Create a tar archive that we will upload to github releases
+
+```bash
+cd target/release
+tar -czf oxen-mac.tar.gz oxen
+```
+
+Get the sha256 hash of the archive
+
+```bash
+shasum -a 256 oxen-mac.tar.gz
+```
+
+Upload it to our releases github repository [https://github.com/Oxen-AI/oxen-release](https://github.com/Oxen-AI/oxen-release)
+
+Then update our homebrew Formula in this repository [https://github.com/Oxen-AI/homebrew-oxen](https://github.com/Oxen-AI/homebrew-oxen) to point to the correct release.
+

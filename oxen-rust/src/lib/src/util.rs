@@ -1,6 +1,7 @@
 pub mod fs;
 pub mod hasher;
 pub mod read_progress;
+pub mod resource;
 
 pub use crate::util::read_progress::ReadProgress;
 

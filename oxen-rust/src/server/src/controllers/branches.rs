@@ -3,8 +3,11 @@ use crate::app_data::OxenAppData;
 use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::api;
-use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{BranchNew, BranchResponse, ListBranchesResponse, StatusMessage};
+use liboxen::view::http::{
+    MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED,
+    STATUS_SUCCESS,
+};
+use liboxen::view::{BranchNew, BranchResponse, BranchUpdate, ListBranchesResponse, StatusMessage};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -170,7 +173,7 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
                         match api::local::branches::force_delete(&repository, branch_name) {
                             Ok(_) => HttpResponse::Ok().json(BranchResponse {
                                 status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_CREATED),
+                                status_message: String::from(MSG_RESOURCE_DELETED),
                                 branch,
                             }),
                             Err(err) => {
@@ -209,6 +212,54 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     }
 }
 
+pub async fn update(req: HttpRequest, body: String) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let name: Option<&str> = req.match_info().get("repo_name");
+    let branch_name: Option<&str> = req.match_info().get("branch_name");
+    let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
+
+    if let (Some(namespace), Some(name), Some(branch_name)) = (namespace, name, branch_name) {
+        match data {
+            Ok(data) => match api::local::repositories::get_by_namespace_and_name(
+                &app_data.path,
+                namespace,
+                name,
+            ) {
+                Ok(Some(repo)) => {
+                    match api::local::branches::update(&repo, branch_name, &data.commit_id) {
+                        Ok(branch) => HttpResponse::Ok().json(BranchResponse {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_UPDATED),
+                            branch,
+                        }),
+                        Err(err) => {
+                            log::debug!("Error updating branch {}: {}", branch_name, err);
+                            HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error())
+                        }
+                    }
+                }
+                Ok(None) => {
+                    log::debug!(
+                        "404 api::local::branches::update could not get repo {}",
+                        name,
+                    );
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::debug!("Could not find repo [{}]: {}", name, err);
+                    HttpResponse::NotFound().json(StatusMessage::internal_server_error())
+                }
+            },
+            Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),
+        }
+    } else {
+        let msg = "Must supply `namespace`, `repo_name` and `branch_name` params";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -226,7 +277,7 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_branches_index_empty() -> Result<(), OxenError> {
+    async fn test_controllers_branches_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
@@ -252,7 +303,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_branches_index_multiple_branches() -> Result<(), OxenError> {
+    async fn test_controllers_branches_index_multiple_branches() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
@@ -279,7 +330,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_branch_show() -> Result<(), OxenError> {
+    async fn test_controllers_branch_show() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";
@@ -312,7 +363,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_branch_create() -> Result<(), OxenError> {
+    async fn test_controllers_branch_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Testing-Namespace";

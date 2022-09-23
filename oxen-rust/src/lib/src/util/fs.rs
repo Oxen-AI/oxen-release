@@ -328,6 +328,29 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+pub fn count_files_in_dir(dir: &Path) -> usize {
+    let mut count: usize = 0;
+    if dir.is_dir() {
+        match fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            let path = entry.path();
+                            if !is_in_oxen_hidden_dir(&path) {
+                                count += 1;
+                            }
+                        }
+                        Err(err) => log::warn!("error reading dir entry: {}", err),
+                    }
+                }
+            }
+            Err(err) => log::warn!("error reading dir: {}", err),
+        }
+    }
+    count
+}
+
 pub fn rcount_files_in_dir(dir: &Path) -> usize {
     let mut count: usize = 0;
     if !dir.is_dir() {
@@ -350,9 +373,11 @@ pub fn rcount_files_in_dir(dir: &Path) -> usize {
 }
 
 fn is_in_oxen_hidden_dir(path: &Path) -> bool {
-    if let Some(path_str) = path.to_str() {
-        if path_str.starts_with(constants::OXEN_HIDDEN_DIR) {
-            return true;
+    for component in path.components() {
+        if let Some(path_str) = component.as_os_str().to_str() {
+            if path_str.eq(constants::OXEN_HIDDEN_DIR) {
+                return true;
+            }
         }
     }
     false

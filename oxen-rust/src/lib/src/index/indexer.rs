@@ -48,16 +48,6 @@ impl Indexer {
             Err(err) => return Err(err),
         };
 
-        // Create the branch, fail silently for now because first one might fail if no HEAD on the server
-        match api::remote::branches::create_or_get(&remote_repo, &rb.branch) {
-            Ok(branch) => {
-                log::debug!("Successfully Created remote branch {:?}", branch.name);
-            }
-            Err(err) => {
-                log::debug!("Could not create remote branch. Err: {:?}", err);
-            }
-        }
-
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.head_commit()?;
@@ -76,6 +66,18 @@ impl Indexer {
         // recursively check commits against remote head
         // and sync ones that have not been synced
         self.rpush_entries(&remote_repo, &last_commit, &unsynced_commits)?;
+
+        // update the branch after everything else is synced
+        log::debug!(
+            "Updating remote branch {:?} to commit {:?}",
+            &rb.branch,
+            &head_commit
+        );
+        api::remote::branches::update(&remote_repo, &rb.branch, &head_commit)?;
+        println!(
+            "Updated remote branch {} to {}",
+            &rb.branch, &head_commit.id
+        );
         Ok(remote_repo)
     }
 
@@ -146,7 +148,6 @@ impl Indexer {
                     api::remote::commits::post_commit_to_server(
                         &self.repository,
                         remote_repo,
-                        &rb.branch,
                         local_commit,
                     )?;
                     log::debug!(
@@ -167,7 +168,6 @@ impl Indexer {
                     api::remote::commits::post_commit_to_server(
                         &self.repository,
                         remote_repo,
-                        &rb.branch,
                         local_commit,
                     )?;
                     log::debug!("unsynced_commits.push_back root {:?}", local_commit);
@@ -388,8 +388,15 @@ impl Indexer {
             .join(remote_head_commit.id.clone());
         if !commit_db_dir.exists() {
             // We don't have db locally, so pull it
+            log::debug!(
+                "commit db for {} not found, pull from remote",
+                remote_head_commit.id
+            );
             self.check_parent_and_pull_commit_objects(remote_repo, remote_head_commit)?;
-        } // else we are synced
+        } else {
+            // else we are synced
+            log::debug!("commit db for {} already downloaded", remote_head_commit.id);
+        }
 
         Ok(())
     }
@@ -508,10 +515,9 @@ impl Indexer {
             );
             let committer = CommitEntryWriter::new(&self.repository, commit)?;
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
-                if let Err(error) = api::remote::entries::download_content_ids(
+                if let Err(error) = api::remote::entries::download_content_by_ids(
                     &self.repository,
                     remote_repo,
-                    &commit.id,
                     chunk,
                     &bar,
                 ) {

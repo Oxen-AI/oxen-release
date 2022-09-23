@@ -21,8 +21,7 @@ fn main() {
         .subcommand(
             Command::new("init")
                 .about("Initializes a local repository")
-                .arg(arg!(<PATH> "The directory to establish the repo in"))
-                .arg_required_else_help(true),
+                .arg(arg!([PATH] "The directory to establish the repo in. Defaults to the current directory."))
         )
         .subcommand(
             Command::new("config")
@@ -190,10 +189,7 @@ fn main() {
 
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
-            let path = sub_matches
-                .value_of("PATH")
-                .ok_or(".")
-                .expect("Must provide path to repository.");
+            let path = sub_matches.value_of("PATH").unwrap_or(".");
 
             match dispatch::init(path) {
                 Ok(_) => {}
