@@ -18,4 +18,4 @@ pub use crate::view::commit::{
     PaginatedCommits,
 };
 
-pub use crate::view::branch::{BranchNew, BranchResponse, ListBranchesResponse};
+pub use crate::view::branch::{BranchNew, BranchResponse, BranchUpdate, ListBranchesResponse};

@@ -226,7 +226,7 @@ pub fn status() -> Result<(), OxenError> {
 pub fn create_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::create_branch(&repository, name)?;
+    command::create_branch_from_head(&repository, name)?;
     Ok(())
 }
 

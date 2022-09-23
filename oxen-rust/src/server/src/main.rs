@@ -4,6 +4,7 @@ use liboxen::model::NewUser;
 pub mod app_data;
 pub mod auth;
 pub mod controllers;
+pub mod routes;
 pub mod test;
 pub mod view;
 
@@ -107,115 +108,12 @@ async fn main() -> std::io::Result<()> {
                     println!("Syncing to directory: {}", sync_dir);
 
                     let data = app_data::OxenAppData::from(&sync_dir);
-
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())
-                            .route(
-                                "/version",
-                                web::get().to(controllers::version::index),
-                            )
+                            .route("/version", web::get().to(controllers::version::index))
                             .wrap(HttpAuthentication::bearer(auth::validator::validate))
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits",
-                                web::get().to(controllers::commits::index),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
-                                web::post().to(controllers::commits::upload),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
-                                web::get().to(controllers::commits::show),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/is_synced",
-                                web::get().to(controllers::commits::is_synced),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/commit_db",
-                                web::get().to(controllers::commits::download_commit_db),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/parents",
-                                web::get().to(controllers::commits::parents),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries",
-                                web::get().to(controllers::entries::list_entries),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/files",
-                                web::get().to(controllers::entries::list_files_for_commit),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_page",
-                                web::get().to(controllers::entries::download_page),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/download_content_ids",
-                                web::post().to(controllers::entries::download_content_ids),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches",
-                                web::get().to(controllers::branches::index),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches",
-                                web::post().to(controllers::branches::create_or_get),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}",
-                                web::get().to(controllers::branches::show),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}",
-                                web::delete().to(controllers::branches::delete),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}/commits",
-                                web::get().to(controllers::commits::index_branch),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}/commits",
-                                web::post().to(controllers::commits::create),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/entries",
-                                web::post().to(controllers::entries::create),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/lines/{resource:.*}",
-                                web::get().to(controllers::entries::list_lines_in_file),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/branches/{branch_name}/entries/{filename:.*}",
-                                web::get().to(controllers::repositories::get_file_for_branch),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/commits/{commit_id}/entries/{filename:.*}",
-                                web::get().to(controllers::repositories::get_file_for_commit_id),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}/files",
-                                web::get().to(controllers::entries::list_files_for_head),
-                            )
-                            .route(
-                                "/oxen/{namespace}",
-                                web::get().to(controllers::repositories::index),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}",
-                                web::get().to(controllers::repositories::show),
-                            )
-                            .route(
-                                "/oxen/{namespace}/{repo_name}",
-                                web::delete().to(controllers::repositories::delete),
-                            )
-                            .route(
-                                "/oxen/repositories",
-                                web::post().to(controllers::repositories::create),
-                            )
+                            .service(web::scope("/oxen").configure(routes::config))
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))
                     })

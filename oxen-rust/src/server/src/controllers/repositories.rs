@@ -256,7 +256,7 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_repository_index_empty() -> Result<(), OxenError> {
+    async fn test_controllers_repositories_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "repositories";
@@ -277,7 +277,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_respository_index_multiple_repos() -> Result<(), OxenError> {
+    async fn test_controllers_respositories_index_multiple_repos() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Test-Namespace";
@@ -300,12 +300,14 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_respository_show() -> Result<(), OxenError> {
+    async fn test_controllers_respositories_show() -> Result<(), OxenError> {
+        log::info!("starting test");
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "Test-Namespace";
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
+        log::info!("test created local repo: {}", name);
 
         let uri = format!("/oxen/{}/{}", namespace, name);
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
@@ -325,7 +327,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn test_respository_create() -> Result<(), OxenError> {
+    async fn test_controllers_respositories_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
         let timestamp = Local::now();
         let repo_new = RepositoryNew {
