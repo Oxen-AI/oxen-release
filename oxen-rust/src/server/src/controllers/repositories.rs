@@ -209,7 +209,7 @@ pub fn get_version_path_for_commit_id(
     match api::local::commits::get_by_id(repo, commit_id)? {
         Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
             Some(entry) => Ok(util::fs::version_path(repo, &entry)),
-            None => Err(OxenError::local_file_not_found(filepath)),
+            None => Err(OxenError::file_does_not_exist(filepath)),
         },
         None => Err(OxenError::commit_id_does_not_exist(commit_id)),
     }

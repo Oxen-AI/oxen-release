@@ -82,8 +82,13 @@ impl OxenError {
         OxenError::basic_str(&err)
     }
 
-    pub fn local_file_not_found<T: AsRef<Path>>(path: T) -> OxenError {
-        let err = format!("Could not find local file: {:?}", path.as_ref());
+    pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File does not exist: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn file_has_no_parent<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File has no parent: {:?}", path.as_ref());
         OxenError::basic_str(&err)
     }
 

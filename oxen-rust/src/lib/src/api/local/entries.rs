@@ -1,5 +1,5 @@
 use crate::error::OxenError;
-use crate::index::CommitEntryReader;
+use crate::index::CommitDirReader;
 use crate::model::{Commit, CommitEntry, DirEntry, LocalRepository};
 
 use std::path::Path;
@@ -9,28 +9,18 @@ pub fn get_entry_for_commit(
     commit: &Commit,
     path: &Path,
 ) -> Result<Option<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
+    let reader = CommitDirReader::new(repo, commit)?;
     reader.get_entry(path)
 }
 
 pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
+    let reader = CommitDirReader::new(repo, commit)?;
     reader.list_entries()
 }
 
 pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
+    let reader = CommitDirReader::new(repo, commit)?;
     reader.num_entries()
-}
-
-pub fn list_page(
-    repo: &LocalRepository,
-    commit: &Commit,
-    page_num: &usize,
-    page_size: &usize,
-) -> Result<Vec<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    reader.list_entry_page(*page_num, *page_size)
 }
 
 pub fn list_directory(
@@ -40,7 +30,7 @@ pub fn list_directory(
     page_num: &usize,
     page_size: &usize,
 ) -> Result<(Vec<DirEntry>, usize), OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
+    let reader = CommitDirReader::new(repo, commit)?;
     reader.list_directory(directory, *page_num, *page_size)
 }
 
@@ -115,25 +105,6 @@ mod tests {
 
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_api_local_entries_list_page_first_page() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
-            // (files already created in helper)
-            let dir_to_add = repo.path.join("train");
-
-            // Commit the dir
-            command::add(&repo, &dir_to_add)?;
-            let commit = command::commit(&repo, "Adding training data")?.unwrap();
-
-            let page_num = 1;
-            let page_size = 3;
-            let entries = api::local::entries::list_page(&repo, &commit, &page_num, &page_size)?;
-            assert_eq!(entries.len(), page_size);
 
             Ok(())
         })

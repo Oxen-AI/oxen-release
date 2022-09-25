@@ -8,7 +8,8 @@ pub mod dispatch;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init_from_env(Env::default());
 
     let command = Command::new("oxen")
@@ -84,7 +85,14 @@ fn main() {
             Command::new("add")
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
-                .arg_required_else_help(true),
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("table")
+                        .long("table")
+                        .short('t')
+                        .help("Flag you want to track all row level changes in a tabular data file.")
+                        .takes_value(false),
+                ),
         )
         .subcommand(
             Command::new("branch")
@@ -286,6 +294,7 @@ fn main() {
         },
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
+            if sub_matches.is_present("table") {}
 
             match dispatch::add(path) {
                 Ok(_) => {}

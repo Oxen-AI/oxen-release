@@ -8,11 +8,20 @@ use std::str;
 pub struct CommitEntryDBReader {}
 
 impl CommitEntryDBReader {
+    /// Slightly faster than get_entry since there is no deserialization
     pub fn has_file(db: &DBWithThreadMode<MultiThreaded>, path: &Path) -> bool {
-        match CommitEntryDBReader::get_entry(db, path) {
-            Ok(Some(_val)) => true,
+        let key = path.to_str().unwrap();
+        let bytes = key.as_bytes();
+        match db.get(bytes) {
+            Ok(Some(_value)) => true,
             Ok(None) => false,
-            Err(_err) => false,
+            Err(err) => {
+                log::error!(
+                    "CommitEntryDBReader::get_entry Error reading db\nErr: {}",
+                    err
+                );
+                false
+            }
         }
     }
 

@@ -7,7 +7,7 @@ use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
+    CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
 use crate::model::{
     Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
@@ -126,7 +126,7 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// ```
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     log::debug!("status before new_from_head");
-    let reader = CommitEntryReader::new_from_head(repository)?;
+    let reader = CommitDirReader::new_from_head(repository)?;
     log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
     log::debug!("status before stager.status");
@@ -164,8 +164,17 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitDirReader::new(repo, &commit)?;
     stager.add(path.as_ref(), &reader)?;
+    Ok(())
+}
+
+/// # Add tabular file to track row level changes
+pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let stager = Stager::new_with_merge(repo)?;
+    let commit = head_commit(repo)?;
+    let reader = CommitDirReader::new(repo, &commit)?;
+    stager.add_tabular_file(path.as_ref(), &reader)?;
     Ok(())
 }
 
