@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
-use liboxen::index::CommitEntryReader;
+use liboxen::index::CommitDirReader;
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -1416,7 +1416,7 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(commit_history_dir.exists());
 
                 // make sure we can successfully open the db and read entries
-                let reader = CommitEntryReader::new(&cloned_repo, commit)?;
+                let reader = CommitDirReader::new(&cloned_repo, commit)?;
                 let entries = reader.list_entries();
                 assert!(entries.is_ok());
             }
@@ -1436,7 +1436,7 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         let repo = command::init(dir)?;
         let commits = command::log(&repo)?;
         let commit = commits.last().unwrap();
-        let reader = CommitEntryReader::new(&repo, commit)?;
+        let reader = CommitDirReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
 

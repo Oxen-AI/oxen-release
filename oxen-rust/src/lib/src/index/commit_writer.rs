@@ -2,7 +2,7 @@ use crate::config::UserConfig;
 use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
+use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
 use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
 use crate::util;
 
@@ -253,8 +253,8 @@ impl CommitWriter {
         );
 
         // Two readers, one for HEAD and one for this current commit
-        let head_entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
-        let commit_entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
+        let head_entry_reader = CommitDirReader::new_from_head(&self.repository)?;
+        let commit_entry_reader = CommitDirReader::new(&self.repository, &commit)?;
         let commit_entries = head_entry_reader.list_files()?;
         log::debug!(
             "set_working_repo_to_commit_id got {} entries in commit",
@@ -411,7 +411,7 @@ impl CommitWriter {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::{CommitDBReader, CommitEntryReader, CommitWriter};
+    use crate::index::{CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::StagedData;
     use crate::test;
 
@@ -434,7 +434,7 @@ mod tests {
         test::run_empty_stager_test(|stager, repo| {
             // Create committer with no commits
             let repo_path = &repo.path;
-            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
+            let entry_reader = CommitDirReader::new_from_head(&repo)?;
             let commit_writer = CommitWriter::new(&repo)?;
 
             let train_dir = repo_path.join("training_data");
@@ -465,9 +465,10 @@ mod tests {
             assert_eq!(commit_history.len(), 2);
 
             // Check that the files are no longer staged
-            let files = stager.list_added_files()?;
+            let status = stager.status(&entry_reader)?;
+            let files = status.added_files;
             assert_eq!(files.len(), 0);
-            let dirs = stager.list_added_directories()?;
+            let dirs = stager.list_added_dirs()?;
             assert_eq!(dirs.len(), 0);
 
             Ok(())

@@ -4,7 +4,7 @@ use crate::view::PaginatedLinesResponse;
 
 use liboxen::api;
 use liboxen::error::OxenError;
-use liboxen::index::CommitEntryReader;
+use liboxen::index::CommitDirReader;
 use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -163,7 +163,7 @@ fn compress_entries(
     commit: &Commit,
     entries: &[RemoteEntry],
 ) -> Result<Vec<u8>, OxenError> {
-    let entry_reader = CommitEntryReader::new(repo, commit)?;
+    let entry_reader = CommitDirReader::new(repo, commit)?;
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
@@ -328,35 +328,36 @@ pub fn get_entries_for_page(
                 commit.id,
                 commit.message
             );
-            match api::local::entries::list_page(repo, &commit, &page_num, &page_size) {
-                Ok(entries) => {
-                    log::debug!(
-                        "get_entries_for_page commit {} got {} entries",
-                        commit_id,
-                        entries.len()
-                    );
-                    let entries: Vec<RemoteEntry> =
-                        entries.into_iter().map(|entry| entry.to_remote()).collect();
+            panic!("TODO");
+            // match api::local::entries::list_page(repo, &commit, &page_num, &page_size) {
+            //     Ok(entries) => {
+            //         log::debug!(
+            //             "get_entries_for_page commit {} got {} entries",
+            //             commit_id,
+            //             entries.len()
+            //         );
+            //         let entries: Vec<RemoteEntry> =
+            //             entries.into_iter().map(|entry| entry.to_remote()).collect();
 
-                    let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
-                        .unwrap_or(entries.len());
-                    let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
-                    let view = PaginatedEntries {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
-                        page_size,
-                        page_number: page_num,
-                        total_pages: total_pages as usize,
-                        total_entries,
-                        entries,
-                    };
-                    Ok((view, commit))
-                }
-                Err(err) => {
-                    log::error!("Unable to list repositories. Err: {}", err);
-                    Err(StatusMessage::internal_server_error())
-                }
-            }
+            //         let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
+            //             .unwrap_or(entries.len());
+            //         let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+            //         let view = PaginatedEntries {
+            //             status: String::from(STATUS_SUCCESS),
+            //             status_message: String::from(MSG_RESOURCE_FOUND),
+            //             page_size,
+            //             page_number: page_num,
+            //             total_pages: total_pages as usize,
+            //             total_entries,
+            //             entries,
+            //         };
+            //         Ok((view, commit))
+            //     }
+            //     Err(err) => {
+            //         log::error!("Unable to list repositories. Err: {}", err);
+            //         Err(StatusMessage::internal_server_error())
+            //     }
+            // }
         }
         Ok(None) => {
             log::debug!("Could not find commit with id {}", commit_id);

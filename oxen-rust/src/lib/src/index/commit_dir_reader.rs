@@ -1,73 +1,92 @@
 use crate::constants::HISTORY_DIR;
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{CommitEntryDBReader, CommitReader};
+use crate::index::{CommitDirEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
 use crate::model::LocalRepository;
 
-pub struct CommitEntryReader {
-    db: DBWithThreadMode<MultiThreaded>,
+pub struct CommitDirReader {
+    dir_db: DBWithThreadMode<MultiThreaded>,
+    repository: LocalRepository,
+    pub commit_id: String,
 }
 
-impl CommitEntryReader {
+impl CommitDirReader {
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
-    ) -> Result<CommitEntryReader, OxenError> {
-        log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
+    ) -> Result<CommitDirReader, OxenError> {
+        log::debug!("CommitDirReader::new() commit_id: {}", commit.id);
         let db_path = util::fs::oxen_hidden_dir(&repository.path)
             .join(HISTORY_DIR)
             .join(&commit.id);
         let opts = db::opts::default();
-        Ok(CommitEntryReader {
-            db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
+        Ok(CommitDirReader {
+            dir_db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
+            repository: repository.to_owned(),
+            commit_id: commit.id.to_owned(),
         })
     }
 
     /// For opening the entry reader from head, so that it opens and closes the commit db within the constructor
-    pub fn new_from_head(repository: &LocalRepository) -> Result<CommitEntryReader, OxenError> {
+    pub fn new_from_head(repository: &LocalRepository) -> Result<CommitDirReader, OxenError> {
         let commit_reader = CommitReader::new(repository)?;
         let commit = commit_reader.head_commit()?;
         log::debug!(
-            "CommitEntryReader::new_from_head() commit_id: {}",
+            "CommitDirReader::new_from_head() commit_id: {}",
             commit.id
         );
-        CommitEntryReader::new(repository, &commit)
+        CommitDirReader::new(repository, &commit)
+    }
+
+    pub fn list_committed_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
+        let iter = self.dir_db.iterator(IteratorMode::Start);
+        let mut paths: Vec<PathBuf> = vec![];
+        for (key, _value) in iter {
+            match str::from_utf8(&*key) {
+                Ok(key) => {
+                    paths.push(PathBuf::from(String::from(key)));
+                }
+                _ => {
+                    log::error!("list_committed_dirs() Could not decode key {:?}", key)
+                }
+            }
+        }
+        Ok(paths)
     }
 
     pub fn num_entries(&self) -> Result<usize, OxenError> {
-        Ok(self.db.iterator(IteratorMode::Start).count())
+        let mut count = 0;
+        for dir in self.list_committed_dirs()? {
+            let commit_entry_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            count += commit_entry_dir.num_entries();
+        }
+        Ok(count)
     }
 
-    pub fn get_path_hash(&self, path: &Path) -> Result<String, OxenError> {
-        let key = path.to_str().unwrap();
-        let bytes = key.as_bytes();
-        match self.db.get(bytes) {
-            Ok(Some(value)) => {
-                let value = str::from_utf8(&*value)?;
-                let entry: CommitEntry = serde_json::from_str(value)?;
-                Ok(entry.hash)
-            }
-            Ok(None) => Ok(String::from("")), // no hash, empty string
-            Err(err) => {
-                let err = format!("get_path_hash() Err: {}", err);
-                Err(OxenError::basic_str(&err))
-            }
+    pub fn get_path_hash<T: AsRef<Path>>(&self, path: T) -> Result<String, OxenError> {
+        let path = path.as_ref();
+        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+            let dir = CommitDirEntryReader::new(&self.repository, &parent)?;
+            dir.get_path_hash(file_name)
+        } else {
+            Err(OxenError::file_has_no_parent(path))
         }
     }
 
     pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
-        let iter = self.db.iterator(IteratorMode::Start);
-        for (key, _value) in iter {
-            paths.push(PathBuf::from(str::from_utf8(&*key)?));
+        for dir in self.list_committed_dirs()? {
+            let commit_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let mut files = commit_dir.list_files()?;
+            paths.append(&mut files);
         }
         Ok(paths)
     }
@@ -75,10 +94,10 @@ impl CommitEntryReader {
     /// List entries in a vector when we need ordering
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
-        let iter = self.db.iterator(IteratorMode::Start);
-        for (_key, value) in iter {
-            let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-            paths.push(entry);
+        for dir in self.list_committed_dirs()? {
+            let commit_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let mut files = commit_dir.list_entries()?;
+            paths.append(&mut files);
         }
         Ok(paths)
     }
@@ -86,40 +105,40 @@ impl CommitEntryReader {
     /// List entries in a set for quick lookup
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
         let mut paths: HashSet<CommitEntry> = HashSet::new();
-        let iter = self.db.iterator(IteratorMode::Start);
-        for (_key, value) in iter {
-            let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-            paths.insert(entry);
+        for dir in self.list_committed_dirs()? {
+            let commit_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let files = commit_dir.list_entries_set()?;
+            paths.extend(files);
         }
         Ok(paths)
     }
 
-    pub fn list_entry_page(
-        &self,
-        page_num: usize,
-        page_size: usize,
-    ) -> Result<Vec<CommitEntry>, OxenError> {
-        // The iterator doesn't technically have a skip method as far as I can tell
-        // so we are just going to manually do it
-        let mut paths: Vec<CommitEntry> = vec![];
-        let iter = self.db.iterator(IteratorMode::Start);
-        // Do not go negative, and start from 0
-        let start_page = if page_num == 0 { 0 } else { page_num - 1 };
-        let start_idx = start_page * page_size;
-        for (entry_i, (_key, value)) in iter.enumerate() {
-            // limit to page_size
-            if paths.len() >= page_size {
-                break;
-            }
+    // pub fn list_entry_page(
+    //     &self,
+    //     page_num: usize,
+    //     page_size: usize,
+    // ) -> Result<Vec<CommitEntry>, OxenError> {
+    //     // The iterator doesn't technically have a skip method as far as I can tell
+    //     // so we are just going to manually do it
+    //     let mut paths: Vec<CommitEntry> = vec![];
+    //     let iter = self.db.iterator(IteratorMode::Start);
+    //     // Do not go negative, and start from 0
+    //     let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+    //     let start_idx = start_page * page_size;
+    //     for (entry_i, (_key, value)) in iter.enumerate() {
+    //         // limit to page_size
+    //         if paths.len() >= page_size {
+    //             break;
+    //         }
 
-            // only grab values after start_idx based on page_num and page_size
-            if entry_i >= start_idx {
-                let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-                paths.push(entry);
-            }
-        }
-        Ok(paths)
-    }
+    //         // only grab values after start_idx based on page_num and page_size
+    //         if entry_i >= start_idx {
+    //             let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
+    //             paths.push(entry);
+    //         }
+    //     }
+    //     Ok(paths)
+    // }
 
     pub fn list_directory(
         &self,
@@ -137,43 +156,46 @@ impl CommitEntryReader {
         let mut base_dirs: HashSet<PathBuf> = HashSet::new();
 
         let mut dir_paths: Vec<DirEntry> = vec![];
+
         let mut file_paths: Vec<DirEntry> = vec![];
-        let iter = self.db.iterator(IteratorMode::Start);
         // Do not go negative, and start from 0
         let start_page = if page_num == 0 { 0 } else { page_num - 1 };
         let start_idx = start_page * page_size;
-        for (key, _value) in iter {
-            let path_str = format!("{}{}", root_dir.to_str().unwrap(), str::from_utf8(&*key)?);
-            let path = Path::new(&path_str);
-            // log::debug!("Considering {:?} starts with {:?}", path, search_dir);
-            // Find all the base dirs within this directory
-            if path.starts_with(&search_dir) {
-                let path_components_count = path.components().count();
-                let subpath = util::fs::path_relative_to_dir(path, &search_dir)?;
-                let mut components = subpath.components().collect::<VecDeque<_>>();
 
-                // Get uniq top level dirs
-                if let Some(base_dir) = components.pop_front() {
-                    let base_path: &Path = base_dir.as_ref();
-                    if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf())
-                    {
-                        dir_paths.push(DirEntry {
-                            filename: String::from(base_path.to_str().unwrap()),
-                            is_dir: true,
-                        })
-                    }
-                }
+        panic!("TODO implement");
+        // let iter = self.db.iterator(IteratorMode::Start);
+        // for (key, _value) in iter {
+        //     let path_str = format!("{}{}", root_dir.to_str().unwrap(), str::from_utf8(&*key)?);
+        //     let path = Path::new(&path_str);
+        //     // log::debug!("Considering {:?} starts with {:?}", path, search_dir);
+        //     // Find all the base dirs within this directory
+        //     if path.starts_with(&search_dir) {
+        //         let path_components_count = path.components().count();
+        //         let subpath = util::fs::path_relative_to_dir(path, &search_dir)?;
+        //         let mut components = subpath.components().collect::<VecDeque<_>>();
 
-                // Get all files that are in this dir level
-                if (path_components_count - 1) == search_components_count {
-                    // TODO: add in author and last modified given the CommitEntry commit_id
-                    file_paths.push(DirEntry {
-                        filename: String::from(subpath.to_str().unwrap()),
-                        is_dir: false,
-                    })
-                }
-            }
-        }
+        //         // Get uniq top level dirs
+        //         if let Some(base_dir) = components.pop_front() {
+        //             let base_path: &Path = base_dir.as_ref();
+        //             if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf())
+        //             {
+        //                 dir_paths.push(DirEntry {
+        //                     filename: String::from(base_path.to_str().unwrap()),
+        //                     is_dir: true,
+        //                 })
+        //             }
+        //         }
+
+        //         // Get all files that are in this dir level
+        //         if (path_components_count - 1) == search_components_count {
+        //             // TODO: add in author and last modified given the CommitEntry commit_id
+        //             file_paths.push(DirEntry {
+        //                 filename: String::from(subpath.to_str().unwrap()),
+        //                 is_dir: false,
+        //             })
+        //         }
+        //     }
+        // }
 
         // Combine all paths, starting with dirs
         dir_paths.append(&mut file_paths);
@@ -219,24 +241,29 @@ impl CommitEntryReader {
     }
 
     pub fn has_file(&self, path: &Path) -> bool {
-        CommitEntryDBReader::has_file(&self.db, path)
+        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+            if let Ok(dir) = CommitDirEntryReader::new(&self.repository, &parent) {
+                return dir.has_file(file_name);
+            }
+        }
+        false
     }
 
     pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
-        CommitEntryDBReader::get_entry(&self.db, path)
+        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+            let dir = CommitDirEntryReader::new(&self.repository, &parent)?;
+            dir.get_entry(file_name)
+        } else {
+            Err(OxenError::file_has_no_parent(path))
+        }
     }
 
     pub fn contains_path(&self, path: &Path) -> Result<bool, OxenError> {
-        // Check if path is in this commit
-        let key = path.to_str().unwrap();
-        let bytes = key.as_bytes();
-        match self.db.get(bytes) {
-            Ok(Some(_value)) => Ok(true),
-            Ok(None) => Ok(false),
-            Err(err) => {
-                let err = format!("contains_path Error reading db\nErr: {}", err);
-                Err(OxenError::basic_str(&err))
-            }
+        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+            let dir = CommitDirEntryReader::new(&self.repository, &parent)?;
+            dir.contains_path(file_name)
+        } else {
+            Err(OxenError::file_has_no_parent(path))
         }
     }
 }
@@ -245,7 +272,7 @@ impl CommitEntryReader {
 mod tests {
     use crate::command;
     use crate::error::OxenError;
-    use crate::index::CommitEntryReader;
+    use crate::index::CommitDirReader;
 
     use crate::test;
 
@@ -259,7 +286,7 @@ mod tests {
             command::add(&repo, &filepath)?;
             let commit = command::commit(&repo, "Adding labels file")?.unwrap();
 
-            let reader = CommitEntryReader::new(&repo, &commit)?;
+            let reader = CommitDirReader::new(&repo, &commit)?;
             let path = Path::new(filename);
             assert!(reader.contains_path(path)?);
 
@@ -273,7 +300,7 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
 
-            let reader = CommitEntryReader::new(&repo, commit)?;
+            let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) = reader.list_directory(Path::new("./"), 1, 10)?;
             for entry in dir_entries.iter() {
                 println!("{:?}", entry);
@@ -301,7 +328,7 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
 
-            let reader = CommitEntryReader::new(&repo, commit)?;
+            let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) = reader.list_directory(Path::new("train"), 1, 10)?;
 
             assert_eq!(size, 5);
@@ -317,7 +344,7 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
 
-            let reader = CommitEntryReader::new(&repo, commit)?;
+            let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) =
                 reader.list_directory(Path::new("annotations/train"), 1, 10)?;
 
@@ -334,7 +361,7 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
 
-            let reader = CommitEntryReader::new(&repo, commit)?;
+            let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) = reader.list_directory(Path::new("train"), 2, 3)?;
 
             assert_eq!(size, 5);

@@ -1,5 +1,5 @@
 use crate::error::OxenError;
-use crate::index::CommitEntryReader;
+use crate::index::CommitDirReader;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 
@@ -51,7 +51,7 @@ impl CommitValidator {
     }
 
     pub fn has_all_data(&self, commit: &Commit, size: usize) -> Result<bool, OxenError> {
-        let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let commit_entry_reader = CommitDirReader::new(&self.repository, commit)?;
         let entries = commit_entry_reader.list_entries()?;
         if size != entries.len() {
             return Ok(false);

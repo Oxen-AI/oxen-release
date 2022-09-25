@@ -13,7 +13,7 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
+    CommitDirReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
@@ -87,7 +87,7 @@ impl Indexer {
     }
 
     fn read_num_local_entries(&self, commit: &Commit) -> Result<usize, OxenError> {
-        let entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let entry_reader = CommitDirReader::new(&self.repository, commit)?;
         entry_reader.num_entries()
     }
 
@@ -214,8 +214,8 @@ impl Indexer {
         println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
         // In function scope to open and close this DB for a read, because we are going to write
         // to entries later
-        let this_entry_reader = CommitEntryReader::new(&self.repository, this_commit)?;
-        let last_entry_reader = CommitEntryReader::new(&self.repository, last_commit)?;
+        let this_entry_reader = CommitDirReader::new(&self.repository, this_commit)?;
+        let last_entry_reader = CommitDirReader::new(&self.repository, last_commit)?;
 
         let mut entries_to_sync: Vec<CommitEntry> = vec![];
         for entry in this_entry_reader.list_entries()? {
@@ -455,7 +455,7 @@ impl Indexer {
         commit: &Commit,
         mut limit: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let commit_reader = CommitDirReader::new(&self.repository, commit)?;
         let entries = commit_reader.list_entries()?;
         if limit == 0 {
             limit = entries.len();
@@ -563,7 +563,7 @@ impl Indexer {
     }
 
     fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
-        let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let commit_reader = CommitDirReader::new(&self.repository, commit)?;
         for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
             let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
             if !commit_reader.contains_path(&short_path)? {

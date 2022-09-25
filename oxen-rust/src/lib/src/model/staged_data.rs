@@ -207,7 +207,7 @@ impl StagedData {
 
         // Unwrap because is some
         let repo_path = repo_path.unwrap();
-        // println!("Got repo path {:?} {:?}", current_dir, repo_path);
+        log::debug!("Got repo path {:?} {:?}", current_dir, repo_path);
 
         // Get the top level dirs so that we don't have to print every file
         let added_files: Vec<PathBuf> = self
@@ -216,52 +216,53 @@ impl StagedData {
             .into_iter()
             .map(|(path, _)| path)
             .collect();
-        let mut top_level_counts = self.get_top_level_removed_counts(&repo_path, &added_files);
-        // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        let remaining_file_count =
-            self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
+        // let mut top_level_counts = self.get_top_level_removed_counts(&repo_path, &added_files);
+        // // See the actual counts in the dir, if nothing remains, we can just print the top level summary
+        // let remaining_file_count =
+        //     self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
+        log::debug!("Added files {}", self.added_files.len());
         let mut summarized: HashSet<PathBuf> = HashSet::new();
         for (short_path, entry) in self.added_files.iter() {
-            // If the short_path is in a directory that was added, don't display it
-            let mut break_both = false;
-            for staged_dir in self.added_dirs.iter() {
-                // println!("checking if short_path {:?} starts with {:?}", short_path, dir);
-                if short_path.starts_with(&staged_dir.path) {
-                    break_both = true;
-                    continue;
-                }
-            }
+            // // If the short_path is in a directory that was added, don't display it
+            // let mut break_both = false;
+            // for staged_dir in self.added_dirs.iter() {
+            //     // println!("checking if short_path {:?} starts with {:?}", short_path, dir);
+            //     if short_path.starts_with(&staged_dir.path) {
+            //         break_both = true;
+            //         continue;
+            //     }
+            // }
 
-            if break_both {
-                continue;
-            }
+            // if break_both {
+            //     continue;
+            // }
 
             match entry.status {
                 StagedEntryStatus::Removed => {
-                    let full_path = repo_path.join(short_path);
-                    let path = self.get_top_level_dir(&repo_path, &full_path);
+                    // let full_path = repo_path.join(short_path);
+                    // let path = self.get_top_level_dir(&repo_path, &full_path);
 
-                    let count = top_level_counts[&path];
-                    if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
-                        && !summarized.contains(&path)
-                    {
-                        let added_file_str = format!(
-                            "  removed: {}\n    which had {} files including {}",
-                            path.to_str().unwrap(),
-                            count,
-                            short_path.to_str().unwrap(),
-                        )
-                        .green();
-                        println!("{}", added_file_str);
+                    // let count = top_level_counts[&path];
+                    // if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
+                    //     && !summarized.contains(&path)
+                    // {
+                    //     let added_file_str = format!(
+                    //         "  removed: {}\n    which had {} files including {}",
+                    //         path.to_str().unwrap(),
+                    //         count,
+                    //         short_path.to_str().unwrap(),
+                    //     )
+                    //     .green();
+                    //     println!("{}", added_file_str);
 
-                        summarized.insert(path.to_owned());
-                    }
+                    //     summarized.insert(path.to_owned());
+                    // }
 
-                    if !summarized.contains(&path) {
-                        let added_file_str =
-                            format!("  removed:  {}", short_path.to_str().unwrap()).green();
-                        println!("{}", added_file_str);
-                    }
+                    // if !summarized.contains(&path) {
+                    //     let added_file_str =
+                    //         format!("  removed:  {}", short_path.to_str().unwrap()).green();
+                    //     println!("{}", added_file_str);
+                    // }
                 }
                 StagedEntryStatus::Modified => {
                     let added_file_str =
