@@ -9,15 +9,15 @@ use crate::util;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::{Path, PathBuf};
 
-/// # StagedDirEntriesDB
+/// # StagedDirEntryDB
 /// We keep a list of all the staged files in a directory for fast lookup
-pub struct StagedDirEntriesDB {
+pub struct StagedDirEntryDB {
     db: DBWithThreadMode<MultiThreaded>,
     dir: PathBuf,
     pub repository: LocalRepository,
 }
 
-impl StagedDirEntriesDB {
+impl StagedDirEntryDB {
     pub fn staging_dir(repo: &LocalRepository, dir: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(&repo.path)
             .join(Path::new(STAGED_DIR))
@@ -27,14 +27,14 @@ impl StagedDirEntriesDB {
 
     /// # Create new staged dir
     /// Contains all the staged files within that dir, for faster filtering during `oxen status`
-    pub fn new(repository: &LocalRepository, dir: &Path) -> Result<StagedDirEntriesDB, OxenError> {
-        let db_path = StagedDirEntriesDB::staging_dir(repository, dir);
-        log::debug!("StagedDirEntriesDB db_path {:?}", db_path);
+    pub fn new(repository: &LocalRepository, dir: &Path) -> Result<StagedDirEntryDB, OxenError> {
+        let db_path = StagedDirEntryDB::staging_dir(repository, dir);
+        log::debug!("StagedDirEntryDB db_path {:?}", db_path);
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
         }
         let opts = db::opts::default();
-        Ok(StagedDirEntriesDB {
+        Ok(StagedDirEntryDB {
             db: DBWithThreadMode::open(&opts, &db_path)?,
             dir: dir.to_owned(),
             repository: repository.clone(),

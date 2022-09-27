@@ -380,7 +380,7 @@ pub fn rcount_files_in_dir(dir: &Path) -> usize {
     count
 }
 
-fn is_in_oxen_hidden_dir(path: &Path) -> bool {
+pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     for component in path.components() {
         if let Some(path_str) = component.as_os_str().to_str() {
             if path_str.eq(constants::OXEN_HIDDEN_DIR) {

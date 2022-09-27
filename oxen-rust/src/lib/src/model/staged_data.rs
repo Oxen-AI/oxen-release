@@ -1,46 +1,15 @@
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
 use std::env;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus};
+use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats};
 use crate::util;
 
-// Used for a quick summary of directory
-#[derive(Debug)]
-pub struct StagedDirStats {
-    pub path: PathBuf,
-    pub num_files_staged: usize,
-    pub total_files: usize,
-}
-
-impl StagedDirStats {
-    pub fn from_path<T: AsRef<Path>>(path: T) -> StagedDirStats {
-        StagedDirStats {
-            path: path.as_ref().to_path_buf(),
-            num_files_staged: 0,
-            total_files: 0,
-        }
-    }
-}
-
-// Hash on the path field so we can quickly look up
-impl PartialEq for StagedDirStats {
-    fn eq(&self, other: &StagedDirStats) -> bool {
-        self.path == other.path
-    }
-}
-impl Eq for StagedDirStats {}
-impl Hash for StagedDirStats {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.path.hash(state);
-    }
-}
-
 pub struct StagedData {
-    pub added_dirs: HashSet<StagedDirStats>, // Set we can look up into...and just use it for optim
-    pub added_files: Vec<(PathBuf, StagedEntry)>, // All the staged entries will be in here
+    // TODO: roll added_dirs into a class, that every time you a dir, it sums up the stats to parent, and keeps individual stats you can query
+    pub added_dirs: SummarizedStagedDirStats, 
+    pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -51,8 +20,8 @@ pub struct StagedData {
 impl StagedData {
     pub fn empty() -> StagedData {
         StagedData {
-            added_dirs: HashSet::new(),
-            added_files: vec![],
+            added_dirs: SummarizedStagedDirStats::new(),
+            added_files: HashMap::new(),
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: vec![],
@@ -176,23 +145,24 @@ impl StagedData {
     }
 
     fn print_added_dirs(&self) {
-        for staged_dir in self.added_dirs.iter() {
-            // Make sure we can grab the filename
-            let added_file_str =
-                format!("  added:  {}/", staged_dir.path.to_str().unwrap()).green();
-            let num_files_str = match staged_dir.num_files_staged {
-                1 => Some(format!("with added {} file\n", staged_dir.num_files_staged)),
-                0 => {
-                    // Skip since we don't have any added files in this dir
-                    None
+        for (path, staged_dirs) in self.added_dirs.paths.iter() {
+            for staged_dir in staged_dirs.iter() {
+                let added_file_str =
+                    format!("  added:  {}/", path.to_str().unwrap()).green();
+                let num_files_str = match staged_dir.num_files_staged {
+                    1 => Some(format!("with added {} file\n", staged_dir.num_files_staged)),
+                    0 => {
+                        // Skip since we don't have any added files in this dir
+                        None
+                    }
+                    _ => Some(format!(
+                        "with added {} files\n",
+                        staged_dir.num_files_staged
+                    )),
+                };
+                if let Some(num_files_str) = num_files_str {
+                    print!("{} {}", added_file_str, num_files_str);
                 }
-                _ => Some(format!(
-                    "with added {} files\n",
-                    staged_dir.num_files_staged
-                )),
-            };
-            if let Some(num_files_str) = num_files_str {
-                print!("{} {}", added_file_str, num_files_str);
             }
         }
     }
