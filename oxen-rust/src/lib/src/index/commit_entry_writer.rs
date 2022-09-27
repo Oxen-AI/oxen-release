@@ -10,11 +10,12 @@ use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::fs;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
-    db: DBWithThreadMode<MultiThreaded>,
+    dir_db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl CommitEntryWriter {
@@ -22,10 +23,11 @@ impl CommitEntryWriter {
         util::fs::oxen_hidden_dir(path).join(Path::new(VERSIONS_DIR))
     }
 
-    pub fn commit_db_dir(path: &Path, commit_id: &str) -> PathBuf {
+    pub fn commit_dir_db(path: &Path, commit_id: &str) -> PathBuf {
         util::fs::oxen_hidden_dir(path)
             .join(Path::new(HISTORY_DIR))
             .join(commit_id)
+            .join("dirs/")
     }
 
     pub fn new(
@@ -33,7 +35,7 @@ impl CommitEntryWriter {
         commit: &Commit,
     ) -> Result<CommitEntryWriter, OxenError> {
         log::debug!("CommitEntryWriter::new() commit_id: {}", commit.id);
-        let db_path = CommitEntryWriter::commit_db_dir(&repository.path, &commit.id);
+        let db_path = CommitEntryWriter::commit_dir_db(&repository.path, &commit.id);
         if !db_path.exists() {
             CommitEntryWriter::create_db_dir_for_commit_id(repository, &commit.id)?;
         }
@@ -41,7 +43,7 @@ impl CommitEntryWriter {
         let opts = db::opts::default();
         Ok(CommitEntryWriter {
             repository: repository.clone(),
-            db: DBWithThreadMode::open(&opts, &db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, &db_path)?,
         })
     }
 
@@ -58,9 +60,9 @@ impl CommitEntryWriter {
                 );
                 // We have a parent, we have to copy over last db, and continue
                 let parent_commit_db_path =
-                    CommitEntryWriter::commit_db_dir(&repo.path, &parent_id);
+                    CommitEntryWriter::commit_dir_db(&repo.path, &parent_id);
                 let current_commit_db_path =
-                    CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
+                    CommitEntryWriter::commit_dir_db(&repo.path, commit_id);
                 log::debug!(
                     "COPY DB from {:?} => {:?}",
                     parent_commit_db_path,
@@ -76,7 +78,7 @@ impl CommitEntryWriter {
                     "CommitEntryWriter::create_db_dir_for_commit_id does not have parent id",
                 );
                 // We are creating initial commit, no parent
-                let commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
+                let commit_db_path = CommitEntryWriter::commit_dir_db(&repo.path, commit_id);
                 if !commit_db_path.exists() {
                     std::fs::create_dir_all(&commit_db_path)?;
                 }
@@ -217,7 +219,7 @@ impl CommitEntryWriter {
     pub fn add_staged_entries(
         &self,
         commit: &Commit,
-        added_files: &[(PathBuf, StagedEntry)],
+        added_files: &HashMap<PathBuf, StagedEntry>,
     ) -> Result<(), OxenError> {
         // len kind of arbitrary right now...just nice to see progress on big sets of files
         if added_files.len() > 1000 {
@@ -230,7 +232,7 @@ impl CommitEntryWriter {
     fn add_staged_entries_with_prog(
         &self,
         commit: &Commit,
-        added_files: &[(PathBuf, StagedEntry)],
+        added_files: &HashMap<PathBuf, StagedEntry>,
     ) -> Result<(), OxenError> {
         let size: u64 = unsafe { std::mem::transmute(added_files.len()) };
         let bar = ProgressBar::new(size);
@@ -245,7 +247,7 @@ impl CommitEntryWriter {
     fn add_staged_entries_without_prog(
         &self,
         commit: &Commit,
-        added_files: &[(PathBuf, StagedEntry)],
+        added_files: &HashMap<PathBuf, StagedEntry>,
     ) -> Result<(), OxenError> {
         added_files
             .par_iter()

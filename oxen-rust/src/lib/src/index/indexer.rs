@@ -566,7 +566,7 @@ impl Indexer {
         let commit_reader = CommitDirReader::new(&self.repository, commit)?;
         for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
             let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
-            if !commit_reader.contains_path(&short_path)? {
+            if !commit_reader.has_file(&short_path) {
                 std::fs::remove_file(file)?;
             }
         }

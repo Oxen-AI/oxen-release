@@ -65,26 +65,16 @@ impl CommitDirReader {
     pub fn num_entries(&self) -> Result<usize, OxenError> {
         let mut count = 0;
         for dir in self.list_committed_dirs()? {
-            let commit_entry_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let commit_entry_dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
             count += commit_entry_dir.num_entries();
         }
         Ok(count)
     }
 
-    pub fn get_path_hash<T: AsRef<Path>>(&self, path: T) -> Result<String, OxenError> {
-        let path = path.as_ref();
-        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            let dir = CommitDirEntryReader::new(&self.repository, &parent)?;
-            dir.get_path_hash(file_name)
-        } else {
-            Err(OxenError::file_has_no_parent(path))
-        }
-    }
-
     pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
         for dir in self.list_committed_dirs()? {
-            let commit_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let commit_dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
             let mut files = commit_dir.list_files()?;
             paths.append(&mut files);
         }
@@ -95,7 +85,7 @@ impl CommitDirReader {
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
         for dir in self.list_committed_dirs()? {
-            let commit_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let commit_dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
             let mut files = commit_dir.list_entries()?;
             paths.append(&mut files);
         }
@@ -106,7 +96,7 @@ impl CommitDirReader {
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
         let mut paths: HashSet<CommitEntry> = HashSet::new();
         for dir in self.list_committed_dirs()? {
-            let commit_dir = CommitDirEntryReader::new(&self.repository, &dir)?;
+            let commit_dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
             let files = commit_dir.list_entries_set()?;
             paths.extend(files);
         }
@@ -242,7 +232,7 @@ impl CommitDirReader {
 
     pub fn has_file(&self, path: &Path) -> bool {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            if let Ok(dir) = CommitDirEntryReader::new(&self.repository, &parent) {
+            if let Ok(dir) = CommitDirEntryReader::new(&self.repository, &self.commit_id, &parent) {
                 return dir.has_file(file_name);
             }
         }
@@ -251,17 +241,8 @@ impl CommitDirReader {
 
     pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            let dir = CommitDirEntryReader::new(&self.repository, &parent)?;
+            let dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &parent)?;
             dir.get_entry(file_name)
-        } else {
-            Err(OxenError::file_has_no_parent(path))
-        }
-    }
-
-    pub fn contains_path(&self, path: &Path) -> Result<bool, OxenError> {
-        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            let dir = CommitDirEntryReader::new(&self.repository, &parent)?;
-            dir.contains_path(file_name)
         } else {
             Err(OxenError::file_has_no_parent(path))
         }
@@ -288,7 +269,7 @@ mod tests {
 
             let reader = CommitDirReader::new(&repo, &commit)?;
             let path = Path::new(filename);
-            assert!(reader.contains_path(path)?);
+            assert!(reader.has_file(path));
 
             Ok(())
         })
