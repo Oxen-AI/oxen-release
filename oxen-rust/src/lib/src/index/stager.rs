@@ -17,7 +17,7 @@ use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -156,7 +156,7 @@ impl Stager {
         log::debug!("compute_staged_data listing eligable {:?}", dir);
         let mut staged_data = StagedData::empty();
 
-        let mut candidate_dirs: Vec<PathBuf> = vec![];
+        let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
         // Start with candidate dirs from committed and added, not all the dirs
         let added_dirs = self.list_added_dirs()?;
         log::debug!("compute_staged_data Got <added> dirs: {}", added_dirs.len());
@@ -168,7 +168,7 @@ impl Stager {
             log::debug!("compute_staged_data got stats {:?}", stats);
 
             log::debug!("compute_staged_data adding <added> dir {:?}", dir);
-            candidate_dirs.push(self.repository.path.join(dir));
+            candidate_dirs.insert(self.repository.path.join(dir));
         }
 
         let committed_dirs = entry_reader.list_committed_dirs()?;
@@ -178,11 +178,11 @@ impl Stager {
         );
         for dir in committed_dirs.iter() {
             log::debug!("compute_staged_data adding <committed> dir {:?}", dir);
-            candidate_dirs.push(self.repository.path.join(dir));
+            candidate_dirs.insert(self.repository.path.join(dir));
         }
 
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
-        candidate_dirs.push(dir.to_path_buf());
+        candidate_dirs.insert(dir.to_path_buf());
 
         for dir in candidate_dirs.iter() {
             log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
