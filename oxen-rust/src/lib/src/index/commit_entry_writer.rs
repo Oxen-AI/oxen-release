@@ -238,10 +238,8 @@ impl CommitEntryWriter {
         let bar = ProgressBar::new(size);
         let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
         for (dir, files) in grouped.iter() {
-            // Track any dir that is not empty in commit
-            if dir != Path::new("") {
-                path_db::put(&self.dir_db, dir, &0)?;
-            }
+            // Track the dir
+            path_db::put(&self.dir_db, dir, &0)?;
 
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &dir)?;
@@ -262,10 +260,8 @@ impl CommitEntryWriter {
     ) -> Result<(), OxenError> {
         let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
         for (dir, files) in grouped.iter() {
-            // Track any dir that is not empty in commit
-            if dir != Path::new("") {
-                path_db::put(&self.dir_db, dir, &0)?;
-            }
+            // Track the dir
+            path_db::put(&self.dir_db, dir, &0)?;
 
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &dir)?;

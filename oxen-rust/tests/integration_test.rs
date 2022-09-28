@@ -68,7 +68,7 @@ fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> 
 fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         command::add(&repo, repo.path.join(Path::new("labels.txt")))?;
-        
+
         let repo_status = command::status(&repo)?;
         repo_status.print();
 
@@ -90,7 +90,10 @@ fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
 fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Add a deep file
-        command::add(&repo, repo.path.join(Path::new("annotations/train/one_shot.txt")))?;
+        command::add(
+            &repo,
+            repo.path.join(Path::new("annotations/train/one_shot.txt")),
+        )?;
 
         // Make sure that we now see the full annotations/train/ directory
         let repo_status = command::status(&repo)?;
