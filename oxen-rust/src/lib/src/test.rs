@@ -366,6 +366,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     //   1.jpg
     //   2.jpg
     // annotations/
+    //   README.md
     //   train/
     //     one_shot.txt
     //     two_shot.txt
@@ -431,6 +432,18 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     std::fs::copy(
         Path::new("data/test/images/cat_3.jpg"),
         test_dir.join("2.jpg"),
+    )?;
+
+    // annotations/README.md
+    let annotations_dir = repo_dir.join("annotations");
+    std::fs::create_dir_all(&annotations_dir)?;
+    let annotations_readme_file = annotations_dir.join("README.md");
+    write_txt_file_to_path(
+        annotations_readme_file,
+        r#"
+        # Annotations
+        Some info about our annotations structure....
+        "#,
     )?;
 
     // annotations/train/

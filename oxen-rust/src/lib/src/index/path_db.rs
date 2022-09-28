@@ -11,11 +11,7 @@ use std::str;
 /// More efficient than get_entry since it does not actual deserialize the entry
 pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) -> bool {
     let path = path.as_ref();
-    log::debug!(
-        "path_db::has_entry?({:?}) from db {:?}",
-        path,
-        db.path()
-    );
+    log::debug!("path_db::has_entry?({:?}) from db {:?}", path, db.path());
     if let Some(path_str) = path.to_str() {
         let bytes = path_str.as_bytes();
         match db.get(bytes) {
@@ -40,11 +36,7 @@ where
     T: de::DeserializeOwned,
 {
     let path = path.as_ref();
-    log::debug!(
-        "path_db::get_entry({:?}) from db {:?}",
-        path,
-        db.path()
-    );
+    log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
     if let Some(path_str) = path.to_str() {
         let bytes = path_str.as_bytes();
         match db.get(bytes) {
