@@ -323,7 +323,7 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
 
                     if files.len() % mod_idx == 0 {
                         log::debug!("Got {} files", files.len());
-                        mod_idx = mod_idx * 2;
+                        mod_idx *= 2;
                     }
                 }
             }

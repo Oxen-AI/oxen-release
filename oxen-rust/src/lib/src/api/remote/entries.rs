@@ -16,8 +16,6 @@ use std::io::Cursor;
 use std::sync::Arc;
 use tar::Archive;
 
-const DEFAULT_PAGE_SIZE: usize = 10;
-
 pub fn create(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,

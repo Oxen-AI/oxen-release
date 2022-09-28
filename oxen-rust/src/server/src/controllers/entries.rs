@@ -328,36 +328,35 @@ pub fn get_entries_for_page(
                 commit.id,
                 commit.message
             );
-            panic!("TODO");
-            // match api::local::entries::list_page(repo, &commit, &page_num, &page_size) {
-            //     Ok(entries) => {
-            //         log::debug!(
-            //             "get_entries_for_page commit {} got {} entries",
-            //             commit_id,
-            //             entries.len()
-            //         );
-            //         let entries: Vec<RemoteEntry> =
-            //             entries.into_iter().map(|entry| entry.to_remote()).collect();
+            match api::local::entries::list_page(repo, &commit, &page_num, &page_size) {
+                Ok(entries) => {
+                    log::debug!(
+                        "get_entries_for_page commit {} got {} entries",
+                        commit_id,
+                        entries.len()
+                    );
+                    let entries: Vec<RemoteEntry> =
+                        entries.into_iter().map(|entry| entry.to_remote()).collect();
 
-            //         let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
-            //             .unwrap_or(entries.len());
-            //         let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
-            //         let view = PaginatedEntries {
-            //             status: String::from(STATUS_SUCCESS),
-            //             status_message: String::from(MSG_RESOURCE_FOUND),
-            //             page_size,
-            //             page_number: page_num,
-            //             total_pages: total_pages as usize,
-            //             total_entries,
-            //             entries,
-            //         };
-            //         Ok((view, commit))
-            //     }
-            //     Err(err) => {
-            //         log::error!("Unable to list repositories. Err: {}", err);
-            //         Err(StatusMessage::internal_server_error())
-            //     }
-            // }
+                    let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
+                        .unwrap_or(entries.len());
+                    let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+                    let view = PaginatedEntries {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_FOUND),
+                        page_size,
+                        page_number: page_num,
+                        total_pages: total_pages as usize,
+                        total_entries,
+                        entries,
+                    };
+                    Ok((view, commit))
+                }
+                Err(err) => {
+                    log::error!("Unable to list repositories. Err: {}", err);
+                    Err(StatusMessage::internal_server_error())
+                }
+            }
         }
         Ok(None) => {
             log::debug!("Could not find commit with id {}", commit_id);

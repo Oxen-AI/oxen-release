@@ -13,10 +13,7 @@ use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashMap;
 use std::fs;
-use std::hash::Hash;
 use std::path::{Path, PathBuf};
-
-use super::StagedDirEntryDB;
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -114,7 +111,7 @@ impl CommitEntryWriter {
         time: &FileTime,
     ) -> Result<(), OxenError> {
         if let Some(parent) = entry.path.parent() {
-            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &parent)?;
+            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, parent)?;
             writer.set_file_timestamps(entry, time)
         } else {
             Err(OxenError::file_has_no_parent(&entry.path))
@@ -226,7 +223,7 @@ impl CommitEntryWriter {
             }
         }
 
-        return results;
+        results
     }
 
     fn add_staged_entries_with_prog(
@@ -242,7 +239,7 @@ impl CommitEntryWriter {
             path_db::put(&self.dir_db, dir, &0)?;
 
             // Write entries per dir
-            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &dir)?;
+            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, dir)?;
             files.par_iter().for_each(|(path, entry)| {
                 self.commit_staged_entry(&entry_writer, commit, path, entry);
                 bar.inc(1);
@@ -264,7 +261,7 @@ impl CommitEntryWriter {
             path_db::put(&self.dir_db, dir, &0)?;
 
             // Write entries per dir
-            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &dir)?;
+            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, dir)?;
             files.par_iter().for_each(|(path, entry)| {
                 self.commit_staged_entry(&entry_writer, commit, path, entry)
             });

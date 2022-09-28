@@ -232,3 +232,33 @@ pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
     }
     Ok(())
 }
+
+pub fn list_entry_page<T>(
+    db: &DBWithThreadMode<MultiThreaded>,
+    page_num: usize,
+    page_size: usize,
+) -> Result<Vec<T>, OxenError>
+where
+    T: de::DeserializeOwned,
+{
+    // The iterator doesn't technically have a skip method as far as I can tell
+    // so we are just going to manually do it
+    let mut paths: Vec<T> = vec![];
+    let iter = db.iterator(IteratorMode::Start);
+    // Do not go negative, and start from 0
+    let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+    let start_idx = start_page * page_size;
+    for (entry_i, (_key, value)) in iter.enumerate() {
+        // limit to page_size
+        if paths.len() >= page_size {
+            break;
+        }
+
+        // only grab values after start_idx based on page_num and page_size
+        if entry_i >= start_idx {
+            let entry: T = serde_json::from_str(str::from_utf8(&*value)?)?;
+            paths.push(entry);
+        }
+    }
+    Ok(paths)
+}

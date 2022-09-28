@@ -23,6 +23,16 @@ pub fn count_for_commit(repo: &LocalRepository, commit: &Commit) -> Result<usize
     reader.num_entries()
 }
 
+pub fn list_page(
+    repo: &LocalRepository,
+    commit: &Commit,
+    page_num: &usize,
+    page_size: &usize,
+) -> Result<Vec<CommitEntry>, OxenError> {
+    let reader = CommitDirReader::new(repo, commit)?;
+    reader.list_entry_page(*page_num, *page_size)
+}
+
 pub fn list_directory(
     repo: &LocalRepository,
     commit: &Commit,

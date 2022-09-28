@@ -5,10 +5,9 @@ use crate::index::{CommitDirEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::str;
 
 use crate::model::LocalRepository;
 
@@ -103,32 +102,26 @@ impl CommitDirReader {
         Ok(paths)
     }
 
-    // pub fn list_entry_page(
-    //     &self,
-    //     page_num: usize,
-    //     page_size: usize,
-    // ) -> Result<Vec<CommitEntry>, OxenError> {
-    //     // The iterator doesn't technically have a skip method as far as I can tell
-    //     // so we are just going to manually do it
-    //     let mut paths: Vec<CommitEntry> = vec![];
-    //     let iter = self.db.iterator(IteratorMode::Start);
-    //     // Do not go negative, and start from 0
-    //     let start_page = if page_num == 0 { 0 } else { page_num - 1 };
-    //     let start_idx = start_page * page_size;
-    //     for (entry_i, (_key, value)) in iter.enumerate() {
-    //         // limit to page_size
-    //         if paths.len() >= page_size {
-    //             break;
-    //         }
+    pub fn list_entry_page(
+        &self,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        let entries = self.list_entries()?;
 
-    //         // only grab values after start_idx based on page_num and page_size
-    //         if entry_i >= start_idx {
-    //             let entry: CommitEntry = serde_json::from_str(str::from_utf8(&*value)?)?;
-    //             paths.push(entry);
-    //         }
-    //     }
-    //     Ok(paths)
-    // }
+        let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+        let start_idx = start_page * page_size;
+
+        if (start_idx + page_size) < entries.len() {
+            let subset: Vec<CommitEntry> = entries[start_idx..(start_idx + page_size)].to_vec();
+            Ok(subset)
+        } else if (start_idx < entries.len()) && (start_idx + page_size) >= entries.len() {
+            let subset: Vec<CommitEntry> = entries[start_idx..entries.len()].to_vec();
+            Ok(subset)
+        } else {
+            Ok(vec![])
+        }
+    }
 
     pub fn list_directory(
         &self,
@@ -136,76 +129,46 @@ impl CommitDirReader {
         page_num: usize,
         page_size: usize,
     ) -> Result<(Vec<DirEntry>, usize), OxenError> {
-        let root_dir = Path::new("./");
-        let mut search_dir = search_dir.to_path_buf();
-        if !search_dir.starts_with(&root_dir) {
-            search_dir = root_dir.join(&search_dir);
-        }
-        let search_components_count = search_dir.components().count();
-
-        let mut base_dirs: HashSet<PathBuf> = HashSet::new();
-
         let mut dir_paths: Vec<DirEntry> = vec![];
+        for dir in self.list_committed_dirs()? {
+            // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
+            if let Some(parent) = dir.parent() {
+                if parent == search_dir
+                    || (parent == Path::new("") && search_dir == Path::new("./"))
+                {
+                    dir_paths.push(DirEntry {
+                        filename: String::from(dir.file_name().unwrap().to_str().unwrap()),
+                        is_dir: true,
+                    });
+                }
+            }
+        }
 
         let mut file_paths: Vec<DirEntry> = vec![];
-        // Do not go negative, and start from 0
-        let start_page = if page_num == 0 { 0 } else { page_num - 1 };
-        let start_idx = start_page * page_size;
-
-        panic!("TODO implement");
-        // let iter = self.db.iterator(IteratorMode::Start);
-        // for (key, _value) in iter {
-        //     let path_str = format!("{}{}", root_dir.to_str().unwrap(), str::from_utf8(&*key)?);
-        //     let path = Path::new(&path_str);
-        //     // log::debug!("Considering {:?} starts with {:?}", path, search_dir);
-        //     // Find all the base dirs within this directory
-        //     if path.starts_with(&search_dir) {
-        //         let path_components_count = path.components().count();
-        //         let subpath = util::fs::path_relative_to_dir(path, &search_dir)?;
-        //         let mut components = subpath.components().collect::<VecDeque<_>>();
-
-        //         // Get uniq top level dirs
-        //         if let Some(base_dir) = components.pop_front() {
-        //             let base_path: &Path = base_dir.as_ref();
-        //             if base_path.extension().is_none() && base_dirs.insert(base_path.to_path_buf())
-        //             {
-        //                 dir_paths.push(DirEntry {
-        //                     filename: String::from(base_path.to_str().unwrap()),
-        //                     is_dir: true,
-        //                 })
-        //             }
-        //         }
-
-        //         // Get all files that are in this dir level
-        //         if (path_components_count - 1) == search_components_count {
-        //             // TODO: add in author and last modified given the CommitEntry commit_id
-        //             file_paths.push(DirEntry {
-        //                 filename: String::from(subpath.to_str().unwrap()),
-        //                 is_dir: false,
-        //             })
-        //         }
-        //     }
-        // }
+        let commit_dir_reader =
+            CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
+        let total = commit_dir_reader.num_entries() + dir_paths.len();
+        for file in commit_dir_reader.list_entry_page(page_num, page_size)? {
+            file_paths.push(DirEntry {
+                filename: String::from(file.path.file_name().unwrap().to_str().unwrap()),
+                is_dir: false,
+            })
+        }
 
         // Combine all paths, starting with dirs
         dir_paths.append(&mut file_paths);
 
-        let count = dir_paths.len();
         log::debug!(
-            "list_directory page_num {} page_size {} start_index {} total {}",
+            "list_directory page_num {} page_size {} total {}",
             page_num,
             page_size,
-            start_idx,
-            count
+            total
         );
-        if (start_idx + page_size) < dir_paths.len() {
-            let subset: Vec<DirEntry> = dir_paths[start_idx..(start_idx + page_size)].to_vec();
-            Ok((subset, count))
-        } else if (start_idx < dir_paths.len()) && (start_idx + page_size) >= dir_paths.len() {
-            let subset: Vec<DirEntry> = dir_paths[start_idx..dir_paths.len()].to_vec();
-            Ok((subset, count))
+        if page_size < dir_paths.len() {
+            let subset: Vec<DirEntry> = dir_paths[0..page_size].to_vec();
+            Ok((subset, total))
         } else {
-            Ok((vec![], count))
+            Ok((dir_paths, total))
         }
     }
 
@@ -232,7 +195,7 @@ impl CommitDirReader {
 
     pub fn has_file(&self, path: &Path) -> bool {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            if let Ok(dir) = CommitDirEntryReader::new(&self.repository, &self.commit_id, &parent) {
+            if let Ok(dir) = CommitDirEntryReader::new(&self.repository, &self.commit_id, parent) {
                 return dir.has_file(file_name);
             }
         }
@@ -241,7 +204,7 @@ impl CommitDirReader {
 
     pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            let dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &parent)?;
+            let dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, parent)?;
             dir.get_entry(file_name)
         } else {
             Err(OxenError::file_has_no_parent(path))
@@ -260,7 +223,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn test_check_if_file_exists() -> Result<(), OxenError> {
+    fn test_commit_dir_reader_check_if_file_exists() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let filename = "labels.txt";
             let filepath = repo.path.join(filename);
@@ -276,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_entry_reader_list_top_level_directory() -> Result<(), OxenError> {
+    fn test_commit_dir_reader_list_top_level_directory() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
@@ -304,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_entry_reader_list_train_directory_full() -> Result<(), OxenError> {
+    fn test_commit_dir_reader_list_train_directory_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
@@ -320,7 +283,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_entry_reader_list_train_sub_directory_full() -> Result<(), OxenError> {
+    fn test_commit_dir_reader_list_train_sub_directory_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
@@ -329,21 +292,24 @@ mod tests {
             let (dir_entries, size) =
                 reader.list_directory(Path::new("annotations/train"), 1, 10)?;
 
-            assert_eq!(size, 2);
-            assert_eq!(dir_entries.len(), 2);
+            assert_eq!(size, 3);
+            assert_eq!(dir_entries.len(), 3);
 
             Ok(())
         })
     }
 
     #[test]
-    fn test_commit_entry_reader_list_train_directory_subset() -> Result<(), OxenError> {
+    fn test_commit_dir_reader_list_train_directory_subset() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) = reader.list_directory(Path::new("train"), 2, 3)?;
+            for entry in dir_entries.iter() {
+                println!("{:?}", entry);
+            }
 
             assert_eq!(size, 5);
             assert_eq!(dir_entries.len(), 2);
