@@ -20,24 +20,34 @@ pub struct CommitDirEntryReader {
 
 impl CommitDirEntryReader {
     pub fn db_dir(repo: &LocalRepository, commit_id: &str, dir: &Path) -> PathBuf {
-        // .oxen/history/COMMIT_ID/path/to/dir
+        // .oxen/history/COMMIT_ID/files/path/to/dir
         util::fs::oxen_hidden_dir(&repo.path)
             .join(Path::new(HISTORY_DIR))
             .join(commit_id)
+            .join("files")
             .join(dir)
     }
 
-    /// # Create new staged dir
-    /// Contains all the staged files within that dir, for faster filtering during `oxen status`
-    pub fn new(repository: &LocalRepository, commit_id: &str, dir: &Path) -> Result<CommitDirEntryReader, OxenError> {
-        let dbpath = CommitDirEntryReader::db_dir(repository, commit_id, dir);
-        log::debug!("CommitDirEntryReader db_path {:?}", dbpath);
-        if !dbpath.exists() {
-            std::fs::create_dir_all(&dbpath)?;
-        }
+    /// # Create new commit dir
+    /// Contains all the committed files within that dir, for faster filtering per dir
+    pub fn new(
+        repository: &LocalRepository,
+        commit_id: &str,
+        dir: &Path,
+    ) -> Result<CommitDirEntryReader, OxenError> {
+        let db_path = CommitDirEntryReader::db_dir(repository, commit_id, dir);
+        log::debug!("CommitDirEntryReader dir {:?} db_path {:?}", dir, db_path);
         let opts = db::opts::default();
+        // Must check the CURRENT file since the .oxen/history/COMMIT_ID/files/ path
+        // may have already been created by a deeper object
+        if !db_path.join("CURRENT").exists() {
+            std::fs::create_dir_all(&db_path)?;
+            // open it then lose scope to close it
+            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
+        }
+
         Ok(CommitDirEntryReader {
-            db: DBWithThreadMode::open_for_read_only(&opts, &dbpath, true)?,
+            db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
             dir: dir.to_owned(),
             repository: repository.clone(),
         })
@@ -62,10 +72,10 @@ impl CommitDirEntryReader {
     }
 
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
-        path_db::list_entries(&self.db, &self.dir)
+        path_db::list_entries(&self.db)
     }
 
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
-        path_db::list_entries_set(&self.db, &self.dir)
+        path_db::list_entries_set(&self.db)
     }
 }

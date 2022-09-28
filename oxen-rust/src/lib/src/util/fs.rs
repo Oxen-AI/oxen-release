@@ -345,7 +345,7 @@ pub fn count_files_in_dir(dir: &Path) -> usize {
                     match entry {
                         Ok(entry) => {
                             let path = entry.path();
-                            if !is_in_oxen_hidden_dir(&path) {
+                            if !is_in_oxen_hidden_dir(&path) && path.is_file() {
                                 count += 1;
                             }
                         }

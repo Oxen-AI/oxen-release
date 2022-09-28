@@ -368,6 +368,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     // annotations/
     //   train/
     //     one_shot.txt
+    //     two_shot.txt
     //     annotations.txt
     //   test/
     //     annotations.txt
@@ -447,6 +448,13 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     )?;
     write_txt_file_to_path(
         train_annotations_dir.join("one_shot.txt"),
+        r#"
+        train/dog_1.jpg 0
+    "#,
+    )?;
+
+    write_txt_file_to_path(
+        train_annotations_dir.join("two_shot.txt"),
         r#"
         train/dog_1.jpg 0
         train/cat_1.jpg 1

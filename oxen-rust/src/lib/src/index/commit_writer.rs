@@ -134,7 +134,7 @@ impl CommitWriter {
 
         This would make sense why hashes are computed at the "add" stage, before the commit stage
         */
-        log::debug!("COMMIT_START"); // for debug logging / timing purposes
+        log::debug!("---COMMIT START---"); // for debug logging / timing purposes
 
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
@@ -151,6 +151,7 @@ impl CommitWriter {
 
         // User output
         println!("Commit {} -> {}", commit.id, commit.message);
+        log::debug!("---COMMIT END---"); // for debug logging / timing purposes
 
         Ok(commit)
     }
@@ -207,7 +208,7 @@ impl CommitWriter {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         // Commit all staged files from db
-        entry_writer.add_staged_entries(commit, &status.added_files)?;
+        entry_writer.add_staged_entries(commit, status)?;
 
         // Add to commits db id -> commit_json
         self.add_commit_to_db(commit)?;

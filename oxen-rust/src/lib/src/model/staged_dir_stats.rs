@@ -1,6 +1,5 @@
-
-use std::path::{PathBuf, Path};
 use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 
 // Used for a quick summary of directory
 #[derive(Debug, Clone)]

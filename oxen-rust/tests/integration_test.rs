@@ -46,6 +46,74 @@ fn test_command_status_empty() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let repo_status = command::status(&repo)?;
+
+        assert_eq!(repo_status.added_dirs.len(), 0);
+        assert_eq!(repo_status.added_files.len(), 0);
+        // README.md
+        // labels.txt
+        assert_eq!(repo_status.untracked_files.len(), 2);
+        // train/
+        // test/
+        // annotations/
+        assert_eq!(repo_status.untracked_dirs.len(), 3);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        command::add(&repo, repo.path.join(Path::new("labels.txt")))?;
+        
+        let repo_status = command::status(&repo)?;
+        repo_status.print();
+
+        assert_eq!(repo_status.added_dirs.len(), 0);
+        assert_eq!(repo_status.added_files.len(), 1);
+        // README.md
+        // labels.txt
+        assert_eq!(repo_status.untracked_files.len(), 1);
+        // train/
+        // test/
+        // annotations/
+        assert_eq!(repo_status.untracked_dirs.len(), 3);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Add a deep file
+        command::add(&repo, repo.path.join(Path::new("annotations/train/one_shot.txt")))?;
+
+        // Make sure that we now see the full annotations/train/ directory
+        let repo_status = command::status(&repo)?;
+        repo_status.print();
+
+        // annotations/
+        assert_eq!(repo_status.added_dirs.len(), 1);
+        // annotations/train/one_shot.txt
+        assert_eq!(repo_status.added_files.len(), 1);
+        // train/
+        // test/
+        assert_eq!(repo_status.untracked_dirs.len(), 2);
+        // README.md
+        // labels.txt
+        // annotations/train/two_shot.txt
+        // annotations/train/annotations.txt
+        assert_eq!(repo_status.untracked_files.len(), 4);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         let commits = command::log(&repo)?;
@@ -668,7 +736,10 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
         // Make sure we have the correct amount of files tagged as removed
         let status = command::status(&repo)?;
         assert_eq!(status.added_files.len(), og_file_count);
-        assert_eq!(status.added_files[0].1.status, StagedEntryStatus::Removed);
+        assert_eq!(
+            status.added_files.iter().next().unwrap().1.status,
+            StagedEntryStatus::Removed
+        );
 
         // Make sure they don't show up in the status
         assert_eq!(status.removed_files.len(), 0);

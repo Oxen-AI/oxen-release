@@ -1,6 +1,6 @@
 pub mod commit_db_reader;
-pub mod commit_dir_entry_writer;
 pub mod commit_dir_entry_reader;
+pub mod commit_dir_entry_writer;
 pub mod commit_dir_reader;
 pub mod commit_entry_writer;
 pub mod commit_reader;
@@ -18,8 +18,8 @@ pub mod staged_dir_entry_db;
 pub mod stager;
 
 pub use crate::index::commit_db_reader::CommitDBReader;
-pub use crate::index::commit_dir_entry_writer::CommitDirEntryWriter;
 pub use crate::index::commit_dir_entry_reader::CommitDirEntryReader;
+pub use crate::index::commit_dir_entry_writer::CommitDirEntryWriter;
 pub use crate::index::commit_dir_reader::CommitDirReader;
 pub use crate::index::commit_entry_writer::CommitEntryWriter;
 pub use crate::index::commit_reader::CommitReader;

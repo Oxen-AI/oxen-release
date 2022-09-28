@@ -1,7 +1,7 @@
 use crate::db;
 use crate::error::OxenError;
-use crate::index::stager::STAGED_DIR;
 use crate::index::path_db;
+use crate::index::stager::STAGED_DIR;
 use crate::model::entry::staged_entry::StagedEntryType;
 use crate::model::{CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
 use crate::util;
@@ -55,7 +55,7 @@ impl StagedDirEntryDB {
             entry_type: StagedEntryType::Regular,
         };
 
-        path_db::add_to_db(&self.db, path, &entry)?;
+        path_db::put(&self.db, path, &entry)?;
 
         Ok(entry)
     }
@@ -77,7 +77,7 @@ impl StagedDirEntryDB {
         path: T,
         staged_entry: &StagedEntry,
     ) -> Result<(), OxenError> {
-        path_db::add_to_db(&self.db, path, staged_entry)
+        path_db::put(&self.db, path, staged_entry)
     }
 
     /// # List the file paths in the staged dir
