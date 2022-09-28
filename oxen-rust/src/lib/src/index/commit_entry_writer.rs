@@ -2,7 +2,9 @@ use crate::constants::{DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{path_db, CommitDirEntryWriter, RefReader, RefWriter};
-use crate::model::{Commit, CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus, StagedData};
+use crate::model::{
+    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
+};
 use crate::util;
 
 use filetime::FileTime;
@@ -152,7 +154,11 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    fn add_commit_entry(&self, writer: &CommitDirEntryWriter, entry: &CommitEntry) -> Result<(), OxenError> {
+    fn add_commit_entry(
+        &self,
+        writer: &CommitDirEntryWriter,
+        entry: &CommitEntry,
+    ) -> Result<(), OxenError> {
         self.backup_file_to_versions_dir(entry)?;
 
         writer.add_commit_entry(entry)
@@ -207,13 +213,16 @@ impl CommitEntryWriter {
 
     fn group_staged_files_to_dirs(
         &self,
-        files: &HashMap<PathBuf, StagedEntry>
+        files: &HashMap<PathBuf, StagedEntry>,
     ) -> HashMap<PathBuf, Vec<(PathBuf, StagedEntry)>> {
         let mut results: HashMap<PathBuf, Vec<(PathBuf, StagedEntry)>> = HashMap::new();
 
         for (path, entry) in files.iter() {
             if let Some(parent) = path.parent() {
-                results.entry(parent.to_path_buf()).or_insert(vec![]).push((path.clone(), entry.clone()));
+                results
+                    .entry(parent.to_path_buf())
+                    .or_insert(vec![])
+                    .push((path.clone(), entry.clone()));
             }
         }
 
@@ -229,8 +238,10 @@ impl CommitEntryWriter {
         let bar = ProgressBar::new(size);
         let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
         for (dir, files) in grouped.iter() {
-            // Track dir in commit
-            path_db::put(&self.dir_db, dir, &0)?;
+            // Track any dir that is not empty in commit
+            if dir != Path::new("") {
+                path_db::put(&self.dir_db, dir, &0)?;
+            }
 
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &dir)?;
@@ -239,7 +250,7 @@ impl CommitEntryWriter {
                 bar.inc(1);
             });
         }
-        
+
         bar.finish();
         Ok(())
     }
@@ -251,19 +262,27 @@ impl CommitEntryWriter {
     ) -> Result<(), OxenError> {
         let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
         for (dir, files) in grouped.iter() {
-            // Track dir in commit
-            path_db::put(&self.dir_db, dir, &0)?;
+            // Track any dir that is not empty in commit
+            if dir != Path::new("") {
+                path_db::put(&self.dir_db, dir, &0)?;
+            }
 
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, &dir)?;
-            files
-                .par_iter()
-                .for_each(|(path, entry)| self.commit_staged_entry(&entry_writer, commit, path, entry));
+            files.par_iter().for_each(|(path, entry)| {
+                self.commit_staged_entry(&entry_writer, commit, path, entry)
+            });
         }
         Ok(())
     }
 
-    fn commit_staged_entry(&self, writer: &CommitDirEntryWriter, commit: &Commit, path: &Path, entry: &StagedEntry) {
+    fn commit_staged_entry(
+        &self,
+        writer: &CommitDirEntryWriter,
+        commit: &Commit,
+        path: &Path,
+        entry: &StagedEntry,
+    ) {
         match entry.status {
             StagedEntryStatus::Removed => match writer.remove_path_from_db(path) {
                 Ok(_) => {}

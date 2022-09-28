@@ -5,6 +5,7 @@ use crate::index::path_db;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
+use datafusion::row::MutableRecordBatch;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -41,9 +42,15 @@ impl CommitDirEntryReader {
         // Must check the CURRENT file since the .oxen/history/COMMIT_ID/files/ path
         // may have already been created by a deeper object
         if !db_path.join("CURRENT").exists() {
-            std::fs::create_dir_all(&db_path)?;
+            if std::fs::create_dir_all(&db_path).is_err() {
+                log::error!("CommitDirEntryReader could not create dir {:?}", db_path);
+            }
             // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
+            let db: Result<DBWithThreadMode<MultiThreaded>, rocksdb::Error> =
+                DBWithThreadMode::open(&opts, &db_path);
+            if db.is_err() {
+                log::error!("CommitDirEntryReader could not open db {:?}", db_path);
+            }
         }
 
         Ok(CommitDirEntryReader {

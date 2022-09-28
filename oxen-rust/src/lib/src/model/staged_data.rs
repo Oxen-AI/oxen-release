@@ -8,12 +8,6 @@ use crate::util;
 
 pub struct StagedData {
     pub added_dirs: SummarizedStagedDirStats,
-    // Would it be easier to have filepath in staged entry here...? and we don't need to collapse for output anymore...
-    // ALSO - this should just be the added files at the status *top* level, and the total will be
-    //        added_dirs.total + added_files.len()
-    // I think this makes sense...and will fix our modified tests, because we are not committing the files in the top level
-    // we are not committing the files in the top level, because we were iterating over added_dirs and not added_files
-    // whew.
     pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
@@ -153,7 +147,8 @@ impl StagedData {
         println!("Directories:");
         for (path, staged_dirs) in self.added_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {
-                let added_file_str = format!("  added:  {}/", path.to_str().unwrap()).green();
+                let added_file_str =
+                    format!("  added:  {}/", staged_dir.path.to_str().unwrap()).green();
                 let num_files_str = match staged_dir.num_files_staged {
                     1 => Some(format!("with added {} file\n", staged_dir.num_files_staged)),
                     0 => {
@@ -186,8 +181,7 @@ impl StagedData {
             log::debug!("{:?} -> {:?}", short_path, entry);
             match entry.status {
                 StagedEntryStatus::Removed => {
-                    let print_str =
-                        format!("  removed:  {}", short_path.to_str().unwrap()).green();
+                    let print_str = format!("  removed:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", print_str);
                 }
                 StagedEntryStatus::Modified => {
@@ -196,8 +190,7 @@ impl StagedData {
                     println!("{}", print_str);
                 }
                 StagedEntryStatus::Added => {
-                    let print_str =
-                        format!("  added:  {}", short_path.to_str().unwrap()).green();
+                    let print_str = format!("  added:  {}", short_path.to_str().unwrap()).green();
                     println!("{}", print_str);
                 }
             }
