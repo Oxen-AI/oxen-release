@@ -5,7 +5,6 @@ use crate::index::path_db;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
-use datafusion::row::MutableRecordBatch;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -46,11 +45,7 @@ impl CommitDirEntryReader {
                 log::error!("CommitDirEntryReader could not create dir {:?}", db_path);
             }
             // open it then lose scope to close it
-            let db: Result<DBWithThreadMode<MultiThreaded>, rocksdb::Error> =
-                DBWithThreadMode::open(&opts, &db_path);
-            if db.is_err() {
-                log::error!("CommitDirEntryReader could not open db {:?}", db_path);
-            }
+            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
         }
 
         Ok(CommitDirEntryReader {
@@ -84,5 +79,13 @@ impl CommitDirEntryReader {
 
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
         path_db::list_entries_set(&self.db)
+    }
+
+    pub fn list_entry_page(
+        &self,
+        page_num: usize,
+        page_size: usize,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        path_db::list_entry_page(&self.db, page_num, page_size)
     }
 }

@@ -199,7 +199,7 @@ impl Stager {
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
         let root_commit_dir_reader = CommitDirReader::new(&self.repository, &commit)?;
-        let relative_dir = util::fs::path_relative_to_dir(&full_dir, &self.repository.path)?;
+        let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
         let staged_dir_db = StagedDirEntryDB::new(&self.repository, &relative_dir)?;
         let root_commit_entry_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir)?;
@@ -271,12 +271,12 @@ impl Stager {
             // Not in the staged DB
             log::debug!("get_file_status check if commit db? {:?}", file_name);
             // check if it is in the HEAD commit to see if it is modified
-            if Stager::file_is_modified(&path, &commit_dir_db) {
+            if Stager::file_is_modified(path, commit_dir_db) {
                 return Some(FileStatus::Modified);
             }
         }
 
-        return Some(FileStatus::Untracked);
+        Some(FileStatus::Untracked)
     }
 
     fn file_is_modified(path: &Path, commit_dir_db: &CommitDirEntryReader) -> bool {
@@ -299,7 +299,7 @@ impl Stager {
                     );
 
                     // Then check the hashes, because the data might not be different, timestamp is just an optimization
-                    let hash = util::hasher::hash_file_contents(&path).unwrap();
+                    let hash = util::hasher::hash_file_contents(path).unwrap();
                     if hash != commit_entry.hash {
                         return true;
                     }
@@ -312,7 +312,7 @@ impl Stager {
 
     fn add_removed_file(&self, path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
-            let staged_dir = StagedDirEntryDB::new(&self.repository, &parent)?;
+            let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
             Err(OxenError::file_has_no_parent(path))
@@ -410,7 +410,7 @@ impl Stager {
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
         dir_paths.par_iter().for_each(|(parent, paths)| {
-            let staged_db = StagedDirEntryDB::new(&self.repository, &parent).unwrap();
+            let staged_db = StagedDirEntryDB::new(&self.repository, parent).unwrap();
             paths.par_iter().for_each(|path| {
                 let full_path = self.repository.path.join(path);
                 match self.add_file_in_dir_db(&full_path, entry_reader, &staged_db) {
@@ -438,7 +438,7 @@ impl Stager {
         let path = path.as_ref();
         if let Ok(relative) = util::fs::path_relative_to_dir(path, &self.repository.path) {
             if let Some(parent) = relative.parent() {
-                if let Ok(staged_dir) = StagedDirEntryDB::new(&self.repository, &parent) {
+                if let Ok(staged_dir) = StagedDirEntryDB::new(&self.repository, parent) {
                     return staged_dir.has_entry(relative);
                 }
             }
@@ -454,7 +454,7 @@ impl Stager {
                 log::debug!("get_entry got parent for path {:?} -> {:?}", path, parent);
                 log::debug!("get_entry relative {:?}", file_name);
 
-                let staged_db = StagedDirEntryDB::new(&self.repository, &parent)?;
+                let staged_db = StagedDirEntryDB::new(&self.repository, parent)?;
                 return staged_db.get_entry(file_name);
             } else {
                 log::warn!("get_entry could not get file_name: {:?}", path);
@@ -514,7 +514,7 @@ impl Stager {
         if let Some(parent) = path.parent() {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db = StagedDirEntryDB::new(&self.repository, &relative_parent)?;
-            self.add_staged_entry_in_dir_db(&path, &entry_reader, entry_type, &staged_db)
+            self.add_staged_entry_in_dir_db(path, entry_reader, entry_type, &staged_db)
         } else {
             log::error!("add_staged_entry no parent... {:?}", path);
             Err(OxenError::file_has_no_parent(path))
@@ -546,7 +546,7 @@ impl Stager {
         let mut staged_entry = StagedEntry {
             hash: hash.to_owned(),
             status: StagedEntryStatus::Added,
-            entry_type: entry_type,
+            entry_type,
         };
 
         // Check if it is a merge conflict, then we can add it
@@ -591,7 +591,7 @@ impl Stager {
         staged_entry: &StagedEntry,
         staged_db: &StagedDirEntryDB,
     ) -> Result<(), OxenError> {
-        let relative = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+        let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         if let (Some(parent), Some(file_name)) = (relative.parent(), relative.file_name()) {
             if parent != Path::new("") {
                 path_db::put(&self.dir_db, parent, &0)?;
@@ -614,7 +614,7 @@ impl Stager {
     }
 
     pub fn compute_staged_dir_stats(&self, path: &Path) -> Result<StagedDirStats, OxenError> {
-        let relative_path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+        let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         log::debug!("compute_staged_dir_stats {:?} -> {:?}", relative_path, path);
         let mut stats = StagedDirStats {
             path: relative_path.to_owned(),
@@ -638,7 +638,7 @@ impl Stager {
         }
 
         // Count in fs from full path
-        stats.total_files = util::fs::count_files_in_dir(&path);
+        stats.total_files = util::fs::count_files_in_dir(path);
         stats.num_files_staged = num_files_staged;
 
         Ok(stats)

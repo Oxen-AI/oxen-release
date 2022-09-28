@@ -25,6 +25,12 @@ pub struct SummarizedStagedDirStats {
     pub paths: HashMap<PathBuf, Vec<StagedDirStats>>,
 }
 
+impl Default for SummarizedStagedDirStats {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SummarizedStagedDirStats {
     pub fn new() -> SummarizedStagedDirStats {
         SummarizedStagedDirStats {
@@ -53,19 +59,15 @@ impl SummarizedStagedDirStats {
             num_staged += stat.num_files_staged;
             total += stat.total_files;
         }
-        return StagedDirStats {
+        StagedDirStats {
             path: path.to_path_buf(),
             num_files_staged: num_staged,
             total_files: total,
-        };
+        }
     }
 
     pub fn get(&self, path: &Path) -> Option<StagedDirStats> {
-        if let Some(stats) = self.paths.get(path) {
-            Some(self.rollup_stats(path, stats))
-        } else {
-            None
-        }
+        self.paths.get(path).map(|stats| self.rollup_stats(path, stats))
     }
 
     pub fn add_stats(&mut self, stats: &StagedDirStats) {
