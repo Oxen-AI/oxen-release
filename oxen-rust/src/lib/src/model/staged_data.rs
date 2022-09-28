@@ -7,8 +7,13 @@ use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStag
 use crate::util;
 
 pub struct StagedData {
-    // TODO: roll added_dirs into a class, that every time you a dir, it sums up the stats to parent, and keeps individual stats you can query
-    pub added_dirs: SummarizedStagedDirStats, 
+    pub added_dirs: SummarizedStagedDirStats,
+    // Would it be easier to have filepath in staged entry here...? and we don't need to collapse for output anymore...
+    // ALSO - this should just be the added files at the status *top* level, and the total will be
+    //        added_dirs.total + added_files.len()
+    // I think this makes sense...and will fix our modified tests, because we are not committing the files in the top level
+    // we are not committing the files in the top level, because we were iterating over added_dirs and not added_files
+    // whew.
     pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
@@ -96,7 +101,7 @@ impl StagedData {
     }
 
     pub fn print_untracked(&self) {
-        println!("Untracked files:");
+        println!("Untracked:");
         println!("  (use \"oxen add <file>...\" to update what will be committed)");
         self.print_untracked_dirs();
         self.print_untracked_files();
@@ -145,14 +150,15 @@ impl StagedData {
     }
 
     fn print_added_dirs(&self) {
+        println!("Directories:");
         for (path, staged_dirs) in self.added_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {
-                let added_file_str =
-                    format!("  added:  {}/", path.to_str().unwrap()).green();
+                let added_file_str = format!("  added:  {}/", path.to_str().unwrap()).green();
                 let num_files_str = match staged_dir.num_files_staged {
                     1 => Some(format!("with added {} file\n", staged_dir.num_files_staged)),
                     0 => {
                         // Skip since we don't have any added files in this dir
+                        log::warn!("Added dir with no files staged: {:?}", path);
                         None
                     }
                     _ => Some(format!(
@@ -168,6 +174,7 @@ impl StagedData {
     }
 
     fn print_added_files(&self) {
+        println!("Files:");
         let current_dir = env::current_dir().unwrap();
         let repo_path = util::fs::get_repo_root(&current_dir);
         if repo_path.is_none() {
@@ -175,74 +182,23 @@ impl StagedData {
             return;
         }
 
-        // Unwrap because is some
-        let repo_path = repo_path.unwrap();
-        log::debug!("Got repo path {:?} {:?}", current_dir, repo_path);
-
-        // Get the top level dirs so that we don't have to print every file
-        let added_files: Vec<PathBuf> = self
-            .added_files
-            .clone()
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect();
-        // let mut top_level_counts = self.get_top_level_removed_counts(&repo_path, &added_files);
-        // // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        // let remaining_file_count =
-        //     self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
-        log::debug!("Added files {}", self.added_files.len());
-        let mut summarized: HashSet<PathBuf> = HashSet::new();
         for (short_path, entry) in self.added_files.iter() {
-            // // If the short_path is in a directory that was added, don't display it
-            // let mut break_both = false;
-            // for staged_dir in self.added_dirs.iter() {
-            //     // println!("checking if short_path {:?} starts with {:?}", short_path, dir);
-            //     if short_path.starts_with(&staged_dir.path) {
-            //         break_both = true;
-            //         continue;
-            //     }
-            // }
-
-            // if break_both {
-            //     continue;
-            // }
-
+            log::debug!("{:?} -> {:?}", short_path, entry);
             match entry.status {
                 StagedEntryStatus::Removed => {
-                    // let full_path = repo_path.join(short_path);
-                    // let path = self.get_top_level_dir(&repo_path, &full_path);
-
-                    // let count = top_level_counts[&path];
-                    // if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
-                    //     && !summarized.contains(&path)
-                    // {
-                    //     let added_file_str = format!(
-                    //         "  removed: {}\n    which had {} files including {}",
-                    //         path.to_str().unwrap(),
-                    //         count,
-                    //         short_path.to_str().unwrap(),
-                    //     )
-                    //     .green();
-                    //     println!("{}", added_file_str);
-
-                    //     summarized.insert(path.to_owned());
-                    // }
-
-                    // if !summarized.contains(&path) {
-                    //     let added_file_str =
-                    //         format!("  removed:  {}", short_path.to_str().unwrap()).green();
-                    //     println!("{}", added_file_str);
-                    // }
+                    let print_str =
+                        format!("  removed:  {}", short_path.to_str().unwrap()).green();
+                    println!("{}", print_str);
                 }
                 StagedEntryStatus::Modified => {
-                    let added_file_str =
+                    let print_str =
                         format!("  modified:  {}", short_path.to_str().unwrap()).green();
-                    println!("{}", added_file_str);
+                    println!("{}", print_str);
                 }
                 StagedEntryStatus::Added => {
-                    let added_file_str =
+                    let print_str =
                         format!("  added:  {}", short_path.to_str().unwrap()).green();
-                    println!("{}", added_file_str);
+                    println!("{}", print_str);
                 }
             }
         }
@@ -250,8 +206,8 @@ impl StagedData {
 
     fn print_modified_files(&self) {
         for file in self.modified_files.iter() {
-            let added_file_str = format!("  modified:  {}", file.to_str().unwrap()).yellow();
-            println!("{}", added_file_str);
+            let print_str = format!("  modified:  {}", file.to_str().unwrap()).yellow();
+            println!("{}", print_str);
         }
     }
 
@@ -372,49 +328,23 @@ impl StagedData {
 
     fn print_untracked_dirs(&self) {
         // List untracked directories
-        for (dir, count) in self.untracked_dirs.iter() {
+        // We are ignoring the count because it is too computationally expensive to compute for some dirs
+        println!("Directories:");
+        for (dir, _count) in self.untracked_dirs.iter() {
             // Make sure we can grab the filename
             if let Some(filename) = dir.file_name() {
-                let added_file_str = format!("  {}/", filename.to_str().unwrap()).red();
-                let num_files_str = match count {
-                    1 => {
-                        format!("with untracked {} file\n", count)
-                    }
-                    0 => {
-                        // Skip since we don't have any untracked files in this dir
-                        String::from("")
-                    }
-                    _ => {
-                        format!("with untracked {} files\n", count)
-                    }
-                };
-
-                if !num_files_str.is_empty() {
-                    print!("{} {}", added_file_str, num_files_str);
-                }
+                let print_str = format!("  {}/", filename.to_str().unwrap()).red();
+                println!("{}", print_str);
             }
         }
     }
 
     fn print_untracked_files(&self) {
         // List untracked files
+        println!("Files:");
         for file in self.untracked_files.iter() {
-            let mut break_both = false;
-            // If the file is in a directory that is untracked, don't display it
-            for (dir, _size) in self.untracked_dirs.iter() {
-                // println!("checking if file {:?} starts with {:?}", file, dir);
-                if file.starts_with(&dir) {
-                    break_both = true;
-                    continue;
-                }
-            }
-
-            if break_both {
-                continue;
-            }
-
-            let added_file_str = file.to_str().unwrap().to_string().red();
-            println!("  {}", added_file_str);
+            let print_str = file.to_str().unwrap().to_string().red();
+            println!("  {}", print_str);
         }
         println!();
     }

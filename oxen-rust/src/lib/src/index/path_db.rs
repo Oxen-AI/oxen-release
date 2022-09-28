@@ -3,27 +3,32 @@ use serde::{de, Serialize};
 
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::collections::HashSet;
+use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::hash::Hash;
 
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry
 pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) -> bool {
     let path = path.as_ref();
+    log::debug!(
+        "path_db::has_entry?({:?}) from db {:?}",
+        path,
+        db.path()
+    );
     if let Some(path_str) = path.to_str() {
         let bytes = path_str.as_bytes();
         match db.get(bytes) {
-            Ok(Some(_value)) => true,
-            Ok(None) => false,
+            Ok(Some(_value)) => return true,
+            Ok(None) => return false,
             Err(err) => {
                 log::error!("Error checking for entry: {}", err);
-                false
+                return false;
             }
         }
-    } else {
-        false
     }
+
+    false
 }
 
 /// # Get the staged entry object from the file path
@@ -35,7 +40,11 @@ where
     T: de::DeserializeOwned,
 {
     let path = path.as_ref();
-    log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
+    log::debug!(
+        "path_db::get_entry({:?}) from db {:?}",
+        path,
+        db.path()
+    );
     if let Some(path_str) = path.to_str() {
         let bytes = path_str.as_bytes();
         match db.get(bytes) {
@@ -43,29 +52,39 @@ where
                 // found it
                 let str_val = str::from_utf8(&*value)?;
                 let entry = serde_json::from_str(str_val)?;
-                log::debug!("path_db::get_entry({:?}) GOT IT from db {:?}", path, db.path());
-                Ok(Some(entry))
+                log::debug!(
+                    "path_db::get_entry({:?}) GOT IT from db {:?}",
+                    path,
+                    db.path()
+                );
+                return Ok(Some(entry));
             }
             Ok(None) => {
                 // did not get val
-                log::debug!("path_db::get_entry({:?}) don't got it....  from db {:?}", path, db.path());
-                Ok(None)
+                log::debug!(
+                    "path_db::get_entry({:?}) don't got it....  from db {:?}",
+                    path,
+                    db.path()
+                );
+                return Ok(None);
             }
             Err(err) => {
                 // error from the DB
-                let err = format!("Err could not fetch value from db: {} from db {:?}", err, db.path());
-                Err(OxenError::basic_str(err))
+                let err = format!(
+                    "Err could not fetch value {:?} from db: {} from db {:?}",
+                    path,
+                    err,
+                    db.path()
+                );
+                return Err(OxenError::basic_str(err));
             }
         }
-    } else {
-        Err(OxenError::basic_str(
-            "Err: get_entry could not convert path to str",
-        ))
     }
+    Err(OxenError::could_not_convert_path_to_str(path))
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn add_to_db<P: AsRef<Path>, T>(
+pub fn put<P: AsRef<Path>, T>(
     db: &DBWithThreadMode<MultiThreaded>,
     path: P,
     entry: &T,
@@ -74,13 +93,35 @@ where
     T: Serialize,
 {
     let path = path.as_ref();
-    let key = path.to_str().unwrap();
-    let entry_json = serde_json::to_string(entry)?;
+    if let Some(key) = path.to_str() {
+        let entry_json = serde_json::to_string(entry)?;
 
-    log::debug!("add_to_db {:?} -> {:?} -> db: {:?}", path, entry_json, db.path());
+        log::debug!(
+            "path_db::put {:?} -> {:?} -> db: {:?}",
+            path,
+            entry_json,
+            db.path()
+        );
 
-    db.put(&key, entry_json.as_bytes())?;
-    Ok(())
+        db.put(&key, entry_json.as_bytes())?;
+        return Ok(());
+    }
+    Err(OxenError::could_not_convert_path_to_str(path))
+}
+
+/// # Removes path entry from database
+pub fn delete<P: AsRef<Path>>(
+    db: &DBWithThreadMode<MultiThreaded>,
+    path: P,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    if let Some(key) = path.to_str() {
+        log::debug!("path_db::delete {:?} from db: {:?}", path, db.path());
+
+        db.delete(&key)?;
+        return Ok(());
+    }
+    Err(OxenError::could_not_convert_path_to_str(path))
 }
 
 /// # List the file paths in the staged dir
@@ -144,16 +185,13 @@ where
 }
 
 /// # List entries without file names
-pub fn list_entries<T>(
-    db: &DBWithThreadMode<MultiThreaded>,
-    base_dir: &Path,
-) -> Result<Vec<T>, OxenError>
+pub fn list_entries<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<T>, OxenError>
 where
     T: de::DeserializeOwned,
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<T> = vec![];
-    for (key, value) in iter {
+    for (_key, value) in iter {
         match str::from_utf8(&*value) {
             Ok(value) => {
                 // Full path given the dir it is in
@@ -170,18 +208,15 @@ where
     Ok(paths)
 }
 
-pub fn list_entries_set<T>(
-    db: &DBWithThreadMode<MultiThreaded>,
-    base_dir: &Path,
-) -> Result<HashSet<T>, OxenError>
+pub fn list_entries_set<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashSet<T>, OxenError>
 where
     T: de::DeserializeOwned,
     T: Hash,
-    T: Eq
+    T: Eq,
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: HashSet<T> = HashSet::new();
-    for (key, value) in iter {
+    for (_key, value) in iter {
         match str::from_utf8(&*value) {
             Ok(value) => {
                 // Full path given the dir it is in

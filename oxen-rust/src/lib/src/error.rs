@@ -92,6 +92,11 @@ impl OxenError {
         OxenError::basic_str(&err)
     }
 
+    pub fn could_not_convert_path_to_str<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File has no name: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
     pub fn local_commit_or_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!(
             "Local branch or commit reference `{}` not found",

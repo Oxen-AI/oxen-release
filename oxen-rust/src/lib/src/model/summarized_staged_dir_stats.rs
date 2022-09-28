@@ -1,7 +1,7 @@
 use crate::model::StagedDirStats;
 
 use std::collections::HashMap;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 /// This is a representation of directories that are staged and we want a top level summary of counts
 /// For example:
@@ -12,7 +12,7 @@ use std::path::{PathBuf, Path};
 ///       unstaged.csv
 ///     test/
 ///       annotations.csv
-/// 
+///
 /// Would have:
 ///     annotations/train/ -> num_staged: 2, total: 3
 ///     annotations/test/ -> num_staged: 1, total: 1
@@ -22,7 +22,7 @@ use std::path::{PathBuf, Path};
 pub struct SummarizedStagedDirStats {
     pub num_files_staged: usize,
     pub total_files: usize,
-    pub paths: HashMap<PathBuf, Vec<StagedDirStats>>
+    pub paths: HashMap<PathBuf, Vec<StagedDirStats>>,
 }
 
 impl SummarizedStagedDirStats {
@@ -30,7 +30,7 @@ impl SummarizedStagedDirStats {
         SummarizedStagedDirStats {
             num_files_staged: 0,
             total_files: 0,
-            paths: HashMap::new()
+            paths: HashMap::new(),
         }
     }
 
@@ -40,6 +40,10 @@ impl SummarizedStagedDirStats {
 
     pub fn len(&self) -> usize {
         self.paths.len()
+    }
+
+    pub fn contains_key(&self, path: &Path) -> bool {
+        self.paths.contains_key(path)
     }
 
     fn rollup_stats(&self, path: &Path, stats: &Vec<StagedDirStats>) -> StagedDirStats {
@@ -52,8 +56,8 @@ impl SummarizedStagedDirStats {
         return StagedDirStats {
             path: path.to_path_buf(),
             num_files_staged: num_staged,
-            total_files: total
-        }
+            total_files: total,
+        };
     }
 
     pub fn get(&self, path: &Path) -> Option<StagedDirStats> {
@@ -81,7 +85,7 @@ impl SummarizedStagedDirStats {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{SummarizedStagedDirStats, StagedDirStats};
+    use crate::model::{StagedDirStats, SummarizedStagedDirStats};
 
     use std::path::PathBuf;
 
@@ -110,7 +114,7 @@ mod tests {
         summarized.add_stats(&stats_train);
         summarized.add_stats(&stats_test);
 
-
+        assert_eq!(summarized.len(), 1);
         assert_eq!(summarized.num_files_staged, 3);
         assert_eq!(summarized.total_files, 4);
     }

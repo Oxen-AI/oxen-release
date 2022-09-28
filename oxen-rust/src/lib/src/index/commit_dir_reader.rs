@@ -12,6 +12,8 @@ use std::str;
 
 use crate::model::LocalRepository;
 
+use super::path_db;
+
 pub struct CommitDirReader {
     dir_db: DBWithThreadMode<MultiThreaded>,
     repository: LocalRepository,
@@ -26,8 +28,16 @@ impl CommitDirReader {
         log::debug!("CommitDirReader::new() commit_id: {}", commit.id);
         let db_path = util::fs::oxen_hidden_dir(&repository.path)
             .join(HISTORY_DIR)
-            .join(&commit.id);
+            .join(&commit.id)
+            .join("dirs");
         let opts = db::opts::default();
+
+        if !db_path.exists() {
+            std::fs::create_dir_all(&db_path)?;
+            // open it then lose scope to close it
+            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
+        }
+
         Ok(CommitDirReader {
             dir_db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
             repository: repository.to_owned(),
@@ -39,33 +49,23 @@ impl CommitDirReader {
     pub fn new_from_head(repository: &LocalRepository) -> Result<CommitDirReader, OxenError> {
         let commit_reader = CommitReader::new(repository)?;
         let commit = commit_reader.head_commit()?;
-        log::debug!(
-            "CommitDirReader::new_from_head() commit_id: {}",
-            commit.id
-        );
+        log::debug!("CommitDirReader::new_from_head() commit_id: {}", commit.id);
         CommitDirReader::new(repository, &commit)
     }
 
     pub fn list_committed_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
-        let iter = self.dir_db.iterator(IteratorMode::Start);
-        let mut paths: Vec<PathBuf> = vec![];
-        for (key, _value) in iter {
-            match str::from_utf8(&*key) {
-                Ok(key) => {
-                    paths.push(PathBuf::from(String::from(key)));
-                }
-                _ => {
-                    log::error!("list_committed_dirs() Could not decode key {:?}", key)
-                }
-            }
-        }
-        Ok(paths)
+        path_db::list_paths(&self.dir_db, Path::new(""))
+    }
+
+    pub fn has_dir<P: AsRef<Path>>(&self, path: P) -> bool {
+        path_db::has_entry(&self.dir_db, path)
     }
 
     pub fn num_entries(&self) -> Result<usize, OxenError> {
         let mut count = 0;
         for dir in self.list_committed_dirs()? {
-            let commit_entry_dir = CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
+            let commit_entry_dir =
+                CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
             count += commit_entry_dir.num_entries();
         }
         Ok(count)
