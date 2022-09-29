@@ -67,7 +67,9 @@ impl SummarizedStagedDirStats {
     }
 
     pub fn get(&self, path: &Path) -> Option<StagedDirStats> {
-        self.paths.get(path).map(|stats| self.rollup_stats(path, stats))
+        self.paths
+            .get(path)
+            .map(|stats| self.rollup_stats(path, stats))
     }
 
     pub fn add_stats(&mut self, stats: &StagedDirStats) {

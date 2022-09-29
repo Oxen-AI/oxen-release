@@ -351,6 +351,7 @@ pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), Oxe
 /// it also updates all the local files to be from the commit that this branch references
 pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
     let value = value.as_ref();
+    log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
             println!("Already on branch {}", value);
@@ -371,7 +372,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
         set_working_commit_id(repo, value)?;
         set_head(repo, value)?;
     }
-
+    log::debug!("--- CHECKOUT END {} ----", value);
     Ok(())
 }
 

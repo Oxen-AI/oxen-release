@@ -1,5 +1,5 @@
 use colored::Colorize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -250,45 +250,50 @@ impl StagedData {
             return;
         }
 
-        // Unwrap because is some
-        let repo_path = repo_path.unwrap();
-        // println!("Got repo path {:?} {:?}", current_dir, repo_path);
-
-        // Get the top level dirs so that we don't have to print every file
-        let mut top_level_counts =
-            self.get_top_level_removed_counts(&repo_path, &self.removed_files);
-
-        // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        let remaining_file_count =
-            self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
-
-        // When iterating, if remaining_file_count[p] == 0 or we have more than N entries then we only print the count
-        let mut summarized: HashSet<PathBuf> = HashSet::new();
-        for short_path in self.removed_files.iter() {
-            let full_path = repo_path.join(short_path);
-            let path = self.get_top_level_dir(&repo_path, &full_path);
-
-            let count = top_level_counts[&path];
-            if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
-                && !summarized.contains(&path)
-            {
-                let added_file_str = format!(
-                    "  removed: {}\n    which had {} files including {}",
-                    path.to_str().unwrap(),
-                    count,
-                    short_path.to_str().unwrap()
-                )
-                .red();
-                println!("{}", added_file_str);
-
-                summarized.insert(path.to_owned());
-            }
-
-            if !summarized.contains(&path) {
-                let added_file_str = format!("  removed:  {}", short_path.to_str().unwrap()).red();
-                println!("{}", added_file_str);
-            }
+        for file in self.removed_files.iter() {
+            let print_str = format!("  removed:  {}", file.to_str().unwrap()).red();
+            println!("{}", print_str);
         }
+
+        // // Unwrap because is some
+        // let repo_path = repo_path.unwrap();
+        // // println!("Got repo path {:?} {:?}", current_dir, repo_path);
+
+        // // Get the top level dirs so that we don't have to print every file
+        // let mut top_level_counts =
+        //     self.get_top_level_removed_counts(&repo_path, &self.removed_files);
+
+        // // See the actual counts in the dir, if nothing remains, we can just print the top level summary
+        // let remaining_file_count =
+        //     self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
+
+        // // When iterating, if remaining_file_count[p] == 0 or we have more than N entries then we only print the count
+        // let mut summarized: HashSet<PathBuf> = HashSet::new();
+        // for short_path in self.removed_files.iter() {
+        //     let full_path = repo_path.join(short_path);
+        //     let path = self.get_top_level_dir(&repo_path, &full_path);
+
+        //     let count = top_level_counts[&path];
+        //     if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
+        //         && !summarized.contains(&path)
+        //     {
+        //         let added_file_str = format!(
+        //             "  removed: {}\n    which had {} files including {}",
+        //             path.to_str().unwrap(),
+        //             count,
+        //             short_path.to_str().unwrap()
+        //         )
+        //         .red();
+        //         println!("{}", added_file_str);
+
+        //         summarized.insert(path.to_owned());
+        //     }
+
+        //     if !summarized.contains(&path) {
+        //         let added_file_str = format!("  removed:  {}", short_path.to_str().unwrap()).red();
+        //         println!("{}", added_file_str);
+        //     }
+        // }
     }
 
     fn get_top_level_dir(&self, repo_path: &Path, full_path: &Path) -> PathBuf {
