@@ -110,6 +110,10 @@ impl Stager {
             }
 
             let files_in_dir = commit_reader.list_files_from_dir(&relative_path);
+            log::debug!(
+                "Stager.add() !path.exists() {} files in dir {:?}",
+                files_in_dir.len(), relative_path
+            );
             if !files_in_dir.is_empty() {
                 for entry in files_in_dir.iter() {
                     self.add_removed_file(&entry.path, entry)?;
@@ -205,20 +209,19 @@ impl Stager {
         let root_commit_entry_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir)?;
 
-        let read_dir = std::fs::read_dir(full_dir);
-        if read_dir.is_err() {
-            return Err(OxenError::file_does_not_exist(full_dir));
-        }
-
         // Create candidate files paths to look at
         let mut candidate_files: HashSet<PathBuf> = HashSet::new();
-
-        // Files in working directory as candidates
-        for path in read_dir? {
-            let path = path?.path();
-            let path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
-            log::debug!("adding candidate from dir {:?}", path);
-            candidate_files.insert(path);
+        
+        // Only consider working dir if it is on disk, otherwise we will grab from history
+        let read_dir = std::fs::read_dir(full_dir);
+        if read_dir.is_ok() {
+            // Files in working directory as candidates
+            for path in read_dir? {
+                let path = path?.path();
+                let path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+                log::debug!("adding candidate from dir {:?}", path);
+                candidate_files.insert(path);
+            }
         }
 
         // and files that were in commit as candidates
@@ -373,7 +376,9 @@ impl Stager {
     }
 
     fn add_removed_file(&self, path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
+        log::debug!("add_removed_file {:?}", path);
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
+            log::debug!("add_removed_file got filename {:?} and parent {:?}", filename, parent);
             let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
