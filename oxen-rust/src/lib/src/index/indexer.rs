@@ -13,8 +13,7 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter,
-    RefReader, RefWriter,
+    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter, RefReader, RefWriter,
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;

@@ -29,6 +29,7 @@ pub enum FileStatus {
     Added,
     Untracked,
     Modified,
+    Removed,
 }
 
 pub struct Stager {
@@ -203,36 +204,63 @@ impl Stager {
         let staged_dir_db = StagedDirEntryDB::new(&self.repository, &relative_dir)?;
         let root_commit_entry_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir)?;
-        log::debug!("instantiated errthang for relative dir {:?}", relative_dir);
-        log::debug!("full path {:?}", full_dir);
+
         let read_dir = std::fs::read_dir(full_dir);
         if read_dir.is_err() {
-            panic!("Cannot find dir: {:?}", full_dir);
+            return Err(OxenError::file_does_not_exist(full_dir));
         }
 
+        // Create candidate files paths to look at
+        let mut candidate_files: HashSet<PathBuf> = HashSet::new();
+
+        // Files in working directory as candidates
         for path in read_dir? {
             let path = path?.path();
-            let relative = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
-            log::debug!("process_dir considering relative path {:?}", relative);
+            let path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
+            log::debug!("adding candidate from dir {:?}", path);
+            candidate_files.insert(path);
+        }
 
-            if util::fs::is_in_oxen_hidden_dir(&path) {
+        // and files that were in commit as candidates
+        for entry in root_commit_entry_reader.list_entries()? {
+            log::debug!("adding candidate from commit {:?}", entry.path);
+            candidate_files.insert(entry.path);
+        }
+        log::debug!(
+            "Got {} candidates in directory {:?}",
+            candidate_files.len(),
+            relative_dir
+        );
+
+        for relative in candidate_files.iter() {
+            log::debug!("process_dir checking relative path {:?}", relative);
+            let fullpath = self.repository.path.join(relative);
+            if util::fs::is_in_oxen_hidden_dir(&fullpath) {
                 continue;
             }
 
-            if path.is_dir() {
+            log::debug!(
+                "process_dir checking is_dir? {} {:?}",
+                fullpath.is_dir(),
+                fullpath
+            );
+
+            if fullpath.is_dir() {
                 if !self.has_staged_dir(&relative)
-                    && !staged_data.added_dirs.contains_key(&relative)
+                    && !staged_data.added_dirs.contains_key(relative)
                     && !root_commit_dir_reader.has_dir(&relative)
                 {
                     log::debug!("process_dir adding untracked dir {:?}", relative);
-                    staged_data.untracked_dirs.push((relative, 0));
+                    staged_data.untracked_dirs.push((relative.to_path_buf(), 0));
                 }
             } else {
                 // is file
-                let file_status =
-                    Stager::get_file_status(&path, &staged_dir_db, &root_commit_entry_reader);
-                let relative =
-                    util::fs::path_relative_to_dir(&path, &self.repository.path).unwrap();
+                let file_status = Stager::get_file_status(
+                    &self.repository.path,
+                    relative,
+                    &staged_dir_db,
+                    &root_commit_entry_reader,
+                );
                 log::debug!("process_dir got status {:?} {:?}", relative, file_status);
                 if let Some(file_type) = file_status {
                     match file_type {
@@ -240,14 +268,19 @@ impl Stager {
                             let file_name = relative.file_name().unwrap();
                             let result = staged_dir_db.get_entry(&file_name);
                             if let Ok(Some(entry)) = result {
-                                staged_data.added_files.insert(relative, entry);
+                                staged_data
+                                    .added_files
+                                    .insert(relative.to_path_buf(), entry);
                             }
                         }
                         FileStatus::Untracked => {
-                            staged_data.untracked_files.push(relative);
+                            staged_data.untracked_files.push(relative.to_path_buf());
                         }
                         FileStatus::Modified => {
-                            staged_data.modified_files.push(relative);
+                            staged_data.modified_files.push(relative.to_path_buf());
+                        }
+                        FileStatus::Removed => {
+                            staged_data.removed_files.push(relative.to_path_buf());
                         }
                     }
                 }
@@ -257,6 +290,7 @@ impl Stager {
     }
 
     fn get_file_status(
+        full_dir: &Path,
         path: &Path,
         staged_dir_db: &StagedDirEntryDB,
         commit_dir_db: &CommitDirEntryReader,
@@ -270,40 +304,68 @@ impl Stager {
         } else {
             // Not in the staged DB
             log::debug!("get_file_status check if commit db? {:?}", file_name);
-            // check if it is in the HEAD commit to see if it is modified
-            if Stager::file_is_modified(path, commit_dir_db) {
-                return Some(FileStatus::Modified);
+            // check if it is in the HEAD commit to see if it is modified or removed
+            if let Some(file_name) = path.file_name() {
+                if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(&file_name) {
+                    if Stager::file_is_removed(full_dir, &commit_entry) {
+                        return Some(FileStatus::Removed);
+                    } else if Stager::file_is_modified(full_dir, &commit_entry) {
+                        return Some(FileStatus::Modified);
+                    }
+                } else {
+                    return Some(FileStatus::Untracked);
+                }
             }
         }
 
-        Some(FileStatus::Untracked)
+        None
     }
 
-    fn file_is_modified(path: &Path, commit_dir_db: &CommitDirEntryReader) -> bool {
-        if let Some(file_name) = path.file_name() {
-            if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(&file_name) {
-                // Get last modified time
-                let metadata = fs::metadata(&path).unwrap();
-                let mtime = FileTime::from_last_modification_time(&metadata);
+    fn file_is_removed(repo_path: &Path, commit_entry: &CommitEntry) -> bool {
+        let full_path = repo_path.join(&commit_entry.path);
+        log::debug!(
+            "CHECKING REMOVED {:?} -> {:?}",
+            repo_path,
+            commit_entry.path
+        );
+        log::debug!("CHECKING REMOVED {:?}", full_path);
+        !full_path.exists()
+    }
 
-                log::debug!(
-                    "file_is_modified comparing timestamps: {} to {}",
-                    commit_entry.last_modified_nanoseconds,
-                    mtime.nanoseconds()
-                );
+    fn file_is_modified(repo_path: &Path, commit_entry: &CommitEntry) -> bool {
+        // Get last modified time
+        let full_path = repo_path.join(&commit_entry.path);
+        log::debug!(
+            "CHECKING MODIFIED {:?} -> {:?}",
+            repo_path,
+            commit_entry.path
+        );
+        log::debug!("CHECKING MODIFIED {:?}", full_path);
 
-                if commit_entry.has_different_modification_time(&mtime) {
-                    log::debug!(
-                        "file_is_modified modification times are different! {:?}",
-                        file_name
-                    );
+        if !full_path.exists() {
+            // might have been removed
+            return false;
+        }
 
-                    // Then check the hashes, because the data might not be different, timestamp is just an optimization
-                    let hash = util::hasher::hash_file_contents(path).unwrap();
-                    if hash != commit_entry.hash {
-                        return true;
-                    }
-                }
+        let metadata = fs::metadata(&full_path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+
+        log::debug!(
+            "file_is_modified comparing timestamps: {} to {}",
+            commit_entry.last_modified_nanoseconds,
+            mtime.nanoseconds()
+        );
+
+        if commit_entry.has_different_modification_time(&mtime) {
+            log::debug!(
+                "file_is_modified modification times are different! {:?}",
+                full_path
+            );
+
+            // Then check the hashes, because the data might not be different, timestamp is just an optimization
+            let hash = util::hasher::hash_file_contents(&full_path).unwrap();
+            if hash != commit_entry.hash {
+                return true;
             }
         }
 
@@ -1197,17 +1259,11 @@ mod tests {
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitDirReader::new(&repo, &commit)?;
 
-            // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let one_shot_file = repo_path
                 .join("annotations")
                 .join("train")
                 .join("one_shot.txt");
-
-            // Add the directory which has the structure
-            // annotations/
-            //   train/
-            //     one_shot.txt
 
             // Modify the committed file
             let one_shot_file = test::modify_txt_file(one_shot_file, "new content coming in hot")?;
@@ -1218,6 +1274,74 @@ mod tests {
             let files = status.modified_files;
 
             // There is one modified file
+            assert_eq!(files.len(), 1);
+
+            // And it is
+            let relative_path = util::fs::path_relative_to_dir(&one_shot_file, repo_path)?;
+            assert_eq!(files[0], relative_path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_remove_file_top_level() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let stager = Stager::new(&repo)?;
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitDirReader::new(&repo, &commit)?;
+
+            let repo_path = &stager.repository.path;
+            let file_to_rm = repo_path.join("labels.txt");
+
+            // Remove a committed file
+            std::fs::remove_file(&file_to_rm)?;
+
+            // List removed
+            let status = stager.status(&entry_reader)?;
+            status.print();
+            let files = status.removed_files;
+
+            // There is one removed file, and nothing else
+            assert_eq!(files.len(), 1);
+            assert_eq!(status.added_dirs.len(), 0);
+            assert_eq!(status.added_files.len(), 0);
+            assert_eq!(status.untracked_dirs.len(), 0);
+            assert_eq!(status.untracked_files.len(), 0);
+            assert_eq!(status.modified_files.len(), 0);
+
+            // And it is
+            let relative_path = util::fs::path_relative_to_dir(&file_to_rm, repo_path)?;
+            assert_eq!(files[0], relative_path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_remove_file_recursive() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let stager = Stager::new(&repo)?;
+            let commit_reader = CommitReader::new(&repo)?;
+            let commit = commit_reader.head_commit()?;
+            let entry_reader = CommitDirReader::new(&repo, &commit)?;
+
+            let repo_path = &stager.repository.path;
+            let one_shot_file = repo_path
+                .join("annotations")
+                .join("train")
+                .join("one_shot.txt");
+
+            // Remove a committed file
+            std::fs::remove_file(&one_shot_file)?;
+
+            // List removed
+            let status = stager.status(&entry_reader)?;
+            status.print();
+            let files = status.removed_files;
+
+            // There is one removed file
             assert_eq!(files.len(), 1);
 
             // And it is

@@ -235,6 +235,11 @@ impl CommitWriter {
 
         let head_commit = CommitDBReader::head_commit(&self.repository, &self.commits_db)?;
         if head_commit.id == commit_id {
+            log::debug!(
+                "set_working_repo_to_commit_id, do nothing... head commit == commit_id {}",
+                commit_id
+            );
+
             // Don't do anything if we tried to switch to same commit
             return Ok(());
         }
