@@ -70,7 +70,7 @@ fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
         command::add(&repo, repo.path.join(Path::new("labels.txt")))?;
 
         let repo_status = command::status(&repo)?;
-        repo_status.print();
+        repo_status.print_stdout();
 
         assert_eq!(repo_status.added_dirs.len(), 0);
         assert_eq!(repo_status.added_files.len(), 1);
@@ -97,7 +97,7 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
 
         // Make sure that we now see the full annotations/train/ directory
         let repo_status = command::status(&repo)?;
-        repo_status.print();
+        repo_status.print_stdout();
 
         // annotations/
         assert_eq!(repo_status.added_dirs.len(), 1);
@@ -493,7 +493,7 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
         let annotation_dir_path = repo.path.join("annotations");
         command::add(&repo, &annotation_dir_path)?;
         let status = command::status(&repo)?;
-        status.print();
+        status.print_stdout();
         assert_eq!(status.added_files.len(), 1);
         command::commit(&repo, "Changing one shot")?;
         let status = command::status(&repo)?;
@@ -524,10 +524,10 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
-        status.print();
+        status.print_stdout();
         command::add(&repo, &one_shot_path)?;
         let status = command::status(&repo)?;
-        status.print();
+        status.print_stdout();
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
@@ -571,7 +571,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         assert_eq!(status.added_files.len(), 1);
 
         let status = command::status(&repo)?;
-        status.print();
+        status.print_stdout();
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
@@ -936,7 +936,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
 
         // Track the rest of the files
         let full_dir = &repo.path;
-        let num_files = util::fs::count_files_in_dir(full_dir);
+        let num_files = util::fs::count_items_in_dir(full_dir);
         command::add(&repo, full_dir)?;
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
@@ -1057,9 +1057,9 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             // Pull back from the OG Repo
             command::pull(&repo)?;
             let old_repo_status = command::status(&repo)?;
-            old_repo_status.print();
+            old_repo_status.print_stdout();
             // Make sure we don't modify the timestamps or anything of the OG data
-            assert!(old_repo_status.is_clean());
+            assert!(!old_repo_status.has_modified_entries());
 
             let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
             assert!(pulled_send_it_back_path.exists());

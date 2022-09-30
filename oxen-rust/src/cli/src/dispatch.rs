@@ -227,7 +227,7 @@ pub fn status() -> Result<(), OxenError> {
         );
     }
 
-    repo_status.print();
+    repo_status.print_stdout();
 
     Ok(())
 }

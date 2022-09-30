@@ -150,7 +150,7 @@ impl CommitWriter {
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         // User output
-        println!("Commit {} -> {}", commit.id, commit.message);
+        println!("Commit {} done.", commit.id);
         log::debug!("---COMMIT END---"); // for debug logging / timing purposes
 
         Ok(commit)
@@ -280,8 +280,11 @@ impl CommitWriter {
                     path
                 );
 
+                // TODO: Why are we doing...parent.parent here?
                 // Keep track of parents to see if we clear them
                 if let Some(parent) = path.parent() {
+                    log::debug!("adding candidiate dir {:?}", parent);
+
                     if parent.parent().is_some() {
                         // only add one directory below top level
                         // println!("set_working_repo_to_commit_id candidate dir {:?}", parent);
@@ -302,6 +305,8 @@ impl CommitWriter {
                 }
             }
         }
+        println!("Setting working directory to {}", commit_id);
+        log::debug!("got {} candidiate dirs", candidate_dirs_to_rm.len());
 
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
@@ -316,7 +321,7 @@ impl CommitWriter {
             if let Some(parent) = path.parent() {
                 // Check if parent directory exists, if it does, we no longer have
                 // it as a candidate to remove
-                // println!("CHECKING {:?}", parent);
+                println!("We aren't going to delete candidate {:?}", parent);
                 if candidate_dirs_to_rm.contains(parent) {
                     candidate_dirs_to_rm.remove(&parent.to_path_buf());
                 }
@@ -371,6 +376,7 @@ impl CommitWriter {
 
         bar.finish();
 
+        log::debug!("candidate_dirs_to_rm {}", candidate_dirs_to_rm.len());
         if !candidate_dirs_to_rm.is_empty() {
             println!("Cleaning up...");
         }
@@ -394,6 +400,7 @@ impl CommitWriter {
             Err(OxenError::basic_str(&err))
         }
     }
+
     pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<Commit>, OxenError> {
         // Check if the id is in the DB
         let key = commit_id.as_bytes();

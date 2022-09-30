@@ -66,6 +66,6 @@ impl CommitDirEntryWriter {
     }
 
     pub fn remove_path_from_db(&self, path: &Path) -> Result<(), OxenError> {
-        path_db::delete(&self.db, path)
+        path_db::delete(&self.db, &path.file_name().unwrap())
     }
 }

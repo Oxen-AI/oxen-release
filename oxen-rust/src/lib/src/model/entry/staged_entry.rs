@@ -21,6 +21,16 @@ pub struct StagedEntry {
     pub entry_type: StagedEntryType,
 }
 
+impl StagedEntry {
+    pub fn empty_status(status: StagedEntryStatus) -> StagedEntry {
+        StagedEntry {
+            hash: String::from(""),
+            status: status,
+            entry_type: StagedEntryType::Regular,
+        }
+    }
+}
+
 impl ContentHashable for StagedEntry {
     fn content_hash(&self) -> String {
         self.hash.clone()
