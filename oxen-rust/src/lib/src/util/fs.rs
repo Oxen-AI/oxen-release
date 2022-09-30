@@ -359,6 +359,29 @@ pub fn count_files_in_dir(dir: &Path) -> usize {
     count
 }
 
+pub fn count_items_in_dir(dir: &Path) -> usize {
+    let mut count: usize = 0;
+    if dir.is_dir() {
+        match fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            let path = entry.path();
+                            if !is_in_oxen_hidden_dir(&path) {
+                                count += 1;
+                            }
+                        }
+                        Err(err) => log::warn!("error reading dir entry: {}", err),
+                    }
+                }
+            }
+            Err(err) => log::warn!("error reading dir: {}", err),
+        }
+    }
+    count
+}
+
 pub fn rcount_files_in_dir(dir: &Path) -> usize {
     let mut count: usize = 0;
     if !dir.is_dir() {

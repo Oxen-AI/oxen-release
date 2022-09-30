@@ -112,7 +112,8 @@ impl Stager {
             let files_in_dir = commit_reader.list_files_from_dir(&relative_path);
             log::debug!(
                 "Stager.add() !path.exists() {} files in dir {:?}",
-                files_in_dir.len(), relative_path
+                files_in_dir.len(),
+                relative_path
             );
             if !files_in_dir.is_empty() {
                 for entry in files_in_dir.iter() {
@@ -211,7 +212,7 @@ impl Stager {
 
         // Create candidate files paths to look at
         let mut candidate_files: HashSet<PathBuf> = HashSet::new();
-        
+
         // Only consider working dir if it is on disk, otherwise we will grab from history
         let read_dir = std::fs::read_dir(full_dir);
         if read_dir.is_ok() {
@@ -254,7 +255,10 @@ impl Stager {
                     && !root_commit_dir_reader.has_dir(&relative)
                 {
                     log::debug!("process_dir adding untracked dir {:?}", relative);
-                    staged_data.untracked_dirs.push((relative.to_path_buf(), 0));
+                    let count = util::fs::count_items_in_dir(&fullpath);
+                    staged_data
+                        .untracked_dirs
+                        .push((relative.to_path_buf(), count));
                 }
             } else {
                 // is file
@@ -378,7 +382,11 @@ impl Stager {
     fn add_removed_file(&self, path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
         log::debug!("add_removed_file {:?}", path);
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
-            log::debug!("add_removed_file got filename {:?} and parent {:?}", filename, parent);
+            log::debug!(
+                "add_removed_file got filename {:?} and parent {:?}",
+                filename,
+                parent
+            );
             let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
@@ -821,7 +829,7 @@ mod tests {
 
             // There should no longer be any added files
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             assert_eq!(status.added_files.len(), 0);
             assert_eq!(status.added_dirs.paths.len(), 0);
 
@@ -952,7 +960,7 @@ mod tests {
             stager.add_dir(&sub_dir, &entry_reader)?;
 
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             assert_eq!(status.added_files.len(), 2);
 
             Ok(())
@@ -1154,7 +1162,7 @@ mod tests {
             // List files
             let entry_reader = CommitDirReader::new(&stager.repository, &commit)?;
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             let mod_files = status.modified_files;
             assert_eq!(mod_files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
@@ -1242,7 +1250,7 @@ mod tests {
 
             // List dirs
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             let dirs = status.added_dirs;
 
             // There is one directory
@@ -1275,7 +1283,7 @@ mod tests {
 
             // List modified
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             let files = status.modified_files;
 
             // There is one modified file
@@ -1305,7 +1313,7 @@ mod tests {
 
             // List removed
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             let files = status.removed_files;
 
             // There is one removed file, and nothing else
@@ -1343,7 +1351,7 @@ mod tests {
 
             // List removed
             let status = stager.status(&entry_reader)?;
-            status.print();
+            status.print_stdout();
             let files = status.removed_files;
 
             // There is one removed file
