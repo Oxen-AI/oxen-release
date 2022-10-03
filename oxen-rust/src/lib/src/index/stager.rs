@@ -149,7 +149,11 @@ impl Stager {
         result
     }
 
-    pub fn status_from_dir(&self, entry_reader: &CommitDirReader, dir: &Path) -> Result<StagedData, OxenError> {
+    pub fn status_from_dir(
+        &self,
+        entry_reader: &CommitDirReader,
+        dir: &Path,
+    ) -> Result<StagedData, OxenError> {
         log::debug!("-----STATUS START-----");
         let result = self.compute_staged_data(&dir, entry_reader);
         log::debug!("-----STATUS END-----");
