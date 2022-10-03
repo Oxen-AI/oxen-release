@@ -605,11 +605,11 @@ mod tests {
         let outputs = staged_data.__collect_outputs(0, num_to_print, false);
         assert_eq!(outputs[0], "Untracked Directories\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_DIR_EXAMPLE.normal());
-        assert_eq!(outputs[2], "  train/       ".red().bold());
-        assert_eq!(outputs[3], "(10 items)\n".normal());
+        assert_eq!(outputs[2], "  annotations/ ".red().bold());
+        assert_eq!(outputs[3], "(1 item)\n".normal());
         assert_eq!(outputs[4], "  test/        ".red().bold());
         assert_eq!(outputs[5], "(4 items)\n".normal());
-        assert_eq!(outputs[6], "  annotations/ ".red().bold());
-        assert_eq!(outputs[7], "(1 item)\n".normal());
+        assert_eq!(outputs[6], "  train/       ".red().bold());
+        assert_eq!(outputs[7], "(10 items)\n".normal());
     }
 }
