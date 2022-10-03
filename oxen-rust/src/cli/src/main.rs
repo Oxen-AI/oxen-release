@@ -78,7 +78,31 @@ async fn main() {
                 )
         )
         .subcommand(
-            Command::new("status").about("See at what files are ready to be added or committed"),
+            Command::new("status")
+                .about("See at what files are ready to be added or committed")
+                .arg(
+                    Arg::new("skip")
+                        .long("skip")
+                        .short('s')
+                        .help("Allows you to skip and paginate through the file list preview.")
+                        .default_value("0")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("limit")
+                        .long("limit")
+                        .short('l')
+                        .help("Allows you to view more file list preview.")
+                        .default_value("10")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("print_all")
+                        .long("print_all")
+                        .short('a')
+                        .help("If present, does not truncate the output of status at all.")
+                        .takes_value(false),
+                )
         )
         .subcommand(Command::new("log").about("See log of commits"))
         .subcommand(
@@ -86,13 +110,6 @@ async fn main() {
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
                 .arg_required_else_help(true)
-                .arg(
-                    Arg::new("table")
-                        .long("table")
-                        .short('t')
-                        .help("Flag you want to track all row level changes in a tabular data file.")
-                        .takes_value(false),
-                ),
         )
         .subcommand(
             Command::new("branch")
@@ -280,12 +297,26 @@ async fn main() {
                 }
             }
         }
-        Some(("status", _sub_matches)) => match dispatch::status() {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{}", err);
+        Some(("status", sub_matches)) => {
+            let skip: usize = sub_matches
+                .value_of("skip")
+                .unwrap_or("0")
+                .parse::<usize>()
+                .expect("Skip must be a valid integer.");
+            let limit: usize = sub_matches
+                .value_of("limit")
+                .unwrap_or("10")
+                .parse::<usize>()
+                .expect("Limit must be a valid integer.");
+            let print_all = sub_matches.is_present("print_all");
+
+            match dispatch::status(skip, limit, print_all) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err);
+                }
             }
-        },
+        }
         Some(("log", _sub_matches)) => match dispatch::log_commits() {
             Ok(_) => {}
             Err(err) => {
@@ -294,7 +325,6 @@ async fn main() {
         },
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            if sub_matches.is_present("table") {}
 
             match dispatch::add(path) {
                 Ok(_) => {}
