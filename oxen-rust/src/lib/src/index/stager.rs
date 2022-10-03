@@ -155,7 +155,7 @@ impl Stager {
         dir: &Path,
     ) -> Result<StagedData, OxenError> {
         log::debug!("-----STATUS START-----");
-        let result = self.compute_staged_data(&dir, entry_reader);
+        let result = self.compute_staged_data(dir, entry_reader);
         log::debug!("-----STATUS END-----");
         result
     }

@@ -141,7 +141,7 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
     log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
     log::debug!("status before stager.status");
-    let status = stager.status_from_dir(&reader, &dir)?;
+    let status = stager.status_from_dir(&reader, dir)?;
     Ok(status)
 }
 

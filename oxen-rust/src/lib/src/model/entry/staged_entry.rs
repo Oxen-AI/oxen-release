@@ -25,7 +25,7 @@ impl StagedEntry {
     pub fn empty_status(status: StagedEntryStatus) -> StagedEntry {
         StagedEntry {
             hash: String::from(""),
-            status: status,
+            status,
             entry_type: StagedEntryType::Regular,
         }
     }
