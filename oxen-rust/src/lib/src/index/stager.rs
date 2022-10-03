@@ -149,6 +149,13 @@ impl Stager {
         result
     }
 
+    pub fn status_from_dir(&self, entry_reader: &CommitDirReader, dir: &Path) -> Result<StagedData, OxenError> {
+        log::debug!("-----STATUS START-----");
+        let result = self.compute_staged_data(&dir, entry_reader);
+        log::debug!("-----STATUS END-----");
+        result
+    }
+
     fn list_merge_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
         let merger = MergeConflictReader::new(&self.repository)?;
         merger.list_conflicts()

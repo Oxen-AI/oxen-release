@@ -134,6 +134,17 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     Ok(status)
 }
 
+/// Similar to status but takes the starting directory to look from
+pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<StagedData, OxenError> {
+    log::debug!("status before new_from_head");
+    let reader = CommitDirReader::new_from_head(repository)?;
+    log::debug!("status before Stager::new");
+    let stager = Stager::new(repository)?;
+    log::debug!("status before stager.status");
+    let status = stager.status_from_dir(&reader, &dir)?;
+    Ok(status)
+}
+
 /// # Get status of files in repository
 ///
 /// ```

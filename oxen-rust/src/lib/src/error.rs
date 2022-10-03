@@ -3,6 +3,8 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
+
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
     "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
 
@@ -30,7 +32,7 @@ impl OxenError {
     }
 
     pub fn local_repo_not_found() -> OxenError {
-        OxenError::basic_str("No oxen repository exists, looking for directory: .oxen")
+        OxenError::basic_str(NO_REPO_FOUND)
     }
 
     pub fn email_and_name_not_set() -> OxenError {

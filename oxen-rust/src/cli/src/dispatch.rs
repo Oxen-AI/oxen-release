@@ -210,9 +210,11 @@ pub fn log_commits() -> Result<(), OxenError> {
 
 pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenError> {
     // Should we let user call this from any directory and look up for parent?
-    let repo_dir = env::current_dir().unwrap();
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let repo_status = command::status(&repository)?;
+    let repo_status = command::status_from_dir(&repository, &current_dir)?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
         println!(
