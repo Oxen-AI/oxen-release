@@ -171,11 +171,7 @@ impl StagedData {
             let mut dir_row: Vec<ColoredString> = vec![];
             for staged_dir in staged_dirs.iter() {
                 dir_row.push("  added: ".green());
-                dir_row.push(
-                    staged_dir.path.to_str().unwrap().to_string()
-                        .green()
-                        .bold(),
-                );
+                dir_row.push(staged_dir.path.to_str().unwrap().to_string().green().bold());
 
                 let num_files_str = match staged_dir.num_files_staged {
                     1 => {
@@ -219,10 +215,8 @@ impl StagedData {
         }
         outputs.push("Files to be committed:\n".normal());
 
-        let mut files_vec: Vec<(&PathBuf, &StagedEntry)> = (&self.added_files)
-            .iter()
-            .map(|(k, v)| (k, v))
-            .collect();
+        let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
+            (&self.added_files).iter().map(|(k, v)| (k, v)).collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
