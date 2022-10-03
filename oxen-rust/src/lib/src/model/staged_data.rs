@@ -216,7 +216,7 @@ impl StagedData {
         outputs.push("Files to be committed:\n".normal());
 
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
-            (&self.added_files).iter().map(|(k, v)| (k, v)).collect();
+            self.added_files.iter().map(|(k, v)| (k, v)).collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
