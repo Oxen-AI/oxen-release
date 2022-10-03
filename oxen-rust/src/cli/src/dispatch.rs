@@ -208,7 +208,7 @@ pub fn log_commits() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn status() -> Result<(), OxenError> {
+pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenError> {
     // Should we let user call this from any directory and look up for parent?
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -227,7 +227,7 @@ pub fn status() -> Result<(), OxenError> {
         );
     }
 
-    repo_status.print_stdout();
+    repo_status.print_stdout_with_params(skip, limit, print_all);
 
     Ok(())
 }
