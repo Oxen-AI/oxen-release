@@ -79,7 +79,7 @@ impl StagedData {
         let mut outputs: Vec<ColoredString> = vec![];
 
         if self.is_clean() {
-            outputs.push(format!("{}", MSG_CLEAN_REPO).normal());
+            outputs.push(MSG_CLEAN_REPO.to_string().normal());
             return outputs;
         }
 
@@ -123,7 +123,7 @@ impl StagedData {
             return;
         }
 
-        outputs.push(format!("Merge conflicts:").normal());
+        outputs.push("Merge conflicts:".to_string().normal());
         outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT).normal());
 
         self.__collapse_outputs(
@@ -148,7 +148,7 @@ impl StagedData {
                 // );
 
                 vec![
-                    format!("  both modified: ").red(),
+                    "  both modified: ".to_string().red(),
                     format!("{}\n", path.to_str().unwrap()).red().bold(),
                 ]
             },
@@ -172,7 +172,7 @@ impl StagedData {
             for staged_dir in staged_dirs.iter() {
                 dir_row.push("  added: ".green());
                 dir_row.push(
-                    format!("{}", staged_dir.path.to_str().unwrap())
+                    staged_dir.path.to_str().unwrap().to_string()
                         .green()
                         .bold(),
                 );
@@ -220,8 +220,8 @@ impl StagedData {
         outputs.push("Files to be committed:\n".normal());
 
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> = (&self.added_files)
-            .into_iter()
-            .map(|(k, v)| (k, v).clone())
+            .iter()
+            .map(|(k, v)| (k, v))
             .collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
@@ -265,7 +265,7 @@ impl StagedData {
             return;
         }
 
-        outputs.push(format!("Modified files:").normal());
+        outputs.push("Modified files:".to_string().normal());
         outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
 
         let mut files = self.modified_files.clone();
@@ -275,7 +275,7 @@ impl StagedData {
             &files,
             |file| {
                 vec![
-                    format!("  modified: ").yellow(),
+                    "  modified: ".to_string().yellow(),
                     format!("{}\n", file.to_str().unwrap()).yellow().bold(),
                 ]
             },
@@ -298,7 +298,7 @@ impl StagedData {
             return;
         }
 
-        outputs.push(format!("Removed files:").normal());
+        outputs.push("Removed files:".to_string().normal());
         outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
 
         let mut files = self.removed_files.clone();
@@ -308,7 +308,7 @@ impl StagedData {
             &files,
             |file| {
                 vec![
-                    format!("  removed: ").red(),
+                    "  removed: ".to_string().red(),
                     format!("{}\n", file.to_str().unwrap()).red().bold(),
                 ]
             },
