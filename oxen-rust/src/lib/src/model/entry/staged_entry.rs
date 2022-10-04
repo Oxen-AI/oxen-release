@@ -8,10 +8,27 @@ pub enum StagedEntryStatus {
     Removed,
 }
 
+#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
+pub enum StagedEntryType {
+    Regular, // any old file
+    Tabular, // file we want to track row level changes
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StagedEntry {
     pub hash: String,
     pub status: StagedEntryStatus,
+    pub entry_type: StagedEntryType,
+}
+
+impl StagedEntry {
+    pub fn empty_status(status: StagedEntryStatus) -> StagedEntry {
+        StagedEntry {
+            hash: String::from(""),
+            status,
+            entry_type: StagedEntryType::Regular,
+        }
+    }
 }
 
 impl ContentHashable for StagedEntry {

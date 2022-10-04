@@ -1,46 +1,22 @@
-use colored::Colorize;
-use std::collections::{HashMap, HashSet};
-use std::env;
-use std::hash::{Hash, Hasher};
-use std::path::{Path, PathBuf};
+use colored::{ColoredString, Colorize};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
-use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus};
-use crate::util;
+use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats};
 
-// Used for a quick summary of directory
-#[derive(Debug)]
-pub struct StagedDirStats {
-    pub path: PathBuf,
-    pub num_files_staged: usize,
-    pub total_files: usize,
-}
-
-impl StagedDirStats {
-    pub fn from_path<T: AsRef<Path>>(path: T) -> StagedDirStats {
-        StagedDirStats {
-            path: path.as_ref().to_path_buf(),
-            num_files_staged: 0,
-            total_files: 0,
-        }
-    }
-}
-
-// Hash on the path field so we can quickly look up
-impl PartialEq for StagedDirStats {
-    fn eq(&self, other: &StagedDirStats) -> bool {
-        self.path == other.path
-    }
-}
-impl Eq for StagedDirStats {}
-impl Hash for StagedDirStats {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.path.hash(state);
-    }
-}
+pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
+pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
+    "  (use \"oxen add <file>...\" to update what will be committed)\n";
+pub const MSG_OXEN_ADD_DIR_EXAMPLE: &str =
+    "  (use \"oxen add <dir>...\" to update what will be committed)\n";
+pub const MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT: &str =
+    "  (use \"oxen add <file>...\" to mark resolution)\n";
+pub const MSG_OXEN_RESTORE_FILE: &str =
+    "  (use \"oxen restore <file>...\" to discard changes in working directory)";
 
 pub struct StagedData {
-    pub added_dirs: HashSet<StagedDirStats>, // Set we can look up into...and just use it for optim
-    pub added_files: Vec<(PathBuf, StagedEntry)>, // All the staged entries will be in here
+    pub added_dirs: SummarizedStagedDirStats,
+    pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -51,8 +27,8 @@ pub struct StagedData {
 impl StagedData {
     pub fn empty() -> StagedData {
         StagedData {
-            added_dirs: HashSet::new(),
-            added_files: vec![],
+            added_dirs: SummarizedStagedDirStats::new(),
+            added_files: HashMap::new(),
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: vec![],
@@ -91,360 +67,543 @@ impl StagedData {
         !self.merge_conflicts.is_empty()
     }
 
-    pub fn print(&self) {
+    /// Line by line output that we want to print
+    ///
+    /// # Arguments
+    ///
+    /// * `skip` - File index to skip printing for
+    /// * `limit` - Max number of files to show
+    /// * `print_all` - If true, ignores skip and limit and prints everything
+    ///
+    fn __collect_outputs(&self, skip: usize, limit: usize, print_all: bool) -> Vec<ColoredString> {
+        let mut outputs: Vec<ColoredString> = vec![];
+
         if self.is_clean() {
-            println!("nothing to commit, working tree clean");
+            outputs.push(MSG_CLEAN_REPO.to_string().normal());
+            return outputs;
+        }
+
+        self.__collect_added_dirs(&mut outputs, skip, limit, print_all);
+        self.__collect_added_files(&mut outputs, skip, limit, print_all);
+        self.__collect_modified_files(&mut outputs, skip, limit, print_all);
+        self.__collect_merge_conflicts(&mut outputs, skip, limit, print_all);
+        self.__collect_untracked_dirs(&mut outputs, skip, limit, print_all);
+        self.__collect_untracked_files(&mut outputs, skip, limit, print_all);
+
+        outputs
+    }
+
+    pub fn print_stdout(&self) {
+        let skip: usize = 0;
+        let limit: usize = 10;
+        let print_all = false;
+        let outputs = self.__collect_outputs(skip, limit, print_all);
+
+        for output in outputs {
+            print!("{}", output)
+        }
+    }
+
+    pub fn print_stdout_with_params(&self, skip: usize, limit: usize, print_all: bool) {
+        let outputs = self.__collect_outputs(skip, limit, print_all);
+
+        for output in outputs {
+            print!("{}", output)
+        }
+    }
+
+    pub fn __collect_merge_conflicts(
+        &self,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        if self.merge_conflicts.is_empty() {
             return;
         }
 
-        // List added files
-        if self.has_added_entries() {
-            self.print_added();
-        }
+        outputs.push("Merge conflicts:".to_string().normal());
+        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT).normal());
 
-        if self.has_modified_entries() {
-            self.print_modified();
-        }
+        self.__collapse_outputs(
+            &self.merge_conflicts,
+            |conflict| {
+                let path = &conflict.head_entry.path;
 
-        if self.has_merge_conflicts() {
-            self.print_merge_conflicts();
-        }
+                // println!(
+                //     "    LCA {} {:?}",
+                //     conflict.lca_entry.commit_id,
+                //     conflict.lca_entry.version_file()
+                // );
+                // println!(
+                //     "    HEAD {} {:?}",
+                //     conflict.head_entry.commit_id,
+                //     conflict.head_entry.version_file()
+                // );
+                // println!(
+                //     "    MERGE {} {:?}",
+                //     conflict.merge_entry.commit_id,
+                //     conflict.merge_entry.version_file()
+                // );
 
-        if self.has_removed_entries() {
-            self.print_removed();
-        }
-
-        if self.has_untracked_entries() {
-            self.print_untracked();
-        }
+                vec![
+                    "  both modified: ".to_string().red(),
+                    format!("{}\n", path.to_str().unwrap()).red().bold(),
+                ]
+            },
+            outputs,
+            skip,
+            limit,
+            print_all,
+        );
     }
 
-    pub fn print_added(&self) {
-        println!("Changes to be committed:");
-        self.print_added_dirs();
-        self.print_added_files();
-        println!();
-    }
+    fn __collect_added_dirs(
+        &self,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        let mut dirs: Vec<Vec<ColoredString>> = vec![];
+        for (path, staged_dirs) in self.added_dirs.paths.iter() {
+            let mut dir_row: Vec<ColoredString> = vec![];
+            for staged_dir in staged_dirs.iter() {
+                dir_row.push("  added: ".green());
+                dir_row.push(staged_dir.path.to_str().unwrap().to_string().green().bold());
 
-    pub fn print_untracked(&self) {
-        println!("Untracked files:");
-        println!("  (use \"oxen add <file>...\" to update what will be committed)");
-        self.print_untracked_dirs();
-        self.print_untracked_files();
-        println!();
-    }
-
-    pub fn print_modified(&self) {
-        println!("Modified files:");
-        println!("  (use \"oxen add <file>...\" to update what will be committed)");
-        self.print_modified_files();
-        println!();
-    }
-
-    pub fn print_merge_conflicts(&self) {
-        println!("Unmerged paths:");
-        println!("  (use \"oxen add <file>...\" to mark resolution)");
-        for conflict in self.merge_conflicts.iter() {
-            let path = &conflict.head_entry.path;
-            let added_file_str = format!("  both modified:  {}", path.to_str().unwrap()).red();
-            println!("{}", added_file_str);
-            // println!(
-            //     "    LCA {} {:?}",
-            //     conflict.lca_entry.commit_id,
-            //     conflict.lca_entry.version_file()
-            // );
-            // println!(
-            //     "    HEAD {} {:?}",
-            //     conflict.head_entry.commit_id,
-            //     conflict.head_entry.version_file()
-            // );
-            // println!(
-            //     "    MERGE {} {:?}",
-            //     conflict.merge_entry.commit_id,
-            //     conflict.merge_entry.version_file()
-            // );
-        }
-        println!();
-    }
-
-    pub fn print_removed(&self) {
-        println!("Removed files:");
-        println!("  (use \"oxen add <file>...\" to update what will be committed)");
-        println!("  (use \"oxen restore <file>...\" to discard changes in working directory)");
-        self.print_removed_files();
-        println!();
-    }
-
-    fn print_added_dirs(&self) {
-        for staged_dir in self.added_dirs.iter() {
-            // Make sure we can grab the filename
-            let added_file_str =
-                format!("  added:  {}/", staged_dir.path.to_str().unwrap()).green();
-            let num_files_str = match staged_dir.num_files_staged {
-                1 => Some(format!("with added {} file\n", staged_dir.num_files_staged)),
-                0 => {
-                    // Skip since we don't have any added files in this dir
-                    None
+                let num_files_str = match staged_dir.num_files_staged {
+                    1 => {
+                        Some(format!(" with added {} file\n", staged_dir.num_files_staged).normal())
+                    }
+                    0 => {
+                        // limit since we don't have any added files in this dir
+                        log::warn!("Added dir with no files staged: {:?}", path);
+                        None
+                    }
+                    _ => Some(
+                        format!(" with added {} files\n", staged_dir.num_files_staged).normal(),
+                    ),
+                };
+                if let Some(num_files_str) = num_files_str {
+                    dir_row.push(num_files_str);
+                } else {
+                    dir_row.push("\n".normal());
                 }
-                _ => Some(format!(
-                    "with added {} files\n",
-                    staged_dir.num_files_staged
-                )),
-            };
-            if let Some(num_files_str) = num_files_str {
-                print!("{} {}", added_file_str, num_files_str);
             }
+            dirs.push(dir_row);
         }
-    }
 
-    fn print_added_files(&self) {
-        let current_dir = env::current_dir().unwrap();
-        let repo_path = util::fs::get_repo_root(&current_dir);
-        if repo_path.is_none() {
-            eprintln!("Err: print_removed_files() Could not find oxen repository");
+        if dirs.is_empty() {
             return;
         }
 
-        // Unwrap because is some
-        let repo_path = repo_path.unwrap();
-        // println!("Got repo path {:?} {:?}", current_dir, repo_path);
+        outputs.push("Directories to be committed\n".normal());
+        self.__collapse_outputs(&dirs, |dir| dir.to_vec(), outputs, skip, limit, print_all);
+    }
 
-        // Get the top level dirs so that we don't have to print every file
-        let added_files: Vec<PathBuf> = self
-            .added_files
-            .clone()
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect();
-        let mut top_level_counts = self.get_top_level_removed_counts(&repo_path, &added_files);
-        // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        let remaining_file_count =
-            self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
-        let mut summarized: HashSet<PathBuf> = HashSet::new();
-        for (short_path, entry) in self.added_files.iter() {
-            // If the short_path is in a directory that was added, don't display it
-            let mut break_both = false;
-            for staged_dir in self.added_dirs.iter() {
-                // println!("checking if short_path {:?} starts with {:?}", short_path, dir);
-                if short_path.starts_with(&staged_dir.path) {
-                    break_both = true;
-                    continue;
-                }
-            }
+    fn __collect_added_files(
+        &self,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        if self.added_files.is_empty() {
+            return;
+        }
+        outputs.push("Files to be committed:\n".normal());
 
-            if break_both {
-                continue;
-            }
-
-            match entry.status {
+        let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
+            self.added_files.iter().map(|(k, v)| (k, v)).collect();
+        files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
+        self.__collapse_outputs(
+            &files_vec,
+            |(path, entry)| match entry.status {
                 StagedEntryStatus::Removed => {
-                    let full_path = repo_path.join(short_path);
-                    let path = self.get_top_level_dir(&repo_path, &full_path);
-
-                    let count = top_level_counts[&path];
-                    if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
-                        && !summarized.contains(&path)
-                    {
-                        let added_file_str = format!(
-                            "  removed: {}\n    which had {} files including {}",
-                            path.to_str().unwrap(),
-                            count,
-                            short_path.to_str().unwrap(),
-                        )
-                        .green();
-                        println!("{}", added_file_str);
-
-                        summarized.insert(path.to_owned());
-                    }
-
-                    if !summarized.contains(&path) {
-                        let added_file_str =
-                            format!("  removed:  {}", short_path.to_str().unwrap()).green();
-                        println!("{}", added_file_str);
-                    }
+                    vec![
+                        "  removed: ".green(),
+                        format!("{}\n", path.to_str().unwrap()).green().bold(),
+                    ]
                 }
                 StagedEntryStatus::Modified => {
-                    let added_file_str =
-                        format!("  modified:  {}", short_path.to_str().unwrap()).green();
-                    println!("{}", added_file_str);
+                    vec![
+                        "  modified: ".green(),
+                        format!("{}\n", path.to_str().unwrap()).green().bold(),
+                    ]
                 }
                 StagedEntryStatus::Added => {
-                    let added_file_str =
-                        format!("  added:  {}", short_path.to_str().unwrap()).green();
-                    println!("{}", added_file_str);
+                    vec![
+                        "  new file: ".green(),
+                        format!("{}\n", path.to_str().unwrap()).green().bold(),
+                    ]
                 }
-            }
-        }
+            },
+            outputs,
+            skip,
+            limit,
+            print_all,
+        );
     }
 
-    fn print_modified_files(&self) {
-        for file in self.modified_files.iter() {
-            let added_file_str = format!("  modified:  {}", file.to_str().unwrap()).yellow();
-            println!("{}", added_file_str);
-        }
-    }
-
-    fn get_top_level_removed_counts(
+    fn __collect_modified_files(
         &self,
-        repo_path: &Path,
-        paths: &[PathBuf],
-    ) -> HashMap<PathBuf, usize> {
-        let mut top_level_counts: HashMap<PathBuf, usize> = HashMap::new();
-        for short_path in paths.iter() {
-            let full_path = repo_path.join(short_path);
-
-            let path = self.get_top_level_dir(repo_path, &full_path);
-            if !top_level_counts.contains_key(&path) {
-                top_level_counts.insert(path.to_path_buf(), 0);
-            }
-            *top_level_counts.get_mut(&path).unwrap() += 1;
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        if self.modified_files.is_empty() {
+            // nothing to print
+            return;
         }
-        top_level_counts
+
+        outputs.push("Modified files:".to_string().normal());
+        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
+
+        let mut files = self.modified_files.clone();
+        files.sort();
+
+        self.__collapse_outputs(
+            &files,
+            |file| {
+                vec![
+                    "  modified: ".to_string().yellow(),
+                    format!("{}\n", file.to_str().unwrap()).yellow().bold(),
+                ]
+            },
+            outputs,
+            skip,
+            limit,
+            print_all,
+        );
     }
 
-    fn get_remaining_removed_counts(
+    fn __collect_removed_files(
         &self,
-        top_level_counts: &mut HashMap<PathBuf, usize>,
-        repo_path: &Path,
-    ) -> HashMap<PathBuf, usize> {
-        let mut remaining_file_count: HashMap<PathBuf, usize> = HashMap::new();
-        for (dir, _) in top_level_counts.iter() {
-            let full_path = repo_path.join(dir);
-
-            let count = util::fs::rcount_files_in_dir(&full_path);
-            remaining_file_count.insert(dir.to_owned(), count);
-        }
-        remaining_file_count
-    }
-
-    fn print_removed_files(&self) {
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
         if self.removed_files.is_empty() {
             // nothing to print
             return;
         }
 
-        let current_dir = env::current_dir().unwrap();
-        let repo_path = util::fs::get_repo_root(&current_dir);
-        if repo_path.is_none() {
-            eprintln!("Err: print_removed_files() Could not find oxen repository");
+        outputs.push("Removed files:".to_string().normal());
+        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
+
+        let mut files = self.removed_files.clone();
+        files.sort();
+
+        self.__collapse_outputs(
+            &files,
+            |file| {
+                vec![
+                    "  removed: ".to_string().red(),
+                    format!("{}\n", file.to_str().unwrap()).red().bold(),
+                ]
+            },
+            outputs,
+            skip,
+            limit,
+            print_all,
+        );
+    }
+
+    fn __collect_untracked_dirs(
+        &self,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        // List untracked files
+        if !self.untracked_dirs.is_empty() {
+            outputs.push("Untracked Directories\n".normal());
+            outputs.push(MSG_OXEN_ADD_DIR_EXAMPLE.normal());
+
+            let mut dirs = self.untracked_dirs.clone();
+            dirs.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
+
+            let max_dir_len = dirs
+                .iter()
+                .map(|(path, _size)| path.to_str().unwrap().len())
+                .max()
+                .unwrap();
+
+            self.__collapse_outputs(
+                &dirs,
+                |(path, size)| {
+                    let path_str = path.to_str().unwrap();
+                    let num_spaces = max_dir_len - path_str.len();
+                    vec![
+                        format!("  {}/ {}", path_str, StagedData::spaces(num_spaces))
+                            .red()
+                            .bold(),
+                        format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
+                    ]
+                },
+                outputs,
+                skip,
+                limit,
+                print_all,
+            )
+        }
+    }
+
+    fn __collect_untracked_files(
+        &self,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        // List untracked files
+        if !self.untracked_files.is_empty() {
+            outputs.push("Untracked Files\n".normal());
+            outputs.push(MSG_OXEN_ADD_FILE_EXAMPLE.normal());
+
+            let mut files = self.untracked_files.clone();
+            files.sort();
+
+            self.__collapse_outputs(
+                &files,
+                |f| vec![format!("  {}\n", f.to_str().unwrap()).red().bold()],
+                outputs,
+                skip,
+                limit,
+                print_all,
+            )
+        }
+    }
+
+    fn __collapse_outputs<T, F>(
+        &self,
+        inputs: &Vec<T>,
+        to_components: F,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) where
+        F: Fn(&T) -> Vec<ColoredString>,
+    {
+        if inputs.is_empty() {
             return;
         }
 
-        // Unwrap because is some
-        let repo_path = repo_path.unwrap();
-        // println!("Got repo path {:?} {:?}", current_dir, repo_path);
-
-        // Get the top level dirs so that we don't have to print every file
-        let mut top_level_counts =
-            self.get_top_level_removed_counts(&repo_path, &self.removed_files);
-
-        // See the actual counts in the dir, if nothing remains, we can just print the top level summary
-        let remaining_file_count =
-            self.get_remaining_removed_counts(&mut top_level_counts, &repo_path);
-
-        // When iterating, if remaining_file_count[p] == 0 or we have more than N entries then we only print the count
-        let mut summarized: HashSet<PathBuf> = HashSet::new();
-        for short_path in self.removed_files.iter() {
-            let full_path = repo_path.join(short_path);
-            let path = self.get_top_level_dir(&repo_path, &full_path);
-
-            let count = top_level_counts[&path];
-            if (0 == remaining_file_count[&path] || top_level_counts[&path] > 5)
-                && !summarized.contains(&path)
-            {
-                let added_file_str = format!(
-                    "  removed: {}\n    which had {} files including {}",
-                    path.to_str().unwrap(),
-                    count,
-                    short_path.to_str().unwrap()
-                )
-                .red();
-                println!("{}", added_file_str);
-
-                summarized.insert(path.to_owned());
-            }
-
-            if !summarized.contains(&path) {
-                let added_file_str = format!("  removed:  {}", short_path.to_str().unwrap()).red();
-                println!("{}", added_file_str);
-            }
-        }
-    }
-
-    fn get_top_level_dir(&self, repo_path: &Path, full_path: &Path) -> PathBuf {
-        let mut mut_path = full_path.to_path_buf();
-        let mut components: Vec<PathBuf> = vec![];
-        while let Some(parent) = mut_path.parent() {
-            // println!("get_top_level_dir GOT PARENT {:?}", parent);
-            if repo_path == parent {
-                break;
-            }
-
-            if let Some(filename) = parent.file_name() {
-                // println!("get_top_level_dir filename {:?}", filename);
-                components.push(PathBuf::from(filename));
-            }
-
-            mut_path.pop();
-        }
-        components.reverse();
-
-        let mut result = PathBuf::new();
-        for component in components.iter() {
-            result = result.join(component);
-        }
-
-        // println!("get_top_level_dir got result {:?}", result);
-
-        result
-    }
-
-    fn print_untracked_dirs(&self) {
-        // List untracked directories
-        for (dir, count) in self.untracked_dirs.iter() {
-            // Make sure we can grab the filename
-            if let Some(filename) = dir.file_name() {
-                let added_file_str = format!("  {}/", filename.to_str().unwrap()).red();
-                let num_files_str = match count {
-                    1 => {
-                        format!("with untracked {} file\n", count)
-                    }
-                    0 => {
-                        // Skip since we don't have any untracked files in this dir
-                        String::from("")
-                    }
-                    _ => {
-                        format!("with untracked {} files\n", count)
-                    }
-                };
-
-                if !num_files_str.is_empty() {
-                    print!("{} {}", added_file_str, num_files_str);
-                }
-            }
-        }
-    }
-
-    fn print_untracked_files(&self) {
-        // List untracked files
-        for file in self.untracked_files.iter() {
-            let mut break_both = false;
-            // If the file is in a directory that is untracked, don't display it
-            for (dir, _size) in self.untracked_dirs.iter() {
-                // println!("checking if file {:?} starts with {:?}", file, dir);
-                if file.starts_with(&dir) {
-                    break_both = true;
-                    continue;
-                }
-            }
-
-            if break_both {
+        let total = skip + limit;
+        for (i, input) in inputs.iter().enumerate() {
+            if i < skip && !print_all {
                 continue;
             }
-
-            let added_file_str = file.to_str().unwrap().to_string().red();
-            println!("  {}", added_file_str);
+            if i >= total && !print_all {
+                break;
+            }
+            let mut components = to_components(input);
+            outputs.append(&mut components);
         }
-        println!();
+
+        log::debug!("__collapse_outputs {} > {}", inputs.len(), total);
+        if inputs.len() > limit && !print_all {
+            let remaining = inputs.len() - limit;
+            outputs.push(format!("  ... and {} others\n", remaining).normal());
+        }
+
+        outputs.push("\n".normal());
+    }
+
+    pub fn item_str_plural(n: usize) -> String {
+        if n == 1 {
+            String::from("item")
+        } else {
+            String::from("items")
+        }
+    }
+
+    pub fn spaces(n: usize) -> String {
+        let mut ret = String::from("");
+        for _ in 0..n {
+            ret.push(' ');
+        }
+        ret
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use colored::Colorize;
+    use std::path::PathBuf;
+
+    use crate::model::staged_data::{
+        MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE,
+    };
+    use crate::model::StagedEntryStatus;
+    use crate::model::{StagedData, StagedEntry};
+
+    #[test]
+    fn test_staged_data_collect_clean_repo() {
+        let staged_data = StagedData::empty();
+
+        let outputs = staged_data.__collect_outputs(0, 10, false);
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(outputs[0].to_string(), MSG_CLEAN_REPO);
+    }
+
+    #[test]
+    fn test_staged_data_collect_added_files() {
+        let mut staged_data = StagedData::empty();
+        staged_data.added_files.insert(
+            PathBuf::from("file_1.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_2.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_3.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_4.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_5.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+
+        let num_to_print = 3;
+        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        assert_eq!(outputs[0], "Files to be committed:\n".normal());
+        assert_eq!(outputs[1], "  new file: ".green());
+        assert_eq!(outputs[2], "file_1.jpg\n".green().bold());
+        assert_eq!(outputs[3], "  new file: ".green());
+        assert_eq!(outputs[4], "file_2.jpg\n".green().bold());
+        assert_eq!(outputs[5], "  new file: ".green());
+        assert_eq!(outputs[6], "file_3.jpg\n".green().bold());
+        assert_eq!(outputs[7], "  ... and 2 others\n".normal());
+    }
+
+    #[test]
+    fn test_staged_data_collect_added_files_length() {
+        let mut staged_data = StagedData::empty();
+        staged_data.added_files.insert(
+            PathBuf::from("file_1.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_2.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_3.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_4.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+        staged_data.added_files.insert(
+            PathBuf::from("file_5.jpg"),
+            StagedEntry::empty_status(StagedEntryStatus::Added),
+        );
+
+        let num_to_print = 3;
+        let outputs = staged_data.__collect_outputs(2, num_to_print, false);
+        assert_eq!(outputs[0], "Files to be committed:\n".normal());
+        assert_eq!(outputs[1], "  new file: ".green());
+        assert_eq!(outputs[2], "file_3.jpg\n".green().bold());
+        assert_eq!(outputs[3], "  new file: ".green());
+        assert_eq!(outputs[4], "file_4.jpg\n".green().bold());
+        assert_eq!(outputs[5], "  new file: ".green());
+        assert_eq!(outputs[6], "file_5.jpg\n".green().bold());
+        assert_eq!(outputs[7], "  ... and 2 others\n".normal());
+    }
+
+    #[test]
+    fn test_staged_data_collect_untracked_files() {
+        let mut staged_data = StagedData::empty();
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_1.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_2.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_3.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_4.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_5.jpg"));
+
+        let num_to_print = 3;
+        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        assert_eq!(outputs[0], "Untracked Files\n".normal());
+        assert_eq!(outputs[1], MSG_OXEN_ADD_FILE_EXAMPLE.normal());
+        assert_eq!(outputs[2], "  file_1.jpg\n".red().bold());
+        assert_eq!(outputs[3], "  file_2.jpg\n".red().bold());
+        assert_eq!(outputs[4], "  file_3.jpg\n".red().bold());
+        assert_eq!(outputs[5], "  ... and 2 others\n".normal());
+    }
+
+    #[test]
+    fn test_staged_data_collect_untracked_files_print_all() {
+        let mut staged_data = StagedData::empty();
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_1.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_2.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_3.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_4.jpg"));
+        staged_data
+            .untracked_files
+            .push(PathBuf::from("file_5.jpg"));
+
+        let outputs = staged_data.__collect_outputs(0, 0, true);
+        assert_eq!(outputs[0], "Untracked Files\n".normal());
+        assert_eq!(outputs[1], MSG_OXEN_ADD_FILE_EXAMPLE.normal());
+        assert_eq!(outputs[2], "  file_1.jpg\n".red().bold());
+        assert_eq!(outputs[3], "  file_2.jpg\n".red().bold());
+        assert_eq!(outputs[4], "  file_3.jpg\n".red().bold());
+        assert_eq!(outputs[5], "  file_4.jpg\n".red().bold());
+        assert_eq!(outputs[6], "  file_5.jpg\n".red().bold());
+    }
+
+    #[test]
+    fn test_staged_data_collect_untracked_dirs() {
+        let mut staged_data = StagedData::empty();
+        staged_data
+            .untracked_dirs
+            .push((PathBuf::from("train"), 10));
+        staged_data.untracked_dirs.push((PathBuf::from("test"), 4));
+        staged_data
+            .untracked_dirs
+            .push((PathBuf::from("annotations"), 1));
+
+        let num_to_print = 3;
+        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        assert_eq!(outputs[0], "Untracked Directories\n".normal());
+        assert_eq!(outputs[1], MSG_OXEN_ADD_DIR_EXAMPLE.normal());
+        assert_eq!(outputs[2], "  annotations/ ".red().bold());
+        assert_eq!(outputs[3], "(1 item)\n".normal());
+        assert_eq!(outputs[4], "  test/        ".red().bold());
+        assert_eq!(outputs[5], "(4 items)\n".normal());
+        assert_eq!(outputs[6], "  train/       ".red().bold());
+        assert_eq!(outputs[7], "(10 items)\n".normal());
     }
 }

@@ -41,6 +41,7 @@ lazy_static = "1.4.0"
 filetime = "0.2.16"
 bytesize = "1.1.0"
 num_cpus = "1.13.1"
+datafusion = "11.0"
 
 [lib]
 name = "liboxen"

@@ -4,16 +4,16 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
+    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter, RefReader, RefWriter,
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
@@ -87,7 +87,7 @@ impl Indexer {
     }
 
     fn read_num_local_entries(&self, commit: &Commit) -> Result<usize, OxenError> {
-        let entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let entry_reader = CommitDirReader::new(&self.repository, commit)?;
         entry_reader.num_entries()
     }
 
@@ -214,8 +214,8 @@ impl Indexer {
         println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
         // In function scope to open and close this DB for a read, because we are going to write
         // to entries later
-        let this_entry_reader = CommitEntryReader::new(&self.repository, this_commit)?;
-        let last_entry_reader = CommitEntryReader::new(&self.repository, last_commit)?;
+        let this_entry_reader = CommitDirReader::new(&self.repository, this_commit)?;
+        let last_entry_reader = CommitDirReader::new(&self.repository, last_commit)?;
 
         let mut entries_to_sync: Vec<CommitEntry> = vec![];
         for entry in this_entry_reader.list_entries()? {
@@ -455,7 +455,7 @@ impl Indexer {
         commit: &Commit,
         mut limit: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let commit_reader = CommitDirReader::new(&self.repository, commit)?;
         let entries = commit_reader.list_entries()?;
         if limit == 0 {
             limit = entries.len();
@@ -466,7 +466,6 @@ impl Indexer {
     fn get_missing_content_ids(&self, entries: &[CommitEntry]) -> (Vec<String>, u64) {
         let mut content_ids: Vec<String> = vec![];
 
-        // TODO: return total size here too for progress bar
         let mut size: u64 = 0;
         for entry in entries.iter() {
             let version_path = util::fs::version_path(&self.repository, entry);
@@ -479,6 +478,24 @@ impl Indexer {
         }
 
         (content_ids, size)
+    }
+
+    fn group_entries_to_parent_dirs(
+        &self,
+        files: &[CommitEntry],
+    ) -> HashMap<PathBuf, Vec<CommitEntry>> {
+        let mut results: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
+
+        for entry in files.iter() {
+            if let Some(parent) = entry.path.parent() {
+                results
+                    .entry(parent.to_path_buf())
+                    .or_insert(vec![])
+                    .push(entry.clone());
+            }
+        }
+
+        results
     }
 
     fn pull_entries_for_commit(
@@ -513,7 +530,7 @@ impl Indexer {
                 "pull_entries_for_commit got {} missing content IDs",
                 content_ids.len()
             );
-            let committer = CommitEntryWriter::new(&self.repository, commit)?;
+
             content_ids.par_chunks(chunk_size).for_each(|chunk| {
                 if let Err(error) = api::remote::entries::download_content_by_ids(
                     &self.repository,
@@ -532,27 +549,34 @@ impl Indexer {
 
             println!("Unpacking...");
             let bar = Arc::new(ProgressBar::new(entries.len() as u64));
-            entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path);
-                if self.should_copy_entry(entry, &filepath) {
-                    if let Some(parent) = filepath.parent() {
-                        if !parent.exists() {
-                            log::debug!("Create parent dir {:?}", parent);
-                            std::fs::create_dir_all(parent).unwrap();
+            let dir_entries = self.group_entries_to_parent_dirs(&entries);
+
+            dir_entries.par_iter().for_each(|(dir, entries)| {
+                let committer =
+                    CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
+                entries.par_iter().for_each(|entry| {
+                    let filepath = self.repository.path.join(&entry.path);
+                    if self.should_copy_entry(entry, &filepath) {
+                        if let Some(parent) = filepath.parent() {
+                            if !parent.exists() {
+                                log::debug!("Create parent dir {:?}", parent);
+                                std::fs::create_dir_all(parent).unwrap();
+                            }
+                        }
+
+                        let version_path = util::fs::version_path(&self.repository, entry);
+                        if std::fs::copy(&version_path, &filepath).is_err() {
+                            eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
+                        } else {
+                            let metadata = fs::metadata(filepath).unwrap();
+                            let mtime = FileTime::from_last_modification_time(&metadata);
+                            committer.set_file_timestamps(entry, &mtime).unwrap();
                         }
                     }
-
-                    let version_path = util::fs::version_path(&self.repository, entry);
-                    if std::fs::copy(&version_path, &filepath).is_err() {
-                        eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
-                    } else {
-                        let metadata = fs::metadata(filepath).unwrap();
-                        let mtime = FileTime::from_last_modification_time(&metadata);
-                        committer.set_file_timestamps(entry, &mtime).unwrap();
-                    }
-                }
-                bar.inc(1);
+                    bar.inc(1);
+                });
             });
+
             bar.finish();
         }
 
@@ -563,10 +587,10 @@ impl Indexer {
     }
 
     fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
-        let commit_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let commit_reader = CommitDirReader::new(&self.repository, commit)?;
         for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
             let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
-            if !commit_reader.contains_path(&short_path)? {
+            if !commit_reader.has_file(&short_path) {
                 std::fs::remove_file(file)?;
             }
         }

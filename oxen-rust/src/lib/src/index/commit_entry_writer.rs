@@ -1,20 +1,24 @@
 use crate::constants::{DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{RefReader, RefWriter};
-use crate::model::{Commit, CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
+use crate::index::{path_db, CommitDirEntryWriter, RefReader, RefWriter};
+use crate::model::{
+    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
+};
 use crate::util;
 
 use filetime::FileTime;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
-    db: DBWithThreadMode<MultiThreaded>,
+    dir_db: DBWithThreadMode<MultiThreaded>,
+    commit_id: String,
 }
 
 impl CommitEntryWriter {
@@ -22,10 +26,14 @@ impl CommitEntryWriter {
         util::fs::oxen_hidden_dir(path).join(Path::new(VERSIONS_DIR))
     }
 
-    pub fn commit_db_dir(path: &Path, commit_id: &str) -> PathBuf {
+    pub fn commit_dir(path: &Path, commit_id: &str) -> PathBuf {
         util::fs::oxen_hidden_dir(path)
             .join(Path::new(HISTORY_DIR))
             .join(commit_id)
+    }
+
+    pub fn commit_dir_db(path: &Path, commit_id: &str) -> PathBuf {
+        CommitEntryWriter::commit_dir(path, commit_id).join("dirs/")
     }
 
     pub fn new(
@@ -33,7 +41,7 @@ impl CommitEntryWriter {
         commit: &Commit,
     ) -> Result<CommitEntryWriter, OxenError> {
         log::debug!("CommitEntryWriter::new() commit_id: {}", commit.id);
-        let db_path = CommitEntryWriter::commit_db_dir(&repository.path, &commit.id);
+        let db_path = CommitEntryWriter::commit_dir_db(&repository.path, &commit.id);
         if !db_path.exists() {
             CommitEntryWriter::create_db_dir_for_commit_id(repository, &commit.id)?;
         }
@@ -41,7 +49,8 @@ impl CommitEntryWriter {
         let opts = db::opts::default();
         Ok(CommitEntryWriter {
             repository: repository.clone(),
-            db: DBWithThreadMode::open(&opts, &db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, &db_path)?,
+            commit_id: commit.id.to_owned(),
         })
     }
 
@@ -57,10 +66,8 @@ impl CommitEntryWriter {
                     parent_id
                 );
                 // We have a parent, we have to copy over last db, and continue
-                let parent_commit_db_path =
-                    CommitEntryWriter::commit_db_dir(&repo.path, &parent_id);
-                let current_commit_db_path =
-                    CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
+                let parent_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, &parent_id);
+                let current_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, commit_id);
                 log::debug!(
                     "COPY DB from {:?} => {:?}",
                     parent_commit_db_path,
@@ -76,7 +83,7 @@ impl CommitEntryWriter {
                     "CommitEntryWriter::create_db_dir_for_commit_id does not have parent id",
                 );
                 // We are creating initial commit, no parent
-                let commit_db_path = CommitEntryWriter::commit_db_dir(&repo.path, commit_id);
+                let commit_db_path = CommitEntryWriter::commit_dir_db(&repo.path, commit_id);
                 if !commit_db_path.exists() {
                     std::fs::create_dir_all(&commit_db_path)?;
                 }
@@ -103,30 +110,17 @@ impl CommitEntryWriter {
         entry: &CommitEntry,
         time: &FileTime,
     ) -> Result<(), OxenError> {
-        let key = entry.path.to_str().unwrap();
-        let bytes = key.as_bytes();
-        let entry = CommitEntry {
-            commit_id: entry.commit_id.to_owned(),
-            path: entry.path.to_owned(),
-            hash: entry.hash.to_owned(),
-            num_bytes: entry.num_bytes,
-            last_modified_seconds: time.unix_seconds(),
-            last_modified_nanoseconds: time.nanoseconds(),
-        };
-
-        let json_str = serde_json::to_string(&entry)?;
-        let data = json_str.as_bytes();
-        match self.db.put(bytes, data) {
-            Ok(_) => Ok(()),
-            Err(err) => {
-                let err = format!("set_file_timestamps() Err: {}", err);
-                Err(OxenError::basic_str(&err))
-            }
+        if let Some(parent) = entry.path.parent() {
+            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, parent)?;
+            writer.set_file_timestamps(entry, time)
+        } else {
+            Err(OxenError::file_has_no_parent(&entry.path))
         }
     }
 
     fn add_path_to_db(
         &self,
+        writer: &CommitDirEntryWriter,
         new_commit: &Commit,
         staged_entry: &StagedEntry,
         path: &Path,
@@ -153,25 +147,18 @@ impl CommitEntryWriter {
         };
 
         // Write to db & backup
-        self.add_commit_entry(&entry)?;
+        self.add_commit_entry(writer, &entry)?;
         Ok(())
     }
 
-    pub fn add_commit_entry(&self, entry: &CommitEntry) -> Result<(), OxenError> {
+    fn add_commit_entry(
+        &self,
+        writer: &CommitDirEntryWriter,
+        entry: &CommitEntry,
+    ) -> Result<(), OxenError> {
         self.backup_file_to_versions_dir(entry)?;
 
-        let path_str = entry.path.to_str().unwrap();
-        let key = path_str.as_bytes();
-        let entry_json = serde_json::to_string(&entry)?;
-        log::debug!(
-            "ADD ENTRY to db[{:?}] {} -> {}",
-            self.db.path(),
-            path_str,
-            entry_json
-        );
-        self.db.put(&key, entry_json.as_bytes())?;
-
-        Ok(())
+        writer.add_commit_entry(entry)
     }
 
     fn backup_file_to_versions_dir(&self, new_entry: &CommitEntry) -> Result<(), OxenError> {
@@ -207,37 +194,58 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    fn remove_path_from_db(&self, path: &Path) -> Result<(), OxenError> {
-        let path_str = path.to_str().unwrap();
-        let key = path_str.as_bytes();
-        self.db.delete(key)?;
-        Ok(())
-    }
-
     pub fn add_staged_entries(
         &self,
         commit: &Commit,
-        added_files: &[(PathBuf, StagedEntry)],
+        staged_data: &StagedData,
     ) -> Result<(), OxenError> {
+        let total = staged_data.added_files.len();
         // len kind of arbitrary right now...just nice to see progress on big sets of files
-        if added_files.len() > 1000 {
-            self.add_staged_entries_with_prog(commit, added_files)
+        if total > 1000 {
+            self.add_staged_entries_with_prog(commit, staged_data)
         } else {
-            self.add_staged_entries_without_prog(commit, added_files)
+            self.add_staged_entries_without_prog(commit, staged_data)
         }
+    }
+
+    fn group_staged_files_to_dirs(
+        &self,
+        files: &HashMap<PathBuf, StagedEntry>,
+    ) -> HashMap<PathBuf, Vec<(PathBuf, StagedEntry)>> {
+        let mut results: HashMap<PathBuf, Vec<(PathBuf, StagedEntry)>> = HashMap::new();
+
+        for (path, entry) in files.iter() {
+            if let Some(parent) = path.parent() {
+                results
+                    .entry(parent.to_path_buf())
+                    .or_insert(vec![])
+                    .push((path.clone(), entry.clone()));
+            }
+        }
+
+        results
     }
 
     fn add_staged_entries_with_prog(
         &self,
         commit: &Commit,
-        added_files: &[(PathBuf, StagedEntry)],
+        staged_data: &StagedData,
     ) -> Result<(), OxenError> {
-        let size: u64 = unsafe { std::mem::transmute(added_files.len()) };
+        let size: u64 = unsafe { std::mem::transmute(staged_data.added_files.len()) };
         let bar = ProgressBar::new(size);
-        added_files.par_iter().for_each(|(path, entry)| {
-            self.commit_staged_entry(commit, path, entry);
-            bar.inc(1);
-        });
+        let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
+        for (dir, files) in grouped.iter() {
+            // Track the dir
+            path_db::put(&self.dir_db, dir, &0)?;
+
+            // Write entries per dir
+            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, dir)?;
+            files.par_iter().for_each(|(path, entry)| {
+                self.commit_staged_entry(&entry_writer, commit, path, entry);
+                bar.inc(1);
+            });
+        }
+
         bar.finish();
         Ok(())
     }
@@ -245,35 +253,49 @@ impl CommitEntryWriter {
     fn add_staged_entries_without_prog(
         &self,
         commit: &Commit,
-        added_files: &[(PathBuf, StagedEntry)],
+        staged_data: &StagedData,
     ) -> Result<(), OxenError> {
-        added_files
-            .par_iter()
-            .for_each(|(path, entry)| self.commit_staged_entry(commit, path, entry));
+        let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
+        for (dir, files) in grouped.iter() {
+            // Track the dir
+            path_db::put(&self.dir_db, dir, &0)?;
+
+            // Write entries per dir
+            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, dir)?;
+            files.par_iter().for_each(|(path, entry)| {
+                self.commit_staged_entry(&entry_writer, commit, path, entry)
+            });
+        }
         Ok(())
     }
 
-    fn commit_staged_entry(&self, commit: &Commit, path: &Path, entry: &StagedEntry) {
+    fn commit_staged_entry(
+        &self,
+        writer: &CommitDirEntryWriter,
+        commit: &Commit,
+        path: &Path,
+        entry: &StagedEntry,
+    ) {
         match entry.status {
-            StagedEntryStatus::Removed => match self.remove_path_from_db(path) {
+            StagedEntryStatus::Removed => match writer.remove_path_from_db(path) {
                 Ok(_) => {}
                 Err(err) => {
                     let err = format!("Failed to remove file: {}", err);
-                    eprintln!("{}", err)
+                    panic!("{}", err)
                 }
             },
-            StagedEntryStatus::Modified => match self.add_path_to_db(commit, entry, path) {
+            StagedEntryStatus::Modified => match self.add_path_to_db(writer, commit, entry, path) {
                 Ok(_) => {}
                 Err(err) => {
                     let err = format!("Failed to commit MODIFIED file: {}", err);
-                    eprintln!("{}", err)
+                    panic!("{}", err)
                 }
             },
-            StagedEntryStatus::Added => match self.add_path_to_db(commit, entry, path) {
+            StagedEntryStatus::Added => match self.add_path_to_db(writer, commit, entry, path) {
                 Ok(_) => {}
                 Err(err) => {
                     let err = format!("Failed to ADD file: {}", err);
-                    eprintln!("{}", err)
+                    panic!("{}", err)
                 }
             },
         }

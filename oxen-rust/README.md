@@ -143,10 +143,33 @@ To inspect any of the key value dbs below
     remotes/experiment/add_dogs -> COMMIT_ID
 
   staged/ (created from `oxen add <file>` command)
-    key,value db of:
+    dirs/ (rocksdb of directory names)
+      key: path/to/dir
+      value: {  }
+    files/ (going to mimick dir structure for fast access to subset)
+      path/
+        to/
+          dir/ (rocks db of files specific to that dir, with relative paths)
+            key: filename.jpg
+            value: {"hash": "FILE_HASH", "tracking_type": "tabular|regular"} (we generate a file ID and hash for each file that is added)
 
-    filenames -> {"hash" => "FILE_HASH", "id" => "UUID_V4"} (we generate a file ID and hash for each file that is added)
-    dirnames -> count
+  history/ (list of commits)
+    COMMIT_HASH_1/
+      dirs/ (rocks db of dirnames in commit, similar to staged above, but could include computed metadata)
+        key: path/to/dir
+        value: { "count": 1000, "other_meta_data": ? }
+      files/
+        path/
+          to/
+            dir/
+              key: filename 
+              value: {
+                "hash" => "FILE_HASH", (use this to know if a file was different)
+                ... other meta data
+              }
+
+    COMMIT_HASH_2/
+    COMMIT_HASH_3/
 
   commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
     key,value of:
@@ -158,18 +181,6 @@ To inspect any of the key value dbs below
       - Parent Commit ID
       - Author
       - Timestamp
-
-  history/ (list of commits)
-    COMMIT_HASH_1/
-      key,value of:
-
-      filename -> { (filename is where we copy the version back to)
-        "hash" => "FILE_HASH", (use this to know if a file was different)
-        ... other meta data
-      }
-
-    COMMIT_HASH_2/
-    COMMIT_HASH_3/
 
   versions/ (copies of original files, versioned with commit ids)
     //
