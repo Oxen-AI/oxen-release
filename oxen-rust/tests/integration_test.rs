@@ -2,7 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
-use liboxen::index::CommitEntryReader;
+use liboxen::index::CommitDirReader;
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -40,6 +40,77 @@ fn test_command_status_empty() -> Result<(), OxenError> {
         assert_eq!(repo_status.added_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 0);
         assert_eq!(repo_status.untracked_dirs.len(), 0);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let repo_status = command::status(&repo)?;
+
+        assert_eq!(repo_status.added_dirs.len(), 0);
+        assert_eq!(repo_status.added_files.len(), 0);
+        // README.md
+        // labels.txt
+        assert_eq!(repo_status.untracked_files.len(), 2);
+        // train/
+        // test/
+        // annotations/
+        assert_eq!(repo_status.untracked_dirs.len(), 3);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        command::add(&repo, repo.path.join(Path::new("labels.txt")))?;
+
+        let repo_status = command::status(&repo)?;
+        repo_status.print_stdout();
+
+        assert_eq!(repo_status.added_dirs.len(), 0);
+        assert_eq!(repo_status.added_files.len(), 1);
+        // README.md
+        // labels.txt
+        assert_eq!(repo_status.untracked_files.len(), 1);
+        // train/
+        // test/
+        // annotations/
+        assert_eq!(repo_status.untracked_dirs.len(), 3);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Add a deep file
+        command::add(
+            &repo,
+            repo.path.join(Path::new("annotations/train/one_shot.txt")),
+        )?;
+
+        // Make sure that we now see the full annotations/train/ directory
+        let repo_status = command::status(&repo)?;
+        repo_status.print_stdout();
+
+        // annotations/
+        assert_eq!(repo_status.added_dirs.len(), 1);
+        // annotations/train/one_shot.txt
+        assert_eq!(repo_status.added_files.len(), 1);
+        // train/
+        // test/
+        assert_eq!(repo_status.untracked_dirs.len(), 2);
+        // README.md
+        // labels.txt
+        // annotations/train/two_shot.txt
+        // annotations/train/annotations.txt
+        assert_eq!(repo_status.untracked_files.len(), 4);
 
         Ok(())
     })
@@ -422,7 +493,7 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
         let annotation_dir_path = repo.path.join("annotations");
         command::add(&repo, &annotation_dir_path)?;
         let status = command::status(&repo)?;
-        status.print();
+        status.print_stdout();
         assert_eq!(status.added_files.len(), 1);
         command::commit(&repo, "Changing one shot")?;
         let status = command::status(&repo)?;
@@ -453,10 +524,10 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
-        status.print();
+        status.print_stdout();
         command::add(&repo, &one_shot_path)?;
         let status = command::status(&repo)?;
-        status.print();
+        status.print_stdout();
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
@@ -500,7 +571,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         assert_eq!(status.added_files.len(), 1);
 
         let status = command::status(&repo)?;
-        status.print();
+        status.print_stdout();
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
@@ -668,7 +739,10 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
         // Make sure we have the correct amount of files tagged as removed
         let status = command::status(&repo)?;
         assert_eq!(status.added_files.len(), og_file_count);
-        assert_eq!(status.added_files[0].1.status, StagedEntryStatus::Removed);
+        assert_eq!(
+            status.added_files.iter().next().unwrap().1.status,
+            StagedEntryStatus::Removed
+        );
 
         // Make sure they don't show up in the status
         assert_eq!(status.removed_files.len(), 0);
@@ -862,7 +936,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
 
         // Track the rest of the files
         let full_dir = &repo.path;
-        let num_files = util::fs::count_files_in_dir(full_dir);
+        let num_files = util::fs::count_items_in_dir(full_dir);
         command::add(&repo, full_dir)?;
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
@@ -983,9 +1057,9 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             // Pull back from the OG Repo
             command::pull(&repo)?;
             let old_repo_status = command::status(&repo)?;
-            old_repo_status.print();
+            old_repo_status.print_stdout();
             // Make sure we don't modify the timestamps or anything of the OG data
-            assert!(old_repo_status.is_clean());
+            assert!(!old_repo_status.has_modified_entries());
 
             let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
             assert!(pulled_send_it_back_path.exists());
@@ -1416,7 +1490,7 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(commit_history_dir.exists());
 
                 // make sure we can successfully open the db and read entries
-                let reader = CommitEntryReader::new(&cloned_repo, commit)?;
+                let reader = CommitDirReader::new(&cloned_repo, commit)?;
                 let entries = reader.list_entries();
                 assert!(entries.is_ok());
             }
@@ -1436,7 +1510,7 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         let repo = command::init(dir)?;
         let commits = command::log(&repo)?;
         let commit = commits.last().unwrap();
-        let reader = CommitEntryReader::new(&repo, commit)?;
+        let reader = CommitDirReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
 

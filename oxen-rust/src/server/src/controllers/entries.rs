@@ -4,7 +4,7 @@ use crate::view::PaginatedLinesResponse;
 
 use liboxen::api;
 use liboxen::error::OxenError;
-use liboxen::index::CommitEntryReader;
+use liboxen::index::CommitDirReader;
 use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -163,7 +163,7 @@ fn compress_entries(
     commit: &Commit,
     entries: &[RemoteEntry],
 ) -> Result<Vec<u8>, OxenError> {
-    let entry_reader = CommitEntryReader::new(repo, commit)?;
+    let entry_reader = CommitDirReader::new(repo, commit)?;
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);

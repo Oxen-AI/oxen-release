@@ -1,4 +1,5 @@
 use jwalk::WalkDir;
+
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
@@ -310,13 +311,20 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
         return files;
     }
 
+    let mut mod_idx = 10;
     for entry in WalkDir::new(dir) {
         match entry {
             Ok(val) => {
                 let path = val.path();
                 // if it's not the hidden oxen dir and is not a directory
-                if !is_in_oxen_hidden_dir(&path) && !path.is_dir() {
+                // if !is_in_oxen_hidden_dir(&path) && !path.is_dir() {
+                if !path.is_dir() {
                     files.push(path);
+
+                    if files.len() % mod_idx == 0 {
+                        log::debug!("Got {} files", files.len());
+                        mod_idx *= 2;
+                    }
                 }
             }
             Err(err) => eprintln!(
@@ -329,6 +337,29 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 pub fn count_files_in_dir(dir: &Path) -> usize {
+    let mut count: usize = 0;
+    if dir.is_dir() {
+        match fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            let path = entry.path();
+                            if !is_in_oxen_hidden_dir(&path) && path.is_file() {
+                                count += 1;
+                            }
+                        }
+                        Err(err) => log::warn!("error reading dir entry: {}", err),
+                    }
+                }
+            }
+            Err(err) => log::warn!("error reading dir: {}", err),
+        }
+    }
+    count
+}
+
+pub fn count_items_in_dir(dir: &Path) -> usize {
     let mut count: usize = 0;
     if dir.is_dir() {
         match fs::read_dir(dir) {
@@ -372,7 +403,7 @@ pub fn rcount_files_in_dir(dir: &Path) -> usize {
     count
 }
 
-fn is_in_oxen_hidden_dir(path: &Path) -> bool {
+pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     for component in path.components() {
         if let Some(path_str) = component.as_os_str().to_str() {
             if path_str.eq(constants::OXEN_HIDDEN_DIR) {

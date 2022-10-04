@@ -2,7 +2,7 @@ use crate::config::UserConfig;
 use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{CommitDBReader, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter};
+use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
 use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
 use crate::util;
 
@@ -134,7 +134,7 @@ impl CommitWriter {
 
         This would make sense why hashes are computed at the "add" stage, before the commit stage
         */
-        log::debug!("COMMIT_START"); // for debug logging / timing purposes
+        log::debug!("---COMMIT START---"); // for debug logging / timing purposes
 
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
@@ -150,7 +150,8 @@ impl CommitWriter {
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         // User output
-        println!("Commit {} -> {}", commit.id, commit.message);
+        println!("Commit {} done.", commit.id);
+        log::debug!("---COMMIT END---"); // for debug logging / timing purposes
 
         Ok(commit)
     }
@@ -207,7 +208,7 @@ impl CommitWriter {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         // Commit all staged files from db
-        entry_writer.add_staged_entries(commit, &status.added_files)?;
+        entry_writer.add_staged_entries(commit, status)?;
 
         // Add to commits db id -> commit_json
         self.add_commit_to_db(commit)?;
@@ -234,6 +235,11 @@ impl CommitWriter {
 
         let head_commit = CommitDBReader::head_commit(&self.repository, &self.commits_db)?;
         if head_commit.id == commit_id {
+            log::debug!(
+                "set_working_repo_to_commit_id, do nothing... head commit == commit_id {}",
+                commit_id
+            );
+
             // Don't do anything if we tried to switch to same commit
             return Ok(());
         }
@@ -253,8 +259,8 @@ impl CommitWriter {
         );
 
         // Two readers, one for HEAD and one for this current commit
-        let head_entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
-        let commit_entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
+        let head_entry_reader = CommitDirReader::new_from_head(&self.repository)?;
+        let commit_entry_reader = CommitDirReader::new(&self.repository, &commit)?;
         let commit_entries = head_entry_reader.list_files()?;
         log::debug!(
             "set_working_repo_to_commit_id got {} entries in commit",
@@ -274,8 +280,11 @@ impl CommitWriter {
                     path
                 );
 
+                // TODO: Why are we doing...parent.parent here?
                 // Keep track of parents to see if we clear them
                 if let Some(parent) = path.parent() {
+                    log::debug!("adding candidiate dir {:?}", parent);
+
                     if parent.parent().is_some() {
                         // only add one directory below top level
                         // println!("set_working_repo_to_commit_id candidate dir {:?}", parent);
@@ -296,6 +305,8 @@ impl CommitWriter {
                 }
             }
         }
+        println!("Setting working directory to {}", commit_id);
+        log::debug!("got {} candidiate dirs", candidate_dirs_to_rm.len());
 
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
@@ -310,7 +321,7 @@ impl CommitWriter {
             if let Some(parent) = path.parent() {
                 // Check if parent directory exists, if it does, we no longer have
                 // it as a candidate to remove
-                // println!("CHECKING {:?}", parent);
+                println!("We aren't going to delete candidate {:?}", parent);
                 if candidate_dirs_to_rm.contains(parent) {
                     candidate_dirs_to_rm.remove(&parent.to_path_buf());
                 }
@@ -365,6 +376,7 @@ impl CommitWriter {
 
         bar.finish();
 
+        log::debug!("candidate_dirs_to_rm {}", candidate_dirs_to_rm.len());
         if !candidate_dirs_to_rm.is_empty() {
             println!("Cleaning up...");
         }
@@ -388,6 +400,7 @@ impl CommitWriter {
             Err(OxenError::basic_str(&err))
         }
     }
+
     pub fn get_commit_by_id(&self, commit_id: &str) -> Result<Option<Commit>, OxenError> {
         // Check if the id is in the DB
         let key = commit_id.as_bytes();
@@ -411,7 +424,7 @@ impl CommitWriter {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::{CommitDBReader, CommitEntryReader, CommitWriter};
+    use crate::index::{CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::StagedData;
     use crate::test;
 
@@ -434,7 +447,7 @@ mod tests {
         test::run_empty_stager_test(|stager, repo| {
             // Create committer with no commits
             let repo_path = &repo.path;
-            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
+            let entry_reader = CommitDirReader::new_from_head(&repo)?;
             let commit_writer = CommitWriter::new(&repo)?;
 
             let train_dir = repo_path.join("training_data");
@@ -465,9 +478,10 @@ mod tests {
             assert_eq!(commit_history.len(), 2);
 
             // Check that the files are no longer staged
-            let files = stager.list_added_files()?;
+            let status = stager.status(&entry_reader)?;
+            let files = status.added_files;
             assert_eq!(files.len(), 0);
-            let dirs = stager.list_added_directories()?;
+            let dirs = stager.list_added_dirs()?;
             assert_eq!(dirs.len(), 0);
 
             Ok(())

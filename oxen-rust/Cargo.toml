@@ -52,6 +52,8 @@ hex = "0.4.3"
 filetime = "0.2.16"
 bytesize = "1.1.0"
 num_cpus = "1.13.1"
+tokio = { version = "1", features = ["full"] }
+datafusion = "11.0"
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]

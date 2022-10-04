@@ -6,6 +6,8 @@ pub mod remote;
 pub mod remote_branch;
 pub mod repository;
 pub mod staged_data;
+pub mod staged_dir_stats;
+pub mod summarized_staged_dir_stats;
 pub mod user;
 
 // Repository
@@ -31,6 +33,8 @@ pub use crate::model::entry::ContentHashable;
 
 pub use crate::model::user::{NewUser, User};
 
-pub use crate::model::staged_data::{StagedData, StagedDirStats};
+pub use crate::model::staged_data::StagedData;
+pub use crate::model::staged_dir_stats::StagedDirStats;
+pub use crate::model::summarized_staged_dir_stats::SummarizedStagedDirStats;
 
 pub use crate::model::remote::Remote;

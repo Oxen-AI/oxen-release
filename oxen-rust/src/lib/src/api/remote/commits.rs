@@ -275,7 +275,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::CommitEntryReader;
+    use crate::index::CommitDirReader;
     use crate::test;
 
     use std::thread;
@@ -332,7 +332,7 @@ mod tests {
             // Push it
             command::push(&local_repo)?;
 
-            let commit_entry_reader = CommitEntryReader::new(&local_repo, commit)?;
+            let commit_entry_reader = CommitDirReader::new(&local_repo, commit)?;
             let num_entries = commit_entry_reader.num_entries()?;
 
             // We unzip in a background thread, so give it a second
@@ -372,7 +372,7 @@ mod tests {
             let result_commit =
                 api::remote::commits::post_commit_to_server(local_repo, remote_repo, &commit)?;
             assert_eq!(result_commit.commit.id, commit.id);
-            let commit_entry_reader = CommitEntryReader::new(local_repo, &commit)?;
+            let commit_entry_reader = CommitDirReader::new(local_repo, &commit)?;
             let num_entries = commit_entry_reader.num_entries()?;
 
             // We unzip in a background thread, so give it a second

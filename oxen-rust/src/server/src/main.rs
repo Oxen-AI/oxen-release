@@ -135,6 +135,7 @@ async fn main() -> std::io::Result<()> {
             ) {
                 (Some(email), Some(name), Some(output)) => {
                     let path = Path::new(&sync_dir);
+                    log::debug!("Saving to sync dir: {:?}", path);
                     if let Ok(keygen) = auth::access_keys::AccessKeyManager::new(path) {
                         let new_user = NewUser {
                             name: name.to_string(),
