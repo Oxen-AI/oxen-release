@@ -175,16 +175,16 @@ impl StagedData {
 
                 let num_files_str = match staged_dir.num_files_staged {
                     1 => {
-                        Some(format!("with added {} file\n", staged_dir.num_files_staged).normal())
+                        Some(format!(" with added {} file\n", staged_dir.num_files_staged).normal())
                     }
                     0 => {
                         // limit since we don't have any added files in this dir
                         log::warn!("Added dir with no files staged: {:?}", path);
                         None
                     }
-                    _ => {
-                        Some(format!("with added {} files\n", staged_dir.num_files_staged).normal())
-                    }
+                    _ => Some(
+                        format!(" with added {} files\n", staged_dir.num_files_staged).normal(),
+                    ),
                 };
                 if let Some(num_files_str) = num_files_str {
                     dir_row.push(num_files_str);
