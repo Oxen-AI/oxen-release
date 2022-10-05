@@ -234,6 +234,15 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
+pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
+    input: P,
+    query: Option<S>,
+    output: Option<P>,
+) -> Result<(), OxenError> {
+    command::transform_table(input, query, output).await?;
+    Ok(())
+}
+
 pub fn create_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

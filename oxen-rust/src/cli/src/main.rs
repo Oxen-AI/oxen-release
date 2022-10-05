@@ -106,10 +106,38 @@ async fn main() {
         )
         .subcommand(Command::new("log").about("See log of commits"))
         .subcommand(
+            Command::new("show")
+                .about("Displays a preview of the file. Supported types: csv, tsv, ndjson, jsonl, parq.")
+                .arg(arg!(<PATH> ... "The file path you want to show."))
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("query")
+                        .long("query")
+                        .short('q')
+                        .help("Query the data file.")
+                        .default_value("select * from data limit 10")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .short('o')
+                        .help("Where to save the transformed data")
+                        .takes_value(true),
+                )
+        )
+        .subcommand(
             Command::new("add")
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
                 .arg_required_else_help(true)
+                .arg(
+                    Arg::new("annotations")
+                        .long("annotations")
+                        .short('a')
+                        .help("Add row level tracking on an annotation file. Supported types: csv, tsv, ndjson, jsonl, parq.")
+                        .takes_value(false),
+                )
         )
         .subcommand(
             Command::new("branch")
@@ -323,6 +351,18 @@ async fn main() {
                 eprintln!("{}", err)
             }
         },
+        Some(("show", sub_matches)) => {
+            let path = sub_matches.value_of("PATH").expect("required");
+            let query = sub_matches.value_of("query");
+            let output = sub_matches.value_of("output");
+
+            match dispatch::transform_table(path, query, output).await {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
 
