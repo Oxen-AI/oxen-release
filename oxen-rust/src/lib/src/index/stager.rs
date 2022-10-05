@@ -556,7 +556,16 @@ impl Stager {
         path: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<PathBuf, OxenError> {
-        log::debug!("--- START OXEN ADD ({:?}) ---", path);
+        self.add_file_with_type(path, entry_reader, StagedEntryType::Regular)
+    }
+
+    pub fn add_file_with_type(
+        &self,
+        path: &Path,
+        entry_reader: &CommitDirReader,
+        entry_type: StagedEntryType,
+    ) -> Result<PathBuf, OxenError> {
+        log::debug!("--- START OXEN ADD {:?} ({:?}) ---", entry_type, path);
         let relative = self.add_staged_entry(path, entry_reader, StagedEntryType::Regular)?;
 
         // We should tracking changes to this parent dir too
