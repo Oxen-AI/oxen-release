@@ -664,6 +664,12 @@ pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     Ok(())
 }
 
+/// Diff a file from commit history
+pub async fn diff(repo: &LocalRepository, commit_id: &str, path: &str) -> Result<(), OxenError> {
+    tabular::diff(repo, path, commit_id).await?;
+    Ok(())
+}
+
 /// Pull a specific origin and branch
 pub fn pull_remote_branch(
     repo: &LocalRepository,

@@ -18,6 +18,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::error::OxenError;
+use crate::index::CommitDirEntryReader;
+use crate::model::LocalRepository;
+use crate::util;
 
 async fn register_tsv_table(
     ctx: &SessionContext,
@@ -318,6 +321,9 @@ pub fn write_batches_arrow<P: AsRef<Path>>(
 }
 
 /// TODO:
+/// - Add a diff command to run the df_1.except(df_2) on the loaded tables in context to get an added diff and removed diff
+///     - print added in green and removed in red
+///     - don't need to do anything special here yet in terms of a parquet file, just read into context and diff
 /// - Downcase all the schema values so we can query the output
 pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Result<(), OxenError> {
     if batches.is_empty() {
@@ -458,4 +464,51 @@ pub async fn run_query(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
 
     let results = df.collect().await?;
     Ok(results)
+}
+
+pub async fn diff<P: AsRef<Path>, S: AsRef<str>>(
+    repo: &LocalRepository,
+    path: P,
+    commit_id: S,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let commit_id = commit_id.as_ref();
+    let ctx = SessionContext::new();
+    register_table(&ctx, path, "current").await?;
+
+    if let Some(parent) = path.parent() {
+        let commit_entry_reader = CommitDirEntryReader::new(repo, commit_id, parent)?;
+        let file_name = path.file_name().unwrap();
+        if let Ok(Some(entry)) = commit_entry_reader.get_entry(file_name) {
+            let version_path = util::fs::version_path(repo, &entry);
+
+            register_table(&ctx, &version_path, "commit").await?;
+
+            {
+                let df_current = ctx.table("current")?;
+                let df_commit = ctx.table("commit")?;
+
+                let diff_added = df_current.except(df_commit)?;
+                // let results_added = diff_added.collect().await?;
+
+                println!("\nAdded Rows\n");
+                diff_added.show().await?;
+
+                // print_batches(&ctx, &results_added).await?;
+            }
+
+            {
+                let df_current = ctx.table("current")?;
+                let df_commit = ctx.table("commit")?;
+
+                let diff_removed = df_commit.except(df_current)?;
+                // let results_removed = diff_removed.collect().await?;
+                println!("\nRemoved Rows\n");
+                diff_removed.show().await?;
+
+                // print_batches(&ctx, &results_removed).await?;
+            }
+        }
+    }
+    Ok(())
 }
