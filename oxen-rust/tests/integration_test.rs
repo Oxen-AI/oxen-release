@@ -7,6 +7,7 @@ use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
 
+use futures::future;
 use std::path::Path;
 
 #[test]
@@ -789,9 +790,9 @@ fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_push_one_commit() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_push_one_commit() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async {
         let mut repo = repo;
 
         // Track the file
@@ -806,7 +807,7 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it real good
         command::push(&repo)?;
@@ -820,13 +821,14 @@ fn test_command_push_one_commit() -> Result<(), OxenError> {
 
         api::remote::repositories::delete(&remote_repo)?;
 
-        Ok(())
-    })
+        future::ok::<(), OxenError>(()).await
+
+    }).await
 }
 
-#[test]
-fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async {
         let mut repo = repo;
         // Track the train dir
         let train_dir = repo.path.join("train");
@@ -840,7 +842,7 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push the files
         command::push(&repo)?;
@@ -871,13 +873,13 @@ fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 
         api::remote::repositories::delete(&remote_repo)?;
 
-        Ok(())
-    })
+        future::ok::<(), OxenError>(()).await
+    }).await
 }
 
-#[test]
-fn test_command_push_after_two_commits() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async {
         // Make mutable copy so we can set remote
         let mut repo = repo;
 
@@ -898,7 +900,7 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push the files
         command::push(&repo)?;
@@ -916,14 +918,14 @@ fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 
         api::remote::repositories::delete(&remote_repo)?;
 
-        Ok(())
-    })
+        future::ok::<(), OxenError>(()).await
+    }).await
 }
 
 // This broke when you tried to add the "." directory to add everything, after already committing the train directory.
-#[test]
-fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async {
         // Make mutable copy so we can set remote
         let mut repo = repo;
 
@@ -945,7 +947,7 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push the files
         command::push(&repo)?;
@@ -959,8 +961,8 @@ fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
 
         api::remote::repositories::delete(&remote_repo)?;
 
-        Ok(())
-    })
+        future::ok::<(), OxenError>(()).await
+    }).await
 }
 
 #[test]
@@ -980,9 +982,9 @@ fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track the file
         let train_dirname = "train";
         let train_dir = repo.path.join(train_dirname);
@@ -996,7 +998,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it real good
         command::push(&repo)?;
@@ -1095,7 +1097,7 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             Ok(())
         })
-    })
+    }).await
 }
 
 // This specific flow broke during a demo
@@ -1107,9 +1109,9 @@ fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 // pull
 // * remove file *
 // push
-#[test]
-fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track a file
         let filename = "labels.txt";
         let filepath = repo.path.join(filename);
@@ -1121,7 +1123,7 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it real good
         command::push(&repo)?;
@@ -1163,12 +1165,12 @@ fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
             Ok(())
         })
-    })
+    }).await
 }
 
-#[test]
-fn test_pull_multiple_commits() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_pull_multiple_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track a file
         let filename = "labels.txt";
         let file_path = repo.path.join(filename);
@@ -1188,7 +1190,7 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         command::push(&repo)?;
@@ -1205,13 +1207,13 @@ fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
             Ok(())
         })
-    })
+    }).await
 }
 
 // Make sure we can push again after pulling on the other side, then pull again
-#[test]
-fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track a dir
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
@@ -1222,7 +1224,7 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         command::push(&repo)?;
@@ -1278,13 +1280,13 @@ fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
             Ok(())
         })
-    })
+    }).await
 }
 
 // Make sure we can push again after pulling on the other side, then pull again
-#[test]
-fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track a dir
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
@@ -1297,7 +1299,7 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         command::push(&repo)?;
@@ -1334,12 +1336,12 @@ fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
             Ok(())
         })
-    })
+    }).await
 }
 
-#[test]
-fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track a dir
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
@@ -1350,7 +1352,7 @@ fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         command::push(&repo)?;
@@ -1367,18 +1369,18 @@ fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
         api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
-    })
+    }).await
 }
 
-#[test]
-fn test_delete_remote_branch() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|mut repo| {
+#[tokio::test]
+async fn test_delete_remote_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
         // Set the proper remote
         let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         command::push(&repo)?;
@@ -1399,18 +1401,18 @@ fn test_delete_remote_branch() -> Result<(), OxenError> {
         api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
-    })
+    }).await
 }
 
-#[test]
-fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|mut repo| {
+#[tokio::test]
+async fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo| async move{
         // Set the proper remote
         let remote = test::repo_url_from(&repo.dirname());
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         if command::push_remote_branch(
@@ -1429,12 +1431,12 @@ fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
         api::remote::repositories::delete(&remote_repo)?;
 
         Ok(())
-    })
+    }).await
 }
 
-#[test]
-fn test_pull_full_commit_history() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|mut repo| {
+#[tokio::test]
+async fn test_pull_full_commit_history() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // First commit
         let filename = "labels.txt";
         let filepath = repo.path.join(filename);
@@ -1466,7 +1468,7 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
         command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
-        let remote_repo = test::create_remote_repo(&repo)?;
+        let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Push it
         command::push(&repo)?;
@@ -1499,7 +1501,7 @@ fn test_pull_full_commit_history() -> Result<(), OxenError> {
 
             Ok(())
         })
-    })
+    }).await
 }
 
 #[test]

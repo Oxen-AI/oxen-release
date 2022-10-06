@@ -517,8 +517,8 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn version_path() -> Result<(), OxenError> {
+    #[tokio::test]
+    async fn version_path() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let entry = CommitEntry {
                 commit_id: String::from("1234"),

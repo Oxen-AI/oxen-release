@@ -321,9 +321,6 @@ pub fn write_batches_arrow<P: AsRef<Path>>(
 }
 
 /// TODO:
-/// - Add a diff command to run the df_1.except(df_2) on the loaded tables in context to get an added diff and removed diff
-///     - print added in green and removed in red
-///     - don't need to do anything special here yet in terms of a parquet file, just read into context and diff
 /// - Downcase all the schema values so we can query the output
 pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Result<(), OxenError> {
     if batches.is_empty() {
