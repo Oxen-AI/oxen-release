@@ -22,11 +22,11 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
+pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo, namespace, name, host)?;
+    let remote = command::create_remote(&repo, namespace, name, host).await?;
     println!(
         "Remote created for {}\n\noxen set-remote origin {}",
         name, remote.url

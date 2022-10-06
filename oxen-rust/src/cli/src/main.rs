@@ -262,7 +262,7 @@ async fn main() {
             let name = sub_matches.value_of("NAME").expect("required");
             let host = sub_matches.value_of("HOST").expect("required");
 
-            match dispatch::create_remote(namespace, name, host) {
+            match dispatch::create_remote(namespace, name, host).await {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
