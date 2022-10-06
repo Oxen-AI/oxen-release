@@ -155,6 +155,14 @@ pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub async fn diff(commit_id: &str, path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    command::diff(&repository, commit_id, path).await?;
+    Ok(())
+}
+
 pub fn merge(branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

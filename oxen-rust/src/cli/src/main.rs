@@ -231,6 +231,12 @@ async fn main() {
                 .arg(arg!(<BRANCH> "Branch name to pull")),
         )
         .subcommand(
+            Command::new("diff")
+                .about("Compare file from a commit history")
+                .arg(arg!(<COMMIT_ID> "Commit Id you want to diff"))
+                .arg(arg!(<PATH> "Path you want to diff")),
+        )
+        .subcommand(
             Command::new("read-lines")
                 .about("Read a set of lines from a file without loading it all into memory")
                 .arg(arg!(<PATH> "Path to file you want to read"))
@@ -459,6 +465,17 @@ async fn main() {
                 .value_of("BRANCH")
                 .unwrap_or(DEFAULT_BRANCH_NAME);
             match dispatch::pull(remote, branch) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("diff", sub_matches)) => {
+            let commit_id = sub_matches.value_of("COMMIT_ID").expect("required");
+            let path = sub_matches.value_of("PATH").expect("required");
+
+            match dispatch::diff(commit_id, path).await {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
