@@ -1,9 +1,9 @@
-use datafusion::arrow;
 use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow::{self, csv, json};
 use datafusion::datasource::memory::MemTable;
-use datafusion::prelude::*;
+use datafusion::prelude::{CsvReadOptions, ParquetReadOptions, SessionContext};
 
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
@@ -54,15 +54,43 @@ async fn register_json_table(
     name: &str,
 ) -> Result<(), OxenError> {
     log::debug!("Register JSON {:?}", path);
-    let read_options = NdJsonReadOptions::default();
-    ctx.register_json(name, path.to_str().unwrap(), read_options)
-        .await?;
+
+    let builder = json::ReaderBuilder::new().infer_schema(Some(1000));
+    let file = File::open(path).unwrap();
+    let mut reader = builder.build(file).unwrap();
+    let mut batches: Vec<RecordBatch> = vec![];
+    let mut batch_num: usize = 0;
+
+    loop {
+        match reader.next() {
+            Ok(Some(read_batch)) => {
+                batch_num += 1;
+                log::debug!(
+                    "Read batch {}, size {}x{}",
+                    batch_num,
+                    read_batch.num_rows(),
+                    read_batch.num_columns()
+                );
+                batches.push(read_batch);
+            }
+            Err(e) => {
+                panic!("{}", e);
+            }
+            Ok(None) => {
+                break;
+            }
+        }
+    }
+
+    let provider = MemTable::try_new(reader.schema(), vec![batches])?;
+    ctx.register_table(name, Arc::new(provider))?;
+
     log::debug!("Done register JSON {:?}", path);
 
     Ok(())
 }
 
-async fn register_parq_table(
+async fn register_parquet_table(
     ctx: &SessionContext,
     path: &Path,
     name: &str,
@@ -125,14 +153,17 @@ async fn register_table(ctx: &SessionContext, path: &Path, name: &str) -> Result
     log::debug!("Got extension {:?}", extension);
     if extension == Some("ndjson") || Some("jsonl") == extension {
         register_json_table(ctx, path, name).await
+    } else if Some("csv") == extension {
+        register_csv_table(ctx, path, name).await
     } else if Some("tsv") == extension {
         register_tsv_table(ctx, path, name).await
-    } else if Some("parq") == extension || Some("parquet") == extension {
-        register_parq_table(ctx, path, name).await
+    } else if Some("parquet") == extension {
+        register_parquet_table(ctx, path, name).await
     } else if Some("arrow") == extension {
         register_arrow_table(ctx, path, name).await
     } else {
-        register_csv_table(ctx, path, name).await
+        let err = format!("Unknown file type {:?}", extension);
+        Err(OxenError::basic_str(err))
     }
 }
 
@@ -173,20 +204,105 @@ pub async fn query_ctx(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
     Ok(results)
 }
 
-/// TODO:
-/// - Write to different formats (parq, csv)
-/// - Downcase all the schema values so we can query the output
-pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Result<(), OxenError> {
-    if batches.is_empty() {
-        eprintln!("Not writing empty data");
-        return Ok(());
+pub fn write_batches_json<P: AsRef<Path>>(
+    batches: &[RecordBatch],
+    path: P,
+) -> Result<(), OxenError> {
+    let outpath = path.as_ref();
+    println!("Writing JSON file {:?}", outpath);
+
+    let file = File::create(outpath).unwrap();
+    let mut writer = json::LineDelimitedWriter::new(file);
+    writer.write_batches(batches).unwrap();
+
+    Ok(())
+}
+
+pub fn write_batches_tsv<P: AsRef<Path>>(
+    batches: &Vec<RecordBatch>,
+    path: P,
+) -> Result<(), OxenError> {
+    // Write output to file to test
+    let outpath = path.as_ref();
+    println!("Writing TSV file {:?}", outpath);
+
+    let file = File::create(outpath).unwrap();
+    let builder = csv::WriterBuilder::new()
+        .has_headers(true)
+        .with_delimiter(b'\t');
+    let mut writer = builder.build(file);
+
+    let mut total_batches: usize = 0;
+    for batch in batches {
+        total_batches += 1;
+        log::debug!("Writer wrote batch {}", total_batches);
+        writer.write(batch).unwrap();
+    }
+    Ok(())
+}
+
+pub fn write_batches_csv<P: AsRef<Path>>(
+    batches: &Vec<RecordBatch>,
+    path: P,
+) -> Result<(), OxenError> {
+    // Write output to file to test
+    let outpath = path.as_ref();
+    println!("Writing CSV file {:?}", outpath);
+
+    let file = File::create(outpath).unwrap();
+    let builder = csv::WriterBuilder::new().has_headers(true);
+    let mut writer = builder.build(file);
+
+    let mut total_batches: usize = 0;
+    for batch in batches {
+        total_batches += 1;
+        log::debug!("Writer wrote batch {}", total_batches);
+        writer.write(batch).unwrap();
+    }
+    Ok(())
+}
+
+pub fn write_batches_parquet<P: AsRef<Path>>(
+    batches: &Vec<RecordBatch>,
+    path: P,
+) -> Result<(), OxenError> {
+    let schema = batches[0].schema();
+    let path = path.as_ref();
+    let file = File::create(path)?;
+    println!("Writing parq file {:?}", path);
+
+    // Default writer properties
+    let props = datafusion::parquet::file::properties::WriterProperties::builder()
+        .set_compression(datafusion::parquet::basic::Compression::SNAPPY)
+        .build();
+
+    let mut writer =
+        datafusion::parquet::arrow::arrow_writer::ArrowWriter::try_new(file, schema, Some(props))
+            .unwrap();
+
+    let mut total_batches: usize = 0;
+    for batch in batches {
+        total_batches += 1;
+        log::debug!("Writer wrote batch {}", total_batches);
+        writer.write(batch).unwrap();
     }
 
-    // Keep it under max_table_width wide
+    // writer must be closed to write footer
+    writer.close().unwrap();
+
+    Ok(())
+}
+
+pub fn write_batches_arrow<P: AsRef<Path>>(
+    batches: &Vec<RecordBatch>,
+    path: P,
+) -> Result<(), OxenError> {
     let schema = batches[0].schema();
 
     // Write output to file to test
     let outpath = path.as_ref();
+    println!("Writing arrow file {:?}", outpath);
+
     let mut file = File::create(outpath).unwrap();
     let mut writer = FileWriter::try_new(&mut file, &schema).unwrap();
 
@@ -199,6 +315,33 @@ pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Res
     writer.finish().unwrap();
 
     Ok(())
+}
+
+/// TODO:
+/// - Downcase all the schema values so we can query the output
+pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Result<(), OxenError> {
+    if batches.is_empty() {
+        eprintln!("Not writing empty data");
+        return Ok(());
+    }
+    let path = path.as_ref();
+
+    let extension = path.extension().and_then(OsStr::to_str);
+    log::debug!("Got extension {:?}", extension);
+    if extension == Some("ndjson") || Some("jsonl") == extension {
+        write_batches_json(batches, path)
+    } else if Some("tsv") == extension {
+        write_batches_tsv(batches, path)
+    } else if Some("csv") == extension {
+        write_batches_csv(batches, path)
+    } else if Some("parquet") == extension {
+        write_batches_parquet(batches, path)
+    } else if Some("arrow") == extension {
+        write_batches_arrow(batches, path)
+    } else {
+        let err = format!("Unknown file type {:?}", extension);
+        Err(OxenError::basic_str(err))
+    }
 }
 
 pub async fn print_batches(
