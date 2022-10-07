@@ -254,6 +254,7 @@ pub async fn post_tarball_to_server(
 
     // let stream = FramedRead::new(buffer, BytesCodec::new());
     // let stream = futures_util::stream::iter(buffer);
+    let size = buffer.len() as u64;
 
     let client = reqwest::Client::builder()
         .timeout(time::Duration::from_secs(120))
@@ -272,6 +273,9 @@ pub async fn post_tarball_to_server(
     {
         let status = res.status();
         let body = res.text().await?;
+
+        upload_progress.inc(size);
+
         log::debug!("post_tarball_to_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {

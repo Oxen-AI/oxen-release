@@ -132,7 +132,7 @@ pub async fn download_content_by_ids(
         encoder.write_all(line.as_bytes())?;
     }
     let body = encoder.finish()?;
-
+    let size = body.len() as u64;
     let url = api::endpoint::url_from_repo(remote_repo, "/versions");
 
     if let Ok(res) = reqwest::Client::new()
@@ -152,6 +152,7 @@ pub async fn download_content_by_ids(
         let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
         let archive = Archive::new(decoder);
         archive.unpack(&local_repo.path).await?;
+        download_progress.inc(size);
         Ok(())
     } else {
         let err = format!(

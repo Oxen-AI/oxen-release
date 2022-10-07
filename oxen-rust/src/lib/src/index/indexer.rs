@@ -551,6 +551,7 @@ impl Indexer {
                 content_ids.len()
             );
 
+            // TODO: figure out async parallelization
             let chunks: Vec<&[String]> = content_ids.chunks(chunk_size).collect();
             for chunk in chunks.iter() {
                 api::remote::entries::download_content_by_ids(
