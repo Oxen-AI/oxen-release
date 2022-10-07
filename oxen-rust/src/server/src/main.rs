@@ -113,7 +113,7 @@ async fn main() -> std::io::Result<()> {
                             .app_data(data.clone())
                             .route("/version", web::get().to(controllers::version::index))
                             .wrap(HttpAuthentication::bearer(auth::validator::validate))
-                            .service(web::scope("/oxen").configure(routes::config))
+                            .service(web::scope("/api/repos").configure(routes::config))
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))
                     })
