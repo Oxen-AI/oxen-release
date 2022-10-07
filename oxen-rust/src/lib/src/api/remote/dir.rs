@@ -4,7 +4,7 @@ use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::PaginatedDirEntries;
 
-pub fn list_dir(
+pub async fn list_dir(
     remote_repo: &RemoteRepository,
     commit_or_branch: &str,
     path: &str,
@@ -17,7 +17,7 @@ pub fn list_dir(
         commit_or_branch, path, page_num, page_size
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(&url)
         .header(
@@ -25,9 +25,10 @@ pub fn list_dir(
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
         let status = res.status();
-        let body = res.text()?;
+        let body = res.text().await?;
         // log::debug!("list_page got body: {}", body);
         let response: Result<PaginatedDirEntries, serde_json::Error> = serde_json::from_str(&body);
         match response {
