@@ -16,9 +16,9 @@ pub fn init(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn clone(url: &str) -> Result<(), OxenError> {
+pub async fn clone(url: &str) -> Result<(), OxenError> {
     let dst = std::env::current_dir()?;
-    command::clone(url, &dst)?;
+    command::clone(url, &dst).await?;
     Ok(())
 }
 
@@ -139,19 +139,19 @@ pub fn add_tabular(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
+pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::push_remote_branch(&repository, remote, branch)?;
+    command::push_remote_branch(&repository, remote, branch).await?;
     Ok(())
 }
 
-pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
+pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::pull_remote_branch(&repository, remote, branch)?;
+    command::pull_remote_branch(&repository, remote, branch).await?;
     Ok(())
 }
 
@@ -265,10 +265,10 @@ pub fn delete_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
+pub async fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::delete_remote_branch(&repository, remote_name, branch_name)?;
+    command::delete_remote_branch(&repository, remote_name, branch_name).await?;
     Ok(())
 }
 
@@ -310,10 +310,10 @@ pub fn list_branches() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn list_remote_branches(name: &str) -> Result<(), OxenError> {
+pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let remotes = command::list_remote_branches(&repository, name)?;
+    let remotes = command::list_remote_branches(&repository, name).await?;
 
     for branch in remotes.iter() {
         println!("{}\t{}", branch.remote, branch.branch);
@@ -321,13 +321,13 @@ pub fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn list_all_branches() -> Result<(), OxenError> {
+pub async fn list_all_branches() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     list_branches()?;
 
     for remote in repository.remotes.iter() {
-        list_remote_branches(&remote.name)?;
+        list_remote_branches(&remote.name).await?;
     }
 
     Ok(())

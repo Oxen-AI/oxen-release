@@ -182,9 +182,9 @@ impl StagedData {
                         log::warn!("Added dir with no files staged: {:?}", path);
                         None
                     }
-                    _ => {
-                        Some(format!(" with added {} files\n", staged_dir.num_files_staged).normal())
-                    }
+                    _ => Some(
+                        format!(" with added {} files\n", staged_dir.num_files_staged).normal(),
+                    ),
                 };
                 if let Some(num_files_str) = num_files_str {
                     dir_row.push(num_files_str);
