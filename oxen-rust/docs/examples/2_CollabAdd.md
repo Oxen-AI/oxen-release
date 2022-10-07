@@ -5,8 +5,8 @@ You should be comfortable with initializing a repository, staging data, and comm
 Now it is time to collaborate on a dataset with a remote server in the middle. We will assume no remote repository exists at the start. To create a remote repository you can use the `oxen create-remote` command. This will take the current working directory name and return a URL that we can use to sync the data to.
 
 ```shell
-$ oxen create-remote 0.0.0.0:3000
-Remote url: http://0.0.0.0:3000/repositories/SmallCatDog
+$ oxen create-remote greg SmallCatDog 0.0.0.0:3000
+Remote url: http://0.0.0.0:3000/greg/SmallCatDog
 ```
 
 Now let's set a remote named `origin` to this url. You can have multiple remotes with different URLs if you want to sync to different servers. For now we will just be working with `origin`

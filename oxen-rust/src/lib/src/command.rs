@@ -9,6 +9,8 @@ use crate::error::OxenError;
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
+use crate::media::tabular;
+use crate::model::entry::staged_entry::StagedEntryType;
 use crate::model::{
     Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
 };
@@ -182,10 +184,25 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 
 /// # Add tabular file to track row level changes
 pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    if !path.is_file() {
+        return Err(OxenError::basic_str("Err: path must be valid file"));
+    }
+
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add_tabular_file(path.as_ref(), &reader)?;
+    stager.add_file_with_type(path.as_ref(), &reader, StagedEntryType::Tabular)?;
+    Ok(())
+}
+
+pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
+    input: P,
+    query: Option<S>,
+    output: Option<P>,
+) -> Result<(), OxenError> {
+    tabular::transform_table(input, query, output).await?;
+
     Ok(())
 }
 
@@ -542,13 +559,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Create a remote repository
 /// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
-pub fn create_remote(
+pub async fn create_remote(
     repo: &LocalRepository,
     namespace: &str,
     name: &str,
     host: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(repo, namespace, name, host)
+    api::remote::repositories::create(repo, namespace, name, host).await
 }
 
 /// # Set the remote for a repository
@@ -644,6 +661,12 @@ pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer.pull(&rb)?;
+    Ok(())
+}
+
+/// Diff a file from commit history
+pub async fn diff(repo: &LocalRepository, commit_id: &str, path: &str) -> Result<(), OxenError> {
+    tabular::diff(repo, path, commit_id).await?;
     Ok(())
 }
 

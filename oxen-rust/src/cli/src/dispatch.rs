@@ -22,11 +22,11 @@ pub fn clone(url: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
+pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo, namespace, name, host)?;
+    let remote = command::create_remote(&repo, namespace, name, host).await?;
     println!(
         "Remote created for {}\n\noxen set-remote origin {}",
         name, remote.url
@@ -155,6 +155,14 @@ pub fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub async fn diff(commit_id: &str, path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    command::diff(&repository, commit_id, path).await?;
+    Ok(())
+}
+
 pub fn merge(branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -231,6 +239,15 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
 
     repo_status.print_stdout_with_params(skip, limit, print_all);
 
+    Ok(())
+}
+
+pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
+    input: P,
+    query: Option<S>,
+    output: Option<P>,
+) -> Result<(), OxenError> {
+    command::transform_table(input, query, output).await?;
     Ok(())
 }
 
