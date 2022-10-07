@@ -71,7 +71,7 @@ pub fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, Oxen
     }
 }
 
-pub fn create(
+pub async fn create(
     repository: &LocalRepository,
     namespace: &str,
     name: &str,
@@ -84,7 +84,7 @@ pub fn create(
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {}", url);
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .post(url.to_owned())
         .json(&params)
@@ -92,9 +92,9 @@ pub fn create(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()?),
         )
-        .send()
+        .send().await
     {
-        let body = res.text()?;
+        let body = res.text().await?;
         // println!("Response: {}", body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -145,34 +145,36 @@ pub fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError>
 #[cfg(test)]
 mod tests {
 
+    use futures::future;
+
     use crate::api;
     use crate::constants;
     use crate::error::OxenError;
     use crate::test;
 
-    #[test]
-    fn test_create_remote_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_create_remote_repository() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST).await?;
             println!("got repository: {:?}", repository);
             assert_eq!(repository.name, name);
 
             // cleanup
             api::remote::repositories::delete(&repository)?;
-            Ok(())
-        })
+            future::ok::<(), OxenError>(()).await
+        }).await
     }
 
-    #[test]
-    fn test_get_by_name() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_get_by_name() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST).await?;
             let url_repo = api::remote::repositories::get_by_remote_url(&repository.url)?.unwrap();
 
             assert_eq!(repository.namespace, url_repo.namespace);
@@ -181,17 +183,17 @@ mod tests {
             // cleanup
             api::remote::repositories::delete(&repository)?;
 
-            Ok(())
-        })
+            future::ok::<(), OxenError>(()).await
+        }).await
     }
 
-    #[test]
-    fn test_delete_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_delete_repository() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST).await?;
 
             // delete
             api::remote::repositories::delete(&repository)?;
@@ -199,7 +201,7 @@ mod tests {
             let result = api::remote::repositories::get_by_remote_url(&repository.url);
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
-            Ok(())
-        })
+            future::ok::<(), OxenError>(()).await
+        }).await
     }
 }

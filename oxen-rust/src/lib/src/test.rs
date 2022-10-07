@@ -8,6 +8,7 @@ use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 
+use std::future::Future;
 use env_logger::Env;
 use std::fs::File;
 use std::io::prelude::*;
@@ -46,13 +47,13 @@ fn create_empty_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
     create_prefixed_dir(base_dir, "dir")
 }
 
-pub fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     command::create_remote(
         repo,
         constants::DEFAULT_NAMESPACE,
         &repo.dirname(),
         TEST_HOST,
-    )
+    ).await
 }
 
 /// # Run a unit test on a test repo directory
@@ -94,33 +95,62 @@ where
 
 pub fn run_empty_local_repo_test<T>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(LocalRepository) -> Result<(), OxenError>
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
     let repo = command::init(&repo_dir)?;
 
-    // Run test to see if it panic'd
-    let result = std::panic::catch_unwind(|| match test(repo) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("Error running test. Err: {}", err);
+    let result = match test(repo) {
+        Ok(_) => {
+            true
         }
-    });
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+            false
+        }
+    };
 
     // Remove repo dir
     std::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    assert!(result);
+    Ok(())
+}
+
+pub async fn run_empty_local_repo_test_async<T,Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
+
+    let result = match test(repo).await {
+        Ok(_) => {
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+            false
+        }
+    };
+
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
     Ok(())
 }
 
 /// Test syncing between local and remote, where both exist, and both are empty
-pub fn run_empty_sync_repo_test<T>(test: T) -> Result<(), OxenError>
+pub async fn run_empty_sync_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(&LocalRepository, &RemoteRepository) -> Result<(), OxenError>
-        + std::panic::UnwindSafe,
+    T: FnOnce(&LocalRepository, &RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
@@ -129,15 +159,16 @@ where
 
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let remote_repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST)?;
+    let remote_repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
 
     // Run test to see if it panic'd
-    let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
-        Ok(_) => {}
+    let result = match test(&local_repo, &remote_repo).await {
+        Ok(_) => true,
         Err(err) => {
-            panic!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {}", err);
+            false
         }
-    });
+    };
 
     // Cleanup local repo
     std::fs::remove_dir_all(&repo_dir)?;
@@ -146,15 +177,15 @@ where
     api::remote::repositories::delete(&remote_repo)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    assert!(result);
     Ok(())
 }
 
 /// Test where the local repo has training data in it
-pub fn run_training_data_sync_test_no_commits<T>(test: T) -> Result<(), OxenError>
+pub async fn run_training_data_sync_test_no_commits<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(&LocalRepository, &RemoteRepository) -> Result<(), OxenError>
-        + std::panic::UnwindSafe,
+    T: FnOnce(&LocalRepository, &RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>
 {
     init_test_env();
     let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
@@ -165,16 +196,19 @@ where
 
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let remote_repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST)?;
+    let remote_repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
     println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
-    let result = std::panic::catch_unwind(|| match test(&local_repo, &remote_repo) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("Error running test. Err: {}", err);
+    let result = match test(&local_repo, &remote_repo).await {
+        Ok(_) => {
+            true
         }
-    });
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+            false
+        }
+    };
 
     // Cleanup local repo
     std::fs::remove_dir_all(&repo_dir)?;
@@ -183,14 +217,15 @@ where
     api::remote::repositories::delete(&remote_repo)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    assert!(result);
     Ok(())
 }
 
 /// Test interacting with a remote repo that has nothing synced
-pub fn run_empty_remote_repo_test<T>(test: T) -> Result<(), OxenError>
+pub async fn run_empty_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(&RemoteRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    T: FnOnce(&RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>
 {
     init_test_env();
     let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
@@ -199,16 +234,19 @@ where
     let local_repo = command::init(&path)?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST)?;
+    let repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
     println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd
-    let result = std::panic::catch_unwind(|| match test(&repo) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("Error running test. Err: {}", err);
+    let result = match test(&repo).await {
+        Ok(_) => {
+            true
         }
-    });
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+            false
+        }
+    };
 
     // Cleanup remote repo
     api::remote::repositories::delete(&repo)?;
@@ -217,7 +255,39 @@ where
     std::fs::remove_dir_all(path)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    assert!(result);
+    Ok(())
+}
+
+/// Run a test on a repo with a bunch of filees
+pub async fn run_training_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_dir_with_training_data(&repo_dir)?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => {
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+            false
+        }
+    };
+
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
     Ok(())
 }
 
@@ -246,6 +316,44 @@ where
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
+    Ok(())
+}
+
+/// Run a test on a repo with a bunch of filees
+pub async fn run_training_data_repo_test_fully_committed_async<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_dir_with_training_data(&repo_dir)?;
+    command::add(&repo, &repo_dir.join("train"))?;
+    command::add(&repo, &repo_dir.join("test"))?;
+    command::add(&repo, &repo_dir.join("annotations"))?;
+    command::add(&repo, &repo_dir.join("labels.txt"))?;
+    command::add(&repo, &repo_dir.join("README.md"))?;
+    command::commit(&repo, "adding all data baby")?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => {
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {}", err);
+            false
+        }
+    };
+
+    // Remove repo dir
+    std::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
     Ok(())
 }
 

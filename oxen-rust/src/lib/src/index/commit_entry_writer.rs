@@ -170,6 +170,7 @@ impl CommitEntryWriter {
         let versions_entry_path = util::fs::version_path(&self.repository, new_entry);
         let versions_entry_dir = versions_entry_path.parent().unwrap();
 
+        // Create dir if not exists
         if !versions_entry_dir.exists() {
             // it's the first time
             log::debug!(

@@ -18,6 +18,7 @@ pub mod constants;
 pub mod db;
 pub mod error;
 pub mod index;
+pub mod media;
 pub mod model;
 pub mod test;
 pub mod util;
