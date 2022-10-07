@@ -4,7 +4,7 @@ use super::controllers;
 
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.route(
-        "/repositories",
+        "",
         web::post().to(controllers::repositories::create),
     )
     .route(
