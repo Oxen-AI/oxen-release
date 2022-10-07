@@ -240,7 +240,7 @@ Untracked files:
 
 `oxen create-remote hub.oxen.ai`
 
-`oxen set-remote origin http://hub.oxen.ai/repositories/BasketballActionRecognition`
+`oxen remote add origin http://hub.oxen.ai/repositories/BasketballActionRecognition`
 
 ## Experiment 2
 

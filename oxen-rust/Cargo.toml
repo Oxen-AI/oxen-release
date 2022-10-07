@@ -61,6 +61,7 @@ termion = "1.5.6"
 async-compression = { version = "0.3.14", features = ["futures-io", "gzip"] }
 async-tar = "0.4.2"
 async-recursion = "1.0.0"
+bytes = "1.2.1"
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]
