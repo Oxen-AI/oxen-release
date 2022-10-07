@@ -381,15 +381,16 @@ async fn main() {
         }
         Some(("branch", sub_matches)) => {
             if sub_matches.is_present("all") {
-                if let Err(err) = dispatch::list_all_branches() {
+                if let Err(err) = dispatch::list_all_branches().await {
                     eprintln!("{}", err)
                 }
             } else if let Some(remote_name) = sub_matches.value_of("remote") {
                 if let Some(branch_name) = sub_matches.value_of("delete") {
-                    if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name) {
+                    if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name).await
+                    {
                         eprintln!("{}", err)
                     }
-                } else if let Err(err) = dispatch::list_remote_branches(remote_name) {
+                } else if let Err(err) = dispatch::list_remote_branches(remote_name).await {
                     eprintln!("{}", err)
                 }
             } else if let Some(name) = sub_matches.value_of("name") {
@@ -449,7 +450,7 @@ async fn main() {
             if sub_matches.is_present("delete") {
                 println!("Delete remote branch {}/{}", remote, branch);
             } else {
-                match dispatch::push(remote, branch) {
+                match dispatch::push(remote, branch).await {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
@@ -464,7 +465,7 @@ async fn main() {
             let branch = sub_matches
                 .value_of("BRANCH")
                 .unwrap_or(DEFAULT_BRANCH_NAME);
-            match dispatch::pull(remote, branch) {
+            match dispatch::pull(remote, branch).await {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
@@ -484,7 +485,7 @@ async fn main() {
         }
         Some(("clone", sub_matches)) => {
             let url = sub_matches.value_of("URL").expect("required");
-            match dispatch::clone(url) {
+            match dispatch::clone(url).await {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {}", err)

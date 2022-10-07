@@ -347,15 +347,18 @@ pub fn delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
 }
 
 /// # Delete a remote branch
-pub fn delete_remote_branch(
+pub async fn delete_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch_name: &str,
 ) -> Result<(), OxenError> {
     if let Some(remote) = repo.get_remote(remote) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
-            if let Some(branch) = api::remote::branches::get_by_name(&remote_repo, branch_name)? {
-                api::remote::branches::delete(&remote_repo, &branch.name)?;
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
+        {
+            if let Some(branch) =
+                api::remote::branches::get_by_name(&remote_repo, branch_name).await?
+            {
+                api::remote::branches::delete(&remote_repo, &branch.name).await?;
                 Ok(())
             } else {
                 Err(OxenError::remote_branch_not_found(branch_name))
@@ -518,14 +521,15 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 }
 
 /// # List remote branches
-pub fn list_remote_branches(
+pub async fn list_remote_branches(
     repo: &LocalRepository,
     name: &str,
 ) -> Result<Vec<RemoteBranch>, OxenError> {
     let mut branches: Vec<RemoteBranch> = vec![];
     if let Some(remote) = repo.get_remote(name) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
-            for branch in api::remote::branches::list(&remote_repo)? {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
+        {
+            for branch in api::remote::branches::list(&remote_repo).await? {
                 branches.push(RemoteBranch {
                     remote: remote.name.clone(),
                     branch: branch.name.clone(),
@@ -598,7 +602,8 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
-/// # fn main() -> Result<(), OxenError> {
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir_push");
@@ -617,24 +622,24 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// // Set the remote server
 /// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000")?;
+/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000").await?;
 ///
 /// // Push the file
-/// command::push(&repo);
+/// command::push(&repo).await;
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
-/// # api::remote::repositories::delete(&remote_repo)?;
+/// # api::remote::repositories::delete(&remote_repo).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch::default();
-    indexer.push(&rb)
+    indexer.push(&rb).await
 }
 
 /// Push to a specific remote
-pub fn push_remote_branch(
+pub async fn push_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch: &str,
@@ -644,12 +649,12 @@ pub fn push_remote_branch(
         remote: String::from(remote),
         branch: String::from(branch),
     };
-    indexer.push(&rb)
+    indexer.push(&rb).await
 }
 
 /// Clone a repo from a url to a directory
-pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    match LocalRepository::clone_remote(url, dst) {
+pub async fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
+    match LocalRepository::clone_remote(url, dst).await {
         Ok(Some(repo)) => Ok(repo),
         Ok(None) => Err(OxenError::remote_repo_not_found(url)),
         Err(err) => Err(err),
@@ -657,10 +662,10 @@ pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
 }
 
 /// Pull a repository's data from origin/main
-pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
+pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch::default();
-    indexer.pull(&rb)?;
+    indexer.pull(&rb).await?;
     Ok(())
 }
 
@@ -671,7 +676,7 @@ pub async fn diff(repo: &LocalRepository, commit_id: &str, path: &str) -> Result
 }
 
 /// Pull a specific origin and branch
-pub fn pull_remote_branch(
+pub async fn pull_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch: &str,
@@ -681,7 +686,7 @@ pub fn pull_remote_branch(
         remote: String::from(remote),
         branch: String::from(branch),
     };
-    indexer.pull(&rb)?;
+    indexer.pull(&rb).await?;
     Ok(())
 }
 
