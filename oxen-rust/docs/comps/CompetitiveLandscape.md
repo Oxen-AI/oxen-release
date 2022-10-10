@@ -188,3 +188,10 @@ Celeb 100k
 * pull local (chunk and compress 1024 chunks) - 94.58 secs
 
 
+# Rsync
+
+rsync MSCoco/train2017 on local network (9.8 GB)
+
+22.71 mins
+
+
