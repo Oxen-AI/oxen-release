@@ -245,7 +245,7 @@ pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
 pub fn restore<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let commit = head_commit(repo)?;
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitDirReader::new(repo, &commit)?;
 
     if let Some(entry) = reader.get_entry(path)? {
         let version_path = util::fs::version_path(repo, &entry);
