@@ -169,6 +169,59 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     Ok(())
 }
 
+/// # Restore a removed file that was committed
+///
+/// ```
+/// use liboxen::command;
+/// use liboxen::util;
+/// # use liboxen::test;
+/// # use liboxen::error::OxenError;
+/// # use std::path::Path;
+/// # fn main() -> Result<(), OxenError> {
+/// # test::init_test_env();
+///
+/// // Initialize the repository
+/// let base_dir = Path::new("/tmp/repo_dir_commit");
+/// let repo = command::init(base_dir)?;
+///
+/// // Write file to disk
+/// let hello_name = "hello.txt";
+/// let hello_path = base_dir.join(hello_name);
+/// util::fs::write_to_path(&hello_path, "Hello World");
+///
+/// // Stage the file
+/// command::add(&repo, &hello_path)?;
+///
+/// // Commit staged
+/// command::commit(&repo, "My commit message")?;
+///
+/// // Remove the file from disk
+/// std::fs::remove_file(hello_path)?;
+///
+/// // Restore the file
+/// command::restore(&repo, hello_name)?;
+///
+/// # std::fs::remove_dir_all(base_dir)?;
+/// # Ok(())
+/// # }
+/// ```
+pub fn restore<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let commit = head_commit(repo)?;
+    let reader = CommitEntryReader::new(repo, &commit)?;
+
+    if let Some(entry) = reader.get_entry(path)? {
+        let version_path = util::fs::version_path(repo, &entry);
+        let working_path = repo.path.join(path);
+        std::fs::copy(version_path, working_path)?;
+        println!("Restored file {:?}", path);
+        Ok(())
+    } else {
+        let error = format!("Could not restore file: {:?}", path);
+        Err(OxenError::basic_str(error))
+    }
+}
+
 /// # Commit the staged files in the repo
 ///
 /// ```
