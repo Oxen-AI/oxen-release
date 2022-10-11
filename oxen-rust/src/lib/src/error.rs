@@ -1,7 +1,10 @@
+use datafusion::error::DataFusionError;
 use std::error;
 use std::fmt;
 use std::io;
 use std::path::Path;
+
+pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
     "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
@@ -22,6 +25,7 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
+    DataFusion(DataFusionError),
 }
 
 impl OxenError {
@@ -30,7 +34,7 @@ impl OxenError {
     }
 
     pub fn local_repo_not_found() -> OxenError {
-        OxenError::basic_str("No oxen repository exists, looking for directory: .oxen")
+        OxenError::basic_str(NO_REPO_FOUND)
     }
 
     pub fn email_and_name_not_set() -> OxenError {
@@ -82,8 +86,26 @@ impl OxenError {
         OxenError::basic_str(&err)
     }
 
-    pub fn local_file_not_found<T: AsRef<Path>>(path: T) -> OxenError {
-        let err = format!("Could not find local file: {:?}", path.as_ref());
+    pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File does not exist: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn file_has_no_parent<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File has no parent: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn could_not_convert_path_to_str<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File has no name: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn local_commit_or_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
+        let err = format!(
+            "Local branch or commit reference `{}` not found",
+            name.as_ref()
+        );
         OxenError::basic_str(&err)
     }
 }
@@ -165,5 +187,11 @@ impl From<rocksdb::Error> for OxenError {
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {
         OxenError::ENV(error)
+    }
+}
+
+impl From<DataFusionError> for OxenError {
+    fn from(error: DataFusionError) -> Self {
+        OxenError::DataFusion(error)
     }
 }

@@ -40,6 +40,14 @@ Run the server
 
 The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
 
+To run the server with live reload, first install cargo-watch
+
+`cargo install cargo-watch`
+
+Then run the server like this
+
+`cargo watch -- cargo run --bin oxen-server start`
+
 # Unit & Integration Tests
 
 Make sure your server is running on the default port and host, then run
@@ -135,10 +143,33 @@ To inspect any of the key value dbs below
     remotes/experiment/add_dogs -> COMMIT_ID
 
   staged/ (created from `oxen add <file>` command)
-    key,value db of:
+    dirs/ (rocksdb of directory names)
+      key: path/to/dir
+      value: {  }
+    files/ (going to mimick dir structure for fast access to subset)
+      path/
+        to/
+          dir/ (rocks db of files specific to that dir, with relative paths)
+            key: filename.jpg
+            value: {"hash": "FILE_HASH", "tracking_type": "tabular|regular"} (we generate a file ID and hash for each file that is added)
 
-    filenames -> {"hash" => "FILE_HASH", "id" => "UUID_V4"} (we generate a file ID and hash for each file that is added)
-    dirnames -> count
+  history/ (list of commits)
+    COMMIT_HASH_1/
+      dirs/ (rocks db of dirnames in commit, similar to staged above, but could include computed metadata)
+        key: path/to/dir
+        value: { "count": 1000, "other_meta_data": ? }
+      files/
+        path/
+          to/
+            dir/
+              key: filename 
+              value: {
+                "hash" => "FILE_HASH", (use this to know if a file was different)
+                ... other meta data
+              }
+
+    COMMIT_HASH_2/
+    COMMIT_HASH_3/
 
   commits/ (created from `oxen commit -m "my message"` command. Also generates history/commit_hash)
     key,value of:
@@ -150,18 +181,6 @@ To inspect any of the key value dbs below
       - Parent Commit ID
       - Author
       - Timestamp
-
-  history/ (list of commits)
-    COMMIT_HASH_1/
-      key,value of:
-
-      filename -> { (filename is where we copy the version back to)
-        "hash" => "FILE_HASH", (use this to know if a file was different)
-        ... other meta data
-      }
-
-    COMMIT_HASH_2/
-    COMMIT_HASH_3/
 
   versions/ (copies of original files, versioned with commit ids)
     //
@@ -175,3 +194,29 @@ To inspect any of the key value dbs below
     FILE_HASH_DIRS_2/
       COMMIT_ID_1 (dog_2.jpg)
 ```
+
+# Homebrew Release
+
+Preparing the binary
+
+```bash
+cargo build --release
+```
+
+Create a tar archive that we will upload to github releases
+
+```bash
+cd target/release
+tar -czf oxen-mac.tar.gz oxen
+```
+
+Get the sha256 hash of the archive
+
+```bash
+shasum -a 256 oxen-mac.tar.gz
+```
+
+Upload it to our releases github repository [https://github.com/Oxen-AI/oxen-release](https://github.com/Oxen-AI/oxen-release)
+
+Then update our homebrew Formula in this repository [https://github.com/Oxen-AI/homebrew-oxen](https://github.com/Oxen-AI/homebrew-oxen) to point to the correct release.
+

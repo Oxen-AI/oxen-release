@@ -4,22 +4,20 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
-use crate::util::ReadProgress;
+// use crate::util::ReadProgress;
 use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
 
 use std::path::Path;
 use std::str;
 use std::time;
 
-use flate2::read::GzDecoder;
+use async_compression::futures::bufread::GzipDecoder;
+use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use indicatif::ProgressBar;
-use std::io::Cursor;
-use std::sync::Arc;
-use tar::Archive;
+use futures_util::TryStreamExt;
 
-pub fn get_by_id(
+pub async fn get_by_id(
     repository: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
@@ -28,7 +26,7 @@ pub fn get_by_id(
     let url = api::endpoint::url_from_repo(repository, &uri);
     log::debug!("remote::commits::get_by_id {}", url);
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(url)
         .header(
@@ -36,12 +34,13 @@ pub fn get_by_id(
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
         if res.status() == 404 {
             return Ok(None);
         }
 
-        let body = res.text()?;
+        let body = res.text().await?;
         log::debug!("api::remote::commits::get_by_id Got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -56,7 +55,7 @@ pub fn get_by_id(
     }
 }
 
-pub fn commit_is_synced(
+pub async fn commit_is_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
     num_entries: usize,
@@ -65,7 +64,7 @@ pub fn commit_is_synced(
     let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
     log::debug!("commit_is_synced checking URL: {}", url);
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(url)
         .header(
@@ -73,8 +72,9 @@ pub fn commit_is_synced(
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
-        let body = res.text()?;
+        let body = res.text().await?;
         log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -89,7 +89,7 @@ pub fn commit_is_synced(
     }
 }
 
-pub fn download_commit_db_by_id(
+pub async fn download_commit_db_by_id(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: &str,
@@ -98,7 +98,7 @@ pub fn download_commit_db_by_id(
     let uri = format!("/commits/{}/commit_db", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(url)
         .header(
@@ -106,11 +106,18 @@ pub fn download_commit_db_by_id(
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
         // Unpack tarball to our hidden dir
         let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-        let mut archive = Archive::new(GzDecoder::new(res));
-        archive.unpack(hidden_dir)?;
+
+        let reader = res
+            .bytes_stream()
+            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+            .into_async_read();
+        let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+        let archive = Archive::new(decoder);
+        archive.unpack(hidden_dir).await?;
 
         Ok(())
     } else {
@@ -120,14 +127,14 @@ pub fn download_commit_db_by_id(
     }
 }
 
-pub fn get_remote_parent(
+pub async fn get_remote_parent(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/commits/{}/parents", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(url)
         .header(
@@ -135,8 +142,9 @@ pub fn get_remote_parent(
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
-        let body = res.text()?;
+        let body = res.text().await?;
         let response: Result<CommitParentsResponse, serde_json::Error> =
             serde_json::from_str(&body);
         match response {
@@ -151,14 +159,13 @@ pub fn get_remote_parent(
     }
 }
 
-pub fn post_commit_to_server(
+pub async fn post_commit_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    branch: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     // First create commit on server
-    create_commit_obj_on_server(remote_repo, branch, commit)?;
+    create_commit_obj_on_server(remote_repo, commit).await?;
 
     // Then zip up and send the history db
     println!("Compressing commit {}", commit.id);
@@ -178,35 +185,33 @@ pub fn post_commit_to_server(
 
     println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    let pb = Arc::new(ProgressBar::new(buffer.len() as u64));
-    let response = post_tarball_to_server(remote_repo, commit, &buffer, &pb)?;
+    let response = post_tarball_to_server(remote_repo, commit, buffer).await?;
     Ok(response)
 }
 
-fn create_commit_obj_on_server(
+async fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
     let config = UserConfig::default()?;
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
 
-    let uri = format!("/branches/{}/commits", branch_name);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, "/commits");
 
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);
     if let Ok(res) = client
         .post(url)
-        .body(reqwest::blocking::Body::from(body))
+        .body(reqwest::Body::from(body))
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
         let status = res.status();
-        let body = res.text()?;
+        let body = res.text().await?;
         log::debug!("create_commit_obj_on_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -223,52 +228,48 @@ fn create_commit_obj_on_server(
     }
 }
 
-pub fn post_tarball_to_server(
+pub async fn post_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    buffer: &[u8],
-    upload_progress: &Arc<ProgressBar>,
+    buffer: Vec<u8>,
 ) -> Result<CommitResponse, OxenError> {
     let config = UserConfig::default()?;
 
-    let uri = format!("/commits/{}", commit.id);
+    let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
-    // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
-    let cursor = Cursor::new(Vec::from(buffer));
-    let upload_source = ReadProgress {
-        progress_bar: upload_progress.clone(),
-        inner: cursor,
-    };
-
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    if let Ok(res) = client
+    match client
         .post(url)
-        .body(reqwest::blocking::Body::new(upload_source))
+        .body(buffer)
         .header(
             reqwest::header::AUTHORIZATION,
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
-        let status = res.status();
-        let body = res.text()?;
-        log::debug!("post_tarball_to_server got response {}", body);
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(response),
-            Err(_) => Err(OxenError::basic_str(&format!(
-                "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
-                status, body
-            ))),
+        Ok(res) => {
+            let status = res.status();
+            let body = res.text().await?;
+
+            log::debug!("post_tarball_to_server got response {}", body);
+            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(response) => Ok(response),
+                Err(_) => Err(OxenError::basic_str(&format!(
+                    "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
+                    status, body
+                ))),
+            }
         }
-    } else {
-        Err(OxenError::basic_str(
-            "post_tarball_to_server error sending data from file",
-        ))
+        Err(e) => {
+            let err_str = format!("Err uploading tarball: {:?}", e);
+            Err(OxenError::basic_str(err_str))
+        }
     }
 }
 
@@ -278,14 +279,14 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::CommitEntryReader;
+    use crate::index::CommitDirReader;
     use crate::test;
 
     use std::thread;
 
-    #[test]
-    fn test_remote_commits_post_commit_to_server() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
+    #[tokio::test]
+    async fn test_remote_commits_post_commit_to_server() -> Result<(), OxenError> {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
             // Track the annotations dir
             // has format
             //   annotations/
@@ -295,31 +296,28 @@ mod tests {
             //     test/
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
-            command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(local_repo)?.unwrap();
+            command::add(&local_repo, &annotations_dir)?;
             // Commit the directory
             let commit = command::commit(
-                local_repo,
+                &local_repo,
                 "Adding annotations data dir, which has two levels",
             )?
             .unwrap();
 
             // Post commit
-            let result_commit = api::remote::commits::post_commit_to_server(
-                local_repo,
-                remote_repo,
-                &branch.name,
-                &commit,
-            )?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit)
+                    .await?;
             assert_eq!(result_commit.commit.id, commit.id);
 
-            Ok(())
+            Ok(remote_repo)
         })
+        .await
     }
 
-    #[test]
-    fn test_remote_commits_commit_is_valid() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|local_repo| {
+    #[tokio::test]
+    async fn test_remote_commits_commit_is_valid() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
             let mut local_repo = local_repo;
             let commit_history = command::log(&local_repo)?;
             let commit = commit_history.first().unwrap();
@@ -335,30 +333,33 @@ mod tests {
                 constants::DEFAULT_NAMESPACE,
                 &local_repo.dirname(),
                 test::TEST_HOST,
-            )?;
+            )
+            .await?;
 
             // Push it
-            command::push(&local_repo)?;
+            command::push(&local_repo).await?;
 
-            let commit_entry_reader = CommitEntryReader::new(&local_repo, commit)?;
+            let commit_entry_reader = CommitDirReader::new(&local_repo, commit)?;
             let num_entries = commit_entry_reader.num_entries()?;
 
             // We unzip in a background thread, so give it a second
             thread::sleep(std::time::Duration::from_secs(1));
 
             let is_synced =
-                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)?;
+                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
+                    .await?;
             assert!(is_synced);
 
-            api::remote::repositories::delete(&remote_repo)?;
+            api::remote::repositories::delete(&remote_repo).await?;
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_remote_commits_is_not_valid() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| {
+    #[tokio::test]
+    async fn test_remote_commits_is_not_valid() -> Result<(), OxenError> {
+        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
             // Track the annotations dir
             // has format
             //   annotations/
@@ -368,24 +369,20 @@ mod tests {
             //     test/
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
-            command::add(local_repo, &annotations_dir)?;
-            let branch = command::current_branch(local_repo)?.unwrap();
+            command::add(&local_repo, &annotations_dir)?;
             // Commit the directory
             let commit = command::commit(
-                local_repo,
+                &local_repo,
                 "Adding annotations data dir, which has two levels",
             )?
             .unwrap();
 
             // Post commit but not the actual files
-            let result_commit = api::remote::commits::post_commit_to_server(
-                local_repo,
-                remote_repo,
-                &branch.name,
-                &commit,
-            )?;
+            let result_commit =
+                api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit)
+                    .await?;
             assert_eq!(result_commit.commit.id, commit.id);
-            let commit_entry_reader = CommitEntryReader::new(local_repo, &commit)?;
+            let commit_entry_reader = CommitDirReader::new(&local_repo, &commit)?;
             let num_entries = commit_entry_reader.num_entries()?;
 
             // We unzip in a background thread, so give it a second
@@ -393,10 +390,12 @@ mod tests {
 
             // Should not be synced because we didn't actually post the files
             let is_synced =
-                api::remote::commits::commit_is_synced(remote_repo, &commit.id, num_entries)?;
+                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
+                    .await?;
             assert!(!is_synced);
 
-            Ok(())
+            Ok(remote_repo)
         })
+        .await
     }
 }

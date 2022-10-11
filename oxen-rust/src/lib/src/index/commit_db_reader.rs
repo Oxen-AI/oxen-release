@@ -128,13 +128,17 @@ impl CommitDBReader {
         commit_id: &str,
         commits: &mut HashSet<Commit>,
     ) -> Result<(), OxenError> {
-        if let Some(commit) = CommitDBReader::get_commit_by_id(db, commit_id)? {
-            commits.insert(commit.to_owned());
-            for parent_id in commit.parent_ids.iter() {
-                CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
+        match CommitDBReader::get_commit_by_id(db, commit_id) {
+            Ok(Some(commit)) => {
+                commits.insert(commit.to_owned());
+                for parent_id in commit.parent_ids.iter() {
+                    CommitDBReader::history_from_commit_id(db, parent_id, commits)?;
+                }
+                Ok(())
             }
+            Ok(None) => Err(OxenError::commit_id_does_not_exist(commit_id)),
+            Err(e) => Err(e),
         }
-        Ok(())
     }
 
     pub fn history_with_depth_from_commit_id(

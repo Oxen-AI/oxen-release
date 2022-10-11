@@ -2,7 +2,7 @@ use crate::api;
 use crate::command;
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::{CommitEntryReader, CommitWriter, RefWriter};
+use crate::index::{CommitDirReader, CommitWriter, RefWriter};
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
 use crate::view::RepositoryView;
@@ -28,7 +28,7 @@ pub fn get_by_namespace_and_name(
 
 pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, OxenError> {
     let commit = command::head_commit(repo)?;
-    let reader = CommitEntryReader::new_from_head(repo)?;
+    let reader = CommitDirReader::new_from_head(repo)?;
     Ok(CommitStats {
         commit,
         num_entries: reader.num_entries()?,
@@ -42,7 +42,7 @@ pub fn get_commit_stats_from_id(
 ) -> Result<Option<CommitStats>, OxenError> {
     match api::local::commits::get_by_id(repo, commit_id) {
         Ok(Some(commit)) => {
-            let reader = CommitEntryReader::new(repo, &commit)?;
+            let reader = CommitDirReader::new(repo, &commit)?;
             Ok(Some(CommitStats {
                 commit,
                 num_entries: reader.num_entries()?,
