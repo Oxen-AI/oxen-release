@@ -9,7 +9,7 @@ use serde_json::json;
 use url::Url;
 
 /// This url will not have the /oxen prefix, we need to extract the namespace and name and reformat
-pub fn get_by_remote_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
+pub async fn get_by_remote_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
     let repo = RepositoryNew::from_url(url)?;
     let parsed_url = Url::parse(url)?;
     let port = if parsed_url.port() == None {
@@ -25,12 +25,12 @@ pub fn get_by_remote_url(url: &str) -> Result<Option<RemoteRepository>, OxenErro
         repo.namespace,
         repo.name
     );
-    get_by_namespaced_url(&new_url)
+    get_by_namespaced_url(&new_url).await
 }
 
-pub fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
+pub async fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
     let config = UserConfig::default()?;
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     log::debug!("api::remote::repositories::get_by_url({})", url);
     if let Ok(res) = client
         .get(url)
@@ -39,13 +39,14 @@ pub fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, Oxen
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
         let status = res.status();
         if 404 == status {
             return Ok(None);
         }
 
-        let body = res.text()?;
+        let body = res.text().await?;
         log::debug!(
             "repositories::get_by_url {}\nstatus[{}] {}",
             url,
@@ -71,7 +72,7 @@ pub fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, Oxen
     }
 }
 
-pub fn create(
+pub async fn create(
     repository: &LocalRepository,
     namespace: &str,
     name: &str,
@@ -84,7 +85,7 @@ pub fn create(
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {}", url);
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .post(url.to_owned())
         .json(&params)
@@ -93,8 +94,9 @@ pub fn create(
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
-        let body = res.text()?;
+        let body = res.text().await?;
         // println!("Response: {}", body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -113,9 +115,9 @@ pub fn create(
     }
 }
 
-pub fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
+pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
     let config = UserConfig::default()?;
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     log::debug!("Deleting repository: {}", repository.url);
     if let Ok(res) = client
         .delete(repository.url.clone())
@@ -124,9 +126,10 @@ pub fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError>
             format!("Bearer {}", config.auth_token()?),
         )
         .send()
+        .await
     {
         let status = res.status();
-        let body = res.text()?;
+        let body = res.text().await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
@@ -144,62 +147,70 @@ pub fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError>
 
 #[cfg(test)]
 mod tests {
-
     use crate::api;
     use crate::constants;
     use crate::error::OxenError;
     use crate::test;
 
-    #[test]
-    fn test_create_remote_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_create_remote_repository() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                    .await?;
             println!("got repository: {:?}", repository);
             assert_eq!(repository.name, name);
 
             // cleanup
-            api::remote::repositories::delete(&repository)?;
+            api::remote::repositories::delete(&repository).await?;
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_get_by_name() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_get_by_name() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
-            let url_repo = api::remote::repositories::get_by_remote_url(&repository.url)?.unwrap();
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                    .await?;
+            let url_repo = api::remote::repositories::get_by_remote_url(&repository.url)
+                .await?
+                .unwrap();
 
             assert_eq!(repository.namespace, url_repo.namespace);
             assert_eq!(repository.name, url_repo.name);
 
             // cleanup
-            api::remote::repositories::delete(&repository)?;
+            api::remote::repositories::delete(&repository).await?;
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_delete_repository() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_delete_repository() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                    .await?;
 
             // delete
-            api::remote::repositories::delete(&repository)?;
+            api::remote::repositories::delete(&repository).await?;
 
-            let result = api::remote::repositories::get_by_remote_url(&repository.url);
+            let result = api::remote::repositories::get_by_remote_url(&repository.url).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
+
             Ok(())
         })
+        .await
     }
 }

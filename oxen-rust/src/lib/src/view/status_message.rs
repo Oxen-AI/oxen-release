@@ -42,4 +42,11 @@ impl StatusMessage {
             status_message: String::from(view::http::MSG_INTERNAL_SERVER_ERROR),
         }
     }
+
+    pub fn not_implemented() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_ERROR),
+            status_message: String::from(view::http::MSG_NOT_IMPLEMENTED),
+        }
+    }
 }

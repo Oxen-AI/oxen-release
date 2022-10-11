@@ -105,10 +105,10 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
+    pub async fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!("clone_remote {} -> {:?}", url, dst);
-        match api::remote::repositories::get_by_remote_url(url) {
-            Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst)?)),
+        match api::remote::repositories::get_by_remote_url(url).await {
+            Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst).await?)),
             Ok(None) => Ok(None),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
@@ -172,7 +172,7 @@ impl LocalRepository {
         }
     }
 
-    fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
+    async fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
         // get last part of URL for directory name
         let url = String::from(&repo.url);
         let repo_new = RepositoryNew::from_url(&url)?;
@@ -202,7 +202,9 @@ impl LocalRepository {
         // Pull all commit objects, but not entries
         let indexer = Indexer::new(&local_repo)?;
         let remote_repo = RemoteRepository::from_new(&repo_new, &url);
-        indexer.pull_all_commit_objects(&remote_repo, &RemoteBranch::default())?;
+        indexer
+            .pull_all_commit_objects(&remote_repo, &RemoteBranch::default())
+            .await?;
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
@@ -267,16 +269,19 @@ mod tests {
         })
     }
 
-    #[test]
-    fn test_clone_remote() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|local_repo| {
+    #[tokio::test]
+    async fn test_clone_remote() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let remote_repo =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)?;
+                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                    .await?;
 
-            test::run_empty_dir_test(|dir| {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.url, dir)?.unwrap();
+            test::run_empty_dir_test_async(|dir| async move {
+                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)
+                    .await?
+                    .unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);
@@ -290,11 +295,13 @@ mod tests {
                 assert!(status.is_clean());
 
                 // Cleanup
-                api::remote::repositories::delete(&remote_repo)?;
+                api::remote::repositories::delete(&remote_repo).await?;
 
-                Ok(())
+                Ok(dir)
             })
+            .await
         })
+        .await
     }
 
     #[test]

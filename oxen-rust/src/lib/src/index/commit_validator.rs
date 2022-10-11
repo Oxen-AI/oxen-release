@@ -1,5 +1,5 @@
 use crate::error::OxenError;
-use crate::index::CommitEntryReader;
+use crate::index::CommitDirReader;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 
@@ -51,9 +51,10 @@ impl CommitValidator {
     }
 
     pub fn has_all_data(&self, commit: &Commit, size: usize) -> Result<bool, OxenError> {
-        let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
+        let commit_entry_reader = CommitDirReader::new(&self.repository, commit)?;
         let entries = commit_entry_reader.list_entries()?;
         if size != entries.len() {
+            log::debug!("has_all_data {} != {}", size, entries.len());
             return Ok(false);
         }
 
@@ -80,6 +81,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::index::CommitValidator;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_commit_validator_validate_commit() -> Result<(), OxenError> {
@@ -87,9 +89,10 @@ mod tests {
             let commits = command::log(&repo)?;
             let latest_commit = commits.first().unwrap();
             let validator = CommitValidator::new(&repo);
+            let total_entries = util::fs::rcount_files_in_dir(&repo.path);
 
             // Local repo should work just fine
-            match validator.has_all_data(latest_commit, 12) {
+            match validator.has_all_data(latest_commit, total_entries) {
                 Ok(result) => assert!(result),
                 Err(err) => {
                     log::error!("Err: {}", err);

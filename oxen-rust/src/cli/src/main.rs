@@ -8,7 +8,8 @@ pub mod dispatch;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn main() {
+#[tokio::main]
+async fn main() {
     env_logger::init_from_env(Env::default());
 
     let command = Command::new("oxen")
@@ -21,8 +22,7 @@ fn main() {
         .subcommand(
             Command::new("init")
                 .about("Initializes a local repository")
-                .arg(arg!(<PATH> "The directory to establish the repo in"))
-                .arg_required_else_help(true),
+                .arg(arg!([PATH] "The directory to establish the repo in. Defaults to the current directory."))
         )
         .subcommand(
             Command::new("config")
@@ -78,14 +78,66 @@ fn main() {
                 )
         )
         .subcommand(
-            Command::new("status").about("See at what files are ready to be added or committed"),
+            Command::new("status")
+                .about("See at what files are ready to be added or committed")
+                .arg(
+                    Arg::new("skip")
+                        .long("skip")
+                        .short('s')
+                        .help("Allows you to skip and paginate through the file list preview.")
+                        .default_value("0")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("limit")
+                        .long("limit")
+                        .short('l')
+                        .help("Allows you to view more file list preview.")
+                        .default_value("10")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("print_all")
+                        .long("print_all")
+                        .short('a')
+                        .help("If present, does not truncate the output of status at all.")
+                        .takes_value(false),
+                )
         )
         .subcommand(Command::new("log").about("See log of commits"))
+        .subcommand(
+            Command::new("show")
+                .about("Displays a preview of the file. Supported types: csv, tsv, ndjson, jsonl, parq.")
+                .arg(arg!(<PATH> ... "The file path you want to show."))
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("query")
+                        .long("query")
+                        .short('q')
+                        .help("Query the data file.")
+                        .default_value("select * from data limit 10")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .short('o')
+                        .help("Where to save the transformed data")
+                        .takes_value(true),
+                )
+        )
         .subcommand(
             Command::new("add")
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
-                .arg_required_else_help(true),
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("annotations")
+                        .long("annotations")
+                        .short('a')
+                        .help("Add row level tracking on an annotation file. Supported types: csv, tsv, ndjson, jsonl, parq.")
+                        .takes_value(false),
+                )
         )
         .subcommand(
             Command::new("restore")
@@ -185,6 +237,12 @@ fn main() {
                 .arg(arg!(<BRANCH> "Branch name to pull")),
         )
         .subcommand(
+            Command::new("diff")
+                .about("Compare file from a commit history")
+                .arg(arg!(<COMMIT_ID> "Commit Id you want to diff"))
+                .arg(arg!(<PATH> "Path you want to diff")),
+        )
+        .subcommand(
             Command::new("read-lines")
                 .about("Read a set of lines from a file without loading it all into memory")
                 .arg(arg!(<PATH> "Path to file you want to read"))
@@ -196,10 +254,7 @@ fn main() {
 
     match matches.subcommand() {
         Some(("init", sub_matches)) => {
-            let path = sub_matches
-                .value_of("PATH")
-                .ok_or(".")
-                .expect("Must provide path to repository.");
+            let path = sub_matches.value_of("PATH").unwrap_or(".");
 
             match dispatch::init(path) {
                 Ok(_) => {}
@@ -213,7 +268,7 @@ fn main() {
             let name = sub_matches.value_of("NAME").expect("required");
             let host = sub_matches.value_of("HOST").expect("required");
 
-            match dispatch::create_remote(namespace, name, host) {
+            match dispatch::create_remote(namespace, name, host).await {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
@@ -282,18 +337,44 @@ fn main() {
                 }
             }
         }
-        Some(("status", _sub_matches)) => match dispatch::status() {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{}", err);
+        Some(("status", sub_matches)) => {
+            let skip: usize = sub_matches
+                .value_of("skip")
+                .unwrap_or("0")
+                .parse::<usize>()
+                .expect("Skip must be a valid integer.");
+            let limit: usize = sub_matches
+                .value_of("limit")
+                .unwrap_or("10")
+                .parse::<usize>()
+                .expect("Limit must be a valid integer.");
+            let print_all = sub_matches.is_present("print_all");
+
+            match dispatch::status(skip, limit, print_all) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err);
+                }
             }
-        },
+        }
         Some(("log", _sub_matches)) => match dispatch::log_commits() {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{}", err)
             }
         },
+        Some(("show", sub_matches)) => {
+            let path = sub_matches.value_of("PATH").expect("required");
+            let query = sub_matches.value_of("query");
+            let output = sub_matches.value_of("output");
+
+            match dispatch::transform_table(path, query, output).await {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
 
@@ -316,15 +397,16 @@ fn main() {
         }
         Some(("branch", sub_matches)) => {
             if sub_matches.is_present("all") {
-                if let Err(err) = dispatch::list_all_branches() {
+                if let Err(err) = dispatch::list_all_branches().await {
                     eprintln!("{}", err)
                 }
             } else if let Some(remote_name) = sub_matches.value_of("remote") {
                 if let Some(branch_name) = sub_matches.value_of("delete") {
-                    if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name) {
+                    if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name).await
+                    {
                         eprintln!("{}", err)
                     }
-                } else if let Err(err) = dispatch::list_remote_branches(remote_name) {
+                } else if let Err(err) = dispatch::list_remote_branches(remote_name).await {
                     eprintln!("{}", err)
                 }
             } else if let Some(name) = sub_matches.value_of("name") {
@@ -384,7 +466,7 @@ fn main() {
             if sub_matches.is_present("delete") {
                 println!("Delete remote branch {}/{}", remote, branch);
             } else {
-                match dispatch::push(remote, branch) {
+                match dispatch::push(remote, branch).await {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
@@ -399,7 +481,18 @@ fn main() {
             let branch = sub_matches
                 .value_of("BRANCH")
                 .unwrap_or(DEFAULT_BRANCH_NAME);
-            match dispatch::pull(remote, branch) {
+            match dispatch::pull(remote, branch).await {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("diff", sub_matches)) => {
+            let commit_id = sub_matches.value_of("COMMIT_ID").expect("required");
+            let path = sub_matches.value_of("PATH").expect("required");
+
+            match dispatch::diff(commit_id, path).await {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
@@ -408,7 +501,7 @@ fn main() {
         }
         Some(("clone", sub_matches)) => {
             let url = sub_matches.value_of("URL").expect("required");
-            match dispatch::clone(url) {
+            match dispatch::clone(url).await {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {}", err)

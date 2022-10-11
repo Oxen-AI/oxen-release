@@ -20,8 +20,8 @@ pub fn list(
     // Should look like: http://{REMOTE}/repositories/{REPO_NAME}/branches
     let url = api::endpoint::url_from_repo(repository, "/branches");
 
-    // Create a blocking http request
-    let client = reqwest::blocking::Client::new();
+    // Create a http request
+    let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(url)
         // Grab the authentication token from UserConfig

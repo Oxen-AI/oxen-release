@@ -7,8 +7,10 @@ use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{
-    CommitEntryReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
+    CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
+use crate::media::tabular;
+use crate::model::entry::staged_entry::StagedEntryType;
 use crate::model::{
     Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
 };
@@ -126,11 +128,22 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
 /// ```
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     log::debug!("status before new_from_head");
-    let reader = CommitEntryReader::new_from_head(repository)?;
+    let reader = CommitDirReader::new_from_head(repository)?;
     log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
     log::debug!("status before stager.status");
     let status = stager.status(&reader)?;
+    Ok(status)
+}
+
+/// Similar to status but takes the starting directory to look from
+pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<StagedData, OxenError> {
+    log::debug!("status before new_from_head");
+    let reader = CommitDirReader::new_from_head(repository)?;
+    log::debug!("status before Stager::new");
+    let stager = Stager::new(repository)?;
+    log::debug!("status before stager.status");
+    let status = stager.status_from_dir(&reader, dir)?;
     Ok(status)
 }
 
@@ -164,8 +177,32 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitDirReader::new(repo, &commit)?;
     stager.add(path.as_ref(), &reader)?;
+    Ok(())
+}
+
+/// # Add tabular file to track row level changes
+pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    if !path.is_file() {
+        return Err(OxenError::basic_str("Err: path must be valid file"));
+    }
+
+    let stager = Stager::new_with_merge(repo)?;
+    let commit = head_commit(repo)?;
+    let reader = CommitDirReader::new(repo, &commit)?;
+    stager.add_file_with_type(path.as_ref(), &reader, StagedEntryType::Tabular)?;
+    Ok(())
+}
+
+pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
+    input: P,
+    query: Option<S>,
+    output: Option<P>,
+) -> Result<(), OxenError> {
+    tabular::transform_table(input, query, output).await?;
+
     Ok(())
 }
 
@@ -208,7 +245,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 pub fn restore<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let commit = head_commit(repo)?;
-    let reader = CommitEntryReader::new(repo, &commit)?;
+    let reader = CommitDirReader::new(repo, &commit)?;
 
     if let Some(entry) = reader.get_entry(path)? {
         let version_path = util::fs::version_path(repo, &entry);
@@ -311,29 +348,49 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(commits)
 }
 
-/// # Get the history for a specific branch
-pub fn log_branch_commit_history(
+/// # Get the history for a specific branch or commit
+pub fn log_commit_or_branch_history(
     repo: &LocalRepository,
-    branch_name: &str,
+    commit_or_branch: &str,
 ) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
-    if let Some(commit_id) = get_branch_commit_id(repo, branch_name)? {
-        let commits = committer.history_from_commit_id(&commit_id)?;
-        Ok(commits)
-    } else {
-        let err = format!("Branch does not exist: {}", branch_name);
-        Err(OxenError::basic_str(err))
+    let commit_id = match get_branch_commit_id(repo, commit_or_branch)? {
+        Some(branch_commit_id) => branch_commit_id,
+        None => String::from(commit_or_branch),
+    };
+
+    log::debug!("log_commit_or_branch_history: commit_id: {}", commit_id);
+    match committer.history_from_commit_id(&commit_id) {
+        Ok(commits) => Ok(commits),
+        Err(_) => Err(OxenError::local_commit_or_branch_not_found(
+            commit_or_branch,
+        )),
     }
 }
 
-/// # Create a new branch
+/// # Create a new branch from the head commit
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
-pub fn create_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn create_branch_from_head(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     let ref_writer = RefWriter::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     let head_commit = commit_reader.head_commit()?;
     ref_writer.create_branch(name, &head_commit.id)
+}
+
+/// # Create a local branch from a specific commit id
+pub fn create_branch(
+    repo: &LocalRepository,
+    name: &str,
+    commit_id: &str,
+) -> Result<Branch, OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    if commit_reader.commit_id_exists(commit_id) {
+        ref_writer.create_branch(name, commit_id)
+    } else {
+        Err(OxenError::commit_id_does_not_exist(commit_id))
+    }
 }
 
 /// # Delete a local branch
@@ -343,15 +400,18 @@ pub fn delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
 }
 
 /// # Delete a remote branch
-pub fn delete_remote_branch(
+pub async fn delete_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch_name: &str,
 ) -> Result<(), OxenError> {
     if let Some(remote) = repo.get_remote(remote) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
-            if let Some(branch) = api::remote::branches::get_by_name(&remote_repo, branch_name)? {
-                api::remote::branches::delete(&remote_repo, &branch.name)?;
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
+        {
+            if let Some(branch) =
+                api::remote::branches::get_by_name(&remote_repo, branch_name).await?
+            {
+                api::remote::branches::delete(&remote_repo, &branch.name).await?;
                 Ok(())
             } else {
                 Err(OxenError::remote_branch_not_found(branch_name))
@@ -375,6 +435,7 @@ pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), Oxe
 /// it also updates all the local files to be from the commit that this branch references
 pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
     let value = value.as_ref();
+    log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
             println!("Already on branch {}", value);
@@ -395,7 +456,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
         set_working_commit_id(repo, value)?;
         set_head(repo, value)?;
     }
-
+    log::debug!("--- CHECKOUT END {} ----", value);
     Ok(())
 }
 
@@ -513,14 +574,15 @@ pub fn list_branches(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 }
 
 /// # List remote branches
-pub fn list_remote_branches(
+pub async fn list_remote_branches(
     repo: &LocalRepository,
     name: &str,
 ) -> Result<Vec<RemoteBranch>, OxenError> {
     let mut branches: Vec<RemoteBranch> = vec![];
     if let Some(remote) = repo.get_remote(name) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url)? {
-            for branch in api::remote::branches::list(&remote_repo)? {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
+        {
+            for branch in api::remote::branches::list(&remote_repo).await? {
                 branches.push(RemoteBranch {
                     remote: remote.name.clone(),
                     branch: branch.name.clone(),
@@ -554,13 +616,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Create a remote repository
 /// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
-pub fn create_remote(
+pub async fn create_remote(
     repo: &LocalRepository,
     namespace: &str,
     name: &str,
     host: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(repo, namespace, name, host)
+    api::remote::repositories::create(repo, namespace, name, host).await
 }
 
 /// # Set the remote for a repository
@@ -593,7 +655,8 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// use liboxen::util;
 /// # use liboxen::error::OxenError;
 /// # use std::path::Path;
-/// # fn main() -> Result<(), OxenError> {
+/// # #[tokio::main]
+/// # async fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 /// // Initialize the repository
 /// let base_dir = Path::new("/tmp/repo_dir_push");
@@ -612,24 +675,24 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// // Set the remote server
 /// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000")?;
+/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000").await?;
 ///
 /// // Push the file
-/// command::push(&repo);
+/// command::push(&repo).await;
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
-/// # api::remote::repositories::delete(&remote_repo)?;
+/// # api::remote::repositories::delete(&remote_repo).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch::default();
-    indexer.push(&rb)
+    indexer.push(&rb).await
 }
 
 /// Push to a specific remote
-pub fn push_remote_branch(
+pub async fn push_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch: &str,
@@ -639,12 +702,12 @@ pub fn push_remote_branch(
         remote: String::from(remote),
         branch: String::from(branch),
     };
-    indexer.push(&rb)
+    indexer.push(&rb).await
 }
 
 /// Clone a repo from a url to a directory
-pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    match LocalRepository::clone_remote(url, dst) {
+pub async fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
+    match LocalRepository::clone_remote(url, dst).await {
         Ok(Some(repo)) => Ok(repo),
         Ok(None) => Err(OxenError::remote_repo_not_found(url)),
         Err(err) => Err(err),
@@ -652,15 +715,21 @@ pub fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
 }
 
 /// Pull a repository's data from origin/main
-pub fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
+pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = Indexer::new(repo)?;
     let rb = RemoteBranch::default();
-    indexer.pull(&rb)?;
+    indexer.pull(&rb).await?;
+    Ok(())
+}
+
+/// Diff a file from commit history
+pub async fn diff(repo: &LocalRepository, commit_id: &str, path: &str) -> Result<(), OxenError> {
+    tabular::diff(repo, path, commit_id).await?;
     Ok(())
 }
 
 /// Pull a specific origin and branch
-pub fn pull_remote_branch(
+pub async fn pull_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch: &str,
@@ -670,7 +739,7 @@ pub fn pull_remote_branch(
         remote: String::from(remote),
         branch: String::from(branch),
     };
-    indexer.pull(&rb)?;
+    indexer.pull(&rb).await?;
     Ok(())
 }
 
