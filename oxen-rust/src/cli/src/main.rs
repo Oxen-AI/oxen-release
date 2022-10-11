@@ -140,6 +140,12 @@ async fn main() {
                 )
         )
         .subcommand(
+            Command::new("restore")
+                .about("Restories the specified file or directory")
+                .arg(arg!(<PATH> ... "File to restore from current working tree"))
+                .arg_required_else_help(true),
+        )
+        .subcommand(
             Command::new("branch")
                 .about("Manage branches in repository")
                 .arg(Arg::new("name").help("Name of the branch").exclusive(true))
@@ -373,6 +379,16 @@ async fn main() {
             let path = sub_matches.value_of("PATH").expect("required");
 
             match dispatch::add(path) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("restore", sub_matches)) => {
+            let path = sub_matches.value_of("PATH").expect("required");
+
+            match dispatch::restore(path) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
