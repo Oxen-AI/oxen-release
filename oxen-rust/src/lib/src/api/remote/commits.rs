@@ -12,13 +12,10 @@ use std::str;
 use std::time;
 
 use async_compression::futures::bufread::GzipDecoder;
+use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::ProgressBar;
-// use std::io::Cursor;
-use async_tar::Archive;
-use std::sync::Arc;
 
 pub async fn get_by_id(
     repository: &RemoteRepository,
@@ -188,8 +185,7 @@ pub async fn post_commit_to_server(
 
     println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    let pb = Arc::new(ProgressBar::new(buffer.len() as u64));
-    let response = post_tarball_to_server(remote_repo, commit, buffer, &pb).await?;
+    let response = post_tarball_to_server(remote_repo, commit, buffer).await?;
     Ok(response)
 }
 
@@ -236,33 +232,18 @@ pub async fn post_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: Vec<u8>,
-    upload_progress: &Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
-    // use tokio_util::codec::{BytesCodec, FramedRead};
-
     let config = UserConfig::default()?;
 
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri);
 
-    // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
-    // let cursor = Cursor::new(Vec::from(buffer));
-    // let upload_source = ReadProgress {
-    //     progress_bar: upload_progress.clone(),
-    //     inner: cursor,
-    // };
-
-    // let stream = FramedRead::new(buffer, BytesCodec::new());
-    // let stream = futures_util::stream::iter(buffer);
-    let size = buffer.len() as u64;
-
     let client = reqwest::Client::builder()
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    if let Ok(res) = client
+    match client
         .post(url)
-        // .body(reqwest::Body::wrap_stream(stream))
         .body(buffer)
         .header(
             reqwest::header::AUTHORIZATION,
@@ -271,24 +252,24 @@ pub async fn post_tarball_to_server(
         .send()
         .await
     {
-        let status = res.status();
-        let body = res.text().await?;
+        Ok(res) => {
+            let status = res.status();
+            let body = res.text().await?;
 
-        upload_progress.inc(size);
-
-        log::debug!("post_tarball_to_server got response {}", body);
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(response),
-            Err(_) => Err(OxenError::basic_str(&format!(
-                "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
-                status, body
-            ))),
+            log::debug!("post_tarball_to_server got response {}", body);
+            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(response) => Ok(response),
+                Err(_) => Err(OxenError::basic_str(&format!(
+                    "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
+                    status, body
+                ))),
+            }
         }
-    } else {
-        Err(OxenError::basic_str(
-            "post_tarball_to_server error sending data from file",
-        ))
+        Err(e) => {
+            let err_str = format!("Err uploading tarball: {:?}", e);
+            Err(OxenError::basic_str(err_str))
+        }
     }
 }
 
