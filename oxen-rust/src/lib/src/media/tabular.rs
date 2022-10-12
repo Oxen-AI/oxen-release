@@ -1,3 +1,4 @@
+use datafusion::arrow::datatypes::{DataType, Schema};
 use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -12,10 +13,12 @@ use comfy_table::{Cell, ContentArrangement, Row, Table};
 use termion::terminal_size;
 use unicode_truncate::UnicodeTruncateStr;
 
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
+use std::vec;
 
 use crate::error::OxenError;
 use crate::index::CommitDirEntryReader;
@@ -178,8 +181,12 @@ async fn run_query_or_all<S: AsRef<str>>(
         let q = query.as_ref();
         run_query(ctx, q).await
     } else {
-        run_query(ctx, "select * from data").await
+        run_all_query(ctx).await
     }
+}
+
+async fn run_all_query(ctx: &SessionContext) -> Result<Vec<RecordBatch>, OxenError> {
+    run_query(ctx, "select * from data").await
 }
 
 pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
@@ -272,7 +279,7 @@ pub fn write_batches_parquet<P: AsRef<Path>>(
     let schema = batches[0].schema();
     let path = path.as_ref();
     let file = File::create(path)?;
-    println!("Writing parq file {:?}", path);
+    log::debug!("Writing parq file {:?}", path);
 
     // Default writer properties
     let props = datafusion::parquet::file::properties::WriterProperties::builder()
@@ -320,8 +327,6 @@ pub fn write_batches_arrow<P: AsRef<Path>>(
     Ok(())
 }
 
-/// TODO:
-/// - Downcase all the schema values so we can query the output
 pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Result<(), OxenError> {
     if batches.is_empty() {
         eprintln!("Not writing empty data");
@@ -345,6 +350,149 @@ pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Res
         let err = format!("Unknown file type {:?}", extension);
         Err(OxenError::basic_str(err))
     }
+}
+
+/// This is hacky...but I don't understand datafusion well enough and need to get something going 🤦‍♂️
+pub async fn group_rows_by_key<P: AsRef<Path>, S: AsRef<str>>(
+    path: P,
+    key: S,
+) -> Result<(HashMap<String, Vec<Vec<String>>>, Arc<Schema>), OxenError> {
+    let mut result: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+
+    let path = path.as_ref();
+    let key = key.as_ref();
+    let ctx = SessionContext::new();
+    register_table(&ctx, path, "data").await?;
+    let batches = run_all_query(&ctx).await?;
+
+    if batches.is_empty() {
+        let err = format!("Could not read data from {:?}", path);
+        return Err(OxenError::basic_str(err));
+    }
+
+    let schema = batches[0].schema();
+    let maybe_idx = schema.fields().iter().position(|x| x.name() == key);
+    if maybe_idx.is_none() {
+        let err = format!("Key not found: {key}");
+        return Err(OxenError::basic_str(err));
+    }
+
+    // TODO: probably a more data-fusion-y way to aggregate and group
+    let idx = maybe_idx.unwrap();
+    for batch in batches {
+        for row_i in 0..batch.num_rows() {
+            // Get filename
+            let filename =
+                match arrow::util::display::array_value_to_string(batch.column(idx), row_i) {
+                    Ok(filename) => {
+                        if !result.contains_key(&filename) {
+                            let new_rows: Vec<Vec<String>> = Vec::new();
+                            result.insert(filename.clone(), new_rows);
+                        }
+                        filename
+                    }
+                    _ => {
+                        log::error!("Invalid key value for column {idx}");
+                        String::from("")
+                    }
+                };
+
+            // Fill in rest of columns
+            let mut row: Vec<String> = vec![];
+            for col_i in 0..batch.num_columns() {
+                match arrow::util::display::array_value_to_string(batch.column(col_i), row_i) {
+                    Ok(val) => {
+                        row.push(val);
+                    }
+                    _ => return Err(OxenError::basic_str("Invalid key value.")),
+                }
+            }
+            result.get_mut(&filename).unwrap().push(row);
+        }
+    }
+
+    Ok((result, schema))
+}
+
+pub fn save_rows<P: AsRef<Path>>(
+    path: P,
+    rows: &[Vec<String>],
+    schema: Arc<Schema>,
+) -> Result<(), OxenError> {
+    use std::iter::FromIterator;
+    let path = path.as_ref();
+
+    let mut batches: Vec<RecordBatch> = vec![];
+
+    let num_cols = schema.fields().len();
+    let mut cols: Vec<Arc<dyn arrow::array::Array>> = vec![];
+    for col_i in 0..num_cols {
+        let mut vals: Vec<Option<String>> = vec![];
+        for row in rows.iter() {
+            let val = &row[col_i];
+            vals.push(Some(val.clone()));
+        }
+        let field = schema.field(col_i);
+
+        // TODO: this is annoying, gotta be a better way than casting to &Vec<Vec<String>> and back to proper type here
+        let column: Arc<dyn arrow::array::Array> = match field.data_type() {
+            DataType::Utf8 => Arc::new(arrow::array::StringArray::from_iter(vals)),
+            DataType::LargeUtf8 => Arc::new(arrow::array::StringArray::from_iter(vals)),
+            DataType::Boolean => {
+                let arr: Vec<Option<bool>> = vals
+                    .into_iter()
+                    .map(|val| Some(val.unwrap().parse::<bool>().unwrap()))
+                    .collect();
+                Arc::new(arrow::array::BooleanArray::from_iter(arr))
+            }
+            DataType::Int32 => {
+                let arr: Vec<Option<i32>> = vals
+                    .into_iter()
+                    .map(|val| Some(val.unwrap().parse::<i32>().unwrap()))
+                    .collect();
+                Arc::new(arrow::array::Int32Array::from_iter(arr))
+            }
+            DataType::Int64 => {
+                let arr: Vec<Option<i64>> = vals
+                    .into_iter()
+                    .map(|val| Some(val.unwrap().parse::<i64>().unwrap()))
+                    .collect();
+                Arc::new(arrow::array::Int64Array::from_iter(arr))
+            }
+            DataType::Float32 => {
+                let arr: Vec<Option<f32>> = vals
+                    .into_iter()
+                    .map(|val| Some(val.unwrap().parse::<f32>().unwrap()))
+                    .collect();
+                Arc::new(arrow::array::Float32Array::from_iter(arr))
+            }
+            DataType::Float64 => {
+                let arr: Vec<Option<f64>> = vals
+                    .into_iter()
+                    .map(|val| Some(val.unwrap().parse::<f64>().unwrap()))
+                    .collect();
+                Arc::new(arrow::array::Float64Array::from_iter(arr))
+            }
+            // DataType::Int8 => arrow::array::Int8Array::from(vals),
+            // DataType::Int16 => arrow::array::Int16Array::from(vals),
+            // DataType::Binary => arrow::array::BinaryArray::from(vals),
+            // DataType::LargeBinary => arrow::array::LargeBinaryArray::from(vals),
+            // DataType::UInt8 => arrow::array::UInt8Array::from(vals),
+            // DataType::UInt16 => arrow::array::UInt16Array::from(vals),
+            // DataType::UInt32 => arrow::array::UInt32Array::from(vals),
+            // DataType::UInt64 => arrow::array::UInt64Array::from(vals),
+            // DataType::Float16 => arrow::array::Float16Array::from(vals),
+            _ => {
+                let err = format!("Data type not implemented {}", field.data_type());
+                panic!("{}", err)
+            }
+        };
+        cols.push(column);
+    }
+    let batch = RecordBatch::try_new(schema, cols).unwrap();
+    batches.push(batch);
+
+    write_batches(&batches, path)
 }
 
 pub async fn print_batches(
@@ -508,4 +656,80 @@ pub async fn diff<P: AsRef<Path>, S: AsRef<str>>(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::error::OxenError;
+    use crate::media::tabular;
+    use crate::test;
+    use crate::util;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_tabular_group_rows_by_key() -> Result<(), OxenError> {
+        test::run_empty_dir_test_async(|dir| async move {
+            // Header
+            let mut annotations_content = String::from("file,x,y\n");
+            // Annotations, two on first file, one on other two
+            annotations_content.push_str("img_1.txt,199,223\n");
+            annotations_content.push_str("img_1.txt,234,432\n");
+            annotations_content.push_str("img_2.txt,121,221\n");
+            annotations_content.push_str("img_3.txt,324,543\n");
+            let annotation_file = test::add_csv_file_to_dir(&dir, &annotations_content)?;
+
+            let (results, _schema) = tabular::group_rows_by_key(&annotation_file, "file").await?;
+            assert!(results.get("img_1.txt").is_some());
+            assert_eq!(results.get("img_1.txt").unwrap().len(), 2);
+            assert_eq!(results.get("img_1.txt").unwrap()[0][0], "img_1.txt");
+            assert_eq!(results.get("img_1.txt").unwrap()[0][1], "199");
+            assert_eq!(results.get("img_1.txt").unwrap()[0][2], "223");
+
+            Ok(dir)
+        })
+        .await
+    }
+
+    #[test]
+    fn test_tabular_save_rows() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            let file = dir.join("my.csv");
+            let schema = Arc::new(Schema::new(vec![
+                Field::new("file", DataType::Utf8, false),
+                Field::new("x", DataType::Int32, false),
+                Field::new("y", DataType::Int32, false),
+            ]));
+            let rows: Vec<Vec<String>> = vec![
+                vec![
+                    String::from("img_1.txt"),
+                    String::from("199"),
+                    String::from("223"),
+                ],
+                vec![
+                    String::from("img_1.txt"),
+                    String::from("200"),
+                    String::from("224"),
+                ],
+                vec![
+                    String::from("img_2.txt"),
+                    String::from("201"),
+                    String::from("225"),
+                ],
+            ];
+            tabular::save_rows(&file, &rows, schema)?;
+
+            let data = util::fs::read_from_path(&file)?;
+            assert_eq!(
+                data,
+                r"file,x,y
+img_1.txt,199,223
+img_1.txt,200,224
+img_2.txt,201,225
+"
+            );
+
+            Ok(())
+        })
+    }
 }

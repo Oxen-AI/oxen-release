@@ -15,6 +15,8 @@ pub const COMMITS_DB: &str = "commits";
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
+/// annotations.parquet is the name of the internal annotations file
+pub const ANNOTATIONS_FILENAME: &str = "annotations.parquet";
 
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";

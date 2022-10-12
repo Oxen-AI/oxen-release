@@ -619,9 +619,9 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     Ok(())
 }
 
-pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+pub fn add_file_to_dir(dir: &Path, contents: &str, extension: &str) -> Result<PathBuf, OxenError> {
     // Generate random name, because tests run in parallel, then return that name
-    let file_path = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
+    let file_path = PathBuf::from(format!("{}.{extension}", uuid::Uuid::new_v4()));
     let full_path = dir.join(&file_path);
     // println!("add_txt_file_to_dir: {:?} to {:?}", file_path, full_path);
 
@@ -629,6 +629,14 @@ pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
     file.write_all(contents.as_bytes())?;
 
     Ok(full_path)
+}
+
+pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+    add_file_to_dir(dir, contents, "txt")
+}
+
+pub fn add_csv_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+    add_file_to_dir(dir, contents, "csv")
 }
 
 pub fn write_txt_file_to_path<P: AsRef<Path>>(

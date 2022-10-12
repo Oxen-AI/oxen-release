@@ -132,10 +132,10 @@ async fn main() {
                 .arg(arg!(<PATH> ... "The files or directory to add"))
                 .arg_required_else_help(true)
                 .arg(
-                    Arg::new("annotations")
-                        .long("annotations")
-                        .short('a')
-                        .help("Add row level tracking on an annotation file. Supported types: csv, tsv, ndjson, jsonl, parq.")
+                    Arg::new("detailed")
+                        .long("detailed")
+                        .short('d')
+                        .help("Add detailed row level tracking on an annotation file. Supported types: csv, tsv, ndjson, jsonl, parq.")
                         .takes_value(false),
                 )
         )
@@ -377,11 +377,19 @@ async fn main() {
         }
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-
-            match dispatch::add(path) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+            if sub_matches.is_present("detailed") {
+                match dispatch::add_tabular(path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            } else {
+                match dispatch::add(path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }

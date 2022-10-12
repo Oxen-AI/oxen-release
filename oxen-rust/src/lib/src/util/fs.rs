@@ -25,13 +25,25 @@ pub fn repo_exists(repo_path: &Path) -> bool {
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
-    let topdir = &entry.hash[..2];
-    let subdir = &entry.hash[2..];
-    let version_dir = oxen_hidden_dir(&repo.path)
+    version_path_from_hash_and_file(repo, entry.hash.clone(), entry.filename())
+}
+
+pub fn version_path_from_hash_and_file(
+    repo: &LocalRepository,
+    hash: String,
+    filename: PathBuf,
+) -> PathBuf {
+    let version_dir = version_dir_from_hash(repo, hash);
+    version_dir.join(filename)
+}
+
+pub fn version_dir_from_hash(repo: &LocalRepository, hash: String) -> PathBuf {
+    let topdir = &hash[..2];
+    let subdir = &hash[2..];
+    oxen_hidden_dir(&repo.path)
         .join(constants::VERSIONS_DIR)
         .join(topdir)
-        .join(subdir);
-    version_dir.join(entry.filename())
+        .join(subdir)
 }
 
 pub fn read_from_path(path: &Path) -> Result<String, OxenError> {

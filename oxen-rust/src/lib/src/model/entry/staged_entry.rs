@@ -1,4 +1,5 @@
 use crate::model::ContentHashable;
+use crate::model::EntryType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
@@ -8,17 +9,11 @@ pub enum StagedEntryStatus {
     Removed,
 }
 
-#[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
-pub enum StagedEntryType {
-    Regular, // any old file
-    Tabular, // file we want to track row level changes
-}
-
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StagedEntry {
     pub hash: String,
     pub status: StagedEntryStatus,
-    pub entry_type: StagedEntryType,
+    pub entry_type: EntryType,
 }
 
 impl StagedEntry {
@@ -26,7 +21,7 @@ impl StagedEntry {
         StagedEntry {
             hash: String::from(""),
             status,
-            entry_type: StagedEntryType::Regular,
+            entry_type: EntryType::Regular,
         }
     }
 }
