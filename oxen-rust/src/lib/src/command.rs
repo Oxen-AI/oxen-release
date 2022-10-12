@@ -10,9 +10,9 @@ use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
 use crate::media::tabular;
-use crate::model::entry::staged_entry::StagedEntryType;
 use crate::model::{
-    Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
+    Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew,
+    StagedData,
 };
 use crate::util;
 
@@ -192,7 +192,7 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add_file_with_type(path.as_ref(), &reader, StagedEntryType::Tabular)?;
+    stager.add_file_with_type(path.as_ref(), &reader, EntryType::Tabular)?;
     Ok(())
 }
 

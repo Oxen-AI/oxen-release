@@ -5,13 +5,53 @@
 
 Companies have large sets of annotations, that change over time, given different models or workflows. Oxen helps you track changes to these annotations, giving attribution to who changed what, and letting you roll back to any version.
 
+Annotations could come from models, and it would be nice to quickly find error cases and flag them for fixing. Human could fix...then eventually AI could fix?
+
+Data Value Chain
+
+- Who annotated?
+- When annotated?
+
+Potential Queries
+
+- Find me all annotations from Greg
+- Find me all annotations with field X
+    - Would have to index on field X and know schema
+
+Start with
+    1) Look at file field
+    2) Save off parquet with subset that reference that file
+    3) Do we need a schema? Yes I think so...
+
+Would we want to index the filenames 
+
+/path/to/file.jpg -> HASH
+HASH -> /path/to/file.jpg
+
+oxen query bbox.category == Person
+    - Slow
+    - Could index to make faster
+
+oxen index bbox.category
+
+    person -> HASH_1,HASH_2,HASH_3
+    car -> HASH_4
+    elephant -> HASH_5
+
+oxen search bbox.category == 'person'
+
 # Annotation Obj
 
 - _id
 - created_at
 - created_by
+- schema_id
 - file.csv:row_hash
 - body
+
+# Schema
+
+
 
 # Commands
 

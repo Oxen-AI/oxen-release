@@ -2,8 +2,7 @@ use crate::db;
 use crate::error::OxenError;
 use crate::index::path_db;
 use crate::index::stager::STAGED_DIR;
-use crate::model::entry::staged_entry::StagedEntryType;
-use crate::model::{CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
+use crate::model::{CommitEntry, EntryType, LocalRepository, StagedEntry, StagedEntryStatus};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -52,7 +51,7 @@ impl StagedDirEntryDB {
         let entry = StagedEntry {
             hash: entry.hash.clone(),
             status: StagedEntryStatus::Removed,
-            entry_type: StagedEntryType::Regular,
+            entry_type: EntryType::Regular,
         };
 
         path_db::put(&self.db, path, &entry)?;
