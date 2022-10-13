@@ -276,7 +276,7 @@ async fn main() {
                         let name = sub_matches.value_of("NAME").expect("required");
                         let url = sub_matches.value_of("URL").expect("required");
 
-                        match dispatch::set_remote(name, url) {
+                        match dispatch::add_remote(name, url) {
                             Ok(_) => {}
                             Err(err) => {
                                 eprintln!("{}", err)

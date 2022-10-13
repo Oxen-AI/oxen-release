@@ -344,7 +344,7 @@ mod tests {
             // Set the proper remote
             let name = local_repo.dirname();
             let remote = test::repo_url_from(&name);
-            command::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
             let remote_repo = command::create_remote(

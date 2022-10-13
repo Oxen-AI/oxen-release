@@ -665,7 +665,7 @@ mod tests {
             // Set the proper remote
             let name = repo.dirname();
             let remote = test::repo_url_from(&name);
-            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let remote_repo =
                 command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, test::TEST_HOST)
@@ -709,7 +709,7 @@ mod tests {
             // Set the proper remote
             let name = repo.dirname();
             let remote = test::repo_url_from(&name);
-            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
             command::add(&repo, &train_dir)?;

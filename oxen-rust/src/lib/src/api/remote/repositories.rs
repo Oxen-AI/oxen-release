@@ -1,10 +1,9 @@
 use crate::api;
 use crate::command;
 use crate::config::UserConfig;
-use crate::constants;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository, RepositoryNew};
-use crate::view::{RepositoryResponse, StatusMessage};
+use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
 use serde_json::json;
 use url::Url;
 
@@ -79,9 +78,8 @@ pub async fn create(
     host: &str,
 ) -> Result<RemoteRepository, OxenError> {
     let config = UserConfig::default()?;
-    let uri = format!("/{}", constants::DEFAULT_NAMESPACE);
-    let url = api::endpoint::url_from_host(host, &uri);
-    let repo_url = format!("{}/{}", url, name);
+    let url = api::endpoint::url_from_host(host, "");
+    let repo_url = format!("{}/{}/{}", url, namespace, name);
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {}", url);
@@ -141,6 +139,51 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
     } else {
         Err(OxenError::basic_str(
             "api::repositories::delete() Request failed",
+        ))
+    }
+}
+
+pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
+    let config = UserConfig::default()?;
+    let client = reqwest::Client::new();
+    log::debug!("api::remote::repositories::resolve_api_url({})", url);
+    if let Ok(res) = client
+        .get(url)
+        .header(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", config.auth_token()?),
+        )
+        .send()
+        .await
+    {
+        let status = res.status();
+        if 404 == status {
+            return Ok(None);
+        }
+
+        let body = res.text().await?;
+        log::debug!(
+            "repositories::resolve_api_url {}\nstatus[{}] {}",
+            url,
+            status,
+            body
+        );
+
+        let response: Result<RepositoryResolveResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(Some(j_res.repository_api_url)),
+            Err(err) => {
+                log::debug!("Err: {}", err);
+                Err(OxenError::basic_str(&format!(
+                    "api::repositories::resolve_api_url() Could not serialize repository [{}]",
+                    url
+                )))
+            }
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::repositories::resolve_api_url() Request failed",
         ))
     }
 }
