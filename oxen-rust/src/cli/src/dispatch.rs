@@ -6,6 +6,7 @@ use liboxen::model::LocalRepository;
 use liboxen::util;
 
 use colored::Colorize;
+use futures::executor::block_on;
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -35,11 +36,11 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
     Ok(())
 }
 
-pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
+pub fn add_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::set_remote(&mut repo, name, url)?;
+    command::add_remote(&mut repo, name, url)?;
 
     Ok(())
 }

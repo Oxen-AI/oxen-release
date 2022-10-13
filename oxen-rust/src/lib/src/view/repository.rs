@@ -21,6 +21,13 @@ pub struct ListRepositoryResponse {
     pub repositories: Vec<RepositoryView>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RepositoryResolveResponse {
+    pub status: String,
+    pub status_message: String,
+    pub repository_api_url: String,
+}
+
 impl RepositoryView {
     pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
         RepositoryView {

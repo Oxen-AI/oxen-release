@@ -1,6 +1,6 @@
 use crate::model::{Remote, RemoteRepository};
 
-const API_NAMESPACE: &str = "/oxen";
+const API_NAMESPACE: &str = "/api/repos";
 
 pub fn url_from_host(host: &str, uri: &str) -> String {
     format!("http://{}{}{}", host, API_NAMESPACE, uri)

@@ -117,7 +117,7 @@ impl LocalRepository {
         }
     }
 
-    pub fn set_remote(&mut self, name: &str, url: &str) {
+    pub fn add_remote(&mut self, name: &str, url: &str) -> Result<(), OxenError> {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
@@ -134,6 +134,7 @@ impl LocalRepository {
             // we don't have the key, just push
             self.remotes.push(remote);
         }
+        Ok(())
     }
 
     pub fn remove_remote(&mut self, name: &str) {
@@ -194,7 +195,7 @@ impl LocalRepository {
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
         let mut local_repo = LocalRepository::from_remote(repo, &repo_path)?;
         local_repo.path = repo_path;
-        local_repo.set_remote("origin", &url);
+        local_repo.add_remote("origin", &url)?;
 
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
@@ -240,7 +241,7 @@ mod tests {
         test::run_empty_local_repo_test(|mut local_repo| {
             let url = "http://0.0.0.0:3000/repositories/OxenData";
             let remote_name = "origin";
-            local_repo.set_remote(remote_name, url);
+            local_repo.add_remote(remote_name, url);
             let remote = local_repo.get_remote(remote_name).unwrap();
             assert_eq!(remote.name, remote_name);
             assert_eq!(remote.url, url);
@@ -257,8 +258,8 @@ mod tests {
 
             let other_url = "http://0.0.0.0:4000/repositories/OxenData";
             let other_name = "other";
-            local_repo.set_remote(origin_name, origin_url);
-            local_repo.set_remote(other_name, other_url);
+            local_repo.add_remote(origin_name, origin_url);
+            local_repo.add_remote(other_name, other_url);
 
             // Remove and make sure we cannot get again
             local_repo.remove_remote(origin_name);
