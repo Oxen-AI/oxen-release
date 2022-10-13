@@ -447,6 +447,14 @@ pub async fn group_rows_by_key<P: AsRef<Path>, S: AsRef<str>>(
     Ok((result, schema))
 }
 
+/// TODO:
+/// - figure out what should happen when you add a new row to the larger csv
+///   - when saving....look at previous commit, calc added rows, and mark with this user's info
+///   - test adding annotations from different files
+///   - what do we do with different schemas from different csvs?
+///     - gen a schema hash, and save to this annotation file?
+///     - be able to name schema hashes?
+///     - save schema's next to hashes
 pub fn save_rows<P: AsRef<Path>>(
     path: P,
     rows: &[Vec<String>],
