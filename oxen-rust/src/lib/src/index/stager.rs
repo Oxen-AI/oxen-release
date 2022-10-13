@@ -1261,6 +1261,7 @@ mod tests {
             // annotations/
             //   README.md
             //   train/
+            //     bounding_box.csv
             //     annotations.txt
             //     two_shot.txt
             //     one_shot.txt
@@ -1278,7 +1279,7 @@ mod tests {
 
             // With recursive files
             let added_dir = dirs.get(&annotations_dir).unwrap();
-            assert_eq!(added_dir.num_files_staged, 5);
+            assert_eq!(added_dir.num_files_staged, 6);
 
             Ok(())
         })

@@ -18,10 +18,11 @@ pub async fn get_by_remote_url(url: &str) -> Result<Option<RemoteRepository>, Ox
         format!(":{}", parsed_url.port().unwrap())
     };
     let new_url = format!(
-        "{}://{}{}/oxen/{}/{}",
+        "{}://{}{}/{}/repos/{}/{}",
         parsed_url.scheme(),
         parsed_url.host_str().unwrap(),
         port,
+        constants::API_NAMESPACE,
         repo.namespace,
         repo.name
     );
@@ -79,9 +80,8 @@ pub async fn create(
     host: &str,
 ) -> Result<RemoteRepository, OxenError> {
     let config = UserConfig::default()?;
-    let uri = format!("/{}", constants::DEFAULT_NAMESPACE);
-    let url = api::endpoint::url_from_host(host, &uri);
-    let repo_url = format!("{}/{}", url, name);
+    let url = api::endpoint::url_from_host(host, "/repos");
+    let repo_url = format!("{}/{}/{}", url, namespace, name);
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {}", url);
@@ -96,8 +96,9 @@ pub async fn create(
         .send()
         .await
     {
+        let status = res.status();
         let body = res.text().await?;
-        // println!("Response: {}", body);
+        log::debug!("Response [{}] {}", status, body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(RemoteRepository::from_view(&response.repository, &repo_url)),

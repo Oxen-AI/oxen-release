@@ -47,7 +47,7 @@ pub async fn get_by_name(
 pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
     let config = UserConfig::default()?;
     let url = api::endpoint::url_from_repo(repository, "/branches");
-    log::debug!("create_or_get {}", url);
+    log::debug!("branches::create_or_get {}", url);
 
     let params = serde_json::to_string(&json!({ "name": name }))?;
 

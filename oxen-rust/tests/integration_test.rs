@@ -111,7 +111,8 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
         // labels.txt
         // annotations/train/two_shot.txt
         // annotations/train/annotations.txt
-        assert_eq!(repo_status.untracked_files.len(), 4);
+        // annotations/train/bounding_box.csv
+        assert_eq!(repo_status.untracked_files.len(), 5);
 
         Ok(())
     })
@@ -1824,5 +1825,26 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
     })
 }
 
-// Thought exercise - merge "branch" instead of merge commit, because you will want to do one more experiment,
-// then fast forward to that branch
+#[test]
+fn test_add_new_annotation_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let train_dir = repo.path.join("train");
+        let new_img_path = train_dir.join("cat_3.jpg");
+        std::fs::copy(Path::new("data/test/images/cat_3.jpg"), &new_img_path)?;
+
+        let bbox_file = repo
+            .path
+            .join("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file =
+            test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+
+        command::add(&repo, &new_img_path)?;
+        command::add_tabular(&repo, &bbox_file)?;
+
+        command::commit(&repo, "Adding new annotation")?;
+
+        Ok(())
+    })
+}

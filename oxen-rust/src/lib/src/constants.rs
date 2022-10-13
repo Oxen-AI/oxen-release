@@ -31,3 +31,6 @@ pub const DEFAULT_NAMESPACE: &str = "repositories";
 
 // Commits
 pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
+
+// API namespace
+pub const API_NAMESPACE: &str = "api";

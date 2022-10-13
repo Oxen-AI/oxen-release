@@ -186,7 +186,10 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     if !path.is_file() {
-        return Err(OxenError::basic_str("Err: path must be valid file"));
+        log::warn!("Could not find file {:?}", path);
+        return Err(OxenError::basic_str(
+            "Err: oxen add -d <path> must be valid file",
+        ));
     }
 
     let stager = Stager::new_with_merge(repo)?;

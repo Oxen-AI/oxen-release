@@ -292,8 +292,8 @@ mod tests {
             let (dir_entries, size) =
                 reader.list_directory(Path::new("annotations/train"), 1, 10)?;
 
-            assert_eq!(size, 3);
-            assert_eq!(dir_entries.len(), 3);
+            assert_eq!(size, 4);
+            assert_eq!(dir_entries.len(), 4);
 
             Ok(())
         })
