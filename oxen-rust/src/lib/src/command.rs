@@ -573,7 +573,7 @@ pub async fn create_remote(
 /// # Set the remote for a repository
 /// Tells the CLI where to push the changes to
 pub fn add_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(), OxenError> {
-    repo.add_remote(name, url)?;
+    repo.add_remote(name, url);
     repo.save_default()?;
     Ok(())
 }

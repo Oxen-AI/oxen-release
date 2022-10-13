@@ -117,7 +117,7 @@ impl LocalRepository {
         }
     }
 
-    pub fn add_remote(&mut self, name: &str, url: &str) -> Result<(), OxenError> {
+    pub fn add_remote(&mut self, name: &str, url: &str) {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
@@ -134,7 +134,6 @@ impl LocalRepository {
             // we don't have the key, just push
             self.remotes.push(remote);
         }
-        Ok(())
     }
 
     pub fn remove_remote(&mut self, name: &str) {
@@ -195,7 +194,7 @@ impl LocalRepository {
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
         let mut local_repo = LocalRepository::from_remote(repo, &repo_path)?;
         local_repo.path = repo_path;
-        local_repo.add_remote("origin", &url)?;
+        local_repo.add_remote("origin", &url);
 
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
