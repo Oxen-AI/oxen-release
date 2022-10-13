@@ -532,8 +532,10 @@ mod tests {
             let version_dir = version_path.parent().unwrap();
 
             // There should be an annotations file in the hash dir of the file
-            // .oxen/versions/6a/51dec8a562318216e48732c92101aa/annotations.parquet
-            let commit_annotation_file = version_dir.join(constants::ANNOTATIONS_FILENAME);
+            // .oxen/versions/6a/51dec8a562318216e48732c92101aa/COMMIT_ID/annotations.csv
+            let commit_annotation_file = version_dir
+                .join(commit.id)
+                .join(constants::ANNOTATIONS_FILENAME);
 
             println!("LOOKING FOR ANNOTATION FILE {:?}", commit_annotation_file);
             assert!(commit_annotation_file.exists());
