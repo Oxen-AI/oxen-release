@@ -6,7 +6,6 @@ use liboxen::model::LocalRepository;
 use liboxen::util;
 
 use colored::Colorize;
-use futures::executor::block_on;
 use std::env;
 use std::path::{Path, PathBuf};
 
