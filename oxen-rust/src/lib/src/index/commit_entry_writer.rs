@@ -152,18 +152,22 @@ impl CommitEntryWriter {
 
                 let dir_groups = self.group_annotations_to_dirs(&groups);
                 for (dir, group) in dir_groups.iter() {
+                    let commit_id = &commit.id;
                     let commit_entry_reader =
-                        CommitDirEntryReader::new(&self.repository, &commit.id, dir)?;
+                        CommitDirEntryReader::new(&self.repository, commit_id, dir)?;
                     group.par_iter().for_each(|(file, data)| {
                         let filename = file.file_name().unwrap();
                         log::debug!("save_row_level_data checking for file: {:?}", filename);
                         if let Ok(Some(entry)) = commit_entry_reader.get_entry(Path::new(filename))
                         {
-                            let version_dir = util::fs::version_dir_from_hash(
-                                &self.repository,
-                                entry.hash,
-                            );
-                            let annotation_file = version_dir.join(constants::ANNOTATIONS_FILENAME);
+                            let version_dir =
+                                util::fs::version_dir_from_hash(&self.repository, entry.hash);
+                            let annotation_dir = version_dir.join(commit_id);
+                            if !annotation_dir.exists() {
+                                fs::create_dir_all(&annotation_dir).unwrap();
+                            }
+                            let annotation_file =
+                                annotation_dir.join(constants::ANNOTATIONS_FILENAME);
                             if tabular::save_rows(annotation_file, data, schema.clone()).is_err() {
                                 log::error!("Could not save annotations for {:?}", file);
                             }

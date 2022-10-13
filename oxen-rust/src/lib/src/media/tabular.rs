@@ -1,4 +1,4 @@
-use datafusion::arrow::datatypes::{DataType, Schema};
+use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -272,6 +272,39 @@ pub fn write_batches_csv<P: AsRef<Path>>(
     Ok(())
 }
 
+pub fn write_batches_parquet_with_size<P: AsRef<Path>>(
+    batches: &Vec<RecordBatch>,
+    path: P,
+    size: usize,
+) -> Result<(), OxenError> {
+    let schema = batches[0].schema();
+    let path = path.as_ref();
+    let file = File::create(path)?;
+    log::debug!("Writing parq file {:?}", path);
+
+    // Default writer properties
+    let props = datafusion::parquet::file::properties::WriterProperties::builder()
+        .set_compression(datafusion::parquet::basic::Compression::SNAPPY)
+        .set_write_batch_size(size)
+        .build();
+
+    let mut writer =
+        datafusion::parquet::arrow::arrow_writer::ArrowWriter::try_new(file, schema, Some(props))
+            .unwrap();
+
+    let mut total_batches: usize = 0;
+    for batch in batches {
+        total_batches += 1;
+        log::debug!("Writer wrote batch {}", total_batches);
+        writer.write(batch).unwrap();
+    }
+
+    // writer must be closed to write footer
+    writer.close().unwrap();
+
+    Ok(())
+}
+
 pub fn write_batches_parquet<P: AsRef<Path>>(
     batches: &Vec<RecordBatch>,
     path: P,
@@ -419,80 +452,35 @@ pub fn save_rows<P: AsRef<Path>>(
     rows: &[Vec<String>],
     schema: Arc<Schema>,
 ) -> Result<(), OxenError> {
-    use std::iter::FromIterator;
+    use std::io::Write;
+
+    // Just writing a csv raw was way faster than using parquet 🤔
+    // Since there probably won't be too many annotations per file...this seems fine for now
     let path = path.as_ref();
 
-    let mut batches: Vec<RecordBatch> = vec![];
+    let mut file = File::create(path)?;
 
-    let num_cols = schema.fields().len();
-    let mut cols: Vec<Arc<dyn arrow::array::Array>> = vec![];
-    for col_i in 0..num_cols {
-        let mut vals: Vec<Option<String>> = vec![];
-        for row in rows.iter() {
-            let val = &row[col_i];
-            vals.push(Some(val.clone()));
+    // Write header
+    for (i, field) in schema.fields().iter().enumerate() {
+        if i != 0 {
+            file.write_all(b",")?;
         }
-        let field = schema.field(col_i);
-
-        // TODO: this is annoying, gotta be a better way than casting to &Vec<Vec<String>> and back to proper type here
-        let column: Arc<dyn arrow::array::Array> = match field.data_type() {
-            DataType::Utf8 => Arc::new(arrow::array::StringArray::from_iter(vals)),
-            DataType::LargeUtf8 => Arc::new(arrow::array::StringArray::from_iter(vals)),
-            DataType::Boolean => {
-                let arr: Vec<Option<bool>> = vals
-                    .into_iter()
-                    .map(|val| Some(val.unwrap().parse::<bool>().unwrap()))
-                    .collect();
-                Arc::new(arrow::array::BooleanArray::from_iter(arr))
-            }
-            DataType::Int32 => {
-                let arr: Vec<Option<i32>> = vals
-                    .into_iter()
-                    .map(|val| Some(val.unwrap().parse::<i32>().unwrap()))
-                    .collect();
-                Arc::new(arrow::array::Int32Array::from_iter(arr))
-            }
-            DataType::Int64 => {
-                let arr: Vec<Option<i64>> = vals
-                    .into_iter()
-                    .map(|val| Some(val.unwrap().parse::<i64>().unwrap()))
-                    .collect();
-                Arc::new(arrow::array::Int64Array::from_iter(arr))
-            }
-            DataType::Float32 => {
-                let arr: Vec<Option<f32>> = vals
-                    .into_iter()
-                    .map(|val| Some(val.unwrap().parse::<f32>().unwrap()))
-                    .collect();
-                Arc::new(arrow::array::Float32Array::from_iter(arr))
-            }
-            DataType::Float64 => {
-                let arr: Vec<Option<f64>> = vals
-                    .into_iter()
-                    .map(|val| Some(val.unwrap().parse::<f64>().unwrap()))
-                    .collect();
-                Arc::new(arrow::array::Float64Array::from_iter(arr))
-            }
-            // DataType::Int8 => arrow::array::Int8Array::from(vals),
-            // DataType::Int16 => arrow::array::Int16Array::from(vals),
-            // DataType::Binary => arrow::array::BinaryArray::from(vals),
-            // DataType::LargeBinary => arrow::array::LargeBinaryArray::from(vals),
-            // DataType::UInt8 => arrow::array::UInt8Array::from(vals),
-            // DataType::UInt16 => arrow::array::UInt16Array::from(vals),
-            // DataType::UInt32 => arrow::array::UInt32Array::from(vals),
-            // DataType::UInt64 => arrow::array::UInt64Array::from(vals),
-            // DataType::Float16 => arrow::array::Float16Array::from(vals),
-            _ => {
-                let err = format!("Data type not implemented {}", field.data_type());
-                panic!("{}", err)
-            }
-        };
-        cols.push(column);
+        file.write_all(field.name().as_bytes())?;
     }
-    let batch = RecordBatch::try_new(schema, cols).unwrap();
-    batches.push(batch);
+    file.write_all(b"\n")?;
 
-    write_batches(&batches, path)
+    // Write data
+    for row in rows {
+        for (i, col) in row.iter().enumerate() {
+            if i != 0 {
+                file.write_all(b",")?;
+            }
+            file.write_all(col.as_bytes())?;
+        }
+        file.write_all(b"\n")?;
+    }
+
+    Ok(())
 }
 
 pub async fn print_batches(
