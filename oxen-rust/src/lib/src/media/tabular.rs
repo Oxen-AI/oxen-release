@@ -4,7 +4,7 @@ use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::{self, csv, json};
 use datafusion::datasource::memory::MemTable;
-use datafusion::prelude::{CsvReadOptions, ParquetReadOptions, SessionContext};
+use datafusion::prelude::{col, CsvReadOptions, DataFrame, ParquetReadOptions, SessionContext};
 
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
@@ -21,8 +21,7 @@ use std::sync::Arc;
 use std::vec;
 
 use crate::error::OxenError;
-use crate::index::CommitDirEntryReader;
-use crate::model::LocalRepository;
+use crate::model::{CommitEntry, DataFrameDiff, LocalRepository};
 use crate::util;
 
 async fn register_tsv_table(
@@ -491,6 +490,85 @@ pub fn save_rows<P: AsRef<Path>>(
     Ok(())
 }
 
+pub async fn df_to_str(df: &Arc<DataFrame>) -> Result<String, OxenError> {
+    let batches = df.collect().await?;
+    if batches.is_empty() {
+        return Ok(String::from("[]"));
+    }
+
+    // Keep it under max_table_width wide
+    let schema = batches[0].schema();
+
+    let max_table_width = terminal_size()?.0 - 20;
+    let max_cell_length = 256; // to truncate long text
+    log::debug!("Max width: {max_table_width}");
+    let max_cols: usize = 8;
+    let max_rows: usize = 10;
+
+    // Pretty print table
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_width(max_table_width);
+
+    // Add header row
+    let mut row = Row::new();
+    for field in schema.fields() {
+        row.add_cell(Cell::new(field.name()));
+        if row.cell_count() > max_cols {
+            row.add_cell(Cell::new("..."));
+            break;
+        }
+    }
+    table.add_row(row);
+
+    let mut total_result_rows: usize = 0;
+    for batch in batches {
+        for row_i in 0..batch.num_rows() {
+            if (total_result_rows + row_i) < max_rows {
+                let mut row = Row::new();
+                for col_i in 0..batch.num_columns() {
+                    if col_i <= max_cols {
+                        match arrow::util::display::array_value_to_string(
+                            batch.column(col_i),
+                            row_i,
+                        ) {
+                            Ok(mut val) => {
+                                if val.len() > max_cell_length {
+                                    let (trunc, _size) = val.unicode_truncate(max_cell_length);
+                                    val = format!("{}...", trunc);
+                                }
+                                row.add_cell(Cell::new(&val));
+                            }
+                            _ => {
+                                row.add_cell(Cell::new("?"));
+                            }
+                        }
+                    }
+                }
+                table.add_row(row);
+            }
+        }
+        total_result_rows += batch.num_rows();
+    }
+
+    log::debug!("{total_result_rows} > {max_rows}");
+    if total_result_rows > max_rows {
+        let mut row = Row::new();
+        row.add_cell(Cell::new("..."));
+        table.add_row(row);
+    }
+
+    // Convert table to string
+    Ok(format!(
+        "\n{table}\n {} Rows x {} Columns",
+        total_result_rows,
+        schema.fields().len()
+    ))
+}
+
 pub async fn print_batches(
     ctx: &SessionContext,
     batches: &Vec<RecordBatch>,
@@ -607,56 +685,40 @@ pub async fn run_query(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
     Ok(results)
 }
 
-pub async fn diff<P: AsRef<Path>, S: AsRef<str>>(
-    repo: &LocalRepository,
-    path: P,
-    commit_id: S,
-) -> Result<(), OxenError> {
-    let path = path.as_ref();
-    let commit_id = commit_id.as_ref();
+pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFrameDiff, OxenError> {
+    let current_path = repo.path.join(&entry.path);
+    let version_path = util::fs::version_path(repo, entry);
+
     let ctx = SessionContext::new();
-    register_table(&ctx, path, "current").await?;
+    register_table(&ctx, &current_path, "current").await?;
+    register_table(&ctx, &version_path, "commit").await?;
 
-    if let Some(parent) = path.parent() {
-        let commit_entry_reader = CommitDirEntryReader::new(repo, commit_id, parent)?;
-        let file_name = path.file_name().unwrap();
-        if let Ok(Some(entry)) = commit_entry_reader.get_entry(file_name) {
-            let version_path = util::fs::version_path(repo, &entry);
+    let df_current = ctx.table("current")?;
+    let df_commit = ctx.table("commit")?;
+    // If we don't sort, it is non-deterministic the order the diff will come out
+    // SORT ASC NULLS_FIRST
+    let first_col = df_commit.schema().field(0);
+    let df_commit = ctx.table("commit")?;
+    let diff_added = df_current
+        .except(df_commit)?
+        .sort(vec![col(first_col.name()).sort(true, true)])?;
 
-            register_table(&ctx, &version_path, "commit").await?;
+    let df_commit = ctx.table("commit")?;
+    let diff_removed = df_commit
+        .except(df_current)?
+        .sort(vec![col(first_col.name()).sort(true, true)])?;
 
-            {
-                let df_current = ctx.table("current")?;
-                let df_commit = ctx.table("commit")?;
-
-                let diff_added = df_current.except(df_commit)?;
-                // let results_added = diff_added.collect().await?;
-
-                println!("\nAdded Rows\n");
-                diff_added.show().await?;
-
-                // print_batches(&ctx, &results_added).await?;
-            }
-
-            {
-                let df_current = ctx.table("current")?;
-                let df_commit = ctx.table("commit")?;
-
-                let diff_removed = df_commit.except(df_current)?;
-                // let results_removed = diff_removed.collect().await?;
-                println!("\nRemoved Rows\n");
-                diff_removed.show().await?;
-
-                // print_batches(&ctx, &results_removed).await?;
-            }
-        }
-    }
-    Ok(())
+    Ok(DataFrameDiff {
+        added: diff_added,
+        removed: diff_removed,
+    })
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::command;
     use crate::error::OxenError;
+    use crate::index::CommitDirReader;
     use crate::media::tabular;
     use crate::test;
     use crate::util;
@@ -727,5 +789,78 @@ img_2.txt,201,225
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_tabular_diff_added() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            let commits = command::log(&repo)?;
+            let last_commit = commits.first().unwrap();
+            let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
+
+            let bbox_file = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file =
+                test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+
+            let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
+            let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
+            let diff = tabular::diff(&repo, &entry).await?;
+            let results = r"
+╭─────────────────┬────────┬────────┬────────┬─────────╮
+│ file            ┆  min_x ┆  min_y ┆  width ┆  height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│ train/cat_3.jpg ┆  41.0  ┆  31.5  ┆  410   ┆  427    │
+╰─────────────────┴────────┴────────┴────────┴─────────╯
+ 1 Rows x 5 Columns";
+
+            assert_eq!(results, tabular::df_to_str(&diff.added).await?);
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_tabular_diff_removed() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            let commits = command::log(&repo)?;
+            let last_commit = commits.first().unwrap();
+            let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
+
+            let bbox_file = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = test::modify_txt_file(
+                bbox_file,
+                r"
+file, min_x, min_y, width, height
+train/dog_1.jpg, 101.5, 32.0, 385, 330
+train/dog_2.jpg, 7.0, 29.5, 246, 247
+train/cat_2.jpg, 30.5, 44.0, 333, 396
+",
+            )?;
+
+            let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
+            let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
+            let diff = tabular::diff(&repo, &entry).await?;
+            let results = r"
+╭─────────────────┬────────┬────────┬────────┬─────────╮
+│ file            ┆  min_x ┆  min_y ┆  width ┆  height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│ train/cat_1.jpg ┆  57.0  ┆  35.5  ┆  304   ┆  427    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│ train/dog_3.jpg ┆  19.0  ┆  63.5  ┆  376   ┆  421    │
+╰─────────────────┴────────┴────────┴────────┴─────────╯
+ 2 Rows x 5 Columns";
+
+            assert_eq!(results, tabular::df_to_str(&diff.removed).await?);
+            Ok(())
+        })
+        .await
     }
 }

@@ -1,5 +1,6 @@
 use jwalk::WalkDir;
 
+use simdutf8::compat::from_utf8;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
@@ -86,15 +87,26 @@ pub fn read_lines_file(file: &File) -> Vec<String> {
     lines
 }
 
-pub fn read_lines(path: &Path) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    match File::open(&path) {
-        Ok(file) => lines = read_lines_file(&file),
-        Err(_) => {
-            eprintln!("Could not open staging file {}", path.display())
-        }
+pub fn read_first_line<P: AsRef<Path>>(path: P) -> Result<String, OxenError> {
+    let file = File::open(path.as_ref())?;
+    read_first_line_from_file(&file)
+}
+
+pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
+    let reader = BufReader::new(file);
+    if let Some(Ok(line)) = reader.lines().next() {
+        Ok(line)
+    } else {
+        Err(OxenError::basic_str(format!(
+            "Could not read line from file: {:?}",
+            file
+        )))
     }
-    lines
+}
+
+pub fn read_lines(path: &Path) -> Result<Vec<String>, OxenError> {
+    let file = File::open(&path)?;
+    Ok(read_lines_file(&file))
 }
 
 pub fn read_lines_paginated(path: &Path, start: usize, size: usize) -> Vec<String> {
@@ -240,6 +252,14 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
     Ok(())
 }
 
+pub fn is_tabular(path: &Path) -> bool {
+    let exts: HashSet<String> = vec!["csv", "tsv", "parquet", "arrow", "ndjson", "jsonl"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    contains_ext(path, &exts)
+}
+
 pub fn is_image(path: &Path) -> bool {
     let exts: HashSet<String> = vec!["jpg", "png"].into_iter().map(String::from).collect();
     contains_ext(path, &exts)
@@ -258,6 +278,14 @@ pub fn is_video(path: &Path) -> bool {
 pub fn is_audio(path: &Path) -> bool {
     let exts: HashSet<String> = vec!["mp3", "wav"].into_iter().map(String::from).collect();
     contains_ext(path, &exts)
+}
+
+pub fn is_utf8(path: &Path) -> bool {
+    if let Ok(line) = read_first_line(path) {
+        from_utf8(line.as_bytes()).is_ok()
+    } else {
+        false
+    }
 }
 
 pub fn contains_ext(path: &Path, exts: &HashSet<String>) -> bool {

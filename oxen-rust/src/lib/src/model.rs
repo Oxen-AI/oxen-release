@@ -1,5 +1,6 @@
 pub mod branch;
 pub mod commit;
+pub mod data_frame_diff;
 pub mod entry;
 pub mod merge_conflict;
 pub mod remote;
@@ -39,3 +40,5 @@ pub use crate::model::staged_dir_stats::StagedDirStats;
 pub use crate::model::summarized_staged_dir_stats::SummarizedStagedDirStats;
 
 pub use crate::model::remote::Remote;
+
+pub use crate::model::data_frame_diff::DataFrameDiff;
