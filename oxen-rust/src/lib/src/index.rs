@@ -6,6 +6,7 @@ pub mod commit_entry_writer;
 pub mod commit_reader;
 pub mod commit_validator;
 pub mod commit_writer;
+pub mod differ;
 pub mod indexer;
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;

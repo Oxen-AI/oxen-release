@@ -239,8 +239,8 @@ async fn main() {
         .subcommand(
             Command::new("diff")
                 .about("Compare file from a commit history")
-                .arg(arg!(<COMMIT_ID> "Commit Id you want to diff"))
-                .arg(arg!(<PATH> "Path you want to diff")),
+                .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
+                .arg(Arg::new("PATH").required(false)),
         )
         .subcommand(
             Command::new("read-lines")
@@ -497,13 +497,22 @@ async fn main() {
             }
         }
         Some(("diff", sub_matches)) => {
-            let commit_id = sub_matches.value_of("COMMIT_ID").expect("required");
-            let path = sub_matches.value_of("PATH").expect("required");
-
-            match dispatch::diff(commit_id, path).await {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+            // First arg is optional
+            let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
+            let path = sub_matches.value_of("PATH");
+            if path.is_none() {
+                match dispatch::diff(None, file_or_commit_id).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            } else {
+                match dispatch::diff(Some(file_or_commit_id), path.unwrap()).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }

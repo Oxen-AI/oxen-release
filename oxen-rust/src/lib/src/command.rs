@@ -6,6 +6,7 @@
 use crate::api;
 use crate::constants;
 use crate::error::OxenError;
+use crate::index::differ;
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
@@ -726,9 +727,12 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 /// Diff a file from commit history
-pub async fn diff(repo: &LocalRepository, commit_id: &str, path: &str) -> Result<(), OxenError> {
-    tabular::diff(repo, path, commit_id).await?;
-    Ok(())
+pub async fn diff(
+    repo: &LocalRepository,
+    commit_id: Option<&str>,
+    path: &str,
+) -> Result<String, OxenError> {
+    differ::diff(repo, commit_id, path).await
 }
 
 /// Pull a specific origin and branch

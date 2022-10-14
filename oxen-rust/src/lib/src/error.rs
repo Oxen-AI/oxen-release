@@ -51,11 +51,13 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str("Err: HEAD not found")
+        OxenError::basic_str("HEAD not found")
     }
 
     pub fn remote_not_set() -> OxenError {
-        OxenError::basic_str("Err: Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n")
+        OxenError::basic_str(
+            "Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n",
+        )
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
@@ -77,7 +79,7 @@ impl OxenError {
     }
 
     pub fn commit_id_does_not_exist<T: AsRef<str>>(commit_id: T) -> OxenError {
-        let err = format!("Error: could not find commit: {}", commit_id.as_ref());
+        let err = format!("Could not find commit: {}", commit_id.as_ref());
         OxenError::basic_str(&err)
     }
 
@@ -88,6 +90,18 @@ impl OxenError {
 
     pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File does not exist: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
+        path: P,
+        commit_id: S,
+    ) -> OxenError {
+        let err = format!(
+            "File {:?} does not exist in commit {}",
+            path.as_ref(),
+            commit_id.as_ref()
+        );
         OxenError::basic_str(&err)
     }
 
