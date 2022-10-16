@@ -351,8 +351,7 @@ pub async fn delete_remote_branch(
     branch_name: &str,
 ) -> Result<(), OxenError> {
     if let Some(remote) = repo.get_remote(remote) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
-        {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
             if let Some(branch) =
                 api::remote::branches::get_by_name(&remote_repo, branch_name).await?
             {
@@ -525,8 +524,7 @@ pub async fn list_remote_branches(
 ) -> Result<Vec<RemoteBranch>, OxenError> {
     let mut branches: Vec<RemoteBranch> = vec![];
     if let Some(remote) = repo.get_remote(name) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
-        {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
             for branch in api::remote::branches::list(&remote_repo).await? {
                 branches.push(RemoteBranch {
                     remote: remote.name.clone(),

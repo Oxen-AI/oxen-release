@@ -16,7 +16,7 @@ pub async fn list_dir(
         "/dir/{}/{}?page_num={}&page_size={}",
         commit_or_branch, path, page_num, page_size
     );
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(&url)
