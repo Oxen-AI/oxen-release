@@ -1,6 +1,6 @@
 use crate::error::OxenError;
 use crate::index::{CommitDirEntryReader, CommitReader};
-use crate::media::tabular;
+use crate::media::tabular_datafusion;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::util;
 
@@ -97,10 +97,10 @@ pub async fn diff_tabular(
     repo: &LocalRepository,
     entry: &CommitEntry,
 ) -> Result<String, OxenError> {
-    let diff = tabular::diff(repo, entry).await?;
+    let diff = tabular_datafusion::diff(repo, entry).await?;
 
-    let added_diff = tabular::df_to_str(&diff.added).await?;
-    let removed_diff = tabular::df_to_str(&diff.removed).await?;
+    let added_diff = tabular_datafusion::df_to_str(&diff.added).await?;
+    let removed_diff = tabular_datafusion::df_to_str(&diff.removed).await?;
 
     Ok(format!(
         "Added Rows\n{added_diff}\n\nRemoved Rows\n{removed_diff}\n"

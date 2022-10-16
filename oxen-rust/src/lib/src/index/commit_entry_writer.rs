@@ -2,7 +2,7 @@ use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{path_db, CommitDirEntryReader, CommitDirEntryWriter, RefReader, RefWriter};
-use crate::media::tabular;
+use crate::media::{tabular, tabular_datafusion};
 use crate::model::{
     Commit, CommitEntry, EntryType, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
@@ -143,7 +143,7 @@ impl CommitEntryWriter {
     fn save_row_level_data(&self, commit: &Commit, path: &Path) -> Result<(), OxenError> {
         log::debug!("save_row_level_data....");
         let path = self.repository.path.join(path);
-        let results = tabular::group_rows_by_key(path, "file");
+        let results = tabular_datafusion::group_rows_by_key(path, "file");
         match block_on(results) {
             Ok((groups, schema)) => {
                 println!("Saving annotations for {} files", groups.len());
@@ -168,7 +168,9 @@ impl CommitEntryWriter {
                             }
                             let annotation_file =
                                 annotation_dir.join(constants::ANNOTATIONS_FILENAME);
-                            if tabular::save_rows(annotation_file, data, schema.clone()).is_err() {
+                            if tabular_datafusion::save_rows(annotation_file, data, schema.clone())
+                                .is_err()
+                            {
                                 log::error!("Could not save annotations for {:?}", file);
                             }
                         } else {
@@ -260,10 +262,22 @@ impl CommitEntryWriter {
                 new_entry.path,
                 versions_entry_path
             );
-            std::fs::copy(full_path, versions_entry_path)?;
+            if util::fs::is_tabular(&full_path) {
+                self.backup_to_arrow_file(&full_path, &versions_entry_path)?;
+            } else {
+                std::fs::copy(full_path, versions_entry_path)?;
+            }
         }
 
         Ok(())
+    }
+
+    fn backup_to_arrow_file(
+        &self,
+        full_path: &Path,
+        version_entry_path: &Path,
+    ) -> Result<(), OxenError> {
+        tabular::copy_df(full_path, version_entry_path)
     }
 
     pub fn commit_staged_entries(

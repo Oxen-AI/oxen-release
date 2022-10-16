@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
-chrono = "0.4.19"
+chrono = "0.4.22"
 clap = { version = "3.1.0", features = ["cargo"] }
-indicatif = "0.16.2"
+indicatif = "0.17.1"
 jwalk = "0.6.0"
 rayon = "1.5.1"
 reqwest = { version = "0.11.11", features = ["multipart", "json", "gzip", "stream"] }
@@ -42,6 +42,7 @@ filetime = "0.2.16"
 bytesize = "1.1.0"
 num_cpus = "1.13.1"
 datafusion = { version = "13.0" }
+polars = { git = "https://github.com/pola-rs/polars", rev = "87f830d73053caf83b585ffabadb160f144b19f6", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
 comfy-table = "6.1.0"
 unicode-truncate = "0.2.0"
 termion = "1.5.6"

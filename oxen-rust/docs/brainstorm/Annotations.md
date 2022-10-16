@@ -12,23 +12,120 @@ Data Value Chain
 - Who annotated?
 - When annotated?
 
-Potential Queries
+Operations we want to be able to do
+
+- Iterate over annotations within schema (bounding box)
+- Iterate over annotations within commit within schema
+- Compare annotations between commits
+    - Find me all the rows that reference file=="path/to/file.jpg" on this commit
+    - Find me all the rows that reference label=="person" on this commit
+- Find all annotations from a user (this is within a commit within a schema, already have)
+- Find me all annotations that have a property
+    - If we keep references to the csvs that they came from, we could join them all, and run a big query
 
 - Find me all annotations from Greg
 - Find me all annotations with field X
     - Would have to index on field X and know schema
 
+How do we not save every complete version of the giant table if just one row changes?
+......
+
+FIRST STEP
+
+1) If a tabular file is added/committed, we save it off as .arrow file in the versions directory with a _row_num projected on
+    - This will not be the most efficient for *storage* on disk, but will allow for fast access over the data
+    - We can quickly get to rows using polars.slice(offset,len) which is sweet
+2) Add ability to quickly fetch indices from tabular file or paginate
+    - /namespace/reponame/rows/commit/file/
+
+-- RELEASE 
+
+1) Let's do `oxen annotate -a <path/to/annotations.csv> -n "bounding_box" -f "file"` to keep track of individual annotations
+    - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
+    - You should be able to add one from CLI too without reading from a file
+        - OR just add a row to a file, add, commit, boom
+    - You should be able to POST one from the API
+        - Same thing, where do you want to store the annotation?
+    - You should be able to list all annotations from a repo, hence the annotations/ dir in the commit history
+
+
+
 Start with
-    1) Look at file field
-    2) Save off parquet with subset that reference that file
-    3) Do we need a schema? Yes I think so...
+    1) Look at a column with name, default to "file" field
+        
+        `oxen index -t path/to/annotations.csv -n "bounding_box" -f "file"`
+
+    2) Save off the schema we just indexed for reference
+        
+        `oxen schemas`
+
+    3) Save off row indicies and file content hash pointers to the annotations dir
+
+        Ex) Query
+            Find all the rows (annotations) that belong to a key-val pair
+
+            Find all the rows that have the schema.bounding_box.file key == val
+
+            Find all the rows that have the schema.bounding_box.label key == val
+
+            Compare these between commits
+
+            1) Does this schema name + key exist? find the schema hash
+            2) Use the schema hash + index key to look up all the values associated with the val
+            3) Find all row hashes for that commit (don't need to look in the actual file until you diff)
+            4) Once you find the differing row hashes, you can find the actual rows
+
+
+        .oxen/versions/FILE_HASH/
+            contents.jpg
+
+        .oxen/history/
+            commit_id/ (has 3 top level objects "files", "dirs", "indexes")
+                indexes/
+                    schemas/
+                        ROCKSDB
+                        "schema_name" => {
+                                "name": "bounding_box",
+                                "hash": "name,type,....->hashed",
+                                "fields": [
+                                    {"name": "file", "dtype":"string"},
+                                    {"name": "x", "dtype":"f32"},
+                                    {"name": "y", "dtype":"f32"},
+                                    {"name": "w", "dtype":"f32"},
+                                    {"name": "h", "dtype":"f32"},
+                                ],
+                                timestamps: ...
+                            }
+
+                    schema_indexes/
+                        schema_hash/ (bounding_box)
+                            ROCKSDB
+                            "index_key" -> { timestamps ... }
+                    schema_hash/
+                        index_key/ ("file" or "label")
+                            index_val_hash/ ("path/to/file.jpg" or "person")
+                                ROCKSDB
+                                    row_hash => { (now we can diff between commits, based on the query)
+                                        _row_num, (in .arrow file)
+                                        arrow_file_content_hash, (to get to .arrow file path)
+                                    }
+                dirs/
+                files/
+                    path/
+                        to/
+                            dir/
+                                file_name -> file_hash (get us to the versions dir)  
+
+
 
 Would we want to index the filenames 
 
 /path/to/file.jpg -> HASH
 HASH -> /path/to/file.jpg
 
-oxen query bbox.category == Person
+Find all the files that have a certain field in 
+
+oxen query schema_name.category == Person
     - Slow
     - Could index to make faster
 
@@ -45,13 +142,13 @@ oxen search bbox.category == 'person'
 - _id
 - created_at
 - created_by
-- schema_id
-- file.csv:row_hash
+- schema_name
+- file.csv
+- hash
 - body
 
-# Schema
 
-
+# 
 
 # Commands
 

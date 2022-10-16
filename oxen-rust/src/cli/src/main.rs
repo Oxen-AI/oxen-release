@@ -106,18 +106,10 @@ async fn main() {
         )
         .subcommand(Command::new("log").about("See log of commits"))
         .subcommand(
-            Command::new("show")
-                .about("Displays a preview of the file. Supported types: csv, tsv, ndjson, jsonl, parq.")
+            Command::new("df")
+                .about("Displays a preview of the dataframe. Supported types: csv, tsv, ndjson, jsonl, parquet.")
                 .arg(arg!(<PATH> ... "The file path you want to show."))
                 .arg_required_else_help(true)
-                .arg(
-                    Arg::new("query")
-                        .long("query")
-                        .short('q')
-                        .help("Query the data file.")
-                        .default_value("select * from data limit 10")
-                        .takes_value(true),
-                )
                 .arg(
                     Arg::new("output")
                         .long("output")
@@ -363,12 +355,11 @@ async fn main() {
                 eprintln!("{}", err)
             }
         },
-        Some(("show", sub_matches)) => {
+        Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            let query = sub_matches.value_of("query");
             let output = sub_matches.value_of("output");
 
-            match dispatch::transform_table(path, query, output).await {
+            match dispatch::df(path, output) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)

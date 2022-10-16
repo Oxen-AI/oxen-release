@@ -1824,3 +1824,33 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         Ok(())
     })
 }
+
+#[test]
+fn test_add_new_annotation_to_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let _last_commit = command::log(&repo)?.first().unwrap();
+
+        let train_dir = repo.path.join("train");
+        let new_img_path = train_dir.join("cat_3.jpg");
+        std::fs::copy(Path::new("data/test/images/cat_3.jpg"), &new_img_path)?;
+
+        let bbox_file = repo
+            .path
+            .join("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file =
+            test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+
+        // Add the reference image
+        command::add(&repo, &new_img_path)?;
+
+        // Add the annotations file
+        command::add_tabular(&repo, &bbox_file)?;
+
+        //
+        command::commit(&repo, "Adding new annotation")?;
+
+        Ok(())
+    })
+}

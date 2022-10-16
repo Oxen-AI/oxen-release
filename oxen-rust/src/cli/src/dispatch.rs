@@ -252,12 +252,8 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
-    input: P,
-    query: Option<S>,
-    output: Option<P>,
-) -> Result<(), OxenError> {
-    command::transform_table(input, query, output).await?;
+pub fn df<P: AsRef<Path>>(input: P, output: Option<P>) -> Result<(), OxenError> {
+    command::df(input, output)?;
     Ok(())
 }
 
