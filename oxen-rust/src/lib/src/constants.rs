@@ -11,6 +11,12 @@ pub const REFS_DIR: &str = "refs";
 pub const HISTORY_DIR: &str = "history";
 /// commits/ is a key-value database of commit ids to commit objects
 pub const COMMITS_DB: &str = "commits";
+/// name of the schema db
+pub const SCHEMAS_DIR: &str = "schemas";
+/// prefix for the commit entry files
+pub const FILES_DIR: &str = "files";
+/// prefix for the commit entry files
+pub const DIRS_DIR: &str = "dirs";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them

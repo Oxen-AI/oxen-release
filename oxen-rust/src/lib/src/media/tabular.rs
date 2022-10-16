@@ -127,11 +127,21 @@ pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenE
     }
 }
 
-pub fn copy_df<P: AsRef<Path>>(input: P, output: P) -> Result<(), OxenError> {
+pub fn copy_df<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
     let mut df = read_df(input)?;
     write_df_arrow(&mut df, output)?;
+    Ok(df)
+}
 
-    Ok(())
+pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
+    let df = read_df(input)?;
+    let mut df = df
+        .lazy()
+        .with_row_count("_row_num", Some(0))
+        .collect()
+        .expect("Could not add row count");
+    write_df_arrow(&mut df, output)?;
+    Ok(df)
 }
 
 pub fn show_path<P: AsRef<Path>>(input: P) -> Result<DataFrame, OxenError> {
