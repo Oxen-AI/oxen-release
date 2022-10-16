@@ -200,12 +200,15 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
     Ok(())
 }
 
-pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
-    input: P,
-    query: Option<S>,
-    output: Option<P>,
-) -> Result<(), OxenError> {
-    tabular::transform_table(input, query, output).await?;
+/// Interact with dataframes from CLI
+pub fn df<P: AsRef<Path>>(input: P, output: Option<P>) -> Result<(), OxenError> {
+    let mut df = tabular::show_path(input)?;
+
+    if let Some(output) = output {
+        let output = output.as_ref();
+        println!("Writing {:?}", output);
+        tabular::write_df(&mut df, output)?;
+    }
 
     Ok(())
 }
