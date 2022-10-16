@@ -26,10 +26,10 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo, namespace, name, host).await?;
+    let remote_repo = command::create_remote(&repo, namespace, name, host).await?;
     println!(
         "Remote created for {}\n\noxen remote add origin {}",
-        name, remote.url
+        name, remote_repo.remote.url
     );
 
     Ok(())

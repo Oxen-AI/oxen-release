@@ -38,7 +38,7 @@ pub async fn create(
 
     let client = reqwest::Client::new();
     let uri = format!("/entries?{}", entry.to_uri_encoded());
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("create entry: {}", url);
     match client
         .post(url)
@@ -83,7 +83,7 @@ pub async fn download_entries(
         "/commits/{}/download_entries?page_num={}&page_size={}",
         commit_id, page_num, page_size
     );
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(&url)
@@ -133,7 +133,7 @@ pub async fn download_content_by_ids(
     }
     let body = encoder.finish()?;
     let size = body.len() as u64;
-    let url = api::endpoint::url_from_repo(remote_repo, "/versions");
+    let url = api::endpoint::url_from_repo(remote_repo, "/versions")?;
 
     if let Ok(res) = reqwest::Client::new()
         .post(&url)

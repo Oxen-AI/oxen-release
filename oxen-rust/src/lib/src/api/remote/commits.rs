@@ -26,7 +26,7 @@ pub async fn get_by_id(
 ) -> Result<Option<Commit>, OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/commits/{}", commit_id);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::commits::get_by_id {}", url);
 
     let client = reqwest::Client::new();
@@ -65,7 +65,7 @@ pub async fn commit_is_synced(
 ) -> Result<bool, OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
     let client = reqwest::Client::new();
     if let Ok(res) = client
@@ -99,7 +99,7 @@ pub async fn download_commit_db_by_id(
 ) -> Result<(), OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/commits/{}/commit_db", commit_id);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = reqwest::Client::new();
     if let Ok(res) = client
@@ -136,7 +136,7 @@ pub async fn get_remote_parent(
 ) -> Result<Vec<Commit>, OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/commits/{}/parents", commit_id);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = reqwest::Client::new();
     if let Ok(res) = client
         .get(url)
@@ -200,7 +200,7 @@ async fn create_commit_obj_on_server(
     let config = UserConfig::default()?;
     let client = reqwest::Client::new();
 
-    let url = api::endpoint::url_from_repo(remote_repo, "/commits");
+    let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
 
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);
@@ -243,7 +243,7 @@ pub async fn post_tarball_to_server(
     let config = UserConfig::default()?;
 
     let uri = format!("/commits/{}/data", commit.id);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     // println!("Uploading {}", ByteSize::b(buffer.len() as u64));
     // let cursor = Cursor::new(Vec::from(buffer));

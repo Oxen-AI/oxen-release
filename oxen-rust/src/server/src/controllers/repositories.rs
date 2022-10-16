@@ -56,6 +56,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                     name: String::from(name),
                 },
             }),
+
             Ok(None) => {
                 log::debug!("404 Could not find repo: {}", name);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -77,18 +78,17 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::create_empty(&app_data.path, &data) {
-            Ok(_) => {
-                // Set the remote to this server
-                HttpResponse::Ok().json(RepositoryResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
-                    repository: RepositoryView {
-                        namespace: data.namespace,
-                        name: data.name,
-                    },
-                })
-            }
+            Ok(_) => HttpResponse::Ok().json(RepositoryResponse {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_CREATED),
+                repository: RepositoryView {
+                    namespace: data.namespace.clone(),
+                    name: data.name.clone(),
+                },
+            }),
+
             Err(err) => {
+                println!("Err api::local::repositories::create: {:?}", err);
                 log::error!("Err api::local::repositories::create: {:?}", err);
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
@@ -110,24 +110,16 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     let name: Option<&str> = req.match_info().get("repo_name");
     if let (Some(name), Some(namespace)) = (name, namespace) {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(_)) => {
-                let repository = RepositoryView {
-                    namespace: String::from(namespace),
-                    name: String::from(name),
-                };
-                match api::local::repositories::delete(&app_data.path, repository) {
-                    Ok(repository) => HttpResponse::Ok().json(RepositoryResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_DELETED),
-                        repository,
-                    }),
-                    Err(err) => {
-                        log::error!("Error deleting repository: {}", err);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
-                    }
+            Ok(Some(repository)) => match api::local::repositories::delete(repository) {
+                Ok(_) => HttpResponse::Ok().json(StatusMessage {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_DELETED),
+                }),
+                Err(err) => {
+                    log::error!("Error deleting repository: {}", err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
                 }
-            }
+            },
             Ok(None) => {
                 log::debug!("404 Could not find repo: {}", name);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -260,7 +252,7 @@ mod tests {
         let sync_dir = test::get_sync_dir()?;
 
         let namespace = "repositories";
-        let uri = format!("/oxen/{}", namespace);
+        let uri = format!("/api/repos/{}", namespace);
         let req = test::namespace_request(&sync_dir, &uri, namespace);
 
         let resp = controllers::repositories::index(req).await;
@@ -284,7 +276,7 @@ mod tests {
         test::create_local_repo(&sync_dir, namespace, "Testing-1")?;
         test::create_local_repo(&sync_dir, namespace, "Testing-2")?;
 
-        let uri = format!("/oxen/{}", namespace);
+        let uri = format!("/api/repos/{}", namespace);
         let req = test::namespace_request(&sync_dir, &uri, namespace);
         let resp = controllers::repositories::index(req).await;
         assert_eq!(resp.status(), http::StatusCode::OK);
@@ -309,7 +301,7 @@ mod tests {
         test::create_local_repo(&sync_dir, namespace, name)?;
         log::info!("test created local repo: {}", name);
 
-        let uri = format!("/oxen/{}/{}", namespace, name);
+        let uri = format!("/api/repos/{}/{}", namespace, name);
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::repositories::show(req).await;
@@ -343,9 +335,10 @@ mod tests {
             }),
         };
         let data = serde_json::to_string(&repo_new)?;
-        let req = test::request(&sync_dir, "/repositories");
+        let req = test::request(&sync_dir, "/api/repos");
 
         let resp = controllers::repositories::create(req, data).await;
+        println!("repo create response: {:?}", resp);
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();

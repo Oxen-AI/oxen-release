@@ -12,7 +12,7 @@ pub async fn get_by_name(
 ) -> Result<Option<Branch>, OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/branches/{}", branch_name);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
 
     let client = reqwest::Client::new();
     if let Ok(res) = client
@@ -46,7 +46,7 @@ pub async fn get_by_name(
 
 pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
     let config = UserConfig::default()?;
-    let url = api::endpoint::url_from_repo(repository, "/branches");
+    let url = api::endpoint::url_from_repo(repository, "/branches")?;
     log::debug!("create_or_get {}", url);
 
     let params = serde_json::to_string(&json!({ "name": name }))?;
@@ -83,7 +83,7 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
 
 pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     let config = UserConfig::default()?;
-    let url = api::endpoint::url_from_repo(repository, "/branches");
+    let url = api::endpoint::url_from_repo(repository, "/branches")?;
 
     let client = reqwest::Client::new();
     if let Ok(res) = client
@@ -122,7 +122,7 @@ pub async fn update(
 ) -> Result<Branch, OxenError> {
     let config = UserConfig::default()?;
     let uri = format!("/branches/{}", branch_name);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::branches::update url: {}", url);
 
     let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
@@ -163,7 +163,7 @@ pub async fn delete(
     let config = UserConfig::default()?;
     let client = reqwest::Client::new();
     let uri = format!("/branches/{}", branch_name);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Deleting branch: {}", url);
     if let Ok(res) = client
         .delete(url)
