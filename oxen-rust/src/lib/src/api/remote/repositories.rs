@@ -16,7 +16,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
     let url = api::endpoint::url_from_remote(remote, "")?;
     let config = UserConfig::default()?;
     let client = reqwest::Client::new();
-    log::debug!("api::remote::repositories::get_by_url({})", url);
+    log::debug!("api::remote::repositories::get_by_remote({})", url);
     if let Ok(res) = client
         .get(url.clone())
         .header(
@@ -33,7 +33,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
 
         let body = res.text().await?;
         log::debug!(
-            "repositories::get_by_url {}\nstatus[{}] {}",
+            "repositories::get_by_remote {}\nstatus[{}] {}",
             url,
             status,
             body
@@ -45,14 +45,14 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(&format!(
-                    "api::repositories::get_by_url() Could not serialize repository [{}]",
+                    "api::repositories::get_by_remote() Could not serialize repository [{}]",
                     url
                 )))
             }
         }
     } else {
         Err(OxenError::basic_str(
-            "api::repositories::get_by_url() Request failed",
+            "api::repositories::get_by_remote() Request failed",
         ))
     }
 }
@@ -67,7 +67,7 @@ pub async fn create(
     let url = api::endpoint::url_from_host(host, "");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
-    log::debug!("Create remote: {}", url);
+    log::debug!("Create remote: {} {} {}", url, namespace, name);
     let client = reqwest::Client::new();
     if let Ok(res) = client
         .post(url.to_owned())
@@ -86,7 +86,7 @@ pub async fn create(
             Ok(response) => Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: url,
+                    url: api::endpoint::remote_url_from_host(host, namespace, name),
                     name: String::from("origin"),
                 },
             )),
