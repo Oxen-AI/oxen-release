@@ -17,10 +17,9 @@ use std::path::{Path, PathBuf};
 const TEST_RUN_DIR: &str = "data/test/runs";
 pub const TEST_HOST: &str = "0.0.0.0:3000";
 
-pub fn repo_url_from(name: &str) -> String {
+pub fn repo_remote_url_from(name: &str) -> String {
     // Tests always point to localhost
-    let uri = format!("/{}/{}", constants::DEFAULT_NAMESPACE, name);
-    api::endpoint::url_from_host(TEST_HOST, &uri)
+    api::endpoint::remote_url_from_host(TEST_HOST, constants::DEFAULT_NAMESPACE, &name)
 }
 
 pub fn init_test_env() {

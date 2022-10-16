@@ -664,7 +664,7 @@ mod tests {
 
             // Set the proper remote
             let name = repo.dirname();
-            let remote = test::repo_url_from(&name);
+            let remote = test::repo_remote_url_from(&name);
             command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let remote_repo =
@@ -708,7 +708,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
             // Set the proper remote
             let name = repo.dirname();
-            let remote = test::repo_url_from(&name);
+            let remote = test::repo_remote_url_from(&name);
             command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
