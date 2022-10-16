@@ -1,8 +1,11 @@
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::error::OxenError;
-use crate::index::{path_db, CommitDirEntryReader, CommitDirEntryWriter, RefReader, RefWriter};
+use crate::index::{
+    path_db, CommitDirEntryReader, CommitDirEntryWriter, RefReader, RefWriter, SchemaWriter,
+};
 use crate::media::{tabular, tabular_datafusion};
+use crate::model::schema;
 use crate::model::{
     Commit, CommitEntry, EntryType, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
@@ -263,7 +266,7 @@ impl CommitEntryWriter {
                 versions_entry_path
             );
             if util::fs::is_tabular(&full_path) {
-                self.backup_to_arrow_file(&full_path, &versions_entry_path)?;
+                self.backup_to_arrow_file(new_entry, &full_path, &versions_entry_path)?;
             } else {
                 std::fs::copy(full_path, versions_entry_path)?;
             }
@@ -274,10 +277,22 @@ impl CommitEntryWriter {
 
     fn backup_to_arrow_file(
         &self,
+        entry: &CommitEntry,
         full_path: &Path,
         version_entry_path: &Path,
     ) -> Result<(), OxenError> {
-        tabular::copy_df(full_path, version_entry_path)
+        let df = tabular::copy_df(full_path, version_entry_path)?;
+        let schema = schema::Schema::from_polars(df.schema());
+
+        // Save the schema if it does not exist
+        let schema_version_dir = util::fs::schema_version_dir(&self.repository, &schema);
+        if !schema_version_dir.exists() {
+            std::fs::create_dir_all(&schema_version_dir)?;
+            let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
+            schema_writer.add_schema(&schema)?;
+        }
+
+        Ok(())
     }
 
     pub fn commit_staged_entries(

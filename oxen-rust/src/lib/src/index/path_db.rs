@@ -7,21 +7,15 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
 
+use crate::index::kv_json_db;
+
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry
 pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) -> bool {
     let path = path.as_ref();
     // log::debug!("path_db::has_entry?({:?}) from db {:?}", path, db.path());
-    if let Some(path_str) = path.to_str() {
-        let bytes = path_str.as_bytes();
-        match db.get(bytes) {
-            Ok(Some(_value)) => return true,
-            Ok(None) => return false,
-            Err(err) => {
-                log::error!("Error checking for entry: {}", err);
-                return false;
-            }
-        }
+    if let Some(key) = path.to_str() {
+        return kv_json_db::has_key(db, key);
     }
 
     false
@@ -37,40 +31,8 @@ where
 {
     let path = path.as_ref();
     log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
-    if let Some(path_str) = path.to_str() {
-        let bytes = path_str.as_bytes();
-        match db.get(bytes) {
-            Ok(Some(value)) => {
-                // found it
-                let str_val = str::from_utf8(&*value)?;
-                let entry = serde_json::from_str(str_val)?;
-                // log::debug!(
-                //     "path_db::get_entry({:?}) GOT IT from db {:?}",
-                //     path,
-                //     db.path()
-                // );
-                return Ok(Some(entry));
-            }
-            Ok(None) => {
-                // did not get val
-                // log::debug!(
-                //     "path_db::get_entry({:?}) don't got it....  from db {:?}",
-                //     path,
-                //     db.path()
-                // );
-                return Ok(None);
-            }
-            Err(err) => {
-                // error from the DB
-                let err = format!(
-                    "Err could not fetch value {:?} from db: {} from db {:?}",
-                    path,
-                    err,
-                    db.path()
-                );
-                return Err(OxenError::basic_str(err));
-            }
-        }
+    if let Some(key) = path.to_str() {
+        return kv_json_db::get(db, key);
     }
     Err(OxenError::could_not_convert_path_to_str(path))
 }
@@ -86,19 +48,10 @@ where
 {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
-        let entry_json = serde_json::to_string(entry)?;
-
-        log::debug!(
-            "path_db::put {:?} -> {:?} -> db: {:?}",
-            path,
-            entry_json,
-            db.path()
-        );
-
-        db.put(&key, entry_json.as_bytes())?;
-        return Ok(());
+        kv_json_db::put(db, key, entry)
+    } else {
+        Err(OxenError::could_not_convert_path_to_str(path))
     }
-    Err(OxenError::could_not_convert_path_to_str(path))
 }
 
 /// # Removes path entry from database
@@ -108,12 +61,10 @@ pub fn delete<P: AsRef<Path>>(
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
-        log::debug!("path_db::delete {:?} from db: {:?}", path, db.path());
-
-        db.delete(&key)?;
-        return Ok(());
+        kv_json_db::delete(db, key)
+    } else {
+        Err(OxenError::could_not_convert_path_to_str(path))
     }
-    Err(OxenError::could_not_convert_path_to_str(path))
 }
 
 /// # List the file paths in the staged dir
@@ -181,23 +132,7 @@ pub fn list_entries<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<T>, O
 where
     T: de::DeserializeOwned,
 {
-    let iter = db.iterator(IteratorMode::Start);
-    let mut paths: Vec<T> = vec![];
-    for (_key, value) in iter {
-        match str::from_utf8(&*value) {
-            Ok(value) => {
-                // Full path given the dir it is in
-                let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
-                if let Ok(entry) = entry {
-                    paths.push(entry);
-                }
-            }
-            _ => {
-                log::error!("list_added_path_entries() Could not decoded keys and values.")
-            }
-        }
-    }
-    Ok(paths)
+    kv_json_db::list_vals(db)
 }
 
 pub fn list_entries_set<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashSet<T>, OxenError>
@@ -226,11 +161,7 @@ where
 }
 
 pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
-    let iter = db.iterator(IteratorMode::Start);
-    for (key, _) in iter {
-        db.delete(key)?;
-    }
-    Ok(())
+    kv_json_db::clear(db)
 }
 
 pub fn list_entry_page<T>(

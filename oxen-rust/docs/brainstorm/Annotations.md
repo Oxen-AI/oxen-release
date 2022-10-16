@@ -57,7 +57,9 @@ Start with
 
     2) Save off the schema we just indexed for reference
         
-        `oxen schemas`
+        `oxen schema list`
+        
+        `oxen schema update eh219ehdj -n "bounding_box"`
 
     3) Save off row indicies and file content hash pointers to the annotations dir
 
@@ -84,7 +86,7 @@ Start with
                 indexes/
                     schemas/
                         ROCKSDB
-                        "schema_name" => {
+                        "schema_hash" => {
                                 "name": "bounding_box",
                                 "hash": "name,type,....->hashed",
                                 "fields": [
@@ -94,7 +96,6 @@ Start with
                                     {"name": "w", "dtype":"f32"},
                                     {"name": "h", "dtype":"f32"},
                                 ],
-                                timestamps: ...
                             }
 
                     schema_indexes/
@@ -102,7 +103,7 @@ Start with
                             ROCKSDB
                             "index_key" -> { timestamps ... }
                     schema_hash/
-                        index_key/ ("file" or "label")
+                        index_key/ ("file" or "label" or "whatever aggregate query you want")
                             index_val_hash/ ("path/to/file.jpg" or "person")
                                 ROCKSDB
                                     row_hash => { (now we can diff between commits, based on the query)

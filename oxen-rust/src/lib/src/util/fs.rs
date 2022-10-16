@@ -11,7 +11,7 @@ use std::{fs, io};
 
 use crate::constants;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository};
+use crate::model::{CommitEntry, LocalRepository, Schema};
 
 pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
     PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
@@ -23,6 +23,13 @@ pub fn config_filepath(repo_path: &Path) -> PathBuf {
 
 pub fn repo_exists(repo_path: &Path) -> bool {
     oxen_hidden_dir(repo_path).exists()
+}
+
+pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
+    oxen_hidden_dir(&repo.path)
+        .join(constants::VERSIONS_DIR)
+        .join(constants::SCHEMAS_DIR)
+        .join(&schema.hash)
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
@@ -43,6 +50,7 @@ pub fn version_dir_from_hash(repo: &LocalRepository, hash: String) -> PathBuf {
     let subdir = &hash[2..];
     oxen_hidden_dir(&repo.path)
         .join(constants::VERSIONS_DIR)
+        .join(constants::FILES_DIR)
         .join(topdir)
         .join(subdir)
 }
@@ -573,7 +581,8 @@ mod tests {
             let relative_path = util::fs::path_relative_to_dir(&path, &versions_dir)?;
             assert_eq!(
                 relative_path,
-                Path::new("59")
+                Path::new(constants::FILES_DIR)
+                    .join("59")
                     .join(Path::new("E029D4812AEBF0"))
                     .join(Path::new("1234.txt"))
             );
