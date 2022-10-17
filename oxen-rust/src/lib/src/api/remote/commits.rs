@@ -200,12 +200,7 @@ pub async fn post_tarball_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client
-        .post(url)
-        .body(buffer)
-        .send()
-        .await
-    {
+    match client.post(url).body(buffer).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
