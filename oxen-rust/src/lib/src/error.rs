@@ -60,6 +60,12 @@ impl OxenError {
         )
     }
 
+    pub fn no_schemas_found() -> OxenError {
+        OxenError::basic_str(
+            "No schemas found\n\nAdd and commit a tabular data file with:\n\n  oxen add path/to/file.csv\n  oxen commit -m \"adding data\"\n",
+        )
+    }
+
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Remote branch `{}` not found", name.as_ref());
         OxenError::basic_str(&err)

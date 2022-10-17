@@ -29,8 +29,13 @@ impl SchemaWriter {
         })
     }
 
-    pub fn add_schema(&self, schema: &Schema) -> Result<(), OxenError> {
+    pub fn put_schema(&self, schema: &Schema) -> Result<(), OxenError> {
         kv_json_db::put(&self.db, &schema.hash, schema)
+    }
+
+    pub fn update_schema(&self, schema: &Schema) -> Result<Schema, OxenError> {
+        kv_json_db::put(&self.db, &schema.hash, schema)?;
+        Ok(kv_json_db::get(&self.db, &schema.hash)?.unwrap())
     }
 }
 
@@ -45,7 +50,7 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_add_schema() -> Result<(), OxenError> {
+    fn test_put_schema() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let history = command::log(&repo)?;
             let last_commit = history.first().unwrap();
@@ -68,7 +73,7 @@ mod tests {
                     },
                 ]);
 
-                schema_writer.add_schema(&schema)?;
+                schema_writer.put_schema(&schema)?;
             }
 
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;

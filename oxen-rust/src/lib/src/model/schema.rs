@@ -4,8 +4,9 @@ pub mod field;
 pub use data_type::DataType;
 pub use field::Field;
 
-use serde::{Deserialize, Serialize};
 use crate::util::hasher;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Schema {
@@ -27,7 +28,7 @@ impl Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
             let f = Field {
-                name: field.name().to_string(),
+                name: field.name().trim().to_string(),
                 dtype: field.data_type().to_string(),
             };
             fields.push(f);
@@ -49,5 +50,175 @@ impl Schema {
         let buffer_str = hash_buffers.join("");
         let buffer = buffer_str.as_bytes();
         hasher::hash_buffer(buffer)
+    }
+
+    pub fn schemas_to_string<S: AsRef<Vec<Schema>>>(schemas: S) -> String {
+        let schemas = schemas.as_ref();
+        let mut table = comfy_table::Table::new();
+        table.set_header(vec!["name", "hash", "fields"]);
+
+        for schema in schemas.iter() {
+            let fields_str = Field::fields_to_string(&schema.fields);
+            if let Some(name) = &schema.name {
+                table.add_row(vec![name.to_string(), schema.hash.to_string(), fields_str]);
+            } else {
+                table.add_row(vec!["?".to_string(), schema.hash.to_string(), fields_str]);
+            }
+        }
+        table.to_string()
+    }
+}
+
+impl fmt::Display for Schema {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut table = comfy_table::Table::new();
+        table.set_header(vec!["name", "dtype"]);
+
+        for field in self.fields.iter() {
+            table.add_row(vec![field.name.to_string(), field.dtype.to_string()]);
+        }
+        if let Some(name) = &self.name {
+            write!(f, "{}\n{}", name, table)
+        } else {
+            write!(
+                f,
+                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
+                self.hash,
+                table
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::schema::Field;
+    use crate::model::schema::Schema;
+
+    #[test]
+    fn test_schemas_to_string_one_field() {
+        let schemas = vec![Schema {
+            name: Some("bounding_box".to_string()),
+            hash: "1234".to_string(),
+            fields: vec![Field {
+                name: "file".to_string(),
+                dtype: "".to_string(),
+            }],
+        }];
+        let table = Schema::schemas_to_string(schemas);
+        assert_eq!(
+            table,
+            r"
++--------------+------+--------+
+| name         | hash | fields |
++==============================+
+| bounding_box | 1234 | [file] |
++--------------+------+--------+"
+                .trim()
+        )
+    }
+
+    #[test]
+    fn test_schemas_to_string_three_fields() {
+        let schemas = vec![Schema {
+            name: Some("bounding_box".to_string()),
+            hash: "1234".to_string(),
+            fields: vec![
+                Field {
+                    name: "file".to_string(),
+                    dtype: "str".to_string(),
+                },
+                Field {
+                    name: "x".to_string(),
+                    dtype: "i64".to_string(),
+                },
+                Field {
+                    name: "y".to_string(),
+                    dtype: "i64".to_string(),
+                },
+                Field {
+                    name: "w".to_string(),
+                    dtype: "f64".to_string(),
+                },
+                Field {
+                    name: "h".to_string(),
+                    dtype: "f64".to_string(),
+                },
+            ],
+        }];
+        let table = Schema::schemas_to_string(schemas);
+        assert_eq!(
+            table,
+            r"
++--------------+------+----------------------+
+| name         | hash | fields               |
++============================================+
+| bounding_box | 1234 | [file, x, y, w, ...] |
++--------------+------+----------------------+"
+                .trim()
+        )
+    }
+
+    #[test]
+    fn test_schemas_to_string_no_name() {
+        let schemas = vec![
+            Schema {
+                name: Some("bounding_box".to_string()),
+                hash: "1234".to_string(),
+                fields: vec![
+                    Field {
+                        name: "file".to_string(),
+                        dtype: "str".to_string(),
+                    },
+                    Field {
+                        name: "x".to_string(),
+                        dtype: "i64".to_string(),
+                    },
+                    Field {
+                        name: "y".to_string(),
+                        dtype: "i64".to_string(),
+                    },
+                    Field {
+                        name: "w".to_string(),
+                        dtype: "f64".to_string(),
+                    },
+                    Field {
+                        name: "h".to_string(),
+                        dtype: "f64".to_string(),
+                    },
+                ],
+            },
+            Schema {
+                name: None,
+                hash: "5432".to_string(),
+                fields: vec![
+                    Field {
+                        name: "file".to_string(),
+                        dtype: "str".to_string(),
+                    },
+                    Field {
+                        name: "x".to_string(),
+                        dtype: "i64".to_string(),
+                    },
+                    Field {
+                        name: "y".to_string(),
+                        dtype: "i64".to_string(),
+                    },
+                ],
+            },
+        ];
+        let table = Schema::schemas_to_string(schemas);
+        assert_eq!(
+            table,
+            r"
++--------------+------+----------------------+
+| name         | hash | fields               |
++============================================+
+| bounding_box | 1234 | [file, x, y, w, ...] |
+|--------------+------+----------------------|
+| ?            | 5432 | [file, x, y]         |
++--------------+------+----------------------+"
+                .trim()
+        )
     }
 }

@@ -1854,3 +1854,26 @@ fn test_add_new_annotation_to_file() -> Result<(), OxenError> {
         Ok(())
     })
 }
+
+#[test]
+fn test_command_schema_list() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let schemas = command::schema_list(&repo, None)?;
+        assert_eq!(schemas.len(), 1);
+
+        assert_eq!(schemas[0].hash, "955d23d75fd8ad02ba2011f5e8854c68");
+        assert_eq!(schemas[0].fields.len(), 5);
+        assert_eq!(schemas[0].fields[0].name, "file");
+        assert_eq!(schemas[0].fields[0].dtype, "str");
+        assert_eq!(schemas[0].fields[1].name, "min_x");
+        assert_eq!(schemas[0].fields[1].dtype, "f64");
+        assert_eq!(schemas[0].fields[2].name, "min_y");
+        assert_eq!(schemas[0].fields[2].dtype, "f64");
+        assert_eq!(schemas[0].fields[3].name, "width");
+        assert_eq!(schemas[0].fields[3].dtype, "i64");
+        assert_eq!(schemas[0].fields[4].name, "height");
+        assert_eq!(schemas[0].fields[4].dtype, "i64");
+
+        Ok(())
+    })
+}

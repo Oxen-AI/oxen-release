@@ -119,6 +119,22 @@ async fn main() {
                 )
         )
         .subcommand(
+            Command::new("schemas")
+                .about("Manage schemas that are created from committing tabular data")
+                .subcommand(
+                    Command::new("list")
+                )
+                .subcommand(
+                    Command::new("show")
+                        .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view."))
+                )
+                .subcommand(
+                    Command::new("name")
+                        .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
+                        .arg(Arg::new("NAME").help("Name of the schema."))
+                )
+        )
+        .subcommand(
             Command::new("add")
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
@@ -366,6 +382,48 @@ async fn main() {
                 }
             }
         }
+        Some(("schemas", sub_matches)) => {
+            if let Some(subcommand) = sub_matches.subcommand() {
+                match subcommand {
+                    ("list", _sub_matches) => match dispatch::schema_list() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("{}", err)
+                        }
+                    },
+                    ("show", sub_matches) => {
+                        let val = sub_matches.value_of("NAME_OR_HASH").expect("required");
+                        match dispatch::schema_show(val) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("name", sub_matches) => {
+                        let hash = sub_matches.value_of("HASH").expect("required");
+                        let val = sub_matches.value_of("NAME").expect("required");
+                        match dispatch::schema_name(hash, val) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    (cmd, _) => {
+                        eprintln!("Unknown subcommand {}", cmd)
+                    }
+                }
+            } else {
+                match dispatch::schema_list() {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            }
+        }
+
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
             if sub_matches.is_present("detailed") {

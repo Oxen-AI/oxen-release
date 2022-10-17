@@ -289,7 +289,7 @@ impl CommitEntryWriter {
         if !schema_version_dir.exists() {
             std::fs::create_dir_all(&schema_version_dir)?;
             let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
-            schema_writer.add_schema(&schema)?;
+            schema_writer.put_schema(&schema)?;
         }
 
         Ok(())
