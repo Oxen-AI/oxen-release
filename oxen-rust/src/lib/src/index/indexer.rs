@@ -3,6 +3,7 @@ use bytesize::ByteSize;
 use filetime::FileTime;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use futures::{stream, StreamExt};
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
@@ -227,7 +228,9 @@ impl Indexer {
         let last_entry_reader = CommitDirReader::new(&self.repository, last_commit)?;
 
         let mut entries_to_sync: Vec<CommitEntry> = vec![];
-        for entry in this_entry_reader.list_entries()? {
+        let this_entries = this_entry_reader.list_entries()?;
+        let bar = ProgressBar::new(this_entries.len() as u64);
+        for entry in this_entries {
             // If hashes are different, or it is a new entry, we'll push it
             if let Some(old_entry) = last_entry_reader.get_entry(&entry.path)? {
                 if old_entry.hash != entry.hash {
@@ -236,6 +239,7 @@ impl Indexer {
             } else {
                 entries_to_sync.push(entry);
             }
+            bar.inc(1);
         }
         println!("Got {} entries to sync", entries_to_sync.len());
 
@@ -268,8 +272,9 @@ impl Indexer {
             ByteSize::b(total_size)
         );
 
-        // TODO: compute optimal chunk size based on dataset size
-        let num_chunks = 1024;
+        // We want each chunk to be ~= 5mb
+        let avg_chunk_size = 500000;
+        let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size as u64));
 
         let mut chunk_size = entries.len() / num_chunks;
@@ -277,33 +282,45 @@ impl Indexer {
             chunk_size = entries.len();
         }
 
-        // entries.par_chunks(chunk_size).for_each(|chunk| {
+        log::debug!("Creating {num_chunks} chunks from {total_size} bytes with size {chunk_size}");
         let chunks: Vec<&[CommitEntry]> = entries.chunks(chunk_size).collect();
-        for chunk in chunks.iter() {
-            log::debug!("Compressing {} entries", entries.len());
-            // 1) zip up entries into tarballs
-            let enc = GzEncoder::new(Vec::new(), Compression::fast());
-            let mut tar = tar::Builder::new(enc);
-            for entry in chunk.iter() {
-                let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                let version_path = util::fs::version_path(&self.repository, entry);
-                let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+        let results = stream::iter(chunks)
+            .map(|chunk| {
+                async move {
+                    // 1) zip up entries into tarballs
+                    let enc = GzEncoder::new(Vec::new(), Compression::fast());
+                    let mut tar = tar::Builder::new(enc);
+                    for entry in chunk.iter() {
+                        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+                        let version_path = util::fs::version_path(&self.repository, entry);
+                        let name =
+                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                tar.append_path_with_name(version_path, name).unwrap();
-            }
+                        tar.append_path_with_name(version_path, name).unwrap();
+                    }
 
-            // TODO: Clean this up... many places it could fail, but just want to get something working
-            tar.finish().unwrap();
-            let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
+                    // TODO: Clean this up... many places it could fail, but just want to get something working
+                    tar.finish().unwrap();
+                    let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
+                    let size = buffer.len() as u64;
 
-            // We will at least check the content on the server and push again if this fails
-            if let Err(err) =
-                api::remote::commits::post_tarball_to_server(remote_repo, commit, buffer, &bar)
-                    .await
-            {
-                eprintln!("Could not upload commit: {}", err);
-            }
-        }
+                    api::remote::commits::post_tarball_to_server(remote_repo, commit, buffer)
+                        .await?;
+                    futures::future::ok::<u64, OxenError>(size).await
+                }
+            })
+            .buffer_unordered(num_cpus::get());
+
+        results
+            .for_each(|result| async {
+                match result {
+                    Ok(size) => bar.inc(size),
+                    Err(e) => {
+                        log::error!("Could not push entry: {}", e)
+                    }
+                }
+            })
+            .await;
 
         Ok(())
     }
@@ -537,8 +554,9 @@ impl Indexer {
 
             let (content_ids, size) = self.get_missing_content_ids(&entries);
 
-            // TODO: compute optimal chunk size based on dataset size
-            let num_chunks = 1024;
+            // We want each chunk to be ~= 5mb
+            let avg_chunk_size = 500000;
+            let num_chunks = ((size / avg_chunk_size) + 1) as usize;
             let bar = Arc::new(ProgressBar::new(size as u64));
 
             let mut chunk_size = entries.len() / num_chunks;
@@ -551,32 +569,31 @@ impl Indexer {
                 content_ids.len()
             );
 
-            // TODO: figure out async parallelization
+            // Chunk and run downloads in parallel
             let chunks: Vec<&[String]> = content_ids.chunks(chunk_size).collect();
-            for chunk in chunks.iter() {
-                api::remote::entries::download_content_by_ids(
-                    &self.repository,
-                    remote_repo,
-                    chunk,
-                    &bar,
-                )
-                .await?;
-            }
+            let results = stream::iter(chunks)
+                .map(|chunk| {
+                    let repo = self.repository.clone();
 
-            // content_ids.par_chunks(chunk_size).for_each(|chunk| {
-            //     if let Err(error) = api::remote::entries::download_content_by_ids(
-            //         &self.repository,
-            //         remote_repo,
-            //         chunk,
-            //         &bar,
-            //     ).await {
-            //         log::error!(
-            //             "Could not download content IDs for chunk of size {}\n{}",
-            //             chunk.len(),
-            //             error
-            //         );
-            //     };
-            // });
+                    async move {
+                        api::remote::entries::download_content_by_ids(&repo, remote_repo, chunk)
+                            .await
+                    }
+                })
+                // Number of CPUs will be number of par requests
+                .buffer_unordered(num_cpus::get());
+
+            // Collect results in progress bar, cannot `async move` progress bar above
+            results
+                .for_each(|result| async {
+                    match result {
+                        Ok(size) => bar.inc(size),
+                        Err(err) => {
+                            log::error!("Error downloading content... {:?}", err)
+                        }
+                    }
+                })
+                .await;
             bar.finish();
 
             println!("Unpacking...");
