@@ -1,6 +1,6 @@
 use crate::api;
+use crate::api::remote::client;
 use crate::command;
-use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
@@ -14,18 +14,10 @@ pub async fn get_by_remote_repo(
 
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
     let url = api::endpoint::url_from_remote(remote, "")?;
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
     log::debug!("api::remote::repositories::get_by_remote({})", url);
-    if let Ok(res) = client
-        .get(url.clone())
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.get(url.clone()).send().await {
         let status = res.status();
         if 404 == status {
             return Ok(None);
@@ -63,22 +55,13 @@ pub async fn create(
     name: &str,
     host: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    let config = UserConfig::default()?;
     let url = api::endpoint::url_from_host(host, "");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {} {} {}", url, namespace, name);
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .post(url.to_owned())
-        .json(&params)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.post(url.to_owned()).json(&params).send().await {
         let body = res.text().await?;
         // println!("Response: {}", body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -105,19 +88,11 @@ pub async fn create(
 }
 
 pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
     let url = api::endpoint::url_from_repo(repository, "")?;
     log::debug!("Deleting repository: {}", url);
-    if let Ok(res) = client
-        .delete(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.delete(url).send().await {
         let status = res.status();
         let body = res.text().await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
@@ -136,18 +111,9 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
 }
 
 pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
     log::debug!("api::remote::repositories::resolve_api_url({})", url);
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         let status = res.status();
         if 404 == status {
             return Ok(None);
