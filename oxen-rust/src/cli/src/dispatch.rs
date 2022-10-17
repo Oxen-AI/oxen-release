@@ -2,6 +2,7 @@ use liboxen::command;
 use liboxen::config::UserConfig;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::model::schema;
 use liboxen::model::LocalRepository;
 use liboxen::util;
 
@@ -254,6 +255,55 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
 
 pub fn df<P: AsRef<Path>>(input: P, output: Option<P>) -> Result<(), OxenError> {
     command::df(input, output)?;
+    Ok(())
+}
+
+pub fn schema_show(val: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schema = command::schema_show(&repository, None, val)?;
+    if schema.is_some() {
+        println!("{}", schema.unwrap());
+    }
+    Ok(())
+}
+
+pub fn schema_name(hash: &str, val: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schema = command::schema_show(&repository, None, hash)?;
+    if schema.is_some() {
+        let schema = command::schema_name(&repository, hash, val)?;
+        println!("{}", schema.unwrap());
+    } else {
+        eprintln!("Could not find schema {}", hash);
+    }
+    Ok(())
+}
+
+pub fn schema_list() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schemas = command::schema_list(&repository, None)?;
+    if schemas.is_empty() {
+        eprintln!("{}", OxenError::no_schemas_found());
+    } else {
+        let result = schema::Schema::schemas_to_string(&schemas);
+        println!("{}", result);
+    }
+    Ok(())
+}
+
+pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schemas = command::schema_list(&repository, Some(commit_id))?;
+    if schemas.is_empty() {
+        eprintln!("{}", OxenError::no_schemas_found());
+    } else {
+        let result = schema::Schema::schemas_to_string(&schemas);
+        println!("{}", result);
+    }
     Ok(())
 }
 

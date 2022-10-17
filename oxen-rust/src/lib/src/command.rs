@@ -7,10 +7,13 @@ use crate::api;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::differ;
+use crate::index::schema_writer::SchemaWriter;
+use crate::index::SchemaReader;
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
 use crate::media::tabular;
+use crate::model::Schema;
 use crate::model::{
     Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew,
     StagedData,
@@ -211,6 +214,80 @@ pub fn df<P: AsRef<Path>>(input: P, output: Option<P>) -> Result<(), OxenError> 
     }
 
     Ok(())
+}
+
+/// Read the saved off schemas for a commit id
+pub fn schema_list(
+    repo: &LocalRepository,
+    commit_id: Option<&str>,
+) -> Result<Vec<Schema>, OxenError> {
+    if let Some(commit_id) = commit_id {
+        if let Some(commit) = commit_from_branch_or_commit_id(repo, commit_id)? {
+            let schema_reader = SchemaReader::new(repo, &commit.id)?;
+            schema_reader.list()
+        } else {
+            Err(OxenError::commit_id_does_not_exist(commit_id))
+        }
+    } else {
+        let head_commit = head_commit(repo)?;
+        let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
+        schema_reader.list()
+    }
+}
+
+pub fn schema_show(
+    repo: &LocalRepository,
+    commit_id: Option<&str>,
+    name_or_hash: &str,
+) -> Result<Option<Schema>, OxenError> {
+    // The list of schemas should not be too long, so just filter right now
+    let list: Vec<Schema> = schema_list(repo, commit_id)?
+        .into_iter()
+        .filter(|s| {
+            s.name == Some(String::from(name_or_hash)) || s.hash == *name_or_hash
+        })
+        .collect();
+    if !list.is_empty() {
+        Ok(Some(list.first().unwrap().clone()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn schema_name(
+    repo: &LocalRepository,
+    hash: &str,
+    val: &str,
+) -> Result<Option<Schema>, OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), hash)? {
+        let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
+        schema.name = Some(String::from(val));
+        let schema = schema_writer.update_schema(&schema)?;
+        Ok(Some(schema))
+    } else {
+        Ok(None)
+    }
+}
+
+fn commit_from_branch_or_commit_id<S: AsRef<str>>(
+    repo: &LocalRepository,
+    val: S,
+) -> Result<Option<Commit>, OxenError> {
+    let val = val.as_ref();
+    let commit_reader = CommitReader::new(repo)?;
+    if let Some(commit) = commit_reader.get_commit_by_id(val)? {
+        return Ok(Some(commit));
+    }
+
+    let ref_reader = RefReader::new(repo)?;
+    if let Some(branch) = ref_reader.get_branch_by_name(val)? {
+        if let Some(commit) = commit_reader.get_commit_by_id(branch.commit_id)? {
+            return Ok(Some(commit));
+        }
+    }
+
+    Ok(None)
 }
 
 /// # Restore a removed file that was committed
