@@ -33,8 +33,7 @@ impl RepositoryView {
     pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
         RepositoryView {
             namespace: repository.namespace.clone(),
-            name: repository.name.clone(),
-            // api_url: repository.remote.url.clone(),
+            name: repository.name,
         }
     }
 }
