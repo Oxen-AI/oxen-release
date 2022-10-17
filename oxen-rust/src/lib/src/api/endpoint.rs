@@ -5,7 +5,7 @@ use url::Url;
 const API_NAMESPACE: &str = "/api/repos";
 
 pub fn url_from_host(host: &str, uri: &str) -> String {
-    format!("http://{}/{}{}", host, API_NAMESPACE, uri)
+    format!("http://{}{}{}", host, API_NAMESPACE, uri)
 }
 
 pub fn remote_url_from_host(host: &str, namespace: &str, name: &str) -> String {
