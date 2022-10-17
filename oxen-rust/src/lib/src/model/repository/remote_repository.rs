@@ -1,4 +1,4 @@
-use crate::model::RepositoryNew;
+use crate::model::Remote;
 use crate::view::RepositoryView;
 use serde::{Deserialize, Serialize};
 
@@ -6,23 +6,15 @@ use serde::{Deserialize, Serialize};
 pub struct RemoteRepository {
     pub namespace: String,
     pub name: String,
-    pub url: String,
+    pub remote: Remote,
 }
 
 impl RemoteRepository {
-    pub fn from_view(repository: &RepositoryView, url: &str) -> RemoteRepository {
+    pub fn from_view(repository: &RepositoryView, remote: &Remote) -> RemoteRepository {
         RemoteRepository {
             namespace: repository.namespace.clone(),
             name: repository.name.clone(),
-            url: String::from(url),
-        }
-    }
-
-    pub fn from_new(repository: &RepositoryNew, url: &str) -> RemoteRepository {
-        RemoteRepository {
-            namespace: repository.namespace.clone(),
-            name: repository.name.clone(),
-            url: String::from(url),
+            remote: remote.clone(),
         }
     }
 }
