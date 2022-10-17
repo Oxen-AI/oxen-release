@@ -831,8 +831,8 @@ async fn test_command_push_one_commit() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -867,8 +867,8 @@ async fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -928,8 +928,8 @@ async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "Adding test data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -978,8 +978,8 @@ async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenErro
         let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1031,8 +1031,8 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1053,7 +1053,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             let oxen_dir = cloned_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&cloned_repo).await?;
@@ -1158,8 +1158,8 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         command::commit(&repo, "Adding labels file")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1169,7 +1169,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
             // Modify the file in the cloned dir
@@ -1227,8 +1227,8 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding test dir")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1238,7 +1238,7 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
@@ -1263,8 +1263,8 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1274,7 +1274,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 5 training files
@@ -1342,8 +1342,8 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1353,7 +1353,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 5 training files
@@ -1399,8 +1399,8 @@ async fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1428,8 +1428,8 @@ async fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
 async fn test_delete_remote_branch() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1461,8 +1461,8 @@ async fn test_delete_remote_branch() -> Result<(), OxenError> {
 async fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1519,8 +1519,8 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
         let local_history = command::log(&repo)?;
 
         // Set the proper remote
-        let remote = test::repo_url_from(&repo.dirname());
-        command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1530,7 +1530,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
             // Get cloned history

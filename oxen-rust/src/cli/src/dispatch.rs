@@ -28,20 +28,20 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo, namespace, name, host).await?;
+    let remote_repo = command::create_remote(&repo, namespace, name, host).await?;
     println!(
         "Remote created for {}\n\noxen remote add origin {}",
-        name, remote.url
+        name, remote_repo.remote.url
     );
 
     Ok(())
 }
 
-pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
+pub fn add_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::set_remote(&mut repo, name, url)?;
+    command::add_remote(&mut repo, name, url)?;
 
     Ok(())
 }
