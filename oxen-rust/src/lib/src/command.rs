@@ -12,7 +12,7 @@ use crate::index::SchemaReader;
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
 };
-use crate::media::tabular;
+use crate::media::{df_opts::DFOpts, tabular};
 use crate::model::Schema;
 use crate::model::{
     Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew,
@@ -204,11 +204,10 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
 }
 
 /// Interact with dataframes from CLI
-pub fn df<P: AsRef<Path>>(input: P, output: Option<P>) -> Result<(), OxenError> {
-    let mut df = tabular::show_path(input)?;
+pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
+    let mut df = tabular::show_path(input, opts)?;
 
-    if let Some(output) = output {
-        let output = output.as_ref();
+    if let Some(output) = &opts.output {
         println!("Writing {:?}", output);
         tabular::write_df(&mut df, output)?;
     }
@@ -243,9 +242,7 @@ pub fn schema_show(
     // The list of schemas should not be too long, so just filter right now
     let list: Vec<Schema> = schema_list(repo, commit_id)?
         .into_iter()
-        .filter(|s| {
-            s.name == Some(String::from(name_or_hash)) || s.hash == *name_or_hash
-        })
+        .filter(|s| s.name == Some(String::from(name_or_hash)) || s.hash == *name_or_hash)
         .collect();
     if !list.is_empty() {
         Ok(Some(list.first().unwrap().clone()))

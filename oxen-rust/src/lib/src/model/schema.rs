@@ -83,8 +83,7 @@ impl fmt::Display for Schema {
             write!(
                 f,
                 "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
-                self.hash,
-                table
+                self.hash, table
             )
         }
     }

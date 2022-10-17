@@ -2,6 +2,7 @@ use liboxen::command;
 use liboxen::config::UserConfig;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::media::df_opts::DFOpts;
 use liboxen::model::schema;
 use liboxen::model::LocalRepository;
 use liboxen::util;
@@ -253,8 +254,24 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn df<P: AsRef<Path>>(input: P, output: Option<P>) -> Result<(), OxenError> {
-    command::df(input, output)?;
+pub fn df<P: AsRef<Path>>(
+    input: P,
+    output: Option<&str>,
+    slice: Option<&str>,
+    take: Option<&str>,
+    columns: Option<&str>,
+) -> Result<(), OxenError> {
+    let output = output.map(PathBuf::from);
+    let slice = slice.map(String::from);
+    let take = take.map(String::from);
+    let columns = columns.map(String::from);
+    let opts = DFOpts {
+        output,
+        slice,
+        take,
+        columns,
+    };
+    command::df(input, &opts)?;
     Ok(())
 }
 
