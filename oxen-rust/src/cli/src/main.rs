@@ -114,7 +114,28 @@ async fn main() {
                     Arg::new("output")
                         .long("output")
                         .short('o')
-                        .help("Where to save the transformed data")
+                        .help("Where to save the data")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("slice")
+                        .long("slice")
+                        .short('s')
+                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("take")
+                        .long("take")
+                        .short('t')
+                        .help("A comma separated set of row indices to look at. Ex 1,22,313")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("columns")
+                        .long("columns")
+                        .short('c')
+                        .help("A comma separated set of columns names to look at. Ex file,x,y")
                         .takes_value(true),
                 )
         )
@@ -374,8 +395,11 @@ async fn main() {
         Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
             let output = sub_matches.value_of("output");
+            let slice = sub_matches.value_of("slice");
+            let take = sub_matches.value_of("take");
+            let columns = sub_matches.value_of("columns");
 
-            match dispatch::df(path, output) {
+            match dispatch::df(path, output, slice, take, columns) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
