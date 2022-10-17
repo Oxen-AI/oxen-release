@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::UserConfig;
+use crate::api::remote::client;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
@@ -24,21 +24,12 @@ pub async fn get_by_id(
     repository: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!("/commits/{}", commit_id);
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::commits::get_by_id {}", url);
 
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         if res.status() == 404 {
             return Ok(None);
         }
@@ -63,20 +54,12 @@ pub async fn commit_is_synced(
     commit_id: &str,
     num_entries: usize,
 ) -> Result<bool, OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
@@ -97,20 +80,11 @@ pub async fn download_commit_db_by_id(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<(), OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/commit_db", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         // Unpack tarball to our hidden dir
         let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
 
@@ -134,19 +108,11 @@ pub async fn get_remote_parent(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!("/commits/{}/parents", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         let response: Result<CommitParentsResponse, serde_json::Error> =
             serde_json::from_str(&body);
@@ -197,20 +163,14 @@ async fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
 ) -> Result<CommitResponse, OxenError> {
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
-
     let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
-
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);
+
+    let client = client::new()?;
     if let Ok(res) = client
         .post(url)
         .body(reqwest::Body::from(body))
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
         .send()
         .await
     {
@@ -239,9 +199,6 @@ pub async fn post_tarball_to_server(
     upload_progress: &Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
     // use tokio_util::codec::{BytesCodec, FramedRead};
-
-    let config = UserConfig::default()?;
-
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
@@ -256,7 +213,7 @@ pub async fn post_tarball_to_server(
     // let stream = futures_util::stream::iter(buffer);
     let size = buffer.len() as u64;
 
-    let client = reqwest::Client::builder()
+    let client = client::builder()?
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
@@ -264,10 +221,6 @@ pub async fn post_tarball_to_server(
         .post(url)
         // .body(reqwest::Body::wrap_stream(stream))
         .body(buffer)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
         .send()
         .await
     {

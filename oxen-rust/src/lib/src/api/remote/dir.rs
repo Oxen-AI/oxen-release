@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::UserConfig;
+use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::PaginatedDirEntries;
@@ -11,22 +11,14 @@ pub async fn list_dir(
     page_num: usize,
     page_size: usize,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!(
         "/dir/{}/{}?page_num={}&page_size={}",
         commit_or_branch, path, page_num, page_size
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(&url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.get(&url).send().await {
         let status = res.status();
         let body = res.text().await?;
         // log::debug!("list_page got body: {}", body);
