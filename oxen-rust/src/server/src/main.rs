@@ -112,6 +112,10 @@ async fn main() -> std::io::Result<()> {
                         App::new()
                             .app_data(data.clone())
                             .route("/version", web::get().to(controllers::version::index))
+                            .route(
+                                "/{namespace}/{repo_name}",
+                                web::get().to(controllers::version::resolve),
+                            )
                             .wrap(HttpAuthentication::bearer(auth::validator::validate))
                             .service(web::scope("/api/repos").configure(routes::config))
                             .wrap(Logger::default())

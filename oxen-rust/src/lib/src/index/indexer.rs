@@ -44,7 +44,7 @@ impl Indexer {
 
         log::debug!("Pushing to remote {:?}", remote);
         // Repo should be created before this step
-        let remote_repo = match api::remote::repositories::get_by_remote_url(&remote.url).await {
+        let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
             Ok(Some(repo)) => repo,
             Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
             Err(err) => return Err(err),
@@ -333,7 +333,7 @@ impl Indexer {
             .get_remote(&rb.remote)
             .ok_or_else(OxenError::remote_not_set)?;
 
-        let remote_repo = match api::remote::repositories::get_by_remote_url(&remote.url).await {
+        let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
             Ok(Some(repo)) => repo,
             Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
             Err(err) => return Err(err),
@@ -681,8 +681,8 @@ mod tests {
 
             // Set the proper remote
             let name = repo.dirname();
-            let remote = test::repo_url_from(&name);
-            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            let remote = test::repo_remote_url_from(&name);
+            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let remote_repo =
                 command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, test::TEST_HOST)
@@ -691,7 +691,7 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+                let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -725,8 +725,8 @@ mod tests {
         test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
             // Set the proper remote
             let name = repo.dirname();
-            let remote = test::repo_url_from(&name);
-            command::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            let remote = test::repo_remote_url_from(&name);
+            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
             command::add(&repo, &train_dir)?;
@@ -747,7 +747,7 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::clone(&remote_repo.url, &new_repo_dir).await?;
+                let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
                 let indexer = Indexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit

@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::UserConfig;
+use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
@@ -22,7 +22,6 @@ pub async fn create(
     remote_repo: &RemoteRepository,
     entry: &CommitEntry,
 ) -> Result<RemoteEntry, OxenError> {
-    let config = UserConfig::default()?;
     let fullpath = util::fs::version_path(local_repo, entry);
     log::debug!("Creating remote entry: {:?} -> {:?}", entry.path, fullpath);
 
@@ -34,20 +33,11 @@ pub async fn create(
     let stream = FramedRead::new(file, BytesCodec::new());
     let body = reqwest::Body::wrap_stream(stream);
 
-    let client = reqwest::Client::new();
     let uri = format!("/entries?{}", entry.to_uri_encoded());
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("create entry: {}", url);
-    match client
-        .post(url)
-        .body(body)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    match client.post(url).body(body).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
@@ -76,22 +66,13 @@ pub async fn download_entries(
     page_num: &usize,
     page_size: &usize,
 ) -> Result<(), OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!(
         "/commits/{}/download_entries?page_num={}&page_size={}",
         commit_id, page_num, page_size
     );
-    let url = api::endpoint::url_from_repo(remote_repo, &uri);
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(&url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new()?;
+    if let Ok(res) = client.get(&url).send().await {
         let status = res.status();
         if reqwest::StatusCode::OK == status {
             let reader = res
@@ -121,8 +102,6 @@ pub async fn download_content_by_ids(
     remote_repo: &RemoteRepository,
     content_ids: &[String],
 ) -> Result<u64, OxenError> {
-    let config = UserConfig::default()?;
-
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     for content_id in content_ids.iter() {
         let line = format!("{}\n", content_id);
@@ -130,18 +109,10 @@ pub async fn download_content_by_ids(
     }
     let body = encoder.finish()?;
     let size = body.len() as u64;
-    let url = api::endpoint::url_from_repo(remote_repo, "/versions");
+    let url = api::endpoint::url_from_repo(remote_repo, "/versions")?;
 
-    if let Ok(res) = reqwest::Client::new()
-        .post(&url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .body(body)
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.post(&url).body(body).send().await {
         let reader = res
             .bytes_stream()
             .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
@@ -165,7 +136,6 @@ pub async fn download_entry(
     entry: &CommitEntry,
 ) -> Result<bool, OxenError> {
     let remote = repository.remote().ok_or_else(OxenError::remote_not_set)?;
-    let config = UserConfig::default()?;
     let fpath = repository.path.join(&entry.path);
     log::debug!("download_remote_entry entry {:?}", entry.path);
 
@@ -176,15 +146,8 @@ pub async fn download_entry(
     );
     log::debug!("download_entry {}", url);
 
-    let client = reqwest::Client::new();
-    let response = client
-        .get(&url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await?;
+    let client = client::new()?;
+    let response = client.get(&url).send().await?;
 
     if let Some(parent) = fpath.parent() {
         if !parent.exists() {

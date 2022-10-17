@@ -11,9 +11,7 @@ use crate::index::{
 };
 use crate::media::tabular;
 use crate::model::entry::staged_entry::StagedEntryType;
-use crate::model::{
-    Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, RepositoryNew, StagedData,
-};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 use crate::util;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -406,8 +404,7 @@ pub async fn delete_remote_branch(
     branch_name: &str,
 ) -> Result<(), OxenError> {
     if let Some(remote) = repo.get_remote(remote) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
-        {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
             if let Some(branch) =
                 api::remote::branches::get_by_name(&remote_repo, branch_name).await?
             {
@@ -580,8 +577,7 @@ pub async fn list_remote_branches(
 ) -> Result<Vec<RemoteBranch>, OxenError> {
     let mut branches: Vec<RemoteBranch> = vec![];
     if let Some(remote) = repo.get_remote(name) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote_url(&remote.url).await?
-        {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
             for branch in api::remote::branches::list(&remote_repo).await? {
                 branches.push(RemoteBranch {
                     remote: remote.name.clone(),
@@ -627,15 +623,10 @@ pub async fn create_remote(
 
 /// # Set the remote for a repository
 /// Tells the CLI where to push the changes to
-pub fn set_remote(
-    repo: &mut LocalRepository,
-    name: &str,
-    url: &str,
-) -> Result<RemoteRepository, OxenError> {
-    repo.set_remote(name, url);
+pub fn add_remote(repo: &mut LocalRepository, name: &str, url: &str) -> Result<(), OxenError> {
+    repo.add_remote(name, url);
     repo.save_default()?;
-    let repo = RepositoryNew::from_url(url)?;
-    Ok(RemoteRepository::from_new(&repo, url))
+    Ok(())
 }
 
 /// # Remove the remote for a repository
@@ -673,7 +664,7 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::set_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
+/// command::add_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
 ///
 /// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000").await?;
 ///
