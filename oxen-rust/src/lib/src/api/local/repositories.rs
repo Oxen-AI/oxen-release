@@ -5,7 +5,6 @@ use crate::error::OxenError;
 use crate::index::{CommitDirReader, CommitWriter, RefWriter};
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
-use crate::view::RepositoryView;
 
 use std::path::Path;
 use walkdir::WalkDir;
@@ -156,17 +155,14 @@ pub fn create_empty(
     Ok(local_repo)
 }
 
-pub fn delete(sync_dir: &Path, repository: RepositoryView) -> Result<RepositoryView, OxenError> {
-    let repo_dir = sync_dir
-        .join(Path::new(&repository.namespace))
-        .join(Path::new(&repository.name));
-    if !repo_dir.exists() {
-        let err = format!("Repository does not exist {:?}", repo_dir);
+pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
+    if !repo.path.exists() {
+        let err = format!("Repository does not exist {:?}", repo.path);
         return Err(OxenError::basic_str(&err));
     }
 
-    std::fs::remove_dir_all(&repo_dir)?;
-    Ok(repository)
+    std::fs::remove_dir_all(&repo.path)?;
+    Ok(repo)
 }
 
 #[cfg(test)]
