@@ -130,6 +130,15 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn restore(path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    command::restore(&repository, Path::new(path))?;
+
+    Ok(())
+}
+
 pub fn add_tabular(path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

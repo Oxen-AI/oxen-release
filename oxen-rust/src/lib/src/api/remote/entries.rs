@@ -12,11 +12,9 @@ use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::ProgressBar;
 use std::fs;
 use std::io::prelude::*;
 use std::io::Cursor;
-use std::sync::Arc;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
 pub async fn create(
@@ -103,8 +101,7 @@ pub async fn download_content_by_ids(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     content_ids: &[String],
-    download_progress: &Arc<ProgressBar>,
-) -> Result<(), OxenError> {
+) -> Result<u64, OxenError> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     for content_id in content_ids.iter() {
         let line = format!("{}\n", content_id);
@@ -123,8 +120,7 @@ pub async fn download_content_by_ids(
         let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
         let archive = Archive::new(decoder);
         archive.unpack(&local_repo.path).await?;
-        download_progress.inc(size);
-        Ok(())
+        Ok(size)
     } else {
         let err = format!(
             "api::entries::download_content_by_ids Err request failed: {}",
