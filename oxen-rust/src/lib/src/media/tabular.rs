@@ -1,8 +1,11 @@
 use polars::prelude::*;
 
+use crate::constants;
 use crate::error::OxenError;
 use crate::media::df_opts::DFOpts;
+use crate::util::hasher;
 
+use indicatif::ProgressBar;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
@@ -96,6 +99,93 @@ pub fn filter_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenErro
     }
 
     Ok(df.collect().expect(READ_ERROR))
+}
+
+pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
+    Ok(df
+        .with_row_count(constants::ROW_NUM_COL_NAME, Some(0))
+        .expect(READ_ERROR))
+}
+
+pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame, OxenError> {
+    Ok(df
+        .with_row_count(constants::ROW_NUM_COL_NAME, Some(start))
+        .expect(READ_ERROR))
+}
+
+pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
+    let num_rows = df.width() as i64;
+
+    let mut col_names = vec![];
+    let schema = df.schema();
+    for field in schema.iter_fields() {
+        col_names.push(col(field.name()));
+    }
+    // println!("Hashing: {:?}", col_names);
+    // println!("{:?}", df);
+
+    let df = df
+        .lazy()
+        .select([
+            all(),
+            as_struct(&col_names)
+                .apply(
+                    move |s| {
+                        // log::debug!("s: {:?}", s);
+
+                        let pb = ProgressBar::new(num_rows as u64);
+                        // downcast to struct
+                        let ca = s.struct_()?;
+                        let out: Utf8Chunked = ca
+                            .into_iter()
+                            .map(|row| {
+                                // log::debug!("row: {:?}", row);
+                                pb.inc(1);
+                                let mut buffer: Vec<u8> = vec![];
+                                for elem in row.iter() {
+                                    // log::debug!("Got elem[{}] {}", i, elem);
+                                    let mut elem: Vec<u8> = match elem {
+                                        AnyValue::Null => Vec::<u8>::new(),
+                                        AnyValue::Int64(val) => val.to_le_bytes().to_vec(),
+                                        AnyValue::Int32(val) => val.to_le_bytes().to_vec(),
+                                        AnyValue::Int8(val) => val.to_le_bytes().to_vec(),
+                                        AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
+                                        AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
+                                        AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+                                        // AnyValue::List(val) => {
+                                        //     match val.dtype() {
+                                        //         DataType::Int32 => {},
+                                        //         DataType::Float32 => {},
+                                        //         DataType::Utf8 => {},
+                                        //         DataType::UInt8 => {},
+                                        //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
+                                        //     }
+                                        // },
+                                        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => {
+                                            val.to_le_bytes().to_vec()
+                                        }
+                                        _ => Vec::<u8>::new(),
+                                    };
+                                    // println!("Elem[{}] bytes {:?}", i, elem);
+                                    buffer.append(&mut elem);
+                                }
+                                // println!("__DONE__ {:?}", buffer);
+                                let result = hasher::hash_buffer(&buffer);
+                                // println!("__DONE__ {}", result);
+                                Some(result)
+                            })
+                            .collect();
+
+                        Ok(out.into_series())
+                    },
+                    GetOutput::from_type(DataType::UInt64),
+                )
+                .alias(constants::ROW_HASH_COL_NAME),
+        ])
+        .collect()
+        .unwrap();
+    println!("{}", df);
+    Ok(df)
 }
 
 pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, OxenError> {

@@ -32,6 +32,10 @@ pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
         .join(&schema.hash)
 }
 
+pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
+    schema_version_dir(repo, schema).join("data.arrow")
+}
+
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(repo, entry.hash.clone(), entry.filename())
 }

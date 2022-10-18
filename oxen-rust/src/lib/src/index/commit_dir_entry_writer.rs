@@ -1,7 +1,7 @@
 use crate::constants::HISTORY_DIR;
 use crate::db;
+use crate::db::path_db;
 use crate::error::OxenError;
-use crate::index::path_db;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 

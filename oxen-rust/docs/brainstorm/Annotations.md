@@ -32,15 +32,24 @@ How do we not save every complete version of the giant table if just one row cha
 
 FIRST STEP
 
-1) If a tabular file is added/committed, we save it off as .arrow file in the versions directory with a _row_num projected on
-    - This will not be the most efficient for *storage* on disk, but will allow for fast access over the data
-    - We can quickly get to rows using polars.slice(offset,len) which is sweet
+1) If a tabular file is added/committed
+    - Compute row level hashes
+    - Check if arrow file for schema exists
+        - If not, project _row_num, then save off each row with an index to disk in rocksdb
+            - .oxen/versions/schemas/SCHEMA_HASH/data.arrow
+        - If it already exists
+            - Loop over the hashes
+            - filter to ones that do not exist
+            - append to data.arrow file with new indices that start at num_rows
+
+    - `oxen schema "schema-name" df` will read from that schema hash
+
 2) Add ability to quickly fetch indices from tabular file or paginate
     - /namespace/reponame/rows/commit/file/
 
 -- RELEASE 
 
-1) Let's do `oxen annotate -a <path/to/annotations.csv> -n "bounding_box" -f "file"` to keep track of individual annotations
+1) Let's do `oxen index -s "bounding_box" -c "file"` to keep track of individual annotations
     - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
     - You should be able to add one from CLI too without reading from a file
         - OR just add a row to a file, add, commit, boom
@@ -59,7 +68,7 @@ Start with
         
         `oxen schema list`
         
-        `oxen schema update eh219ehdj -n "bounding_box"`
+        `oxen schema name eh219ehdj "bounding_box"`
 
     3) Save off row indicies and file content hash pointers to the annotations dir
 
@@ -78,37 +87,45 @@ Start with
             4) Once you find the differing row hashes, you can find the actual rows
 
 
-        .oxen/versions/FILE_HASH/
-            contents.jpg
+        .oxen/versions/
+            schemas/
+                SCHEMA_HASH/
+                    data.arrow
+                    
+                    Table we can index into to fetch subsets of data within that schema
+                    ┌──────────┬─────────────────┬────────┬────────┬────────┬─────────┬────────┬──────────────────────┐
+                    │ _row_num ┆ file            ┆  min_x ┆  min_y ┆  width ┆  height ┆  label ┆ _row_hash            │
+                    │ ---      ┆ ---             ┆ ---    ┆ ---    ┆ ---    ┆ ---     ┆ ---    ┆ ---                  │
+                    │ u32      ┆ str             ┆ f64    ┆ f64    ┆ i64    ┆ i64     ┆ str    ┆ u64                  │
+                    ╞══════════╪═════════════════╪════════╪════════╪════════╪═════════╪════════╪══════════════════════╡
+                    │ 0        ┆ train/dog_1.jpg ┆ 101.5  ┆ 32.0   ┆ 385    ┆ 330     ┆  dog   ┆ 13847739145289729341 │
+                    ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+                    │ 1        ┆ train/dog_2.jpg ┆ 7.0    ┆ 29.5   ┆ 246    ┆ 247     ┆  dog   ┆ 4093957427354320470  │
+                    ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+                    │ 2        ┆ train/cat_2.jpg ┆ 30.5   ┆ 44.0   ┆ 333    ┆ 396     ┆  cat   ┆ 5654731161486190892  │
+                    ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+                    │ 3        ┆ train/cat_3.jpg ┆ 41.0   ┆ 31.5   ┆ 410    ┆ 427     ┆  cat   ┆ 13668079964704054171 │
+                    └──────────┴─────────────────┴────────┴────────┴────────┴─────────┴────────┴──────────────────────┘
+
+            files/
+                FI/LE_HASH/
+                    contents.jpg
 
         .oxen/history/
             commit_id/ (has 3 top level objects "files", "dirs", "indexes")
                 indexes/
-                    schemas/
-                        ROCKSDB
-                        "schema_hash" => {
-                                "name": "bounding_box",
-                                "hash": "name,type,....->hashed",
-                                "fields": [
-                                    {"name": "file", "dtype":"string"},
-                                    {"name": "x", "dtype":"f32"},
-                                    {"name": "y", "dtype":"f32"},
-                                    {"name": "w", "dtype":"f32"},
-                                    {"name": "h", "dtype":"f32"},
-                                ],
-                            }
-
                     schema_indexes/
                         schema_hash/ (bounding_box)
                             ROCKSDB
                             "index_key" -> { timestamps ... }
                     schema_hash/
+                        _commit (this is the indices committed in this commit)
+
                         index_key/ ("file" or "label" or "whatever aggregate query you want")
                             index_val_hash/ ("path/to/file.jpg" or "person")
                                 ROCKSDB
                                     row_hash => { (now we can diff between commits, based on the query)
                                         _row_num, (in .arrow file)
-                                        arrow_file_content_hash, (to get to .arrow file path)
                                     }
                 dirs/
                 files/

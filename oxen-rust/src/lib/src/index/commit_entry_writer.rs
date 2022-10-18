@@ -1,10 +1,12 @@
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
+use crate::db::path_db;
 use crate::error::OxenError;
 use crate::index::{
-    path_db, CommitDirEntryReader, CommitDirEntryWriter, RefReader, RefWriter, SchemaWriter,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitSchemaTableIndex, RefReader, RefWriter,
+    SchemaWriter,
 };
-use crate::media::{tabular, tabular_datafusion};
+use crate::media::{tabular, tabular_datafusion, DFOpts};
 use crate::model::schema;
 use crate::model::{
     Commit, CommitEntry, EntryType, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
@@ -40,7 +42,7 @@ impl CommitEntryWriter {
     }
 
     pub fn commit_dir_db(path: &Path, commit_id: &str) -> PathBuf {
-        CommitEntryWriter::commit_dir(path, commit_id).join("dirs/")
+        CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIRS_DIR)
     }
 
     pub fn new(
@@ -223,27 +225,32 @@ impl CommitEntryWriter {
         };
 
         // Write to db & backup
-        self.add_commit_entry(writer, &entry)?;
+        self.add_commit_entry(writer, new_commit, entry)?;
         Ok(())
     }
 
     fn add_commit_entry(
         &self,
         writer: &CommitDirEntryWriter,
-        entry: &CommitEntry,
+        commit: &Commit,
+        entry: CommitEntry,
     ) -> Result<(), OxenError> {
-        self.backup_file_to_versions_dir(entry)?;
+        let entry = self.backup_file_to_versions_dir(commit, entry)?;
 
-        writer.add_commit_entry(entry)
+        writer.add_commit_entry(&entry)
     }
 
-    fn backup_file_to_versions_dir(&self, new_entry: &CommitEntry) -> Result<(), OxenError> {
-        let full_path = self.repository.path.join(&new_entry.path);
+    fn backup_file_to_versions_dir(
+        &self,
+        commit: &Commit,
+        mut entry: CommitEntry,
+    ) -> Result<CommitEntry, OxenError> {
+        let full_path = self.repository.path.join(&entry.path);
         // create a copy to our versions directory
         // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
         // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
 
-        let versions_entry_path = util::fs::version_path(&self.repository, new_entry);
+        let versions_entry_path = util::fs::version_path(&self.repository, &entry);
         let versions_entry_dir = versions_entry_path.parent().unwrap();
 
         // Create dir if not exists
@@ -251,7 +258,7 @@ impl CommitEntryWriter {
             // it's the first time
             log::debug!(
                 "Creating version dir for file: {:?} -> {:?}",
-                new_entry.path,
+                entry.path,
                 versions_entry_dir
             );
 
@@ -262,37 +269,101 @@ impl CommitEntryWriter {
         if !versions_entry_path.exists() {
             log::debug!(
                 "Copying commit entry for file: {:?} -> {:?}",
-                new_entry.path,
+                entry.path,
                 versions_entry_path
             );
             if util::fs::is_tabular(&full_path) {
-                self.backup_to_arrow_file(new_entry, &full_path, &versions_entry_path)?;
+                entry =
+                    self.backup_to_arrow_file(commit, entry, &full_path, &versions_entry_path)?;
             } else {
                 std::fs::copy(full_path, versions_entry_path)?;
             }
         }
 
-        Ok(())
+        Ok(entry)
     }
 
     fn backup_to_arrow_file(
         &self,
-        entry: &CommitEntry,
+        commit: &Commit,
+        entry: CommitEntry,
         full_path: &Path,
         version_entry_path: &Path,
-    ) -> Result<(), OxenError> {
-        let df = tabular::copy_df(full_path, version_entry_path)?;
+    ) -> Result<CommitEntry, OxenError> {
+        log::debug!("Backup to arrow {:?}", commit);
+        std::fs::copy(full_path, version_entry_path)?;
+
+        let opts = DFOpts::empty();
+        let df = tabular::read_df(version_entry_path, &opts)?;
         let schema = schema::Schema::from_polars(df.schema());
+
+        // Compute row level hashes and row num
+        let df = tabular::df_hash_rows(df)?;
+        let mut df = tabular::df_add_row_num(df)?;
 
         // Save the schema if it does not exist
         let schema_version_dir = util::fs::schema_version_dir(&self.repository, &schema);
         if !schema_version_dir.exists() {
+            log::debug!("Create new schema! {:?}", schema);
+
             std::fs::create_dir_all(&schema_version_dir)?;
             let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
             schema_writer.put_schema(&schema)?;
+
+            // save to first version of the big data.arrow file
+            let path = util::fs::schema_df_path(&self.repository, &schema);
+            tabular::write_df(&mut df, path)?;
+
+            // Write the row_hash -> row_num index
+            CommitSchemaTableIndex::index_hash_row_nums(
+                self.repository.clone(),
+                commit.clone(),
+                schema,
+                constants::COMMIT_INDEX_KEY.to_string(),
+                df,
+            )?;
+        } else {
+            log::debug!("Add to existing schema! {:?}", schema);
+            // Get handle on the old DF
+            let schema_df_path = util::fs::schema_df_path(&self.repository, &schema);
+            let opts = DFOpts::empty();
+            let old_df = tabular::read_df(&schema_df_path, &opts)?;
+
+            println!("OLD DF: {}", old_df);
+
+            // Create new DF from new rows
+            // Loop over the hashes and filter to ones that do not exist
+            let new_df = CommitSchemaTableIndex::compute_new_rows(
+                self.repository.clone(),
+                commit.clone(),
+                schema.clone(),
+                constants::COMMIT_INDEX_KEY.to_string(),
+                df,
+            )?;
+
+            let start: u32 = old_df.height() as u32;
+            let new_df = tabular::df_add_row_num_starting_at(new_df, start)?;
+            println!("NEW ROWS: {}", new_df);
+
+            // append to big .arrow file with new indices that start at num_rows
+            let mut full_df = old_df.vstack(&new_df).expect("could not vstack");
+            // println!("TOTAL: {}", full_df);
+
+            // write the new row hashes to index
+            std::fs::remove_file(&schema_df_path)?;
+            tabular::write_df(&mut full_df, schema_df_path)?;
+
+            // Write the row_hash -> row_num index
+            CommitSchemaTableIndex::index_hash_row_nums(
+                self.repository.clone(),
+                commit.clone(),
+                schema,
+                constants::COMMIT_INDEX_KEY.to_string(),
+                new_df,
+            )?;
         }
 
-        Ok(())
+        Ok(entry)
     }
 
     pub fn commit_staged_entries(

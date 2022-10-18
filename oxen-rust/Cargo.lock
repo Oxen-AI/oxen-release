@@ -16,6 +16,7 @@ dependencies = [
  "async-tar",
  "bytes",
  "bytesize",
+ "bytevec",
  "chrono",
  "clap",
  "colored",
@@ -875,6 +876,12 @@ checksum = "90706ba19e97b90786e19dc0d5e2abd80008d99d4c0c5d1ad0b5e72cec7c494d"
 dependencies = [
  "bytes",
 ]
+
+[[package]]
+name = "bytevec"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d1ee6ad2d80504e769c077bd18fc6b11409518c3f20e4918a5c286d693c2b43"
 
 [[package]]
 name = "bzip2-sys"
@@ -2305,6 +2312,7 @@ dependencies = [
  "async-tar",
  "bytes",
  "bytesize",
+ "bytevec",
  "chrono",
  "clap",
  "colored",

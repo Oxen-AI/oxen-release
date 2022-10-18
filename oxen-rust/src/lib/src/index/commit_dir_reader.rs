@@ -1,4 +1,4 @@
-use crate::constants::HISTORY_DIR;
+use crate::constants::{DIRS_DIR, HISTORY_DIR};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDirEntryReader, CommitReader};
@@ -9,9 +9,8 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use crate::db::path_db;
 use crate::model::LocalRepository;
-
-use super::path_db;
 
 pub struct CommitDirReader {
     dir_db: DBWithThreadMode<MultiThreaded>,
@@ -28,7 +27,7 @@ impl CommitDirReader {
         let db_path = util::fs::oxen_hidden_dir(&repository.path)
             .join(HISTORY_DIR)
             .join(&commit.id)
-            .join("dirs");
+            .join(DIRS_DIR);
         let opts = db::opts::default();
 
         if !db_path.exists() {

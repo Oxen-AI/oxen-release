@@ -1,8 +1,9 @@
 use crate::constants;
 use crate::db;
+use crate::db::path_db;
 use crate::error::OxenError;
 use crate::index::{
-    path_db, CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
+    CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
 };
 
@@ -42,7 +43,7 @@ impl Stager {
     pub fn dirs_db_path(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path)
             .join(Path::new(STAGED_DIR))
-            .join("dirs/")
+            .join(constants::DIRS_DIR)
     }
 
     pub fn new(repository: &LocalRepository) -> Result<Stager, OxenError> {
