@@ -15,8 +15,10 @@ pub const COMMITS_DB: &str = "commits";
 pub const SCHEMAS_DIR: &str = "schemas";
 /// prefix for the commit entry files
 pub const FILES_DIR: &str = "files";
-/// prefix for the commit entry files
+/// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
+/// prefix for the commit indices
+pub const INDICES_DIR: &str = "indices";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
@@ -38,5 +40,9 @@ pub const DEFAULT_NAMESPACE: &str = "repositories";
 // Commits
 pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
 
-// API namespace
-pub const API_NAMESPACE: &str = "api";
+// Internal Tabular Data Names
+pub const ROW_NUM_COL_NAME: &str = "_row_num";
+pub const ROW_HASH_COL_NAME: &str = "_row_hash";
+
+/// Where the commit index lives
+pub const COMMIT_INDEX_KEY: &str = "_commit";

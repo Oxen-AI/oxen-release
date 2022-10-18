@@ -7,7 +7,7 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use crate::index::kv_json_db;
+use crate::db::str_json_db;
 
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry
@@ -15,7 +15,7 @@ pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) 
     let path = path.as_ref();
     // log::debug!("path_db::has_entry?({:?}) from db {:?}", path, db.path());
     if let Some(key) = path.to_str() {
-        return kv_json_db::has_key(db, key);
+        return str_json_db::has_key(db, key);
     }
 
     false
@@ -32,7 +32,7 @@ where
     let path = path.as_ref();
     log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
     if let Some(key) = path.to_str() {
-        return kv_json_db::get(db, key);
+        return str_json_db::get(db, key);
     }
     Err(OxenError::could_not_convert_path_to_str(path))
 }
@@ -48,7 +48,7 @@ where
 {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
-        kv_json_db::put(db, key, entry)
+        str_json_db::put(db, key, entry)
     } else {
         Err(OxenError::could_not_convert_path_to_str(path))
     }
@@ -61,7 +61,7 @@ pub fn delete<P: AsRef<Path>>(
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
-        kv_json_db::delete(db, key)
+        str_json_db::delete(db, key)
     } else {
         Err(OxenError::could_not_convert_path_to_str(path))
     }
@@ -132,7 +132,7 @@ pub fn list_entries<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<T>, O
 where
     T: de::DeserializeOwned,
 {
-    kv_json_db::list_vals(db)
+    str_json_db::list_vals(db)
 }
 
 pub fn list_entries_set<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashSet<T>, OxenError>
@@ -161,7 +161,7 @@ where
 }
 
 pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
-    kv_json_db::clear(db)
+    str_json_db::clear(db)
 }
 
 pub fn list_entry_page<T>(

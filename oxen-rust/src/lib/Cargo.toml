@@ -54,6 +54,7 @@ async-recursion = "1.0.0"
 bytes = "1.2.1"
 simdutf8 = "0.1.4"
 difference = "2.0.0"
+bytevec = "0.2.0"
 
 [lib]
 name = "liboxen"

@@ -128,6 +128,11 @@ impl OxenError {
         );
         OxenError::basic_str(&err)
     }
+
+    pub fn could_not_decode_value_for_key_error<S: AsRef<str>>(key: S) -> OxenError {
+        let err = format!("Could not decode value for key: {:?}", key.as_ref());
+        OxenError::basic_str(&err)
+    }
 }
 
 impl fmt::Display for OxenError {

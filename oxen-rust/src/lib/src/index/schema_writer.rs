@@ -1,6 +1,6 @@
 use crate::db;
+use crate::db::str_json_db;
 use crate::error::OxenError;
-use crate::index::kv_json_db;
 use crate::model::Schema;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -30,12 +30,12 @@ impl SchemaWriter {
     }
 
     pub fn put_schema(&self, schema: &Schema) -> Result<(), OxenError> {
-        kv_json_db::put(&self.db, &schema.hash, schema)
+        str_json_db::put(&self.db, &schema.hash, schema)
     }
 
     pub fn update_schema(&self, schema: &Schema) -> Result<Schema, OxenError> {
-        kv_json_db::put(&self.db, &schema.hash, schema)?;
-        Ok(kv_json_db::get(&self.db, &schema.hash)?.unwrap())
+        str_json_db::put(&self.db, &schema.hash, schema)?;
+        Ok(str_json_db::get(&self.db, &schema.hash)?.unwrap())
     }
 }
 

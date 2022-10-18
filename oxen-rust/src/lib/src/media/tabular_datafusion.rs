@@ -695,6 +695,9 @@ pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFra
     let current_path = repo.path.join(&entry.path);
     let version_path = util::fs::version_path(repo, entry);
 
+    log::debug!("DIFF current: {:?}", current_path);
+    log::debug!("DIFF commit:  {:?}", version_path);
+
     let ctx = SessionContext::new();
     register_table(&ctx, &current_path, "current").await?;
     register_table(&ctx, &version_path, "commit").await?;

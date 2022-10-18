@@ -1,7 +1,7 @@
 use crate::constants::{HISTORY_DIR, SCHEMAS_DIR};
 use crate::db;
+use crate::db::str_json_db;
 use crate::error::OxenError;
-use crate::index::kv_json_db;
 use crate::model::Schema;
 use crate::util;
 
@@ -41,16 +41,16 @@ impl SchemaReader {
 
     /// See if a commit id exists
     pub fn hash_exists(&self, hash: &str) -> bool {
-        kv_json_db::has_key(&self.db, hash)
+        str_json_db::has_key(&self.db, hash)
     }
 
     /// Get a commit object from an ID
     pub fn get_by_hash<S: AsRef<str>>(&self, hash: S) -> Result<Option<Schema>, OxenError> {
-        kv_json_db::get(&self.db, hash)
+        str_json_db::get(&self.db, hash)
     }
 
     pub fn list(&self) -> Result<Vec<Schema>, OxenError> {
-        kv_json_db::list_vals(&self.db)
+        str_json_db::list_vals(&self.db)
     }
 }
 

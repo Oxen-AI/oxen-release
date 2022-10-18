@@ -57,11 +57,7 @@ impl CommitEntry {
     }
 
     pub fn filename(&self) -> PathBuf {
-        if util::fs::is_tabular(&self.path) {
-            PathBuf::from(format!("{}.{}", self.commit_id, "arrow"))
-        } else {
-            PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
-        }
+        PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
     }
 
     pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {

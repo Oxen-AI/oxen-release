@@ -20,6 +20,7 @@ use crate::model::{
 
 use crate::util;
 
+use bytevec::ByteDecodable;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -827,7 +828,10 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
     let db = DB::open_for_read_only(&opts, path, false)?;
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
-        if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
+        // try to decode u32 first (hacky but only two types we inspect right now)
+        if let (Ok(key), Ok(value)) = (str::from_utf8(&key), u32::decode::<u8>(&value)) {
+            println!("{}\t{}", key, value)
+        } else if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
             println!("{}\t{}", key, value)
         }
     }
