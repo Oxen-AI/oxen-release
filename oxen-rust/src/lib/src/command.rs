@@ -548,7 +548,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
 }
 
 /// # Checkout a file and take their changes
-/// This overwrites the current file with the changes in their file
+/// This overwrites the current file with the changes in the branch we are merging in
 pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let merger = MergeConflictReader::new(repo)?;
     let conflicts = merger.list_conflicts()?;
@@ -560,6 +560,54 @@ pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resul
     {
         // Lookup the file for the merge commit entry and copy it over
         restore(repo, Some(&conflict.merge_entry.commit_id), path)
+    } else {
+        Err(OxenError::could_not_find_merge_conflict(path))
+    }
+}
+
+/// # Combine Conflicting Tabular Data Files
+/// This overwrites the current file with the changes in their file
+pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let merger = MergeConflictReader::new(repo)?;
+    let conflicts = merger.list_conflicts()?;
+
+    // find the path that matches in the conflict, throw error if !found
+    if let Some(conflict) = conflicts
+        .iter()
+        .find(|c| c.merge_entry.path == path.as_ref())
+    {
+        if util::fs::is_tabular(&conflict.head_entry.path) {
+            let opts = DFOpts::empty();
+
+            let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
+            let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
+            let df_head = tabular::read_df(&df_head_path, &opts)?;
+            let df_merge = tabular::read_df(&df_merge_path, &opts)?;
+
+            log::debug!("GOT DF HEAD {}", df_head);
+            log::debug!("GOT DF MERGE {}", df_merge);
+
+            match df_head.vstack(&df_merge) {
+                Ok(result) => {
+                    log::debug!("GOT DF COMBINED {}", result);
+                    match result.unique(None, polars::frame::UniqueKeepStrategy::First) {
+                        Ok(mut uniq) => {
+                            log::debug!("GOT DF COMBINED UNIQUE {}", uniq);
+                            let output_path = repo.path.join(&conflict.head_entry.path);
+                            tabular::write_df(&mut uniq, &output_path)
+                        }
+                        _ => Err(OxenError::basic_str("Could not uniq data")),
+                    }
+                }
+                _ => Err(OxenError::basic_str(
+                    "Could not combine data, make sure schema's match",
+                )),
+            }
+        } else {
+            Err(OxenError::basic_str(
+                "Cannot use --combine on non-tabular data file.",
+            ))
+        }
     } else {
         Err(OxenError::could_not_find_merge_conflict(path))
     }

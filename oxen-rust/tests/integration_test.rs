@@ -3,6 +3,8 @@ use liboxen::command;
 use liboxen::constants;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
+use liboxen::media::tabular;
+use liboxen::media::DFOpts;
 use liboxen::model::StagedEntryStatus;
 use liboxen::test;
 use liboxen::util;
@@ -1931,8 +1933,6 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         let bbox_file =
             test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
         let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
-
-        // Add the reference image
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
@@ -1957,6 +1957,56 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         let file_contents = util::fs::read_from_path(&bbox_file)?;
 
         assert_eq!(file_contents, their_branch_contents);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
+
+        // Add a more rows on this branch
+        let branch_name = "ox-add-rows";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add in a line in this branch
+        let row_from_branch = "train/cat_3.jpg,41.0,31.5,410,427";
+        let bbox_file = test::append_line_txt_file(bbox_file, row_from_branch)?;
+
+        // Add the changes
+        command::add(&repo, &bbox_file)?;
+        command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
+
+        // Add a more rows on the main branch
+        command::checkout(&repo, &og_branch.name)?;
+
+        let row_from_main = "train/dog_4.jpg,52.0,62.5,256,429";
+        let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
+
+        command::add(&repo, &bbox_file)?;
+        command::commit(&repo, "Adding new annotation on main branch")?;
+
+        // Try to merge in the changes
+        command::merge(&repo, branch_name)?;
+
+        // We should have a conflict....
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        // Run command::checkout_theirs() and make sure their changes get kept
+        command::checkout_combine(&repo, bbox_filename)?;
+        let opts = DFOpts::empty();
+        let df = tabular::read_df(&bbox_file, &opts)?;
+
+        // This doesn't guarantee order, but let's make sure we have 7 annotations now
+        assert_eq!(df.height(), 7);
 
         Ok(())
     })
