@@ -213,7 +213,7 @@ fn test_command_commit_file() -> Result<(), OxenError> {
 }
 
 #[test]
-fn test_command_restore_file() -> Result<(), OxenError> {
+fn test_command_restore_removed_file_from_head() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_filename = "hello.txt";
@@ -232,8 +232,43 @@ fn test_command_restore_file() -> Result<(), OxenError> {
         assert!(!hello_file.exists());
         // Restore takes the filename not the full path to the test repo
         // ie: "hello.txt" instead of data/test/runs/repo_data/test/runs_fc1544ab-cd55-4344-aa13-5360dc91d0fe/hello.txt
-        command::restore(&repo, &hello_filename)?;
+        command::restore(&repo, None, &hello_filename)?;
         assert!(hello_file.exists());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_restore_file_from_commit_id() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test(|repo| {
+        // Write to file
+        let hello_filename = "hello.txt";
+        let hello_file = repo.path.join(hello_filename);
+        util::fs::write_to_path(&hello_file, "Hello World");
+
+        // Track the file
+        command::add(&repo, &hello_file)?;
+        // Commit the file
+        command::commit(&repo, "My message")?;
+
+        // Modify the file once
+        let first_modification = "Hola Mundo";
+        let hello_file = test::modify_txt_file(hello_file, first_modification)?;
+        command::add(&repo, &hello_file)?;
+        let first_mod_commit = command::commit(&repo, "Changing to spanish")?.unwrap();
+
+        // Modify again
+        let second_modification = "Bonjour le monde";
+        let hello_file = test::modify_txt_file(hello_file, second_modification)?;
+        command::add(&repo, &hello_file)?;
+        command::commit(&repo, "Changing to french")?;
+
+        // Restore from the first commit
+        command::restore(&repo, Some(&first_mod_commit.id), &hello_filename)?;
+        let content = util::fs::read_from_path(&hello_file)?;
+        assert!(hello_file.exists());
+        assert_eq!(content, first_modification);
 
         Ok(())
     })
@@ -1801,6 +1836,7 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         // Try to merge in the changes
         command::merge(&repo, branch_name)?;
 
+        // We should have a conflict
         let status = command::status(&repo)?;
         assert_eq!(status.merge_conflicts.len(), 1);
 
@@ -1873,6 +1909,54 @@ fn test_command_schema_list() -> Result<(), OxenError> {
         assert_eq!(schemas[0].fields[3].dtype, "i64");
         assert_eq!(schemas[0].fields[4].name, "height");
         assert_eq!(schemas[0].fields[4].dtype, "i64");
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Result<(), OxenError>
+{
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        // Add a more rows on this branch
+        let branch_name = "ox-add-rows";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
+        let bbox_file =
+            test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+        let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
+
+        // Add the reference image
+        command::add(&repo, &bbox_file)?;
+        command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
+
+        // Add a more rows on the main branch
+        command::checkout(&repo, &og_branch.name)?;
+
+        let bbox_file =
+            test::append_line_txt_file(bbox_file, "train/dog_4.jpg, 52.0, 62.5, 256, 429")?;
+
+        command::add(&repo, &bbox_file)?;
+        command::commit(&repo, "Adding new annotation on main branch")?;
+
+        // Try to merge in the changes
+        command::merge(&repo, branch_name)?;
+
+        // We should have a conflict....
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        // Run command::checkout_theirs() and make sure their changes get kept
+        command::checkout_theirs(&repo, bbox_filename)?;
+        let file_contents = util::fs::read_from_path(&bbox_file)?;
+
+        assert_eq!(file_contents, their_branch_contents);
 
         Ok(())
     })
