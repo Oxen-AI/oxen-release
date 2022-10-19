@@ -15,11 +15,18 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
-pub const TEST_HOST: &str = "0.0.0.0:3000";
+pub const DEFAULT_TEST_HOST: &str = "0.0.0.0:3000";
+
+pub fn test_host() -> String {
+    match std::env::var("OXEN_TEST_HOST") {
+        Ok(host) => host,
+        Err(_err) => String::from(DEFAULT_TEST_HOST),
+    }
+}
 
 pub fn repo_remote_url_from(name: &str) -> String {
     // Tests always point to localhost
-    api::endpoint::remote_url_from_host(TEST_HOST, constants::DEFAULT_NAMESPACE, name)
+    api::endpoint::remote_url_from_host(test_host().as_str(), constants::DEFAULT_NAMESPACE, name)
 }
 
 pub fn init_test_env() {
@@ -51,7 +58,7 @@ pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteReposito
         repo,
         constants::DEFAULT_NAMESPACE,
         &repo.dirname(),
-        TEST_HOST,
+        test_host(),
     )
     .await
 }
@@ -183,7 +190,7 @@ where
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
 
     // Run test to see if it panic'd
     let result = match test(&local_repo, remote_repo).await {
@@ -222,7 +229,7 @@ where
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
     println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
@@ -259,7 +266,8 @@ where
     let local_repo = command::init(&path)?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
+    let repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
     println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd
