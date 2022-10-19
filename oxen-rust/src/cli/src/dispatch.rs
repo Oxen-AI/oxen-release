@@ -132,11 +132,11 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn restore(path: &str) -> Result<(), OxenError> {
+pub fn restore(commit_or_branch: Option<&str>, path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::restore(&repository, Path::new(path))?;
+    command::restore(&repository, commit_or_branch, Path::new(path))?;
 
     Ok(())
 }
@@ -356,6 +356,13 @@ pub fn checkout(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::checkout(&repository, name)?;
+    Ok(())
+}
+
+pub fn checkout_theirs(path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::checkout_theirs(&repository, path)?;
     Ok(())
 }
 

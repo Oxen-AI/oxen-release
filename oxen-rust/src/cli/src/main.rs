@@ -160,18 +160,11 @@ async fn main() {
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
                 .arg_required_else_help(true)
-                .arg(
-                    Arg::new("detailed")
-                        .long("detailed")
-                        .short('d')
-                        .help("Add detailed row level tracking on an annotation file. Supported types: csv, tsv, ndjson, jsonl, parq.")
-                        .takes_value(false),
-                )
         )
         .subcommand(
             Command::new("restore")
-                .about("Restories the specified file or directory")
-                .arg(arg!(<PATH> ... "File to restore from current working tree"))
+                .about("Restores the specified file or directory")
+                .arg(Arg::new("PATH").multiple_values(true))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -218,7 +211,7 @@ async fn main() {
         .subcommand(
             Command::new("checkout")
                 .about("Checks out a branches in the repository")
-                .arg(Arg::new("name").help("Name of the branch").exclusive(true))
+                .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
                 .arg(
                     Arg::new("create")
                         .long("branch")
@@ -226,6 +219,12 @@ async fn main() {
                         .help("Create the branch and check it out")
                         .exclusive(true)
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::new("theirs")
+                        .long("theirs")
+                        .help("Checkout the content of the conflicting branch and take it as your data. Will overwrite your working file.")
+                        .takes_value(false),
                 ),
         )
         .subcommand(
@@ -450,29 +449,33 @@ async fn main() {
 
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            if sub_matches.is_present("detailed") {
-                match dispatch::add_tabular(path) {
+
+            match dispatch::add(path) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
+                }
+            }
+        }
+        Some(("restore", sub_matches)) => {
+            let mut paths = sub_matches.values_of("PATH").expect("required");
+
+            if paths.len() == 2 {
+                let commit_or_branch = paths.next();
+                let path = paths.next().expect("required");
+                match dispatch::restore(commit_or_branch, path) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
                     }
                 }
             } else {
-                match dispatch::add(path) {
+                let path = paths.next().expect("required");
+                match dispatch::restore(None, path) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
                     }
-                }
-            }
-        }
-        Some(("restore", sub_matches)) => {
-            let path = sub_matches.value_of("PATH").expect("required");
-
-            match dispatch::restore(path) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
                 }
             }
         }
@@ -514,6 +517,11 @@ async fn main() {
             if sub_matches.is_present("create") {
                 let name = sub_matches.value_of("create").expect("required");
                 if let Err(err) = dispatch::create_checkout_branch(name) {
+                    eprintln!("{}", err)
+                }
+            } else if sub_matches.is_present("theirs") {
+                let name = sub_matches.value_of("name").expect("required");
+                if let Err(err) = dispatch::checkout_theirs(name) {
                     eprintln!("{}", err)
                 }
             } else if sub_matches.is_present("name") {

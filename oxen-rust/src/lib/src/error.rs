@@ -6,6 +6,8 @@ use std::path::Path;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
+pub const HEAD_NOT_FOUND: &str = "HEAD not found";
+
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
     "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
 
@@ -51,7 +53,7 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str("HEAD not found")
+        OxenError::basic_str(HEAD_NOT_FOUND)
     }
 
     pub fn remote_not_set() -> OxenError {
@@ -125,6 +127,14 @@ impl OxenError {
         let err = format!(
             "Local branch or commit reference `{}` not found",
             name.as_ref()
+        );
+        OxenError::basic_str(&err)
+    }
+
+    pub fn could_not_find_merge_conflict<P: AsRef<Path>>(path: P) -> OxenError {
+        let err = format!(
+            "Could not find merge conflict for path: {:?}",
+            path.as_ref()
         );
         OxenError::basic_str(&err)
     }

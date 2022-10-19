@@ -8,7 +8,7 @@ pub mod commit_schema_table_index;
 pub mod commit_validator;
 pub mod commit_writer;
 pub mod differ;
-pub mod indexer;
+pub mod entry_indexer;
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;
 pub mod merger;
@@ -28,7 +28,7 @@ pub use crate::index::commit_entry_writer::CommitEntryWriter;
 pub use crate::index::commit_reader::CommitReader;
 pub use crate::index::commit_validator::CommitValidator;
 pub use crate::index::commit_writer::CommitWriter;
-pub use crate::index::indexer::Indexer;
+pub use crate::index::entry_indexer::EntryIndexer;
 
 pub use crate::index::commit_schema_table_index::CommitSchemaTableIndex;
 pub use crate::index::merge_conflict_db_reader::MergeConflictDBReader;

@@ -148,8 +148,8 @@ impl StagedData {
                 // );
 
                 vec![
-                    "  both modified: ".to_string().red(),
-                    format!("{}\n", path.to_str().unwrap()).red().bold(),
+                    "  both modified: ".to_string().yellow(),
+                    format!("{}\n", path.to_str().unwrap()).yellow().bold(),
                 ]
             },
             outputs,

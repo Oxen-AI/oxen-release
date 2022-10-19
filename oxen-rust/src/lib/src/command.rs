@@ -10,7 +10,8 @@ use crate::index::differ;
 use crate::index::schema_writer::SchemaWriter;
 use crate::index::SchemaReader;
 use crate::index::{
-    CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
+    CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
+    RefReader, RefWriter, Stager,
 };
 use crate::media::{df_opts::DFOpts, tabular};
 use crate::model::Schema;
@@ -19,6 +20,7 @@ use crate::model::{
 };
 
 use crate::util;
+use crate::util::resource;
 
 use bytevec::ByteDecodable;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -312,21 +314,25 @@ fn commit_from_branch_or_commit_id<S: AsRef<str>>(
 /// command::add(&repo, &hello_path)?;
 ///
 /// // Commit staged
-/// command::commit(&repo, "My commit message")?;
+/// let commit = command::commit(&repo, "My commit message")?.unwrap();
 ///
 /// // Remove the file from disk
 /// std::fs::remove_file(hello_path)?;
 ///
 /// // Restore the file
-/// command::restore(&repo, hello_name)?;
+/// command::restore(&repo, Some(&commit.id), hello_name)?;
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn restore<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+pub fn restore<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    commit_or_branch: Option<&str>,
+    path: P,
+) -> Result<(), OxenError> {
     let path = path.as_ref();
-    let commit = head_commit(repo)?;
+    let commit = resource::get_commit_or_head(repo, commit_or_branch)?;
     let reader = CommitDirReader::new(repo, &commit)?;
 
     if let Some(entry) = reader.get_entry(path)? {
@@ -541,6 +547,24 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
     Ok(())
 }
 
+/// # Checkout a file and take their changes
+/// This overwrites the current file with the changes in their file
+pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let merger = MergeConflictReader::new(repo)?;
+    let conflicts = merger.list_conflicts()?;
+
+    // find the path that matches in the conflict, throw error if !found
+    if let Some(conflict) = conflicts
+        .iter()
+        .find(|c| c.merge_entry.path == path.as_ref())
+    {
+        // Lookup the file for the merge commit entry and copy it over
+        restore(repo, Some(&conflict.merge_entry.commit_id), path)
+    } else {
+        Err(OxenError::could_not_find_merge_conflict(path))
+    }
+}
+
 fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
     commit_writer.set_working_repo_to_branch(name)
@@ -689,9 +713,7 @@ pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Get the current commit
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let committer = CommitReader::new(repo)?;
-    let commit = committer.head_commit()?;
-    Ok(commit)
+    resource::get_head_commit(repo)
 }
 
 /// # Create a remote repository
@@ -761,7 +783,7 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// # }
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer.push(&rb).await
 }
@@ -772,7 +794,7 @@ pub async fn push_remote_branch(
     remote: &str,
     branch: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
         branch: String::from(branch),
@@ -791,7 +813,7 @@ pub async fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> 
 
 /// Pull a repository's data from origin/main
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer.pull(&rb).await?;
     Ok(())
@@ -812,7 +834,7 @@ pub async fn pull_remote_branch(
     remote: &str,
     branch: &str,
 ) -> Result<(), OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
         branch: String::from(branch),

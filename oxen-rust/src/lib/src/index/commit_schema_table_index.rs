@@ -7,6 +7,7 @@ use crate::constants::{self, HISTORY_DIR, INDICES_DIR, ROW_HASH_COL_NAME, ROW_NU
 use crate::db;
 use crate::db::str_val_db;
 use crate::error::OxenError;
+use crate::media::{tabular, DFOpts};
 use crate::model::{Commit, LocalRepository, Schema};
 use crate::util;
 
@@ -54,6 +55,26 @@ impl CommitSchemaTableIndex {
         str_val_db::list(&self.db)
     }
 
+    pub fn diff(
+        repository: LocalRepository,
+        commit_1: Commit,
+        commit_2: Commit,
+        schema: Schema,
+        name: String,
+    ) -> Result<DataFrame, OxenError> {
+        let _index_1 = CommitSchemaTableIndex::new(&repository, &commit_1, &schema, &name);
+        let _index_2 = CommitSchemaTableIndex::new(&repository, &commit_2, &schema, &name);
+
+        let schema_df_path = util::fs::schema_df_path(&repository, &schema);
+        let opts = DFOpts::empty();
+        let df = tabular::scan_df(&schema_df_path, &opts)?;
+
+        let indices: Vec<u32> = vec![0, 1];
+        let df = tabular::take(df, indices)?;
+
+        Ok(df)
+    }
+
     pub fn index_hash_row_nums(
         repository: LocalRepository,
         commit: Commit,
@@ -61,7 +82,7 @@ impl CommitSchemaTableIndex {
         name: String,
         df: DataFrame,
     ) -> Result<DataFrame, OxenError> {
-        let num_rows = df.width() as i64;
+        let num_rows = df.height() as i64;
 
         // Save off hash->row_idx to db
         let df = df
@@ -111,7 +132,7 @@ impl CommitSchemaTableIndex {
             .select([col("_result")])
             .collect()
             .unwrap();
-        println!("{}", df);
+        log::debug!("index_hash_row_nums {}", df);
         Ok(df)
     }
 
@@ -122,7 +143,7 @@ impl CommitSchemaTableIndex {
         name: String,
         df: DataFrame,
     ) -> Result<DataFrame, OxenError> {
-        let num_rows = df.width() as i64;
+        let num_rows = df.height() as i64;
 
         let mut col_names = vec![];
         for field in df.schema().iter_fields() {

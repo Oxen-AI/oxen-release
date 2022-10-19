@@ -329,7 +329,37 @@ impl CommitEntryWriter {
             let opts = DFOpts::empty();
             let old_df = tabular::read_df(&schema_df_path, &opts)?;
 
-            println!("OLD DF: {}", old_df);
+            log::debug!("OLD DF: {}", old_df);
+
+            // TODO: we don't want to look for unique rows, because you could totally have multiple
+            // people label the same image multiple times
+
+            // I think we want...
+
+            // - Diff the file against the last commit's version of that file (which we already do based on hash...)
+            // - If two people modified the same file....we'll have to merge the changes
+            // - So check if the file is tabular, and just merge the changes? I feel like there's no such thing as a modified row?
+
+            // What you do care about is "who added what"?
+
+            // I think we should add this to the arrow table in hidden columns
+            //   _created_by
+            //   _created_at
+
+            // Add `oxen index <optional:COMMIT_ID> -n INDEX_NAME` command to view an index at a commit
+            // Add `oxen index -c(reate) -n INDEX_NAME` command to create an index on a field name, simply scans and inserts row nums
+
+            // TODO:
+            // How do we merge this giant arrow file?
+            // Ex)
+            //   - Greg adds annotations in branch to schema
+            //   - Josh adds annotations in branch to schema
+            //   - We hash all the hashes, notice our schemas are out of sync
+            //   - How do you merge? Fast Forward taking both?
+            //       - Yes I think this is probably always the case...?
+            //       - When is it not in a regular commit..? When we disagree on a line in a file, or we both modify a file.
+            //       - We are saying there is no such thing in this land as just modifying a row, you have to delete and re-add?
+            //       - ^^ Think this statement through with a concrete example
 
             // Create new DF from new rows
             // Loop over the hashes and filter to ones that do not exist
@@ -343,7 +373,7 @@ impl CommitEntryWriter {
 
             let start: u32 = old_df.height() as u32;
             let new_df = tabular::df_add_row_num_starting_at(new_df, start)?;
-            println!("NEW ROWS: {}", new_df);
+            log::debug!("NEW ROWS: {}", new_df);
 
             // append to big .arrow file with new indices that start at num_rows
             let mut full_df = old_df.vstack(&new_df).expect("could not vstack");
