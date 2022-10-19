@@ -281,7 +281,7 @@ mod tests {
                 &local_repo,
                 constants::DEFAULT_NAMESPACE,
                 &local_repo.dirname(),
-                test::TEST_HOST,
+                test::test_host(),
             )
             .await?;
 

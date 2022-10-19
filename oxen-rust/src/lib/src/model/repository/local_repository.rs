@@ -274,7 +274,7 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let remote_repo =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
 
             test::run_empty_dir_test_async(|dir| async move {
