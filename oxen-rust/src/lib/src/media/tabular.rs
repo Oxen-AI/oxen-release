@@ -15,8 +15,7 @@ const READ_ERROR: &str = "Could not read tabular data from path";
 
 pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
     let error_str = "Could not read csv from path".to_string();
-    let path = path.as_ref();
-    let df = CsvReader::from_path(path)
+    let df = CsvReader::from_path(path.as_ref())
         .expect(&error_str)
         .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
         .has_header(true)
@@ -193,8 +192,12 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 }
 
 pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, OxenError> {
-    let input_path = path.as_ref();
-    let extension = input_path.extension().and_then(OsStr::to_str);
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(OxenError::file_does_not_exist(path));
+    }
+
+    let extension = path.extension().and_then(OsStr::to_str);
     log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 

@@ -814,17 +814,17 @@ img_2.txt,201,225
                 .join("train")
                 .join("bounding_box.csv");
             let bbox_file =
-                test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+                test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
 
             let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
             let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
             let diff = tabular_datafusion::diff(&repo, &entry).await?;
             let results = r"
-╭─────────────────┬────────┬────────┬────────┬─────────╮
-│ file            ┆  min_x ┆  min_y ┆  width ┆  height │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
-│ train/cat_3.jpg ┆  41.0  ┆  31.5  ┆  410   ┆  427    │
-╰─────────────────┴────────┴────────┴────────┴─────────╯
+╭─────────────────┬───────┬───────┬───────┬────────╮
+│ file            ┆ min_x ┆ min_y ┆ width ┆ height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/cat_3.jpg ┆ 41    ┆ 31.5  ┆ 410   ┆ 427    │
+╰─────────────────┴───────┴───────┴───────┴────────╯
  1 Rows x 5 Columns";
 
             assert_eq!(results, tabular_datafusion::df_to_str(&diff.added).await?);
@@ -848,10 +848,10 @@ img_2.txt,201,225
             let bbox_file = test::modify_txt_file(
                 bbox_file,
                 r"
-file, min_x, min_y, width, height
-train/dog_1.jpg, 101.5, 32.0, 385, 330
-train/dog_2.jpg, 7.0, 29.5, 246, 247
-train/cat_2.jpg, 30.5, 44.0, 333, 396
+file,min_x,min_y,width,height
+train/dog_1.jpg,101.5,32.0,385,330
+train/dog_2.jpg,7.0,29.5,246,247
+train/cat_2.jpg,30.5,44.0,333,396
 ",
             )?;
 
@@ -859,13 +859,13 @@ train/cat_2.jpg, 30.5, 44.0, 333, 396
             let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
             let diff = tabular_datafusion::diff(&repo, &entry).await?;
             let results = r"
-╭─────────────────┬────────┬────────┬────────┬─────────╮
-│ file            ┆  min_x ┆  min_y ┆  width ┆  height │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
-│ train/cat_1.jpg ┆  57.0  ┆  35.5  ┆  304   ┆  427    │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
-│ train/dog_3.jpg ┆  19.0  ┆  63.5  ┆  376   ┆  421    │
-╰─────────────────┴────────┴────────┴────────┴─────────╯
+╭─────────────────┬───────┬───────┬───────┬────────╮
+│ file            ┆ min_x ┆ min_y ┆ width ┆ height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/cat_1.jpg ┆ 57    ┆ 35.5  ┆ 304   ┆ 427    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/dog_3.jpg ┆ 19    ┆ 63.5  ┆ 376   ┆ 421    │
+╰─────────────────┴───────┴───────┴───────┴────────╯
  2 Rows x 5 Columns";
 
             assert_eq!(results, tabular_datafusion::df_to_str(&diff.removed).await?);
