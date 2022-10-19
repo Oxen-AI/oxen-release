@@ -306,7 +306,7 @@ impl CommitWriter {
                 }
             }
         }
-        println!("Setting working directory to {}", commit_id);
+        log::debug!("Setting working directory to {}", commit_id);
         log::debug!("got {} candidiate dirs", candidate_dirs_to_rm.len());
 
         // Iterate over files in current commit db, and make sure the hashes match,
@@ -322,7 +322,7 @@ impl CommitWriter {
             if let Some(parent) = path.parent() {
                 // Check if parent directory exists, if it does, we no longer have
                 // it as a candidate to remove
-                println!("We aren't going to delete candidate {:?}", parent);
+                log::debug!("We aren't going to delete candidate {:?}", parent);
                 if candidate_dirs_to_rm.contains(parent) {
                     candidate_dirs_to_rm.remove(&parent.to_path_buf());
                 }

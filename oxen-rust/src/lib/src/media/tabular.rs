@@ -77,6 +77,15 @@ fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     Ok(LazyFrame::scan_ipc(path, ScanArgsIpc::default()).expect(READ_ERROR))
 }
 
+pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
+    let idx = IdxCa::new("idx", &indices);
+    Ok(df
+        .collect()
+        .expect(READ_ERROR)
+        .take(&idx)
+        .expect(READ_ERROR))
+}
+
 pub fn filter_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
@@ -89,13 +98,8 @@ pub fn filter_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenErro
         return Ok(df.slice(offset, len as u32).collect().expect(READ_ERROR));
     }
 
-    if let Some(take) = opts.take_indices() {
-        let idx = IdxCa::new("idx", &take);
-        return Ok(df
-            .collect()
-            .expect(READ_ERROR)
-            .take(&idx)
-            .expect(READ_ERROR));
+    if let Some(indices) = opts.take_indices() {
+        return take(df, indices);
     }
 
     Ok(df.collect().expect(READ_ERROR))
@@ -114,7 +118,7 @@ pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame
 }
 
 pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
-    let num_rows = df.width() as i64;
+    let num_rows = df.height() as i64;
 
     let mut col_names = vec![];
     let schema = df.schema();
@@ -184,7 +188,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
         ])
         .collect()
         .unwrap();
-    println!("{}", df);
+    log::debug!("Hashed rows: {}", df);
     Ok(df)
 }
 
