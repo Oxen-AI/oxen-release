@@ -73,8 +73,7 @@ impl OxenError {
     pub fn schema_has_changed(old_schema: Schema, current_schema: Schema) -> OxenError {
         let err = format!(
             "\nSchema has changed\n\nOld\n{}\n\nCurrent\n{}\n",
-            old_schema,
-            current_schema
+            old_schema, current_schema
         );
         OxenError::basic_str(&err)
     }

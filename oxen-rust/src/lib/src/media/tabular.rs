@@ -100,8 +100,115 @@ pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<Lazy
     Ok(df)
 }
 
+pub fn add_row(df: LazyFrame, vals: Vec<String>) -> Result<LazyFrame, OxenError> {
+    let df = df.collect().expect(READ_ERROR);
+
+    if df.width() != vals.len() {
+        let err = format!(
+            "Cannot add row of len {} to data frame of width {}",
+            vals.len(),
+            df.width()
+        );
+        return Err(OxenError::basic_str(err));
+    }
+
+    // TODO: This probably isn't the best way to do this...but it works
+    let mut series: Vec<Series> = vec![];
+    for (i, field) in df.fields().iter().enumerate() {
+        let s: Series = match field.data_type() {
+            polars::prelude::DataType::Boolean => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Boolean(
+                    vals[i].parse::<bool>().expect("must be bool"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::UInt8 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::UInt8(vals[i].parse::<u8>().expect("must be u8"))],
+            )
+            .unwrap(),
+            polars::prelude::DataType::UInt16 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::UInt16(
+                    vals[i].parse::<u16>().expect("must be u16"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::UInt32 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::UInt32(
+                    vals[i].parse::<u32>().expect("must be u32"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::UInt64 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::UInt64(
+                    vals[i].parse::<u64>().expect("must be u64"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Int8 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Int8(vals[i].parse::<i8>().expect("must be i8"))],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Int16 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Int16(
+                    vals[i].parse::<i16>().expect("must be i16"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Int32 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Int32(
+                    vals[i].parse::<i32>().expect("must be i32"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Int64 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Int64(
+                    vals[i].parse::<i64>().expect("must be i64"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Float32 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Float32(
+                    vals[i].parse::<f32>().expect("must be f32"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Float64 => Series::from_any_values(
+                &field.name,
+                &[AnyValue::Float64(
+                    vals[i].parse::<f64>().expect("must be f64"),
+                )],
+            )
+            .unwrap(),
+            polars::prelude::DataType::Utf8 => {
+                Series::from_any_values(&field.name, &[AnyValue::Utf8(&vals[i])]).unwrap()
+            }
+            _ => panic!("Could not map type in add_row"),
+        };
+        series.push(s);
+    }
+
+    let new_row = DataFrame::new(series).unwrap();
+    let df = df.vstack(&new_row).unwrap().lazy();
+    Ok(df)
+}
+
 pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got filter ops {:?}", opts);
+
+    if let Some(row_vals) = opts.add_row_vals() {
+        df = add_row(df, row_vals)?;
+    }
+
     if let Some(col_vals) = opts.add_col_vals() {
         df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }

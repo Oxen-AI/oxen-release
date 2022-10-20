@@ -141,7 +141,13 @@ async fn main() {
                 .arg(
                     Arg::new("add-col")
                         .long("add-col")
-                        .help("Add a column with a default value to the data table. Format 'name:val:dtype'")
+                        .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("add-row")
+                        .long("add-row")
+                        .help("Add a row and cast to the values to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
                         .takes_value(true),
                 )
         )
@@ -404,8 +410,9 @@ async fn main() {
             let take = sub_matches.value_of("take");
             let columns = sub_matches.value_of("columns");
             let add_col = sub_matches.value_of("add-col");
+            let add_row = sub_matches.value_of("add-row");
 
-            match dispatch::df(path, output, slice, take, columns, add_col) {
+            match dispatch::df(path, output, slice, take, columns, add_col, add_row) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)

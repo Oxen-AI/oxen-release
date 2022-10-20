@@ -92,11 +92,7 @@ impl fmt::Display for Schema {
 
         let mut cells: Vec<comfy_table::Cell> = vec![];
         for field in self.fields.iter() {
-            let val = format!(
-                "{}\n---\n{}",
-                field.name,
-                field.dtype
-            );
+            let val = format!("{}\n---\n{}", field.name, field.dtype);
             cells.push(comfy_table::Cell::from(val));
         }
         table.add_row(cells);
