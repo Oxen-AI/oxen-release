@@ -1,10 +1,18 @@
 use std::path::PathBuf;
 
+pub struct AddColVals {
+    pub name: String,
+    pub value: String,
+    pub dtype: String,
+}
+
+#[derive(Debug)]
 pub struct DFOpts {
     pub output: Option<PathBuf>,
     pub slice: Option<String>,
     pub take: Option<String>,
     pub columns: Option<String>,
+    pub add_col: Option<String>,
 }
 
 impl DFOpts {
@@ -14,11 +22,15 @@ impl DFOpts {
             slice: None,
             take: None,
             columns: None,
+            add_col: None,
         }
     }
 
     pub fn has_filter(&self) -> bool {
-        self.slice.is_some() || self.take.is_some() || self.columns.is_some()
+        self.slice.is_some()
+            || self.take.is_some()
+            || self.columns.is_some()
+            || self.add_col.is_some()
     }
 
     pub fn slice_indices(&self) -> Option<(i64, i64)> {
@@ -57,6 +69,25 @@ impl DFOpts {
                 .map(String::from)
                 .collect::<Vec<String>>();
             return Some(split);
+        }
+        None
+    }
+
+    pub fn add_col_vals(&self) -> Option<AddColVals> {
+        if let Some(add_col) = self.add_col.clone() {
+            let split = add_col
+                .split(':')
+                .map(String::from)
+                .collect::<Vec<String>>();
+            if split.len() != 3 {
+                panic!("Invalid input for col vals. Format: 'name:val:dtype'");
+            }
+
+            return Some(AddColVals {
+                name: split[0].to_owned(),
+                value: split[1].to_owned(),
+                dtype: split[2].to_owned(),
+            });
         }
         None
     }

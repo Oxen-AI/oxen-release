@@ -12,18 +12,18 @@ pub enum DataType {
     Float64,
     String,
     Date,
-    Datetime,
-    Duration,
     Time,
     // TODO: implement these when needed...
     // List(Box<DataType>),
     // Object(&'static str),
+    // Datetime,
+    // Duration,
     Null,
     Unknown,
 }
 
 impl DataType {
-    pub fn from_str(&self, s: &str) -> DataType {
+    pub fn from_string(s: &str) -> DataType {
         match s {
             "bool" => DataType::Boolean,
             "uint8" => DataType::UInt8,
@@ -41,8 +41,6 @@ impl DataType {
             "f64" => DataType::Float64,
             "str" => DataType::String,
             "date" => DataType::Date,
-            "datetime" => DataType::Datetime,
-            "duration" => DataType::Duration,
             "time" => DataType::Time,
             "null" => DataType::Null,
             _ => DataType::Unknown,
@@ -64,11 +62,30 @@ impl DataType {
             DataType::Float64 => "f64",
             DataType::String => "str",
             DataType::Date => "date",
-            DataType::Datetime => "datetime",
-            DataType::Duration => "duration",
             DataType::Time => "time",
             DataType::Null => "null",
             DataType::Unknown => "?",
+        }
+    }
+
+    pub fn to_polars(&self) -> polars::prelude::DataType {
+        match self {
+            DataType::Boolean => polars::prelude::DataType::Boolean,
+            DataType::UInt8 => polars::prelude::DataType::UInt8,
+            DataType::UInt16 => polars::prelude::DataType::UInt16,
+            DataType::UInt32 => polars::prelude::DataType::UInt32,
+            DataType::UInt64 => polars::prelude::DataType::UInt64,
+            DataType::Int8 => polars::prelude::DataType::Int8,
+            DataType::Int16 => polars::prelude::DataType::Int16,
+            DataType::Int32 => polars::prelude::DataType::Int32,
+            DataType::Int64 => polars::prelude::DataType::Int64,
+            DataType::Float32 => polars::prelude::DataType::Float32,
+            DataType::Float64 => polars::prelude::DataType::Float64,
+            DataType::String => polars::prelude::DataType::Utf8,
+            DataType::Date => polars::prelude::DataType::Date,
+            DataType::Time => polars::prelude::DataType::Time,
+            DataType::Null => polars::prelude::DataType::Null,
+            DataType::Unknown => polars::prelude::DataType::Unknown,
         }
     }
 }
