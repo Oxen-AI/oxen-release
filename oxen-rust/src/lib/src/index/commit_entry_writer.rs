@@ -3,11 +3,15 @@ use crate::db;
 use crate::db::path_db;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitSchemaTableIndex, RefReader, RefWriter,
-    SchemaWriter,
+    CommitDirEntryReader,
+    CommitDirEntryWriter,
+    // CommitSchemaTableIndex,
+    RefReader,
+    RefWriter,
+    // SchemaWriter,
 };
-use crate::media::{tabular, tabular_datafusion, DFOpts};
-use crate::model::schema;
+use crate::media::tabular_datafusion;
+// use crate::model::schema;
 use crate::model::{
     Commit, CommitEntry, EntryType, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
@@ -242,8 +246,8 @@ impl CommitEntryWriter {
 
     fn backup_file_to_versions_dir(
         &self,
-        commit: &Commit,
-        mut entry: CommitEntry,
+        _commit: &Commit,
+        entry: CommitEntry,
     ) -> Result<CommitEntry, OxenError> {
         let full_path = self.repository.path.join(&entry.path);
         // create a copy to our versions directory
@@ -272,17 +276,18 @@ impl CommitEntryWriter {
                 entry.path,
                 versions_entry_path
             );
-            if util::fs::is_tabular(&full_path) {
-                entry =
-                    self.backup_to_arrow_file(commit, entry, &full_path, &versions_entry_path)?;
-            } else {
-                std::fs::copy(full_path, versions_entry_path)?;
-            }
+            // if util::fs::is_tabular(&full_path) {
+            //     entry =
+            //         self.backup_to_arrow_file(commit, entry, &full_path, &versions_entry_path)?;
+            // } else {
+            std::fs::copy(full_path, versions_entry_path)?;
+            // }
         }
 
         Ok(entry)
     }
 
+    /* TODO index the data files
     fn backup_to_arrow_file(
         &self,
         commit: &Commit,
@@ -395,6 +400,7 @@ impl CommitEntryWriter {
 
         Ok(entry)
     }
+    */
 
     pub fn commit_staged_entries(
         &self,
