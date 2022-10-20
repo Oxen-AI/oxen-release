@@ -870,10 +870,11 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 /// Diff a file from commit history
 pub async fn diff(
     repo: &LocalRepository,
-    commit_id: Option<&str>,
+    commit_id_or_branch: Option<&str>,
     path: &str,
 ) -> Result<String, OxenError> {
-    differ::diff(repo, commit_id, path).await
+    let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
+    differ::diff(repo, Some(&commit.id), path).await
 }
 
 /// Pull a specific origin and branch
