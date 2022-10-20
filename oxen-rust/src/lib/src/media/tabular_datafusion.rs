@@ -1,4 +1,4 @@
-use datafusion::arrow::datatypes::Schema;
+
 use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -20,6 +20,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 
+use crate::model::Schema;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, DataFrameDiff, LocalRepository};
 use crate::util;
@@ -32,7 +33,7 @@ async fn register_tsv_table(
     name: &str,
 ) -> Result<(), OxenError> {
     log::debug!("Register TSV {:?}", path);
-    let mut read_options = CsvReadOptions::new();
+    let mut read_options = CsvReadOptions::new().schema_infer_max_records(100);
     read_options.delimiter = b'\t';
     ctx.register_csv(name, path.to_str().unwrap(), read_options)
         .await?;
@@ -47,7 +48,7 @@ async fn register_csv_table(
     name: &str,
 ) -> Result<(), OxenError> {
     log::debug!("Register CSV {:?}", path);
-    let read_options = CsvReadOptions::new();
+    let read_options = CsvReadOptions::new().schema_infer_max_records(100);
     ctx.register_csv(name, path.to_str().unwrap(), read_options)
         .await?;
     log::debug!("Done register CSV {:?}", path);
@@ -392,7 +393,7 @@ pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Res
 pub async fn group_rows_by_key<P: AsRef<Path>, S: AsRef<str>>(
     path: P,
     key: S,
-) -> Result<(HashMap<String, Vec<Vec<String>>>, Arc<Schema>), OxenError> {
+) -> Result<(HashMap<String, Vec<Vec<String>>>, Arc<datafusion::arrow::datatypes::Schema>), OxenError> {
     let mut result: HashMap<String, Vec<Vec<String>>> = HashMap::new();
 
     let path = path.as_ref();
@@ -464,7 +465,7 @@ pub async fn group_rows_by_key<P: AsRef<Path>, S: AsRef<str>>(
 pub fn save_rows<P: AsRef<Path>>(
     path: P,
     rows: &[Vec<String>],
-    schema: Arc<Schema>,
+    schema: Arc<datafusion::arrow::datatypes::Schema>,
 ) -> Result<(), OxenError> {
     use std::io::Write;
 
@@ -690,7 +691,6 @@ pub async fn run_query(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
     Ok(results)
 }
 
-// TODO: Let's read from .arrow files here
 pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFrameDiff, OxenError> {
     let current_path = repo.path.join(&entry.path);
     let version_path = util::fs::version_path(repo, entry);
@@ -704,6 +704,13 @@ pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFra
 
     let df_current = ctx.table("current")?;
     let df_commit = ctx.table("commit")?;
+
+    let schema_1 = Schema::from_datafusion(df_commit.schema());
+    let schema_2 = Schema::from_datafusion(df_current.schema());
+    if schema_1.hash != schema_2.hash {
+        return Err(OxenError::schema_has_changed(schema_1, schema_2));
+    }
+
     // If we don't sort, it is non-deterministic the order the diff will come out
     // SORT ASC NULLS_FIRST
     let first_col = df_commit.schema().field(0);

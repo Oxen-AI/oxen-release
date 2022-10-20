@@ -26,7 +26,7 @@ impl DFOpts {
         }
     }
 
-    pub fn has_filter(&self) -> bool {
+    pub fn has_transform(&self) -> bool {
         self.slice.is_some()
             || self.take.is_some()
             || self.columns.is_some()

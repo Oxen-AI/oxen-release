@@ -2011,3 +2011,52 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
         Ok(())
     })
 }
+
+#[test]
+fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let og_branch = command::current_branch(&repo)?.unwrap();
+
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
+
+        // Add a more rows on this branch
+        let branch_name = "ox-add-column";
+        command::create_checkout_branch(&repo, branch_name)?;
+
+        // Add in a column in this branch
+        let mut opts = DFOpts::empty();
+        opts.add_col = Some(String::from("label:unknown:str"));
+        let df = tabular::scan_df(&bbox_file, &opts)?;
+        let mut df = tabular::transform_df(df, &opts)?;
+        tabular::write_df(&mut df, &bbox_file)?;
+
+        // Add the changes
+        command::add(&repo, &bbox_file)?;
+        command::commit(&repo, "Adding new column as an Ox on a branch.")?;
+
+        // Add a more rows on the main branch
+        command::checkout(&repo, &og_branch.name)?;
+
+        let row_from_main = "train/dog_4.jpg,52.0,62.5,256,429";
+        let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
+
+        command::add(&repo, &bbox_file)?;
+        command::commit(&repo, "Adding new row on main branch")?;
+
+        // Try to merge in the changes
+        command::merge(&repo, branch_name)?;
+
+        // We should have a conflict....
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        // Run command::checkout_theirs() and make sure their changes get kept
+        let result = command::checkout_combine(&repo, bbox_filename);
+        assert!(result.is_err());
+
+        Ok(())
+    })
+}

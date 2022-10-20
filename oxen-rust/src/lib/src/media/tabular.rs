@@ -100,7 +100,7 @@ pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<Lazy
     Ok(df)
 }
 
-pub fn filter_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got filter ops {:?}", opts);
     if let Some(col_vals) = opts.add_col_vals() {
         df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
@@ -221,9 +221,9 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, Oxen
     log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
-    if opts.has_filter() {
+    if opts.has_transform() {
         let df = scan_df(path, opts)?;
-        let df = filter_df(df, opts)?;
+        let df = transform_df(df, opts)?;
         Ok(df)
     } else {
         match extension {
