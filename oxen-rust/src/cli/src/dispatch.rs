@@ -261,18 +261,21 @@ pub fn df<P: AsRef<Path>>(
     take: Option<&str>,
     columns: Option<&str>,
     add_col: Option<&str>,
+    add_row: Option<&str>,
 ) -> Result<(), OxenError> {
     let output = output.map(PathBuf::from);
     let slice = slice.map(String::from);
     let take = take.map(String::from);
     let columns = columns.map(String::from);
     let add_col = add_col.map(String::from);
+    let add_row = add_row.map(String::from);
     let opts = DFOpts {
         output,
         slice,
         take,
         columns,
         add_col,
+        add_row,
     };
     command::df(input, &opts)?;
     Ok(())

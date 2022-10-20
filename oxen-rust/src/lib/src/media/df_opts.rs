@@ -15,6 +15,7 @@ pub struct DFOpts {
     pub take: Option<String>,
     pub columns: Option<String>,
     pub add_col: Option<String>,
+    pub add_row: Option<String>,
 }
 
 impl DFOpts {
@@ -25,6 +26,7 @@ impl DFOpts {
             take: None,
             columns: None,
             add_col: None,
+            add_row: None,
         }
     }
 
@@ -36,6 +38,7 @@ impl DFOpts {
             take: None,
             columns: Some(str_fields.join(",")),
             add_col: None,
+            add_row: None,
         }
     }
 
@@ -44,6 +47,7 @@ impl DFOpts {
             || self.take.is_some()
             || self.columns.is_some()
             || self.add_col.is_some()
+            || self.add_row.is_some()
     }
 
     pub fn slice_indices(&self) -> Option<(i64, i64)> {
@@ -101,6 +105,17 @@ impl DFOpts {
                 value: split[1].to_owned(),
                 dtype: split[2].to_owned(),
             });
+        }
+        None
+    }
+
+    pub fn add_row_vals(&self) -> Option<Vec<String>> {
+        if let Some(add_row) = self.add_row.clone() {
+            let split = add_row
+                .split(',')
+                .map(String::from)
+                .collect::<Vec<String>>();
+            return Some(split);
         }
         None
     }

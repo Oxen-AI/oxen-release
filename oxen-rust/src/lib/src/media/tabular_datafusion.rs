@@ -706,7 +706,8 @@ fn get_added_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> V
     for current_field in schema_current.fields.iter() {
         if !schema_commit
             .fields
-            .iter().any(|f| f.name == current_field.name)
+            .iter()
+            .any(|f| f.name == current_field.name)
         {
             fields.push(current_field.clone());
         }
@@ -722,7 +723,8 @@ fn get_removed_schema_fields(schema_commit: &Schema, schema_current: &Schema) ->
     for commit_field in schema_commit.fields.iter() {
         if !schema_current
             .fields
-            .iter().any(|f| f.name == commit_field.name)
+            .iter()
+            .any(|f| f.name == commit_field.name)
         {
             fields.push(commit_field.clone());
         }
