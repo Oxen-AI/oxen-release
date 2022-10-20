@@ -3,6 +3,7 @@ use polars::prelude::*;
 use crate::constants;
 use crate::error::OxenError;
 use crate::media::df_opts::DFOpts;
+use crate::model::schema::DataType;
 use crate::util::hasher;
 
 use indicatif::ProgressBar;
@@ -85,7 +86,26 @@ pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
         .expect(READ_ERROR))
 }
 
+pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<LazyFrame, OxenError> {
+    let mut df = df.collect().expect(READ_ERROR);
+
+    let dtype = DataType::from_string(dtype).to_polars();
+
+    let column = Series::new_empty(name, &dtype);
+    let column = column
+        .extend_constant(AnyValue::Utf8(val), df.height())
+        .expect("Could not extend df");
+    df.with_column(column).expect(READ_ERROR);
+    let df = df.lazy();
+    Ok(df)
+}
+
 pub fn filter_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+    log::debug!("Got filter ops {:?}", opts);
+    if let Some(col_vals) = opts.add_col_vals() {
+        df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+    }
+
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
             let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
@@ -181,7 +201,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 
                         Ok(out.into_series())
                     },
-                    GetOutput::from_type(DataType::UInt64),
+                    GetOutput::from_type(polars::prelude::DataType::UInt64),
                 )
                 .alias(constants::ROW_HASH_COL_NAME),
         ])

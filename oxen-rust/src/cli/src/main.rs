@@ -138,6 +138,12 @@ async fn main() {
                         .help("A comma separated set of columns names to look at. Ex file,x,y")
                         .takes_value(true),
                 )
+                .arg(
+                    Arg::new("add-col")
+                        .long("add-col")
+                        .help("Add a column with a default value to the data table. Format 'name:val:dtype'")
+                        .takes_value(true),
+                )
         )
         .subcommand(
             Command::new("schemas")
@@ -397,8 +403,9 @@ async fn main() {
             let slice = sub_matches.value_of("slice");
             let take = sub_matches.value_of("take");
             let columns = sub_matches.value_of("columns");
+            let add_col = sub_matches.value_of("add-col");
 
-            match dispatch::df(path, output, slice, take, columns) {
+            match dispatch::df(path, output, slice, take, columns, add_col) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
