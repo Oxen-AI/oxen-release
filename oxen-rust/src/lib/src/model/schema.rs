@@ -41,6 +41,23 @@ impl Schema {
         }
     }
 
+    pub fn from_datafusion(schema: &datafusion::logical_plan::DFSchema) -> Schema {
+        let mut fields: Vec<Field> = vec![];
+        for field in schema.fields() {
+            let f = Field {
+                name: field.name().trim().to_string(),
+                dtype: DataType::from_arrow(field.data_type()).as_str().to_string(),
+            };
+            fields.push(f);
+        }
+
+        Schema {
+            name: None,
+            hash: Schema::hash_fields(&fields),
+            fields,
+        }
+    }
+
     fn hash_fields(fields: &Vec<Field>) -> String {
         let mut hash_buffers: Vec<String> = vec![];
         for f in fields {
@@ -72,20 +89,15 @@ impl Schema {
 impl fmt::Display for Schema {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut table = comfy_table::Table::new();
-        table.set_header(vec!["name", "dtype"]);
-
+        
+        let mut cells: Vec<comfy_table::Cell> = vec![];
         for field in self.fields.iter() {
-            table.add_row(vec![field.name.to_string(), field.dtype.to_string()]);
+            let val = format!("{}\n---\n{}", field.name.to_string(), field.dtype.to_string());
+            cells.push(comfy_table::Cell::from(val));
         }
-        if let Some(name) = &self.name {
-            write!(f, "{}\n{}", name, table)
-        } else {
-            write!(
-                f,
-                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
-                self.hash, table
-            )
-        }
+        table.add_row(cells);
+
+        write!(f, "{}", table)
     }
 }
 

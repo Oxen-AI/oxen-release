@@ -88,4 +88,23 @@ impl DataType {
             DataType::Unknown => polars::prelude::DataType::Unknown,
         }
     }
+
+    pub fn from_arrow(dtype: &datafusion::arrow::datatypes::DataType) -> Self {
+        match dtype {
+            datafusion::arrow::datatypes::DataType::Boolean => DataType::Boolean,
+            datafusion::arrow::datatypes::DataType::UInt8 => DataType::UInt8,
+            datafusion::arrow::datatypes::DataType::UInt16 => DataType::UInt16,
+            datafusion::arrow::datatypes::DataType::UInt32 => DataType::UInt32,
+            datafusion::arrow::datatypes::DataType::UInt64 => DataType::UInt64,
+            datafusion::arrow::datatypes::DataType::Int8 => DataType::Int8,
+            datafusion::arrow::datatypes::DataType::Int16 => DataType::Int16,
+            datafusion::arrow::datatypes::DataType::Int32 => DataType::Int32,
+            datafusion::arrow::datatypes::DataType::Int64 => DataType::Int64,
+            datafusion::arrow::datatypes::DataType::Float32 => DataType::Float32,
+            datafusion::arrow::datatypes::DataType::Float64 => DataType::Float64,
+            datafusion::arrow::datatypes::DataType::Utf8 => DataType::String,
+            datafusion::arrow::datatypes::DataType::Null => DataType::Null,
+            _ => DataType::Unknown,
+        }
+    }
 }

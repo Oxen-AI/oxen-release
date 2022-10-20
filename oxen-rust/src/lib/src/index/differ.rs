@@ -99,6 +99,12 @@ pub async fn diff_tabular(
 ) -> Result<String, OxenError> {
     let diff = tabular_datafusion::diff(repo, entry).await?;
 
+    let added_batches = diff.added.collect().await?;
+    let removed_batches = diff.removed.collect().await?;
+    if added_batches.is_empty() && removed_batches.is_empty() {
+        return Ok(String::from("No changes."));
+    }
+
     let added_diff = tabular_datafusion::df_to_str(&diff.added).await?;
     let removed_diff = tabular_datafusion::df_to_str(&diff.removed).await?;
 

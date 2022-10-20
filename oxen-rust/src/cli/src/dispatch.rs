@@ -282,8 +282,15 @@ pub fn schema_show(val: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let schema = command::schema_show(&repository, None, val)?;
-    if schema.is_some() {
-        println!("{}", schema.unwrap());
+    if let Some(schema) = schema {
+        if let Some(name) = &schema.name {
+            println!("{}\n{}", name, schema)
+        } else {
+            println!(
+                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
+                schema.hash, schema
+            )
+        }
     }
     Ok(())
 }

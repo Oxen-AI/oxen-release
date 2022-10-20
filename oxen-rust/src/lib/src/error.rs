@@ -4,6 +4,8 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+use crate::model::Schema;
+
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
 pub const HEAD_NOT_FOUND: &str = "HEAD not found";
@@ -66,6 +68,11 @@ impl OxenError {
         OxenError::basic_str(
             "No schemas found\n\nAdd and commit a tabular data file with:\n\n  oxen add path/to/file.csv\n  oxen commit -m \"adding data\"\n",
         )
+    }
+
+    pub fn schema_has_changed(current_schema: Schema, new_schema: Schema) -> OxenError {
+        let err = format!("\nSchema has changed\n\nCurrent\n{}\n\nNew\n{}\n", current_schema.to_string(), new_schema.to_string());
+        OxenError::basic_str(&err)
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
