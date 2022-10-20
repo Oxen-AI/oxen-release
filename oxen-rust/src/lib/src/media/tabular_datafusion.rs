@@ -1,4 +1,3 @@
-
 use datafusion::arrow::ipc::reader::FileReader;
 use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -6,6 +5,7 @@ use datafusion::arrow::{self, csv, json};
 use datafusion::datasource::memory::MemTable;
 use datafusion::prelude::{col, CsvReadOptions, DataFrame, ParquetReadOptions, SessionContext};
 
+use colored::Colorize;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, ContentArrangement, Row, Table};
@@ -20,8 +20,10 @@ use std::path::Path;
 use std::sync::Arc;
 use std::vec;
 
-use crate::model::Schema;
 use crate::error::OxenError;
+use crate::media::{tabular, DFOpts};
+use crate::model::schema::Field;
+use crate::model::Schema;
 use crate::model::{CommitEntry, DataFrameDiff, LocalRepository};
 use crate::util;
 
@@ -393,7 +395,13 @@ pub fn write_batches<P: AsRef<Path>>(batches: &Vec<RecordBatch>, path: P) -> Res
 pub async fn group_rows_by_key<P: AsRef<Path>, S: AsRef<str>>(
     path: P,
     key: S,
-) -> Result<(HashMap<String, Vec<Vec<String>>>, Arc<datafusion::arrow::datatypes::Schema>), OxenError> {
+) -> Result<
+    (
+        HashMap<String, Vec<Vec<String>>>,
+        Arc<datafusion::arrow::datatypes::Schema>,
+    ),
+    OxenError,
+> {
     let mut result: HashMap<String, Vec<Vec<String>>> = HashMap::new();
 
     let path = path.as_ref();
@@ -691,6 +699,38 @@ pub async fn run_query(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
     Ok(results)
 }
 
+fn get_added_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> Vec<Field> {
+    let mut fields: Vec<Field> = vec![];
+
+    // if field is in current schema but not in commit, it was added
+    for current_field in schema_current.fields.iter() {
+        if !schema_commit
+            .fields
+            .iter().any(|f| f.name == current_field.name)
+        {
+            fields.push(current_field.clone());
+        }
+    }
+
+    fields
+}
+
+fn get_removed_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> Vec<Field> {
+    let mut fields: Vec<Field> = vec![];
+
+    // if field is in commit history but not in current, it was removed
+    for commit_field in schema_commit.fields.iter() {
+        if !schema_current
+            .fields
+            .iter().any(|f| f.name == commit_field.name)
+        {
+            fields.push(commit_field.clone());
+        }
+    }
+
+    fields
+}
+
 pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFrameDiff, OxenError> {
     let current_path = repo.path.join(&entry.path);
     let version_path = util::fs::version_path(repo, entry);
@@ -705,10 +745,28 @@ pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFra
     let df_current = ctx.table("current")?;
     let df_commit = ctx.table("commit")?;
 
-    let schema_1 = Schema::from_datafusion(df_commit.schema());
-    let schema_2 = Schema::from_datafusion(df_current.schema());
-    if schema_1.hash != schema_2.hash {
-        return Err(OxenError::schema_has_changed(schema_1, schema_2));
+    // Hacky that we are using two different dataframe libraries here...but want to get this release out.
+    let schema_commit = Schema::from_datafusion(df_commit.schema());
+    let schema_current = Schema::from_datafusion(df_current.schema());
+    if schema_commit.hash != schema_current.hash {
+        let added_fields = get_added_schema_fields(&schema_commit, &schema_current);
+        let removed_fields = get_removed_schema_fields(&schema_commit, &schema_current);
+
+        if !added_fields.is_empty() {
+            let opts = DFOpts::from_filter_fields(added_fields);
+            let df_added = tabular::read_df(&current_path, &opts)?;
+            let added_str = format!("{}", df_added).green();
+            println!("Added Cols\n{}\n", added_str);
+        }
+
+        if !removed_fields.is_empty() {
+            let opts = DFOpts::from_filter_fields(removed_fields);
+            let df_removed = tabular::read_df(&version_path, &opts)?;
+            let removed_str = format!("{}", df_removed).red();
+            println!("Removed Cols\n{}", removed_str);
+        }
+
+        return Err(OxenError::schema_has_changed(schema_commit, schema_current));
     }
 
     // If we don't sort, it is non-deterministic the order the diff will come out

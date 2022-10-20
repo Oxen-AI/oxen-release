@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::model::schema::Field;
+
 pub struct AddColVals {
     pub name: String,
     pub value: String,
@@ -22,6 +24,17 @@ impl DFOpts {
             slice: None,
             take: None,
             columns: None,
+            add_col: None,
+        }
+    }
+
+    pub fn from_filter_fields(fields: Vec<Field>) -> Self {
+        let str_fields: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
+        DFOpts {
+            output: None,
+            slice: None,
+            take: None,
+            columns: Some(str_fields.join(",")),
             add_col: None,
         }
     }
