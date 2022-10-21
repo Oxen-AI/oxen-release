@@ -125,6 +125,13 @@ async fn main() {
                         .takes_value(true),
                 )
                 .arg(
+                    Arg::new("filter")
+                        .long("filter")
+                        .short('f')
+                        .help("An expression to match. Ex) 'label=cat'")
+                        .takes_value(true),
+                )
+                .arg(
                     Arg::new("take")
                         .long("take")
                         .short('t')
@@ -405,14 +412,18 @@ async fn main() {
         },
         Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            let output = sub_matches.value_of("output");
-            let slice = sub_matches.value_of("slice");
-            let take = sub_matches.value_of("take");
-            let columns = sub_matches.value_of("columns");
-            let add_col = sub_matches.value_of("add-col");
-            let add_row = sub_matches.value_of("add-row");
 
-            match dispatch::df(path, output, slice, take, columns, add_col, add_row) {
+            let opts = liboxen::media::DFOpts {
+                output: sub_matches.value_of("output").map(std::path::PathBuf::from),
+                slice: sub_matches.value_of("slice").map(String::from),
+                take: sub_matches.value_of("take").map(String::from),
+                columns: sub_matches.value_of("columns").map(String::from),
+                filter: sub_matches.value_of("filter").map(String::from),
+                add_col: sub_matches.value_of("add-col").map(String::from),
+                add_row: sub_matches.value_of("add-row").map(String::from),
+            };
+
+            match dispatch::df(path, &opts) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)

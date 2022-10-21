@@ -2,6 +2,7 @@ pub mod fs;
 pub mod hasher;
 pub mod read_progress;
 pub mod resource;
+pub mod str;
 
 pub use crate::util::read_progress::ReadProgress;
 
