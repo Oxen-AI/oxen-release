@@ -1,5 +1,5 @@
 use crate::api;
-use crate::config::UserConfig;
+use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, RemoteRepository};
 use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
@@ -10,20 +10,11 @@ pub async fn get_by_name(
     repository: &RemoteRepository,
     branch_name: &str,
 ) -> Result<Option<Branch>, OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!("/branches/{}", branch_name);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
 
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -45,23 +36,13 @@ pub async fn get_by_name(
 }
 
 pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
-    let config = UserConfig::default()?;
-    let url = api::endpoint::url_from_repo(repository, "/branches");
+    let url = api::endpoint::url_from_repo(repository, "/branches")?;
     log::debug!("create_or_get {}", url);
 
     let params = serde_json::to_string(&json!({ "name": name }))?;
 
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .post(url)
-        .body(params)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.post(url).body(params).send().await {
         let body = res.text().await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -82,19 +63,10 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
 }
 
 pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
-    let config = UserConfig::default()?;
-    let url = api::endpoint::url_from_repo(repository, "/branches");
+    let url = api::endpoint::url_from_repo(repository, "/branches")?;
 
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         let response: Result<ListBranchesResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -120,24 +92,14 @@ pub async fn update(
     branch_name: &str,
     commit: &Commit,
 ) -> Result<Branch, OxenError> {
-    let config = UserConfig::default()?;
     let uri = format!("/branches/{}", branch_name);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::branches::update url: {}", url);
 
     let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
 
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .put(url)
-        .body(params)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let client = client::new()?;
+    if let Ok(res) = client.put(url).body(params).send().await {
         let body = res.text().await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -160,20 +122,12 @@ pub async fn delete(
     repository: &RemoteRepository,
     branch_name: &str,
 ) -> Result<StatusMessage, OxenError> {
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
     let uri = format!("/branches/{}", branch_name);
-    let url = api::endpoint::url_from_repo(repository, &uri);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Deleting branch: {}", url);
-    if let Ok(res) = client
-        .delete(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+
+    let client = client::new()?;
+    if let Ok(res) = client.delete(url).send().await {
         let status = res.status();
         let body = res.text().await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);

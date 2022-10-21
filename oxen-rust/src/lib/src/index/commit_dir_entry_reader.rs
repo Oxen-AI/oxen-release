@@ -1,7 +1,7 @@
-use crate::constants::HISTORY_DIR;
+use crate::constants::{FILES_DIR, HISTORY_DIR};
 use crate::db;
+use crate::db::path_db;
 use crate::error::OxenError;
-use crate::index::path_db;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
@@ -22,9 +22,9 @@ impl CommitDirEntryReader {
     pub fn db_dir(repo: &LocalRepository, commit_id: &str, dir: &Path) -> PathBuf {
         // .oxen/history/COMMIT_ID/files/path/to/dir
         util::fs::oxen_hidden_dir(&repo.path)
-            .join(Path::new(HISTORY_DIR))
+            .join(HISTORY_DIR)
             .join(commit_id)
-            .join("files")
+            .join(FILES_DIR)
             .join(dir)
     }
 

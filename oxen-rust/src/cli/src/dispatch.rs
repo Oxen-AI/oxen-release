@@ -2,6 +2,8 @@ use liboxen::command;
 use liboxen::config::UserConfig;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::media::df_opts::DFOpts;
+use liboxen::model::schema;
 use liboxen::model::LocalRepository;
 use liboxen::util;
 
@@ -26,20 +28,20 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote = command::create_remote(&repo, namespace, name, host).await?;
+    let remote_repo = command::create_remote(&repo, namespace, name, host).await?;
     println!(
         "Remote created for {}\n\noxen remote add origin {}",
-        name, remote.url
+        name, remote_repo.remote.url
     );
 
     Ok(())
 }
 
-pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
+pub fn add_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::set_remote(&mut repo, name, url)?;
+    command::add_remote(&mut repo, name, url)?;
 
     Ok(())
 }
@@ -130,11 +132,11 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn restore(path: &str) -> Result<(), OxenError> {
+pub fn restore(commit_or_branch: Option<&str>, path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::restore(&repository, Path::new(path))?;
+    command::restore(&repository, commit_or_branch, Path::new(path))?;
 
     Ok(())
 }
@@ -164,11 +166,12 @@ pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn diff(commit_id: &str, path: &str) -> Result<(), OxenError> {
+pub async fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::diff(&repository, commit_id, path).await?;
+    let result = command::diff(&repository, commit_id, path).await?;
+    println!("{result}");
     Ok(())
 }
 
@@ -251,12 +254,64 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
-    input: P,
-    query: Option<S>,
-    output: Option<P>,
-) -> Result<(), OxenError> {
-    command::transform_table(input, query, output).await?;
+pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
+    command::df(input, opts)?;
+    Ok(())
+}
+
+pub fn schema_show(val: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schema = command::schema_show(&repository, None, val)?;
+    if let Some(schema) = schema {
+        if let Some(name) = &schema.name {
+            println!("{}\n{}", name, schema)
+        } else {
+            println!(
+                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
+                schema.hash, schema
+            )
+        }
+    }
+    Ok(())
+}
+
+pub fn schema_name(hash: &str, val: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schema = command::schema_show(&repository, None, hash)?;
+    if schema.is_some() {
+        let schema = command::schema_name(&repository, hash, val)?;
+        println!("{}", schema.unwrap());
+    } else {
+        eprintln!("Could not find schema {}", hash);
+    }
+    Ok(())
+}
+
+pub fn schema_list() -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schemas = command::schema_list(&repository, None)?;
+    if schemas.is_empty() {
+        eprintln!("{}", OxenError::no_schemas_found());
+    } else {
+        let result = schema::Schema::schemas_to_string(&schemas);
+        println!("{}", result);
+    }
+    Ok(())
+}
+
+pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let schemas = command::schema_list(&repository, Some(commit_id))?;
+    if schemas.is_empty() {
+        eprintln!("{}", OxenError::no_schemas_found());
+    } else {
+        let result = schema::Schema::schemas_to_string(&schemas);
+        println!("{}", result);
+    }
     Ok(())
 }
 
@@ -292,6 +347,13 @@ pub fn checkout(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::checkout(&repository, name)?;
+    Ok(())
+}
+
+pub fn checkout_theirs(path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::checkout_theirs(&repository, path)?;
     Ok(())
 }
 

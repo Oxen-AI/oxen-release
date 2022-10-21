@@ -10,17 +10,24 @@ use crate::model::{LocalRepository, RemoteRepository};
 
 use env_logger::Env;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::future::Future;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
-pub const TEST_HOST: &str = "0.0.0.0:3000";
+pub const DEFAULT_TEST_HOST: &str = "0.0.0.0:3000";
 
-pub fn repo_url_from(name: &str) -> String {
+pub fn test_host() -> String {
+    match std::env::var("OXEN_TEST_HOST") {
+        Ok(host) => host,
+        Err(_err) => String::from(DEFAULT_TEST_HOST),
+    }
+}
+
+pub fn repo_remote_url_from(name: &str) -> String {
     // Tests always point to localhost
-    let uri = format!("/{}/{}", constants::DEFAULT_NAMESPACE, name);
-    api::endpoint::url_from_host(TEST_HOST, &uri)
+    api::endpoint::remote_url_from_host(test_host().as_str(), constants::DEFAULT_NAMESPACE, name)
 }
 
 pub fn init_test_env() {
@@ -52,7 +59,7 @@ pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteReposito
         repo,
         constants::DEFAULT_NAMESPACE,
         &repo.dirname(),
-        TEST_HOST,
+        test_host(),
     )
     .await
 }
@@ -184,7 +191,7 @@ where
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
 
     // Run test to see if it panic'd
     let result = match test(&local_repo, remote_repo).await {
@@ -223,7 +230,7 @@ where
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
     println!("Got remote repo: {:?}", remote_repo);
 
     // Run test to see if it panic'd
@@ -260,7 +267,8 @@ where
     let local_repo = command::init(&path)?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let repo = api::remote::repositories::create(&local_repo, namespace, &name, TEST_HOST).await?;
+    let repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
     println!("REMOTE REPO: {:?}", repo);
 
     // Run test to see if it panic'd
@@ -396,6 +404,8 @@ where
     command::add(&repo, &repo_dir.join("annotations"))?;
     command::add(&repo, &repo_dir.join("labels.txt"))?;
     command::add(&repo, &repo_dir.join("README.md"))?;
+    command::add_tabular(&repo, &repo_dir.join("annotations/train/bounding_box.csv"))?;
+
     command::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
@@ -591,6 +601,17 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     "#,
     )?;
     write_txt_file_to_path(
+        train_annotations_dir.join("bounding_box.csv"),
+        r#"
+file,min_x,min_y,width,height
+train/dog_1.jpg,101.5,32.0,385,330
+train/dog_2.jpg,7.0,29.5,246,247
+train/dog_3.jpg,19.0,63.5,376,421
+train/cat_1.jpg,57.0,35.5,304,427
+train/cat_2.jpg,30.5,44.0,333,396
+"#,
+    )?;
+    write_txt_file_to_path(
         train_annotations_dir.join("one_shot.txt"),
         r#"
         train/dog_1.jpg 0
@@ -619,9 +640,9 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     Ok(())
 }
 
-pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+pub fn add_file_to_dir(dir: &Path, contents: &str, extension: &str) -> Result<PathBuf, OxenError> {
     // Generate random name, because tests run in parallel, then return that name
-    let file_path = PathBuf::from(format!("{}.txt", uuid::Uuid::new_v4()));
+    let file_path = PathBuf::from(format!("{}.{extension}", uuid::Uuid::new_v4()));
     let full_path = dir.join(&file_path);
     // println!("add_txt_file_to_dir: {:?} to {:?}", file_path, full_path);
 
@@ -631,6 +652,14 @@ pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
     Ok(full_path)
 }
 
+pub fn add_txt_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+    add_file_to_dir(dir, contents, "txt")
+}
+
+pub fn add_csv_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenError> {
+    add_file_to_dir(dir, contents, "csv")
+}
+
 pub fn write_txt_file_to_path<P: AsRef<Path>>(
     path: P,
     contents: &str,
@@ -638,6 +667,21 @@ pub fn write_txt_file_to_path<P: AsRef<Path>>(
     let path = path.as_ref();
     let mut file = File::create(&path)?;
     file.write_all(contents.as_bytes())?;
+    Ok(path.to_path_buf())
+}
+
+pub fn append_line_txt_file<P: AsRef<Path>>(path: P, line: &str) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+
+    let mut file = OpenOptions::new().write(true).append(true).open(path)?;
+
+    if let Err(e) = writeln!(file, "{}", line) {
+        return Err(OxenError::basic_str(format!(
+            "Couldn't write to file: {}",
+            e
+        )));
+    }
+
     Ok(path.to_path_buf())
 }
 
