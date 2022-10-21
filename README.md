@@ -1,5 +1,10 @@
 # 🐂 oxen-release
-Official repository for docs and releases of the Oxen Server and Oxen CLI.
+
+Oxen is command line tooling for working with large machine learning datasets 🦾. It is built from the ground up, optimized to handle many files, process data frames, and track changes in an efficient data structures.
+
+The goal of [Oxen.ai](https://oxen.ai) is to help manage the shift from software 1.0 (writing lines of code) to [software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where you are managing more and more data. The `oxen` command line interface and `oxen-server` binaries are the first steps, but we plan on releasing a fully hosted Hub in the near future to help store securly your data at scale. 
+
+Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and to stay updated on the progress.
 
 # Overview
 
@@ -35,22 +40,86 @@ $ oxen config --name <NAME> --email <EMAIL>
 First create a new directory, navigate into it, and perform
 
 ```bash
-$ oxen init .
+$ oxen init
 ```
 
-## Add & Commit Data
+## Stage Data
 
 You can stage changes that you are interested in committing with the `oxen add` command and giving a full file path or directory.
 
 ```bash
-$ oxen add train/images/
-$ oxen add annotations/train.csv
+$ oxen add images/
+$ oxen add annotations/data.csv
 ```
 
-To actually commit these changes with a message you can use
+## View Status
+
+To see what data is tracked, staged, or not yet added to the repository you can use the `status` command. Note: since we are dealing with large datasets with many files, `status` rolls up the changes and summarizes them for you.
+
+```bash
+$ oxen status
+
+On branch main -> e76dd52a4fc13a6f
+
+Directories to be committed
+  added: images with added 8108 files
+
+Files to be committed:
+  new file: images/000000000042.jpg
+  new file: images/000000000074.jpg
+  new file: images/000000000109.jpg
+  new file: images/000000000307.jpg
+  new file: images/000000000309.jpg
+  new file: images/000000000394.jpg
+  new file: images/000000000400.jpg
+  new file: images/000000000443.jpg
+  new file: images/000000000490.jpg
+  new file: images/000000000575.jpg
+  ... and 8098 others
+
+Untracked Directories
+  (use "oxen add <dir>..." to update what will be committed)
+  annotations/ (3 items)
+```
+
+You can always paginate through the changes with the `-s` (skip) and `-l` (limit) params on the status command. Run `oxen status --help` for more info.
+
+## Commit Changes
+
+To commit the changes that are staged with a message you can use
 
 ```bash
 $ oxen commit -m "Some informative commit message"
+```
+
+## Log
+
+You can see the history of changes on your current branch with by running.
+
+```bash
+$ oxen log
+
+commit 6b958e268656b0c5
+
+Author: Ox
+Date:   Fri, 21 Oct 2022 16:08:39 -0700
+
+    adding 10,000 training images
+
+commit e76dd52a4fc13a6f
+
+Author: Ox
+Date:   Fri, 21 Oct 2022 16:05:22 -0700
+
+    Initialized Repo 🐂
+```
+
+## Reverting To Commit
+
+If ever you want to go back to a point in your commit history, you can simply supply the commit id from your history to the `checkout` command.
+
+```bash
+$ oxen checkout COMMIT_ID
 ```
 
 ## Row Level Tracking
@@ -89,6 +158,10 @@ shape: (10000, 6)
 ```
 
 To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](Tabular.md)
+
+# Sharing Data and Collaboration
+
+Oxen enables sharing data and collaboration between teams with `oxen-server`. Some teams setup a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
 
 ## Setup an Oxen Server
 
@@ -140,41 +213,38 @@ If you want to change the default `IP ADDRESS` and `PORT` you can do so by passi
 $ oxen-server start -i 0.0.0.0 -p 4321
 ```
 
-## Use Oxen Hub
-
-If you want to start with a remote repository that already has data, there are some that live on [Oxen](https://oxen.ai).
-
-Message us on slack or reach out [here](https://airtable.com/shril5UTTVvKVZAFE) to get access to a private repository on [OxenHub](https://hub.oxen.ai).
-
-Once you have access, you can add your API Key with the `oxen config` command
-
-```bash
-$ oxen config --auth-token <TOKEN>
-```
-
-To clone a repository from remote server you can use the URL supplied in [OxenHub](http://hub.oxen.ai) or your own Oxen Server instance.
-
-```bash
-$ oxen clone http://hub.oxen.ai/username/RepoName
-```
-
 ## Pushing the Changes
 
-Your changes are now saved to a commit hash locally, but if you want to share them with colleagues or the world you will have to push them to a remote.
+Once you have committed data locally, and are ready to share them with colleagues (or the world) you will have to push them to a remote.
 
 If you have not yet set a remote, you can do so with
 
 ```bash
-$ oxen remote add origin http://hub.oxen.ai/username/RepoName
+$ oxen remote add origin http://<YOUR_SERVER>/namespace/RepoName
 ```
 
-If you had already set a remote, or cloned from a remote, simply run
+Once a remote is set you can push
 
 ```bash
 $ oxen push origin main
 ```
 
 You can change the remote (origin) and the branch (main) to whichever remote and branch you want to push.
+
+## Clone the Changes
+
+To clone a repository from remote server you can use the URL you provided previously, and pull the changes to a new machine.
+
+```bash
+$ oxen clone http://<YOUR_SERVER>/namespace/RepoName
+```
+
+Note: Due to the potential size of data, you have to navigate into the directory, and pull the specific branch of you want.
+
+```bash
+$ cd RepoName
+$ oxen pull origin main
+```
 
 ## Branching
 
@@ -229,25 +299,43 @@ $ oxen checkout main
 $ oxen merge branch_name
 ```
 
-If there are conflicts, Oxen will flag them and you will need to add and commit the files again in a separate commit.
+If there are conflicts, Oxen will flag them and you will need to add and commit the files again in a separate commit. Oxen currently does not add any modifications to your working file, just flags as conflicting. If you simply want to take your version, just add and commit again.
 
 ```bash
-$ oxen add file/with/conflict.txt
+$ oxen add file/with/conflict.jpg
 $ oxen commit -m "fixing conflict"
 ```
 
-## Log
+## Diff
 
-You can see the history of changes on your current branch with by running.
+If you want to see the differences between your file and the file that is conflicting, you can use the `oxen diff` command.
 
-```bash
-$ oxen log
-```
-
-## Reverting To Commit
-
-If ever you want to go back to a point in your commit history, you can simply supply the commit id to the checkout command.
+Oxen knows how to compare text files as well as [tabular data](Tabular.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
 
 ```bash
-$ oxen checkout COMMIT_ID
+$ oxen diff path/to/file.txt
+
+ i
++here
+ am a text file that
+ greg is modifying
+-la-dee-da
++la-doo-da
++another line
 ```
+
+If the file is tabular data, it will tell you if the schema has changed, as well as the rows or columns that were added or removed. If the file is text data, it will simply show you the added and removed lines.
+
+## Checkout Conflict
+
+Oxen currently has three ways to deal with merge conflicts. 
+
+1) Take the other person's changes `oxen checkout file/with/conflict.jpg --theirs`, then add and commit.
+2) Take the changes in your current working directory (simply have to add and commit again)
+3) Combine tabular data `oxen checkout file/with/conflict.csv --combine`
+
+If you use the `--combine` flag, oxen will concatenate the data frames and unique them based on the row values.
+
+## Support
+
+If you have any questions, comments, suggestions, or just want to get in contact with the team, feel free to email us at `hello@oxen.ai`
