@@ -1,6 +1,6 @@
 use clap::{arg, Arg, Command};
 use env_logger::Env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use liboxen::util;
@@ -128,8 +128,15 @@ async fn main() {
                     Arg::new("filter")
                         .long("filter")
                         .short('f')
-                        .help("An expression to match. Ex) 'label=cat'")
+                        .help("An filter the row data based on an expression. Supported Ops (=, !=, >, <, <= , >=) Supported dtypes (str,int,float)")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::new("vstack")
+                        .long("vstack")
+                        .help("Combine row data from different files. Num columns must match.")
+                        .takes_value(true)
+                        .multiple_values(true),
                 )
                 .arg(
                     Arg::new("take")
@@ -413,12 +420,21 @@ async fn main() {
         Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
 
+            let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack")
+            {
+                let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+                Some(vals)
+            } else {
+                None
+            };
+
             let opts = liboxen::media::DFOpts {
                 output: sub_matches.value_of("output").map(std::path::PathBuf::from),
                 slice: sub_matches.value_of("slice").map(String::from),
                 take: sub_matches.value_of("take").map(String::from),
                 columns: sub_matches.value_of("columns").map(String::from),
                 filter: sub_matches.value_of("filter").map(String::from),
+                vstack,
                 add_col: sub_matches.value_of("add-col").map(String::from),
                 add_row: sub_matches.value_of("add-row").map(String::from),
             };

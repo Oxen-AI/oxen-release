@@ -58,6 +58,7 @@ pub struct DFOpts {
     pub take: Option<String>,
     pub columns: Option<String>,
     pub filter: Option<String>,
+    pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
 }
@@ -70,6 +71,7 @@ impl DFOpts {
             take: None,
             columns: None,
             filter: None,
+            vstack: None,
             add_col: None,
             add_row: None,
         }
@@ -77,21 +79,16 @@ impl DFOpts {
 
     pub fn from_filter_fields(fields: Vec<Field>) -> Self {
         let str_fields: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
-        DFOpts {
-            output: None,
-            slice: None,
-            take: None,
-            columns: Some(str_fields.join(",")),
-            add_col: None,
-            filter: None,
-            add_row: None,
-        }
+        let mut opts = DFOpts::empty();
+        opts.columns = Some(str_fields.join(","));
+        opts
     }
 
     pub fn has_transform(&self) -> bool {
         self.slice.is_some()
             || self.take.is_some()
             || self.columns.is_some()
+            || self.vstack.is_some()
             || self.add_col.is_some()
             || self.add_row.is_some()
             || self.filter.is_some()
