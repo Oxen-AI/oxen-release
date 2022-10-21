@@ -20,13 +20,13 @@ use crate::index::{
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 
-pub struct Indexer {
+pub struct EntryIndexer {
     pub repository: LocalRepository,
 }
 
-impl Indexer {
-    pub fn new(repository: &LocalRepository) -> Result<Indexer, OxenError> {
-        Ok(Indexer {
+impl EntryIndexer {
+    pub fn new(repository: &LocalRepository) -> Result<EntryIndexer, OxenError> {
+        Ok(EntryIndexer {
             repository: repository.clone(),
         })
     }
@@ -669,7 +669,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::Indexer;
+    use crate::index::EntryIndexer;
     use crate::model::RemoteBranch;
     use crate::test;
     use crate::util;
@@ -696,7 +696,7 @@ mod tests {
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
-                let indexer = Indexer::new(&cloned_repo)?;
+                let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
                 let commits = command::log(&repo)?;
@@ -756,7 +756,7 @@ mod tests {
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
-                let indexer = Indexer::new(&cloned_repo)?;
+                let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
                 let commits = command::log(&repo)?;

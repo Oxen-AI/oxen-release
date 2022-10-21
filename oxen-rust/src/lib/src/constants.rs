@@ -11,10 +11,20 @@ pub const REFS_DIR: &str = "refs";
 pub const HISTORY_DIR: &str = "history";
 /// commits/ is a key-value database of commit ids to commit objects
 pub const COMMITS_DB: &str = "commits";
+/// name of the schema db
+pub const SCHEMAS_DIR: &str = "schemas";
+/// prefix for the commit entry files
+pub const FILES_DIR: &str = "files";
+/// prefix for the commit entry dirs
+pub const DIRS_DIR: &str = "dirs";
+/// prefix for the commit indices
+pub const INDICES_DIR: &str = "indices";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
+/// annotations.parquet is the name of the internal annotations file
+pub const ANNOTATIONS_FILENAME: &str = "annotations.csv";
 
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";
@@ -29,3 +39,10 @@ pub const DEFAULT_NAMESPACE: &str = "repositories";
 
 // Commits
 pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
+
+// Internal Tabular Data Names
+pub const ROW_NUM_COL_NAME: &str = "_row_num";
+pub const ROW_HASH_COL_NAME: &str = "_row_hash";
+
+/// Where the commit index lives
+pub const COMMIT_INDEX_KEY: &str = "_commit";
