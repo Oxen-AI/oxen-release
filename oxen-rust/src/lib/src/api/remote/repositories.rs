@@ -49,13 +49,13 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
     }
 }
 
-pub async fn create(
+pub async fn create<S: AsRef<str>>(
     repository: &LocalRepository,
     namespace: &str,
     name: &str,
-    host: &str,
+    host: S,
 ) -> Result<RemoteRepository, OxenError> {
-    let url = api::endpoint::url_from_host(host, "");
+    let url = api::endpoint::url_from_host(host.as_ref(), "");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {} {} {}", url, namespace, name);
@@ -70,7 +70,7 @@ pub async fn create(
             Ok(response) => Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_host(host, namespace, name),
+                    url: api::endpoint::remote_url_from_host(host.as_ref(), namespace, name),
                     name: String::from("origin"),
                 },
             )),
@@ -160,7 +160,7 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
             println!("got repository: {:?}", repository);
             assert_eq!(repository.name, name);
@@ -178,7 +178,7 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
             let url_repo = api::remote::repositories::get_by_remote_repo(&repository)
                 .await?
@@ -201,7 +201,7 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
 
             // delete

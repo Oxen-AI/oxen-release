@@ -684,9 +684,13 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo =
-                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, test::TEST_HOST)
-                    .await?;
+            let remote_repo = command::create_remote(
+                &repo,
+                constants::DEFAULT_NAMESPACE,
+                &name,
+                test::test_host(),
+            )
+            .await?;
 
             command::push(&repo).await?;
 
@@ -739,9 +743,13 @@ mod tests {
             command::commit(&repo, "Adding testing data")?;
 
             // Create remote
-            let remote_repo =
-                command::create_remote(&repo, constants::DEFAULT_NAMESPACE, &name, test::TEST_HOST)
-                    .await?;
+            let remote_repo = command::create_remote(
+                &repo,
+                constants::DEFAULT_NAMESPACE,
+                &name,
+                test::test_host(),
+            )
+            .await?;
 
             // Push it
             command::push(&repo).await?;

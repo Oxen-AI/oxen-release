@@ -58,6 +58,10 @@ To run with all debug output and run a specific test
 
 `env RUST_LOG=warn,liboxen=debug,integration_test=debug cargo test -- --nocapture test_command_push_clone_pull_push`
 
+To set a different test host you can set the `OXEN_TEST_HOST` environment variable
+
+`env OXEN_TEST_HOST=0.0.0.0:4000 cargo test`
+
 # CLI Commands
 
 `oxen init .`

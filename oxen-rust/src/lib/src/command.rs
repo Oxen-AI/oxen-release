@@ -766,13 +766,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Create a remote repository
 /// Takes the current directory name, and creates a repository on the server we can sync to. Returns the remote URL.
-pub async fn create_remote(
+pub async fn create_remote<S: AsRef<str>>(
     repo: &LocalRepository,
     namespace: &str,
     name: &str,
-    host: &str,
+    host: S,
 ) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(repo, namespace, name, host).await
+    api::remote::repositories::create(repo, namespace, name, host.as_ref()).await
 }
 
 /// # Set the remote for a repository
