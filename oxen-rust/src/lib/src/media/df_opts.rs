@@ -45,6 +45,7 @@ impl DFFilterOp {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct DFFilter {
     pub op: DFFilterOp,
     pub field: String,
@@ -61,6 +62,7 @@ pub struct DFOpts {
     pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub should_randomize: bool,
 }
 
 impl DFOpts {
@@ -74,6 +76,7 @@ impl DFOpts {
             vstack: None,
             add_col: None,
             add_row: None,
+            should_randomize: false,
         }
     }
 
@@ -92,6 +95,7 @@ impl DFOpts {
             || self.add_col.is_some()
             || self.add_row.is_some()
             || self.filter.is_some()
+            || self.should_randomize
     }
 
     pub fn slice_indices(&self) -> Option<(i64, i64)> {
@@ -147,7 +151,6 @@ impl DFOpts {
             ];
 
             for op in ops.iter() {
-                log::debug!("Checking op {:?} in filter {}", op, filter);
                 if filter.contains(op.as_str()) {
                     let split = util::str::split_and_trim(&filter, op.as_str());
                     return Some(DFFilter {

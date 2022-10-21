@@ -7,6 +7,8 @@ use crate::model::schema::DataType;
 use crate::util::hasher;
 
 use indicatif::ProgressBar;
+use rand::prelude::SliceRandom;
+use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
@@ -168,6 +170,7 @@ fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilter) -> AnyVal
     {
         val_from_str_and_dtype(&filter.value, value.data_type())
     } else {
+        log::error!("Unknown field {:?}", filter.field);
         AnyValue::Null
     }
 }
@@ -180,11 +183,12 @@ fn lit_from_any(value: &AnyValue) -> Expr {
         AnyValue::Int64(val) => lit(*val),
         AnyValue::Int32(val) => lit(*val),
         AnyValue::Utf8(val) => lit(*val),
-        _ => panic!("Unknown data type to create literal"),
+        val => panic!("Unknown data type for [{}] to create literal", val),
     }
 }
 
 fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
+    log::debug!("Got filter: {:?}", filter);
     let val = val_from_df_and_filter(&df, filter);
     let val = lit_from_any(&val);
     match filter.op {
@@ -198,7 +202,7 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
 }
 
 pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
-    log::debug!("Got filter ops {:?}", opts);
+    log::debug!("Got transform ops {:?}", opts);
 
     if let Some(vstack) = &opts.vstack {
         log::debug!("Got files to stack {:?}", vstack);
@@ -231,6 +235,15 @@ pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenE
             let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
             df = df.select(&cols);
         }
+    }
+
+    if opts.should_randomize {
+        // TODO: Inefficient, but let's release
+        let full_df = df.collect().unwrap();
+        let height = full_df.height() as u32;
+        let mut rand_indicies: Vec<u32> = (0..height).collect();
+        rand_indicies.shuffle(&mut thread_rng());
+        df = take(full_df.lazy(), rand_indicies)?.lazy();
     }
 
     if let Some((offset, len)) = opts.slice_indices() {

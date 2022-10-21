@@ -164,6 +164,11 @@ async fn main() {
                         .help("Add a row and cast to the values to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
                         .takes_value(true),
                 )
+                .arg(
+                    Arg::new("randomize")
+                        .long("randomize")
+                        .help("Randomize the order of the table"),
+                )
         )
         .subcommand(
             Command::new("schemas")
@@ -437,6 +442,7 @@ async fn main() {
                 vstack,
                 add_col: sub_matches.value_of("add-col").map(String::from),
                 add_row: sub_matches.value_of("add-row").map(String::from),
+                should_randomize: sub_matches.is_present("randomize"),
             };
 
             match dispatch::df(path, &opts) {

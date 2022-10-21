@@ -2334,6 +2334,7 @@ dependencies = [
  "num_cpus",
  "openssl",
  "polars",
+ "rand",
  "rayon",
  "reqwest",
  "rocksdb",
