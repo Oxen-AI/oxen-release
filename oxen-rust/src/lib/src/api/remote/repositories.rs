@@ -62,8 +62,9 @@ pub async fn create<S: AsRef<str>>(
 
     let client = client::new()?;
     if let Ok(res) = client.post(url.to_owned()).json(&params).send().await {
+        let status = res.status();
         let body = res.text().await?;
-        // println!("Response: {}", body);
+        log::debug!("Response [{}] {}", status, body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(RemoteRepository::from_view(

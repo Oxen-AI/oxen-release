@@ -1,5 +1,6 @@
 use jwalk::WalkDir;
 
+use simdutf8::compat::from_utf8;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
@@ -10,7 +11,7 @@ use std::{fs, io};
 
 use crate::constants;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository};
+use crate::model::{CommitEntry, LocalRepository, Schema};
 
 pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
     PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
@@ -24,14 +25,38 @@ pub fn repo_exists(repo_path: &Path) -> bool {
     oxen_hidden_dir(repo_path).exists()
 }
 
-pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
-    let topdir = &entry.hash[..2];
-    let subdir = &entry.hash[2..];
-    let version_dir = oxen_hidden_dir(&repo.path)
+pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
+    oxen_hidden_dir(&repo.path)
         .join(constants::VERSIONS_DIR)
+        .join(constants::SCHEMAS_DIR)
+        .join(&schema.hash)
+}
+
+pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
+    schema_version_dir(repo, schema).join("data.arrow")
+}
+
+pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
+    version_path_from_hash_and_file(repo, entry.hash.clone(), entry.filename())
+}
+
+pub fn version_path_from_hash_and_file(
+    repo: &LocalRepository,
+    hash: String,
+    filename: PathBuf,
+) -> PathBuf {
+    let version_dir = version_dir_from_hash(repo, hash);
+    version_dir.join(filename)
+}
+
+pub fn version_dir_from_hash(repo: &LocalRepository, hash: String) -> PathBuf {
+    let topdir = &hash[..2];
+    let subdir = &hash[2..];
+    oxen_hidden_dir(&repo.path)
+        .join(constants::VERSIONS_DIR)
+        .join(constants::FILES_DIR)
         .join(topdir)
-        .join(subdir);
-    version_dir.join(entry.filename())
+        .join(subdir)
 }
 
 pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
@@ -74,15 +99,26 @@ pub fn read_lines_file(file: &File) -> Vec<String> {
     lines
 }
 
-pub fn read_lines(path: &Path) -> Vec<String> {
-    let mut lines: Vec<String> = Vec::new();
-    match File::open(&path) {
-        Ok(file) => lines = read_lines_file(&file),
-        Err(_) => {
-            eprintln!("Could not open staging file {}", path.display())
-        }
+pub fn read_first_line<P: AsRef<Path>>(path: P) -> Result<String, OxenError> {
+    let file = File::open(path.as_ref())?;
+    read_first_line_from_file(&file)
+}
+
+pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
+    let reader = BufReader::new(file);
+    if let Some(Ok(line)) = reader.lines().next() {
+        Ok(line)
+    } else {
+        Err(OxenError::basic_str(format!(
+            "Could not read line from file: {:?}",
+            file
+        )))
     }
-    lines
+}
+
+pub fn read_lines(path: &Path) -> Result<Vec<String>, OxenError> {
+    let file = File::open(&path)?;
+    Ok(read_lines_file(&file))
 }
 
 pub fn read_lines_paginated(path: &Path, start: usize, size: usize) -> Vec<String> {
@@ -228,6 +264,14 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
     Ok(())
 }
 
+pub fn is_tabular(path: &Path) -> bool {
+    let exts: HashSet<String> = vec!["csv", "tsv", "parquet", "arrow", "ndjson", "jsonl"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    contains_ext(path, &exts)
+}
+
 pub fn is_image(path: &Path) -> bool {
     let exts: HashSet<String> = vec!["jpg", "png"].into_iter().map(String::from).collect();
     contains_ext(path, &exts)
@@ -246,6 +290,14 @@ pub fn is_video(path: &Path) -> bool {
 pub fn is_audio(path: &Path) -> bool {
     let exts: HashSet<String> = vec!["mp3", "wav"].into_iter().map(String::from).collect();
     contains_ext(path, &exts)
+}
+
+pub fn is_utf8(path: &Path) -> bool {
+    if let Ok(line) = read_first_line(path) {
+        from_utf8(line.as_bytes()).is_ok()
+    } else {
+        false
+    }
 }
 
 pub fn contains_ext(path: &Path, exts: &HashSet<String>) -> bool {
@@ -517,8 +569,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn version_path() -> Result<(), OxenError> {
+    #[test]
+    fn version_path() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let entry = CommitEntry {
                 commit_id: String::from("1234"),
@@ -533,7 +585,8 @@ mod tests {
             let relative_path = util::fs::path_relative_to_dir(&path, &versions_dir)?;
             assert_eq!(
                 relative_path,
-                Path::new("59")
+                Path::new(constants::FILES_DIR)
+                    .join("59")
                     .join(Path::new("E029D4812AEBF0"))
                     .join(Path::new("1234.txt"))
             );

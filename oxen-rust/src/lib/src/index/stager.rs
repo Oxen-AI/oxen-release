@@ -1,14 +1,15 @@
 use crate::constants;
 use crate::db;
+use crate::db::path_db;
 use crate::error::OxenError;
 use crate::index::{
-    path_db, CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
+    CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
 };
-use crate::model::entry::staged_entry::StagedEntryType;
+
 use crate::model::{
-    CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
-    StagedEntryStatus,
+    CommitEntry, EntryType, LocalRepository, MergeConflict, StagedData, StagedDirStats,
+    StagedEntry, StagedEntryStatus,
 };
 use crate::util;
 
@@ -42,7 +43,7 @@ impl Stager {
     pub fn dirs_db_path(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path)
             .join(Path::new(STAGED_DIR))
-            .join("dirs/")
+            .join(constants::DIRS_DIR)
     }
 
     pub fn new(repository: &LocalRepository) -> Result<Stager, OxenError> {
@@ -556,17 +557,17 @@ impl Stager {
         path: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<PathBuf, OxenError> {
-        self.add_file_with_type(path, entry_reader, StagedEntryType::Regular)
+        self.add_file_with_type(path, entry_reader, EntryType::Regular)
     }
 
     pub fn add_file_with_type(
         &self,
         path: &Path,
         entry_reader: &CommitDirReader,
-        entry_type: StagedEntryType,
+        entry_type: EntryType,
     ) -> Result<PathBuf, OxenError> {
         log::debug!("--- START OXEN ADD {:?} ({:?}) ---", entry_type, path);
-        let relative = self.add_staged_entry(path, entry_reader, StagedEntryType::Regular)?;
+        let relative = self.add_staged_entry(path, entry_reader, entry_type)?;
 
         // We should tracking changes to this parent dir too
         let path_parent = path.parent();
@@ -588,7 +589,7 @@ impl Stager {
         path: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<PathBuf, OxenError> {
-        self.add_staged_entry(path, entry_reader, StagedEntryType::Tabular)
+        self.add_staged_entry(path, entry_reader, EntryType::Tabular)
     }
 
     fn add_file_in_dir_db(
@@ -597,14 +598,14 @@ impl Stager {
         entry_reader: &CommitDirReader,
         staged_db: &StagedDirEntryDB,
     ) -> Result<PathBuf, OxenError> {
-        self.add_staged_entry_in_dir_db(path, entry_reader, StagedEntryType::Regular, staged_db)
+        self.add_staged_entry_in_dir_db(path, entry_reader, EntryType::Regular, staged_db)
     }
 
     fn add_staged_entry(
         &self,
         path: &Path,
         entry_reader: &CommitDirReader,
-        entry_type: StagedEntryType,
+        entry_type: EntryType,
     ) -> Result<PathBuf, OxenError> {
         if let Some(parent) = path.parent() {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
@@ -620,7 +621,7 @@ impl Stager {
         &self,
         path: &Path,
         entry_reader: &CommitDirReader,
-        entry_type: StagedEntryType,
+        entry_type: EntryType,
         staged_db: &StagedDirEntryDB,
     ) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
@@ -1261,6 +1262,7 @@ mod tests {
             // annotations/
             //   README.md
             //   train/
+            //     bounding_box.csv
             //     annotations.txt
             //     two_shot.txt
             //     one_shot.txt
@@ -1278,7 +1280,7 @@ mod tests {
 
             // With recursive files
             let added_dir = dirs.get(&annotations_dir).unwrap();
-            assert_eq!(added_dir.num_files_staged, 5);
+            assert_eq!(added_dir.num_files_staged, 6);
 
             Ok(())
         })

@@ -1,6 +1,6 @@
 use crate::error::OxenError;
 use crate::index::{CommitReader, RefReader};
-use crate::model::LocalRepository;
+use crate::model::{Commit, LocalRepository};
 
 use std::path::{Path, PathBuf};
 
@@ -55,6 +55,53 @@ pub fn parse_resource(
     }
 
     Ok(None)
+}
+
+/// Pass in a branch name and maybe get a commit id back
+pub fn maybe_get_commit_id_from_branch_name<S: AsRef<str>>(
+    repo: &LocalRepository,
+    commit_id_or_branch_name: S,
+) -> Result<Option<String>, OxenError> {
+    let ref_reader = RefReader::new(repo)?;
+    ref_reader.get_commit_id_for_branch(commit_id_or_branch_name.as_ref())
+}
+
+/// Pass in a commit id or a branch name and resolve it to a
+pub fn maybe_get_commit<S: AsRef<str>>(
+    repo: &LocalRepository,
+    commit_id_or_branch_name: S,
+) -> Result<Option<Commit>, OxenError> {
+    let commit_reader = CommitReader::new(repo)?;
+    if let Some(commit) = commit_reader.get_commit_by_id(&commit_id_or_branch_name)? {
+        return Ok(Some(commit));
+    }
+
+    match maybe_get_commit_id_from_branch_name(repo, &commit_id_or_branch_name) {
+        Ok(Some(commit_id)) => commit_reader.get_commit_by_id(commit_id),
+        Ok(None) => Err(OxenError::local_commit_or_branch_not_found(
+            commit_id_or_branch_name.as_ref(),
+        )),
+        Err(err) => Err(err),
+    }
+}
+
+pub fn get_head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    committer.head_commit()
+}
+
+pub fn get_commit_or_head<S: AsRef<str>>(
+    repo: &LocalRepository,
+    commit_id_or_branch_name: Option<S>,
+) -> Result<Commit, OxenError> {
+    if commit_id_or_branch_name.is_none() {
+        return get_head_commit(repo);
+    }
+
+    match maybe_get_commit(repo, commit_id_or_branch_name.unwrap().as_ref()) {
+        Ok(Some(commit)) => Ok(commit),
+        _ => get_head_commit(repo),
+    }
 }
 
 #[cfg(test)]

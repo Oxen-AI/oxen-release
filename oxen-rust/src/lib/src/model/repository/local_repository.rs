@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::Indexer;
+use crate::index::EntryIndexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
@@ -200,7 +200,7 @@ impl LocalRepository {
         util::fs::write_to_path(&repo_config_file, &toml);
 
         // Pull all commit objects, but not entries
-        let indexer = Indexer::new(&local_repo)?;
+        let indexer = EntryIndexer::new(&local_repo)?;
         indexer
             .pull_all_commit_objects(&repo, &RemoteBranch::default())
             .await?;

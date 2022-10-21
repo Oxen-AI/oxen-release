@@ -6,14 +6,23 @@
 use crate::api;
 use crate::constants;
 use crate::error::OxenError;
+use crate::index::differ;
+use crate::index::schema_writer::SchemaWriter;
+use crate::index::SchemaReader;
 use crate::index::{
-    CommitDirReader, CommitReader, CommitWriter, Indexer, Merger, RefReader, RefWriter, Stager,
+    CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
+    RefReader, RefWriter, Stager,
 };
-use crate::media::tabular;
-use crate::model::entry::staged_entry::StagedEntryType;
-use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
-use crate::util;
+use crate::media::{df_opts::DFOpts, tabular};
+use crate::model::Schema;
+use crate::model::{
+    Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
+};
 
+use crate::util;
+use crate::util::resource;
+
+use bytevec::ByteDecodable;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -184,24 +193,101 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     if !path.is_file() {
-        return Err(OxenError::basic_str("Err: path must be valid file"));
+        log::warn!("Could not find file {:?}", path);
+        return Err(OxenError::basic_str(
+            "Err: oxen add -d <path> must be valid file",
+        ));
     }
 
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add_file_with_type(path.as_ref(), &reader, StagedEntryType::Tabular)?;
+    stager.add_file_with_type(path.as_ref(), &reader, EntryType::Tabular)?;
     Ok(())
 }
 
-pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
-    input: P,
-    query: Option<S>,
-    output: Option<P>,
-) -> Result<(), OxenError> {
-    tabular::transform_table(input, query, output).await?;
+/// Interact with dataframes from CLI
+pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
+    let mut df = tabular::show_path(input, opts)?;
+
+    if let Some(output) = &opts.output {
+        println!("Writing {:?}", output);
+        tabular::write_df(&mut df, output)?;
+    }
 
     Ok(())
+}
+
+/// Read the saved off schemas for a commit id
+pub fn schema_list(
+    repo: &LocalRepository,
+    commit_id: Option<&str>,
+) -> Result<Vec<Schema>, OxenError> {
+    if let Some(commit_id) = commit_id {
+        if let Some(commit) = commit_from_branch_or_commit_id(repo, commit_id)? {
+            let schema_reader = SchemaReader::new(repo, &commit.id)?;
+            schema_reader.list()
+        } else {
+            Err(OxenError::commit_id_does_not_exist(commit_id))
+        }
+    } else {
+        let head_commit = head_commit(repo)?;
+        let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
+        schema_reader.list()
+    }
+}
+
+pub fn schema_show(
+    repo: &LocalRepository,
+    commit_id: Option<&str>,
+    name_or_hash: &str,
+) -> Result<Option<Schema>, OxenError> {
+    // The list of schemas should not be too long, so just filter right now
+    let list: Vec<Schema> = schema_list(repo, commit_id)?
+        .into_iter()
+        .filter(|s| s.name == Some(String::from(name_or_hash)) || s.hash == *name_or_hash)
+        .collect();
+    if !list.is_empty() {
+        Ok(Some(list.first().unwrap().clone()))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn schema_name(
+    repo: &LocalRepository,
+    hash: &str,
+    val: &str,
+) -> Result<Option<Schema>, OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), hash)? {
+        let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
+        schema.name = Some(String::from(val));
+        let schema = schema_writer.update_schema(&schema)?;
+        Ok(Some(schema))
+    } else {
+        Ok(None)
+    }
+}
+
+fn commit_from_branch_or_commit_id<S: AsRef<str>>(
+    repo: &LocalRepository,
+    val: S,
+) -> Result<Option<Commit>, OxenError> {
+    let val = val.as_ref();
+    let commit_reader = CommitReader::new(repo)?;
+    if let Some(commit) = commit_reader.get_commit_by_id(val)? {
+        return Ok(Some(commit));
+    }
+
+    let ref_reader = RefReader::new(repo)?;
+    if let Some(branch) = ref_reader.get_branch_by_name(val)? {
+        if let Some(commit) = commit_reader.get_commit_by_id(branch.commit_id)? {
+            return Ok(Some(commit));
+        }
+    }
+
+    Ok(None)
 }
 
 /// # Restore a removed file that was committed
@@ -228,21 +314,25 @@ pub async fn transform_table<P: AsRef<Path>, S: AsRef<str>>(
 /// command::add(&repo, &hello_path)?;
 ///
 /// // Commit staged
-/// command::commit(&repo, "My commit message")?;
+/// let commit = command::commit(&repo, "My commit message")?.unwrap();
 ///
 /// // Remove the file from disk
 /// std::fs::remove_file(hello_path)?;
 ///
 /// // Restore the file
-/// command::restore(&repo, hello_name)?;
+/// command::restore(&repo, Some(&commit.id), hello_name)?;
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn restore<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+pub fn restore<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    commit_or_branch: Option<&str>,
+    path: P,
+) -> Result<(), OxenError> {
     let path = path.as_ref();
-    let commit = head_commit(repo)?;
+    let commit = resource::get_commit_or_head(repo, commit_or_branch)?;
     let reader = CommitDirReader::new(repo, &commit)?;
 
     if let Some(entry) = reader.get_entry(path)? {
@@ -457,6 +547,72 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
     Ok(())
 }
 
+/// # Checkout a file and take their changes
+/// This overwrites the current file with the changes in the branch we are merging in
+pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let merger = MergeConflictReader::new(repo)?;
+    let conflicts = merger.list_conflicts()?;
+
+    // find the path that matches in the conflict, throw error if !found
+    if let Some(conflict) = conflicts
+        .iter()
+        .find(|c| c.merge_entry.path == path.as_ref())
+    {
+        // Lookup the file for the merge commit entry and copy it over
+        restore(repo, Some(&conflict.merge_entry.commit_id), path)
+    } else {
+        Err(OxenError::could_not_find_merge_conflict(path))
+    }
+}
+
+/// # Combine Conflicting Tabular Data Files
+/// This overwrites the current file with the changes in their file
+pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let merger = MergeConflictReader::new(repo)?;
+    let conflicts = merger.list_conflicts()?;
+
+    // find the path that matches in the conflict, throw error if !found
+    if let Some(conflict) = conflicts
+        .iter()
+        .find(|c| c.merge_entry.path == path.as_ref())
+    {
+        if util::fs::is_tabular(&conflict.head_entry.path) {
+            let opts = DFOpts::empty();
+
+            let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
+            let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
+            let df_head = tabular::read_df(&df_head_path, &opts)?;
+            let df_merge = tabular::read_df(&df_merge_path, &opts)?;
+
+            log::debug!("GOT DF HEAD {}", df_head);
+            log::debug!("GOT DF MERGE {}", df_merge);
+
+            match df_head.vstack(&df_merge) {
+                Ok(result) => {
+                    log::debug!("GOT DF COMBINED {}", result);
+                    match result.unique(None, polars::frame::UniqueKeepStrategy::First) {
+                        Ok(mut uniq) => {
+                            log::debug!("GOT DF COMBINED UNIQUE {}", uniq);
+                            let output_path = repo.path.join(&conflict.head_entry.path);
+                            tabular::write_df(&mut uniq, &output_path)
+                        }
+                        _ => Err(OxenError::basic_str("Could not uniq data")),
+                    }
+                }
+                _ => Err(OxenError::basic_str(
+                    "Could not combine data, make sure schema's match",
+                )),
+            }
+        } else {
+            Err(OxenError::basic_str(
+                "Cannot use --combine on non-tabular data file.",
+            ))
+        }
+    } else {
+        Err(OxenError::could_not_find_merge_conflict(path))
+    }
+}
+
 fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
     commit_writer.set_working_repo_to_branch(name)
@@ -605,9 +761,7 @@ pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// # Get the current commit
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let committer = CommitReader::new(repo)?;
-    let commit = committer.head_commit()?;
-    Ok(commit)
+    resource::get_head_commit(repo)
 }
 
 /// # Create a remote repository
@@ -677,7 +831,7 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// # }
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer.push(&rb).await
 }
@@ -688,7 +842,7 @@ pub async fn push_remote_branch(
     remote: &str,
     branch: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
         branch: String::from(branch),
@@ -707,16 +861,20 @@ pub async fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> 
 
 /// Pull a repository's data from origin/main
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer.pull(&rb).await?;
     Ok(())
 }
 
 /// Diff a file from commit history
-pub async fn diff(repo: &LocalRepository, commit_id: &str, path: &str) -> Result<(), OxenError> {
-    tabular::diff(repo, path, commit_id).await?;
-    Ok(())
+pub async fn diff(
+    repo: &LocalRepository,
+    commit_id_or_branch: Option<&str>,
+    path: &str,
+) -> Result<String, OxenError> {
+    let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
+    differ::diff(repo, Some(&commit.id), path).await
 }
 
 /// Pull a specific origin and branch
@@ -725,7 +883,7 @@ pub async fn pull_remote_branch(
     remote: &str,
     branch: &str,
 ) -> Result<(), OxenError> {
-    let indexer = Indexer::new(repo)?;
+    let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch {
         remote: String::from(remote),
         branch: String::from(branch),
@@ -741,7 +899,10 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
     let db = DB::open_for_read_only(&opts, path, false)?;
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
-        if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
+        // try to decode u32 first (hacky but only two types we inspect right now)
+        if let (Ok(key), Ok(value)) = (str::from_utf8(&key), u32::decode::<u8>(&value)) {
+            println!("{}\t{}", key, value)
+        } else if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
             println!("{}\t{}", key, value)
         }
     }
