@@ -97,7 +97,7 @@ pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<Lazy
 
     let column = Series::new_empty(name, &dtype);
     let column = column
-        .extend_constant(AnyValue::Utf8(val), df.height())
+        .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .expect("Could not extend df");
     df.with_column(column).expect(READ_ERROR);
     let df = df.lazy();
@@ -157,7 +157,8 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
             AnyValue::Float64(s.parse::<f64>().expect("must be f64"))
         }
         polars::prelude::DataType::Utf8 => AnyValue::Utf8(s),
-        _ => panic!("Currently do not support data type"),
+        polars::prelude::DataType::Null => AnyValue::Null,
+        _ => panic!("Currently do not support data type {}", dtype),
     }
 }
 
