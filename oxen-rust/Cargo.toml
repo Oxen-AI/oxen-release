@@ -45,7 +45,7 @@ xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
 lazy_static = "1.4.0"
 jsonwebtoken = "8"
 x25519-dalek = "1.2.0"
-rand = "0.8.0"
+rand = "0.8.5"
 rand_core = "0.5"
 derive_more = "0.99.17"
 hex = "0.4.3"
