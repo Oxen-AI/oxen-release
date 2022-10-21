@@ -392,7 +392,7 @@ $ oxen diff path/to/file.txt
 +another line
 ```
 
-## Checkout Conflict
+## Dealing With Merge Conflicts
 
 Oxen currently has three ways to deal with merge conflicts. 
 
