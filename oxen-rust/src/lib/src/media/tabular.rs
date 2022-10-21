@@ -11,6 +11,8 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
 
+use super::df_opts::{DFFilter, DFFilterOp};
+
 const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
 const READ_ERROR: &str = "Could not read tabular data from path";
 
@@ -112,94 +114,87 @@ pub fn add_row(df: LazyFrame, vals: Vec<String>) -> Result<LazyFrame, OxenError>
         return Err(OxenError::basic_str(err));
     }
 
-    // TODO: This probably isn't the best way to do this...but it works
     let mut series: Vec<Series> = vec![];
     for (i, field) in df.fields().iter().enumerate() {
-        let s: Series = match field.data_type() {
-            polars::prelude::DataType::Boolean => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Boolean(
-                    vals[i].parse::<bool>().expect("must be bool"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::UInt8 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::UInt8(vals[i].parse::<u8>().expect("must be u8"))],
-            )
-            .unwrap(),
-            polars::prelude::DataType::UInt16 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::UInt16(
-                    vals[i].parse::<u16>().expect("must be u16"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::UInt32 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::UInt32(
-                    vals[i].parse::<u32>().expect("must be u32"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::UInt64 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::UInt64(
-                    vals[i].parse::<u64>().expect("must be u64"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Int8 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Int8(vals[i].parse::<i8>().expect("must be i8"))],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Int16 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Int16(
-                    vals[i].parse::<i16>().expect("must be i16"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Int32 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Int32(
-                    vals[i].parse::<i32>().expect("must be i32"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Int64 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Int64(
-                    vals[i].parse::<i64>().expect("must be i64"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Float32 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Float32(
-                    vals[i].parse::<f32>().expect("must be f32"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Float64 => Series::from_any_values(
-                &field.name,
-                &[AnyValue::Float64(
-                    vals[i].parse::<f64>().expect("must be f64"),
-                )],
-            )
-            .unwrap(),
-            polars::prelude::DataType::Utf8 => {
-                Series::from_any_values(&field.name, &[AnyValue::Utf8(&vals[i])]).unwrap()
-            }
-            _ => panic!("Could not map type in add_row"),
-        };
+        let s: Series = Series::from_any_values(
+            &field.name,
+            &[val_from_str_and_dtype(&vals[i], field.data_type())],
+        )
+        .expect("Could not create col from row val");
         series.push(s);
     }
 
     let new_row = DataFrame::new(series).unwrap();
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
+}
+
+fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {
+    match dtype {
+        polars::prelude::DataType::Boolean => {
+            AnyValue::Boolean(s.parse::<bool>().expect("val must be bool"))
+        }
+        polars::prelude::DataType::UInt8 => AnyValue::UInt8(s.parse::<u8>().expect("must be u8")),
+        polars::prelude::DataType::UInt16 => {
+            AnyValue::UInt16(s.parse::<u16>().expect("must be u16"))
+        }
+        polars::prelude::DataType::UInt32 => {
+            AnyValue::UInt32(s.parse::<u32>().expect("must be u32"))
+        }
+        polars::prelude::DataType::UInt64 => {
+            AnyValue::UInt64(s.parse::<u64>().expect("must be u64"))
+        }
+        polars::prelude::DataType::Int8 => AnyValue::Int8(s.parse::<i8>().expect("must be i8")),
+        polars::prelude::DataType::Int16 => AnyValue::Int16(s.parse::<i16>().expect("must be i16")),
+        polars::prelude::DataType::Int32 => AnyValue::Int32(s.parse::<i32>().expect("must be i32")),
+        polars::prelude::DataType::Int64 => AnyValue::Int64(s.parse::<i64>().expect("must be i64")),
+        polars::prelude::DataType::Float32 => {
+            AnyValue::Float32(s.parse::<f32>().expect("must be f32"))
+        }
+        polars::prelude::DataType::Float64 => {
+            AnyValue::Float64(s.parse::<f64>().expect("must be f64"))
+        }
+        polars::prelude::DataType::Utf8 => AnyValue::Utf8(s),
+        _ => panic!("Currently do not support data type"),
+    }
+}
+
+fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilter) -> AnyValue<'a> {
+    if let Some(value) = df
+        .schema()
+        .unwrap()
+        .iter_fields()
+        .find(|f| f.name == filter.field)
+    {
+        val_from_str_and_dtype(&filter.value, value.data_type())
+    } else {
+        AnyValue::Null
+    }
+}
+
+fn lit_from_any(value: &AnyValue) -> Expr {
+    match value {
+        AnyValue::Boolean(val) => lit(*val),
+        AnyValue::Float64(val) => lit(*val),
+        AnyValue::Float32(val) => lit(*val),
+        AnyValue::Int64(val) => lit(*val),
+        AnyValue::Int32(val) => lit(*val),
+        AnyValue::Utf8(val) => lit(*val),
+        _ => panic!("Unknown data type to create literal"),
+    }
+}
+
+fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
+    let val = val_from_df_and_filter(&df, filter);
+    let val = lit_from_any(&val);
+    match filter.op {
+        DFFilterOp::EQ => Ok(df.filter(col(&filter.field).eq(val))),
+        DFFilterOp::GT => Ok(df.filter(col(&filter.field).gt(val))),
+        DFFilterOp::LT => Ok(df.filter(col(&filter.field).lt(val))),
+        DFFilterOp::GTE => Ok(df.filter(col(&filter.field).gt_eq(val))),
+        DFFilterOp::LTE => Ok(df.filter(col(&filter.field).lt_eq(val))),
+        DFFilterOp::NEQ => Ok(df.filter(col(&filter.field).neq(val))),
+    }
 }
 
 pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
@@ -211,6 +206,10 @@ pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenE
 
     if let Some(col_vals) = opts.add_col_vals() {
         df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+    }
+
+    if let Some(filter) = opts.get_filter() {
+        df = filter_df(df, &filter)?;
     }
 
     if let Some(columns) = opts.columns_names() {
