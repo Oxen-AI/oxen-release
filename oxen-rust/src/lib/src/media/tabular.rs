@@ -162,7 +162,7 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
 fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilter) -> AnyValue<'a> {
     if let Some(value) = df
         .schema()
-        .unwrap()
+        .expect("Unable to get schema from data frame")
         .iter_fields()
         .find(|f| f.name == filter.field)
     {
@@ -199,6 +199,20 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
 
 pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got filter ops {:?}", opts);
+
+    if let Some(vstack) = &opts.vstack {
+        log::debug!("Got files to stack {:?}", vstack);
+        for path in vstack.iter() {
+            let opts = DFOpts::empty();
+            let new_df = read_df(path, &opts).expect(READ_ERROR);
+            df = df
+                .collect()
+                .expect(READ_ERROR)
+                .vstack(&new_df)
+                .unwrap()
+                .lazy();
+        }
+    }
 
     if let Some(row_vals) = opts.add_row_vals() {
         df = add_row(df, row_vals)?;
