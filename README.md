@@ -312,6 +312,74 @@ If you want to see the differences between your file and the file that is confli
 
 Oxen knows how to compare text files as well as [tabular data](Tabular.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
 
+If the file is tabular data `oxen diff` will show you the rows that were added or removed.
+
+```bash
+$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
+$ oxen diff annotations/data.csv 
+
+Added Rows
+
+╭───────────────────┬───────┬───────┬───────┬───────┬────────╮
+│ file              ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/my_cat.jpg ┆ cat   ┆ 0     ┆ 0     ┆ 0     ┆ 0      │
+╰───────────────────┴───────┴───────┴───────┴───────┴────────╯
+ 1 Rows x 6 Columns
+```
+
+If the tabular data schema has changed `oxen diff` will flag and show you the columns that were added.
+
+```bash
+$ oxen df annotations/data.csv --add-col 'is_fluffy:unknown:str' -o annotations/data.csv
+$ oxen diff annotations/data.csv
+
+Added Cols
+shape: (10001, 1)
+┌───────────┐
+│ is_fluffy │
+│ ---       │
+│ str       │
+╞═══════════╡
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...       │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+└───────────┘
+
+
+Schema has changed
+
+Old
++------+-------+-------+-------+-------+--------+
+| file | label | min_x | min_y | width | height |
+| ---  | ---   | ---   | ---   | ---   | ---    |
+| str  | str   | f64   | f64   | f64   | f64    |
++------+-------+-------+-------+-------+--------+
+
+Current
++------+-------+-------+-------+-------+--------+-----------+
+| file | label | min_x | min_y | width | height | is_fluffy |
+| ---  | ---   | ---   | ---   | ---   | ---    | ---       |
+| str  | str   | f64   | f64   | f64   | f64    | str       |
++------+-------+-------+-------+-------+--------+-----------+
+```
+
+If the file is any other type of text data, it will simply show you the added and removed lines.
+
 ```bash
 $ oxen diff path/to/file.txt
 
@@ -323,8 +391,6 @@ $ oxen diff path/to/file.txt
 +la-doo-da
 +another line
 ```
-
-If the file is tabular data, it will tell you if the schema has changed, as well as the rows or columns that were added or removed. If the file is text data, it will simply show you the added and removed lines.
 
 ## Checkout Conflict
 
