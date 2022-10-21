@@ -5,13 +5,174 @@
 
 Companies have large sets of annotations, that change over time, given different models or workflows. Oxen helps you track changes to these annotations, giving attribution to who changed what, and letting you roll back to any version.
 
+Annotations could come from models, and it would be nice to quickly find error cases and flag them for fixing. Human could fix...then eventually AI could fix?
+
+Data Value Chain
+
+- Who annotated?
+- When annotated?
+
+Operations we want to be able to do
+
+- Iterate over annotations within schema (bounding box)
+- Iterate over annotations within commit within schema
+- Compare annotations between commits
+    - Find me all the rows that reference file=="path/to/file.jpg" on this commit
+    - Find me all the rows that reference label=="person" on this commit
+- Find all annotations from a user (this is within a commit within a schema, already have)
+- Find me all annotations that have a property
+    - If we keep references to the csvs that they came from, we could join them all, and run a big query
+
+- Find me all annotations from Greg
+- Find me all annotations with field X
+    - Would have to index on field X and know schema
+
+How do we not save every complete version of the giant table if just one row changes?
+......
+
+FIRST STEP
+
+1) If a tabular file is added/committed
+    - Compute row level hashes
+    - Check if arrow file for schema exists
+        - If not, project _row_num, then save off each row with an index to disk in rocksdb
+            - .oxen/versions/schemas/SCHEMA_HASH/data.arrow
+        - If it already exists
+            - Loop over the hashes
+            - filter to ones that do not exist
+            - append to data.arrow file with new indices that start at num_rows
+
+    - `oxen schema "schema-name" df` will read from that schema hash
+
+2) Add ability to quickly fetch indices from tabular file or paginate
+    - /namespace/reponame/rows/commit/file/
+
+-- RELEASE 
+
+1) Let's do `oxen index -s "bounding_box" -c "file"` to keep track of individual annotations
+    - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
+    - You should be able to add one from CLI too without reading from a file
+        - OR just add a row to a file, add, commit, boom
+    - You should be able to POST one from the API
+        - Same thing, where do you want to store the annotation?
+    - You should be able to list all annotations from a repo, hence the annotations/ dir in the commit history
+
+
+
+Start with
+    1) Look at a column with name, default to "file" field
+        
+        `oxen index -t path/to/annotations.csv -n "bounding_box" -f "file"`
+
+    2) Save off the schema we just indexed for reference
+        
+        `oxen schema list`
+        
+        `oxen schema name eh219ehdj "bounding_box"`
+
+    3) Save off row indicies and file content hash pointers to the annotations dir
+
+        Ex) Query
+            Find all the rows (annotations) that belong to a key-val pair
+
+            Find all the rows that have the schema.bounding_box.file key == val
+
+            Find all the rows that have the schema.bounding_box.label key == val
+
+            Compare these between commits
+
+            1) Does this schema name + key exist? find the schema hash
+            2) Use the schema hash + index key to look up all the values associated with the val
+            3) Find all row hashes for that commit (don't need to look in the actual file until you diff)
+            4) Once you find the differing row hashes, you can find the actual rows
+
+
+        .oxen/versions/
+            files/
+                64/djskal213u/
+                    contents.jpg
+            schemas/
+                <schema_hash>/
+                    data.arrow
+
+                    Table we can index into to fetch subsets of data within that schema
+                    ┌──────────┬─────────────────┬────────┬────────┬────────┬─────────┬────────┬──────────────────────┐
+                    │ _row_num ┆ file            ┆  min_x ┆  min_y ┆  width ┆  height ┆  label ┆ _row_hash            │
+                    │ ---      ┆ ---             ┆ ---    ┆ ---    ┆ ---    ┆ ---     ┆ ---    ┆ ---                  │
+                    │ u32      ┆ str             ┆ f64    ┆ f64    ┆ i64    ┆ i64     ┆ str    ┆ u64                  │
+                    ╞══════════╪═════════════════╪════════╪════════╪════════╪═════════╪════════╪══════════════════════╡
+                    │ 0        ┆ train/dog_1.jpg ┆ 101.5  ┆ 32.0   ┆ 385    ┆ 330     ┆  dog   ┆ 13847739145289729341 │
+                    ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+                    │ 1        ┆ train/dog_2.jpg ┆ 7.0    ┆ 29.5   ┆ 246    ┆ 247     ┆  dog   ┆ 4093957427354320470  │
+                    ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+                    │ 2        ┆ train/cat_2.jpg ┆ 30.5   ┆ 44.0   ┆ 333    ┆ 396     ┆  cat   ┆ 5654731161486190892  │
+                    ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+                    │ 3        ┆ train/cat_3.jpg ┆ 41.0   ┆ 31.5   ┆ 410    ┆ 427     ┆  cat   ┆ 13668079964704054171 │
+                    └──────────┴─────────────────┴────────┴────────┴────────┴─────────┴────────┴──────────────────────┘
+
+            files/
+                FI/LE_HASH/
+                    contents.jpg
+
+        .oxen/history/
+            commit_id/ (has 4 top level objects "files", "dirs", "schemas", "indexes")
+                schemas/
+                    ROCKS_DB
+                        schema_hash => { schema obj }
+                indices/
+                    <schema_hash>/
+                        files/
+                            <file_name_hash>/ (file name hash)
+                                ROCKSDB
+                                    row_hash => {row_num_og, row_num_arrow}
+
+                        fields/ ("file" or "label" or "whatever aggregate query you want")
+                            field.name/
+                                index_val_hash/ ("path/to/file.jpg" or "person")
+                                    ROCKSDB
+                                        row_hash => { (now we can diff between commits, based on the query)
+                                            _row_num, (in .arrow file)
+                                        }
+                dirs/
+                files/
+                    path/
+                        to/
+                            dir/
+                                file_name -> file_hash (get us to the versions dir)  
+
+
+
+Would we want to index the filenames 
+
+/path/to/file.jpg -> HASH
+HASH -> /path/to/file.jpg
+
+Find all the files that have a certain field in 
+
+oxen query schema_name.category == Person
+    - Slow
+    - Could index to make faster
+
+oxen index bbox.category
+
+    person -> HASH_1,HASH_2,HASH_3
+    car -> HASH_4
+    elephant -> HASH_5
+
+oxen search bbox.category == 'person'
+
 # Annotation Obj
 
 - _id
 - created_at
 - created_by
-- file.csv:row_hash
+- schema_name
+- file.csv
+- hash
 - body
+
+
+# 
 
 # Commands
 

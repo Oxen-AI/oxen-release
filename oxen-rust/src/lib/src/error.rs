@@ -4,7 +4,11 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+use crate::model::Schema;
+
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
+
+pub const HEAD_NOT_FOUND: &str = "HEAD not found";
 
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
     "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
@@ -51,11 +55,27 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str("Err: HEAD not found")
+        OxenError::basic_str(HEAD_NOT_FOUND)
     }
 
     pub fn remote_not_set() -> OxenError {
-        OxenError::basic_str("Err: Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n")
+        OxenError::basic_str(
+            "Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n",
+        )
+    }
+
+    pub fn no_schemas_found() -> OxenError {
+        OxenError::basic_str(
+            "No schemas found\n\nAdd and commit a tabular data file with:\n\n  oxen add path/to/file.csv\n  oxen commit -m \"adding data\"\n",
+        )
+    }
+
+    pub fn schema_has_changed(old_schema: Schema, current_schema: Schema) -> OxenError {
+        let err = format!(
+            "\nSchema has changed\n\nOld\n{}\n\nCurrent\n{}\n",
+            old_schema, current_schema
+        );
+        OxenError::basic_str(&err)
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
@@ -77,7 +97,7 @@ impl OxenError {
     }
 
     pub fn commit_id_does_not_exist<T: AsRef<str>>(commit_id: T) -> OxenError {
-        let err = format!("Error: could not find commit: {}", commit_id.as_ref());
+        let err = format!("Could not find commit: {}", commit_id.as_ref());
         OxenError::basic_str(&err)
     }
 
@@ -88,6 +108,18 @@ impl OxenError {
 
     pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File does not exist: {:?}", path.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
+        path: P,
+        commit_id: S,
+    ) -> OxenError {
+        let err = format!(
+            "File {:?} does not exist in commit {}",
+            path.as_ref(),
+            commit_id.as_ref()
+        );
         OxenError::basic_str(&err)
     }
 
@@ -106,6 +138,19 @@ impl OxenError {
             "Local branch or commit reference `{}` not found",
             name.as_ref()
         );
+        OxenError::basic_str(&err)
+    }
+
+    pub fn could_not_find_merge_conflict<P: AsRef<Path>>(path: P) -> OxenError {
+        let err = format!(
+            "Could not find merge conflict for path: {:?}",
+            path.as_ref()
+        );
+        OxenError::basic_str(&err)
+    }
+
+    pub fn could_not_decode_value_for_key_error<S: AsRef<str>>(key: S) -> OxenError {
+        let err = format!("Could not decode value for key: {:?}", key.as_ref());
         OxenError::basic_str(&err)
     }
 }

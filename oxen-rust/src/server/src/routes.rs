@@ -11,13 +11,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}",
         web::get().to(controllers::repositories::index),
     )
-    .route(
-        "/{namespace}/{repo_name}",
-        web::get().to(controllers::repositories::show),
-    )
-    .route(
-        "/{namespace}/{repo_name}",
-        web::delete().to(controllers::repositories::delete),
+    .service(web::resource("/{namespace}/{repo_name}")
+        // we give the resource a name here so it can be used with HttpRequest.url_for
+        .name("repo_root")
+        .route(web::get().to(controllers::repositories::show))
+        .route(web::delete().to(controllers::repositories::delete))
     )
     // ----- Commits ----- //
     .route(

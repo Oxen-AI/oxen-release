@@ -1,6 +1,6 @@
 use clap::{arg, Arg, Command};
 use env_logger::Env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use liboxen::util;
@@ -106,24 +106,84 @@ async fn main() {
         )
         .subcommand(Command::new("log").about("See log of commits"))
         .subcommand(
-            Command::new("show")
-                .about("Displays a preview of the file. Supported types: csv, tsv, ndjson, jsonl, parq.")
-                .arg(arg!(<PATH> ... "The file path you want to show."))
+            Command::new("df")
+                .about("View and transform data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.")
+                .arg(arg!(<PATH> ... "The file path you want to process."))
                 .arg_required_else_help(true)
-                .arg(
-                    Arg::new("query")
-                        .long("query")
-                        .short('q')
-                        .help("Query the data file.")
-                        .default_value("select * from data limit 10")
-                        .takes_value(true),
-                )
                 .arg(
                     Arg::new("output")
                         .long("output")
                         .short('o')
-                        .help("Where to save the transformed data")
+                        .help("Output file to store the transformed data")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::new("columns")
+                        .long("columns")
+                        .short('c')
+                        .help("A comma separated set of columns names to look at. Ex file,x,y")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("filter")
+                        .long("filter")
+                        .short('f')
+                        .help("An filter the row data based on an expression. Supported Ops (=, !=, >, <, <= , >=) Supported dtypes (str,int,float)")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("vstack")
+                        .long("vstack")
+                        .help("Combine row data from different files. The number of columns must match.")
+                        .takes_value(true)
+                        .multiple_values(true),
+                )
+                .arg(
+                    Arg::new("slice")
+                        .long("slice")
+                        .short('s')
+                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("take")
+                        .long("take")
+                        .short('t')
+                        .help("A comma separated set of row indices to look at. Ex 1,22,313")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("add-col")
+                        .long("add-col")
+                        .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("add-row")
+                        .long("add-row")
+                        .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("randomize")
+                        .long("randomize")
+                        .help("Randomize the order of the table"),
+                )
+        )
+        .subcommand(
+            Command::new("schemas")
+                .about("Manage schemas that are created from committing tabular data")
+                .subcommand(
+                    Command::new("list")
+                )
+                .subcommand(
+                    Command::new("show")
+                        .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view."))
+                )
+                .subcommand(
+                    Command::new("name")
+                        .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
+                        .arg(Arg::new("NAME").help("Name of the schema."))
                 )
         )
         .subcommand(
@@ -131,18 +191,11 @@ async fn main() {
                 .about("Adds the specified files or directories")
                 .arg(arg!(<PATH> ... "The files or directory to add"))
                 .arg_required_else_help(true)
-                .arg(
-                    Arg::new("annotations")
-                        .long("annotations")
-                        .short('a')
-                        .help("Add row level tracking on an annotation file. Supported types: csv, tsv, ndjson, jsonl, parq.")
-                        .takes_value(false),
-                )
         )
         .subcommand(
             Command::new("restore")
-                .about("Restories the specified file or directory")
-                .arg(arg!(<PATH> ... "File to restore from current working tree"))
+                .about("Restores the specified file or directory")
+                .arg(Arg::new("PATH").multiple_values(true))
                 .arg_required_else_help(true),
         )
         .subcommand(
@@ -189,7 +242,7 @@ async fn main() {
         .subcommand(
             Command::new("checkout")
                 .about("Checks out a branches in the repository")
-                .arg(Arg::new("name").help("Name of the branch").exclusive(true))
+                .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
                 .arg(
                     Arg::new("create")
                         .long("branch")
@@ -197,6 +250,12 @@ async fn main() {
                         .help("Create the branch and check it out")
                         .exclusive(true)
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::new("theirs")
+                        .long("theirs")
+                        .help("Checkout the content of the conflicting branch and take it as your data. Will overwrite your working file.")
+                        .takes_value(false),
                 ),
         )
         .subcommand(
@@ -239,8 +298,8 @@ async fn main() {
         .subcommand(
             Command::new("diff")
                 .about("Compare file from a commit history")
-                .arg(arg!(<COMMIT_ID> "Commit Id you want to diff"))
-                .arg(arg!(<PATH> "Path you want to diff")),
+                .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
+                .arg(Arg::new("PATH").required(false)),
         )
         .subcommand(
             Command::new("read-lines")
@@ -282,7 +341,7 @@ async fn main() {
                         let name = sub_matches.value_of("NAME").expect("required");
                         let url = sub_matches.value_of("URL").expect("required");
 
-                        match dispatch::set_remote(name, url) {
+                        match dispatch::add_remote(name, url) {
                             Ok(_) => {}
                             Err(err) => {
                                 eprintln!("{}", err)
@@ -363,18 +422,78 @@ async fn main() {
                 eprintln!("{}", err)
             }
         },
-        Some(("show", sub_matches)) => {
+        Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-            let query = sub_matches.value_of("query");
-            let output = sub_matches.value_of("output");
 
-            match dispatch::transform_table(path, query, output).await {
+            let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack")
+            {
+                let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+                Some(vals)
+            } else {
+                None
+            };
+
+            let opts = liboxen::media::DFOpts {
+                output: sub_matches.value_of("output").map(std::path::PathBuf::from),
+                slice: sub_matches.value_of("slice").map(String::from),
+                take: sub_matches.value_of("take").map(String::from),
+                columns: sub_matches.value_of("columns").map(String::from),
+                filter: sub_matches.value_of("filter").map(String::from),
+                vstack,
+                add_col: sub_matches.value_of("add-col").map(String::from),
+                add_row: sub_matches.value_of("add-row").map(String::from),
+                should_randomize: sub_matches.is_present("randomize"),
+            };
+
+            match dispatch::df(path, &opts) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
                 }
             }
         }
+        Some(("schemas", sub_matches)) => {
+            if let Some(subcommand) = sub_matches.subcommand() {
+                match subcommand {
+                    ("list", _sub_matches) => match dispatch::schema_list() {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("{}", err)
+                        }
+                    },
+                    ("show", sub_matches) => {
+                        let val = sub_matches.value_of("NAME_OR_HASH").expect("required");
+                        match dispatch::schema_show(val) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("name", sub_matches) => {
+                        let hash = sub_matches.value_of("HASH").expect("required");
+                        let val = sub_matches.value_of("NAME").expect("required");
+                        match dispatch::schema_name(hash, val) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    (cmd, _) => {
+                        eprintln!("Unknown subcommand {}", cmd)
+                    }
+                }
+            } else {
+                match dispatch::schema_list() {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            }
+        }
+
         Some(("add", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
 
@@ -386,12 +505,24 @@ async fn main() {
             }
         }
         Some(("restore", sub_matches)) => {
-            let path = sub_matches.value_of("PATH").expect("required");
+            let mut paths = sub_matches.values_of("PATH").expect("required");
 
-            match dispatch::restore(path) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+            if paths.len() == 2 {
+                let commit_or_branch = paths.next();
+                let path = paths.next().expect("required");
+                match dispatch::restore(commit_or_branch, path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            } else {
+                let path = paths.next().expect("required");
+                match dispatch::restore(None, path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }
@@ -433,6 +564,11 @@ async fn main() {
             if sub_matches.is_present("create") {
                 let name = sub_matches.value_of("create").expect("required");
                 if let Err(err) = dispatch::create_checkout_branch(name) {
+                    eprintln!("{}", err)
+                }
+            } else if sub_matches.is_present("theirs") {
+                let name = sub_matches.value_of("name").expect("required");
+                if let Err(err) = dispatch::checkout_theirs(name) {
                     eprintln!("{}", err)
                 }
             } else if sub_matches.is_present("name") {
@@ -489,13 +625,22 @@ async fn main() {
             }
         }
         Some(("diff", sub_matches)) => {
-            let commit_id = sub_matches.value_of("COMMIT_ID").expect("required");
-            let path = sub_matches.value_of("PATH").expect("required");
-
-            match dispatch::diff(commit_id, path).await {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+            // First arg is optional
+            let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
+            let path = sub_matches.value_of("PATH");
+            if path.is_none() {
+                match dispatch::diff(None, file_or_commit_id).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
+            } else {
+                match dispatch::diff(Some(file_or_commit_id), path.unwrap()).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }

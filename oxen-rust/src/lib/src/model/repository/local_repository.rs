@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::Indexer;
+use crate::index::EntryIndexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::util;
 use crate::view::RepositoryView;
@@ -66,10 +66,7 @@ impl LocalRepository {
     pub fn from_remote(repo: RemoteRepository, path: &Path) -> Result<LocalRepository, OxenError> {
         Ok(LocalRepository {
             path: path.to_owned(),
-            remotes: vec![Remote {
-                name: String::from(constants::DEFAULT_REMOTE_NAME),
-                url: repo.url,
-            }],
+            remotes: vec![repo.remote],
             remote_name: Some(String::from(constants::DEFAULT_REMOTE_NAME)),
         })
     }
@@ -107,7 +104,11 @@ impl LocalRepository {
 
     pub async fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!("clone_remote {} -> {:?}", url, dst);
-        match api::remote::repositories::get_by_remote_url(url).await {
+        let remote = Remote {
+            name: String::from("origin"),
+            url: String::from(url),
+        };
+        match api::remote::repositories::get_by_remote(&remote).await {
             Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst).await?)),
             Ok(None) => Ok(None),
             Err(_) => {
@@ -117,7 +118,7 @@ impl LocalRepository {
         }
     }
 
-    pub fn set_remote(&mut self, name: &str, url: &str) {
+    pub fn add_remote(&mut self, name: &str, url: &str) {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
@@ -173,13 +174,12 @@ impl LocalRepository {
     }
 
     async fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
-        // get last part of URL for directory name
-        let url = String::from(&repo.url);
-        let repo_new = RepositoryNew::from_url(&url)?;
+        // let url = String::from(&repo.url);
+        // let repo_new = RepositoryNew::from_url(&repo.url)?;
         // if directory already exists -> return Err
-        let repo_path = dst.join(&repo_new.name);
+        let repo_path = dst.join(&repo.name);
         if repo_path.exists() {
-            let err = format!("Directory already exists: {}", repo_new.name);
+            let err = format!("Directory already exists: {}", repo.name);
             return Err(OxenError::basic_str(&err));
         }
 
@@ -192,23 +192,22 @@ impl LocalRepository {
 
         // save Repository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
-        let mut local_repo = LocalRepository::from_remote(repo, &repo_path)?;
+        let mut local_repo = LocalRepository::from_remote(repo.clone(), &repo_path)?;
         local_repo.path = repo_path;
-        local_repo.set_remote("origin", &url);
+        local_repo.add_remote("origin", &repo.remote.url);
 
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml);
 
         // Pull all commit objects, but not entries
-        let indexer = Indexer::new(&local_repo)?;
-        let remote_repo = RemoteRepository::from_new(&repo_new, &url);
+        let indexer = EntryIndexer::new(&local_repo)?;
         indexer
-            .pull_all_commit_objects(&remote_repo, &RemoteBranch::default())
+            .pull_all_commit_objects(&repo, &RemoteBranch::default())
             .await?;
 
         println!(
             "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
-            url, repo_new.name, repo_new.name
+            repo.remote.url, repo.name, repo.name
         );
 
         Ok(local_repo)
@@ -240,7 +239,7 @@ mod tests {
         test::run_empty_local_repo_test(|mut local_repo| {
             let url = "http://0.0.0.0:3000/repositories/OxenData";
             let remote_name = "origin";
-            local_repo.set_remote(remote_name, url);
+            local_repo.add_remote(remote_name, url);
             let remote = local_repo.get_remote(remote_name).unwrap();
             assert_eq!(remote.name, remote_name);
             assert_eq!(remote.url, url);
@@ -257,8 +256,8 @@ mod tests {
 
             let other_url = "http://0.0.0.0:4000/repositories/OxenData";
             let other_name = "other";
-            local_repo.set_remote(origin_name, origin_url);
-            local_repo.set_remote(other_name, other_url);
+            local_repo.add_remote(origin_name, origin_url);
+            local_repo.add_remote(other_name, other_url);
 
             // Remove and make sure we cannot get again
             local_repo.remove_remote(origin_name);
@@ -275,11 +274,11 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let remote_repo =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.url, &dir)
+                let local_repo = LocalRepository::clone_remote(&remote_repo.remote.url, &dir)
                     .await?
                     .unwrap();
 

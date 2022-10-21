@@ -1,46 +1,23 @@
 use crate::api;
+use crate::api::remote::client;
 use crate::command;
-use crate::config::UserConfig;
-use crate::constants;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteRepository, RepositoryNew};
-use crate::view::{RepositoryResponse, StatusMessage};
+use crate::model::{LocalRepository, Remote, RemoteRepository};
+use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
 use serde_json::json;
-use url::Url;
 
-/// This url will not have the /oxen prefix, we need to extract the namespace and name and reformat
-pub async fn get_by_remote_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
-    let repo = RepositoryNew::from_url(url)?;
-    let parsed_url = Url::parse(url)?;
-    let port = if parsed_url.port() == None {
-        String::from("")
-    } else {
-        format!(":{}", parsed_url.port().unwrap())
-    };
-    let new_url = format!(
-        "{}://{}{}/oxen/{}/{}",
-        parsed_url.scheme(),
-        parsed_url.host_str().unwrap(),
-        port,
-        repo.namespace,
-        repo.name
-    );
-    get_by_namespaced_url(&new_url).await
+pub async fn get_by_remote_repo(
+    repo: &RemoteRepository,
+) -> Result<Option<RemoteRepository>, OxenError> {
+    get_by_remote(&repo.remote).await
 }
 
-pub async fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>, OxenError> {
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
-    log::debug!("api::remote::repositories::get_by_url({})", url);
-    if let Ok(res) = client
-        .get(url)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
+    let url = api::endpoint::url_from_remote(remote, "")?;
+    log::debug!("api::remote::repositories::get_by_remote({})", url);
+
+    let client = client::new()?;
+    if let Ok(res) = client.get(url.clone()).send().await {
         let status = res.status();
         if 404 == status {
             return Ok(None);
@@ -48,7 +25,7 @@ pub async fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>
 
         let body = res.text().await?;
         log::debug!(
-            "repositories::get_by_url {}\nstatus[{}] {}",
+            "repositories::get_by_remote {}\nstatus[{}] {}",
             url,
             status,
             body
@@ -56,51 +33,47 @@ pub async fn get_by_namespaced_url(url: &str) -> Result<Option<RemoteRepository>
 
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, url))),
+            Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(&format!(
-                    "api::repositories::get_by_url() Could not serialize repository [{}]",
+                    "api::repositories::get_by_remote() Could not serialize repository [{}]",
                     url
                 )))
             }
         }
     } else {
         Err(OxenError::basic_str(
-            "api::repositories::get_by_url() Request failed",
+            "api::repositories::get_by_remote() Request failed",
         ))
     }
 }
 
-pub async fn create(
+pub async fn create<S: AsRef<str>>(
     repository: &LocalRepository,
     namespace: &str,
     name: &str,
-    host: &str,
+    host: S,
 ) -> Result<RemoteRepository, OxenError> {
-    let config = UserConfig::default()?;
-    let uri = format!("/{}", constants::DEFAULT_NAMESPACE);
-    let url = api::endpoint::url_from_host(host, &uri);
-    let repo_url = format!("{}/{}", url, name);
+    let url = api::endpoint::url_from_host(host.as_ref(), "");
     let root_commit = command::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
-    log::debug!("Create remote: {}", url);
-    let client = reqwest::Client::new();
-    if let Ok(res) = client
-        .post(url.to_owned())
-        .json(&params)
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    log::debug!("Create remote: {} {} {}", url, namespace, name);
+
+    let client = client::new()?;
+    if let Ok(res) = client.post(url.to_owned()).json(&params).send().await {
+        let status = res.status();
         let body = res.text().await?;
-        // println!("Response: {}", body);
+        log::debug!("Response [{}] {}", status, body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(response) => Ok(RemoteRepository::from_view(&response.repository, &repo_url)),
+            Ok(response) => Ok(RemoteRepository::from_view(
+                &response.repository,
+                &Remote {
+                    url: api::endpoint::remote_url_from_host(host.as_ref(), namespace, name),
+                    name: String::from("origin"),
+                },
+            )),
             Err(err) => {
                 let err = format!(
                     "Could not create or find repository [{}]: {}\n{}",
@@ -116,18 +89,11 @@ pub async fn create(
 }
 
 pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
-    let config = UserConfig::default()?;
-    let client = reqwest::Client::new();
-    log::debug!("Deleting repository: {}", repository.url);
-    if let Ok(res) = client
-        .delete(repository.url.clone())
-        .header(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", config.auth_token()?),
-        )
-        .send()
-        .await
-    {
+    let url = api::endpoint::url_from_repo(repository, "")?;
+    log::debug!("Deleting repository: {}", url);
+
+    let client = client::new()?;
+    if let Ok(res) = client.delete(url).send().await {
         let status = res.status();
         let body = res.text().await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
@@ -145,6 +111,42 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
     }
 }
 
+pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
+    log::debug!("api::remote::repositories::resolve_api_url({})", url);
+    let client = client::new()?;
+    if let Ok(res) = client.get(url).send().await {
+        let status = res.status();
+        if 404 == status {
+            return Ok(None);
+        }
+
+        let body = res.text().await?;
+        log::debug!(
+            "repositories::resolve_api_url {}\nstatus[{}] {}",
+            url,
+            status,
+            body
+        );
+
+        let response: Result<RepositoryResolveResponse, serde_json::Error> =
+            serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(Some(j_res.repository_api_url)),
+            Err(err) => {
+                log::debug!("Err: {}", err);
+                Err(OxenError::basic_str(&format!(
+                    "api::repositories::resolve_api_url() Could not serialize repository [{}]",
+                    url
+                )))
+            }
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::repositories::resolve_api_url() Request failed",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api;
@@ -158,7 +160,7 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
             println!("got repository: {:?}", repository);
             assert_eq!(repository.name, name);
@@ -176,9 +178,9 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
-            let url_repo = api::remote::repositories::get_by_remote_url(&repository.url)
+            let url_repo = api::remote::repositories::get_by_remote_repo(&repository)
                 .await?
                 .unwrap();
 
@@ -199,13 +201,13 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repository =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::TEST_HOST)
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
 
             // delete
             api::remote::repositories::delete(&repository).await?;
 
-            let result = api::remote::repositories::get_by_remote_url(&repository.url).await;
+            let result = api::remote::repositories::get_by_remote_repo(&repository).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
 
