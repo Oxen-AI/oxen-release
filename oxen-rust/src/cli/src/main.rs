@@ -107,21 +107,21 @@ async fn main() {
         .subcommand(Command::new("log").about("See log of commits"))
         .subcommand(
             Command::new("df")
-                .about("Displays a preview of the dataframe. Supported types: csv, tsv, ndjson, jsonl, parquet.")
-                .arg(arg!(<PATH> ... "The file path you want to show."))
+                .about("View and transform data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.")
+                .arg(arg!(<PATH> ... "The file path you want to process."))
                 .arg_required_else_help(true)
                 .arg(
                     Arg::new("output")
                         .long("output")
                         .short('o')
-                        .help("Where to save the data")
+                        .help("Output file to store the transformed data")
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::new("slice")
-                        .long("slice")
-                        .short('s')
-                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                    Arg::new("columns")
+                        .long("columns")
+                        .short('c')
+                        .help("A comma separated set of columns names to look at. Ex file,x,y")
                         .takes_value(true),
                 )
                 .arg(
@@ -134,22 +134,22 @@ async fn main() {
                 .arg(
                     Arg::new("vstack")
                         .long("vstack")
-                        .help("Combine row data from different files. Num columns must match.")
+                        .help("Combine row data from different files. The number of columns must match.")
                         .takes_value(true)
                         .multiple_values(true),
+                )
+                .arg(
+                    Arg::new("slice")
+                        .long("slice")
+                        .short('s')
+                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                        .takes_value(true),
                 )
                 .arg(
                     Arg::new("take")
                         .long("take")
                         .short('t')
                         .help("A comma separated set of row indices to look at. Ex 1,22,313")
-                        .takes_value(true),
-                )
-                .arg(
-                    Arg::new("columns")
-                        .long("columns")
-                        .short('c')
-                        .help("A comma separated set of columns names to look at. Ex file,x,y")
                         .takes_value(true),
                 )
                 .arg(
@@ -161,7 +161,7 @@ async fn main() {
                 .arg(
                     Arg::new("add-row")
                         .long("add-row")
-                        .help("Add a row and cast to the values to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                        .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
                         .takes_value(true),
                 )
                 .arg(

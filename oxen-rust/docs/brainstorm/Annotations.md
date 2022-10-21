@@ -88,10 +88,13 @@ Start with
 
 
         .oxen/versions/
+            files/
+                64/djskal213u/
+                    contents.jpg
             schemas/
-                SCHEMA_HASH/
+                <schema_hash>/
                     data.arrow
-                    
+
                     Table we can index into to fetch subsets of data within that schema
                     ┌──────────┬─────────────────┬────────┬────────┬────────┬─────────┬────────┬──────────────────────┐
                     │ _row_num ┆ file            ┆  min_x ┆  min_y ┆  width ┆  height ┆  label ┆ _row_hash            │
@@ -112,21 +115,24 @@ Start with
                     contents.jpg
 
         .oxen/history/
-            commit_id/ (has 3 top level objects "files", "dirs", "indexes")
-                indexes/
-                    schema_indexes/
-                        schema_hash/ (bounding_box)
-                            ROCKSDB
-                            "index_key" -> { timestamps ... }
-                    schema_hash/
-                        _commit (this is the indices committed in this commit)
-
-                        index_key/ ("file" or "label" or "whatever aggregate query you want")
-                            index_val_hash/ ("path/to/file.jpg" or "person")
+            commit_id/ (has 4 top level objects "files", "dirs", "schemas", "indexes")
+                schemas/
+                    ROCKS_DB
+                        schema_hash => { schema obj }
+                indices/
+                    <schema_hash>/
+                        files/
+                            <file_name_hash>/ (file name hash)
                                 ROCKSDB
-                                    row_hash => { (now we can diff between commits, based on the query)
-                                        _row_num, (in .arrow file)
-                                    }
+                                    row_hash => {row_num_og, row_num_arrow}
+
+                        fields/ ("file" or "label" or "whatever aggregate query you want")
+                            field.name/
+                                index_val_hash/ ("path/to/file.jpg" or "person")
+                                    ROCKSDB
+                                        row_hash => { (now we can diff between commits, based on the query)
+                                            _row_num, (in .arrow file)
+                                        }
                 dirs/
                 files/
                     path/
