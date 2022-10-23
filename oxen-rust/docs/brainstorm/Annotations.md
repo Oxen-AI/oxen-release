@@ -92,6 +92,10 @@ Start with
                 64/djskal213u/
                     contents.jpg
             schemas/
+                rows/ (global rocks db for row hash to index)
+                    ROCKSDB
+                        row_hash => {row_num_arrow}
+
                 <schema_hash>/
                     data.arrow
 
@@ -121,7 +125,8 @@ Start with
                         schema_hash => { schema obj }
                 indices/
                     <schema_hash>/
-                        files/
+                        
+                        files/ (we need a mapping from row hash to the original arrow files)
                             <file_name_hash>/ (file name hash)
                                 ROCKSDB
                                     row_hash => {row_num_og, row_num_arrow}
@@ -129,10 +134,11 @@ Start with
                         fields/ ("file" or "label" or "whatever aggregate query you want")
                             field.name/
                                 index_val_hash/ ("path/to/file.jpg" or "person")
-                                    ROCKSDB
-                                        row_hash => { (now we can diff between commits, based on the query)
-                                            _row_num, (in .arrow file)
-                                        }
+                                    <file_name_hash> (same structure as the files dir above, can iterate over files to get full index)
+                                        ROCKSDB
+                                            row_hash => { (now we can diff between commits, based on the query)
+                                                _row_num, (in .arrow file)
+                                            }
                 dirs/
                 files/
                     path/

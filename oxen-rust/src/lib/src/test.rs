@@ -9,6 +9,7 @@ use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 
 use env_logger::Env;
+use rand::Rng;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::future::Future;
@@ -695,6 +696,17 @@ pub fn modify_txt_file<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBu
 
     let path = write_txt_file_to_path(path, contents)?;
     Ok(path)
+}
+
+pub fn add_random_bbox_to_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, OxenError> {
+    let mut rng = rand::thread_rng();
+    let file_name = format!("train/random_img_{}.jpg", rng.gen_range(0..10));
+    let x: f64 = rng.gen_range(0.0..1000.0);
+    let y: f64 = rng.gen_range(0.0..1000.0);
+    let w: i64 = rng.gen_range(0..1000);
+    let h: i64 = rng.gen_range(0..1000);
+    let line = format!("{},{:2},{:2},{},{}", file_name, x, y, w, h);
+    append_line_txt_file(path, &line)
 }
 
 pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, OxenError> {

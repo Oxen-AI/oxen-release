@@ -445,7 +445,7 @@ async fn main() {
                 should_randomize: sub_matches.is_present("randomize"),
             };
 
-            match dispatch::df(path, &opts) {
+            match dispatch::df(path, opts) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)

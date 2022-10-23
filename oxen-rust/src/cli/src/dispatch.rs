@@ -254,7 +254,7 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
+pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     command::df(input, opts)?;
     Ok(())
 }
