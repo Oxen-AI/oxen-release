@@ -52,7 +52,7 @@ pub struct DFFilter {
     pub value: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DFOpts {
     pub output: Option<PathBuf>,
     pub slice: Option<String>,

@@ -207,10 +207,10 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
 }
 
 /// Interact with dataframes from CLI
-pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
-    let mut df = tabular::show_path(input, opts)?;
+pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+    let mut df = tabular::show_path(input, opts.clone())?;
 
-    if let Some(output) = &opts.output {
+    if let Some(output) = opts.output {
         println!("Writing {:?}", output);
         tabular::write_df(&mut df, output)?;
     }
@@ -577,12 +577,10 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         .find(|c| c.merge_entry.path == path.as_ref())
     {
         if util::fs::is_tabular(&conflict.head_entry.path) {
-            let opts = DFOpts::empty();
-
             let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
             let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
-            let df_head = tabular::read_df(&df_head_path, &opts)?;
-            let df_merge = tabular::read_df(&df_merge_path, &opts)?;
+            let df_head = tabular::read_df(&df_head_path, DFOpts::empty())?;
+            let df_merge = tabular::read_df(&df_merge_path, DFOpts::empty())?;
 
             log::debug!("GOT DF HEAD {}", df_head);
             log::debug!("GOT DF MERGE {}", df_merge);

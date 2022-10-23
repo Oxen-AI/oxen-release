@@ -202,14 +202,14 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
     }
 }
 
-pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
     if let Some(vstack) = &opts.vstack {
         log::debug!("Got files to stack {:?}", vstack);
         for path in vstack.iter() {
             let opts = DFOpts::empty();
-            let new_df = read_df(path, &opts).expect(READ_ERROR);
+            let new_df = read_df(path, opts).expect(READ_ERROR);
             df = df
                 .collect()
                 .expect(READ_ERROR)
@@ -345,7 +345,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
         return Err(OxenError::file_does_not_exist(path));
@@ -356,7 +356,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, Oxen
     let err = format!("Unknown file type {:?}", extension);
 
     if opts.has_transform() {
-        let df = scan_df(path, opts)?;
+        let df = scan_df(path)?;
         let df = transform_df(df, opts)?;
         Ok(df)
     } else {
@@ -375,7 +375,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, Oxen
     }
 }
 
-pub fn scan_df<P: AsRef<Path>>(path: P, _opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     log::debug!("Got extension {:?}", extension);
@@ -460,15 +460,13 @@ pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenE
 }
 
 pub fn copy_df<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
-    let opts = DFOpts::empty();
-    let mut df = read_df(input, &opts)?;
+    let mut df = read_df(input, DFOpts::empty())?;
     write_df_arrow(&mut df, output)?;
     Ok(df)
 }
 
 pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
-    let opts = DFOpts::empty();
-    let df = read_df(input, &opts)?;
+    let df = read_df(input, DFOpts::empty())?;
     let mut df = df
         .lazy()
         .with_row_count("_row_num", Some(0))
@@ -478,7 +476,7 @@ pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFr
     Ok(df)
 }
 
-pub fn show_path<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let df = read_df(input, opts)?;
     println!("{}", df);
     Ok(df)

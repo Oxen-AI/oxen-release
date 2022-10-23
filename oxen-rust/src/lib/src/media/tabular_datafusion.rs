@@ -756,14 +756,14 @@ pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFra
 
         if !added_fields.is_empty() {
             let opts = DFOpts::from_filter_fields(added_fields);
-            let df_added = tabular::read_df(&current_path, &opts)?;
+            let df_added = tabular::read_df(&current_path, opts)?;
             let added_str = format!("{}", df_added).green();
             println!("Added Cols\n{}\n", added_str);
         }
 
         if !removed_fields.is_empty() {
             let opts = DFOpts::from_filter_fields(removed_fields);
-            let df_removed = tabular::read_df(&version_path, &opts)?;
+            let df_removed = tabular::read_df(&version_path, opts)?;
             let removed_str = format!("{}", df_removed).red();
             println!("Removed Cols\n{}", removed_str);
         }
