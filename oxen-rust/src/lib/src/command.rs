@@ -339,28 +339,22 @@ pub fn restore<P: AsRef<Path>>(
     if let Some(entry) = reader.get_entry(path)? {
         if util::fs::is_tabular(&entry.path) {
             let schema_reader = SchemaReader::new(repo, &commit.id)?;
-            if let Some(schema_hash) = schema_reader.get_schema_hash_for_file(&entry.path)? {
-                if let Some(schema) = schema_reader.get_schema_by_hash(&schema_hash)? {
-                    let row_index_reader =
-                        CommitSchemaRowIndex::new(repo, &commit, &schema, &entry)?;
-                    let mut rows = row_index_reader.entry_df()?;
-                    log::debug!("Got rows! {}", rows);
-                    let working_path = repo.path.join(path);
-                    log::debug!("Write to {:?}", working_path);
-                    tabular::write_df(&mut rows, working_path)?;
-                } else {
-                    log::error!(
-                        "Could not restore file, no schema found for hash {}",
-                        schema_hash
-                    );
-                }
+            if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
+                let row_index_reader =
+                    CommitSchemaRowIndex::new(repo, &commit, &schema, &entry.path)?;
+                let mut df = row_index_reader.entry_df()?;
+                log::debug!("Got subset! {}", df);
+                let working_path = repo.path.join(path);
+                log::debug!("Write to {:?}", working_path);
+                tabular::write_df(&mut df, working_path)?;
             } else {
                 log::error!(
-                    "Could not restore file, no schema hash found for file {:?}",
+                    "Could not restore tabular file, no schema found for file {:?}",
                     entry.path
                 );
             }
         } else {
+            // just copy data back over if !tabular
             let version_path = util::fs::version_path(repo, &entry);
             let working_path = repo.path.join(path);
             std::fs::copy(version_path, working_path)?;
@@ -893,13 +887,13 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 /// Diff a file from commit history
-pub async fn diff(
+pub fn diff(
     repo: &LocalRepository,
     commit_id_or_branch: Option<&str>,
     path: &str,
 ) -> Result<String, OxenError> {
     let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
-    differ::diff(repo, Some(&commit.id), path).await
+    differ::diff(repo, Some(&commit.id), path)
 }
 
 /// Pull a specific origin and branch

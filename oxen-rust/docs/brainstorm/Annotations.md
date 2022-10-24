@@ -47,7 +47,7 @@ FIRST STEP
 2) Add ability to quickly fetch indices from tabular file or paginate
     - /namespace/reponame/rows/commit/file/
 
--- RELEASE 
+-- RELEASE
 
 1) Let's do `oxen index -s "bounding_box" -c "file"` to keep track of individual annotations
     - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
@@ -91,6 +91,7 @@ Start with
             files/
                 64/djskal213u/
                     contents.jpg
+
             schemas/
                 schemas/
                     ROCKS_DB
@@ -101,7 +102,7 @@ Start with
                         row_hash => {row_num_arrow}
 
                 <schema_hash>/
-                    data.arrow
+                    data.arrow (Content Addressable Memory of row level data)
 
                     Table we can index into to fetch subsets of data within that schema
                     ┌──────────┬─────────────────┬────────┬────────┬────────┬─────────┬────────┬──────────────────────┐
