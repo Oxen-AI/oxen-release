@@ -9,7 +9,7 @@ use crate::constants::{
 use crate::db;
 use crate::db::str_val_db;
 use crate::error::OxenError;
-use crate::media::tabular;
+use crate::media::{tabular, DFOpts};
 use crate::model::{Commit, CommitEntry, LocalRepository, Schema};
 use crate::util;
 
@@ -21,8 +21,12 @@ pub type RowIndexPair = (u32, u32);
 pub struct CommitSchemaRowIndex {
     row_db: DBWithThreadMode<MultiThreaded>,  // global row hashes
     file_db: DBWithThreadMode<MultiThreaded>, // file level row hashes
+    schema: Schema,
+    repository: LocalRepository,
 }
 
+// TODO: Split this into two different classes, one for the global row index, and one for the
+// Commit entry row index
 impl CommitSchemaRowIndex {
     pub fn row_db_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
         // .oxen/versions/schemas/SCHEMA_HASH/rows
@@ -63,6 +67,8 @@ impl CommitSchemaRowIndex {
         Ok(CommitSchemaRowIndex {
             row_db: DBWithThreadMode::open(&opts, &row_db_path)?,
             file_db: DBWithThreadMode::open(&opts, &file_db_path)?,
+            schema: schema.to_owned(),
+            repository: repository.to_owned(),
         })
     }
 
@@ -79,7 +85,6 @@ impl CommitSchemaRowIndex {
         str_val_db::put(&self.row_db, &hash, &index)
     }
 
-    
     pub fn put_file_index<S: AsRef<str>>(
         &self,
         hash: S,
@@ -267,23 +272,100 @@ impl CommitSchemaRowIndex {
         // println!("NEW ROWS: {}", df);
         Ok(df)
     }
+
+    pub fn entry_df(&self) -> Result<DataFrame, OxenError> {
+        // Get large arrow file
+        let path = util::fs::schema_df_path(&self.repository, &self.schema);
+        let version_df = tabular::scan_df(path)?.collect().unwrap();
+        println!("VERSION DF {:?}", version_df);
+
+        let file_indices: Vec<RowIndexPair> = self
+            .list_file_indices()?
+            .into_iter()
+            .map(|(_hash, indices)| indices)
+            .collect();
+
+        println!("file_indices {:?}", file_indices);
+
+        let global_indices: Vec<u32> = file_indices
+            .clone()
+            .into_iter()
+            .map(|(_local_idx, global_idx)| global_idx)
+            .collect();
+
+        let local_indices: Vec<u32> = file_indices
+            .into_iter()
+            .map(|(local_idx, _global_idx)| local_idx)
+            .collect();
+
+        println!("file_indices global {:?}", global_indices);
+        println!("file_indices local {:?}", local_indices);
+
+        // Project the original file row nums on in a column
+        let mut subset = tabular::take(version_df.lazy(), global_indices)?;
+        let file_column_name = "_file_row_num";
+        let column = polars::prelude::Series::new(file_column_name, local_indices);
+        let with_og_row_nums = subset
+            .with_column(column)
+            .expect("Could not project row num cols");
+
+        // Sort by the original file row num
+        let sorted = with_og_row_nums
+            .sort([file_column_name], false)
+            .expect("Could sort df");
+        // Filter down to the original columns
+        let opts = DFOpts::from_filter_schema(&self.schema);
+        tabular::transform_df(sorted.lazy(), opts)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use polars::prelude::IntoLazy;
-
     use crate::command;
     use crate::error::OxenError;
     use crate::index::CommitDirReader;
     use crate::index::CommitSchemaRowIndex;
-    use crate::index::commit_schema_row_index::RowIndexPair;
     use crate::media::tabular;
     use crate::media::DFOpts;
     use crate::test;
     use crate::util;
 
     use std::path::Path;
+
+    #[test]
+    fn test_commit_tabular_data_first_commit_can_fetch_content() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let history = command::log(&repo)?;
+            let commit = history.first().unwrap();
+
+            // Create a new data file with some annotations
+            let og_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let og_bbox_path = repo.path.join(&og_bbox_file);
+            let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(og_df.height(), version_df.height());
+
+            let entry_reader = CommitDirReader::new(&repo, commit)?;
+            let entry = entry_reader.get_entry(&og_bbox_file)?.unwrap();
+
+            let row_index_reader = CommitSchemaRowIndex::new(&repo, commit, schema, &entry)?;
+            let rows = row_index_reader.entry_df()?;
+            println!("Reconstructed {}", rows);
+
+            assert_eq!(og_df.height(), rows.height());
+
+            Ok(())
+        })
+    }
 
     #[test]
     fn test_commit_tabular_data_add_data_different_file_can_fetch_file_content(
@@ -325,34 +407,11 @@ train/new.jpg,1.0,1.5,100,20
             let version_df = tabular::read_df(path, DFOpts::empty())?;
             assert_eq!(og_df.height() + 1, version_df.height());
 
-            // TODO write a function that does all this to restore a file
-            // THEN project the original file row nums on in a column
-            // THEN sort by the original file row num
-            // THEN filter down to the original columns
-            // THEN write the restored version
             let entry_reader = CommitDirReader::new(&repo, &commit)?;
             let entry = entry_reader.get_entry(&my_bbox_file)?.unwrap();
 
             let row_index_reader = CommitSchemaRowIndex::new(&repo, &commit, schema, &entry)?;
-
-            let file_indices: Vec<RowIndexPair> = row_index_reader
-                .list_file_indices()?
-                .into_iter()
-                .map(|(_hash, indices)| indices)
-                .collect();
-
-            println!("My df {}", my_df);
-            println!("Version df {}", version_df);
-            println!("file_indices {:?}", file_indices);
-
-            let file_indices: Vec<u32> = file_indices
-                .into_iter()
-                .map(|(_local_idx, global_idx)| global_idx)
-                .collect();
-
-            println!("file_indices global {:?}", file_indices);
-
-            let rows = tabular::take(version_df.lazy(), file_indices)?;
+            let rows = row_index_reader.entry_df()?;
             println!("Reconstructed {}", rows);
 
             assert_eq!(my_df.height(), rows.height());

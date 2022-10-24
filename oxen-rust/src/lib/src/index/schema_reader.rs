@@ -1,23 +1,32 @@
-use crate::constants::{HISTORY_DIR, SCHEMAS_DIR};
+use crate::constants::{HISTORY_DIR, SCHEMAS_DIR, VERSIONS_DIR};
 use crate::db;
-use crate::db::str_json_db;
+use crate::db::{str_json_db, str_val_db};
 use crate::error::OxenError;
 use crate::model::Schema;
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str;
 
 use crate::model::LocalRepository;
 
 pub struct SchemaReader {
-    db: DBWithThreadMode<MultiThreaded>,
+    schema_db: DBWithThreadMode<MultiThreaded>,
+    schema_files_db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl SchemaReader {
-    pub fn db_dir(repo: &LocalRepository, commit_id: &str) -> PathBuf {
-        // .oxen/history/COMMIT_ID/schemas/path/to/dir
+    pub fn schema_db_dir(repo: &LocalRepository) -> PathBuf {
+        // .oxen/versions/schemas/schemas
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(VERSIONS_DIR)
+            .join(SCHEMAS_DIR) // double schemas/schemas is intentional because we have multiple dirs at this level
+            .join(SCHEMAS_DIR)
+    }
+
+    pub fn schema_files_db_dir(repo: &LocalRepository, commit_id: &str) -> PathBuf {
+        // .oxen/history/COMMIT_ID/schemas
         util::fs::oxen_hidden_dir(&repo.path)
             .join(HISTORY_DIR)
             .join(commit_id)
@@ -26,31 +35,49 @@ impl SchemaReader {
 
     /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaReader, OxenError> {
-        let db_path = SchemaReader::db_dir(repository, commit_id);
+        let schema_db_path = SchemaReader::schema_db_dir(repository);
+        let schema_files_db_path = SchemaReader::schema_files_db_dir(repository, commit_id);
         let opts = db::opts::default();
-        if !db_path.exists() {
-            std::fs::create_dir_all(&db_path)?;
+        if !schema_db_path.exists() {
+            std::fs::create_dir_all(&schema_db_path)?;
             // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &db_path)?;
+            let _db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&opts, &schema_db_path)?;
+        }
+
+        if !schema_files_db_path.exists() {
+            std::fs::create_dir_all(&schema_files_db_path)?;
+            // open it then lose scope to close it
+            let _db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&opts, &schema_files_db_path)?;
         }
 
         Ok(SchemaReader {
-            db: DBWithThreadMode::open_for_read_only(&opts, &db_path, false)?,
+            schema_db: DBWithThreadMode::open_for_read_only(&opts, &schema_db_path, false)?,
+            schema_files_db: DBWithThreadMode::open_for_read_only(
+                &opts,
+                &schema_files_db_path,
+                false,
+            )?,
         })
     }
 
     /// See if a commit id exists
-    pub fn hash_exists(&self, hash: &str) -> bool {
-        str_json_db::has_key(&self.db, hash)
+    pub fn schema_hash_exists(&self, hash: &str) -> bool {
+        str_json_db::has_key(&self.schema_db, hash)
     }
 
     /// Get a commit object from an ID
-    pub fn get_by_hash<S: AsRef<str>>(&self, hash: S) -> Result<Option<Schema>, OxenError> {
-        str_json_db::get(&self.db, hash)
+    pub fn get_schema_by_hash<S: AsRef<str>>(&self, hash: S) -> Result<Option<Schema>, OxenError> {
+        str_json_db::get(&self.schema_db, hash)
     }
 
-    pub fn list(&self) -> Result<Vec<Schema>, OxenError> {
-        str_json_db::list_vals(&self.db)
+    pub fn get_schema_hash_for_file(&self, path: &Path) -> Result<Option<String>, OxenError> {
+        str_val_db::get(&self.schema_files_db, path.to_str().unwrap())
+    }
+
+    pub fn list_schemas(&self) -> Result<Vec<Schema>, OxenError> {
+        str_json_db::list_vals(&self.schema_db)
     }
 }
 
@@ -67,7 +94,7 @@ mod tests {
             let history = command::log(&repo)?;
             let last_commit = history.first().unwrap();
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
-            let schemas = schema_reader.list()?;
+            let schemas = schema_reader.list_schemas()?;
 
             assert_eq!(schemas.len(), 0);
 
@@ -81,7 +108,7 @@ mod tests {
             let history = command::log(&repo)?;
             let last_commit = history.first().unwrap();
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
-            let schemas = schema_reader.list()?;
+            let schemas = schema_reader.list_schemas()?;
 
             assert_eq!(schemas.len(), 1);
 

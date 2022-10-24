@@ -8,6 +8,7 @@ use crate::constants;
 use crate::error::OxenError;
 use crate::index::differ;
 use crate::index::schema_writer::SchemaWriter;
+use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaReader;
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
@@ -226,14 +227,14 @@ pub fn schema_list(
     if let Some(commit_id) = commit_id {
         if let Some(commit) = commit_from_branch_or_commit_id(repo, commit_id)? {
             let schema_reader = SchemaReader::new(repo, &commit.id)?;
-            schema_reader.list()
+            schema_reader.list_schemas()
         } else {
             Err(OxenError::commit_id_does_not_exist(commit_id))
         }
     } else {
         let head_commit = head_commit(repo)?;
         let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
-        schema_reader.list()
+        schema_reader.list_schemas()
     }
 }
 
@@ -336,9 +337,35 @@ pub fn restore<P: AsRef<Path>>(
     let reader = CommitDirReader::new(repo, &commit)?;
 
     if let Some(entry) = reader.get_entry(path)? {
-        let version_path = util::fs::version_path(repo, &entry);
-        let working_path = repo.path.join(path);
-        std::fs::copy(version_path, working_path)?;
+        if util::fs::is_tabular(&entry.path) {
+            let schema_reader = SchemaReader::new(repo, &commit.id)?;
+            if let Some(schema_hash) = schema_reader.get_schema_hash_for_file(&entry.path)? {
+                if let Some(schema) = schema_reader.get_schema_by_hash(&schema_hash)? {
+                    let row_index_reader =
+                        CommitSchemaRowIndex::new(repo, &commit, &schema, &entry)?;
+                    let mut rows = row_index_reader.entry_df()?;
+                    log::debug!("Got rows! {}", rows);
+                    let working_path = repo.path.join(path);
+                    log::debug!("Write to {:?}", working_path);
+                    tabular::write_df(&mut rows, working_path)?;
+                } else {
+                    log::error!(
+                        "Could not restore file, no schema found for hash {}",
+                        schema_hash
+                    );
+                }
+            } else {
+                log::error!(
+                    "Could not restore file, no schema hash found for file {:?}",
+                    entry.path
+                );
+            }
+        } else {
+            let version_path = util::fs::version_path(repo, &entry);
+            let working_path = repo.path.join(path);
+            std::fs::copy(version_path, working_path)?;
+        }
+
         println!("Restored file {:?}", path);
         Ok(())
     } else {

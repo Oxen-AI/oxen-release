@@ -369,10 +369,10 @@ impl CommitEntryWriter {
                 std::fs::create_dir_all(&schema_version_dir)?;
                 let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
                 schema_writer.put_schema(&schema)?;
+                schema_writer.put_schema_for_file(&entry.path, &schema)?;
 
                 // save to first version of the big data.arrow file
-                let path = util::fs::schema_df_path(&self.repository, &schema);
-                tabular::write_df(&mut df, path)?;
+                tabular::write_df(&mut df, &schema_df_path)?;
 
                 // Write the row_hash -> row_num index
                 CommitSchemaRowIndex::index_hash_row_nums(
@@ -381,6 +381,20 @@ impl CommitEntryWriter {
                     schema.clone(),
                     entry.clone(),
                     df,
+                )?;
+
+                // TODO: double read again, fix....
+                let df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+                let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+
+                // Need to save off indices too
+                CommitSchemaRowIndex::compute_new_rows(
+                    self.repository.clone(),
+                    self.commit.clone(),
+                    schema.clone(),
+                    entry.clone(),
+                    df,
+                    &old_df,
                 )?;
             } else {
                 let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;

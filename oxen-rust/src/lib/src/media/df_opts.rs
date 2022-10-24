@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::model::schema::Field;
+use crate::model::Schema;
 use crate::util;
 
 #[derive(Debug)]
@@ -78,6 +79,10 @@ impl DFOpts {
             add_row: None,
             should_randomize: false,
         }
+    }
+
+    pub fn from_filter_schema(schema: &Schema) -> Self {
+        DFOpts::from_filter_fields(schema.fields.clone())
     }
 
     pub fn from_filter_fields(fields: Vec<Field>) -> Self {
