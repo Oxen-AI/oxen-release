@@ -92,6 +92,10 @@ Start with
                 64/djskal213u/
                     contents.jpg
             schemas/
+                schemas/
+                    ROCKS_DB
+                        schema_hash => { schema obj }
+
                 rows/ (global rocks db for row hash to index)
                     ROCKSDB
                         row_hash => {row_num_arrow}
@@ -120,12 +124,11 @@ Start with
 
         .oxen/history/
             commit_id/ (has 4 top level objects "files", "dirs", "schemas", "indexes")
-                schemas/
+                schemas/ (quickly look up schema for a file in a commit)
                     ROCKS_DB
-                        schema_hash => { schema obj }
+                        file_name -> { schema_hash }
                 indices/
                     <schema_hash>/
-                        
                         files/ (we need a mapping from row hash to the original arrow files)
                             <file_name_hash>/ (file name hash)
                                 ROCKSDB
