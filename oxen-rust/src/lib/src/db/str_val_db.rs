@@ -3,6 +3,7 @@ use crate::error::OxenError;
 
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::str;
+use std::collections::HashMap;
 
 /// More efficient than get since it does not actual deserialize the entry
 pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> bool {
@@ -119,6 +120,33 @@ where
             (Ok(key), Ok(value)) => {
                 let key = String::from(key);
                 results.push((key, value));
+            }
+            (Ok(key), _) => {
+                log::error!("str_val_db::list() Could not values for key {}.", key)
+            }
+            (_, Ok(val)) => {
+                log::error!("str_val_db::list() Could not key for value {:?}.", val)
+            }
+            _ => {
+                log::error!("str_val_db::list() Could not decoded keys and values.")
+            }
+        }
+    }
+    Ok(results)
+}
+
+/// # List keys and attached values
+pub fn hash_map<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashMap<String, T>, OxenError>
+where
+    T: bytevec::ByteDecodable + std::fmt::Debug,
+{
+    let iter = db.iterator(IteratorMode::Start);
+    let mut results: HashMap<String, T> = HashMap::new();
+    for (key, value) in iter {
+        match (str::from_utf8(&*key), T::decode::<u8>(&*value)) {
+            (Ok(key), Ok(value)) => {
+                let key = String::from(key);
+                results.insert(key, value);
             }
             (Ok(key), _) => {
                 log::error!("str_val_db::list() Could not values for key {}.", key)

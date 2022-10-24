@@ -379,7 +379,7 @@ impl CommitEntryWriter {
                     self.repository.clone(),
                     self.commit.clone(),
                     schema.clone(),
-                    entry.clone(),
+                    entry.path.to_path_buf(),
                     df,
                 )?;
 
@@ -429,7 +429,7 @@ impl CommitEntryWriter {
                     self.repository.clone(),
                     self.commit.clone(),
                     schema,
-                    entry.clone(),
+                    entry.path.to_path_buf(),
                     full_df,
                 )?;
             }

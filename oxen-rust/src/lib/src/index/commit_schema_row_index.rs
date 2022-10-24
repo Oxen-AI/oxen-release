@@ -1,6 +1,7 @@
 use indicatif::ProgressBar;
 use polars::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::constants::{
@@ -10,7 +11,7 @@ use crate::db;
 use crate::db::str_val_db;
 use crate::error::OxenError;
 use crate::media::{tabular, DFOpts};
-use crate::model::{Commit, CommitEntry, LocalRepository, Schema};
+use crate::model::{Commit, CommitEntry, LocalRepository, Schema, DataFrameDiff};
 use crate::util;
 
 /// indices is a tuple that represents (row_num_og,row_num_versioned)
@@ -34,14 +35,14 @@ impl CommitSchemaRowIndex {
     }
 
     pub fn file_db_path(
-        path: &Path,
+        repo: &LocalRepository,
         commit: &Commit,
         schema: &Schema,
-        entry: &CommitEntry,
+        path: &Path,
     ) -> PathBuf {
         // .oxen/history/COMMIT_ID/indices/SCHEMA_HASH/files/FILE_NAME_HASH
-        let file_name_hash = util::hasher::hash_buffer(entry.path.to_str().unwrap().as_bytes());
-        util::fs::oxen_hidden_dir(path)
+        let file_name_hash = util::hasher::hash_buffer(path.to_str().unwrap().as_bytes());
+        util::fs::oxen_hidden_dir(&repo.path)
             .join(HISTORY_DIR)
             .join(&commit.id)
             .join(INDICES_DIR)
@@ -54,11 +55,11 @@ impl CommitSchemaRowIndex {
         repository: &LocalRepository,
         commit: &Commit,
         schema: &Schema,
-        entry: &CommitEntry,
+        path: &Path,
     ) -> Result<CommitSchemaRowIndex, OxenError> {
         let row_db_path = CommitSchemaRowIndex::row_db_path(repository, schema);
         let file_db_path =
-            CommitSchemaRowIndex::file_db_path(&repository.path, commit, schema, entry);
+            CommitSchemaRowIndex::file_db_path(repository, commit, schema, path);
         log::debug!("CommitSchemaRowIndex new dir row_db_path {:?}", row_db_path);
         if !row_db_path.exists() {
             std::fs::create_dir_all(&row_db_path)?;
@@ -102,30 +103,15 @@ impl CommitSchemaRowIndex {
         str_val_db::list(&self.file_db)
     }
 
-    pub fn diff(
-        repository: LocalRepository,
-        commit_1: Commit,
-        commit_2: Commit,
-        schema: Schema,
-        entry: &CommitEntry,
-    ) -> Result<DataFrame, OxenError> {
-        let _index_1 = CommitSchemaRowIndex::new(&repository, &commit_1, &schema, entry);
-        let _index_2 = CommitSchemaRowIndex::new(&repository, &commit_2, &schema, entry);
-
-        let schema_df_path = util::fs::schema_df_path(&repository, &schema);
-        let df = tabular::scan_df(&schema_df_path)?;
-
-        let indices: Vec<u32> = vec![0, 1];
-        let df = tabular::take(df, indices)?;
-
-        Ok(df)
+    pub fn list_file_indices_hash_map(&self) -> Result<HashMap<String, RowIndexPair>, OxenError> {
+        str_val_db::hash_map(&self.file_db)
     }
 
     pub fn index_hash_row_nums(
         repository: LocalRepository,
         commit: Commit,
         schema: Schema,
-        entry: CommitEntry,
+        path: PathBuf,
         df: DataFrame,
     ) -> Result<DataFrame, OxenError> {
         let num_rows = df.height() as i64;
@@ -142,7 +128,7 @@ impl CommitSchemaRowIndex {
                             // log::debug!("s: {:?}", s);
 
                             let indexer =
-                                CommitSchemaRowIndex::new(&repository, &commit, &schema, &entry)
+                                CommitSchemaRowIndex::new(&repository, &commit, &schema, &path)
                                     .unwrap();
                             let pb = ProgressBar::new(num_rows as u64);
                             // downcast to struct
@@ -216,7 +202,7 @@ impl CommitSchemaRowIndex {
                             log::debug!("s: {:?}", s);
 
                             let indexer =
-                                CommitSchemaRowIndex::new(&repository, &commit, &schema, &entry)
+                                CommitSchemaRowIndex::new(&repository, &commit, &schema, &entry.path)
                                     .unwrap();
                             let pb = ProgressBar::new(num_rows as u64);
                             // downcast to struct
@@ -271,6 +257,95 @@ impl CommitSchemaRowIndex {
             .unwrap();
         // println!("NEW ROWS: {}", df);
         Ok(df)
+    }
+
+    pub fn diff_current(
+        repo: &LocalRepository,
+        schema: &Schema,
+        commit: &Commit,
+        path: &Path
+    ) -> Result<DataFrameDiff, OxenError> {
+        let other = CommitSchemaRowIndex::new(repo, commit, schema, path)?;
+
+        let path = repo.path.join(&path);
+        let df = tabular::read_df(&path, DFOpts::empty())?;
+        let df = tabular::df_hash_rows(df)?;
+
+        let current_hash_indices: HashMap<String, u32> = df.column(constants::ROW_HASH_COL_NAME).unwrap()
+            .utf8()
+            .unwrap()
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| 
+                (v.unwrap().to_string(), i as u32)
+            )
+            .collect();
+
+        let other_hash_indices = other.list_file_indices_hash_map()?;
+
+        // Added is all the row hashes that are in current that are not in other
+        let added_indices: Vec<u32> = current_hash_indices.iter().filter(|(hash, _indices)| {
+            !other_hash_indices.contains_key(*hash)
+        })
+        .map(|(_hash, index_pair)| index_pair.clone())
+        .collect();
+
+        // Removed is all the row hashes that are in other that are not in current
+        let removed_indices: Vec<u32> = other_hash_indices
+            .iter()
+            .filter(|(hash, _indices)| {!current_hash_indices.contains_key(*hash)})
+            .map(|(_hash, index_pair)| index_pair.1)
+            .collect();
+        
+        let content_df = tabular::scan_df(path)?;
+        let added_df = tabular::take(content_df, added_indices)?;
+
+        let content_df = tabular::scan_df(path)?;
+        let removed_df = tabular::take(content_df, removed_indices)?;
+
+        Ok(DataFrameDiff {
+            added: added_df,
+            removed: removed_df
+        })
+    }
+    
+    pub fn diff_commits(
+        repo: &LocalRepository,
+        schema: &Schema,
+        current_commit: &Commit,
+        other_commit: &Commit,
+        path: &Path
+    ) -> Result<DataFrameDiff, OxenError> {
+        let current = CommitSchemaRowIndex::new(repo, current_commit, schema, path)?;
+        let other = CommitSchemaRowIndex::new(repo, other_commit, schema, path)?;
+
+        let current_hash_indices = current.list_file_indices_hash_map()?;
+        let other_hash_indices = other.list_file_indices_hash_map()?;
+
+        // Added is all the row hashes that are in current that are not in other
+        let added_indices: Vec<u32> = current_hash_indices.iter().filter(|(hash, _indices)| {
+            !other_hash_indices.contains_key(*hash)
+        })
+        .map(|(_hash, index_pair)| index_pair.1)
+        .collect();
+
+        // Removed is all the row hashes that are in other that are not in current
+        let removed_indices: Vec<u32> = other_hash_indices
+            .iter()
+            .filter(|(hash, _indices)| {!current_hash_indices.contains_key(*hash)})
+            .map(|(_hash, index_pair)| index_pair.1)
+            .collect();
+        
+        let content_df = tabular::scan_df(path)?;
+        let added_df = tabular::take(content_df, added_indices)?;
+
+        let content_df = tabular::scan_df(path)?;
+        let removed_df = tabular::take(content_df, removed_indices)?;
+
+        Ok(DataFrameDiff {
+            added: added_df,
+            removed: removed_df
+        })
     }
 
     pub fn entry_df(&self) -> Result<DataFrame, OxenError> {
@@ -355,9 +430,8 @@ mod tests {
             assert_eq!(og_df.height(), version_df.height());
 
             let entry_reader = CommitDirReader::new(&repo, commit)?;
-            let entry = entry_reader.get_entry(&og_bbox_file)?.unwrap();
 
-            let row_index_reader = CommitSchemaRowIndex::new(&repo, commit, schema, &entry)?;
+            let row_index_reader = CommitSchemaRowIndex::new(&repo, commit, schema, &og_bbox_file)?;
             let rows = row_index_reader.entry_df()?;
             println!("Reconstructed {}", rows);
 
@@ -408,9 +482,8 @@ train/new.jpg,1.0,1.5,100,20
             assert_eq!(og_df.height() + 1, version_df.height());
 
             let entry_reader = CommitDirReader::new(&repo, &commit)?;
-            let entry = entry_reader.get_entry(&my_bbox_file)?.unwrap();
 
-            let row_index_reader = CommitSchemaRowIndex::new(&repo, &commit, schema, &entry)?;
+            let row_index_reader = CommitSchemaRowIndex::new(&repo, &commit, schema, &my_bbox_file)?;
             let rows = row_index_reader.entry_df()?;
             println!("Reconstructed {}", rows);
 
@@ -418,5 +491,38 @@ train/new.jpg,1.0,1.5,100,20
 
             Ok(())
         })
+    }
+
+    #[test]
+    async fn test_tabular_diff_added() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = command::log(&repo)?;
+            let last_commit = commits.first().unwrap();
+            let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
+
+            let bbox_file = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file =
+                test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
+
+            let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
+            let diff = CommitSchemaRowIndex::diff(&repo, &schema, current_commit, other_commit, bbox_file)?;
+
+
+            let results = r"
+╭─────────────────┬───────┬───────┬───────┬────────╮
+│ file            ┆ min_x ┆ min_y ┆ width ┆ height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/cat_3.jpg ┆ 41    ┆ 31.5  ┆ 410   ┆ 427    │
+╰─────────────────┴───────┴───────┴───────┴────────╯
+ 1 Rows x 5 Columns";
+
+            assert_eq!(results, tabular_datafusion::df_to_str(&diff.added).await?);
+            Ok(())
+        })
+        .await
     }
 }

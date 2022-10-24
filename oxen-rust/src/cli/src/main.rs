@@ -629,14 +629,14 @@ async fn main() {
             let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
             let path = sub_matches.value_of("PATH");
             if path.is_none() {
-                match dispatch::diff(None, file_or_commit_id).await {
+                match dispatch::diff(None, file_or_commit_id) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
                     }
                 }
             } else {
-                match dispatch::diff(Some(file_or_commit_id), path.unwrap()).await {
+                match dispatch::diff(Some(file_or_commit_id), path.unwrap()) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
