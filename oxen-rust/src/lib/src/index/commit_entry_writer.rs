@@ -247,38 +247,28 @@ impl CommitEntryWriter {
         mut entry: CommitEntry,
     ) -> Result<CommitEntry, OxenError> {
         let full_path = self.repository.path.join(&entry.path);
-        // create a copy to our versions directory
-        // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
-        // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
+        if util::fs::is_tabular(&entry.path) {
+            // We compute the hash on tabular data different
+            entry = self.compute_row_level_changes(commit, entry, &full_path)?;
+        } else {
+            // create a copy to our versions directory
+            // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
+            // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
+            let versions_entry_path = util::fs::version_path(&self.repository, &entry);
+            let versions_entry_dir = versions_entry_path.parent().unwrap();
 
-        let versions_entry_path = util::fs::version_path(&self.repository, &entry);
-        let versions_entry_dir = versions_entry_path.parent().unwrap();
-
-        // Create dir if not exists
-        if !versions_entry_dir.exists() {
-            // it's the first time
-            log::debug!(
-                "Creating version dir for file: {:?} -> {:?}",
-                entry.path,
-                versions_entry_dir
-            );
-
-            // Create version dir
-            std::fs::create_dir_all(versions_entry_dir)?;
-        }
-
-        if !versions_entry_path.exists() {
             log::debug!(
                 "Copying commit entry for file: {:?} -> {:?}",
                 entry.path,
                 versions_entry_path
             );
-            if util::fs::is_tabular(&full_path) {
-                entry =
-                    self.compute_row_level_changes(commit, entry, &full_path, versions_entry_dir)?;
-            } else {
-                std::fs::copy(full_path, versions_entry_path)?;
+
+            // Create dir if not exists
+            if !versions_entry_dir.exists() {
+                std::fs::create_dir_all(versions_entry_dir)?;
             }
+
+            std::fs::copy(full_path, versions_entry_path)?;
         }
 
         Ok(entry)
@@ -287,9 +277,8 @@ impl CommitEntryWriter {
     fn compute_row_level_changes(
         &self,
         commit: &Commit,
-        entry: CommitEntry,
+        mut entry: CommitEntry,
         full_path: &Path,
-        version_dir: &Path,
     ) -> Result<CommitEntry, OxenError> {
         log::debug!("Backup to arrow {:?}", commit);
 
@@ -303,6 +292,16 @@ impl CommitEntryWriter {
         let df = tabular::df_hash_rows(df)?;
         // Project row num as a col
         let mut df = tabular::df_add_row_num(df)?;
+        
+        // Hash is based off of row content, not the full file content
+        let hash = util::hasher::compute_tabular_hash(&df);
+        entry.hash = hash;
+
+        let version_entry_path = util::fs::version_path(&self.repository, &entry);
+        let version_dir = version_entry_path.parent().unwrap();
+        if !version_dir.exists() {
+            std::fs::create_dir_all(version_dir)?;
+        }
 
         // Save off in a .arrow file we will aggregate and collect at the end of the commit
         // into the global .arrow file
@@ -348,7 +347,7 @@ impl CommitEntryWriter {
 
             // TODO: should only read data once and filter to get schema, we're reading twice...
             let df = tabular::read_df(full_path, DFOpts::empty())?;
-            let schema = schema::Schema::from_polars(df.schema());
+            let schema = schema::Schema::from_polars(&df.schema());
             log::debug!("aggregate_row_level_results got OG DF {}", df);
 
             // This is the second read, just want to make sure this all works first
@@ -375,6 +374,7 @@ impl CommitEntryWriter {
                 tabular::write_df(&mut df, &schema_df_path)?;
 
                 // Write the row_hash -> row_num index
+                println!("Creating index for {} rows...", df.height());
                 CommitSchemaRowIndex::index_hash_row_nums(
                     self.repository.clone(),
                     self.commit.clone(),
@@ -388,6 +388,7 @@ impl CommitEntryWriter {
                 let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
 
                 // Need to save off indices too
+                println!("Wrapping up...");
                 CommitSchemaRowIndex::compute_new_rows(
                     self.repository.clone(),
                     self.commit.clone(),
@@ -403,6 +404,7 @@ impl CommitEntryWriter {
 
                 // Create new DF from new rows
                 // Loop over the hashes and filter to ones that do not exist
+                println!("Computing new rows...");
                 let new_df = CommitSchemaRowIndex::compute_new_rows(
                     self.repository.clone(),
                     self.commit.clone(),
@@ -421,6 +423,7 @@ impl CommitEntryWriter {
                 // println!("TOTAL: {}", full_df);
 
                 // write the new row hashes to index
+                println!("Updating index for {} rows...", full_df.height());
                 std::fs::remove_file(&schema_df_path)?;
                 tabular::write_df(&mut full_df, schema_df_path)?;
 

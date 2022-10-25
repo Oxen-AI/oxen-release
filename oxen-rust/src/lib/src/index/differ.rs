@@ -110,8 +110,8 @@ pub fn diff_tabular(
     let schema_reader = SchemaReader::new(repo, &current_commit.id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(path)? {
         let diff = CommitSchemaRowIndex::diff_current(repo, &schema, current_commit, path)?;
-        let added_diff = format!("{}", diff.added);
-        let removed_diff = format!("{}", diff.removed);
+        let added_diff = format!("{}", diff.added_rows.unwrap());
+        let removed_diff = format!("{}", diff.removed_rows.unwrap());
         Ok(format!(
             "Added Rows\n{added_diff}\n\nRemoved Rows\n{removed_diff}\n"
         ))

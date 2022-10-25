@@ -341,7 +341,7 @@ pub fn restore<P: AsRef<Path>>(
             let schema_reader = SchemaReader::new(repo, &commit.id)?;
             if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
                 let row_index_reader =
-                    CommitSchemaRowIndex::new(repo, &commit, &schema, &entry.path)?;
+                    CommitSchemaRowIndex::new(repo, &commit.id, &schema, &entry.path)?;
                 let mut df = row_index_reader.entry_df()?;
                 log::debug!("Got subset! {}", df);
                 let working_path = repo.path.join(path);

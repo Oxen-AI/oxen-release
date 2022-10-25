@@ -12,6 +12,9 @@ use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
+// use rayon::iter::ParallelBridge;
+// use rayon::iter::ParallelIterator;
+// use xxhash_rust::xxh3::xxh3_64;
 
 use super::df_opts::{DFFilter, DFFilterOp};
 
@@ -298,6 +301,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         let ca = s.struct_()?;
                         let out: Utf8Chunked = ca
                             .into_iter()
+                            // .par_bridge() // not sure why this is breaking
                             .map(|row| {
                                 // log::debug!("row: {:?}", row);
                                 pb.inc(1);
@@ -331,6 +335,8 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                                 }
                                 // println!("__DONE__ {:?}", buffer);
                                 let result = hasher::hash_buffer(&buffer);
+                                // let result = xxh3_64(&buffer);
+                                // let result: u64 = 0;
                                 // println!("__DONE__ {}", result);
                                 Some(result)
                             })
@@ -338,7 +344,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 
                         Ok(out.into_series())
                     },
-                    GetOutput::from_type(polars::prelude::DataType::UInt64),
+                    GetOutput::from_type(polars::prelude::DataType::Utf8),
                 )
                 .alias(constants::ROW_HASH_COL_NAME),
         ])

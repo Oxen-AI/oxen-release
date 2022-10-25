@@ -699,40 +699,6 @@ pub async fn run_query(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
     Ok(results)
 }
 
-fn get_added_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> Vec<Field> {
-    let mut fields: Vec<Field> = vec![];
-
-    // if field is in current schema but not in commit, it was added
-    for current_field in schema_current.fields.iter() {
-        if !schema_commit
-            .fields
-            .iter()
-            .any(|f| f.name == current_field.name)
-        {
-            fields.push(current_field.clone());
-        }
-    }
-
-    fields
-}
-
-fn get_removed_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> Vec<Field> {
-    let mut fields: Vec<Field> = vec![];
-
-    // if field is in commit history but not in current, it was removed
-    for commit_field in schema_commit.fields.iter() {
-        if !schema_current
-            .fields
-            .iter()
-            .any(|f| f.name == commit_field.name)
-        {
-            fields.push(commit_field.clone());
-        }
-    }
-
-    fields
-}
-
 // pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFrameDiff, OxenError> {
 //     let current_path = repo.path.join(&entry.path);
 //     let version_path = util::fs::version_path(repo, entry);

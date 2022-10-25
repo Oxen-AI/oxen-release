@@ -24,7 +24,7 @@ impl Schema {
         }
     }
 
-    pub fn from_polars(schema: polars::prelude::Schema) -> Schema {
+    pub fn from_polars(schema: &polars::prelude::Schema) -> Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
             let f = Field {
@@ -67,6 +67,42 @@ impl Schema {
         let buffer_str = hash_buffers.join("");
         let buffer = buffer_str.as_bytes();
         hasher::hash_buffer(buffer)
+    }
+
+    /// Compare the schemas, looking for added fields
+    pub fn added_fields(&self, other: &Schema) -> Vec<Field> {
+        let mut fields: Vec<Field> = vec![];
+    
+        // if field is in current schema but not in commit, it was added
+        for current_field in self.fields.iter() {
+            if !other
+                .fields
+                .iter()
+                .any(|f| f.name == current_field.name)
+            {
+                fields.push(current_field.clone());
+            }
+        }
+    
+        fields
+    }
+    
+    // Compare the schemas, looking for removed fields
+    pub fn removed_fields(&self, other: &Schema) -> Vec<Field> {
+        let mut fields: Vec<Field> = vec![];
+    
+        // if field is in commit history but not in current, it was removed
+        for commit_field in other.fields.iter() {
+            if !self
+                .fields
+                .iter()
+                .any(|f| f.name == commit_field.name)
+            {
+                fields.push(commit_field.clone());
+            }
+        }
+    
+        fields
     }
 
     pub fn schemas_to_string<S: AsRef<Vec<Schema>>>(schemas: S) -> String {
