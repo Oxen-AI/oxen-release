@@ -36,7 +36,9 @@ impl SchemaReader {
     /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaReader, OxenError> {
         let schema_db_path = SchemaReader::schema_db_dir(repository);
+        log::debug!("SchemaReader db {:?}", schema_db_path);
         let schema_files_db_path = SchemaReader::schema_files_db_dir(repository, commit_id);
+        log::debug!("SchemaReader files db {:?}", schema_files_db_path);
         let opts = db::opts::default();
         if !schema_db_path.exists() {
             std::fs::create_dir_all(&schema_db_path)?;
