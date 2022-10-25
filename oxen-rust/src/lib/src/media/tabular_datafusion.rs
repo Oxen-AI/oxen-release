@@ -792,9 +792,7 @@ fn get_removed_schema_fields(schema_commit: &Schema, schema_current: &Schema) ->
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::error::OxenError;
-    use crate::index::CommitDirReader;
     use crate::media::tabular_datafusion;
     use crate::test;
     use crate::util;
@@ -867,45 +865,4 @@ img_2.txt,201,225
             Ok(())
         })
     }
-
-//     #[tokio::test]
-//     async fn test_tabular_diff_removed() -> Result<(), OxenError> {
-//         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-//             let commits = command::log(&repo)?;
-//             let last_commit = commits.first().unwrap();
-//             let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
-
-//             let bbox_file = repo
-//                 .path
-//                 .join("annotations")
-//                 .join("train")
-//                 .join("bounding_box.csv");
-//             let bbox_file = test::modify_txt_file(
-//                 bbox_file,
-//                 r"
-// file,min_x,min_y,width,height
-// train/dog_1.jpg,101.5,32.0,385,330
-// train/dog_2.jpg,7.0,29.5,246,247
-// train/cat_2.jpg,30.5,44.0,333,396
-// ",
-//             )?;
-
-//             let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
-//             let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
-//             let diff = tabular_datafusion::diff(&repo, &entry).await?;
-//             let results = r"
-// ╭─────────────────┬───────┬───────┬───────┬────────╮
-// │ file            ┆ min_x ┆ min_y ┆ width ┆ height │
-// ├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-// │ train/cat_1.jpg ┆ 57    ┆ 35.5  ┆ 304   ┆ 427    │
-// ├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-// │ train/dog_3.jpg ┆ 19    ┆ 63.5  ┆ 376   ┆ 421    │
-// ╰─────────────────┴───────┴───────┴───────┴────────╯
-//  2 Rows x 5 Columns";
-
-//             assert_eq!(results, tabular_datafusion::df_to_str(&diff.removed).await?);
-//             Ok(())
-//         })
-//         .await
-//    }
 }

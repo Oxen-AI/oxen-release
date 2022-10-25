@@ -83,9 +83,12 @@ fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new("idx", &indices);
-    Ok(df
+    let collected = df
         .collect()
-        .expect(READ_ERROR)
+        .expect(READ_ERROR);
+    log::debug!("take indicies {:?}", indices);
+    log::debug!("from df {:?}", collected);
+    Ok(collected
         .take(&idx)
         .expect(READ_ERROR))
 }

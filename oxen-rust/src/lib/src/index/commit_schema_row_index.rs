@@ -41,7 +41,9 @@ impl CommitSchemaRowIndex {
         path: &Path,
     ) -> PathBuf {
         // .oxen/history/COMMIT_ID/indices/SCHEMA_HASH/files/FILE_NAME_HASH
-        let file_name_hash = util::hasher::hash_buffer(path.to_str().unwrap().as_bytes());
+        let filename = path.to_str().unwrap();
+        log::debug!("CommitSchemaRowIndex hashing filename {}", filename);
+        let file_name_hash = util::hasher::hash_buffer(filename.as_bytes());
         util::fs::oxen_hidden_dir(&repo.path)
             .join(HISTORY_DIR)
             .join(&commit.id)
@@ -64,6 +66,12 @@ impl CommitSchemaRowIndex {
         if !row_db_path.exists() {
             std::fs::create_dir_all(&row_db_path)?;
         }
+
+        log::debug!("CommitSchemaRowIndex new dir file_db_path {:?}", file_db_path);
+        if !file_db_path.exists() {
+            std::fs::create_dir_all(&file_db_path)?;
+        }
+
         let opts = db::opts::default();
         Ok(CommitSchemaRowIndex {
             row_db: DBWithThreadMode::open(&opts, &row_db_path)?,
@@ -265,11 +273,15 @@ impl CommitSchemaRowIndex {
         commit: &Commit,
         path: &Path
     ) -> Result<DataFrameDiff, OxenError> {
+        log::debug!("diff_current look at other commit {:?} for path {:?}", commit, path);
         let other = CommitSchemaRowIndex::new(repo, commit, schema, path)?;
 
-        let path = repo.path.join(&path);
-        let df = tabular::read_df(&path, DFOpts::empty())?;
+        log::debug!("diff_current going to read path {:?}", path);
+        let fullpath = repo.path.join(&path);
+        let df = tabular::read_df(&fullpath, DFOpts::empty())?;
         let df = tabular::df_hash_rows(df)?;
+
+        log::debug!("diff_current got current hashes {}", df);
 
         let current_hash_indices: HashMap<String, u32> = df.column(constants::ROW_HASH_COL_NAME).unwrap()
             .utf8()
@@ -280,8 +292,10 @@ impl CommitSchemaRowIndex {
                 (v.unwrap().to_string(), i as u32)
             )
             .collect();
+        log::debug!("diff_current current indices {:?}", current_hash_indices);
 
         let other_hash_indices = other.list_file_indices_hash_map()?;
+        log::debug!("diff_current other indices {:?}", other_hash_indices);
 
         // Added is all the row hashes that are in current that are not in other
         let added_indices: Vec<u32> = current_hash_indices.iter().filter(|(hash, _indices)| {
@@ -297,11 +311,21 @@ impl CommitSchemaRowIndex {
             .map(|(_hash, index_pair)| index_pair.1)
             .collect();
         
-        let content_df = tabular::scan_df(path)?;
-        let added_df = tabular::take(content_df, added_indices)?;
+        log::debug!("diff_current added_indices {:?}", added_indices);
+        
+        log::debug!("diff_current removed_indices {:?}", removed_indices);
 
-        let content_df = tabular::scan_df(path)?;
-        let removed_df = tabular::take(content_df, removed_indices)?;
+        // Take added from the added df
+        let opts = DFOpts::from_filter_schema(&schema);
+        let current_df = tabular::transform_df(df.lazy(), opts)?;
+        let added_df = tabular::take(current_df.lazy(), added_indices)?;
+
+        // Take removed from CADF
+        let content_addressable_df_path = util::fs::schema_df_path(repo, schema);
+        let content_df = tabular::scan_df(&content_addressable_df_path)?;
+        let opts = DFOpts::from_filter_schema(&schema);
+        let content_df = tabular::transform_df(content_df, opts)?;
+        let removed_df = tabular::take(content_df.lazy(), removed_indices)?;
 
         Ok(DataFrameDiff {
             added: added_df,
@@ -398,7 +422,6 @@ impl CommitSchemaRowIndex {
 mod tests {
     use crate::command;
     use crate::error::OxenError;
-    use crate::index::CommitDirReader;
     use crate::index::CommitSchemaRowIndex;
     use crate::media::tabular;
     use crate::media::DFOpts;
@@ -428,8 +451,6 @@ mod tests {
 
             let version_df = tabular::read_df(path, DFOpts::empty())?;
             assert_eq!(og_df.height(), version_df.height());
-
-            let entry_reader = CommitDirReader::new(&repo, commit)?;
 
             let row_index_reader = CommitSchemaRowIndex::new(&repo, commit, schema, &og_bbox_file)?;
             let rows = row_index_reader.entry_df()?;
@@ -481,8 +502,6 @@ train/new.jpg,1.0,1.5,100,20
             let version_df = tabular::read_df(path, DFOpts::empty())?;
             assert_eq!(og_df.height() + 1, version_df.height());
 
-            let entry_reader = CommitDirReader::new(&repo, &commit)?;
-
             let row_index_reader = CommitSchemaRowIndex::new(&repo, &commit, schema, &my_bbox_file)?;
             let rows = row_index_reader.entry_df()?;
             println!("Reconstructed {}", rows);
@@ -494,35 +513,58 @@ train/new.jpg,1.0,1.5,100,20
     }
 
     #[test]
-    async fn test_tabular_diff_added() -> Result<(), OxenError> {
+    fn test_tabular_diff_added() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
             let last_commit = commits.first().unwrap();
-            let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
+
+            let bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_path = repo.path.join(&bbox_file);
+            test::append_line_txt_file(bbox_path, "train/cat_3.jpg,41.0,31.5,410,427")?;
+
+            let schemas = command::schema_list(&repo, None)?;
+            let schema = schemas.first().unwrap();
+            let diff = CommitSchemaRowIndex::diff_current(&repo, &schema, last_commit, &bbox_file)?;
+
+            assert_eq!(diff.added.height(), 1);
+            assert_eq!(diff.added.width(), 5);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_tabular_diff_removed() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = command::log(&repo)?;
+            let last_commit = commits.first().unwrap();
 
             let bbox_file = repo
                 .path
                 .join("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let bbox_file =
-                test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
+            let bbox_file = test::modify_txt_file(
+                bbox_file,
+                r"
+file,min_x,min_y,width,height
+train/dog_1.jpg,101.5,32.0,385,330
+train/dog_2.jpg,7.0,29.5,246,247
+train/cat_2.jpg,30.5,44.0,333,396
+",
+            )?;
 
             let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
-            let diff = CommitSchemaRowIndex::diff(&repo, &schema, current_commit, other_commit, bbox_file)?;
+            let schemas = command::schema_list(&repo, None)?;
+            let schema = schemas.first().unwrap();
+            let diff = CommitSchemaRowIndex::diff_current(&repo, &schema, last_commit, &relative)?;
 
+            println!("Got removed: {}", diff.removed);
 
-            let results = r"
-╭─────────────────┬───────┬───────┬───────┬────────╮
-│ file            ┆ min_x ┆ min_y ┆ width ┆ height │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-│ train/cat_3.jpg ┆ 41    ┆ 31.5  ┆ 410   ┆ 427    │
-╰─────────────────┴───────┴───────┴───────┴────────╯
- 1 Rows x 5 Columns";
-
-            assert_eq!(results, tabular_datafusion::df_to_str(&diff.added).await?);
+            assert_eq!(diff.removed.height(), 2);
+            assert_eq!(diff.removed.width(), 5);
             Ok(())
         })
-        .await
-    }
+   }
 }
