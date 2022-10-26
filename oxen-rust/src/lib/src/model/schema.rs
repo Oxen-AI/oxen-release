@@ -72,36 +72,28 @@ impl Schema {
     /// Compare the schemas, looking for added fields
     pub fn added_fields(&self, other: &Schema) -> Vec<Field> {
         let mut fields: Vec<Field> = vec![];
-    
+
         // if field is in current schema but not in commit, it was added
         for current_field in self.fields.iter() {
-            if !other
-                .fields
-                .iter()
-                .any(|f| f.name == current_field.name)
-            {
+            if !other.fields.iter().any(|f| f.name == current_field.name) {
                 fields.push(current_field.clone());
             }
         }
-    
+
         fields
     }
-    
+
     // Compare the schemas, looking for removed fields
     pub fn removed_fields(&self, other: &Schema) -> Vec<Field> {
         let mut fields: Vec<Field> = vec![];
-    
+
         // if field is in commit history but not in current, it was removed
         for commit_field in other.fields.iter() {
-            if !self
-                .fields
-                .iter()
-                .any(|f| f.name == commit_field.name)
-            {
+            if !self.fields.iter().any(|f| f.name == commit_field.name) {
                 fields.push(commit_field.clone());
             }
         }
-    
+
         fields
     }
 

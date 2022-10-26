@@ -50,10 +50,15 @@ impl CommitValidator {
             let hash = if util::fs::is_tabular(&entry.path) {
                 let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
                 let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
-                let reader = CommitSchemaRowIndex::new(&self.repository, &entry.commit_id, &schema, &entry.path)?;
+                let reader = CommitSchemaRowIndex::new(
+                    &self.repository,
+                    &entry.commit_id,
+                    &schema,
+                    &entry.path,
+                )?;
                 let df = reader.sorted_entry_df_with_row_hash()?;
-                let hash = util::hasher::compute_tabular_hash(&df);
-                hash
+
+                util::hasher::compute_tabular_hash(&df)
             } else {
                 if !version_path.exists() {
                     log::debug!(
@@ -64,8 +69,7 @@ impl CommitValidator {
                     return Ok(None);
                 }
 
-                let hash = util::hasher::hash_file_contents(&version_path)?;
-                hash
+                util::hasher::hash_file_contents(&version_path)?
             };
 
             hashes.push(SimpleHash { hash })

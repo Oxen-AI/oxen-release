@@ -3,9 +3,8 @@ use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::{self, csv, json};
 use datafusion::datasource::memory::MemTable;
-use datafusion::prelude::{col, CsvReadOptions, DataFrame, ParquetReadOptions, SessionContext};
+use datafusion::prelude::{CsvReadOptions, DataFrame, ParquetReadOptions, SessionContext};
 
-use colored::Colorize;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, ContentArrangement, Row, Table};
@@ -21,11 +20,6 @@ use std::sync::Arc;
 use std::vec;
 
 use crate::error::OxenError;
-use crate::media::{tabular, DFOpts};
-use crate::model::schema::Field;
-use crate::model::Schema;
-use crate::model::{CommitEntry, DataFrameDiff, LocalRepository};
-use crate::util;
 
 const MAX_CELL_LENGTH: usize = 128; // to truncate long text
 

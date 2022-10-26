@@ -74,15 +74,21 @@ impl SchemaReader {
         str_json_db::get(&self.schema_db, hash)
     }
 
-    pub fn get_schema_hash_for_file<P: AsRef<Path>>(&self, path: P) -> Result<Option<String>, OxenError> {
+    pub fn get_schema_hash_for_file<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Option<String>, OxenError> {
         str_val_db::get(&self.schema_files_db, path.as_ref().to_str().unwrap())
     }
 
-    pub fn get_schema_for_file<P: AsRef<Path>>(&self, path: P) -> Result<Option<Schema>, OxenError> {
+    pub fn get_schema_for_file<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Option<Schema>, OxenError> {
         if let Some(hash) = self.get_schema_hash_for_file(path)? {
             return self.get_schema_by_hash(hash);
         }
-        return Ok(None);
+        Ok(None)
     }
 
     pub fn list_schemas(&self) -> Result<Vec<Schema>, OxenError> {

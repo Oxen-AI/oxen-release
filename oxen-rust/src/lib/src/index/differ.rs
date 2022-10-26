@@ -1,6 +1,5 @@
 use crate::error::OxenError;
 use crate::index::{CommitDirEntryReader, CommitReader};
-use crate::media::tabular_datafusion;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::util;
 
@@ -37,11 +36,7 @@ fn _commit_or_head(
 }
 
 // TODO: Change API to take two commits
-fn _diff_commit(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: &Path,
-) -> Result<String, OxenError> {
+fn _diff_commit(repo: &LocalRepository, commit: &Commit, path: &Path) -> Result<String, OxenError> {
     if let Some(parent) = path.parent() {
         let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
         let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
@@ -50,7 +45,7 @@ fn _diff_commit(
             if util::fs::is_tabular(path) {
                 let commit_reader = CommitReader::new(repo)?;
                 let commits = commit_reader.history_from_head()?;
-                
+
                 let current_commit = commits.first().unwrap();
 
                 return diff_tabular(repo, current_commit, &entry.path);
@@ -105,7 +100,7 @@ pub fn diff_utf8(repo: &LocalRepository, entry: &CommitEntry) -> Result<String, 
 pub fn diff_tabular(
     repo: &LocalRepository,
     current_commit: &Commit,
-    path: &Path
+    path: &Path,
 ) -> Result<String, OxenError> {
     let schema_reader = SchemaReader::new(repo, &current_commit.id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(path)? {
@@ -115,7 +110,6 @@ pub fn diff_tabular(
         Ok(format!(
             "Added Rows\n{added_diff}\n\nRemoved Rows\n{removed_diff}\n"
         ))
-
     } else {
         Err(OxenError::schema_does_not_exist_for_file(path))
     }

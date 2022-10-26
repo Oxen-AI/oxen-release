@@ -1,10 +1,10 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::db;
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
 use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
 use crate::util;
+use crate::{command, db};
 
 use chrono::Local;
 use indicatif::ProgressBar;
@@ -346,7 +346,8 @@ impl CommitWriter {
                     }
                 }
 
-                std::fs::copy(version_path, dst_path)?;
+                // TODO: refactor to not just do a copy, but restore from generalized fn
+                command::restore(&self.repository, Some(commit_id), &entry.path)?;
             } else {
                 // we do have it, check if we need to update it
                 let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
@@ -364,7 +365,10 @@ impl CommitWriter {
                         version_path,
                         dst_path
                     );
-                    std::fs::copy(version_path, dst_path)?;
+
+                    // TODO: refactor to unpack from multiple places more cleanly
+                    // might want to unzip, or unpack from CADF, unencrypt, who knows
+                    command::restore(&self.repository, Some(commit_id), &entry.path)?;
                 } else {
                     log::debug!(
                         "set_working_repo_to_commit_id hashes match! {:?} -> {:?}",

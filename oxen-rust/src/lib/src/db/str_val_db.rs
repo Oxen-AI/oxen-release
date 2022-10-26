@@ -2,8 +2,8 @@ use crate::db::kv_db;
 use crate::error::OxenError;
 
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
-use std::str;
 use std::collections::HashMap;
+use std::str;
 
 /// More efficient than get since it does not actual deserialize the entry
 pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> bool {
