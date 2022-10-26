@@ -32,6 +32,21 @@ impl CommitValidator {
         log::debug!("Computing commit hash for {} entries", entries.len());
         let mut hashes: Vec<SimpleHash> = vec![];
         for entry in entries.iter() {
+            // Sometimes we have pre computed the HASH, so that we don't have to fully hash contents again to
+            // check if data is synced (I guess this is already in the file path...should we just grab it from there instead?)
+            // I think the extra hash computation on the server is nice so that you know the actual contents was saved to disk
+            // Cannot be tampered with in flight (I'm not technical enough to even know how you do that in theory but 🤷‍♂️)
+            let version_path = util::fs::version_path(&self.repository, entry);
+
+            let maybe_hash_file = version_path.parent().unwrap().join("HASH");
+            log::debug!("Checking for hash file: {:?}", maybe_hash_file);
+            if maybe_hash_file.exists() {
+                let hash = util::fs::read_from_path(&maybe_hash_file)?;
+                log::debug!("GOT HASH FILE {hash} => {:?}", entry.path);
+                hashes.push(SimpleHash { hash });
+                continue;
+            }
+
             let hash = if util::fs::is_tabular(&entry.path) {
                 let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
                 let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
@@ -40,7 +55,6 @@ impl CommitValidator {
                 let hash = util::hasher::compute_tabular_hash(&df);
                 hash
             } else {
-                let version_path = util::fs::version_path(&self.repository, entry);
                 if !version_path.exists() {
                     log::debug!(
                         "Could not find version path for {:?} -> {:?}",
