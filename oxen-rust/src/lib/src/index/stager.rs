@@ -7,6 +7,8 @@ use crate::index::{
     StagedDirEntryDB,
 };
 
+use crate::media::tabular;
+use crate::media::DFOpts;
 use crate::model::{
     CommitEntry, EntryType, LocalRepository, MergeConflict, StagedData, StagedDirStats,
     StagedEntry, StagedEntryStatus,
@@ -631,7 +633,14 @@ impl Stager {
         }
 
         // compute the hash to know if it has changed
-        let hash = util::hasher::hash_file_contents(path)?;
+        // TODO: Look where all this is used, and abstract away....
+        let hash = if util::fs::is_tabular(path) {
+            let df = tabular::read_df(path, DFOpts::empty())?;
+            let df = tabular::df_hash_rows(df)?;
+            util::hasher::compute_tabular_hash(&df)
+        } else {
+            util::hasher::hash_file_contents(path)?
+        };
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
@@ -671,6 +680,10 @@ impl Stager {
                 return Ok(path);
             } else {
                 // Hash doesn't match, mark it as modified
+                log::debug!(
+                    "add_staged_entry_in_dir_db HASH DOESN'T MATCH {:?}",
+                    entry.path
+                );
                 staged_entry.status = StagedEntryStatus::Modified;
             }
         }

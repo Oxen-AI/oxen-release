@@ -11,8 +11,10 @@ use crate::db;
 use crate::db::str_val_db;
 use crate::error::OxenError;
 use crate::media::{tabular, DFOpts};
-use crate::model::{Commit, CommitEntry, LocalRepository, Schema, DataFrameDiff};
+use crate::model::{Commit, CommitEntry, DataFrameDiff, LocalRepository, Schema};
 use crate::util;
+
+use super::SchemaReader;
 
 /// indices is a tuple that represents (row_num_og,row_num_versioned)
 /// 1) row_num_og = row number in the original file, so that we can restore properly
@@ -61,14 +63,16 @@ impl CommitSchemaRowIndex {
         path: &Path,
     ) -> Result<CommitSchemaRowIndex, OxenError> {
         let row_db_path = CommitSchemaRowIndex::row_db_path(repository, schema);
-        let file_db_path =
-            CommitSchemaRowIndex::file_db_path(repository, commit_id, schema, path);
+        let file_db_path = CommitSchemaRowIndex::file_db_path(repository, commit_id, schema, path);
         log::debug!("CommitSchemaRowIndex new dir row_db_path {:?}", row_db_path);
         if !row_db_path.exists() {
             std::fs::create_dir_all(&row_db_path)?;
         }
 
-        log::debug!("CommitSchemaRowIndex new dir file_db_path {:?}", file_db_path);
+        log::debug!(
+            "CommitSchemaRowIndex new dir file_db_path {:?}",
+            file_db_path
+        );
         if !file_db_path.exists() {
             std::fs::create_dir_all(&file_db_path)?;
         }
@@ -210,9 +214,13 @@ impl CommitSchemaRowIndex {
                         move |s| {
                             log::debug!("s: {:?}", s);
 
-                            let indexer =
-                                CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &entry.path)
-                                    .unwrap();
+                            let indexer = CommitSchemaRowIndex::new(
+                                &repository,
+                                &commit.id,
+                                &schema,
+                                &entry.path,
+                            )
+                            .unwrap();
                             let pb = ProgressBar::new(num_rows as u64);
                             // downcast to struct
                             let ca = s.struct_()?;
@@ -272,9 +280,13 @@ impl CommitSchemaRowIndex {
         repo: &LocalRepository,
         schema: &Schema,
         commit: &Commit,
-        path: &Path
+        path: &Path,
     ) -> Result<DataFrameDiff, OxenError> {
-        log::debug!("diff_current look at other commit {:?} for path {:?}", commit, path);
+        log::debug!(
+            "diff_current look at other commit {:?} for path {:?}",
+            commit,
+            path
+        );
         let other = CommitSchemaRowIndex::new(repo, &commit.id, schema, path)?;
 
         // Read the current data frame
@@ -288,8 +300,8 @@ impl CommitSchemaRowIndex {
         // Check to make sure the schemas match, ie column changes
         let schema_current = Schema::from_polars(&current_df.schema());
         if schema.hash != schema_current.hash {
-            let added_fields = schema_current.added_fields(&schema);
-            let removed_fields = schema_current.removed_fields(&schema);
+            let added_fields = schema_current.added_fields(schema);
+            let removed_fields = schema_current.removed_fields(schema);
 
             let added_cols = if !added_fields.is_empty() {
                 let opts = DFOpts::from_filter_fields(added_fields);
@@ -322,7 +334,7 @@ impl CommitSchemaRowIndex {
                 added_rows: None,
                 removed_rows: None,
                 added_cols,
-                removed_cols
+                removed_cols,
             });
         }
 
@@ -334,14 +346,14 @@ impl CommitSchemaRowIndex {
 
         log::debug!("diff_current got current hashes {}", current_df);
 
-        let current_hash_indices: HashMap<String, u32> = current_df.column(constants::ROW_HASH_COL_NAME).unwrap()
+        let current_hash_indices: HashMap<String, u32> = current_df
+            .column(constants::ROW_HASH_COL_NAME)
+            .unwrap()
             .utf8()
             .unwrap()
             .into_iter()
             .enumerate()
-            .map(|(i, v)| 
-                (v.unwrap().to_string(), i as u32)
-            )
+            .map(|(i, v)| (v.unwrap().to_string(), i as u32))
             .collect();
         log::debug!("diff_current current indices {:?}", current_hash_indices);
 
@@ -349,41 +361,49 @@ impl CommitSchemaRowIndex {
         log::debug!("diff_current other indices {:?}", other_hash_indices);
 
         // Added is all the row hashes that are in current that are not in other
-        let added_indices: Vec<u32> = current_hash_indices.iter().filter(|(hash, _indices)| {
-            !other_hash_indices.contains_key(*hash)
-        })
-        .map(|(_hash, index_pair)| index_pair.clone())
-        .collect();
+        let added_indices: Vec<u32> = current_hash_indices
+            .iter()
+            .filter(|(hash, _indices)| !other_hash_indices.contains_key(*hash))
+            .map(|(_hash, index_pair)| *index_pair)
+            .collect();
 
         // Removed is all the row hashes that are in other that are not in current
         let removed_indices: Vec<u32> = other_hash_indices
             .iter()
-            .filter(|(hash, _indices)| {!current_hash_indices.contains_key(*hash)})
+            .filter(|(hash, _indices)| !current_hash_indices.contains_key(*hash))
             .map(|(_hash, index_pair)| index_pair.1)
             .collect();
-        
+
         log::debug!("diff_current added_indices {:?}", added_indices);
-        
+
         log::debug!("diff_current removed_indices {:?}", removed_indices);
 
         // Take added from the added df
-        let opts = DFOpts::from_filter_schema(&schema);
+        let opts = DFOpts::from_filter_schema(schema);
         let current_df = tabular::transform_df(current_df.lazy(), opts)?;
         let added_rows = tabular::take(current_df.lazy(), added_indices)?;
 
         // Take removed from CADF (Content Addressable Data Frame)
-        let opts = DFOpts::from_filter_schema(&schema);
+        let opts = DFOpts::from_filter_schema(schema);
         let content_df = tabular::transform_df(content_df, opts)?;
         let removed_rows = tabular::take(content_df.lazy(), removed_indices)?;
 
         Ok(DataFrameDiff {
-            added_rows: if added_rows.height() > 0 { Some(added_rows) }  else { None },
-            removed_rows: if removed_rows.height() > 0 { Some(removed_rows) }  else { None },
+            added_rows: if added_rows.height() > 0 {
+                Some(added_rows)
+            } else {
+                None
+            },
+            removed_rows: if removed_rows.height() > 0 {
+                Some(removed_rows)
+            } else {
+                None
+            },
             added_cols: None,
-            removed_cols: None
+            removed_cols: None,
         })
     }
-    
+
     // pub fn diff_commits(
     //     repo: &LocalRepository,
     //     schema: &Schema,
@@ -410,7 +430,7 @@ impl CommitSchemaRowIndex {
     //         .filter(|(hash, _indices)| {!current_hash_indices.contains_key(*hash)})
     //         .map(|(_hash, index_pair)| index_pair.1)
     //         .collect();
-        
+
     //     let content_df = tabular::scan_df(path)?;
     //     let added_df = tabular::take(content_df, added_indices)?;
 
@@ -424,6 +444,16 @@ impl CommitSchemaRowIndex {
     //         removed_cols: None,
     //     })
     // }
+
+    pub fn df_from_entry(
+        repo: &LocalRepository,
+        entry: &CommitEntry,
+    ) -> Result<DataFrame, OxenError> {
+        let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
+        let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
+        let reader = CommitSchemaRowIndex::new(repo, &entry.commit_id, &schema, &entry.path)?;
+        reader.entry_df()
+    }
 
     pub fn entry_df(&self) -> Result<DataFrame, OxenError> {
         // Sort by the original file row num
@@ -512,7 +542,8 @@ mod tests {
             let version_df = tabular::read_df(path, DFOpts::empty())?;
             assert_eq!(og_df.height(), version_df.height());
 
-            let row_index_reader = CommitSchemaRowIndex::new(&repo, &commit.id, schema, &og_bbox_file)?;
+            let row_index_reader =
+                CommitSchemaRowIndex::new(&repo, &commit.id, schema, &og_bbox_file)?;
             let rows = row_index_reader.entry_df()?;
             println!("Reconstructed {}", rows);
 
@@ -562,7 +593,8 @@ train/new.jpg,1.0,1.5,100,20
             let version_df = tabular::read_df(path, DFOpts::empty())?;
             assert_eq!(og_df.height() + 1, version_df.height());
 
-            let row_index_reader = CommitSchemaRowIndex::new(&repo, &commit.id, schema, &my_bbox_file)?;
+            let row_index_reader =
+                CommitSchemaRowIndex::new(&repo, &commit.id, schema, &my_bbox_file)?;
             let rows = row_index_reader.entry_df()?;
             println!("Reconstructed {}", rows);
 
@@ -586,7 +618,7 @@ train/new.jpg,1.0,1.5,100,20
 
             let schemas = command::schema_list(&repo, None)?;
             let schema = schemas.first().unwrap();
-            let diff = CommitSchemaRowIndex::diff_current(&repo, &schema, last_commit, &bbox_file)?;
+            let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added rows
             assert!(diff.added_rows.is_some());
@@ -597,7 +629,6 @@ train/new.jpg,1.0,1.5,100,20
             let added_row = diff.added_rows.unwrap();
             assert_eq!(added_row.height(), 1);
             assert_eq!(added_row.width(), 5);
-
 
             Ok(())
         })
@@ -622,7 +653,7 @@ train/new.jpg,1.0,1.5,100,20
 
             let schemas = command::schema_list(&repo, None)?;
             let schema = schemas.first().unwrap();
-            let diff = CommitSchemaRowIndex::diff_current(&repo, &schema, last_commit, &bbox_file)?;
+            let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added columns
             assert!(diff.added_rows.is_none());
@@ -662,9 +693,7 @@ train/cat_2.jpg,30.5,44.0,333,396
             let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
             let schemas = command::schema_list(&repo, None)?;
             let schema = schemas.first().unwrap();
-            let diff = CommitSchemaRowIndex::diff_current(&repo, &schema, last_commit, &relative)?;
-
-            
+            let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &relative)?;
 
             // Make sure there is only removed rows
             assert!(diff.removed_rows.is_some());
@@ -674,15 +703,15 @@ train/cat_2.jpg,30.5,44.0,333,396
             assert!(diff.added_rows.is_none());
             assert!(diff.added_cols.is_none());
             assert!(diff.removed_cols.is_none());
-            
+
             // Make sure we found the multiple removed rows
             assert_eq!(removed_row.height(), 2);
             assert_eq!(removed_row.width(), 5);
             Ok(())
         })
-   }
+    }
 
-   #[test]
+    #[test]
     fn test_tabular_diff_removed_cols() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = command::log(&repo)?;
@@ -695,9 +724,18 @@ train/cat_2.jpg,30.5,44.0,333,396
 
             // Remove columns from the data
             let fields = vec![
-                Field { name: String::from("file"), dtype: String::from("str") },
-                Field { name: String::from("min_x"), dtype: String::from("f64") },
-                Field { name: String::from("min_y"), dtype: String::from("f64") }
+                Field {
+                    name: String::from("file"),
+                    dtype: String::from("str"),
+                },
+                Field {
+                    name: String::from("min_x"),
+                    dtype: String::from("f64"),
+                },
+                Field {
+                    name: String::from("min_y"),
+                    dtype: String::from("f64"),
+                },
             ];
             let opts = DFOpts::from_filter_fields(fields);
             let mut df = tabular::read_df(&bbox_path, opts)?;
@@ -705,7 +743,7 @@ train/cat_2.jpg,30.5,44.0,333,396
 
             let schemas = command::schema_list(&repo, None)?;
             let schema = schemas.first().unwrap();
-            let diff = CommitSchemaRowIndex::diff_current(&repo, &schema, last_commit, &bbox_file)?;
+            let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added columns
             assert!(diff.added_rows.is_none());

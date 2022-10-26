@@ -1922,8 +1922,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
             .join("train")
             .join("bounding_box.csv");
         let bbox_file = repo.path.join(&bbox_filename);
-        let bbox_file =
-            test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+        let bbox_file = test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
         let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
@@ -1931,8 +1930,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         // Add a more rows on the main branch
         command::checkout(&repo, &og_branch.name)?;
 
-        let bbox_file =
-            test::append_line_txt_file(bbox_file, "train/dog_4.jpg, 52.0, 62.5, 256, 429")?;
+        let bbox_file = test::append_line_txt_file(bbox_file, "train/dog_4.jpg,52.0,62.5,256,429")?;
 
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation on main branch")?;

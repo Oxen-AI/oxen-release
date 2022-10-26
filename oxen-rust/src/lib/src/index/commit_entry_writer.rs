@@ -292,7 +292,7 @@ impl CommitEntryWriter {
         let df = tabular::df_hash_rows(df)?;
         // Project row num as a col
         let mut df = tabular::df_add_row_num(df)?;
-        
+
         // Hash is based off of row content, not the full file content
         let hash = util::hasher::compute_tabular_hash(&df);
         entry.hash = hash;
@@ -317,10 +317,13 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
     ) -> Result<(), OxenError> {
         self.commit_staged_entries_with_prog(commit, staged_data)?;
-        self.aggregate_row_level_results()
+        self.aggregate_row_level_results(false)
     }
 
-    fn aggregate_row_level_results(&self) -> Result<(), OxenError> {
+    pub fn aggregate_row_level_results(
+        &self,
+        should_copy_to_working_dir: bool,
+    ) -> Result<(), OxenError> {
         let commit_dir_reader = CommitDirReader::new(&self.repository, &self.commit)?;
 
         let tabular_entries: Vec<CommitEntry> = commit_dir_reader
@@ -336,21 +339,34 @@ impl CommitEntryWriter {
         // TODO: should probably group based on schema, and just do one big write at the end,
         // but this works for now
         for entry in tabular_entries.iter() {
+            log::debug!("Merging tabular entry {:?}", entry.path);
             // Only merge newly added files, it's only newly added if it has this data.arrow file
             let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
             let hash_results_file = version_dir.join("data.arrow");
             if !hash_results_file.exists() {
+                log::debug!("No tmp data.arrow file for entry {:?}", entry.path);
                 continue;
             }
 
             let full_path = &self.repository.path.join(&entry.path);
+            if should_copy_to_working_dir {
+                // TODO: reading data many times, probably shouldn't...?
+                let mut df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
+                // Need to restore parent dir
+                if let Some(parent) = full_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                log::debug!("Restoring path {:?}", entry.path);
+                tabular::write_df(&mut df, &full_path)?;
+            }
 
-            // TODO: should only read data once and filter to get schema, we're reading twice...
+            // TODO: should only read data once and filter to get schema, we're reading many times...
             let df = tabular::read_df(full_path, DFOpts::empty())?;
+
             let schema = schema::Schema::from_polars(&df.schema());
             log::debug!("aggregate_row_level_results got OG DF {}", df);
 
-            // This is the second read, just want to make sure this all works first
+            // This is another read, just want to make sure this all works first
             let mut df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
 
             // After we've read this data.arrow file we should clean it up
