@@ -126,7 +126,7 @@ $ oxen checkout COMMIT_ID
 
 Oxen is smart about what file types you are adding. For example if you add a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) under the hood Oxen will index and keep track of each row.
 
-Oxen also has some handy command line tools for working with tabular data. The `oxen df` command (short for "DataFrame") let's you easily view, modify, slice, and modify tabular data.
+Oxen also has some [handy command line tooling](Tabular.md) for working with tabular data. The `oxen df` command (short for "DataFrame") let's you easily view, modify, slice, and modify tabular data.
 
 ```bash
 $ oxen df annotations/train.csv
@@ -386,7 +386,7 @@ $ oxen diff path/to/file.txt
  i
 +here
  am a text file that
- greg is modifying
++I am modifying
 -la-dee-da
 +la-doo-da
 +another line
