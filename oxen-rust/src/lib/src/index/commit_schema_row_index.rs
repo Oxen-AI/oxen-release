@@ -19,6 +19,7 @@ use crate::util;
 /// 2) row_num_versioned = global row number in the row content hashed arrow file for the schema
 pub type RowIndexPair = (u32, u32);
 
+/// TODO: Rename this to ContentAddressableDataFrame or something
 pub struct CommitSchemaRowIndex {
     row_db: DBWithThreadMode<MultiThreaded>,  // global row hashes
     file_db: DBWithThreadMode<MultiThreaded>, // file level row hashes

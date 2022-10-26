@@ -15,8 +15,9 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter, RefReader, RefWriter,
+    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter, RefReader, RefWriter, SchemaReader, CommitSchemaRowIndex,
 };
+use crate::media::tabular;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 
@@ -292,11 +293,37 @@ impl EntryIndexer {
                     let mut tar = tar::Builder::new(enc);
                     for entry in chunk.iter() {
                         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                        let version_path = util::fs::version_path(&self.repository, entry);
-                        let name =
-                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                        tar.append_path_with_name(version_path, name).unwrap();
+                        if util::fs::is_tabular(&entry.path) {
+                            // TODO: Look into apache arrow flight for more efficient transfer of CADF
+                            // TODO: One liner to get DataFrame from entry
+                            let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
+                            let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
+                            let reader = CommitSchemaRowIndex::new(&self.repository, &entry.commit_id, &schema, &entry.path)?;
+                            let mut df = reader.sorted_entry_df_with_row_hash()?;
+
+                            // save DataFrame to disk in it's proper version dir
+                            let version_path = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone()).join("data.arrow");
+                            log::debug!("ZIPPING TABULAR {:?}", version_path);
+                            tabular::write_df(&mut df, &version_path)?;
+
+                            let name =
+                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+
+                            tar.append_path_with_name(version_path, name).unwrap();
+
+                            // TODO:
+                            // Write hash on upload success (so that we know we got the data content successfully, and can do more efficient compute "checksum" on the fly)
+                            // make sure we can pull it on the other side
+                            // have function to loop over tabular entries and construct the CADF in the "correct order" (whatever that is....)
+                        } else {
+                            let version_path = util::fs::version_path(&self.repository, entry);
+                            log::debug!("ZIPPING REGULAR {:?}", version_path);
+                            let name =
+                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+
+                            tar.append_path_with_name(version_path, name).unwrap();
+                        }
                     }
 
                     // TODO: Clean this up... many places it could fail, but just want to get something working
