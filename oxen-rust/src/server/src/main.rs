@@ -13,7 +13,7 @@ extern crate log;
 
 // use actix_http::KeepAlive;
 // use std::time;
-use actix_web::middleware::Logger;
+use actix_web::middleware::{Condition, Logger};
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
@@ -65,6 +65,13 @@ async fn main() -> std::io::Result<()> {
                         .default_missing_value("always")
                         .help("What port to bind the server to")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::new("auth")
+                        .long("auth")
+                        .short('a')
+                        .help("Start the server with token-based authentication enforced")
+                        .takes_value(false),
                 ),
         )
         .subcommand(
@@ -106,6 +113,7 @@ async fn main() -> std::io::Result<()> {
                     println!("🐂 v{}", VERSION);
                     println!("Running on {}:{}", host, port);
                     println!("Syncing to directory: {}", sync_dir);
+                    let enable_auth = sub_matches.is_present("auth");
 
                     let data = app_data::OxenAppData::from(&sync_dir);
                     HttpServer::new(move || {
@@ -116,7 +124,10 @@ async fn main() -> std::io::Result<()> {
                                 "/{namespace}/{repo_name}",
                                 web::get().to(controllers::version::resolve),
                             )
-                            .wrap(HttpAuthentication::bearer(auth::validator::validate))
+                            .wrap(Condition::new(
+                                enable_auth,
+                                HttpAuthentication::bearer(auth::validator::validate),
+                            ))
                             .service(web::scope("/api/repos").configure(routes::config))
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))
