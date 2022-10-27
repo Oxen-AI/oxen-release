@@ -1,5 +1,5 @@
 use liboxen::error::OxenError;
-use liboxen::model::{NewUser, User};
+use liboxen::model::User;
 use liboxen::util;
 
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -73,7 +73,7 @@ impl AccessKeyManager {
         })
     }
 
-    pub fn create(&self, user: &NewUser) -> Result<User, OxenError> {
+    pub fn create(&self, user: &User) -> Result<(User, String), OxenError> {
         let user_claims = JWTClaim {
             id: format!("{}", uuid::Uuid::new_v4()),
             name: user.name.to_owned(),
@@ -94,11 +94,13 @@ impl AccessKeyManager {
                 // if they have someone elses token, we can block also (but how likely is this...? maybe sniffing traffic?)
                 let encoded_claim = serde_json::to_string(&user_claims)?;
                 self.db.put(&token, encoded_claim)?;
-                Ok(User {
-                    name: user_claims.name.to_owned(),
-                    email: user_claims.email.to_owned(),
-                    token: Some(token),
-                })
+                Ok((
+                    User {
+                        name: user_claims.name.to_owned(),
+                        email: user_claims.email.to_owned(),
+                    },
+                    token,
+                ))
             }
             Err(_) => {
                 let err = format!("Could not create access key for: {:?}", user_claims);
@@ -165,7 +167,7 @@ mod tests {
     use crate::auth::access_keys::AccessKeyManager;
     use crate::test;
     use liboxen::error::OxenError;
-    use liboxen::model::NewUser;
+    use liboxen::model::User;
 
     #[test]
     fn test_constructor() -> Result<(), OxenError> {
@@ -180,12 +182,12 @@ mod tests {
     fn test_generate_key() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
             let keygen = AccessKeyManager::new(sync_dir)?;
-            let new_user = NewUser {
+            let new_user = User {
                 name: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
             };
-            let user = keygen.create(&new_user)?;
-            assert!(!user.token.unwrap().is_empty());
+            let (_user, token) = keygen.create(&new_user)?;
+            assert!(!token.is_empty());
 
             Ok(())
         })
@@ -195,12 +197,12 @@ mod tests {
     fn test_generate_and_get_key() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
             let keygen = AccessKeyManager::new(sync_dir)?;
-            let new_user = NewUser {
+            let new_user = User {
                 name: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
             };
-            let user = keygen.create(&new_user)?;
-            let fetched_claim = keygen.get_claim(&user.token.unwrap())?;
+            let (_user, token) = keygen.create(&new_user)?;
+            let fetched_claim = keygen.get_claim(&token)?;
             assert!(fetched_claim.is_some());
             let fetched_claim = fetched_claim.unwrap();
             assert_eq!(new_user.email, fetched_claim.email);
@@ -214,12 +216,12 @@ mod tests {
     fn test_generate_and_validate() -> Result<(), OxenError> {
         test::run_empty_sync_dir_test(|sync_dir| {
             let keygen = AccessKeyManager::new(sync_dir)?;
-            let new_user = NewUser {
+            let new_user = User {
                 name: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
             };
-            let user = keygen.create(&new_user)?;
-            let is_valid = keygen.token_is_valid(&user.token.unwrap());
+            let (_user, token) = keygen.create(&new_user)?;
+            let is_valid = keygen.token_is_valid(&token);
             assert!(is_valid);
             Ok(())
         })

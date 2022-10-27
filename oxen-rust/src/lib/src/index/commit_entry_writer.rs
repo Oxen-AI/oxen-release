@@ -3,13 +3,8 @@ use crate::db;
 use crate::db::path_db;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryReader,
-    CommitDirEntryWriter,
-    // CommitSchemaTableIndex,
-    RefReader,
-    RefWriter,
-    SchemaWriter,
-    // SchemaWriter,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitSchemaRowIndex, RefReader,
+    RefWriter, SchemaWriter,
 };
 use crate::media::{tabular, tabular_datafusion, DFOpts};
 // use crate::model::schema;
@@ -33,7 +28,7 @@ type Vec2DStr = Vec<Vec<String>>;
 pub struct CommitEntryWriter {
     repository: LocalRepository,
     dir_db: DBWithThreadMode<MultiThreaded>,
-    commit_id: String,
+    commit: Commit,
 }
 
 impl CommitEntryWriter {
@@ -65,7 +60,7 @@ impl CommitEntryWriter {
         Ok(CommitEntryWriter {
             repository: repository.clone(),
             dir_db: DBWithThreadMode::open(&opts, &db_path)?,
-            commit_id: commit.id.to_owned(),
+            commit: commit.to_owned(),
         })
     }
 
@@ -126,7 +121,7 @@ impl CommitEntryWriter {
         time: &FileTime,
     ) -> Result<(), OxenError> {
         if let Some(parent) = entry.path.parent() {
-            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit_id, parent)?;
+            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, parent)?;
             writer.set_file_timestamps(entry, time)
         } else {
             Err(OxenError::file_has_no_parent(&entry.path))
@@ -252,152 +247,66 @@ impl CommitEntryWriter {
         mut entry: CommitEntry,
     ) -> Result<CommitEntry, OxenError> {
         let full_path = self.repository.path.join(&entry.path);
-        // create a copy to our versions directory
-        // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
-        // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
+        if util::fs::is_tabular(&entry.path) {
+            // We compute the hash on tabular data different
+            entry = self.compute_row_level_changes(commit, entry, &full_path)?;
+        } else {
+            // create a copy to our versions directory
+            // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
+            // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
+            let versions_entry_path = util::fs::version_path(&self.repository, &entry);
+            let versions_entry_dir = versions_entry_path.parent().unwrap();
 
-        let versions_entry_path = util::fs::version_path(&self.repository, &entry);
-        let versions_entry_dir = versions_entry_path.parent().unwrap();
-
-        // Create dir if not exists
-        if !versions_entry_dir.exists() {
-            // it's the first time
-            log::debug!(
-                "Creating version dir for file: {:?} -> {:?}",
-                entry.path,
-                versions_entry_dir
-            );
-
-            // Create version dir
-            std::fs::create_dir_all(versions_entry_dir)?;
-        }
-
-        if !versions_entry_path.exists() {
             log::debug!(
                 "Copying commit entry for file: {:?} -> {:?}",
                 entry.path,
                 versions_entry_path
             );
-            if util::fs::is_tabular(&full_path) {
-                entry =
-                    self.backup_to_arrow_file(commit, entry, &full_path, &versions_entry_path)?;
-            } else {
-                std::fs::copy(full_path, versions_entry_path)?;
+
+            // Create dir if not exists
+            if !versions_entry_dir.exists() {
+                std::fs::create_dir_all(versions_entry_dir)?;
             }
+
+            std::fs::copy(full_path, versions_entry_path)?;
         }
 
         Ok(entry)
     }
 
-    fn backup_to_arrow_file(
+    fn compute_row_level_changes(
         &self,
         commit: &Commit,
-        entry: CommitEntry,
+        mut entry: CommitEntry,
         full_path: &Path,
-        version_entry_path: &Path,
     ) -> Result<CommitEntry, OxenError> {
         log::debug!("Backup to arrow {:?}", commit);
-        std::fs::copy(full_path, version_entry_path)?;
 
-        let opts = DFOpts::empty();
-        let df = tabular::read_df(version_entry_path, &opts)?;
-        let schema = schema::Schema::from_polars(df.schema());
+        // Want to be able to commit all these changes in parallel so
+        // We just hash the rows and project row numbers at this point
 
-        // Compute row level hashes and row num
-        // let df = tabular::df_hash_rows(df)?;
-        // let mut df = tabular::df_add_row_num(df)?;
+        let df = tabular::read_df(full_path, DFOpts::empty())?;
 
-        // Save the schema if it does not exist
-        let schema_version_dir = util::fs::schema_version_dir(&self.repository, &schema);
-        if !schema_version_dir.exists() {
-            log::debug!("Create new schema! {:?}", schema);
+        // Compute row level hashes for this table
+        println!("Processing {} rows...", df.height());
+        let df = tabular::df_hash_rows(df)?;
+        // Project row num as a col
+        let mut df = tabular::df_add_row_num(df)?;
 
-            std::fs::create_dir_all(&schema_version_dir)?;
-            let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
-            schema_writer.put_schema(&schema)?;
+        // Hash is based off of row content, not the full file content
+        let hash = util::hasher::compute_tabular_hash(&df);
+        entry.hash = hash;
 
-            // // save to first version of the big data.arrow file
-            // let path = util::fs::schema_df_path(&self.repository, &schema);
-            // tabular::write_df(&mut df, path)?;
-
-            // // Write the row_hash -> row_num index
-            // CommitSchemaTableIndex::index_hash_row_nums(
-            //     self.repository.clone(),
-            //     commit.clone(),
-            //     schema,
-            //     constants::COMMIT_INDEX_KEY.to_string(),
-            //     df,
-            // )?;
-        } else {
-            // log::debug!("Add to existing schema! {:?}", schema);
-            // // Get handle on the old DF
-            // let schema_df_path = util::fs::schema_df_path(&self.repository, &schema);
-            // let opts = DFOpts::empty();
-            // let old_df = tabular::read_df(&schema_df_path, &opts)?;
-
-            // log::debug!("OLD DF: {}", old_df);
-
-            // TODO: we don't want to look for unique rows, because you could totally have multiple
-            // people label the same image multiple times
-
-            // I think we want...
-
-            // - Diff the file against the last commit's version of that file (which we already do based on hash...)
-            // - If two people modified the same file....we'll have to merge the changes
-            // - So check if the file is tabular, and just merge the changes? I feel like there's no such thing as a modified row?
-
-            // What you do care about is "who added what"?
-
-            // I think we should add this to the arrow table in hidden columns
-            //   _created_by
-            //   _created_at
-
-            // Add `oxen index <optional:COMMIT_ID> -n INDEX_NAME` command to view an index at a commit
-            // Add `oxen index -c(reate) -n INDEX_NAME` command to create an index on a field name, simply scans and inserts row nums
-
-            // TODO:
-            // How do we merge this giant arrow file?
-            // Ex)
-            //   - Greg adds annotations in branch to schema
-            //   - Josh adds annotations in branch to schema
-            //   - We hash all the hashes, notice our schemas are out of sync
-            //   - How do you merge? Fast Forward taking both?
-            //       - Yes I think this is probably always the case...?
-            //       - When is it not in a regular commit..? When we disagree on a line in a file, or we both modify a file.
-            //       - We are saying there is no such thing in this land as just modifying a row, you have to delete and re-add?
-            //       - ^^ Think this statement through with a concrete example
-
-            // Create new DF from new rows
-            // Loop over the hashes and filter to ones that do not exist
-            // let new_df = CommitSchemaTableIndex::compute_new_rows(
-            //     self.repository.clone(),
-            //     commit.clone(),
-            //     schema.clone(),
-            //     constants::COMMIT_INDEX_KEY.to_string(),
-            //     df,
-            // )?;
-
-            // let start: u32 = old_df.height() as u32;
-            // let new_df = tabular::df_add_row_num_starting_at(new_df, start)?;
-            // log::debug!("NEW ROWS: {}", new_df);
-
-            // // append to big .arrow file with new indices that start at num_rows
-            // let mut full_df = old_df.vstack(&new_df).expect("could not vstack");
-            // // println!("TOTAL: {}", full_df);
-
-            // // write the new row hashes to index
-            // std::fs::remove_file(&schema_df_path)?;
-            // tabular::write_df(&mut full_df, schema_df_path)?;
-
-            // // Write the row_hash -> row_num index
-            // CommitSchemaTableIndex::index_hash_row_nums(
-            //     self.repository.clone(),
-            //     commit.clone(),
-            //     schema,
-            //     constants::COMMIT_INDEX_KEY.to_string(),
-            //     new_df,
-            // )?;
+        let version_entry_path = util::fs::version_path(&self.repository, &entry);
+        let version_dir = version_entry_path.parent().unwrap();
+        if !version_dir.exists() {
+            std::fs::create_dir_all(version_dir)?;
         }
+
+        // Save off in a .arrow file we will aggregate and collect at the end of the commit
+        // into the global .arrow file
+        let hash_results_file = version_dir.join("data.arrow");
+        tabular::write_df(&mut df, hash_results_file)?;
 
         Ok(entry)
     }
@@ -407,7 +316,145 @@ impl CommitEntryWriter {
         commit: &Commit,
         staged_data: &StagedData,
     ) -> Result<(), OxenError> {
-        self.commit_staged_entries_with_prog(commit, staged_data)
+        self.commit_staged_entries_with_prog(commit, staged_data)?;
+        self.aggregate_row_level_results(false)
+    }
+
+    pub fn aggregate_row_level_results(
+        &self,
+        should_copy_to_working_dir: bool,
+    ) -> Result<(), OxenError> {
+        let commit_dir_reader = CommitDirReader::new(&self.repository, &self.commit)?;
+
+        let tabular_entries: Vec<CommitEntry> = commit_dir_reader
+            .list_entries()?
+            .into_iter()
+            .filter(|e| util::fs::is_tabular(&e.path))
+            .collect();
+
+        log::debug!(
+            "aggregate_row_level_results got {} tabular entries",
+            tabular_entries.len()
+        );
+        // TODO: should probably group based on schema, and just do one big write at the end,
+        // but this works for now
+        for entry in tabular_entries.iter() {
+            log::debug!("Merging tabular entry {:?}", entry.path);
+            // Only merge newly added files, it's only newly added if it has this data.arrow file
+            let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
+            let hash_results_file = version_dir.join("data.arrow");
+            if !hash_results_file.exists() {
+                log::debug!("No tmp data.arrow file for entry {:?}", entry.path);
+                continue;
+            }
+
+            let full_path = &self.repository.path.join(&entry.path);
+            if should_copy_to_working_dir {
+                // TODO: reading data many times, probably shouldn't...?
+                let mut df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
+                // Need to restore parent dir
+                if let Some(parent) = full_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                log::debug!("Restoring path {:?}", entry.path);
+                tabular::write_df(&mut df, &full_path)?;
+            }
+
+            // TODO: should only read data once and filter to get schema, we're reading many times...
+            let df = tabular::read_df(full_path, DFOpts::empty())?;
+
+            let schema = schema::Schema::from_polars(&df.schema());
+            log::debug!("aggregate_row_level_results got OG DF {}", df);
+
+            // This is another read, just want to make sure this all works first
+            let mut df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
+
+            // After we've read this data.arrow file we should clean it up
+            // since all the data will be copied into the master schema/data.arrow file
+            std::fs::remove_file(hash_results_file)?;
+
+            log::debug!("Add to existing schema! {:?}", schema);
+            // Get handle on the full data.arrow
+            let schema_df_path = util::fs::schema_df_path(&self.repository, &schema);
+
+            let schema_version_dir = util::fs::schema_version_dir(&self.repository, &schema);
+            if !schema_version_dir.exists() {
+                log::debug!("Create new schema! {:?}", schema);
+
+                std::fs::create_dir_all(&schema_version_dir)?;
+                let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
+                schema_writer.put_schema(&schema)?;
+                schema_writer.put_schema_for_file(&entry.path, &schema)?;
+
+                // save to first version of the big data.arrow file
+                tabular::write_df(&mut df, &schema_df_path)?;
+
+                // Write the row_hash -> row_num index
+                println!("Creating index for {} rows...", df.height());
+                CommitSchemaRowIndex::index_hash_row_nums(
+                    self.repository.clone(),
+                    self.commit.clone(),
+                    schema.clone(),
+                    entry.path.to_path_buf(),
+                    df,
+                )?;
+
+                // TODO: double read again, fix....
+                let df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+                let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+
+                // Need to save off indices too
+                println!("Wrapping up...");
+                CommitSchemaRowIndex::compute_new_rows(
+                    self.repository.clone(),
+                    self.commit.clone(),
+                    schema.clone(),
+                    entry.clone(),
+                    df,
+                    &old_df,
+                )?;
+            } else {
+                let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+
+                log::debug!("OLD DF: {}", old_df);
+
+                // Create new DF from new rows
+                // Loop over the hashes and filter to ones that do not exist
+                println!("Computing new rows...");
+                let new_df = CommitSchemaRowIndex::compute_new_rows(
+                    self.repository.clone(),
+                    self.commit.clone(),
+                    schema.clone(),
+                    entry.clone(),
+                    df,
+                    &old_df,
+                )?;
+
+                let start: u32 = old_df.height() as u32;
+                let new_df = tabular::df_add_row_num_starting_at(new_df, start)?;
+                log::debug!("NEW ROWS: {}", new_df);
+
+                // append to big .arrow file with new indices that start at num_rows
+                let mut full_df = old_df.vstack(&new_df).expect("could not vstack");
+                // println!("TOTAL: {}", full_df);
+
+                // write the new row hashes to index
+                println!("Updating index for {} rows...", full_df.height());
+                std::fs::remove_file(&schema_df_path)?;
+                tabular::write_df(&mut full_df, schema_df_path)?;
+
+                // Write the row_hash -> row_num index
+                CommitSchemaRowIndex::index_hash_row_nums(
+                    self.repository.clone(),
+                    self.commit.clone(),
+                    schema,
+                    entry.path.to_path_buf(),
+                    full_df,
+                )?;
+            }
+        }
+
+        Ok(())
     }
 
     fn group_staged_files_to_dirs(
@@ -468,7 +515,7 @@ impl CommitEntryWriter {
 
                 // Write entries per dir
                 let entry_writer =
-                    CommitDirEntryWriter::new(&self.repository, &self.commit_id, dir)?;
+                    CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
 
                 // Commit entries data
                 files.par_iter().for_each(|(path, entry)| {
@@ -516,5 +563,216 @@ impl CommitEntryWriter {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::command;
+    use crate::error::OxenError;
+    use crate::media::tabular;
+    use crate::media::DFOpts;
+    use crate::test;
+    use crate::util;
+
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn test_commit_tabular_data_first_time() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            let bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_path = repo.path.join(&bbox_file);
+
+            let og_df = tabular::read_df(&bbox_path, DFOpts::empty())?;
+            command::add(&repo, &bbox_path)?;
+            let commit = command::commit(&repo, "Committing bbox data")?.unwrap();
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(og_df.height(), version_df.height());
+
+            // Adding _row_num and _row_hash
+            assert_eq!(og_df.width() + 2, version_df.width());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_data_add_data_same_file() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_path = repo.path.join(&bbox_file);
+
+            // Add a row to the data (should already have been committed once since run_training_data_repo_test_fully_committed)
+            let mut opts = DFOpts::empty();
+            opts.add_row = Some(String::from("train/new.jpg,1.0,2.0,3,4"));
+            opts.output = Some(PathBuf::from(&bbox_path));
+            command::df(&bbox_path, opts)?;
+
+            let og_df = tabular::read_df(&bbox_path, DFOpts::empty())?;
+            command::add(&repo, &bbox_path)?;
+            let commit = command::commit(&repo, "Committing bbox data")?.unwrap();
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(og_df.height(), version_df.height());
+
+            // Adding _row_num and _row_hash
+            assert_eq!(og_df.width() + 2, version_df.width());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_data_add_data_different_file_same_schema() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Create a new data file with some annotations
+            let og_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let og_bbox_path = repo.path.join(&og_bbox_file);
+            let my_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("my_bounding_box.csv");
+            let my_bbox_path = repo.path.join(&my_bbox_file);
+            test::write_txt_file_to_path(
+                &my_bbox_path,
+                r#"
+file,min_x,min_y,width,height
+train/new.jpg,1.0,2.0,3,4
+train/new.jpg,5.0,6.0,7,8
+"#,
+            )?;
+
+            let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
+            let my_df = tabular::read_df(&my_bbox_path, DFOpts::empty())?;
+            command::add(&repo, &my_bbox_path)?;
+            let commit =
+                command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(og_df.height() + my_df.height(), version_df.height());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_data_add_data_different_file_same_schema_duplicate_content(
+    ) -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Create a new data file with some annotations
+            let og_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let og_bbox_path = repo.path.join(&og_bbox_file);
+            let my_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("my_bounding_box.csv");
+            let my_bbox_path = repo.path.join(&my_bbox_file);
+            // This is the same row content that already exists, so we shouldn't add it again to the version file
+            test::write_txt_file_to_path(
+                &my_bbox_path,
+                r#"
+file,min_x,min_y,width,height
+train/dog_1.jpg,101.5,32.0,385,330
+train/dog_2.jpg,7.0,29.5,246,247
+"#,
+            )?;
+
+            let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
+            command::add(&repo, &my_bbox_path)?;
+            let commit =
+                command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(og_df.height(), version_df.height());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_data_commit_many_tabular_files_same_schema() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Create a new data file with some annotations
+            let og_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let og_bbox_path = repo.path.join(&og_bbox_file);
+            let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
+
+            // Add many new bbox files
+            let num_files = 10;
+            let num_new_rows_per_file = 100;
+            for i in 0..num_files {
+                let bbox_name = format!("my_bounding_box_{}.csv", i);
+                let my_bbox_file = Path::new("annotations").join("train").join(bbox_name);
+                let mut my_bbox_path = repo.path.join(&my_bbox_file);
+                // This is the same row content that already exists, so we shouldn't add it again to the version file
+                test::write_txt_file_to_path(
+                    &my_bbox_path,
+                    r#"
+file,min_x,min_y,width,height
+train/dog_1.jpg,101.5,32.0,385,330
+train/dog_2.jpg,7.0,29.5,246,247
+"#,
+                )?;
+
+                // Add random extra rows to each file
+                for _ in 0..num_new_rows_per_file {
+                    my_bbox_path = test::add_random_bbox_to_file(my_bbox_path)?;
+                }
+
+                // Stage the file
+                command::add(&repo, &my_bbox_path)?;
+            }
+
+            // Commit all the new bbox files
+            let commit =
+                command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(
+                og_df.height() + (num_files * num_new_rows_per_file),
+                version_df.height()
+            );
+
+            Ok(())
+        })
     }
 }

@@ -13,7 +13,7 @@ pub async fn get_by_name(
     let uri = format!("/branches/{}", branch_name);
     let url = api::endpoint::url_from_repo(repository, &uri)?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -41,7 +41,7 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
 
     let params = serde_json::to_string(&json!({ "name": name }))?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.post(url).body(params).send().await {
         let body = res.text().await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -65,7 +65,7 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
 pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         let response: Result<ListBranchesResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -98,7 +98,7 @@ pub async fn update(
 
     let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.put(url).body(params).send().await {
         let body = res.text().await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -126,7 +126,7 @@ pub async fn delete(
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Deleting branch: {}", url);
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.delete(url).send().await {
         let status = res.status();
         let body = res.text().await?;

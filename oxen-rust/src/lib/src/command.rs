@@ -8,6 +8,7 @@ use crate::constants;
 use crate::error::OxenError;
 use crate::index::differ;
 use crate::index::schema_writer::SchemaWriter;
+use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaReader;
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
@@ -207,10 +208,10 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
 }
 
 /// Interact with dataframes from CLI
-pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
-    let mut df = tabular::show_path(input, opts)?;
+pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+    let mut df = tabular::show_path(input, opts.clone())?;
 
-    if let Some(output) = &opts.output {
+    if let Some(output) = opts.output {
         println!("Writing {:?}", output);
         tabular::write_df(&mut df, output)?;
     }
@@ -226,14 +227,14 @@ pub fn schema_list(
     if let Some(commit_id) = commit_id {
         if let Some(commit) = commit_from_branch_or_commit_id(repo, commit_id)? {
             let schema_reader = SchemaReader::new(repo, &commit.id)?;
-            schema_reader.list()
+            schema_reader.list_schemas()
         } else {
             Err(OxenError::commit_id_does_not_exist(commit_id))
         }
     } else {
         let head_commit = head_commit(repo)?;
         let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
-        schema_reader.list()
+        schema_reader.list_schemas()
     }
 }
 
@@ -336,9 +337,29 @@ pub fn restore<P: AsRef<Path>>(
     let reader = CommitDirReader::new(repo, &commit)?;
 
     if let Some(entry) = reader.get_entry(path)? {
-        let version_path = util::fs::version_path(repo, &entry);
-        let working_path = repo.path.join(path);
-        std::fs::copy(version_path, working_path)?;
+        if util::fs::is_tabular(&entry.path) {
+            let schema_reader = SchemaReader::new(repo, &commit.id)?;
+            if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
+                let row_index_reader =
+                    CommitSchemaRowIndex::new(repo, &commit.id, &schema, &entry.path)?;
+                let mut df = row_index_reader.entry_df()?;
+                log::debug!("Got subset! {}", df);
+                let working_path = repo.path.join(path);
+                log::debug!("Write to {:?}", working_path);
+                tabular::write_df(&mut df, working_path)?;
+            } else {
+                log::error!(
+                    "Could not restore tabular file, no schema found for file {:?}",
+                    entry.path
+                );
+            }
+        } else {
+            // just copy data back over if !tabular
+            let version_path = util::fs::version_path(repo, &entry);
+            let working_path = repo.path.join(path);
+            std::fs::copy(version_path, working_path)?;
+        }
+
         println!("Restored file {:?}", path);
         Ok(())
     } else {
@@ -577,12 +598,8 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         .find(|c| c.merge_entry.path == path.as_ref())
     {
         if util::fs::is_tabular(&conflict.head_entry.path) {
-            let opts = DFOpts::empty();
-
-            let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
-            let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
-            let df_head = tabular::read_df(&df_head_path, &opts)?;
-            let df_merge = tabular::read_df(&df_merge_path, &opts)?;
+            let df_head = CommitSchemaRowIndex::df_from_entry(repo, &conflict.head_entry)?;
+            let df_merge = CommitSchemaRowIndex::df_from_entry(repo, &conflict.merge_entry)?;
 
             log::debug!("GOT DF HEAD {}", df_head);
             log::debug!("GOT DF MERGE {}", df_merge);
@@ -818,9 +835,9 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::add_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
+/// command::add_remote(&mut repo, "origin", "http://localhost:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000").await?;
+/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "localhost:3000").await?;
 ///
 /// // Push the file
 /// command::push(&repo).await;
@@ -868,13 +885,13 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 /// Diff a file from commit history
-pub async fn diff(
+pub fn diff(
     repo: &LocalRepository,
     commit_id_or_branch: Option<&str>,
     path: &str,
 ) -> Result<String, OxenError> {
     let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
-    differ::diff(repo, Some(&commit.id), path).await
+    differ::diff(repo, Some(&commit.id), path)
 }
 
 /// Pull a specific origin and branch

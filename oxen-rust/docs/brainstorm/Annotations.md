@@ -47,7 +47,7 @@ FIRST STEP
 2) Add ability to quickly fetch indices from tabular file or paginate
     - /namespace/reponame/rows/commit/file/
 
--- RELEASE 
+-- RELEASE
 
 1) Let's do `oxen index -s "bounding_box" -c "file"` to keep track of individual annotations
     - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
@@ -91,9 +91,18 @@ Start with
             files/
                 64/djskal213u/
                     contents.jpg
+
             schemas/
+                schemas/
+                    ROCKS_DB
+                        schema_hash => { schema obj }
+
+                rows/ (global rocks db for row hash to index)
+                    ROCKSDB
+                        row_hash => {row_num_arrow}
+
                 <schema_hash>/
-                    data.arrow
+                    data.arrow (Content Addressable Memory of row level data)
 
                     Table we can index into to fetch subsets of data within that schema
                     ┌──────────┬─────────────────┬────────┬────────┬────────┬─────────┬────────┬──────────────────────┐
@@ -116,12 +125,12 @@ Start with
 
         .oxen/history/
             commit_id/ (has 4 top level objects "files", "dirs", "schemas", "indexes")
-                schemas/
+                schemas/ (quickly look up schema for a file in a commit)
                     ROCKS_DB
-                        schema_hash => { schema obj }
+                        file_name -> { schema_hash }
                 indices/
                     <schema_hash>/
-                        files/
+                        files/ (we need a mapping from row hash to the original arrow files)
                             <file_name_hash>/ (file name hash)
                                 ROCKSDB
                                     row_hash => {row_num_og, row_num_arrow}
@@ -129,10 +138,11 @@ Start with
                         fields/ ("file" or "label" or "whatever aggregate query you want")
                             field.name/
                                 index_val_hash/ ("path/to/file.jpg" or "person")
-                                    ROCKSDB
-                                        row_hash => { (now we can diff between commits, based on the query)
-                                            _row_num, (in .arrow file)
-                                        }
+                                    <file_name_hash> (same structure as the files dir above, can iterate over files to get full index)
+                                        ROCKSDB
+                                            row_hash => { (now we can diff between commits, based on the query)
+                                                _row_num, (in .arrow file)
+                                            }
                 dirs/
                 files/
                     path/

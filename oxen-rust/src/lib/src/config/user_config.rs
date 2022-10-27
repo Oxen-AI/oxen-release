@@ -1,4 +1,3 @@
-use crate::error;
 use crate::error::OxenError;
 use crate::model::User;
 use crate::util;
@@ -9,10 +8,16 @@ use std::path::{Path, PathBuf};
 pub const USER_CONFIG_FILENAME: &str = "user_config.toml";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HostConfig {
+    pub host: String,
+    pub auth_token: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserConfig {
     pub name: String,
     pub email: String,
-    pub token: Option<String>,
+    host_configs: Vec<HostConfig>,
 }
 
 impl UserConfig {
@@ -25,7 +30,15 @@ impl UserConfig {
         UserConfig {
             name: user.name.to_owned(),
             email: user.email.to_owned(),
-            token: user.token.to_owned(),
+            host_configs: Vec::new(),
+        }
+    }
+
+    fn new_empty() -> UserConfig {
+        UserConfig {
+            name: String::from(""),
+            email: String::from(""),
+            host_configs: Vec::new(),
         }
     }
 
@@ -39,19 +52,30 @@ impl UserConfig {
             if config_file.exists() {
                 Ok(UserConfig::new(&config_file))
             } else {
-                log::warn!(
+                log::debug!(
                     "unable to find config file at {:?}. Current working directory is {:?}",
                     config_file,
                     std::env::current_dir().unwrap()
                 );
-                Err(OxenError::Basic(String::from(
-                    error::EMAIL_AND_NAME_NOT_FOUND,
-                )))
+                Err(OxenError::email_and_name_not_set())
             }
         } else {
-            Err(OxenError::Basic(String::from(
-                error::EMAIL_AND_NAME_NOT_FOUND,
-            )))
+            Err(OxenError::email_and_name_not_set())
+        }
+    }
+
+    pub fn default_or_create() -> Result<UserConfig, OxenError> {
+        match Self::default() {
+            Ok(config) => Ok(config),
+            Err(_err) => {
+                let config = Self::new_empty();
+                config.save_default()?;
+                println!(
+                    "Oxen config file not found, created a new config file in \"$HOME/.oxen/{}",
+                    USER_CONFIG_FILENAME
+                );
+                Ok(config)
+            }
         }
     }
 
@@ -76,12 +100,27 @@ impl UserConfig {
         Ok(())
     }
 
-    pub fn auth_token(&self) -> Result<String, OxenError> {
-        if let Some(token) = &self.token {
-            Ok(token.clone())
-        } else {
-            Err(OxenError::auth_token_not_set())
+    pub fn add_host_auth_token<S: AsRef<str>>(&mut self, host: S, token: S) {
+        self.host_configs.push(HostConfig {
+            host: String::from(host.as_ref()),
+            auth_token: Some(String::from(token.as_ref())),
+        });
+    }
+
+    pub fn auth_token_for_host<S: AsRef<str>>(&self, host: S) -> Option<String> {
+        let host = host.as_ref();
+        for config in self.host_configs.iter() {
+            if config.host == host {
+                if config.auth_token.is_some() {
+                    log::debug!("got auth_token for host \"{}\"", config.host);
+                } else {
+                    log::debug!("no auth_token found for host \"{}\"", config.host);
+                }
+                return config.auth_token.clone();
+            }
         }
+        log::debug!("no host configuration found for {}", host);
+        None
     }
 }
 

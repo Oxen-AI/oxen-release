@@ -77,49 +77,25 @@ pub fn list_remotes_verbose() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn set_auth_token(token: &str) -> Result<(), OxenError> {
-    if let Ok(mut config) = UserConfig::default() {
-        config.token = Some(String::from(token));
-        config.save_default()?;
-        println!("Authentication token set.");
-    } else {
-        eprintln!("{}", error::EMAIL_AND_NAME_NOT_FOUND);
-    }
-
+pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
+    let mut config = UserConfig::default_or_create()?;
+    config.add_host_auth_token(host, token);
+    config.save_default()?;
+    println!("Authentication token set for host: {}", host);
     Ok(())
 }
 
 pub fn set_user_name(name: &str) -> Result<(), OxenError> {
-    if let Ok(mut config) = UserConfig::default() {
-        config.name = String::from(name);
-        config.save_default()?;
-    } else {
-        // Create for first time
-        let config = UserConfig {
-            name: String::from(name),
-            email: String::from(""),
-            token: None,
-        };
-        config.save_default()?;
-    }
-
+    let mut config = UserConfig::default_or_create()?;
+    config.name = String::from(name);
+    config.save_default()?;
     Ok(())
 }
 
 pub fn set_user_email(email: &str) -> Result<(), OxenError> {
-    if let Ok(mut config) = UserConfig::default() {
-        config.email = String::from(email);
-        config.save_default()?;
-    } else {
-        // Create for first time
-        let config = UserConfig {
-            name: String::from(""),
-            email: String::from(email),
-            token: None,
-        };
-        config.save_default()?;
-    }
-
+    let mut config = UserConfig::default_or_create()?;
+    config.email = String::from(email);
+    config.save_default()?;
     Ok(())
 }
 
@@ -166,11 +142,11 @@ pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
+pub fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let result = command::diff(&repository, commit_id, path).await?;
+    let result = command::diff(&repository, commit_id, path)?;
     println!("{result}");
     Ok(())
 }
@@ -254,7 +230,7 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
+pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     command::df(input, opts)?;
     Ok(())
 }
