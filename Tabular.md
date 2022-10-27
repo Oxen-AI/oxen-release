@@ -4,7 +4,7 @@ As a data scientist or machine learning engineer we deal with a lot of tabular d
 
 To follow along with the examples below feel free to grab to grab the example data from [data/CatDogBBox.tar.gz](data/CatDogBBox.tar.gz).
 
-TODO: Update with a link to data in OxenHub, why we downloading tarballs, this is the problem we are solving.
+TODO: Update with a link to data in OxenHub (why are we downloading tarballs??) this is the problem we are solving.
 
 ## oxen df
 
