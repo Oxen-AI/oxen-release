@@ -1,6 +1,8 @@
+use crate::constants;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
+use polars::prelude::DataFrame;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -14,6 +16,25 @@ pub fn hash_buffer(buffer: &[u8]) -> String {
 
 pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
     xxh3_128(buffer)
+}
+
+pub fn compute_tabular_hash(df: &DataFrame) -> String {
+    let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
+    log::debug!("Combining row hashes for {}", df);
+    let _results: Vec<Result<(), OxenError>> = df
+        .column(constants::ROW_HASH_COL_NAME)
+        .unwrap()
+        .utf8()
+        .unwrap()
+        .into_iter()
+        .map(|hash| {
+            commit_hasher.update(hash.unwrap().as_bytes());
+            Ok(())
+        })
+        .collect();
+
+    let val = commit_hasher.digest();
+    format!("{val:x}")
 }
 
 pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[impl ContentHashable]) -> String {

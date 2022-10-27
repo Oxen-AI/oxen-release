@@ -142,11 +142,11 @@ pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
+pub fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let result = command::diff(&repository, commit_id, path).await?;
+    let result = command::diff(&repository, commit_id, path)?;
     println!("{result}");
     Ok(())
 }
@@ -230,7 +230,7 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn df<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<(), OxenError> {
+pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     command::df(input, opts)?;
     Ok(())
 }

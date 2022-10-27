@@ -26,6 +26,7 @@ pub fn repo_exists(repo_path: &Path) -> bool {
 }
 
 pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
+    // .oxen/versions/schemas/SCHEMA_HASH
     oxen_hidden_dir(&repo.path)
         .join(constants::VERSIONS_DIR)
         .join(constants::SCHEMAS_DIR)

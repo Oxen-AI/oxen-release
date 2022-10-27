@@ -13,6 +13,8 @@ pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DB: &str = "commits";
 /// name of the schema db
 pub const SCHEMAS_DIR: &str = "schemas";
+/// prefix for the commit rows
+pub const ROWS_DIR: &str = "rows";
 /// prefix for the commit entry files
 pub const FILES_DIR: &str = "files";
 /// prefix for the commit entry dirs
@@ -43,6 +45,3 @@ pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
 // Internal Tabular Data Names
 pub const ROW_NUM_COL_NAME: &str = "_row_num";
 pub const ROW_HASH_COL_NAME: &str = "_row_hash";
-
-/// Where the commit index lives
-pub const COMMIT_INDEX_KEY: &str = "_commit";

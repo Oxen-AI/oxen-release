@@ -56,6 +56,7 @@ simdutf8 = "0.1.4"
 difference = "2.0.0"
 bytevec = "0.2.0"
 rand = "0.8.5"
+async-std = "1.12.0"
 
 [lib]
 name = "liboxen"

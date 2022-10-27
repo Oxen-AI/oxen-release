@@ -994,6 +994,23 @@ async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     .await
 }
 
+// At some point we were adding rocksdb inside the working dir...def should not do that
+#[test]
+fn test_command_add_dot_should_not_add_new_files() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let num_files = util::fs::count_files_in_dir(&repo.path);
+
+        command::add(&repo, &repo.path)?;
+
+        // Add shouldn't add any new files in the working dir
+        let num_files_after_add = util::fs::count_files_in_dir(&repo.path);
+
+        assert_eq!(num_files, num_files_after_add);
+
+        Ok(())
+    })
+}
+
 // This broke when you tried to add the "." directory to add everything, after already committing the train directory.
 #[tokio::test]
 async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
@@ -1864,30 +1881,22 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
 }
 
 #[test]
-fn test_add_new_annotation_to_file() -> Result<(), OxenError> {
+fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let _last_commit = command::log(&repo)?.first().unwrap();
+        let history = command::log(&repo)?;
+        let last_commit = history.first().unwrap();
 
-        let train_dir = repo.path.join("train");
-        let new_img_path = train_dir.join("cat_3.jpg");
-        std::fs::copy(Path::new("data/test/images/cat_3.jpg"), &new_img_path)?;
-
-        let bbox_file = repo
-            .path
-            .join("annotations")
+        let bbox_file = Path::new("annotations")
             .join("train")
             .join("bounding_box.csv");
-        let bbox_file =
-            test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+        let bbox_path = repo.path.join(&bbox_file);
 
-        // Add the reference image
-        command::add(&repo, &new_img_path)?;
+        let og_contents = util::fs::read_from_path(&bbox_path)?;
+        std::fs::remove_file(&bbox_path)?;
 
-        // Add the annotations file
-        command::add_tabular(&repo, &bbox_file)?;
-
-        //
-        command::commit(&repo, "Adding new annotation")?;
+        command::restore(&repo, Some(&last_commit.id), bbox_file)?;
+        let restored_contents = util::fs::read_from_path(&bbox_path)?;
+        assert_eq!(og_contents, restored_contents);
 
         Ok(())
     })
@@ -1930,8 +1939,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
             .join("train")
             .join("bounding_box.csv");
         let bbox_file = repo.path.join(&bbox_filename);
-        let bbox_file =
-            test::append_line_txt_file(bbox_file, "train/cat_3.jpg, 41.0, 31.5, 410, 427")?;
+        let bbox_file = test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
         let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
@@ -1939,8 +1947,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         // Add a more rows on the main branch
         command::checkout(&repo, &og_branch.name)?;
 
-        let bbox_file =
-            test::append_line_txt_file(bbox_file, "train/dog_4.jpg, 52.0, 62.5, 256, 429")?;
+        let bbox_file = test::append_line_txt_file(bbox_file, "train/dog_4.jpg,52.0,62.5,256,429")?;
 
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation on main branch")?;
@@ -2002,8 +2009,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
 
         // Run command::checkout_theirs() and make sure their changes get kept
         command::checkout_combine(&repo, bbox_filename)?;
-        let opts = DFOpts::empty();
-        let df = tabular::read_df(&bbox_file, &opts)?;
+        let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
 
         // This doesn't guarantee order, but let's make sure we have 7 annotations now
         assert_eq!(df.height(), 7);
@@ -2029,8 +2035,8 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
         // Add in a column in this branch
         let mut opts = DFOpts::empty();
         opts.add_col = Some(String::from("label:unknown:str"));
-        let df = tabular::scan_df(&bbox_file, &opts)?;
-        let mut df = tabular::transform_df(df, &opts)?;
+        let df = tabular::scan_df(&bbox_file)?;
+        let mut df = tabular::transform_df(df, opts)?;
         tabular::write_df(&mut df, &bbox_file)?;
 
         // Add the changes

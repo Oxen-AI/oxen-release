@@ -70,6 +70,11 @@ impl OxenError {
         )
     }
 
+    pub fn schema_does_not_exist_for_file<P: AsRef<Path>>(path: P) -> OxenError {
+        let err = format!("Schema does not exist for file {:?}", path.as_ref());
+        OxenError::basic_str(err)
+    }
+
     pub fn schema_has_changed(old_schema: Schema, current_schema: Schema) -> OxenError {
         let err = format!(
             "\nSchema has changed\n\nOld\n{}\n\nCurrent\n{}\n",

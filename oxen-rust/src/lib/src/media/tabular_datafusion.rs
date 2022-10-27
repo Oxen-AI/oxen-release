@@ -3,9 +3,8 @@ use datafusion::arrow::ipc::writer::FileWriter;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow::{self, csv, json};
 use datafusion::datasource::memory::MemTable;
-use datafusion::prelude::{col, CsvReadOptions, DataFrame, ParquetReadOptions, SessionContext};
+use datafusion::prelude::{CsvReadOptions, DataFrame, ParquetReadOptions, SessionContext};
 
-use colored::Colorize;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, ContentArrangement, Row, Table};
@@ -21,11 +20,6 @@ use std::sync::Arc;
 use std::vec;
 
 use crate::error::OxenError;
-use crate::media::{tabular, DFOpts};
-use crate::model::schema::Field;
-use crate::model::Schema;
-use crate::model::{CommitEntry, DataFrameDiff, LocalRepository};
-use crate::util;
 
 const MAX_CELL_LENGTH: usize = 128; // to truncate long text
 
@@ -699,102 +693,66 @@ pub async fn run_query(ctx: &SessionContext, query: &str) -> Result<Vec<RecordBa
     Ok(results)
 }
 
-fn get_added_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> Vec<Field> {
-    let mut fields: Vec<Field> = vec![];
+// pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFrameDiff, OxenError> {
+//     let current_path = repo.path.join(&entry.path);
+//     let version_path = util::fs::version_path(repo, entry);
 
-    // if field is in current schema but not in commit, it was added
-    for current_field in schema_current.fields.iter() {
-        if !schema_commit
-            .fields
-            .iter()
-            .any(|f| f.name == current_field.name)
-        {
-            fields.push(current_field.clone());
-        }
-    }
+//     log::debug!("DIFF current: {:?}", current_path);
+//     log::debug!("DIFF commit:  {:?}", version_path);
 
-    fields
-}
+//     let ctx = SessionContext::new();
+//     register_table(&ctx, &current_path, "current").await?;
+//     register_table(&ctx, &version_path, "commit").await?;
 
-fn get_removed_schema_fields(schema_commit: &Schema, schema_current: &Schema) -> Vec<Field> {
-    let mut fields: Vec<Field> = vec![];
+//     let df_current = ctx.table("current")?;
+//     let df_commit = ctx.table("commit")?;
 
-    // if field is in commit history but not in current, it was removed
-    for commit_field in schema_commit.fields.iter() {
-        if !schema_current
-            .fields
-            .iter()
-            .any(|f| f.name == commit_field.name)
-        {
-            fields.push(commit_field.clone());
-        }
-    }
+//     // Hacky that we are using two different dataframe libraries here...but want to get this release out.
+//     let schema_commit = Schema::from_datafusion(df_commit.schema());
+//     let schema_current = Schema::from_datafusion(df_current.schema());
+//     if schema_commit.hash != schema_current.hash {
+//         let added_fields = get_added_schema_fields(&schema_commit, &schema_current);
+//         let removed_fields = get_removed_schema_fields(&schema_commit, &schema_current);
 
-    fields
-}
+//         if !added_fields.is_empty() {
+//             let opts = DFOpts::from_filter_fields(added_fields);
+//             let df_added = tabular::read_df(&current_path, opts)?;
+//             let added_str = format!("{}", df_added).green();
+//             println!("Added Cols\n{}\n", added_str);
+//         }
 
-pub async fn diff(repo: &LocalRepository, entry: &CommitEntry) -> Result<DataFrameDiff, OxenError> {
-    let current_path = repo.path.join(&entry.path);
-    let version_path = util::fs::version_path(repo, entry);
+//         if !removed_fields.is_empty() {
+//             let opts = DFOpts::from_filter_fields(removed_fields);
+//             let df_removed = tabular::read_df(&version_path, opts)?;
+//             let removed_str = format!("{}", df_removed).red();
+//             println!("Removed Cols\n{}", removed_str);
+//         }
 
-    log::debug!("DIFF current: {:?}", current_path);
-    log::debug!("DIFF commit:  {:?}", version_path);
+//         return Err(OxenError::schema_has_changed(schema_commit, schema_current));
+//     }
 
-    let ctx = SessionContext::new();
-    register_table(&ctx, &current_path, "current").await?;
-    register_table(&ctx, &version_path, "commit").await?;
+//     // If we don't sort, it is non-deterministic the order the diff will come out
+//     // SORT ASC NULLS_FIRST
+//     let first_col = df_commit.schema().field(0);
+//     let df_commit = ctx.table("commit")?;
+//     let diff_added = df_current
+//         .except(df_commit)?
+//         .sort(vec![col(first_col.name()).sort(true, true)])?;
 
-    let df_current = ctx.table("current")?;
-    let df_commit = ctx.table("commit")?;
+//     let df_commit = ctx.table("commit")?;
+//     let diff_removed = df_commit
+//         .except(df_current)?
+//         .sort(vec![col(first_col.name()).sort(true, true)])?;
 
-    // Hacky that we are using two different dataframe libraries here...but want to get this release out.
-    let schema_commit = Schema::from_datafusion(df_commit.schema());
-    let schema_current = Schema::from_datafusion(df_current.schema());
-    if schema_commit.hash != schema_current.hash {
-        let added_fields = get_added_schema_fields(&schema_commit, &schema_current);
-        let removed_fields = get_removed_schema_fields(&schema_commit, &schema_current);
-
-        if !added_fields.is_empty() {
-            let opts = DFOpts::from_filter_fields(added_fields);
-            let df_added = tabular::read_df(&current_path, &opts)?;
-            let added_str = format!("{}", df_added).green();
-            println!("Added Cols\n{}\n", added_str);
-        }
-
-        if !removed_fields.is_empty() {
-            let opts = DFOpts::from_filter_fields(removed_fields);
-            let df_removed = tabular::read_df(&version_path, &opts)?;
-            let removed_str = format!("{}", df_removed).red();
-            println!("Removed Cols\n{}", removed_str);
-        }
-
-        return Err(OxenError::schema_has_changed(schema_commit, schema_current));
-    }
-
-    // If we don't sort, it is non-deterministic the order the diff will come out
-    // SORT ASC NULLS_FIRST
-    let first_col = df_commit.schema().field(0);
-    let df_commit = ctx.table("commit")?;
-    let diff_added = df_current
-        .except(df_commit)?
-        .sort(vec![col(first_col.name()).sort(true, true)])?;
-
-    let df_commit = ctx.table("commit")?;
-    let diff_removed = df_commit
-        .except(df_current)?
-        .sort(vec![col(first_col.name()).sort(true, true)])?;
-
-    Ok(DataFrameDiff {
-        added: diff_added,
-        removed: diff_removed,
-    })
-}
+//     Ok(DataFrameDiff {
+//         added: diff_added,
+//         removed: diff_removed,
+//     })
+// }
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::error::OxenError;
-    use crate::index::CommitDirReader;
     use crate::media::tabular_datafusion;
     use crate::test;
     use crate::util;
@@ -866,78 +824,5 @@ img_2.txt,201,225
 
             Ok(())
         })
-    }
-
-    #[tokio::test]
-    async fn test_tabular_diff_added() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = command::log(&repo)?;
-            let last_commit = commits.first().unwrap();
-            let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
-
-            let bbox_file = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file =
-                test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
-
-            let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
-            let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
-            let diff = tabular_datafusion::diff(&repo, &entry).await?;
-            let results = r"
-╭─────────────────┬───────┬───────┬───────┬────────╮
-│ file            ┆ min_x ┆ min_y ┆ width ┆ height │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-│ train/cat_3.jpg ┆ 41    ┆ 31.5  ┆ 410   ┆ 427    │
-╰─────────────────┴───────┴───────┴───────┴────────╯
- 1 Rows x 5 Columns";
-
-            assert_eq!(results, tabular_datafusion::df_to_str(&diff.added).await?);
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
-    async fn test_tabular_diff_removed() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let commits = command::log(&repo)?;
-            let last_commit = commits.first().unwrap();
-            let commit_entry_reader = CommitDirReader::new(&repo, last_commit)?;
-
-            let bbox_file = repo
-                .path
-                .join("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = test::modify_txt_file(
-                bbox_file,
-                r"
-file,min_x,min_y,width,height
-train/dog_1.jpg,101.5,32.0,385,330
-train/dog_2.jpg,7.0,29.5,246,247
-train/cat_2.jpg,30.5,44.0,333,396
-",
-            )?;
-
-            let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
-            let entry = commit_entry_reader.get_entry(&relative)?.unwrap();
-            let diff = tabular_datafusion::diff(&repo, &entry).await?;
-            let results = r"
-╭─────────────────┬───────┬───────┬───────┬────────╮
-│ file            ┆ min_x ┆ min_y ┆ width ┆ height │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-│ train/cat_1.jpg ┆ 57    ┆ 35.5  ┆ 304   ┆ 427    │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-│ train/dog_3.jpg ┆ 19    ┆ 63.5  ┆ 376   ┆ 421    │
-╰─────────────────┴───────┴───────┴───────┴────────╯
- 2 Rows x 5 Columns";
-
-            assert_eq!(results, tabular_datafusion::df_to_str(&diff.removed).await?);
-            Ok(())
-        })
-        .await
     }
 }
