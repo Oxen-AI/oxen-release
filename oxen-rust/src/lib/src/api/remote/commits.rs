@@ -25,7 +25,7 @@ pub async fn get_by_id(
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::commits::get_by_id {}", url);
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(url).send().await {
         if res.status() == 404 {
             return Ok(None);
@@ -55,7 +55,7 @@ pub async fn commit_is_synced(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         log::debug!("commit_is_synced got response body: {}", body);
@@ -80,7 +80,7 @@ pub async fn download_commit_db_by_id(
     let uri = format!("/commits/{}/commit_db", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(url).send().await {
         // Unpack tarball to our hidden dir
         let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
@@ -108,7 +108,7 @@ pub async fn get_remote_parent(
     let uri = format!("/commits/{}/parents", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(url).send().await {
         let body = res.text().await?;
         let response: Result<CommitParentsResponse, serde_json::Error> =
@@ -163,7 +163,7 @@ async fn create_commit_obj_on_server(
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("create_commit_obj_on_server {}", url);
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client
         .post(url)
         .body(reqwest::Body::from(body))
@@ -196,7 +196,7 @@ pub async fn post_tarball_to_server(
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = client::builder()?
+    let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
         .build()?;
 

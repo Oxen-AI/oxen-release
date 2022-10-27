@@ -818,9 +818,9 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::add_remote(&mut repo, "origin", "http://0.0.0.0:3000/repositories/hello");
+/// command::add_remote(&mut repo, "origin", "http://localhost:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "0.0.0.0:3000").await?;
+/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "localhost:3000").await?;
 ///
 /// // Push the file
 /// command::push(&repo).await;
