@@ -14,7 +14,7 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
     "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
 
 pub const AUTH_TOKEN_NOT_FOUND: &str =
-    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth-token <TOKEN>\n";
+    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
 #[derive(Debug)]
 pub enum OxenError {

@@ -43,9 +43,11 @@ async fn main() {
                 )
                 .arg(
                     Arg::new("auth-token")
-                        .long("auth-token")
-                        .short('t')
-                        .help("Set the authentication token to communicate with a secure oxen-server.")
+                        .long("auth")
+                        .short('a')
+                        .number_of_values(2)
+                        .value_names(&["HOST", "TOKEN"])
+                        .help("Set the authentication token for a specific oxen-server host.")
                         .takes_value(true),
                 )
         )
@@ -369,12 +371,20 @@ async fn main() {
             }
         }
         Some(("config", sub_matches)) => {
-            if let Some(token) = sub_matches.value_of("auth-token") {
-                match dispatch::set_auth_token(token) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
+            // if let [host, token] = sub_matches
+            //     .values_of("auth-token")
+            //     .unwrap()
+            //     .collect::<Vec<_>>()[..]
+            if let Some(auth) = sub_matches.values_of("auth-token") {
+                if let [host, token] = auth.collect::<Vec<_>>()[..] {
+                    match dispatch::set_auth_token(host, token) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("{}", err)
+                        }
                     }
+                } else {
+                    eprintln!("invalid arguments for --auth");
                 }
             }
 
