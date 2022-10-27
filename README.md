@@ -18,11 +18,18 @@ Navigate to [releases](https://github.com/Oxen-AI/oxen-release/releases) and dow
 
 OR
 
-Install on homebrew with:
+Mac Installation
 
 ```bash
 $ brew tap Oxen-AI/oxen
 $ brew install oxen
+```
+
+Debian Installation
+
+```bash
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.2.0/oxen-0.2.0-1-any.deb
+$ sudo dpkg -i oxen-0.2.0-1-any.deb
 ```
 
 # Basic Commands
@@ -176,8 +183,15 @@ To setup a local Oxen Server instance, first install the `oxen-server` binary.
 Mac Installation
 
 ```bash
-$ brew tap Oxen-AI/oxen
+$ brew tap Oxen-AI/oxen-server
 $ brew install oxen-server
+```
+
+Debian Installation
+
+```bash
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.2.0/oxen-server-0.2.0-1-any.deb
+$ sudo dpkg -i oxen-server-0.2.0-1-any.deb
 ```
 
 The server can be run with access token authentication turned on or off. The server runs with no authentication by default:
