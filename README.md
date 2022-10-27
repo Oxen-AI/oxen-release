@@ -1,14 +1,16 @@
 # 🐂 oxen-release
 
-Oxen is command line tooling for working with large machine learning datasets 🦾. It is built from the ground up, optimized to handle many files, process data frames, and track changes in an efficient data structures.
+Oxen is command line tooling for working with large machine learning datasets 🤖 🧠
 
-The goal of [Oxen.ai](https://oxen.ai) is to help manage the shift from software 1.0 (writing lines of code) to [software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where you are managing more and more data. The `oxen` command line interface and `oxen-server` binaries are the first steps, but we plan on releasing a fully hosted Hub in the near future to help store securly your data at scale. 
+It is built from the ground up, optimized to handle many files, process data frames, and track changes in efficient data structures.
+
+[Oxen.ai](https://oxen.ai) is oriented around managing the shift from software 1.0 (writing lines of code) to [software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where you are managing more and more data. The `oxen` command line interface and `oxen-server` binaries are the first steps, but we plan on releasing a fully hosted Hub in the near future to help store securly your data at scale.
 
 Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and to stay updated on the progress.
 
 # Overview
 
-The Oxen CLI mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, you should be relatively comfortable versioning your datasets with Oxen.
+The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straight forward to version your datasets with Oxen.
 
 # Installation
 
@@ -25,7 +27,7 @@ $ brew install oxen
 
 # Basic Commands
 
-Here is a quick refresher of common commands translated to Oxen.
+Here is a quick overview of common commands translated to Oxen.
 
 ## Setup User
 
@@ -54,7 +56,9 @@ $ oxen add annotations/data.csv
 
 ## View Status
 
-To see what data is tracked, staged, or not yet added to the repository you can use the `status` command. Note: since we are dealing with large datasets with many files, `status` rolls up the changes and summarizes them for you.
+To see what data is tracked, staged, or not yet added to the repository you can use the `status` command. 
+
+Note: since we are dealing with large datasets with many files, `status` rolls up the changes and summarizes them for you.
 
 ```bash
 $ oxen status
@@ -165,7 +169,7 @@ Oxen enables sharing data and collaboration between teams with `oxen-server`. So
 
 ## Setup an Oxen Server
 
-You can either setup an Oxen Server instance yourself, or use the hosted version on [OxenHub](https://airtable.com/shril5UTTVvKVZAFE). 
+You can either setup an Oxen Server instance yourself, or use the hosted version on OxenHub, which you can contact us for access to [here](https://airtable.com/shril5UTTVvKVZAFE). 
 
 To setup a local Oxen Server instance, first install the `oxen-server` binary.
 
@@ -176,33 +180,45 @@ $ brew tap Oxen-AI/oxen
 $ brew install oxen-server
 ```
 
-Generate a config file that contains an access token to give it to the user to access to the server
-
-```bash
-$ oxen-server add-user --email YOUR_EMAIL --name YOUR_NAME --output user_config.toml
-```
-
-The user who needs access should copy the config to the ~/.oxen directory, which is where the Oxen CLI looks for it. If the user has not done this step, they will not have access to the server.
-
-```bash
-$ mkdir ~/.oxen
-$ mv user_config.toml ~/.oxen/user_config.toml
-```
-
-Run the server
+The server can be run with access token authentication turned on or off. The server runs with no authentication by default:
 
 ```bash
 $ oxen-server start
+```
+
+To enable authentication, generate a token to give it to the user to access to the server
+
+```bash
+$ oxen-server add-user --email YOUR_EMAIL --name YOUR_NAME
+
+User access token created:
+
+XXXXXXXX
+
+To give user access have them run the command `oxen config --auth <HOST> <TOKEN>`
+```
+
+You may have different authentication tokens for different hosts. From the client side, you can setup an auth token per host with the `config` command. If you ever need to debug or edit the tokens manually, they are stored in the `~/.oxen/user_config.toml` file.
+
+```bash
+$ oxen config --auth <HOST> <TOKEN>
+$ cat ~/.oxen/user_config.toml
+```
+
+To run the server with authentication, use the `-a` flag
+
+```bash
+$ oxen-server start -a
 ```
 
 The default directory that Oxen stores data is `/tmp/oxen_sync`, we definitely do not want this in production. To change it set the SYNC_DIR environment variable to a path.
 
 ```
 $ export SYNC_DIR=/Path/To/Data
-$ oxen-server start
+$ oxen-server start -a
 
 Running 🐂 server on 0.0.0.0:3000
-Syncing to directory: /Users/gregschoeninger/Data/oxen_server
+Syncing to directory: /Path/To/Data
 [2022-06-08T10:00:48Z INFO  actix_server::builder] Starting 8 workers
 [2022-06-08T10:00:48Z INFO  actix_server::server] Actix runtime found; starting in Actix runtime
 ```
@@ -215,12 +231,20 @@ $ oxen-server start -i 0.0.0.0 -p 4321
 
 ## Pushing the Changes
 
-Once you have committed data locally, and are ready to share them with colleagues (or the world) you will have to push them to a remote.
+Once you have committed data locally and are ready to share them with colleagues (or the world) you will have to push them to a remote.
 
-If you have not yet set a remote, you can do so with
+You can either create a remote through the web UI on [OxenHub](https://oxen.ai) or if you have setup a server your self, you will have to run the `create-remote` command.
 
 ```bash
-$ oxen remote add origin http://<YOUR_SERVER>/namespace/RepoName
+$ oxen create-remote MyNamespace MyRepoName <HOST>
+```
+
+Repositories that live on an Oxen Server have the idea of a `namespace` and a `name` to help you organize your repositories.
+
+Once you know your remote repository URL you can add it as a remote.
+
+```bash
+$ oxen remote add origin http://<HOST>/MyNamespace/MyRepoName
 ```
 
 Once a remote is set you can push
@@ -236,13 +260,13 @@ You can change the remote (origin) and the branch (main) to whichever remote and
 To clone a repository from remote server you can use the URL you provided previously, and pull the changes to a new machine.
 
 ```bash
-$ oxen clone http://<YOUR_SERVER>/namespace/RepoName
+$ oxen clone http://<HOST>/MyNamespace/MyRepoName
 ```
 
-Note: Due to the potential size of data, you have to navigate into the directory, and pull the specific branch of you want.
+Note: Due to the potential size of data, oxen does not immediately pull the data. You have to navigate into the directory, and pull the specific branch that you want.
 
 ```bash
-$ cd RepoName
+$ cd MyRepoName
 $ oxen pull origin main
 ```
 
