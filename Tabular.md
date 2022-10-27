@@ -86,7 +86,7 @@ $ oxen df annotations/data.csv -o annotations/data.parquet
 
 ## Slice
 
-Say you want to take a subset of the datafile and save it in another data file. You can do this with the `--slice` option. This can be handy when creating train, test, and validation sets.
+Say you want to take a subset of the datafile and save it in another data file. You can do this with the `--slice` option. This can be handy when creating train, test, and validation sets. The two numbers represent the start and end indices you want to slice into.
 
 ```bash
 $ oxen df annotations/data.csv --slice '0..9000' -o annotations/train.parquet
