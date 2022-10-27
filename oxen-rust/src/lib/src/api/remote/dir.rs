@@ -17,7 +17,7 @@ pub async fn list_dir(
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
         let status = res.status();
         let body = res.text().await?;

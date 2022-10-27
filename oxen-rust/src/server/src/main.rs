@@ -1,5 +1,5 @@
 use liboxen::config::UserConfig;
-use liboxen::model::NewUser;
+use liboxen::model::User;
 
 pub mod app_data;
 pub mod auth;
@@ -152,16 +152,16 @@ async fn main() -> std::io::Result<()> {
                     let path = Path::new(&sync_dir);
                     log::debug!("Saving to sync dir: {:?}", path);
                     if let Ok(keygen) = auth::access_keys::AccessKeyManager::new(path) {
-                        let new_user = NewUser {
+                        let new_user = User {
                             name: name.to_string(),
                             email: email.to_string(),
                         };
                         match keygen.create(&new_user) {
-                            Ok(user) => {
+                            Ok((user, token)) => {
                                 let cfg = UserConfig::from_user(&user);
                                 match cfg.save(Path::new(output)) {
                                     Ok(_) => {
-                                        println!("User access token created in {}:\n\n{}\n\nTo give user access have them run the command `oxen set-auth-token <TOKEN>`", output, user.token.unwrap())
+                                        println!("User access token created:\n\n{}\n\nTo give user access have them run the command `oxen config --auth <HOST> <TOKEN>`", token)
                                     }
                                     Err(error) => {
                                         eprintln!("Err: {:?}", error);
