@@ -224,3 +224,17 @@ Upload it to our releases github repository [https://github.com/Oxen-AI/oxen-rel
 
 Then update our homebrew Formula in this repository [https://github.com/Oxen-AI/homebrew-oxen](https://github.com/Oxen-AI/homebrew-oxen) to point to the correct release.
 
+# Debian Release
+
+```bash
+fpm \
+  -s dir -t deb \
+  -p oxen-server-0.2.0-1-any.deb \
+  --name oxen-server \
+  --version 0.2.0 \
+  --architecture all \
+  --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+  --url "https://oxen.ai" \
+  --maintainer "OxenAI hello@oxen.ai" \
+  oxen-server=/usr/bin/oxen-server
+```
