@@ -18,6 +18,7 @@ pub struct StagedDirEntryDB {
 
 impl StagedDirEntryDB {
     pub fn staging_dir(repo: &LocalRepository, dir: &Path) -> PathBuf {
+        log::debug!("StagedDirEntryDB got repo path {:?}", repo.path);
         util::fs::oxen_hidden_dir(&repo.path)
             .join(Path::new(STAGED_DIR))
             .join("files")
@@ -27,7 +28,9 @@ impl StagedDirEntryDB {
     /// # Create new staged dir
     /// Contains all the staged files within that dir, for faster filtering during `oxen status`
     pub fn new(repository: &LocalRepository, dir: &Path) -> Result<StagedDirEntryDB, OxenError> {
+        log::debug!("StagedDirEntryDB got dir {:?}", dir);
         let db_path = StagedDirEntryDB::staging_dir(repository, dir);
+
         log::debug!("StagedDirEntryDB db_path {:?}", db_path);
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;

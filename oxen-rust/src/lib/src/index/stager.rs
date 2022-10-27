@@ -88,6 +88,7 @@ impl Stager {
 
         log::debug!("stager.add({:?})", path);
 
+        // Be able to add the current dir
         if path == Path::new(".") {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
@@ -419,9 +420,11 @@ impl Stager {
         let repository = self.repository.to_owned();
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&dir)
             .skip_hidden(true)
+            .parallelism(jwalk::Parallelism::Serial)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
+                let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
                 log::debug!("list_unadded_files_in_dir process_dir {:?}", parent);
-                let staged_dir_db = StagedDirEntryDB::new(&repository, parent).unwrap();
+                let staged_dir_db = StagedDirEntryDB::new(&repository, &parent).unwrap();
 
                 dir_entry_results.iter_mut().for_each(|dir_entry_result| {
                     if let Ok(dir_entry) = dir_entry_result {
