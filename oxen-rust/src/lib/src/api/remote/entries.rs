@@ -36,7 +36,7 @@ pub async fn create(
     let uri = format!("/entries?{}", entry.to_uri_encoded());
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("create entry: {}", url);
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     match client.post(url).body(body).send().await {
         Ok(res) => {
             let status = res.status();
@@ -71,7 +71,7 @@ pub async fn download_entries(
         commit_id, page_num, page_size
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
         let status = res.status();
         if reqwest::StatusCode::OK == status {
@@ -111,7 +111,7 @@ pub async fn download_content_by_ids(
     let size = body.len() as u64;
     let url = api::endpoint::url_from_repo(remote_repo, "/versions")?;
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.post(&url).body(body).send().await {
         let reader = res
             .bytes_stream()
@@ -146,7 +146,7 @@ pub async fn download_entry(
     );
     log::debug!("download_entry {}", url);
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     let response = client.get(&url).send().await?;
 
     if let Some(parent) = fpath.parent() {

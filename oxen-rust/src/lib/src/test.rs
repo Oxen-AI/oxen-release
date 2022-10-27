@@ -16,7 +16,7 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 const TEST_RUN_DIR: &str = "data/test/runs";
-pub const DEFAULT_TEST_HOST: &str = "0.0.0.0:3000";
+pub const DEFAULT_TEST_HOST: &str = "localhost:3000";
 
 pub fn test_host() -> String {
     match std::env::var("OXEN_TEST_HOST") {
