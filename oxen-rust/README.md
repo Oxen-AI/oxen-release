@@ -220,7 +220,24 @@ Get the sha256 hash of the archive
 shasum -a 256 oxen-mac.tar.gz
 ```
 
-Upload it to our releases github repository [https://github.com/Oxen-AI/oxen-release](https://github.com/Oxen-AI/oxen-release)
+Add release notes and tag in [https://github.com/Oxen-AI/oxen-release](https://github.com/Oxen-AI/oxen-release)
+
+```bash
+$ cd ~/Code/oxen-release/
+$ git add ReleaseNotes.md
+$ git commit -m "add release notes for v0.2.0"
+$ git tag -a v0.2.0 -m "version 0.2.0"
+$ git push origin main
+$ git push origin v0.2.0
+```
+
+Upload the tar.gz to our [releases github repository](https://github.com/Oxen-AI/oxen-release) through the webui [here](https://github.com/Oxen-AI/oxen-release/releases/new)
+
+Make a backup copy in here
+
+```bash
+$ mkdir ~/Code/oxen-release/release/v0.2.0/
+$ cp oxen-mac.tar.gz ~/Code/oxen-release/release/v0.2.0/
+```
 
 Then update our homebrew Formula in this repository [https://github.com/Oxen-AI/homebrew-oxen](https://github.com/Oxen-AI/homebrew-oxen) to point to the correct release.
-
