@@ -7,6 +7,8 @@ use crate::index::{
     StagedDirEntryDB,
 };
 
+use crate::media::tabular;
+use crate::media::DFOpts;
 use crate::model::{
     CommitEntry, EntryType, LocalRepository, MergeConflict, StagedData, StagedDirStats,
     StagedEntry, StagedEntryStatus,
@@ -86,6 +88,7 @@ impl Stager {
 
         log::debug!("stager.add({:?})", path);
 
+        // Be able to add the current dir
         if path == Path::new(".") {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
@@ -417,9 +420,11 @@ impl Stager {
         let repository = self.repository.to_owned();
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&dir)
             .skip_hidden(true)
+            .parallelism(jwalk::Parallelism::Serial)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
+                let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
                 log::debug!("list_unadded_files_in_dir process_dir {:?}", parent);
-                let staged_dir_db = StagedDirEntryDB::new(&repository, parent).unwrap();
+                let staged_dir_db = StagedDirEntryDB::new(&repository, &parent).unwrap();
 
                 dir_entry_results.iter_mut().for_each(|dir_entry_result| {
                     if let Ok(dir_entry) = dir_entry_result {
@@ -631,7 +636,14 @@ impl Stager {
         }
 
         // compute the hash to know if it has changed
-        let hash = util::hasher::hash_file_contents(path)?;
+        // TODO: Look where all this is used, and abstract away....
+        let hash = if util::fs::is_tabular(path) {
+            let df = tabular::read_df(path, DFOpts::empty())?;
+            let df = tabular::df_hash_rows(df)?;
+            util::hasher::compute_tabular_hash(&df)
+        } else {
+            util::hasher::hash_file_contents(path)?
+        };
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo
@@ -671,6 +683,10 @@ impl Stager {
                 return Ok(path);
             } else {
                 // Hash doesn't match, mark it as modified
+                log::debug!(
+                    "add_staged_entry_in_dir_db HASH DOESN'T MATCH {:?}",
+                    entry.path
+                );
                 staged_entry.status = StagedEntryStatus::Modified;
             }
         }

@@ -144,7 +144,7 @@ async fn main() {
                     Arg::new("slice")
                         .long("slice")
                         .short('s')
-                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                        .help("A continuous slice of the data you want to look at. Format: 'start..end' Ex) '10..25' will take 15 elements, starting at 10 and ending at 25.")
                         .takes_value(true),
                 )
                 .arg(
@@ -455,7 +455,7 @@ async fn main() {
                 should_randomize: sub_matches.is_present("randomize"),
             };
 
-            match dispatch::df(path, &opts) {
+            match dispatch::df(path, opts) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
@@ -638,15 +638,15 @@ async fn main() {
             // First arg is optional
             let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
             let path = sub_matches.value_of("PATH");
-            if path.is_none() {
-                match dispatch::diff(None, file_or_commit_id).await {
+            if let Some(path) = path {
+                match dispatch::diff(Some(file_or_commit_id), path) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
                     }
                 }
             } else {
-                match dispatch::diff(Some(file_or_commit_id), path.unwrap()).await {
+                match dispatch::diff(None, file_or_commit_id) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)

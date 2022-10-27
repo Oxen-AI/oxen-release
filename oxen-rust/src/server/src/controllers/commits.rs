@@ -3,6 +3,8 @@ use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitValidator, CommitWriter};
+use liboxen::media::tabular;
+use liboxen::media::DFOpts;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -365,7 +367,57 @@ pub async fn upload(
                         log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
                         // Unpack tarball to our hidden dir
                         let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-                        archive.unpack(hidden_dir).unwrap();
+
+                        // Unpack and compute HASH and save next to the file to speed up computation later
+                        match archive.entries() {
+                            Ok(entries) => {
+                                for file in entries {
+                                    if let Ok(mut file) = file {
+                                        // Why hash now? To make sure everything synced properly
+                                        // When we want to check is_synced, it is expensive to rehash everything
+                                        // But since upload is network bound already, hashing here makes sense, and we will just
+                                        // load the HASH file later
+                                        file.unpack_in(&hidden_dir).unwrap();
+                                        let path = file.path().unwrap();
+                                        let full_path = hidden_dir.join(&path);
+                                        let hash_dir = full_path.parent().unwrap();
+                                        let hash_file = hash_dir.join("HASH");
+                                        if path.starts_with("versions/files/") {
+                                            if util::fs::is_tabular(&path) {
+                                                let df =
+                                                    tabular::read_df(full_path, DFOpts::empty())
+                                                        .unwrap();
+                                                // let df = tabular::df_hash_rows(df).unwrap();
+                                                let hash = util::hasher::compute_tabular_hash(&df);
+
+                                                util::fs::write_to_path(&hash_file, &hash);
+                                            } else {
+                                                log::debug!(
+                                                    "Compute hash for file {:?}",
+                                                    full_path
+                                                );
+                                                let hash =
+                                                    util::hasher::hash_file_contents(&full_path)
+                                                        .unwrap();
+                                                log::debug!(
+                                                    "Computed hash [{hash}] for file {:?}",
+                                                    full_path
+                                                );
+
+                                                util::fs::write_to_path(&hash_file, &hash);
+                                            }
+                                        }
+                                    } else {
+                                        log::error!("Could not unpack file in archive...");
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                log::error!("Could not unpack entries from archive...");
+                                log::error!("Err: {:?}", err);
+                            }
+                        }
+
                         log::debug!("Done decompressing.");
                     });
                     // handle.join().unwrap();

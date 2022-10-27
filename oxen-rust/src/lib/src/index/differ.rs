@@ -1,6 +1,5 @@
 use crate::error::OxenError;
 use crate::index::{CommitDirEntryReader, CommitReader};
-use crate::media::tabular_datafusion;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::util;
 
@@ -8,7 +7,9 @@ use colored::Colorize;
 use difference::{Changeset, Difference};
 use std::path::Path;
 
-pub async fn diff(
+use super::{CommitSchemaRowIndex, SchemaReader};
+
+pub fn diff(
     repo: &LocalRepository,
     commit_id: Option<&str>,
     path: &str,
@@ -16,7 +17,7 @@ pub async fn diff(
     match _commit_or_head(repo, commit_id)? {
         Some(commit) => {
             let path = Path::new(path);
-            _diff_commit(repo, &commit, path).await
+            _diff_commit(repo, &commit, path)
         }
         None => Err(OxenError::commit_id_does_not_exist(commit_id.unwrap())),
     }
@@ -34,19 +35,22 @@ fn _commit_or_head(
     }
 }
 
-async fn _diff_commit(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: &Path,
-) -> Result<String, OxenError> {
+// TODO: Change API to take two commits
+fn _diff_commit(repo: &LocalRepository, commit: &Commit, path: &Path) -> Result<String, OxenError> {
     if let Some(parent) = path.parent() {
         let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
         let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
         let file_name = path.file_name().unwrap();
         if let Ok(Some(entry)) = commit_entry_reader.get_entry(file_name) {
             if util::fs::is_tabular(path) {
-                return diff_tabular(repo, &entry).await;
+                let commit_reader = CommitReader::new(repo)?;
+                let commits = commit_reader.history_from_head()?;
+
+                let current_commit = commits.first().unwrap();
+
+                return diff_tabular(repo, current_commit, &entry.path);
             } else if util::fs::is_utf8(path) {
+                // TODO: Change API to take two commits
                 return diff_utf8(repo, &entry);
             }
             Err(OxenError::basic_str(format!(
@@ -93,22 +97,34 @@ pub fn diff_utf8(repo: &LocalRepository, entry: &CommitEntry) -> Result<String, 
     Ok(outputs.join(""))
 }
 
-pub async fn diff_tabular(
+pub fn diff_tabular(
     repo: &LocalRepository,
-    entry: &CommitEntry,
+    current_commit: &Commit,
+    path: &Path,
 ) -> Result<String, OxenError> {
-    let diff = tabular_datafusion::diff(repo, entry).await?;
+    let schema_reader = SchemaReader::new(repo, &current_commit.id)?;
+    if let Some(schema) = schema_reader.get_schema_for_file(path)? {
+        let diff = CommitSchemaRowIndex::diff_current(repo, &schema, current_commit, path)?;
 
-    let added_batches = diff.added.collect().await?;
-    let removed_batches = diff.removed.collect().await?;
-    if added_batches.is_empty() && removed_batches.is_empty() {
-        return Ok(String::from("No changes."));
+        let mut results: Vec<String> = vec![];
+        if let Some(rows) = diff.added_rows {
+            results.push(format!("Added Rows\n{}\n\n", rows));
+        }
+
+        if let Some(rows) = diff.removed_rows {
+            results.push(format!("Removed Rows\n{}\n\n", rows));
+        }
+
+        if let Some(cols) = diff.added_cols {
+            results.push(format!("Added Columns\n{}\n\n", cols));
+        }
+
+        if let Some(cols) = diff.removed_cols {
+            results.push(format!("Removed Columns\n{}\n\n", cols));
+        }
+
+        Ok(results.join("\n"))
+    } else {
+        Err(OxenError::schema_does_not_exist_for_file(path))
     }
-
-    let added_diff = tabular_datafusion::df_to_str(&diff.added).await?;
-    let removed_diff = tabular_datafusion::df_to_str(&diff.removed).await?;
-
-    Ok(format!(
-        "Added Rows\n{added_diff}\n\nRemoved Rows\n{removed_diff}\n"
-    ))
 }

@@ -82,8 +82,17 @@ pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -
                     continue;
                 }
 
+                // TODO: if tabular, get content from data.arrow file
+                log::debug!("Checking for content file {}", content_file);
+
                 let version_path = repo.path.join(content_file);
-                if version_path.exists() {
+                if util::fs::is_tabular(&version_path) {
+                    let data_file = version_path.parent().unwrap().join("data.arrow");
+                    let path = Path::new(content_file);
+                    // in order to unzip it to data.arrow on the other end
+                    let content_file = path.parent().unwrap().join("data.arrow");
+                    tar.append_path_with_name(data_file, content_file).unwrap();
+                } else if version_path.exists() {
                     tar.append_path_with_name(version_path, content_file)
                         .unwrap();
                 } else {
