@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::model::schema::Field;
+use crate::model::Schema;
 use crate::util;
 
 #[derive(Debug)]
@@ -52,7 +53,7 @@ pub struct DFFilter {
     pub value: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DFOpts {
     pub output: Option<PathBuf>,
     pub slice: Option<String>,
@@ -80,6 +81,10 @@ impl DFOpts {
         }
     }
 
+    pub fn from_filter_schema(schema: &Schema) -> Self {
+        DFOpts::from_filter_fields(schema.fields.clone())
+    }
+
     pub fn from_filter_fields(fields: Vec<Field>) -> Self {
         let str_fields: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
         let mut opts = DFOpts::empty();
@@ -105,10 +110,10 @@ impl DFOpts {
                 let start = split[0]
                     .parse::<i64>()
                     .expect("Start must be a valid integer.");
-                let len = split[1]
+                let end = split[1]
                     .parse::<i64>()
                     .expect("End must be a valid integer.");
-                return Some((start, len));
+                return Some((start, end));
             } else {
                 return None;
             }

@@ -4,7 +4,7 @@ pub mod commit_dir_entry_writer;
 pub mod commit_dir_reader;
 pub mod commit_entry_writer;
 pub mod commit_reader;
-pub mod commit_schema_table_index;
+pub mod commit_schema_row_index;
 pub mod commit_validator;
 pub mod commit_writer;
 pub mod differ;
@@ -30,7 +30,7 @@ pub use crate::index::commit_validator::CommitValidator;
 pub use crate::index::commit_writer::CommitWriter;
 pub use crate::index::entry_indexer::EntryIndexer;
 
-pub use crate::index::commit_schema_table_index::CommitSchemaTableIndex;
+pub use crate::index::commit_schema_row_index::CommitSchemaRowIndex;
 pub use crate::index::merge_conflict_db_reader::MergeConflictDBReader;
 pub use crate::index::merge_conflict_reader::MergeConflictReader;
 pub use crate::index::merger::Merger;

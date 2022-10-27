@@ -43,9 +43,11 @@ async fn main() {
                 )
                 .arg(
                     Arg::new("auth-token")
-                        .long("auth-token")
-                        .short('t')
-                        .help("Set the authentication token to communicate with a secure oxen-server.")
+                        .long("auth")
+                        .short('a')
+                        .number_of_values(2)
+                        .value_names(&["HOST", "TOKEN"])
+                        .help("Set the authentication token for a specific oxen-server host.")
                         .takes_value(true),
                 )
         )
@@ -142,7 +144,7 @@ async fn main() {
                     Arg::new("slice")
                         .long("slice")
                         .short('s')
-                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                        .help("A continuous slice of the data you want to look at. Format: 'start..end' Ex) '10..25' will take 15 elements, starting at 10 and ending at 25.")
                         .takes_value(true),
                 )
                 .arg(
@@ -369,12 +371,20 @@ async fn main() {
             }
         }
         Some(("config", sub_matches)) => {
-            if let Some(token) = sub_matches.value_of("auth-token") {
-                match dispatch::set_auth_token(token) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
+            // if let [host, token] = sub_matches
+            //     .values_of("auth-token")
+            //     .unwrap()
+            //     .collect::<Vec<_>>()[..]
+            if let Some(auth) = sub_matches.values_of("auth-token") {
+                if let [host, token] = auth.collect::<Vec<_>>()[..] {
+                    match dispatch::set_auth_token(host, token) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("{}", err)
+                        }
                     }
+                } else {
+                    eprintln!("invalid arguments for --auth");
                 }
             }
 
@@ -445,7 +455,7 @@ async fn main() {
                 should_randomize: sub_matches.is_present("randomize"),
             };
 
-            match dispatch::df(path, &opts) {
+            match dispatch::df(path, opts) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{}", err)
@@ -628,15 +638,15 @@ async fn main() {
             // First arg is optional
             let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
             let path = sub_matches.value_of("PATH");
-            if path.is_none() {
-                match dispatch::diff(None, file_or_commit_id).await {
+            if let Some(path) = path {
+                match dispatch::diff(Some(file_or_commit_id), path) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
                     }
                 }
             } else {
-                match dispatch::diff(Some(file_or_commit_id), path.unwrap()).await {
+                match dispatch::diff(None, file_or_commit_id) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)

@@ -12,6 +12,9 @@ use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
+// use rayon::iter::ParallelBridge;
+// use rayon::iter::ParallelIterator;
+// use xxhash_rust::xxh3::xxh3_64;
 
 use super::df_opts::{DFFilter, DFFilterOp};
 
@@ -83,11 +86,10 @@ fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new("idx", &indices);
-    Ok(df
-        .collect()
-        .expect(READ_ERROR)
-        .take(&idx)
-        .expect(READ_ERROR))
+    let collected = df.collect().expect(READ_ERROR);
+    log::debug!("take indicies {:?}", indices);
+    log::debug!("from df {:?}", collected);
+    Ok(collected.take(&idx).expect(READ_ERROR))
 }
 
 pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<LazyFrame, OxenError> {
@@ -202,14 +204,14 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
     }
 }
 
-pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
     if let Some(vstack) = &opts.vstack {
         log::debug!("Got files to stack {:?}", vstack);
         for path in vstack.iter() {
             let opts = DFOpts::empty();
-            let new_df = read_df(path, &opts).expect(READ_ERROR);
+            let new_df = read_df(path, opts).expect(READ_ERROR);
             df = df
                 .collect()
                 .expect(READ_ERROR)
@@ -247,8 +249,12 @@ pub fn transform_df(mut df: LazyFrame, opts: &DFOpts) -> Result<DataFrame, OxenE
         df = take(full_df.lazy(), rand_indicies)?.lazy();
     }
 
-    if let Some((offset, len)) = opts.slice_indices() {
-        return Ok(df.slice(offset, len as u32).collect().expect(READ_ERROR));
+    if let Some((start, end)) = opts.slice_indices() {
+        if start >= end {
+            panic!("Slice error: Start must be greater than end.");
+        }
+        let len = end - start;
+        return Ok(df.slice(start, len as u32).collect().expect(READ_ERROR));
     }
 
     if let Some(indices) = opts.take_indices() {
@@ -295,6 +301,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         let ca = s.struct_()?;
                         let out: Utf8Chunked = ca
                             .into_iter()
+                            // .par_bridge() // not sure why this is breaking
                             .map(|row| {
                                 // log::debug!("row: {:?}", row);
                                 pb.inc(1);
@@ -328,6 +335,8 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                                 }
                                 // println!("__DONE__ {:?}", buffer);
                                 let result = hasher::hash_buffer(&buffer);
+                                // let result = xxh3_64(&buffer);
+                                // let result: u64 = 0;
                                 // println!("__DONE__ {}", result);
                                 Some(result)
                             })
@@ -335,7 +344,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 
                         Ok(out.into_series())
                     },
-                    GetOutput::from_type(polars::prelude::DataType::UInt64),
+                    GetOutput::from_type(polars::prelude::DataType::Utf8),
                 )
                 .alias(constants::ROW_HASH_COL_NAME),
         ])
@@ -345,7 +354,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
         return Err(OxenError::file_does_not_exist(path));
@@ -356,7 +365,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, Oxen
     let err = format!("Unknown file type {:?}", extension);
 
     if opts.has_transform() {
-        let df = scan_df(path, opts)?;
+        let df = scan_df(path)?;
         let df = transform_df(df, opts)?;
         Ok(df)
     } else {
@@ -375,7 +384,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<DataFrame, Oxen
     }
 }
 
-pub fn scan_df<P: AsRef<Path>>(path: P, _opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     log::debug!("Got extension {:?}", extension);
@@ -460,15 +469,13 @@ pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenE
 }
 
 pub fn copy_df<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
-    let opts = DFOpts::empty();
-    let mut df = read_df(input, &opts)?;
+    let mut df = read_df(input, DFOpts::empty())?;
     write_df_arrow(&mut df, output)?;
     Ok(df)
 }
 
 pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
-    let opts = DFOpts::empty();
-    let df = read_df(input, &opts)?;
+    let df = read_df(input, DFOpts::empty())?;
     let mut df = df
         .lazy()
         .with_row_count("_row_num", Some(0))
@@ -478,7 +485,7 @@ pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFr
     Ok(df)
 }
 
-pub fn show_path<P: AsRef<Path>>(input: P, opts: &DFOpts) -> Result<DataFrame, OxenError> {
+pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let df = read_df(input, opts)?;
     println!("{}", df);
     Ok(df)

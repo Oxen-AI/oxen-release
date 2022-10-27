@@ -15,10 +15,14 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter, RefReader, RefWriter,
+    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitSchemaRowIndex, CommitWriter,
+    RefReader, RefWriter, SchemaReader,
 };
+use crate::media::tabular;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
+
+use super::CommitEntryWriter;
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -261,7 +265,7 @@ impl EntryIndexer {
                     total_size += metadata.len();
                 }
                 Err(err) => {
-                    log::error!("Err getting metadata on {:?}\n{:?}", version_path, err);
+                    log::warn!("Err getting metadata on {:?}\n{:?}", version_path, err);
                 }
             }
         }
@@ -292,11 +296,47 @@ impl EntryIndexer {
                     let mut tar = tar::Builder::new(enc);
                     for entry in chunk.iter() {
                         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                        let version_path = util::fs::version_path(&self.repository, entry);
-                        let name =
-                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                        tar.append_path_with_name(version_path, name).unwrap();
+                        if util::fs::is_tabular(&entry.path) {
+                            // TODO: Look into apache arrow flight for more efficient transfer of CADF
+                            // TODO: One liner to get DataFrame from entry
+                            let schema_reader =
+                                SchemaReader::new(&self.repository, &entry.commit_id)?;
+                            let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
+                            let reader = CommitSchemaRowIndex::new(
+                                &self.repository,
+                                &entry.commit_id,
+                                &schema,
+                                &entry.path,
+                            )?;
+                            let mut df = reader.sorted_entry_df_with_row_hash()?;
+
+                            // save DataFrame to disk in it's proper version dir
+                            let version_path = util::fs::version_dir_from_hash(
+                                &self.repository,
+                                entry.hash.clone(),
+                            )
+                            .join("data.arrow");
+                            log::debug!("ZIPPING TABULAR {:?}", version_path);
+                            tabular::write_df(&mut df, &version_path)?;
+
+                            let name =
+                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+
+                            tar.append_path_with_name(version_path, name).unwrap();
+
+                            // TODO:
+                            // Write hash on upload success (so that we know we got the data content successfully, and can do more efficient compute "checksum" on the fly)
+                            // make sure we can pull it on the other side
+                            // have function to loop over tabular entries and construct the CADF in the "correct order" (whatever that is....)
+                        } else {
+                            let version_path = util::fs::version_path(&self.repository, entry);
+                            log::debug!("ZIPPING REGULAR {:?}", version_path);
+                            let name =
+                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+
+                            tar.append_path_with_name(version_path, name).unwrap();
+                        }
                     }
 
                     // TODO: Clean this up... many places it could fail, but just want to get something working
@@ -493,7 +533,7 @@ impl EntryIndexer {
         let mut size: u64 = 0;
         for entry in entries.iter() {
             let version_path = util::fs::version_path(&self.repository, entry);
-            if !version_path.exists() {
+            if !version_path.exists() || util::fs::is_tabular(&version_path) {
                 let version_path =
                     util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
                 content_ids.push(String::from(version_path.to_str().unwrap()));
@@ -614,9 +654,18 @@ impl EntryIndexer {
                         }
 
                         let version_path = util::fs::version_path(&self.repository, entry);
-                        if std::fs::copy(&version_path, &filepath).is_err() {
-                            eprintln!("Could not unpack file {:?} -> {:?}", version_path, filepath);
-                        } else {
+                        // We will unpack tabular later into CADF
+                        if !util::fs::is_tabular(&version_path)
+                            && std::fs::copy(&version_path, &filepath).is_err()
+                        {
+                            log::error!(
+                                "Could not unpack file {:?} -> {:?}",
+                                version_path,
+                                filepath
+                            );
+                        }
+
+                        if filepath.exists() {
                             let metadata = fs::metadata(filepath).unwrap();
                             let mtime = FileTime::from_last_modification_time(&metadata);
                             committer.set_file_timestamps(entry, &mtime).unwrap();
@@ -629,8 +678,19 @@ impl EntryIndexer {
             bar.finish();
         }
 
+        // Unpack tabular data
+        self.unpack_tabular(commit)?;
+
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
+
+        Ok(())
+    }
+
+    fn unpack_tabular(&self, commit: &Commit) -> Result<(), OxenError> {
+        let writer = CommitEntryWriter::new(&self.repository, commit)?;
+        let should_unpack_to_working_dir = true;
+        writer.aggregate_row_level_results(should_unpack_to_working_dir)?;
 
         Ok(())
     }

@@ -1,7 +1,8 @@
-use datafusion::dataframe::DataFrame;
-use std::sync::Arc;
+use polars::prelude::DataFrame;
 
 pub struct DataFrameDiff {
-    pub added: Arc<DataFrame>,
-    pub removed: Arc<DataFrame>,
+    pub added_rows: Option<DataFrame>,
+    pub removed_rows: Option<DataFrame>,
+    pub added_cols: Option<DataFrame>,
+    pub removed_cols: Option<DataFrame>,
 }

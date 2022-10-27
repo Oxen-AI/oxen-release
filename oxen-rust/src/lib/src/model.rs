@@ -34,7 +34,7 @@ pub use crate::model::entry::remote_entry::RemoteEntry;
 pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 pub use crate::model::entry::ContentHashable;
 
-pub use crate::model::user::{NewUser, User};
+pub use crate::model::user::User;
 
 pub use crate::model::staged_data::StagedData;
 pub use crate::model::staged_dir_stats::StagedDirStats;

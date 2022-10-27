@@ -16,8 +16,8 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
     let url = api::endpoint::url_from_remote(remote, "")?;
     log::debug!("api::remote::repositories::get_by_remote({})", url);
 
-    let client = client::new()?;
-    if let Ok(res) = client.get(url.clone()).send().await {
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
         let status = res.status();
         if 404 == status {
             return Ok(None);
@@ -60,8 +60,8 @@ pub async fn create<S: AsRef<str>>(
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {} {} {}", url, namespace, name);
 
-    let client = client::new()?;
-    if let Ok(res) = client.post(url.to_owned()).json(&params).send().await {
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).json(&params).send().await {
         let status = res.status();
         let body = res.text().await?;
         log::debug!("Response [{}] {}", status, body);
@@ -92,7 +92,7 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
     let url = api::endpoint::url_from_repo(repository, "")?;
     log::debug!("Deleting repository: {}", url);
 
-    let client = client::new()?;
+    let client = client::new_for_url(&url)?;
     if let Ok(res) = client.delete(url).send().await {
         let status = res.status();
         let body = res.text().await?;
@@ -113,7 +113,7 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
 
 pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
     log::debug!("api::remote::repositories::resolve_api_url({})", url);
-    let client = client::new()?;
+    let client = client::new_for_url(url)?;
     if let Ok(res) = client.get(url).send().await {
         let status = res.status();
         if 404 == status {

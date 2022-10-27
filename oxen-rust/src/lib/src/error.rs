@@ -14,7 +14,7 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
     "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
 
 pub const AUTH_TOKEN_NOT_FOUND: &str =
-    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth-token <TOKEN>\n";
+    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
 #[derive(Debug)]
 pub enum OxenError {
@@ -68,6 +68,11 @@ impl OxenError {
         OxenError::basic_str(
             "No schemas found\n\nAdd and commit a tabular data file with:\n\n  oxen add path/to/file.csv\n  oxen commit -m \"adding data\"\n",
         )
+    }
+
+    pub fn schema_does_not_exist_for_file<P: AsRef<Path>>(path: P) -> OxenError {
+        let err = format!("Schema does not exist for file {:?}", path.as_ref());
+        OxenError::basic_str(err)
     }
 
     pub fn schema_has_changed(old_schema: Schema, current_schema: Schema) -> OxenError {
