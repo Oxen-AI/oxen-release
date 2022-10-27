@@ -105,11 +105,25 @@ pub fn diff_tabular(
     let schema_reader = SchemaReader::new(repo, &current_commit.id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(path)? {
         let diff = CommitSchemaRowIndex::diff_current(repo, &schema, current_commit, path)?;
-        let added_diff = format!("{}", diff.added_rows.unwrap());
-        let removed_diff = format!("{}", diff.removed_rows.unwrap());
-        Ok(format!(
-            "Added Rows\n{added_diff}\n\nRemoved Rows\n{removed_diff}\n"
-        ))
+
+        let mut results: Vec<String> = vec![];
+        if let Some(rows) = diff.added_rows {
+            results.push(format!("Added Rows\n{}\n\n", rows));
+        }
+
+        if let Some(rows) = diff.removed_rows {
+            results.push(format!("Removed Rows\n{}\n\n", rows));
+        }
+
+        if let Some(cols) = diff.added_cols {
+            results.push(format!("Added Columns\n{}\n\n", cols));
+        }
+
+        if let Some(cols) = diff.removed_cols {
+            results.push(format!("Removed Columns\n{}\n\n", cols));
+        }
+
+        Ok(results.join("\n"))
     } else {
         Err(OxenError::schema_does_not_exist_for_file(path))
     }

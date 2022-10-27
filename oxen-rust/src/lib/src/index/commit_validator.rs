@@ -29,7 +29,7 @@ impl CommitValidator {
         commit: &NewCommit,
         entries: &[CommitEntry],
     ) -> Result<Option<String>, OxenError> {
-        log::debug!("Computing commit hash for {} entries", entries.len());
+        // log::debug!("Computing commit hash for {} entries", entries.len());
         let mut hashes: Vec<SimpleHash> = vec![];
         for entry in entries.iter() {
             // Sometimes we have pre computed the HASH, so that we don't have to fully hash contents again to
@@ -39,10 +39,10 @@ impl CommitValidator {
             let version_path = util::fs::version_path(&self.repository, entry);
 
             let maybe_hash_file = version_path.parent().unwrap().join("HASH");
-            log::debug!("Checking for hash file: {:?}", maybe_hash_file);
+            // log::debug!("Checking for hash file: {:?}", maybe_hash_file);
             if maybe_hash_file.exists() {
                 let hash = util::fs::read_from_path(&maybe_hash_file)?;
-                log::debug!("GOT HASH FILE {hash} => {:?}", entry.path);
+                // log::debug!("GOT HASH FILE {hash} => {:?}", entry.path);
                 hashes.push(SimpleHash { hash });
                 continue;
             }

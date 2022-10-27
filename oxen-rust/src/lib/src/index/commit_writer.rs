@@ -346,7 +346,6 @@ impl CommitWriter {
                     }
                 }
 
-                // TODO: refactor to not just do a copy, but restore from generalized fn
                 command::restore(&self.repository, Some(commit_id), &entry.path)?;
             } else {
                 // we do have it, check if we need to update it
@@ -366,8 +365,6 @@ impl CommitWriter {
                         dst_path
                     );
 
-                    // TODO: refactor to unpack from multiple places more cleanly
-                    // might want to unzip, or unpack from CADF, unencrypt, who knows
                     command::restore(&self.repository, Some(commit_id), &entry.path)?;
                 } else {
                     log::debug!(
