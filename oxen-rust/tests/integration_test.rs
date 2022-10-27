@@ -994,6 +994,23 @@ async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
     .await
 }
 
+// At some point we were adding rocksdb inside the working dir...def should not do that
+#[test]
+fn test_command_add_dot_should_not_add_new_files() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let num_files = util::fs::count_files_in_dir(&repo.path);
+
+        command::add(&repo, &repo.path)?;
+
+        // Add shouldn't add any new files in the working dir
+        let num_files_after_add = util::fs::count_files_in_dir(&repo.path);
+
+        assert_eq!(num_files, num_files_after_add);
+
+        Ok(())
+    })
+}
+
 // This broke when you tried to add the "." directory to add everything, after already committing the train directory.
 #[tokio::test]
 async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
