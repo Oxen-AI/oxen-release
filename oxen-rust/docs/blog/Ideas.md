@@ -12,6 +12,43 @@
     - Conclusion
         - We are working helping companies with this problem, contact us for access
 
+* Stop Training on Static Datasets
+    - Kaggle is a great place to grab data
+    - The problem is, this data never changes
+    - If you train on a static data set, and don't have the infrastructure to add to the dataset, modify it, retrain on a specific state, it can bite you later on down the road.
+    - This is not the case in the real world, or inside your organization
+    - At Oxen.ai we are working on solving this problem
+    - Let's see how it works
+        - Grab a dataset from Kaggle
+            - When life gives you lemons
+            - https://www.kaggle.com/datasets/yusufemir/lemon-quality-dataset
+        - This isn't that many images to be honest...
+            - What if we want to build this dataset up from 2,000 images to 10k? 100k?
+            - All these images are on a similar white background, what if the lemon is on the floor? A granite counter? In a lemon factory? On a lemonade stand?
+        - Index the initial images into Oxen
+            - Show why you would not want to do this in git
+        - Add more images
+            - Make a branch, Greg's lemons
+            - I took a picture of some lemons and put them in their proper folders
+            - Push the branch
+            - Pull the branch and look at the new images
+            - Look good? Merge into main and push again
+        - Conclusion: We do this for code all the time, why aren't we doing it for data? Let's clean up our data practices
+    - What if we want to add more features? (New blog post on adding more features)
+
+* Building a real world Computer Vision model for fitness applications
+    - Back in 2019 I had the idea of "Computer Vision for Fitness"
+    - I created a little demo here
+        - (https://twitter.com/gregschoeninger/status/1145866472977137664?s=21)
+    - I built the end to end app
+        - https://twitter.com/gregschoeninger/status/1145867160096403456?s=20&t=gITu05WViFNn4VcFyv86Ag
+    - I got help from a venture studio to get it out into the public
+    - We got highlighted on twitter and became the app of the day
+        - (https://twitter.com/AppStore/status/1393590809166028808?s=20&t=IjCbvGMoQ-Gi2lkHADL6pw)
+        - (https://apps.apple.com/us/story/id1568601016)
+    - But that's just the start of the journey
+    - We started seeing failure cases in the wild
+
 * Start with the Data
     - You should have your retraining pipeline ready to go when you deploy your app to prod
         - you do this for code, many do not for ML
