@@ -142,7 +142,7 @@ async fn main() {
                     Arg::new("slice")
                         .long("slice")
                         .short('s')
-                        .help("A continuous slice of the data you want to look at. Ex, 0..10")
+                        .help("A continuous slice of the data you want to look at. Format: 'start..end' Ex) '10..25' will take 15 elements, starting at 10 and ending at 25.")
                         .takes_value(true),
                 )
                 .arg(

@@ -110,10 +110,10 @@ impl DFOpts {
                 let start = split[0]
                     .parse::<i64>()
                     .expect("Start must be a valid integer.");
-                let len = split[1]
+                let end = split[1]
                     .parse::<i64>()
                     .expect("End must be a valid integer.");
-                return Some((start, len));
+                return Some((start, end));
             } else {
                 return None;
             }

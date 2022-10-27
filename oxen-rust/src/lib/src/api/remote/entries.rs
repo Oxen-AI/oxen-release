@@ -8,7 +8,7 @@ use crate::view::RemoteEntryResponse;
 
 // use flate2::read::GzDecoder;
 use async_compression::futures::bufread::GzipDecoder;
-use async_std::prelude::*;
+// use async_std::prelude::*;
 use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -121,15 +121,16 @@ pub async fn download_content_by_ids(
         let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
         let archive = Archive::new(decoder);
 
-        let mut entries = archive.entries()?;
+        // For debug if you want to see each file we are unpacking...
+        // let mut entries = archive.entries()?;
+        // while let Some(file) = entries.next().await {
+        //     let mut file = file?;
+        //     file.unpack_in(&local_repo.path).await?;
+        //     log::debug!("Unpacked {:?}", file.path());
+        // }
 
-        while let Some(file) = entries.next().await {
-            let mut file = file?;
-            file.unpack_in(&local_repo.path).await?;
-            log::debug!("Unpacked {:?}", file.path());
-        }
-
-        // archive.unpack(&local_repo.path).await?;
+        // Can unpack all in one line
+        archive.unpack(&local_repo.path).await?;
         Ok(size)
     } else {
         let err = format!(

@@ -249,8 +249,12 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         df = take(full_df.lazy(), rand_indicies)?.lazy();
     }
 
-    if let Some((offset, len)) = opts.slice_indices() {
-        return Ok(df.slice(offset, len as u32).collect().expect(READ_ERROR));
+    if let Some((start, end)) = opts.slice_indices() {
+        if start >= end {
+            panic!("Slice error: Start must be greater than end.");
+        }
+        let len = end - start;
+        return Ok(df.slice(start, len as u32).collect().expect(READ_ERROR));
     }
 
     if let Some(indices) = opts.take_indices() {
