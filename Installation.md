@@ -35,3 +35,5 @@ $ brew install oxen-server
 $ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.2.0/oxen-server-0.2.0-1-any.deb
 $ sudo dpkg -i oxen-server-0.2.0-1-any.deb
 ```
+
+To get up and running using the client and server, you can follow the [getting started docs](README.md).
