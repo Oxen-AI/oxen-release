@@ -14,23 +14,7 @@ The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in man
 
 # Installation
 
-Navigate to [releases](https://github.com/Oxen-AI/oxen-release/releases) and download the latest version for your workstation.
-
-OR
-
-Mac Installation
-
-```bash
-$ brew tap Oxen-AI/oxen
-$ brew install oxen
-```
-
-Debian Installation
-
-```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.2.0/oxen-0.2.0-1-any.deb
-$ sudo dpkg -i oxen-0.2.0-1-any.deb
-```
+Navigate to [releases](https://github.com/Oxen-AI/oxen-release/releases) and download the latest version for your workstation or follow the instructions [here](Installation.md) for using homebrew or the debian package.
 
 # Basic Commands
 
@@ -176,23 +160,9 @@ Oxen enables sharing data and collaboration between teams with `oxen-server`. So
 
 ## Setup an Oxen Server
 
-You can either setup an Oxen Server instance yourself, or use the hosted version on OxenHub, which you can contact us for access to [here](https://airtable.com/shril5UTTVvKVZAFE). 
+You can either setup an `oxen-server` instance yourself, or use the hosted version on OxenHub. To use the hosted OxenHub solution you can contact us [here](https://airtable.com/shril5UTTVvKVZAFE). 
 
-To setup a local Oxen Server instance, first install the `oxen-server` binary.
-
-Mac Installation
-
-```bash
-$ brew tap Oxen-AI/oxen-server
-$ brew install oxen-server
-```
-
-Debian Installation
-
-```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.2.0/oxen-server-0.2.0-1-any.deb
-$ sudo dpkg -i oxen-server-0.2.0-1-any.deb
-```
+To setup a local Oxen Server instance, first [install](Installation.md) the `oxen-server` binary.
 
 The server can be run with access token authentication turned on or off. The server runs with no authentication by default:
 
