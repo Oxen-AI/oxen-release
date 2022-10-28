@@ -117,9 +117,16 @@ If ever you want to go back to a point in your commit history, you can simply su
 $ oxen checkout COMMIT_ID
 ```
 
-## Row Level Tracking
+## Data Point Level Version Control
 
-Oxen is smart about what file types you are adding. For example if you add a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) under the hood Oxen will index and keep track of each row.
+Oxen is smart about what file types you are adding. For example if you track a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) Oxen will index and keep track of each row of data.
+
+```bash
+$ oxen add annotations/train.csv
+$ oxen commit -m "adding rows and rows of data"
+```
+
+Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable data frame to track the changes to the rows and columns over time.
 
 Oxen also has some [handy command line tooling](Tabular.md) for working with tabular data. The `oxen df` command (short for "DataFrame") let's you easily view, modify, slice, and modify tabular data.
 
