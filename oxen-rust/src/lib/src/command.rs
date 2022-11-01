@@ -888,7 +888,7 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 pub fn diff(
     repo: &LocalRepository,
     commit_id_or_branch: Option<&str>,
-    path: &str,
+    path: &Path,
 ) -> Result<String, OxenError> {
     let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
     differ::diff(repo, Some(&commit.id), path)

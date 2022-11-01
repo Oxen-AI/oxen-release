@@ -344,7 +344,7 @@ impl CommitSchemaRowIndex {
         // Hash the current df rows
         let current_df = tabular::df_hash_rows(current_df)?;
 
-        log::debug!("diff_current got current hashes {}", current_df);
+        // log::debug!("diff_current got current hashes {}", current_df);
 
         let current_hash_indices: HashMap<String, u32> = current_df
             .column(constants::ROW_HASH_COL_NAME)
@@ -355,10 +355,10 @@ impl CommitSchemaRowIndex {
             .enumerate()
             .map(|(i, v)| (v.unwrap().to_string(), i as u32))
             .collect();
-        log::debug!("diff_current current indices {:?}", current_hash_indices);
+        // log::debug!("diff_current current indices {:?}", current_hash_indices);
 
         let other_hash_indices = other.list_file_indices_hash_map()?;
-        log::debug!("diff_current other indices {:?}", other_hash_indices);
+        // log::debug!("diff_current other indices {:?}", other_hash_indices);
 
         // Added is all the row hashes that are in current that are not in other
         let added_indices: Vec<u32> = current_hash_indices
@@ -374,9 +374,9 @@ impl CommitSchemaRowIndex {
             .map(|(_hash, index_pair)| index_pair.1)
             .collect();
 
-        log::debug!("diff_current added_indices {:?}", added_indices);
+        // log::debug!("diff_current added_indices {:?}", added_indices);
 
-        log::debug!("diff_current removed_indices {:?}", removed_indices);
+        // log::debug!("diff_current removed_indices {:?}", removed_indices);
 
         // Take added from the added df
         let opts = DFOpts::from_filter_schema(schema);
@@ -467,7 +467,7 @@ impl CommitSchemaRowIndex {
         // Get large arrow file
         let path = util::fs::schema_df_path(&self.repository, &self.schema);
         let version_df = tabular::scan_df(path)?.collect().unwrap();
-        println!("VERSION DF {:?}", version_df);
+        log::debug!("VERSION DF {:?}", version_df);
 
         let file_indices: Vec<RowIndexPair> = self
             .list_file_indices()?
@@ -475,7 +475,7 @@ impl CommitSchemaRowIndex {
             .map(|(_hash, indices)| indices)
             .collect();
 
-        println!("file_indices {:?}", file_indices);
+        log::debug!("file_indices {:?}", file_indices);
 
         let global_indices: Vec<u32> = file_indices
             .clone()
@@ -488,8 +488,8 @@ impl CommitSchemaRowIndex {
             .map(|(local_idx, _global_idx)| local_idx)
             .collect();
 
-        println!("file_indices global {:?}", global_indices);
-        println!("file_indices local {:?}", local_indices);
+        log::debug!("file_indices global {:?}", global_indices);
+        log::debug!("file_indices local {:?}", local_indices);
 
         // Project the original file row nums on in a column
         let mut subset = tabular::take(version_df.lazy(), global_indices)?;
