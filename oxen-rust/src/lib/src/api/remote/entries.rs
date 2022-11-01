@@ -8,7 +8,7 @@ use crate::view::RemoteEntryResponse;
 
 // use flate2::read::GzDecoder;
 use async_compression::futures::bufread::GzipDecoder;
-// use async_std::prelude::*;
+use async_std::prelude::*;
 use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -109,7 +109,6 @@ pub async fn download_content_by_ids(
         encoder.write_all(line.as_bytes())?;
     }
     let body = encoder.finish()?;
-    let size = body.len() as u64;
     let url = api::endpoint::url_from_repo(remote_repo, "/versions")?;
 
     let client = client::new_for_url(&url)?;
@@ -121,16 +120,19 @@ pub async fn download_content_by_ids(
         let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
         let archive = Archive::new(decoder);
 
+        let mut size: u64 = 0;
         // For debug if you want to see each file we are unpacking...
-        // let mut entries = archive.entries()?;
-        // while let Some(file) = entries.next().await {
-        //     let mut file = file?;
-        //     file.unpack_in(&local_repo.path).await?;
-        //     log::debug!("Unpacked {:?}", file.path());
-        // }
+        let mut entries = archive.entries()?;
+        while let Some(file) = entries.next().await {
+            let mut file = file?;
+            let path = file.path()?.to_path_buf();
+            file.unpack_in(&local_repo.path).await?;
 
-        // Can unpack all in one line
-        archive.unpack(&local_repo.path).await?;
+            let metadata = std::fs::metadata(&path)?;
+            size += metadata.len();
+            log::debug!("Unpacked {} bytes {:?}", metadata.len(), path);
+        }
+
         Ok(size)
     } else {
         let err = format!(

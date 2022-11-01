@@ -392,17 +392,17 @@ pub async fn upload(
 
                                                 util::fs::write_to_path(&hash_file, &hash);
                                             } else {
-                                                log::debug!(
-                                                    "Compute hash for file {:?}",
-                                                    full_path
-                                                );
+                                                // log::debug!(
+                                                //     "Compute hash for file {:?}",
+                                                //     full_path
+                                                // );
                                                 let hash =
                                                     util::hasher::hash_file_contents(&full_path)
                                                         .unwrap();
-                                                log::debug!(
-                                                    "Computed hash [{hash}] for file {:?}",
-                                                    full_path
-                                                );
+                                                // log::debug!(
+                                                //     "Computed hash [{hash}] for file {:?}",
+                                                //     full_path
+                                                // );
 
                                                 util::fs::write_to_path(&hash_file, &hash);
                                             }
