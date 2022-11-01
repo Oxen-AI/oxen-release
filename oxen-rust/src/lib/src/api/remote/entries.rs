@@ -126,9 +126,12 @@ pub async fn download_content_by_ids(
         while let Some(file) = entries.next().await {
             let mut file = file?;
             let path = file.path()?.to_path_buf();
+
+            // log::debug!("Unpacking into path {:?}", path);
             file.unpack_in(&local_repo.path).await?;
 
-            let metadata = std::fs::metadata(&path)?;
+            let fullpath = local_repo.path.join(&path);
+            let metadata = std::fs::metadata(&fullpath)?;
             size += metadata.len();
             log::debug!("Unpacked {} bytes {:?}", metadata.len(), path);
         }
