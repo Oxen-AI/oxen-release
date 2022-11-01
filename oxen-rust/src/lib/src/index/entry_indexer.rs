@@ -629,7 +629,7 @@ impl EntryIndexer {
                     match result {
                         Ok(size) => bar.inc(size),
                         Err(err) => {
-                            log::error!("Error downloading content... {:?}", err)
+                            log::error!("Could not download content... {:?}", err)
                         }
                     }
                 })
