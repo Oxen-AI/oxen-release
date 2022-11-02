@@ -15,8 +15,8 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitSchemaRowIndex, CommitWriter,
-    RefReader, RefWriter, SchemaReader,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader,
+    CommitSchemaRowIndex, CommitWriter, RefReader, RefWriter, SchemaReader,
 };
 use crate::media::tabular;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
@@ -226,26 +226,52 @@ impl EntryIndexer {
         this_commit: &Commit,
     ) -> Result<Vec<CommitEntry>, OxenError> {
         println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
-        // In function scope to open and close this DB for a read, because we are going to write
-        // to entries later
+        // Find and compare all entries between this commit and last
         let this_entry_reader = CommitDirReader::new(&self.repository, this_commit)?;
-        let last_entry_reader = CommitDirReader::new(&self.repository, last_commit)?;
 
-        let mut entries_to_sync: Vec<CommitEntry> = vec![];
         let this_entries = this_entry_reader.list_entries()?;
+        let grouped = self.group_entries_to_parent_dirs(&this_entries);
+        log::debug!(
+            "Checking {} entries in {} groups",
+            this_entries.len(),
+            grouped.len()
+        );
+
         let bar = ProgressBar::new(this_entries.len() as u64);
-        for entry in this_entries {
-            // If hashes are different, or it is a new entry, we'll push it
-            if let Some(old_entry) = last_entry_reader.get_entry(&entry.path)? {
-                if old_entry.hash != entry.hash {
-                    entries_to_sync.push(entry);
-                }
-            } else {
-                entries_to_sync.push(entry);
-            }
-            bar.inc(1);
+        let mut entries_to_sync: Vec<CommitEntry> = vec![];
+        for (dir, dir_entries) in grouped.iter() {
+            log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
+
+            let last_entry_reader =
+                CommitDirEntryReader::new(&self.repository, &last_commit.id, dir)?;
+            let mut entries: Vec<CommitEntry> = dir_entries
+                .into_par_iter()
+                .filter(|entry| {
+                    bar.inc(1);
+                    // If hashes are different, or it is a new entry, we'll keep it
+                    let filename = entry.path.file_name().unwrap().to_str().unwrap();
+                    match last_entry_reader.get_entry(&filename) {
+                        Ok(Some(old_entry)) => {
+                            if old_entry.hash != entry.hash {
+                                return true;
+                            }
+                        }
+                        Ok(None) => {
+                            return true;
+                        }
+                        Err(err) => {
+                            panic!("Error filtering entries to sync: {}", err)
+                        }
+                    }
+                    false
+                })
+                .map(|e| e.to_owned())
+                .collect();
+            entries_to_sync.append(&mut entries);
         }
-        println!("Got {} entries to sync", entries_to_sync.len());
+        bar.finish();
+
+        log::debug!("Got {} entries to sync", entries_to_sync.len());
 
         Ok(entries_to_sync)
     }
@@ -277,7 +303,7 @@ impl EntryIndexer {
         );
 
         // We want each chunk to be ~= 5mb
-        let avg_chunk_size = 500000;
+        let avg_chunk_size = 500_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size as u64));
 
@@ -568,19 +594,6 @@ impl EntryIndexer {
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
-        async fn join_parallel<T: Send + 'static>(
-            futs: impl IntoIterator<Item = impl futures::Future<Output = T> + Send + 'static>,
-        ) -> Vec<T> {
-            let tasks: Vec<_> = futs.into_iter().map(tokio::spawn).collect();
-            // unwrap the Result because it is introduced by tokio::spawn()
-            // and isn't something our caller can handle
-            futures::future::join_all(tasks)
-                .await
-                .into_iter()
-                .map(Result::unwrap)
-                .collect()
-        }
-
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!(
             "🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}",
