@@ -236,6 +236,12 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<(), OxenError> {
+    let result = command::df_schema(input)?;
+    println!("{}", result);
+    Ok(())
+}
+
 pub fn schema_show(val: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

@@ -171,6 +171,11 @@ async fn main() {
                         .long("randomize")
                         .help("Randomize the order of the table"),
                 )
+                .arg(
+                    Arg::new("schema")
+                        .long("schema")
+                        .help("Print the full list of columns and data types within the schema."),
+                )
         )
         .subcommand(
             Command::new("schemas")
@@ -434,31 +439,39 @@ async fn main() {
         },
         Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-
-            let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack")
-            {
-                let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
-                Some(vals)
+            if sub_matches.is_present("schema") {
+                match dispatch::df_schema(path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
             } else {
-                None
-            };
+                let vstack: Option<Vec<PathBuf>> =
+                    if let Some(vstack) = sub_matches.values_of("vstack") {
+                        let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+                        Some(vals)
+                    } else {
+                        None
+                    };
 
-            let opts = liboxen::media::DFOpts {
-                output: sub_matches.value_of("output").map(std::path::PathBuf::from),
-                slice: sub_matches.value_of("slice").map(String::from),
-                take: sub_matches.value_of("take").map(String::from),
-                columns: sub_matches.value_of("columns").map(String::from),
-                filter: sub_matches.value_of("filter").map(String::from),
-                vstack,
-                add_col: sub_matches.value_of("add-col").map(String::from),
-                add_row: sub_matches.value_of("add-row").map(String::from),
-                should_randomize: sub_matches.is_present("randomize"),
-            };
+                let opts = liboxen::media::DFOpts {
+                    output: sub_matches.value_of("output").map(std::path::PathBuf::from),
+                    slice: sub_matches.value_of("slice").map(String::from),
+                    take: sub_matches.value_of("take").map(String::from),
+                    columns: sub_matches.value_of("columns").map(String::from),
+                    filter: sub_matches.value_of("filter").map(String::from),
+                    vstack,
+                    add_col: sub_matches.value_of("add-col").map(String::from),
+                    add_row: sub_matches.value_of("add-row").map(String::from),
+                    should_randomize: sub_matches.is_present("randomize"),
+                };
 
-            match dispatch::df(path, opts) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+                match dispatch::df(path, opts) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }
