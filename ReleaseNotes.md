@@ -1,4 +1,17 @@
-v0.2.0
+# v0.2.1
+
+Performance Improvements:
+* `oxen add` opening less db connections
+* `oxen push` faster local delta computation
+
+Better Formatting
+* Printing Schemas
+
+Bug Fixes:
+* `oxen pull` progress bar fixes, unpacking fixes
+* Extra print statements
+
+# v0.2.0
 
 * Add row level annotation tracking so that you can efficiently compare tabular data
 * Add `oxen df` commands to help work with tabular data
