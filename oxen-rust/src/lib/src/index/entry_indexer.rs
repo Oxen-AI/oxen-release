@@ -5,6 +5,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures::{stream, StreamExt};
 use indicatif::ProgressBar;
+use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
@@ -15,8 +16,8 @@ use crate::api;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryWriter, CommitDirReader, CommitReader, CommitSchemaRowIndex, CommitWriter,
-    RefReader, RefWriter, SchemaReader,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader,
+    CommitSchemaRowIndex, CommitWriter, RefReader, RefWriter, SchemaReader,
 };
 use crate::media::tabular;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
@@ -226,26 +227,52 @@ impl EntryIndexer {
         this_commit: &Commit,
     ) -> Result<Vec<CommitEntry>, OxenError> {
         println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
-        // In function scope to open and close this DB for a read, because we are going to write
-        // to entries later
+        // Find and compare all entries between this commit and last
         let this_entry_reader = CommitDirReader::new(&self.repository, this_commit)?;
-        let last_entry_reader = CommitDirReader::new(&self.repository, last_commit)?;
 
-        let mut entries_to_sync: Vec<CommitEntry> = vec![];
         let this_entries = this_entry_reader.list_entries()?;
+        let grouped = self.group_entries_to_parent_dirs(&this_entries);
+        log::debug!(
+            "Checking {} entries in {} groups",
+            this_entries.len(),
+            grouped.len()
+        );
+
         let bar = ProgressBar::new(this_entries.len() as u64);
-        for entry in this_entries {
-            // If hashes are different, or it is a new entry, we'll push it
-            if let Some(old_entry) = last_entry_reader.get_entry(&entry.path)? {
-                if old_entry.hash != entry.hash {
-                    entries_to_sync.push(entry);
-                }
-            } else {
-                entries_to_sync.push(entry);
-            }
-            bar.inc(1);
+        let mut entries_to_sync: Vec<CommitEntry> = vec![];
+        for (dir, dir_entries) in grouped.iter() {
+            log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
+
+            let last_entry_reader =
+                CommitDirEntryReader::new(&self.repository, &last_commit.id, dir)?;
+            let mut entries: Vec<CommitEntry> = dir_entries
+                .into_par_iter()
+                .filter(|entry| {
+                    bar.inc(1);
+                    // If hashes are different, or it is a new entry, we'll keep it
+                    let filename = entry.path.file_name().unwrap().to_str().unwrap();
+                    match last_entry_reader.get_entry(&filename) {
+                        Ok(Some(old_entry)) => {
+                            if old_entry.hash != entry.hash {
+                                return true;
+                            }
+                        }
+                        Ok(None) => {
+                            return true;
+                        }
+                        Err(err) => {
+                            panic!("Error filtering entries to sync: {}", err)
+                        }
+                    }
+                    false
+                })
+                .map(|e| e.to_owned())
+                .collect();
+            entries_to_sync.append(&mut entries);
         }
-        println!("Got {} entries to sync", entries_to_sync.len());
+        bar.finish();
+
+        log::debug!("Got {} entries to sync", entries_to_sync.len());
 
         Ok(entries_to_sync)
     }
@@ -277,7 +304,7 @@ impl EntryIndexer {
         );
 
         // We want each chunk to be ~= 5mb
-        let avg_chunk_size = 500000;
+        let avg_chunk_size = 500_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size as u64));
 
@@ -568,19 +595,6 @@ impl EntryIndexer {
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
-        async fn join_parallel<T: Send + 'static>(
-            futs: impl IntoIterator<Item = impl futures::Future<Output = T> + Send + 'static>,
-        ) -> Vec<T> {
-            let tasks: Vec<_> = futs.into_iter().map(tokio::spawn).collect();
-            // unwrap the Result because it is introduced by tokio::spawn()
-            // and isn't something our caller can handle
-            futures::future::join_all(tasks)
-                .await
-                .into_iter()
-                .map(Result::unwrap)
-                .collect()
-        }
-
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!(
             "🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}",
@@ -629,7 +643,7 @@ impl EntryIndexer {
                     match result {
                         Ok(size) => bar.inc(size),
                         Err(err) => {
-                            log::error!("Error downloading content... {:?}", err)
+                            log::error!("Could not download content... {:?}", err)
                         }
                     }
                 })
@@ -696,13 +710,53 @@ impl EntryIndexer {
     }
 
     fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
-        let commit_reader = CommitDirReader::new(&self.repository, commit)?;
-        for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
-            let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
-            if !commit_reader.has_file(&short_path) {
-                std::fs::remove_file(file)?;
+        let repository = self.repository.clone();
+        let commit = commit.clone();
+        for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
+            .skip_hidden(true)
+            .parallelism(jwalk::Parallelism::RayonDefaultPool)
+            .process_read_dir(move |_, parent, _, dir_entry_results| {
+                let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
+                let commit_reader =
+                    CommitDirEntryReader::new(&repository, &commit.id, &parent).unwrap();
+
+                dir_entry_results
+                    .par_iter_mut()
+                    .for_each(|dir_entry_result| {
+                        if let Ok(dir_entry) = dir_entry_result {
+                            if !dir_entry.file_type.is_dir() {
+                                let short_path = util::fs::path_relative_to_dir(
+                                    &dir_entry.path(),
+                                    &repository.path,
+                                )
+                                .unwrap();
+                                let path = short_path.file_name().unwrap().to_str().unwrap();
+                                // If we don't have the file in the commit, remove it
+                                if !commit_reader.has_file(&path) {
+                                    let full_path = repository.path.join(short_path);
+                                    if std::fs::remove_file(full_path).is_ok() {
+                                        dir_entry.client_state = Some(true);
+                                    }
+                                }
+                            }
+                        }
+                    })
+            })
+        {
+            match dir_entry_result {
+                Ok(dir_entry) => {
+                    if let Some(was_removed) = &dir_entry.client_state {
+                        if !*was_removed {
+                            log::debug!("Removed file {:?}", dir_entry)
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!("Could not remove file {}", err)
+                }
             }
         }
+
         Ok(())
     }
 
