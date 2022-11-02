@@ -132,69 +132,8 @@ impl CommitEntryWriter {
         staged_entry: &StagedEntry,
         path: &Path,
     ) -> Result<(), OxenError> {
-        // match staged_entry.entry_type {
-        //     EntryType::Regular => {
         self.add_regular_staged_entry_to_db(writer, new_commit, staged_entry, path)
-        //     }
-        //     EntryType::Tabular => {
-        //         self.save_row_level_data(new_commit, path)?;
-        //         self.add_regular_staged_entry_to_db(writer, new_commit, staged_entry, path)
-        //     }
-        // }
     }
-
-    /*
-    fn save_row_level_data(&self, commit: &Commit, path: &Path) -> Result<(), OxenError> {
-        log::debug!("save_row_level_data....");
-        let path = self.repository.path.join(path);
-        let results = tabular_datafusion::group_rows_by_key(path, "file");
-        match block_on(results) {
-            Ok((groups, schema)) => {
-                println!("Saving annotations for {} files", groups.len());
-                let size = groups.len() as u64;
-                let bar = ProgressBar::new(size);
-
-                let dir_groups = self.group_annotations_to_dirs(&groups);
-                for (dir, group) in dir_groups.iter() {
-                    let commit_id = &commit.id;
-                    let commit_entry_reader =
-                        CommitDirEntryReader::new(&self.repository, commit_id, dir)?;
-                    group.par_iter().for_each(|(file, data)| {
-                        let filename = file.file_name().unwrap();
-                        log::debug!("save_row_level_data checking for file: {:?}", filename);
-                        if let Ok(Some(entry)) = commit_entry_reader.get_entry(Path::new(filename))
-                        {
-                            let version_dir =
-                                util::fs::version_dir_from_hash(&self.repository, entry.hash);
-                            let annotation_dir = version_dir.join(commit_id);
-                            if !annotation_dir.exists() {
-                                fs::create_dir_all(&annotation_dir).unwrap();
-                            }
-                            let annotation_file =
-                                annotation_dir.join(constants::ANNOTATIONS_FILENAME);
-                            if tabular_datafusion::save_rows(annotation_file, data, schema.clone())
-                                .is_err()
-                            {
-                                log::error!("Could not save annotations for {:?}", file);
-                            }
-                        } else {
-                            log::warn!("save_row_level_data could not get file: {:?}", file);
-                        }
-                        bar.inc(1);
-                    });
-                }
-
-                bar.finish();
-                println!("Done.");
-            }
-            Err(e) => {
-                log::error!("Could not save low level data: {e}");
-            }
-        }
-
-        Ok(())
-    }
-     */
 
     fn add_regular_staged_entry_to_db(
         &self,
