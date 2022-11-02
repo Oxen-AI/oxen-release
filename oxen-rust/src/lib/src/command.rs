@@ -219,6 +219,10 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
+    tabular::schema_to_string(input)
+}
+
 /// Read the saved off schemas for a commit id
 pub fn schema_list(
     repo: &LocalRepository,
