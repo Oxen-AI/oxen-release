@@ -236,14 +236,14 @@ impl Stager {
             for path in read_dir? {
                 let path = path?.path();
                 let path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
-                log::debug!("adding candidate from dir {:?}", path);
+                // log::debug!("adding candidate from dir {:?}", path);
                 candidate_files.insert(path);
             }
         }
 
         // and files that were in commit as candidates
         for entry in root_commit_entry_reader.list_entries()? {
-            log::debug!("adding candidate from commit {:?}", entry.path);
+            // log::debug!("adding candidate from commit {:?}", entry.path);
             candidate_files.insert(entry.path);
         }
         log::debug!(
@@ -684,7 +684,9 @@ impl Stager {
         }
 
         // Check if file has changed on disk
-        if let Ok(Some(entry)) = entry_reader.get_entry(&path) {
+        // Since we are using a CommitDirEntryReader we need the base file name
+        let basename = path.file_name().unwrap().to_str().unwrap();
+        if let Ok(Some(entry)) = entry_reader.get_entry(&basename) {
             log::debug!(
                 "add_staged_entry_in_dir_db comparing hashes {:?} -> {:?}",
                 staged_entry,
