@@ -5,6 +5,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures::{stream, StreamExt};
 use indicatif::ProgressBar;
+use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
@@ -709,13 +710,53 @@ impl EntryIndexer {
     }
 
     fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
-        let commit_reader = CommitDirReader::new(&self.repository, commit)?;
-        for file in util::fs::rlist_files_in_dir(&self.repository.path).iter() {
-            let short_path = util::fs::path_relative_to_dir(file, &self.repository.path)?;
-            if !commit_reader.has_file(&short_path) {
-                std::fs::remove_file(file)?;
+        let repository = self.repository.clone();
+        let commit = commit.clone();
+        for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
+            .skip_hidden(true)
+            .parallelism(jwalk::Parallelism::RayonDefaultPool)
+            .process_read_dir(move |_, parent, _, dir_entry_results| {
+                let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
+                let commit_reader =
+                    CommitDirEntryReader::new(&repository, &commit.id, &parent).unwrap();
+
+                dir_entry_results
+                    .par_iter_mut()
+                    .for_each(|dir_entry_result| {
+                        if let Ok(dir_entry) = dir_entry_result {
+                            if !dir_entry.file_type.is_dir() {
+                                let short_path = util::fs::path_relative_to_dir(
+                                    &dir_entry.path(),
+                                    &repository.path,
+                                )
+                                .unwrap();
+                                let path = short_path.file_name().unwrap().to_str().unwrap();
+                                // If we don't have the file in the commit, remove it
+                                if !commit_reader.has_file(&path) {
+                                    let full_path = repository.path.join(short_path);
+                                    if std::fs::remove_file(full_path).is_ok() {
+                                        dir_entry.client_state = Some(true);
+                                    }
+                                }
+                            }
+                        }
+                    })
+            })
+        {
+            match dir_entry_result {
+                Ok(dir_entry) => {
+                    if let Some(was_removed) = &dir_entry.client_state {
+                        if !*was_removed {
+                            log::debug!("Removed file {:?}", dir_entry)
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::error!("Could not remove file {}", err)
+                }
             }
         }
+
         Ok(())
     }
 
