@@ -425,12 +425,10 @@ impl CommitWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::error::OxenError;
-    use crate::index::{CommitDBReader, CommitDirEntryReader, CommitDirReader, CommitWriter};
+    use crate::index::{CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::StagedData;
     use crate::test;
-    use crate::{constants, util};
 
     // This is how we initialize
     #[test]
@@ -487,59 +485,6 @@ mod tests {
             assert_eq!(files.len(), 0);
             let dirs = stager.list_added_dirs()?;
             assert_eq!(dirs.len(), 0);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_commit_staged_row_level() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            let repo_path = &repo.path;
-
-            let train_dir = repo_path.join("training_data");
-            std::fs::create_dir_all(&train_dir)?;
-            let train_file_1 = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
-            let train_file_2 = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
-            let train_file_3 = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
-
-            // Header
-            let mut annotations_content = String::from("file,x,y\n");
-            // Annotations, two on first file, one on other two
-            let rel_train_1 = util::fs::path_relative_to_dir(&train_file_1, repo_path)?;
-            let rel_train_2 = util::fs::path_relative_to_dir(&train_file_2, repo_path)?;
-            let rel_train_3 = util::fs::path_relative_to_dir(&train_file_3, repo_path)?;
-            annotations_content.push_str(&format!("{},199,223\n", rel_train_1.to_str().unwrap()));
-            annotations_content.push_str(&format!("{},234,432\n", rel_train_1.to_str().unwrap()));
-            annotations_content.push_str(&format!("{},121,221\n", rel_train_2.to_str().unwrap()));
-            annotations_content.push_str(&format!("{},324,543\n", rel_train_3.to_str().unwrap()));
-            let annotation_file = test::add_csv_file_to_dir(repo_path, &annotations_content)?;
-
-            // Add the annotations and the directory
-            command::add(&repo, &train_dir)?;
-            // Add the tabular data
-            command::add_tabular(&repo, &annotation_file)?;
-
-            // Commit the data
-            let message = "Adding training data to 🐂";
-            let commit = command::commit(&repo, message)?.unwrap();
-
-            let reader_dir = util::fs::path_relative_to_dir(&train_dir, repo_path)?;
-            let entry_reader = CommitDirEntryReader::new(&repo, &commit.id, &reader_dir)?;
-
-            let entry_path = train_file_1.file_name().unwrap(); // want filename.txt not full path
-            let commit_entry = entry_reader.get_entry(&entry_path)?.unwrap();
-            let version_path = util::fs::version_path(&repo, &commit_entry);
-            let version_dir = version_path.parent().unwrap();
-
-            // There should be an annotations file in the hash dir of the file
-            // .oxen/versions/6a/51dec8a562318216e48732c92101aa/COMMIT_ID/annotations.csv
-            let commit_annotation_file = version_dir
-                .join(commit.id)
-                .join(constants::ANNOTATIONS_FILENAME);
-
-            println!("LOOKING FOR ANNOTATION FILE {:?}", commit_annotation_file);
-            assert!(commit_annotation_file.exists());
 
             Ok(())
         })

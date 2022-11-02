@@ -36,7 +36,11 @@ impl CommitDirEntryReader {
         dir: &Path,
     ) -> Result<CommitDirEntryReader, OxenError> {
         let db_path = CommitDirEntryReader::db_dir(repository, commit_id, dir);
-        log::debug!("CommitDirEntryReader dir {:?} db_path {:?}", dir, db_path);
+        log::debug!(
+            "CommitDirEntryReader::new() dir {:?} db_path {:?}",
+            dir,
+            db_path
+        );
         let opts = db::opts::default();
         // Must check the CURRENT file since the .oxen/history/COMMIT_ID/files/ path
         // may have already been created by a deeper object

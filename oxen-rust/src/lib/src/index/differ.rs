@@ -12,13 +12,10 @@ use super::{CommitSchemaRowIndex, SchemaReader};
 pub fn diff(
     repo: &LocalRepository,
     commit_id: Option<&str>,
-    path: &str,
+    path: &Path,
 ) -> Result<String, OxenError> {
     match _commit_or_head(repo, commit_id)? {
-        Some(commit) => {
-            let path = Path::new(path);
-            _diff_commit(repo, &commit, path)
-        }
+        Some(commit) => _diff_commit(repo, &commit, path),
         None => Err(OxenError::commit_id_does_not_exist(commit_id.unwrap())),
     }
 }
@@ -99,28 +96,28 @@ pub fn diff_utf8(repo: &LocalRepository, entry: &CommitEntry) -> Result<String, 
 
 pub fn diff_tabular(
     repo: &LocalRepository,
-    current_commit: &Commit,
+    commit: &Commit,
     path: &Path,
 ) -> Result<String, OxenError> {
-    let schema_reader = SchemaReader::new(repo, &current_commit.id)?;
+    let schema_reader = SchemaReader::new(repo, &commit.id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(path)? {
-        let diff = CommitSchemaRowIndex::diff_current(repo, &schema, current_commit, path)?;
+        let diff = CommitSchemaRowIndex::diff_current(repo, &schema, commit, path)?;
 
         let mut results: Vec<String> = vec![];
         if let Some(rows) = diff.added_rows {
-            results.push(format!("Added Rows\n{}\n\n", rows));
+            results.push(format!("Added Rows\n\n{}\n\n", rows));
         }
 
         if let Some(rows) = diff.removed_rows {
-            results.push(format!("Removed Rows\n{}\n\n", rows));
+            results.push(format!("Removed Rows\n\n{}\n\n", rows));
         }
 
         if let Some(cols) = diff.added_cols {
-            results.push(format!("Added Columns\n{}\n\n", cols));
+            results.push(format!("Added Columns\n\n{}\n\n", cols));
         }
 
         if let Some(cols) = diff.removed_cols {
-            results.push(format!("Removed Columns\n{}\n\n", cols));
+            results.push(format!("Removed Columns\n\n{}\n\n", cols));
         }
 
         Ok(results.join("\n"))

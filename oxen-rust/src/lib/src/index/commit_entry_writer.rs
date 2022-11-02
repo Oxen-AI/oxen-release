@@ -3,19 +3,16 @@ use crate::db;
 use crate::db::path_db;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitSchemaRowIndex, RefReader,
-    RefWriter, SchemaWriter,
+    CommitDirEntryWriter, CommitDirReader, CommitSchemaRowIndex, RefReader, RefWriter, SchemaWriter,
 };
-use crate::media::{tabular, tabular_datafusion, DFOpts};
+use crate::media::{tabular, DFOpts};
 // use crate::model::schema;
 use crate::model::{
-    schema, Commit, CommitEntry, EntryType, LocalRepository, StagedData, StagedEntry,
-    StagedEntryStatus,
+    schema, Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
 use crate::util;
 
 use filetime::FileTime;
-use futures::executor::block_on;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -23,7 +20,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-type Vec2DStr = Vec<Vec<String>>;
+// type Vec2DStr = Vec<Vec<String>>;
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -135,66 +132,7 @@ impl CommitEntryWriter {
         staged_entry: &StagedEntry,
         path: &Path,
     ) -> Result<(), OxenError> {
-        match staged_entry.entry_type {
-            EntryType::Regular => {
-                self.add_regular_staged_entry_to_db(writer, new_commit, staged_entry, path)
-            }
-            EntryType::Tabular => {
-                self.save_row_level_data(new_commit, path)?;
-                self.add_regular_staged_entry_to_db(writer, new_commit, staged_entry, path)
-            }
-        }
-    }
-
-    fn save_row_level_data(&self, commit: &Commit, path: &Path) -> Result<(), OxenError> {
-        log::debug!("save_row_level_data....");
-        let path = self.repository.path.join(path);
-        let results = tabular_datafusion::group_rows_by_key(path, "file");
-        match block_on(results) {
-            Ok((groups, schema)) => {
-                println!("Saving annotations for {} files", groups.len());
-                let size = groups.len() as u64;
-                let bar = ProgressBar::new(size);
-
-                let dir_groups = self.group_annotations_to_dirs(&groups);
-                for (dir, group) in dir_groups.iter() {
-                    let commit_id = &commit.id;
-                    let commit_entry_reader =
-                        CommitDirEntryReader::new(&self.repository, commit_id, dir)?;
-                    group.par_iter().for_each(|(file, data)| {
-                        let filename = file.file_name().unwrap();
-                        log::debug!("save_row_level_data checking for file: {:?}", filename);
-                        if let Ok(Some(entry)) = commit_entry_reader.get_entry(Path::new(filename))
-                        {
-                            let version_dir =
-                                util::fs::version_dir_from_hash(&self.repository, entry.hash);
-                            let annotation_dir = version_dir.join(commit_id);
-                            if !annotation_dir.exists() {
-                                fs::create_dir_all(&annotation_dir).unwrap();
-                            }
-                            let annotation_file =
-                                annotation_dir.join(constants::ANNOTATIONS_FILENAME);
-                            if tabular_datafusion::save_rows(annotation_file, data, schema.clone())
-                                .is_err()
-                            {
-                                log::error!("Could not save annotations for {:?}", file);
-                            }
-                        } else {
-                            log::warn!("save_row_level_data could not get file: {:?}", file);
-                        }
-                        bar.inc(1);
-                    });
-                }
-
-                bar.finish();
-                println!("Done.");
-            }
-            Err(e) => {
-                log::error!("Could not save low level data: {e}");
-            }
-        }
-
-        Ok(())
+        self.add_regular_staged_entry_to_db(writer, new_commit, staged_entry, path)
     }
 
     fn add_regular_staged_entry_to_db(
@@ -204,7 +142,7 @@ impl CommitEntryWriter {
         staged_entry: &StagedEntry,
         path: &Path,
     ) -> Result<(), OxenError> {
-        log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
+        // log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
 
         // then hash the actual file contents
         let full_path = self.repository.path.join(path);
@@ -460,42 +398,39 @@ impl CommitEntryWriter {
     fn group_staged_files_to_dirs(
         &self,
         files: &HashMap<PathBuf, StagedEntry>,
-        entry_type: EntryType,
     ) -> HashMap<PathBuf, Vec<(PathBuf, StagedEntry)>> {
         let mut results: HashMap<PathBuf, Vec<(PathBuf, StagedEntry)>> = HashMap::new();
 
         for (path, entry) in files.iter() {
-            if entry.entry_type == entry_type {
-                if let Some(parent) = path.parent() {
-                    results
-                        .entry(parent.to_path_buf())
-                        .or_insert(vec![])
-                        .push((path.clone(), entry.clone()));
-                }
-            }
-        }
-
-        results
-    }
-
-    fn group_annotations_to_dirs(
-        &self,
-        annotations: &HashMap<String, Vec2DStr>,
-    ) -> HashMap<PathBuf, Vec<(PathBuf, Vec2DStr)>> {
-        let mut results: HashMap<PathBuf, Vec<(PathBuf, Vec2DStr)>> = HashMap::new();
-
-        for (file_str, entry) in annotations.iter() {
-            let path = Path::new(file_str);
             if let Some(parent) = path.parent() {
                 results
                     .entry(parent.to_path_buf())
                     .or_insert(vec![])
-                    .push((path.to_path_buf(), entry.to_vec()));
+                    .push((path.clone(), entry.clone()));
             }
         }
 
         results
     }
+
+    // fn group_annotations_to_dirs(
+    //     &self,
+    //     annotations: &HashMap<String, Vec2DStr>,
+    // ) -> HashMap<PathBuf, Vec<(PathBuf, Vec2DStr)>> {
+    //     let mut results: HashMap<PathBuf, Vec<(PathBuf, Vec2DStr)>> = HashMap::new();
+
+    //     for (file_str, entry) in annotations.iter() {
+    //         let path = Path::new(file_str);
+    //         if let Some(parent) = path.parent() {
+    //             results
+    //                 .entry(parent.to_path_buf())
+    //                 .or_insert(vec![])
+    //                 .push((path.to_path_buf(), entry.to_vec()));
+    //         }
+    //     }
+
+    //     results
+    // }
 
     fn commit_staged_entries_with_prog(
         &self,
@@ -504,25 +439,21 @@ impl CommitEntryWriter {
     ) -> Result<(), OxenError> {
         let size: u64 = unsafe { std::mem::transmute(staged_data.added_files.len()) };
         let bar = ProgressBar::new(size);
-        let regular = self.group_staged_files_to_dirs(&staged_data.added_files, EntryType::Regular);
-        let tabular = self.group_staged_files_to_dirs(&staged_data.added_files, EntryType::Tabular);
+        let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
 
         // Do regular befor tabular
-        for grouped in vec![regular, tabular] {
-            for (dir, files) in grouped.iter() {
-                // Track the dir
-                path_db::put(&self.dir_db, dir, &0)?;
+        for (dir, files) in grouped.iter() {
+            // Track the dir
+            path_db::put(&self.dir_db, dir, &0)?;
 
-                // Write entries per dir
-                let entry_writer =
-                    CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
+            // Write entries per dir
+            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
 
-                // Commit entries data
-                files.par_iter().for_each(|(path, entry)| {
-                    self.commit_staged_entry(&entry_writer, commit, path, entry);
-                    bar.inc(1);
-                });
-            }
+            // Commit entries data
+            files.par_iter().for_each(|(path, entry)| {
+                self.commit_staged_entry(&entry_writer, commit, path, entry);
+                bar.inc(1);
+            });
         }
         bar.finish();
 
