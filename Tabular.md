@@ -8,7 +8,7 @@ TODO: Update with a link to data in OxenHub (why are we downloading tarballs??) 
 
 ## oxen df
 
-Oxen has a convenient `df` command to deal with tabular data. This example data has 10,000 rows and 6 columns of bounding boxes around cats or dogs. The shape hint at the top of the output can be useful for making sure you are transforming the data correctly.
+Oxen has a convenient `df` (short for "DataFrame") command to deal with tabular data. This example data has 10,000 rows and 6 columns of bounding boxes around cats or dogs. The shape hint at the top of the output can be useful for making sure you are transforming the data correctly.
 
 ```bash
 $ oxen df annotations/data.csv

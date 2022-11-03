@@ -125,9 +125,9 @@ $ oxen add annotations/train.csv
 $ oxen commit -m "adding rows and rows of data"
 ```
 
-Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames checkout the [data point level version control docs](DataPointLevelVersionControl.md)
+Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames checkout the [data point level version control documentation](DataPointLevelVersionControl.md).
 
-Oxen also has some [handy command line tooling](Tabular.md) for working with tabular data. The `oxen df` command (short for "DataFrame") let's you easily view, modify, slice, and modify tabular data.
+Oxen also has some [handy command line tooling](Tabular.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command let's you easily view, modify, slice, and modify the data.
 
 ```bash
 $ oxen df annotations/train.csv
