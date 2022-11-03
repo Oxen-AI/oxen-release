@@ -48,7 +48,7 @@ To quickly see all the options on the `df` command you can run `oxen df --help`.
 
 ```
 oxen-df 
-View and transform data frames. Supported types: csv, tsv, ndjson, jsonl, parquet, arrow.
+View and transform data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.
 
 USAGE:
     oxen df [OPTIONS] <PATH>...
@@ -68,7 +68,10 @@ OPTIONS:
     -h, --help                  Print help information
     -o, --output <output>       Output file to store the transformed data
         --randomize             Randomize the order of the table
-    -s, --slice <slice>         A continuous slice of the data you want to look at. Ex, 0..10
+    -s, --slice <slice>         A continuous slice of the data you want to look at. Format:
+                                'start..end' Ex) '10..25' will take 15 elements, starting at 10 and
+                                ending at 25.
+        --schema                Print the full list of columns and data types within the schema.
     -t, --take <take>           A comma separated set of row indices to look at. Ex 1,22,313
         --vstack <vstack>...    Combine row data from different files. The number of columns must
                                 match.
@@ -82,6 +85,29 @@ Oxen currently supports these file extensions: csv, tsv, ndjson, jsonl, parquet,
 
 ```bash
 $ oxen df annotations/data.csv -o annotations/data.parquet
+```
+
+## View Schema
+
+Sometimes a DataFrame will have many columns and the default command collapses them so they are hard to see. You can use the `--schema` flag to just display the schema of this data frame. Note this is an exclusive flag.
+
+```bash
+$ oxen df annotations/train.csv --schema
++--------+-------+
+| column | dtype |
++================+
+| file   | str   |
+|--------+-------|
+| label  | str   |
+|--------+-------|
+| min_x  | f64   |
+|--------+-------|
+| min_y  | f64   |
+|--------+-------|
+| width  | f64   |
+|--------+-------|
+| height | f64   |
++--------+-------+
 ```
 
 ## Slice
