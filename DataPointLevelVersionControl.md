@@ -295,7 +295,7 @@ shape: (202599, 39)
 └─────┴─────┴────────────┴─────┴─────┴─────┴─────┴─────┴───────┘
 ```
 
-Note: We have the same input and output file in this command and have overwritten our initial data. This is nothing to worry since we already versioned our data and can revert to the original at any time 😄.
+Note: The `--output` flag has overwritten our initial data. This is nothing to worry since we already versioned our data with Oxen and can revert to the original at any time 😄.
 
 Hopefully you can see that taking advantage of the innate structure of the data is already a better option than treating it like code, and sifting line by line through `git diff`. This is just one of many advantages you will see by using Oxen.
 
