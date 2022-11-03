@@ -42,7 +42,6 @@ You can stage changes that you are interested in committing with the `oxen add` 
 
 ```bash
 $ oxen add images/
-$ oxen add annotations/data.csv
 ```
 
 ## View Status
@@ -126,7 +125,7 @@ $ oxen add annotations/train.csv
 $ oxen commit -m "adding rows and rows of data"
 ```
 
-Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable data frame to track the changes to the rows and columns over time.
+Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames checkout the [data point level version control docs](DataPointLevelVersionControl.md)
 
 Oxen also has some [handy command line tooling](Tabular.md) for working with tabular data. The `oxen df` command (short for "DataFrame") let's you easily view, modify, slice, and modify tabular data.
 
