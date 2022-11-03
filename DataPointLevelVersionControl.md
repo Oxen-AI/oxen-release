@@ -75,9 +75,9 @@ image_id,5_o_Clock_Shadow,Arched_Eyebrows,Attractive,Bags_Under_Eyes,Bald,Bangs,
 
 It is hard to make sense of this data table without opening some sort of programming environment. Oxen comes in handy for initial data exploration even before you get to versioning.
 
-## oxen df
+## Exploring the Data
 
-Oxen has a convenience command `df` for [viewing and transforming DataFrames](Tabular.md). If we load the data into an Oxen DataFrame out of the gate we get a much more manageable output.
+Oxen has a convenience command `df` for exploring and transforming DataFrames. If we load the data into an Oxen DataFrame out of the gate we get a much more manageable output.
 
 ```bash
 $ oxen df list_attr_celeba.csv
@@ -116,18 +116,22 @@ shape: (202599, 41)
 └───────┴────────────┴────────────┴──────────┴─────┴────────────┴────────────┴────────────┴───────┘
 ```
 
-To learn more about the `df` command and common [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) operations you might want to perform check out the [Oxen DataFrame documentation](Tabular.md).
+To learn more about the `df` command and common exploratory data analysis operations you might want to perform check out the [Oxen DataFrame documentation](Tabular.md).
 
 ## Committing DataFrames
 
 The real power is when you stage and commit a DataFrame. Oxen processes and hashes each row and tracks the data schema so that we can detect changes. Instead of seeing line by line changes on a diff, you can tell the individual rows and columns that changed. 
 
-First lets stage and commit the list_attr_celeba.csv file so that we have the original version tracked.
+Committing DataFrames is no different than committing any other file. Behind the scenes Oxen works it's magic to track all the changes.
+
+Let's stage and commit the list_attr_celeba.csv file so that we have the original version tracked.
 
 ```bash
 $ oxen add list_attr_celeba.csv
 $ oxen commit -m "adding all attributes about the faces"
 ```
+
+## Transform and Diff DataFrames
 
 Then we can use the `df` command to project a new column onto the data for whether or not this person "Is_Famous". Everyone in this dataset is a celebrity, and by definition is famous, so we will have the default value be "1".
 
