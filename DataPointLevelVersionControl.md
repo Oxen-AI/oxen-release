@@ -37,16 +37,16 @@ This allows Oxen to track changes between the inputs and outputs of your system,
 
 # CelebA Example
 
-To illustrate the power of Oxen, let's work with the [CelebA dataset](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html). This dataset has over 200,000 images of celebrities as well as attributes about their faces. Tracking the input images alone is no small feat. If you were to add the images directory alone to a git repository it would quickly become apparent that the tool was not built for this use case.
+To illustrate the power of Oxen, let's work with the [CelebA dataset](https://mmlab.ie.cuhk.edu.hk/projects/CelebA.html). This dataset has over 200,000 images of celebrities as well as attributes about their faces. Tracking the input images alone is no small feat. If you add the images directory alone to a git repository it would quickly become apparent that the tool was not built for this use case.
 
-Adding the images with Oxen is the exact same commands you know and love from [git](https://git-scm.com/).
+Staging and committing the images in Oxen is an easy two step process.
 
 ```bash
 $ oxen add images/
 $ oxen commit -m "adding all the images in the dataset"
 ```
 
-If you have ever tried to index hundreds of thousands of images into `git` or even `git lfs` you will see Oxen is a [significant performance boost](Performance.md).
+If you have ever tried to index hundreds of thousands of images into [git](https://git-scm.com/) or even [git lfs](https://git-lfs.github.com/) you will see Oxen is a [significant performance boost](Performance.md).
 
 ## Going Beyond Versioning Files
 
