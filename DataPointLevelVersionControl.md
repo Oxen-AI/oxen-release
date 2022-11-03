@@ -203,6 +203,31 @@ Then let's narrow this down to the `image_id`, whether they are `Smiling`, and o
 
 ```bash
 $ oxen df list_attr_celeba.csv --columns 'image_id,Smiling,Is_Famous' --output list_attr_celeba.csv
+
+shape: (202599, 3)
+┌────────────┬─────────┬───────────┐
+│ image_id   ┆ Smiling ┆ Is_Famous │
+│ ---        ┆ ---     ┆ ---       │
+│ str        ┆ i64     ┆ i64       │
+╞════════════╪═════════╪═══════════╡
+│ 000001.jpg ┆ 1       ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 000002.jpg ┆ 1       ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 000003.jpg ┆ -1      ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 000004.jpg ┆ -1      ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...        ┆ ...     ┆ ...       │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 202596.jpg ┆ 1       ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 202597.jpg ┆ 1       ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 202598.jpg ┆ 1       ┆ 1         │
+├╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ 202599.jpg ┆ -1      ┆ 1         │
+└────────────┴─────────┴───────────┘
 ```
 
 If we use the `oxen diff` command again we will see there is 1 added column, and 39 removed.
@@ -272,6 +297,6 @@ shape: (202599, 39)
 
 Note: We have the same input and output file in this command and have overwritten our initial data. This is nothing to worry since we already versioned our data and can revert to the original at any time 😄.
 
-Hopefully you can see that taking advantage of the innate structure of the data is already a better option than parsing through a line by line diff. This is just one of many advantages you will see by using Oxen.
+Hopefully you can see that taking advantage of the innate structure of the data is already a better option than treating it like code, and sifting line by line through `git diff`. This is just one of many advantages you will see by using Oxen.
 
 Next up we will look at [tracking your data](Branching.md) in branches for experiments you want to run.
