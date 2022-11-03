@@ -3,7 +3,7 @@
 
 What is "data point level version control" and why does it matter?
 
-We built Oxen from the ground up to be able to version large data sets. This includes the ability to version many files at once as well as the ability to version the data associated with these files which we call "data point level version control".
+We built Oxen from the ground up to be able to version large data sets. This includes the ability to version many files at once, as well as the ability to version the data associated with these files which we call "data point level version control".
 
 Machine learning is all about learning a mapping from inputs to outputs. Each input and output can be thought of as a data point. Examples of inputs could be an image, a video, a piece of text, an audio clip, or just a list of numeric [features](https://en.wikipedia.org/wiki/Feature_(machine_learning)) that represent the input at a higher level. Basic outputs are usually labels during [classification](https://en.wikipedia.org/wiki/Statistical_classification) and numeric values in the case of [regression](https://en.wikipedia.org/wiki/Regression_analysis). With the advent of [Generative AI](https://www.sequoiacap.com/article/generative-ai-a-creative-new-world/) outputs are also becoming more complex in the form of human readable text, images, videos and audio.
 
@@ -295,7 +295,7 @@ shape: (202599, 39)
 └─────┴─────┴────────────┴─────┴─────┴─────┴─────┴─────┴───────┘
 ```
 
-Note: The `--output` flag has overwritten our initial data. This is nothing to worry since we already versioned our data with Oxen and can revert to the original at any time 😄.
+Note: The `--output` flag has overwritten our initial data. This is nothing to worry about since we already versioned our data with Oxen and can revert to the original at any time 😄.
 
 Hopefully you can see that taking advantage of the innate structure of the data is already a better option than treating it like code, and sifting line by line through `git diff`. This is just one of many advantages you will see by using Oxen.
 
