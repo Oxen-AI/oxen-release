@@ -29,7 +29,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
         println!("Restored file {:?}", path);
         Ok(())
     } else {
-        let error = format!("Could not restore file: {:?}", path);
+        let error = format!("Could not restore file: {:?} does not exist", path);
         Err(OxenError::basic_str(error))
     }
 }
@@ -37,7 +37,12 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
 fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     let path = opts.path;
     let stager = Stager::new(repo)?;
-    stager.remove_staged_file(&path)
+    if stager.has_entry(&path) {
+        stager.remove_staged_file(&path)
+    } else {
+        let error = format!("Could not restore staged file: {:?} does not exist", path);
+        Err(OxenError::basic_str(error))
+    }
 }
 
 fn restore_regular(
