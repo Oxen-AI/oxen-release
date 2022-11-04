@@ -226,7 +226,7 @@ impl CommitEntryWriter {
         let df = tabular::read_df(full_path, DFOpts::empty())?;
 
         // Compute row level hashes for this table
-        println!("Processing {} rows...", df.height());
+        println!("Committing {} rows...", df.height());
         let df = tabular::df_hash_rows(df)?;
         // Project row num as a col
         let mut df = tabular::df_add_row_num(df)?;
@@ -342,7 +342,7 @@ impl CommitEntryWriter {
                 let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
 
                 // Need to save off indices too
-                println!("Wrapping up...");
+                println!("Saving index...");
                 CommitSchemaRowIndex::compute_new_rows(
                     self.repository.clone(),
                     self.commit.clone(),

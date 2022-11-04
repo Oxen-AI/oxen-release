@@ -6,10 +6,10 @@
 use crate::api;
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::differ;
 use crate::index::schema_writer::SchemaWriter;
 use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaReader;
+use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
     RefReader, RefWriter, Stager,
@@ -20,6 +20,7 @@ use crate::model::{
     Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
 
+use crate::opts::RestoreOpts;
 use crate::util;
 use crate::util::resource;
 
@@ -302,6 +303,7 @@ fn commit_from_branch_or_commit_id<S: AsRef<str>>(
 /// use liboxen::util;
 /// # use liboxen::test;
 /// # use liboxen::error::OxenError;
+/// # use liboxen::opts::RestoreOpts;
 /// # use std::path::Path;
 /// # fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
@@ -325,51 +327,14 @@ fn commit_from_branch_or_commit_id<S: AsRef<str>>(
 /// std::fs::remove_file(hello_path)?;
 ///
 /// // Restore the file
-/// command::restore(&repo, Some(&commit.id), hello_name)?;
+/// command::restore(&repo, RestoreOpts::from_path_ref(hello_name, commit.id))?;
 ///
 /// # std::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn restore<P: AsRef<Path>>(
-    repo: &LocalRepository,
-    commit_or_branch: Option<&str>,
-    path: P,
-) -> Result<(), OxenError> {
-    let path = path.as_ref();
-    let commit = resource::get_commit_or_head(repo, commit_or_branch)?;
-    let reader = CommitDirReader::new(repo, &commit)?;
-
-    if let Some(entry) = reader.get_entry(path)? {
-        if util::fs::is_tabular(&entry.path) {
-            let schema_reader = SchemaReader::new(repo, &commit.id)?;
-            if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-                let row_index_reader =
-                    CommitSchemaRowIndex::new(repo, &commit.id, &schema, &entry.path)?;
-                let mut df = row_index_reader.entry_df()?;
-                log::debug!("Got subset! {}", df);
-                let working_path = repo.path.join(path);
-                log::debug!("Write to {:?}", working_path);
-                tabular::write_df(&mut df, working_path)?;
-            } else {
-                log::error!(
-                    "Could not restore tabular file, no schema found for file {:?}",
-                    entry.path
-                );
-            }
-        } else {
-            // just copy data back over if !tabular
-            let version_path = util::fs::version_path(repo, &entry);
-            let working_path = repo.path.join(path);
-            std::fs::copy(version_path, working_path)?;
-        }
-
-        println!("Restored file {:?}", path);
-        Ok(())
-    } else {
-        let error = format!("Could not restore file: {:?}", path);
-        Err(OxenError::basic_str(error))
-    }
+pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
+    index::restore(repo, opts)
 }
 
 /// # Commit the staged files in the repo
@@ -584,7 +549,10 @@ pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resul
         .find(|c| c.merge_entry.path == path.as_ref())
     {
         // Lookup the file for the merge commit entry and copy it over
-        restore(repo, Some(&conflict.merge_entry.commit_id), path)
+        restore(
+            repo,
+            RestoreOpts::from_path_ref(path, conflict.merge_entry.commit_id.clone()),
+        )
     } else {
         Err(OxenError::could_not_find_merge_conflict(path))
     }

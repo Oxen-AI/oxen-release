@@ -3,6 +3,7 @@ use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
 use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
+use crate::opts::RestoreOpts;
 use crate::util;
 use crate::{command, db};
 
@@ -346,7 +347,10 @@ impl CommitWriter {
                     }
                 }
 
-                command::restore(&self.repository, Some(commit_id), &entry.path)?;
+                command::restore(
+                    &self.repository,
+                    RestoreOpts::from_path_ref(&entry.path, commit_id),
+                )?;
             } else {
                 // we do have it, check if we need to update it
                 let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
@@ -365,7 +369,10 @@ impl CommitWriter {
                         dst_path
                     );
 
-                    command::restore(&self.repository, Some(commit_id), &entry.path)?;
+                    command::restore(
+                        &self.repository,
+                        RestoreOpts::from_path_ref(&entry.path, commit_id),
+                    )?;
                 } else {
                     log::debug!(
                         "set_working_repo_to_commit_id hashes match! {:?} -> {:?}",
