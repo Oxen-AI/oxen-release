@@ -20,6 +20,7 @@ pub mod error;
 pub mod index;
 pub mod media;
 pub mod model;
+pub mod opts;
 pub mod test;
 pub mod util;
 pub mod view;

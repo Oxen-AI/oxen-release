@@ -1,5 +1,6 @@
 use clap::{arg, Arg, Command};
 use env_logger::Env;
+use liboxen::opts::RestoreOpts;
 use std::path::{Path, PathBuf};
 
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
@@ -201,9 +202,14 @@ async fn main() {
         )
         .subcommand(
             Command::new("restore")
-                .about("Restores the specified file or directory")
+                .about("Unstage or discard uncommitted local changes.")
                 .arg(Arg::new("PATH").multiple_values(true))
-                .arg_required_else_help(true),
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("staged")
+                        .help("Removes the file from the staging area, but leaves its actual modifications untouched.")
+                        .takes_value(false),
+                )
         )
         .subcommand(
             Command::new("branch")
@@ -530,22 +536,27 @@ async fn main() {
         Some(("restore", sub_matches)) => {
             let mut paths = sub_matches.values_of("PATH").expect("required");
 
-            if paths.len() == 2 {
-                let commit_or_branch = paths.next();
+            let opts = if paths.len() == 2 {
+                let commit_or_branch = paths.next().unwrap();
                 let path = paths.next().expect("required");
-                match dispatch::restore(commit_or_branch, path) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
+                RestoreOpts {
+                    path: PathBuf::from(path),
+                    staged: sub_matches.is_present("staged"),
+                    source_ref: Some(String::from(commit_or_branch)),
                 }
             } else {
                 let path = paths.next().expect("required");
-                match dispatch::restore(None, path) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
+                RestoreOpts {
+                    path: PathBuf::from(path),
+                    staged: sub_matches.is_present("staged"),
+                    source_ref: None,
+                }
+            };
+
+            match dispatch::restore(opts) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
                 }
             }
         }

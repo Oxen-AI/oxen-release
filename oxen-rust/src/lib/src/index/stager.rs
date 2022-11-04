@@ -395,6 +395,21 @@ impl Stager {
         false
     }
 
+    pub fn remove_staged_file(&self, path: &Path) -> Result<(), OxenError> {
+        log::debug!("remove_staged_file {:?}", path);
+        if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
+            log::debug!(
+                "remove_staged_file got filename {:?} and parent {:?}",
+                filename,
+                parent
+            );
+            let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
+            staged_dir.remove_path(filename)
+        } else {
+            Err(OxenError::file_has_no_parent(path))
+        }
+    }
+
     fn add_removed_file(&self, path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
         log::debug!("add_removed_file {:?}", path);
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
