@@ -13,6 +13,8 @@ pub const MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT: &str =
     "  (use \"oxen add <file>...\" to mark resolution)\n";
 pub const MSG_OXEN_RESTORE_FILE: &str =
     "  (use \"oxen restore <file>...\" to discard changes in working directory)";
+pub const MSG_OXEN_RESTORE_STAGED_FILE: &str =
+    "  (use \"oxen restore --staged <file> ...\" to unstage)\n";
 
 pub struct StagedData {
     pub added_dirs: SummarizedStagedDirStats,
@@ -214,6 +216,10 @@ impl StagedData {
             return;
         }
         outputs.push("Files to be committed:\n".normal());
+        if !self.added_files.is_empty() || !self.added_dirs.is_empty() {
+            outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
+        }
+
 
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
             self.added_files.iter().map(|(k, v)| (k, v)).collect();
@@ -440,7 +446,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::model::staged_data::{
-        MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE,
+        MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE, MSG_OXEN_RESTORE_STAGED_FILE
     };
     use crate::model::StagedEntryStatus;
     use crate::model::{StagedData, StagedEntry};
@@ -481,13 +487,14 @@ mod tests {
         let num_to_print = 3;
         let outputs = staged_data.__collect_outputs(0, num_to_print, false);
         assert_eq!(outputs[0], "Files to be committed:\n".normal());
-        assert_eq!(outputs[1], "  new file: ".green());
-        assert_eq!(outputs[2], "file_1.jpg\n".green().bold());
-        assert_eq!(outputs[3], "  new file: ".green());
-        assert_eq!(outputs[4], "file_2.jpg\n".green().bold());
-        assert_eq!(outputs[5], "  new file: ".green());
-        assert_eq!(outputs[6], "file_3.jpg\n".green().bold());
-        assert_eq!(outputs[7], "  ... and 2 others\n".normal());
+        assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
+        assert_eq!(outputs[2], "  new file: ".green());
+        assert_eq!(outputs[3], "file_1.jpg\n".green().bold());
+        assert_eq!(outputs[4], "  new file: ".green());
+        assert_eq!(outputs[5], "file_2.jpg\n".green().bold());
+        assert_eq!(outputs[6], "  new file: ".green());
+        assert_eq!(outputs[7], "file_3.jpg\n".green().bold());
+        assert_eq!(outputs[8], "  ... and 2 others\n".normal());
     }
 
     #[test]
@@ -517,13 +524,14 @@ mod tests {
         let num_to_print = 3;
         let outputs = staged_data.__collect_outputs(2, num_to_print, false);
         assert_eq!(outputs[0], "Files to be committed:\n".normal());
-        assert_eq!(outputs[1], "  new file: ".green());
-        assert_eq!(outputs[2], "file_3.jpg\n".green().bold());
-        assert_eq!(outputs[3], "  new file: ".green());
-        assert_eq!(outputs[4], "file_4.jpg\n".green().bold());
-        assert_eq!(outputs[5], "  new file: ".green());
-        assert_eq!(outputs[6], "file_5.jpg\n".green().bold());
-        assert_eq!(outputs[7], "  ... and 2 others\n".normal());
+        assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
+        assert_eq!(outputs[2], "  new file: ".green());
+        assert_eq!(outputs[3], "file_3.jpg\n".green().bold());
+        assert_eq!(outputs[4], "  new file: ".green());
+        assert_eq!(outputs[5], "file_4.jpg\n".green().bold());
+        assert_eq!(outputs[6], "  new file: ".green());
+        assert_eq!(outputs[7], "file_5.jpg\n".green().bold());
+        assert_eq!(outputs[8], "  ... and 2 others\n".normal());
     }
 
     #[test]

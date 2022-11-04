@@ -203,12 +203,18 @@ async fn main() {
         .subcommand(
             Command::new("restore")
                 .about("Unstage or discard uncommitted local changes.")
-                .arg(Arg::new("PATH").multiple_values(true))
+                .arg(arg!(<PATH> ... "The files or directory to restore"))
                 .arg_required_else_help(true)
                 .arg(
+                    Arg::new("source")
+                        .long("source")
+                        .help("Restores a specific revision of the file. Can supply commit id or branch name")
+                        .takes_value(true),
+                )
+                .arg(
                     Arg::new("staged")
+                        .long("staged")
                         .help("Removes the file from the staging area, but leaves its actual modifications untouched.")
-                        .takes_value(false),
                 )
         )
         .subcommand(
@@ -534,18 +540,15 @@ async fn main() {
             }
         }
         Some(("restore", sub_matches)) => {
-            let mut paths = sub_matches.values_of("PATH").expect("required");
+            let path = sub_matches.value_of("PATH").expect("required");
 
-            let opts = if paths.len() == 2 {
-                let commit_or_branch = paths.next().unwrap();
-                let path = paths.next().expect("required");
+            let opts = if let Some(source) = sub_matches.value_of("source") {
                 RestoreOpts {
                     path: PathBuf::from(path),
                     staged: sub_matches.is_present("staged"),
-                    source_ref: Some(String::from(commit_or_branch)),
+                    source_ref: Some(String::from(source)),
                 }
             } else {
-                let path = paths.next().expect("required");
                 RestoreOpts {
                     path: PathBuf::from(path),
                     staged: sub_matches.is_present("staged"),
