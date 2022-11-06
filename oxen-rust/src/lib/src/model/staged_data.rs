@@ -220,7 +220,6 @@ impl StagedData {
             outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
         }
 
-
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
             self.added_files.iter().map(|(k, v)| (k, v)).collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
@@ -413,7 +412,6 @@ impl StagedData {
             outputs.append(&mut components);
         }
 
-        log::debug!("__collapse_outputs {} > {}", inputs.len(), total);
         if inputs.len() > limit && !print_all {
             let remaining = inputs.len() - limit;
             outputs.push(format!("  ... and {} others\n", remaining).normal());
@@ -446,7 +444,8 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::model::staged_data::{
-        MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE, MSG_OXEN_RESTORE_STAGED_FILE
+        MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE,
+        MSG_OXEN_RESTORE_STAGED_FILE,
     };
     use crate::model::StagedEntryStatus;
     use crate::model::{StagedData, StagedEntry};
