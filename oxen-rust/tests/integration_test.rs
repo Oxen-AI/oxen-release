@@ -1923,12 +1923,40 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
         // Make sure is staged
         let status = command::status(&repo)?;
         assert_eq!(status.added_files.len(), 1);
+        status.print_stdout();
 
         // Remove from staged
         command::restore(&repo, RestoreOpts::from_staged_path(bbox_file))?;
 
         // Make sure is unstaged
         let status = command::status(&repo)?;
+        assert_eq!(status.added_files.len(), 0);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_restore_staged_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let relative_path = Path::new("annotations");
+        let annotations_dir = repo.path.join(&relative_path);
+
+        // Stage file
+        command::add(&repo, annotations_dir)?;
+
+        // Make sure is staged
+        let status = command::status(&repo)?;
+        assert_eq!(status.added_dirs.len(), 1);
+        assert_eq!(status.added_files.len(), 6);
+        status.print_stdout();
+
+        // Remove from staged
+        command::restore(&repo, RestoreOpts::from_staged_path(relative_path))?;
+
+        // Make sure is unstaged
+        let status = command::status(&repo)?;
+        assert_eq!(status.added_dirs.len(), 0);
         assert_eq!(status.added_files.len(), 0);
 
         Ok(())

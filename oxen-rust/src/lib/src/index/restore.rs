@@ -36,9 +36,13 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
 
 fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     let path = opts.path;
+    log::debug!("restore_staged {:?}", path);
+
     let stager = Stager::new(repo)?;
     if stager.has_entry(&path) {
         stager.remove_staged_file(&path)
+    } else if stager.has_staged_dir(&path) {
+        stager.remove_staged_dir(&path)
     } else {
         let error = format!("Could not restore staged file: {:?} does not exist", path);
         Err(OxenError::basic_str(error))

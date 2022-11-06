@@ -557,7 +557,14 @@ impl Stager {
         if let Ok(relative) = util::fs::path_relative_to_dir(path, &self.repository.path) {
             if let Some(parent) = relative.parent() {
                 if let Ok(staged_dir) = StagedDirEntryDB::new(&self.repository, parent) {
-                    return staged_dir.has_entry(relative);
+                    let filename = relative.file_name().unwrap().to_str().unwrap();
+                    return staged_dir.has_entry(filename);
+                } else {
+                    log::debug!(
+                        "Stager.has_entry({:?}) could not find parent db {:?}",
+                        path,
+                        parent
+                    );
                 }
             }
         }
@@ -842,6 +849,39 @@ impl Stager {
         }
 
         Ok(paths)
+    }
+
+    pub fn remove_staged_dir<P: AsRef<Path>>(&self, short_path: P) -> Result<(), OxenError> {
+        let short_path = short_path.as_ref();
+        let full_path = self.repository.path.join(short_path);
+        if !full_path.exists() {
+            return Err(OxenError::file_does_not_exist(short_path));
+        }
+
+        if !full_path.is_dir() {
+            let err = format!("Path must be a directory {:?}", short_path);
+            return Err(OxenError::basic_str(err));
+        }
+
+        log::debug!("Remove staged dir short_path: {:?}", short_path);
+        log::debug!("Remove staged dir full_path: {:?}", full_path);
+
+        // Not most efficient to linearly scan, but we don't have pointers to parents or children
+        let added_dirs = self.list_added_dirs()?;
+        for added_dir in added_dirs.iter() {
+            if added_dir.starts_with(&short_path) {
+                log::debug!("Removing files from added_dir: {:?}", added_dir);
+
+                // Remove all files within that dir
+                let staged_dir = StagedDirEntryDB::new(&self.repository, added_dir)?;
+                staged_dir.unstage()?;
+
+                // Remove from dir db
+                path_db::delete(&self.dir_db, &added_dir)?;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn unstage(&self) -> Result<(), OxenError> {
