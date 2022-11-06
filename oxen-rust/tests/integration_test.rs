@@ -1885,6 +1885,46 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_restore_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let history = command::log(&repo)?;
+        let last_commit = history.first().unwrap();
+
+        let annotations_dir = Path::new("annotations");
+
+        // Remove one file
+        let bbox_file = annotations_dir.join("train").join("bounding_box.csv");
+        let bbox_path = repo.path.join(&bbox_file);
+
+        let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
+        std::fs::remove_file(&bbox_path)?;
+
+        // Modify another file
+        let readme_file = annotations_dir.join("README.md");
+        let readme_path = repo.path.join(&readme_file);
+        let og_readme_contents = util::fs::read_from_path(&readme_path)?;
+
+        let readme_path = test::append_line_txt_file(readme_path, "Adding s'more")?;
+
+        // Restore the directory
+        command::restore(
+            &repo,
+            RestoreOpts::from_path_ref(annotations_dir, last_commit.id.clone()),
+        )?;
+
+        // Make sure the removed file is restored
+        let restored_contents = util::fs::read_from_path(&bbox_path)?;
+        assert_eq!(og_bbox_contents, restored_contents);
+
+        // Make sure the modified file is restored
+        let restored_contents = util::fs::read_from_path(&readme_path)?;
+        assert_eq!(og_readme_contents, restored_contents);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let history = command::log(&repo)?;
