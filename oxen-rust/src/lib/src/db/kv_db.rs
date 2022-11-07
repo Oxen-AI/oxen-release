@@ -25,7 +25,7 @@ pub fn delete<S: AsRef<str>>(
     let key = key.as_ref();
     log::debug!("kv_db::delete {:?} from db: {:?}", key, db.path());
 
-    db.delete(&key)?;
+    db.delete(key)?;
     Ok(())
 }
 
@@ -34,7 +34,7 @@ pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, Ox
     let iter = db.iterator(IteratorMode::Start);
     let mut keys: Vec<String> = vec![];
     for (key, _value) in iter {
-        match str::from_utf8(&*key) {
+        match str::from_utf8(&key) {
             Ok(key) => {
                 // return full path
                 keys.push(String::from(key));

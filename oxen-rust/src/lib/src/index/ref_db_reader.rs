@@ -20,7 +20,7 @@ impl RefDBReader {
     ) -> Result<Option<String>, OxenError> {
         let bytes = branch_name.as_bytes();
         match db.get(bytes) {
-            Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&*value)?))),
+            Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => Ok(None),
             Err(err) => {
                 let err = format!("{}", err);
@@ -33,7 +33,7 @@ impl RefDBReader {
         let mut values: Vec<(String, String)> = vec![];
         let iter = db.iterator(IteratorMode::Start);
         for (key, value) in iter {
-            match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+            match (str::from_utf8(&key), str::from_utf8(&value)) {
                 (Ok(key_str), Ok(value)) => {
                     let ref_name = String::from(key_str);
                     let id = String::from(value);

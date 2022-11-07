@@ -118,13 +118,13 @@ pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
 }
 
 pub fn read_lines(path: &Path) -> Result<Vec<String>, OxenError> {
-    let file = File::open(&path)?;
+    let file = File::open(path)?;
     Ok(read_lines_file(&file))
 }
 
 pub fn read_lines_paginated(path: &Path, start: usize, size: usize) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
-    match File::open(&path) {
+    match File::open(path) {
         Ok(file) => {
             let mut reader = BufReader::new(file);
             let mut i = 0;
@@ -155,7 +155,7 @@ pub fn read_lines_paginated_ret_size(
 ) -> (Vec<String>, usize) {
     let mut i = 0;
     let mut lines: Vec<String> = Vec::new();
-    match File::open(&path) {
+    match File::open(path) {
         Ok(file) => {
             let mut reader = BufReader::new(file);
             let mut line = String::from("");
