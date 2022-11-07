@@ -77,7 +77,7 @@ pub fn list_paths(
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<PathBuf> = vec![];
     for (key, _value) in iter {
-        match str::from_utf8(&*key) {
+        match str::from_utf8(&key) {
             Ok(key) => {
                 // return full path
                 paths.push(base_dir.join(String::from(key)));
@@ -101,7 +101,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<(PathBuf, T)> = vec![];
     for (key, value) in iter {
-        match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+        match (str::from_utf8(&key), str::from_utf8(&value)) {
             (Ok(key), Ok(value)) => {
                 // Full path given the dir it is in
                 let path = base_dir.join(String::from(key));
@@ -144,7 +144,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: HashSet<T> = HashSet::new();
     for (_key, value) in iter {
-        match str::from_utf8(&*value) {
+        match str::from_utf8(&value) {
             Ok(value) => {
                 // Full path given the dir it is in
                 let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
@@ -187,7 +187,7 @@ where
 
         // only grab values after start_idx based on page_num and page_size
         if entry_i >= start_idx {
-            let entry: T = serde_json::from_str(str::from_utf8(&*value)?)?;
+            let entry: T = serde_json::from_str(str::from_utf8(&value)?)?;
             paths.push(entry);
         }
     }

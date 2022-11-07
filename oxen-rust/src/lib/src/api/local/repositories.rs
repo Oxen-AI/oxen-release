@@ -89,7 +89,7 @@ pub fn list_repos_in_namespace(namespace_path: &Path) -> Vec<LocalRepository> {
         namespace_path
     );
     let mut repos: Vec<LocalRepository> = vec![];
-    for entry in WalkDir::new(&namespace_path)
+    for entry in WalkDir::new(namespace_path)
         .into_iter()
         .filter_map(|e| e.ok())
     {

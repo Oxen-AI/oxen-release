@@ -295,7 +295,7 @@ impl CommitEntryWriter {
                     std::fs::create_dir_all(parent)?;
                 }
                 log::debug!("Restoring path {:?}", entry.path);
-                tabular::write_df(&mut df, &full_path)?;
+                tabular::write_df(&mut df, full_path)?;
             }
 
             // TODO: should only read data once and filter to get schema, we're reading many times...
@@ -405,7 +405,7 @@ impl CommitEntryWriter {
             if let Some(parent) = path.parent() {
                 results
                     .entry(parent.to_path_buf())
-                    .or_insert(vec![])
+                    .or_default()
                     .push((path.clone(), entry.clone()));
             }
         }
