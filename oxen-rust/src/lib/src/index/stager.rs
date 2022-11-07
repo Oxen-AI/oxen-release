@@ -266,9 +266,9 @@ impl Stager {
             );
 
             if fullpath.is_dir() {
-                if !self.has_staged_dir(&relative)
+                if !self.has_staged_dir(relative)
                     && !staged_data.added_dirs.contains_key(relative)
-                    && !root_commit_dir_reader.has_dir(&relative)
+                    && !root_commit_dir_reader.has_dir(relative)
                 {
                     log::debug!("process_dir adding untracked dir {:?}", relative);
                     let count = util::fs::count_items_in_dir(&fullpath);
@@ -289,7 +289,7 @@ impl Stager {
                     match file_type {
                         FileStatus::Added => {
                             let file_name = relative.file_name().unwrap();
-                            let result = staged_dir_db.get_entry(&file_name);
+                            let result = staged_dir_db.get_entry(file_name);
                             if let Ok(Some(entry)) = result {
                                 staged_data
                                     .added_files
@@ -322,14 +322,14 @@ impl Stager {
         log::debug!("get_file_status check path in staging? {:?}", file_name);
 
         // Have to check the file basename not the path, because basenames are stored in each dir
-        if staged_dir_db.has_entry(&file_name) {
+        if staged_dir_db.has_entry(file_name) {
             return Some(FileStatus::Added);
         } else {
             // Not in the staged DB
             log::debug!("get_file_status check if commit db? {:?}", file_name);
             // check if it is in the HEAD commit to see if it is modified or removed
             if let Some(file_name) = path.file_name() {
-                if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(&file_name) {
+                if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(file_name) {
                     if Stager::file_is_removed(full_dir, &commit_entry) {
                         return Some(FileStatus::Removed);
                     } else if Stager::file_is_modified(full_dir, &commit_entry) {
@@ -393,6 +393,21 @@ impl Stager {
         }
 
         false
+    }
+
+    pub fn remove_staged_file(&self, path: &Path) -> Result<(), OxenError> {
+        log::debug!("remove_staged_file {:?}", path);
+        if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
+            log::debug!(
+                "remove_staged_file got filename {:?} and parent {:?}",
+                filename,
+                parent
+            );
+            let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
+            staged_dir.remove_path(filename)
+        } else {
+            Err(OxenError::file_has_no_parent(path))
+        }
     }
 
     fn add_removed_file(&self, path: &Path, entry: &CommitEntry) -> Result<StagedEntry, OxenError> {
@@ -473,10 +488,7 @@ impl Stager {
                                 //     path
                                 // );
 
-                                files
-                                    .entry(parent.to_path_buf())
-                                    .or_insert(vec![])
-                                    .push(path);
+                                files.entry(parent.to_path_buf()).or_default().push(path);
                                 total += 1;
                             }
                         }
@@ -542,7 +554,14 @@ impl Stager {
         if let Ok(relative) = util::fs::path_relative_to_dir(path, &self.repository.path) {
             if let Some(parent) = relative.parent() {
                 if let Ok(staged_dir) = StagedDirEntryDB::new(&self.repository, parent) {
-                    return staged_dir.has_entry(relative);
+                    let filename = relative.file_name().unwrap().to_str().unwrap();
+                    return staged_dir.has_entry(filename);
+                } else {
+                    log::debug!(
+                        "Stager.has_entry({:?}) could not find parent db {:?}",
+                        path,
+                        parent
+                    );
                 }
             }
         }
@@ -686,7 +705,7 @@ impl Stager {
         // Check if file has changed on disk
         // Since we are using a CommitDirEntryReader we need the base file name
         let basename = path.file_name().unwrap().to_str().unwrap();
-        if let Ok(Some(entry)) = entry_reader.get_entry(&basename) {
+        if let Ok(Some(entry)) = entry_reader.get_entry(basename) {
             log::debug!(
                 "add_staged_entry_in_dir_db comparing hashes {:?} -> {:?}",
                 staged_entry,
@@ -827,6 +846,39 @@ impl Stager {
         }
 
         Ok(paths)
+    }
+
+    pub fn remove_staged_dir<P: AsRef<Path>>(&self, short_path: P) -> Result<(), OxenError> {
+        let short_path = short_path.as_ref();
+        let full_path = self.repository.path.join(short_path);
+        if !full_path.exists() {
+            return Err(OxenError::file_does_not_exist(short_path));
+        }
+
+        if !full_path.is_dir() {
+            let err = format!("Path must be a directory {:?}", short_path);
+            return Err(OxenError::basic_str(err));
+        }
+
+        log::debug!("Remove staged dir short_path: {:?}", short_path);
+        log::debug!("Remove staged dir full_path: {:?}", full_path);
+
+        // Not most efficient to linearly scan, but we don't have pointers to parents or children
+        let added_dirs = self.list_added_dirs()?;
+        for added_dir in added_dirs.iter() {
+            if added_dir.starts_with(short_path) {
+                log::debug!("Removing files from added_dir: {:?}", added_dir);
+
+                // Remove all files within that dir
+                let staged_dir = StagedDirEntryDB::new(&self.repository, added_dir)?;
+                staged_dir.unstage()?;
+
+                // Remove from dir db
+                path_db::delete(&self.dir_db, added_dir)?;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn unstage(&self) -> Result<(), OxenError> {

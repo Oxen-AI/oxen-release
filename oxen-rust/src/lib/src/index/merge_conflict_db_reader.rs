@@ -20,7 +20,7 @@ impl MergeConflictDBReader {
         let key = path.to_str().unwrap();
         let bytes = key.as_bytes();
         match db.get(bytes) {
-            Ok(Some(value)) => match str::from_utf8(&*value) {
+            Ok(Some(value)) => match str::from_utf8(&value) {
                 Ok(value) => {
                     let entry: MergeConflict = serde_json::from_str(value)?;
                     Ok(Some(entry))
@@ -48,7 +48,7 @@ impl MergeConflictDBReader {
         let mut conflicts: Vec<MergeConflict> = vec![];
         let iter = db.iterator(IteratorMode::Start);
         for (_key, value) in iter {
-            let entry: MergeConflict = serde_json::from_str(str::from_utf8(&*value)?)?;
+            let entry: MergeConflict = serde_json::from_str(str::from_utf8(&value)?)?;
             conflicts.push(entry);
         }
         Ok(conflicts)

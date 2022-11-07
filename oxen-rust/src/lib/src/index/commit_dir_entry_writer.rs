@@ -62,10 +62,10 @@ impl CommitDirEntryWriter {
     }
 
     pub fn add_commit_entry(&self, entry: &CommitEntry) -> Result<(), OxenError> {
-        path_db::put(&self.db, &entry.path.file_name().unwrap(), &entry)
+        path_db::put(&self.db, entry.path.file_name().unwrap(), &entry)
     }
 
     pub fn remove_path_from_db(&self, path: &Path) -> Result<(), OxenError> {
-        path_db::delete(&self.db, &path.file_name().unwrap())
+        path_db::delete(&self.db, path.file_name().unwrap())
     }
 }

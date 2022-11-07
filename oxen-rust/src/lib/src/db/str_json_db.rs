@@ -43,7 +43,7 @@ where
     match db.get(bytes) {
         Ok(Some(value)) => {
             // found it
-            let str_val = str::from_utf8(&*value)?;
+            let str_val = str::from_utf8(&value)?;
             let entry = serde_json::from_str(str_val)?;
             Ok(Some(entry))
         }
@@ -83,7 +83,7 @@ where
         db.path()
     );
 
-    db.put(&key, json_val.as_bytes())?;
+    db.put(key, json_val.as_bytes())?;
     Ok(())
 }
 
@@ -95,7 +95,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut values: Vec<T> = vec![];
     for (_key, value) in iter {
-        match str::from_utf8(&*value) {
+        match str::from_utf8(&value) {
             Ok(value) => {
                 // Full path given the dir it is in
                 let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
@@ -119,7 +119,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut results: Vec<(String, T)> = vec![];
     for (key, value) in iter {
-        match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+        match (str::from_utf8(&key), str::from_utf8(&value)) {
             (Ok(key), Ok(value)) => {
                 let key = String::from(key);
                 let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);

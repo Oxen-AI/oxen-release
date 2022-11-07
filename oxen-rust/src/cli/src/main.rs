@@ -1,5 +1,6 @@
 use clap::{arg, Arg, Command};
 use env_logger::Env;
+use liboxen::opts::RestoreOpts;
 use std::path::{Path, PathBuf};
 
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
@@ -171,6 +172,11 @@ async fn main() {
                         .long("randomize")
                         .help("Randomize the order of the table"),
                 )
+                .arg(
+                    Arg::new("schema")
+                        .long("schema")
+                        .help("Print the full list of columns and data types within the schema."),
+                )
         )
         .subcommand(
             Command::new("schemas")
@@ -196,9 +202,20 @@ async fn main() {
         )
         .subcommand(
             Command::new("restore")
-                .about("Restores the specified file or directory")
-                .arg(Arg::new("PATH").multiple_values(true))
-                .arg_required_else_help(true),
+                .about("Unstage or discard uncommitted local changes.")
+                .arg(arg!(<PATH> ... "The files or directory to restore"))
+                .arg_required_else_help(true)
+                .arg(
+                    Arg::new("source")
+                        .long("source")
+                        .help("Restores a specific revision of the file. Can supply commit id or branch name")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("staged")
+                        .long("staged")
+                        .help("Removes the file from the staging area, but leaves its actual modifications untouched.")
+                )
         )
         .subcommand(
             Command::new("branch")
@@ -434,31 +451,39 @@ async fn main() {
         },
         Some(("df", sub_matches)) => {
             let path = sub_matches.value_of("PATH").expect("required");
-
-            let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack")
-            {
-                let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
-                Some(vals)
+            if sub_matches.is_present("schema") {
+                match dispatch::df_schema(path) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
+                }
             } else {
-                None
-            };
+                let vstack: Option<Vec<PathBuf>> =
+                    if let Some(vstack) = sub_matches.values_of("vstack") {
+                        let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+                        Some(vals)
+                    } else {
+                        None
+                    };
 
-            let opts = liboxen::media::DFOpts {
-                output: sub_matches.value_of("output").map(std::path::PathBuf::from),
-                slice: sub_matches.value_of("slice").map(String::from),
-                take: sub_matches.value_of("take").map(String::from),
-                columns: sub_matches.value_of("columns").map(String::from),
-                filter: sub_matches.value_of("filter").map(String::from),
-                vstack,
-                add_col: sub_matches.value_of("add-col").map(String::from),
-                add_row: sub_matches.value_of("add-row").map(String::from),
-                should_randomize: sub_matches.is_present("randomize"),
-            };
+                let opts = liboxen::media::DFOpts {
+                    output: sub_matches.value_of("output").map(std::path::PathBuf::from),
+                    slice: sub_matches.value_of("slice").map(String::from),
+                    take: sub_matches.value_of("take").map(String::from),
+                    columns: sub_matches.value_of("columns").map(String::from),
+                    filter: sub_matches.value_of("filter").map(String::from),
+                    vstack,
+                    add_col: sub_matches.value_of("add-col").map(String::from),
+                    add_row: sub_matches.value_of("add-row").map(String::from),
+                    should_randomize: sub_matches.is_present("randomize"),
+                };
 
-            match dispatch::df(path, opts) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+                match dispatch::df(path, opts) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
             }
         }
@@ -515,24 +540,26 @@ async fn main() {
             }
         }
         Some(("restore", sub_matches)) => {
-            let mut paths = sub_matches.values_of("PATH").expect("required");
+            let path = sub_matches.value_of("PATH").expect("required");
 
-            if paths.len() == 2 {
-                let commit_or_branch = paths.next();
-                let path = paths.next().expect("required");
-                match dispatch::restore(commit_or_branch, path) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
+            let opts = if let Some(source) = sub_matches.value_of("source") {
+                RestoreOpts {
+                    path: PathBuf::from(path),
+                    staged: sub_matches.is_present("staged"),
+                    source_ref: Some(String::from(source)),
                 }
             } else {
-                let path = paths.next().expect("required");
-                match dispatch::restore(None, path) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
+                RestoreOpts {
+                    path: PathBuf::from(path),
+                    staged: sub_matches.is_present("staged"),
+                    source_ref: None,
+                }
+            };
+
+            match dispatch::restore(opts) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{}", err)
                 }
             }
         }

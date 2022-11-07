@@ -31,7 +31,7 @@ pub async fn get_by_name(
     } else {
         let err = "Failed to get branch";
         log::error!("remote::branches::get_by_name() err: {}", err);
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(err))
     }
 }
 
@@ -83,7 +83,7 @@ pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenErro
     } else {
         let err = "Failed to list branches";
         log::error!("remote::branches::list() err: {}", err);
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(err))
     }
 }
 

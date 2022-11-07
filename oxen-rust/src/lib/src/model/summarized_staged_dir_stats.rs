@@ -80,7 +80,7 @@ impl SummarizedStagedDirStats {
             self.num_files_staged += stats.num_files_staged;
             self.total_files += stats.total_files;
 
-            self.paths.entry(path).or_insert(vec![]).push(stats.clone());
+            self.paths.entry(path).or_default().push(stats.clone());
         } else {
             log::warn!("Cannot add stats to path {:?}", stats.path);
         }

@@ -31,7 +31,7 @@ impl CommitDBReader {
     ) -> Result<Commit, OxenError> {
         let head_commit = CommitDBReader::head_commit(repo, db)?;
 
-        let commit = CommitDBReader::rget_root_commit(repo, db, &head_commit.id)?;
+        let commit = CommitDBReader::rget_root_commit(db, &head_commit.id)?;
         if let Some(root) = commit {
             Ok(root)
         } else {
@@ -41,7 +41,6 @@ impl CommitDBReader {
     }
 
     fn rget_root_commit(
-        repo: &LocalRepository,
         db: &DBWithThreadMode<MultiThreaded>,
         commit_id: &str,
     ) -> Result<Option<Commit>, OxenError> {
@@ -54,7 +53,7 @@ impl CommitDBReader {
 
         for parent_id in commit.parent_ids.iter() {
             // Recursive call to this module
-            match CommitDBReader::rget_root_commit(repo, db, parent_id) {
+            match CommitDBReader::rget_root_commit(db, parent_id) {
                 Ok(commit) => {
                     return Ok(commit);
                 }
@@ -74,7 +73,7 @@ impl CommitDBReader {
         let key = commit_id.as_bytes();
         match db.get(key) {
             Ok(Some(value)) => {
-                let commit: Commit = serde_json::from_str(str::from_utf8(&*value)?)?;
+                let commit: Commit = serde_json::from_str(str::from_utf8(&value)?)?;
                 Ok(Some(commit))
             }
             Ok(None) => Ok(None),
