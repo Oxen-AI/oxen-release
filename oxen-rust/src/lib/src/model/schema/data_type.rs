@@ -107,4 +107,23 @@ impl DataType {
             _ => DataType::Unknown,
         }
     }
+
+    pub fn from_polars(dtype: &polars::prelude::DataType) -> Self {
+        match dtype {
+            polars::prelude::DataType::Boolean => DataType::Boolean,
+            polars::prelude::DataType::UInt8 => DataType::UInt8,
+            polars::prelude::DataType::UInt16 => DataType::UInt16,
+            polars::prelude::DataType::UInt32 => DataType::UInt32,
+            polars::prelude::DataType::UInt64 => DataType::UInt64,
+            polars::prelude::DataType::Int8 => DataType::Int8,
+            polars::prelude::DataType::Int16 => DataType::Int16,
+            polars::prelude::DataType::Int32 => DataType::Int32,
+            polars::prelude::DataType::Int64 => DataType::Int64,
+            polars::prelude::DataType::Float32 => DataType::Float32,
+            polars::prelude::DataType::Float64 => DataType::Float64,
+            polars::prelude::DataType::Utf8 => DataType::String,
+            polars::prelude::DataType::Null => DataType::Null,
+            _ => DataType::Unknown,
+        }
+    }
 }

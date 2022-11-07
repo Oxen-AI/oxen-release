@@ -6,15 +6,13 @@ use crate::media::df_opts::DFOpts;
 use crate::model::schema::DataType;
 use crate::util::hasher;
 
+use comfy_table::Table;
 use indicatif::ProgressBar;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
-// use rayon::iter::ParallelBridge;
-// use rayon::iter::ParallelIterator;
-// use xxhash_rust::xxh3::xxh3_64;
 
 use super::df_opts::{DFFilter, DFFilterOp};
 
@@ -408,7 +406,7 @@ pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<()
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     JsonWriter::new(f).finish(df).expect(&error_str);
     Ok(())
 }
@@ -421,7 +419,7 @@ pub fn write_df_csv<P: AsRef<Path>>(
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     CsvWriter::new(f)
         .has_header(true)
         .with_delimiter(delimiter)
@@ -434,7 +432,7 @@ pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     ParquetWriter::new(f).finish(df).expect(&error_str);
     Ok(())
 }
@@ -443,7 +441,7 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     IpcWriter::new(f).finish(df).expect(&error_str);
     Ok(())
 }
@@ -489,4 +487,21 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
     let df = read_df(input, opts)?;
     println!("{}", df);
     Ok(df)
+}
+
+pub fn schema_to_string<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
+    let df = scan_df(input)?;
+    let schema = df.schema().expect("Could not get schema");
+
+    let mut table = Table::new();
+    table.set_header(vec!["column", "dtype"]);
+
+    for field in schema.iter_fields() {
+        let dtype = DataType::from_polars(field.data_type());
+        let field_str = String::from(field.name());
+        let dtype_str = String::from(DataType::as_str(&dtype));
+        table.add_row(vec![field_str, dtype_str]);
+    }
+
+    Ok(format!("{}", table))
 }

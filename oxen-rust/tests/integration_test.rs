@@ -6,6 +6,7 @@ use liboxen::index::CommitDirReader;
 use liboxen::media::tabular;
 use liboxen::media::DFOpts;
 use liboxen::model::StagedEntryStatus;
+use liboxen::opts::RestoreOpts;
 use liboxen::test;
 use liboxen::util;
 
@@ -234,7 +235,7 @@ fn test_command_restore_removed_file_from_head() -> Result<(), OxenError> {
         assert!(!hello_file.exists());
         // Restore takes the filename not the full path to the test repo
         // ie: "hello.txt" instead of data/test/runs/repo_data/test/runs_fc1544ab-cd55-4344-aa13-5360dc91d0fe/hello.txt
-        command::restore(&repo, None, &hello_filename)?;
+        command::restore(&repo, RestoreOpts::from_path(hello_filename))?;
         assert!(hello_file.exists());
 
         Ok(())
@@ -267,7 +268,10 @@ fn test_command_restore_file_from_commit_id() -> Result<(), OxenError> {
         command::commit(&repo, "Changing to french")?;
 
         // Restore from the first commit
-        command::restore(&repo, Some(&first_mod_commit.id), &hello_filename)?;
+        command::restore(
+            &repo,
+            RestoreOpts::from_path_ref(hello_filename, first_mod_commit.id),
+        )?;
         let content = util::fs::read_from_path(&hello_file)?;
         assert!(hello_file.exists());
         assert_eq!(content, first_modification);
@@ -1881,6 +1885,46 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_restore_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let history = command::log(&repo)?;
+        let last_commit = history.first().unwrap();
+
+        let annotations_dir = Path::new("annotations");
+
+        // Remove one file
+        let bbox_file = annotations_dir.join("train").join("bounding_box.csv");
+        let bbox_path = repo.path.join(&bbox_file);
+
+        let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
+        std::fs::remove_file(&bbox_path)?;
+
+        // Modify another file
+        let readme_file = annotations_dir.join("README.md");
+        let readme_path = repo.path.join(&readme_file);
+        let og_readme_contents = util::fs::read_from_path(&readme_path)?;
+
+        let readme_path = test::append_line_txt_file(readme_path, "Adding s'more")?;
+
+        // Restore the directory
+        command::restore(
+            &repo,
+            RestoreOpts::from_path_ref(annotations_dir, last_commit.id.clone()),
+        )?;
+
+        // Make sure the removed file is restored
+        let restored_contents = util::fs::read_from_path(&bbox_path)?;
+        assert_eq!(og_bbox_contents, restored_contents);
+
+        // Make sure the modified file is restored
+        let restored_contents = util::fs::read_from_path(&readme_path)?;
+        assert_eq!(og_readme_contents, restored_contents);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let history = command::log(&repo)?;
@@ -1894,9 +1938,66 @@ fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
         let og_contents = util::fs::read_from_path(&bbox_path)?;
         std::fs::remove_file(&bbox_path)?;
 
-        command::restore(&repo, Some(&last_commit.id), bbox_file)?;
+        command::restore(
+            &repo,
+            RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
+        )?;
         let restored_contents = util::fs::read_from_path(&bbox_path)?;
         assert_eq!(og_contents, restored_contents);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_restore_staged_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let bbox_file = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_path = repo.path.join(&bbox_file);
+
+        // Stage file
+        command::add(&repo, bbox_path)?;
+
+        // Make sure is staged
+        let status = command::status(&repo)?;
+        assert_eq!(status.added_files.len(), 1);
+        status.print_stdout();
+
+        // Remove from staged
+        command::restore(&repo, RestoreOpts::from_staged_path(bbox_file))?;
+
+        // Make sure is unstaged
+        let status = command::status(&repo)?;
+        assert_eq!(status.added_files.len(), 0);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_restore_staged_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let relative_path = Path::new("annotations");
+        let annotations_dir = repo.path.join(relative_path);
+
+        // Stage file
+        command::add(&repo, annotations_dir)?;
+
+        // Make sure is staged
+        let status = command::status(&repo)?;
+        assert_eq!(status.added_dirs.len(), 1);
+        assert_eq!(status.added_files.len(), 6);
+        status.print_stdout();
+
+        // Remove from staged
+        command::restore(&repo, RestoreOpts::from_staged_path(relative_path))?;
+
+        // Make sure is unstaged
+        let status = command::status(&repo)?;
+        assert_eq!(status.added_dirs.len(), 0);
+        assert_eq!(status.added_files.len(), 0);
 
         Ok(())
     })

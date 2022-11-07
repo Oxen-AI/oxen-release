@@ -85,7 +85,7 @@ where
     );
 
     let val = entry.encode::<u8>().unwrap();
-    db.put(&key, val)?;
+    db.put(key, val)?;
     Ok(())
 }
 
@@ -98,10 +98,10 @@ where
     let mut values: Vec<T> = vec![];
     for (key, value) in iter {
         // Full path given the dir it is in
-        if let Ok(entry) = T::decode::<u8>(&*value) {
+        if let Ok(entry) = T::decode::<u8>(&value) {
             values.push(entry);
         } else {
-            let key = str::from_utf8(&*key).unwrap();
+            let key = str::from_utf8(&key).unwrap();
             return Err(OxenError::could_not_decode_value_for_key_error(key));
         }
     }
@@ -116,7 +116,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut results: Vec<(String, T)> = vec![];
     for (key, value) in iter {
-        match (str::from_utf8(&*key), T::decode::<u8>(&*value)) {
+        match (str::from_utf8(&key), T::decode::<u8>(&value)) {
             (Ok(key), Ok(value)) => {
                 let key = String::from(key);
                 results.push((key, value));
@@ -143,7 +143,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut results: HashMap<String, T> = HashMap::new();
     for (key, value) in iter {
-        match (str::from_utf8(&*key), T::decode::<u8>(&*value)) {
+        match (str::from_utf8(&key), T::decode::<u8>(&value)) {
             (Ok(key), Ok(value)) => {
                 let key = String::from(key);
                 results.insert(key, value);
