@@ -1,3 +1,9 @@
+# v0.2.2
+
+Update `oxen restore`
+* `oxen restore --staged <pathspec>` will remove a file or directory from staging
+* `oxen restore <pathspec>` now works recursively
+
 # v0.2.1
 
 Performance Improvements:
