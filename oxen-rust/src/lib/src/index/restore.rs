@@ -90,7 +90,7 @@ fn restore_regular(
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
     let version_path = util::fs::version_path(repo, entry);
-    let working_path = repo.path.join(&path);
+    let working_path = repo.path.join(path);
     std::fs::copy(version_path, working_path)?;
     Ok(())
 }

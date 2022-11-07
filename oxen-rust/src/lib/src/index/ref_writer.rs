@@ -83,7 +83,7 @@ impl RefWriter {
         let head_ref = self.read_head_ref()?;
         let iter = self.refs_db.iterator(IteratorMode::Start);
         for (key, value) in iter {
-            match (str::from_utf8(&*key), str::from_utf8(&*value)) {
+            match (str::from_utf8(&key), str::from_utf8(&value)) {
                 (Ok(key_str), Ok(value)) => {
                     let ref_name = String::from(key_str);
                     let id = String::from(value);
@@ -134,7 +134,7 @@ impl RefWriter {
     pub fn get_commit_id_for_branch(&self, name: &str) -> Result<Option<String>, OxenError> {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {
-            Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&*value)?))),
+            Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => Ok(None),
             Err(err) => {
                 let err = format!("{}", err);

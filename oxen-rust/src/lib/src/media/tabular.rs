@@ -406,7 +406,7 @@ pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<()
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     JsonWriter::new(f).finish(df).expect(&error_str);
     Ok(())
 }
@@ -419,7 +419,7 @@ pub fn write_df_csv<P: AsRef<Path>>(
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     CsvWriter::new(f)
         .has_header(true)
         .with_delimiter(delimiter)
@@ -432,7 +432,7 @@ pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     ParquetWriter::new(f).finish(df).expect(&error_str);
     Ok(())
 }
@@ -441,7 +441,7 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(&output).unwrap();
+    let f = std::fs::File::create(output).unwrap();
     IpcWriter::new(f).finish(df).expect(&error_str);
     Ok(())
 }

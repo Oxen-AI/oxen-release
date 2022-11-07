@@ -291,7 +291,7 @@ impl CommitSchemaRowIndex {
 
         // Read the current data frame
         log::debug!("diff_current going to read path {:?}", path);
-        let current_path = repo.path.join(&path);
+        let current_path = repo.path.join(path);
         let current_df = tabular::read_df(&current_path, DFOpts::empty())?;
 
         // Path to CADF

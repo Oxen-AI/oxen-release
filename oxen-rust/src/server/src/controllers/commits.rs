@@ -665,7 +665,7 @@ mod tests {
         let enc = GzEncoder::new(Vec::new(), Compression::default());
         let mut tar = tar::Builder::new(enc);
 
-        tar.append_dir_all(&path_to_compress, &commit_dir)?;
+        tar.append_dir_all(&path_to_compress, commit_dir)?;
         tar.finish()?;
         let payload: Vec<u8> = tar.into_inner()?.finish()?;
 

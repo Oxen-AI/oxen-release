@@ -1980,7 +1980,7 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
 fn test_restore_staged_directory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         let relative_path = Path::new("annotations");
-        let annotations_dir = repo.path.join(&relative_path);
+        let annotations_dir = repo.path.join(relative_path);
 
         // Stage file
         command::add(&repo, annotations_dir)?;

@@ -415,7 +415,7 @@ impl CommitWriter {
         let key = commit_id.as_bytes();
         match self.commits_db.get(key) {
             Ok(Some(value)) => {
-                let commit: Commit = serde_json::from_str(str::from_utf8(&*value)?)?;
+                let commit: Commit = serde_json::from_str(str::from_utf8(&value)?)?;
                 Ok(Some(commit))
             }
             Ok(None) => Ok(None),

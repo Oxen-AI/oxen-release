@@ -47,7 +47,7 @@ impl Merger {
     pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Option<Commit>, OxenError> {
         let branch_name = branch_name.as_ref();
         // This returns HEAD, LCA, and the Merge commits we can work with
-        let merge_commits = self.find_merge_commits(&branch_name)?;
+        let merge_commits = self.find_merge_commits(branch_name)?;
 
         // User output
         println!(
@@ -76,7 +76,7 @@ impl Merger {
 
             let conflicts = self.three_way_merge(&merge_commits)?;
             if conflicts.is_empty() {
-                let commit = self.create_merge_commit(&branch_name, &merge_commits)?;
+                let commit = self.create_merge_commit(branch_name, &merge_commits)?;
                 Ok(Some(commit))
             } else {
                 self.write_conflicts_to_disk(&merge_commits, &conflicts)?;
