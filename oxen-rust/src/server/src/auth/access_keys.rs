@@ -113,7 +113,7 @@ impl AccessKeyManager {
         let key = token.as_bytes();
         match self.db.get(key) {
             Ok(Some(value)) => {
-                let value = str::from_utf8(&*value)?;
+                let value = str::from_utf8(&value)?;
                 let decoded_claim = serde_json::from_str(value)?;
                 Ok(Some(decoded_claim))
             }

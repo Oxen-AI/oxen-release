@@ -62,7 +62,7 @@ impl EntryIndexer {
         // This method will check with server to find out what commits need to be pushed
         // will fill in commits that are not synced
         let mut unsynced_commits: VecDeque<Commit> = VecDeque::new();
-        self.rpush_missing_commit_objects(&remote_repo, &head_commit, rb, &mut unsynced_commits)
+        self.rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
             .await?;
         let last_commit = unsynced_commits.pop_front().unwrap();
 
@@ -105,7 +105,6 @@ impl EntryIndexer {
         &self,
         remote_repo: &RemoteRepository,
         local_commit: &Commit,
-        rb: &RemoteBranch,
         unsynced_commits: &mut VecDeque<Commit>,
     ) -> Result<(), OxenError> {
         let num_entries = self.read_num_local_entries(local_commit)?;
@@ -149,13 +148,8 @@ impl EntryIndexer {
                     let local_parent = api::local::commits::get_by_id(&self.repository, parent_id)?
                         .ok_or_else(|| OxenError::local_parent_link_broken(&local_commit.id))?;
 
-                    self.rpush_missing_commit_objects(
-                        remote_repo,
-                        &local_parent,
-                        rb,
-                        unsynced_commits,
-                    )
-                    .await?;
+                    self.rpush_missing_commit_objects(remote_repo, &local_parent, unsynced_commits)
+                        .await?;
 
                     // Unroll and post commits
                     api::remote::commits::post_commit_to_server(
@@ -251,7 +245,7 @@ impl EntryIndexer {
                     bar.inc(1);
                     // If hashes are different, or it is a new entry, we'll keep it
                     let filename = entry.path.file_name().unwrap().to_str().unwrap();
-                    match last_entry_reader.get_entry(&filename) {
+                    match last_entry_reader.get_entry(filename) {
                         Ok(Some(old_entry)) => {
                             if old_entry.hash != entry.hash {
                                 return true;
@@ -581,7 +575,7 @@ impl EntryIndexer {
             if let Some(parent) = entry.path.parent() {
                 results
                     .entry(parent.to_path_buf())
-                    .or_insert(vec![])
+                    .or_default()
                     .push(entry.clone());
             }
         }
@@ -732,7 +726,7 @@ impl EntryIndexer {
                                 .unwrap();
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
-                                if !commit_reader.has_file(&path) {
+                                if !commit_reader.has_file(path) {
                                     let full_path = repository.path.join(short_path);
                                     if std::fs::remove_file(full_path).is_ok() {
                                         dir_entry.client_state = Some(true);

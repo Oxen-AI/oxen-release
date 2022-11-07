@@ -74,9 +74,9 @@ impl StagedDirEntryDB {
     }
 
     /// # Serializes the entry to json and writes to db
-    pub fn add_staged_entry_to_db<T: AsRef<Path>>(
+    pub fn add_staged_entry_to_db<P: AsRef<Path>>(
         &self,
-        path: T,
+        path: P,
         staged_entry: &StagedEntry,
     ) -> Result<(), OxenError> {
         path_db::put(&self.db, path, staged_entry)
@@ -93,6 +93,12 @@ impl StagedDirEntryDB {
         path_db::list_path_entries(&self.db, &self.dir)
     }
 
+    /// Remove a specifc file from the staged idx
+    pub fn remove_path<P: AsRef<Path>>(&self, path: P) -> Result<(), OxenError> {
+        path_db::delete(&self.db, path)
+    }
+
+    /// Clear all the entries from being staged
     pub fn unstage(&self) -> Result<(), OxenError> {
         path_db::clear(&self.db)
     }

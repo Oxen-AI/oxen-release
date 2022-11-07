@@ -5,6 +5,7 @@ use liboxen::error::OxenError;
 use liboxen::media::df_opts::DFOpts;
 use liboxen::model::schema;
 use liboxen::model::LocalRepository;
+use liboxen::opts::RestoreOpts;
 use liboxen::util;
 
 use colored::Colorize;
@@ -108,11 +109,11 @@ pub fn add(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn restore(commit_or_branch: Option<&str>, path: &str) -> Result<(), OxenError> {
+pub fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::restore(&repository, commit_or_branch, Path::new(path))?;
+    command::restore(&repository, opts)?;
 
     Ok(())
 }
@@ -233,6 +234,12 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
 
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     command::df(input, opts)?;
+    Ok(())
+}
+
+pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<(), OxenError> {
+    let result = command::df_schema(input)?;
+    println!("{}", result);
     Ok(())
 }
 
