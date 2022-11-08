@@ -110,11 +110,21 @@ Date:   Fri, 21 Oct 2022 16:05:22 -0700
 
 ## Reverting To Commit
 
-If ever you want to go back to a point in your commit history, you can simply supply the commit id from your history to the `checkout` command.
+If ever you want to change your working directory to a point in your commit history, you can simply supply the commit id from your history to the `checkout` command.
 
 ```bash
 $ oxen checkout COMMIT_ID
 ```
+
+## Restore Working Directory
+
+The `restore` command comes in handy if you made some changes locally and you want to revert the changes. This can be used for example if you accidentally delete or modify or stage a file that you did not intend to.
+
+```bash
+$ oxen restore path/to/file.txt
+```
+
+Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the [restore documentation](commands/Restore.md).
 
 ## Data Point Level Version Control
 
@@ -159,6 +169,99 @@ shape: (10000, 6)
 ```
 
 To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](Tabular.md)
+
+## Integrating Labeling Tools
+
+For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow. 
+
+For an example of integrating Oxen into your Label Studio workflow, check out our [Oxen Annotation Documentation](annotation/LabelStudio.md).
+
+## Diff
+
+If you want to see the differences between your file and the file that is conflicting, you can use the `oxen diff` command.
+
+Oxen knows how to compare text files as well as [tabular data](Tabular.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
+
+If the file is tabular data `oxen diff` will show you the rows that were added or removed.
+
+```bash
+$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
+$ oxen diff annotations/data.csv 
+
+Added Rows
+
+╭───────────────────┬───────┬───────┬───────┬───────┬────────╮
+│ file              ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/my_cat.jpg ┆ cat   ┆ 0     ┆ 0     ┆ 0     ┆ 0      │
+╰───────────────────┴───────┴───────┴───────┴───────┴────────╯
+ 1 Rows x 6 Columns
+```
+
+If the tabular data schema has changed `oxen diff` will flag and show you the columns that were added.
+
+```bash
+$ oxen df annotations/data.csv --add-col 'is_fluffy:unknown:str' -o annotations/data.csv
+$ oxen diff annotations/data.csv
+
+Added Cols
+shape: (10001, 1)
+┌───────────┐
+│ is_fluffy │
+│ ---       │
+│ str       │
+╞═══════════╡
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...       │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│ unknown   │
+└───────────┘
+
+
+Schema has changed
+
+Old
++------+-------+-------+-------+-------+--------+
+| file | label | min_x | min_y | width | height |
+| ---  | ---   | ---   | ---   | ---   | ---    |
+| str  | str   | f64   | f64   | f64   | f64    |
++------+-------+-------+-------+-------+--------+
+
+Current
++------+-------+-------+-------+-------+--------+-----------+
+| file | label | min_x | min_y | width | height | is_fluffy |
+| ---  | ---   | ---   | ---   | ---   | ---    | ---       |
+| str  | str   | f64   | f64   | f64   | f64    | str       |
++------+-------+-------+-------+-------+--------+-----------+
+```
+
+If the file is any other type of text data, it will simply show you the added and removed lines.
+
+```bash
+$ oxen diff path/to/file.txt
+
+ i
++here
+ am a text file that
++I am modifying
+-la-dee-da
++la-doo-da
++another line
+```
+
 
 # Sharing Data and Collaboration
 
@@ -318,92 +421,6 @@ If there are conflicts, Oxen will flag them and you will need to add and commit 
 ```bash
 $ oxen add file/with/conflict.jpg
 $ oxen commit -m "fixing conflict"
-```
-
-## Diff
-
-If you want to see the differences between your file and the file that is conflicting, you can use the `oxen diff` command.
-
-Oxen knows how to compare text files as well as [tabular data](Tabular.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
-
-If the file is tabular data `oxen diff` will show you the rows that were added or removed.
-
-```bash
-$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
-$ oxen diff annotations/data.csv 
-
-Added Rows
-
-╭───────────────────┬───────┬───────┬───────┬───────┬────────╮
-│ file              ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
-│ images/my_cat.jpg ┆ cat   ┆ 0     ┆ 0     ┆ 0     ┆ 0      │
-╰───────────────────┴───────┴───────┴───────┴───────┴────────╯
- 1 Rows x 6 Columns
-```
-
-If the tabular data schema has changed `oxen diff` will flag and show you the columns that were added.
-
-```bash
-$ oxen df annotations/data.csv --add-col 'is_fluffy:unknown:str' -o annotations/data.csv
-$ oxen diff annotations/data.csv
-
-Added Cols
-shape: (10001, 1)
-┌───────────┐
-│ is_fluffy │
-│ ---       │
-│ str       │
-╞═══════════╡
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ ...       │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-├╌╌╌╌╌╌╌╌╌╌╌┤
-│ unknown   │
-└───────────┘
-
-
-Schema has changed
-
-Old
-+------+-------+-------+-------+-------+--------+
-| file | label | min_x | min_y | width | height |
-| ---  | ---   | ---   | ---   | ---   | ---    |
-| str  | str   | f64   | f64   | f64   | f64    |
-+------+-------+-------+-------+-------+--------+
-
-Current
-+------+-------+-------+-------+-------+--------+-----------+
-| file | label | min_x | min_y | width | height | is_fluffy |
-| ---  | ---   | ---   | ---   | ---   | ---    | ---       |
-| str  | str   | f64   | f64   | f64   | f64    | str       |
-+------+-------+-------+-------+-------+--------+-----------+
-```
-
-If the file is any other type of text data, it will simply show you the added and removed lines.
-
-```bash
-$ oxen diff path/to/file.txt
-
- i
-+here
- am a text file that
-+I am modifying
--la-dee-da
-+la-doo-da
-+another line
 ```
 
 ## Dealing With Merge Conflicts
