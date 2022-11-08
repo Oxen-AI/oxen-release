@@ -172,9 +172,9 @@ To learn more about what you can do with tabular data in Oxen you can reference 
 
 ## Integrating Labeling Tools
 
-For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open source tools for labeling data that can integrate with an Oxen workflow. 
+For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow. 
 
-For some examples of integrating Oxen into your annotation workflow, check out our [Oxen Annotation Documentation](Annotation.md).
+For an example of integrating Oxen into your Label Studio workflow, check out our [Oxen Annotation Documentation](annotation/LabelStudio.md).
 
 ## Diff
 
