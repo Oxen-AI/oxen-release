@@ -41,7 +41,6 @@ lazy_static = "1.4.0"
 filetime = "0.2.16"
 bytesize = "1.1.0"
 num_cpus = "1.13.1"
-datafusion = { version = "13.0" }
 polars = { git = "https://github.com/pola-rs/polars", rev = "87f830d73053caf83b585ffabadb160f144b19f6", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
 comfy-table = "6.1.0"
 unicode-truncate = "0.2.0"

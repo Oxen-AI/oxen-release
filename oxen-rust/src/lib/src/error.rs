@@ -1,4 +1,3 @@
-use datafusion::error::DataFusionError;
 use std::error;
 use std::fmt;
 use std::io;
@@ -29,7 +28,6 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
-    DataFusion(DataFusionError),
 }
 
 impl OxenError {
@@ -237,11 +235,5 @@ impl From<rocksdb::Error> for OxenError {
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {
         OxenError::ENV(error)
-    }
-}
-
-impl From<DataFusionError> for OxenError {
-    fn from(error: DataFusionError) -> Self {
-        OxenError::DataFusion(error)
     }
 }
