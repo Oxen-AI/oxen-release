@@ -41,23 +41,6 @@ impl Schema {
         }
     }
 
-    pub fn from_datafusion(schema: &datafusion::logical_plan::DFSchema) -> Schema {
-        let mut fields: Vec<Field> = vec![];
-        for field in schema.fields() {
-            let f = Field {
-                name: field.name().trim().to_string(),
-                dtype: DataType::from_arrow(field.data_type()).as_str().to_string(),
-            };
-            fields.push(f);
-        }
-
-        Schema {
-            name: None,
-            hash: Schema::hash_fields(&fields),
-            fields,
-        }
-    }
-
     fn hash_fields(fields: &Vec<Field>) -> String {
         let mut hash_buffers: Vec<String> = vec![];
         for f in fields {
