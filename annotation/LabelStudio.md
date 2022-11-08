@@ -24,39 +24,39 @@ $ label-studio start --data-dir label-studio/uploads/
 
 Create a profile for the annotator you would like to annotate the initial images with. Label Studio is nice because you can have multiple accounts annotate the same data and cross validate their work.
 
-<img src="../images/label_studio/bbox/0_login.png" alt="Label Studio Login" width="300" />
+<img src="../images/label_studio/bbox/0_login.png" alt="Label Studio Login" width="500" />
 
 ## Setup Project
 
 Next create a project
 
-<img src="../images/label_studio/bbox/1_create_project.png" alt="Label Studio Create Project" width="300" />
+<img src="../images/label_studio/bbox/1_create_project.png" alt="Label Studio Create Project" width="500" />
 
 Name it CatDogBBox and give it an optional description
 
-<img src="../images/label_studio/bbox/2_name_project.png" alt="Label Studio Name Project" width="300" />
+<img src="../images/label_studio/bbox/2_name_project.png" alt="Label Studio Name Project" width="500" />
 
 Pick the annotation task to be "Object Detection"
 
-<img src="../images/label_studio/bbox/3_annotation_task.png" alt="Label Studio Annotation Task" width="300" />
+<img src="../images/label_studio/bbox/3_annotation_task.png" alt="Label Studio Annotation Task" width="500" />
 
 Create the labels to be "Cat" and "Dog"
 
-<img src="../images/label_studio/bbox/4_create_labels.png" alt="Label Studio Create Labels" width="300" />
+<img src="../images/label_studio/bbox/4_create_labels.png" alt="Label Studio Create Labels" width="500" />
 
 ## Annotate Data
 
 Upload your images
 
-<img src="../images/label_studio/bbox/5_upload_images.png" alt="Label Studio Upload images" width="300" />
+<img src="../images/label_studio/bbox/5_upload_images.png" alt="Label Studio Upload images" width="500" />
 
 Click on the label then drag a bounding box around the dog or cat (or both) in the photos
 
-<img src="../images/label_studio/bbox/6_label_images.png" alt="Label Studio Label Images" width="300" />
+<img src="../images/label_studio/bbox/6_label_images.png" alt="Label Studio Label Images" width="500" />
 
 Once you are done with the first couple of annotations, export the annotations as a csv file. Instead of using the suggested file name with the convoluted timestamp, simply export a file called `annotations.csv` within the same directory you specified as the `--data-dir` when starting Label Studio.
 
-<img src="../images/label_studio/bbox/7_export_annotations.png" alt="Label Studio Export Annotations" width="300" />
+<img src="../images/label_studio/bbox/7_export_annotations.png" alt="Label Studio Export Annotations" width="500" />
 
 ## Track in Oxen
 
