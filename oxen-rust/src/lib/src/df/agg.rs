@@ -1,3 +1,5 @@
+/// # Aggregations
+/// ('group_by_col') -> (list('col_1'), min('col_2'), n_unique('col_3'))
 use crate::error::OxenError;
 
 use nom::{
@@ -9,8 +11,49 @@ use nom::{
     IResult,
 };
 
-// Example agg:
-// 'group_by' -> ('col_1', min('col_2'), n_unique('col_3'))
+#[derive(Clone, Debug)]
+pub enum DFAggFnType {
+    List,
+    Count,
+    NUnique,
+    Min,
+    Max,
+    ArgMin,
+    ArgMax,
+    Mean,
+    Median,
+    Std,
+    Var,
+    First,
+    Last,
+    Head,
+    Tail,
+    Unknown,
+}
+
+impl DFAggFnType {
+    pub fn from_fn_name(s: &str) -> DFAggFnType {
+        match s {
+            "list" => DFAggFnType::List,
+            "count" => DFAggFnType::Count,
+            "n_unique" => DFAggFnType::NUnique,
+            "min" => DFAggFnType::Min,
+            "max" => DFAggFnType::Max,
+            "arg_min" => DFAggFnType::ArgMin,
+            "arg_max" => DFAggFnType::ArgMax,
+            "mean" => DFAggFnType::Mean,
+            "median" => DFAggFnType::Median,
+            "std" => DFAggFnType::Std,
+            "var" => DFAggFnType::Var,
+            "first" => DFAggFnType::First,
+            "last" => DFAggFnType::Last,
+            "head" => DFAggFnType::Head,
+            "tail" => DFAggFnType::Tail,
+            _ => DFAggFnType::Unknown,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DFAggFn {
     pub name: String,

@@ -1,4 +1,4 @@
-use polars::prelude::*;
+use polars::{lazy::dsl::Expr, prelude::*};
 
 use crate::constants;
 use crate::df::df_opts::DFOpts;
@@ -14,7 +14,10 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
 
-use super::df_opts::{DFFilter, DFFilterOp};
+use super::{
+    agg::{DFAggFn, DFAggFnType, DFAggregation},
+    df_opts::{DFFilter, DFFilterOp},
+};
 
 const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
 const READ_ERROR: &str = "Could not read tabular data from path";
@@ -202,62 +205,55 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
     }
 }
 
-fn aggregate_df(df: LazyFrame, aggregation: &str) -> Result<LazyFrame, OxenError> {
+fn agg_fn_to_expr(agg: &DFAggFn) -> Result<Expr, OxenError> {
+    let col_name = &agg.args[0];
+    match DFAggFnType::from_fn_name(&agg.name) {
+        DFAggFnType::List => Ok(col(col_name).alias(&format!("list('{}')", col_name))),
+        DFAggFnType::Count => Ok(col(col_name)
+            .count()
+            .alias(&format!("count('{}')", col_name))),
+        DFAggFnType::NUnique => Ok(col(col_name)
+            .n_unique()
+            .alias(&format!("n_unique('{}')", col_name))),
+        DFAggFnType::Min => Ok(col(col_name).min().alias(&format!("min('{}')", col_name))),
+        DFAggFnType::Max => Ok(col(col_name).max().alias(&format!("max('{}')", col_name))),
+        DFAggFnType::ArgMin => Ok(col(col_name)
+            .arg_min()
+            .alias(&format!("arg_min('{}')", col_name))),
+        DFAggFnType::ArgMax => Ok(col(col_name)
+            .arg_max()
+            .alias(&format!("max('{}')", col_name))),
+        DFAggFnType::Mean => Ok(col(col_name).mean().alias(&format!("mean('{}')", col_name))),
+        DFAggFnType::Median => Ok(col(col_name)
+            .median()
+            .alias(&format!("median('{}')", col_name))),
+        DFAggFnType::Std => Ok(col(col_name).std(0).alias(&format!("std('{}')", col_name))),
+        DFAggFnType::Var => Ok(col(col_name).var(0).alias(&format!("var('{}')", col_name))),
+        DFAggFnType::First => Ok(col(col_name)
+            .first()
+            .alias(&format!("first('{}')", col_name))),
+        DFAggFnType::Last => Ok(col(col_name).last().alias(&format!("last('{}')", col_name))),
+        DFAggFnType::Head => Ok(col(col_name)
+            .head(Some(5))
+            .alias(&format!("head('{}', 5)", col_name))),
+        DFAggFnType::Tail => Ok(col(col_name)
+            .tail(Some(5))
+            .alias(&format!("tail('{}', 5)", col_name))),
+        DFAggFnType::Unknown => Err(OxenError::unknown_agg_fn(&agg.name)),
+    }
+}
+
+fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame, OxenError> {
     log::debug!("Got agg: {:?}", aggregation);
 
-    // TODO: How do we want to parse?
+    let group_by: Vec<Expr> = aggregation.group_by.iter().map(|c| col(c)).collect();
+    let agg: Vec<Expr> = aggregation
+        .agg
+        .iter()
+        .map(|f| agg_fn_to_expr(f).expect("Err:"))
+        .collect();
 
-    // Chain of functions like the agg API
-    // Ex) [col("name").n_unique().alias("name_n_unique"), col("name").n_unique().alias("name_n_unique")]
-    // Ex) all()
-
-    // Ex) 'file' -> col("label").alias("name"), col("label").count(), col("label").n_unique().alias("thing")
-
-    // OR we do format slightly less verbose, like a lambda fn
-    // Format: 'group_by' -> (return ... )
-    // Ex) 'col_0' -> ('col_1', min('col_2'), n_unique('col_3'))
-
-    // Ex) 'file' -> (alias('label', 'value'), count('label'), max('min_x'), n_unique('label', 'alias_for_n_unique'))
-    // returns list of functions that you can aggregate on
-
-    // Ex) 'file' -> ('label', 'date')
-    // returns 'label' and 'date' columns as lists
-
-    // Ex) 'file' -> 'label'
-    // returns just 'label' column as list
-
-    // Ex) 'file'
-    // returns all fields as lists
-
-    // alias(col_name, new_name)
-    // count(col_name)
-    // n_unique(name)
-    // min(name)
-    // max(name)
-    // arg_min(name)
-    // arg_max(name)
-    // mean(name)
-    // median(name)
-    // mode(name)
-    // std(name)
-    // var(name)
-    // first(name)
-    // last(name)
-    // head(name, n)
-    // tail(name, n)
-
-    Ok(df
-        .groupby([col(aggregation)])
-        .agg([
-            col("label"),
-            col("label").alias("list_label"),
-            col("label").count().alias("label_count"),
-            col("label").n_unique().alias("label_n_unique"),
-            col("min_x").mean().alias("min_x_mean"),
-            // col("file").n_unique().alias("file_n_unique"),
-            // col("file").count().alias("file_count"),
-        ])
-        .sort(aggregation, SortOptions::default()))
+    Ok(df.groupby(group_by).agg(agg))
 }
 
 pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
@@ -296,7 +292,7 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         df = filter_df(df, &filter)?;
     }
 
-    if let Some(agg) = &opts.aggregate {
+    if let Some(agg) = &opts.get_aggregation()? {
         df = aggregate_df(df, agg)?;
     }
 
