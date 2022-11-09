@@ -1,11 +1,11 @@
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::db::path_db;
+use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
 use crate::index::{
     CommitDirEntryWriter, CommitDirReader, CommitSchemaRowIndex, RefReader, RefWriter, SchemaWriter,
 };
-use crate::media::{tabular, DFOpts};
 // use crate::model::schema;
 use crate::model::{
     schema, Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
@@ -500,9 +500,8 @@ impl CommitEntryWriter {
 #[cfg(test)]
 mod tests {
     use crate::command;
+    use crate::df::{tabular, DFOpts};
     use crate::error::OxenError;
-    use crate::media::tabular;
-    use crate::media::DFOpts;
     use crate::test;
     use crate::util;
 

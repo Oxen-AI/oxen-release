@@ -45,11 +45,11 @@ FIRST STEP
     - `oxen schema "schema-name" df` will read from that schema hash
 
 2) Add ability to quickly fetch indices from tabular file or paginate
-    - /namespace/reponame/rows/commit/file/
+    - /namespace/repo_name/rows/commit/file/
 
 -- RELEASE
 
-1) Let's do `oxen index -s "bounding_box" -c "file"` to keep track of individual annotations
+1) Let's do `oxen schema index "bounding_box" "file"` to keep track of individual annotations
     - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
     - You should be able to add one from CLI too without reading from a file
         - OR just add a row to a file, add, commit, boom
@@ -68,9 +68,9 @@ Start with
         
         `oxen schema list`
         
-        `oxen schema name eh219ehdj "bounding_box"`
+        `oxen schema name SCHEMA_HASH "bounding_box"`
 
-    3) Save off row indicies and file content hash pointers to the annotations dir
+    3) Save off row indices and file content hash pointers to the annotations dir
 
         Ex) Query
             Find all the rows (annotations) that belong to a key-val pair

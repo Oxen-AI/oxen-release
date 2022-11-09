@@ -1,8 +1,8 @@
 use liboxen::command;
 use liboxen::config::UserConfig;
+use liboxen::df::df_opts::DFOpts;
 use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::media::df_opts::DFOpts;
 use liboxen::model::schema;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RestoreOpts;

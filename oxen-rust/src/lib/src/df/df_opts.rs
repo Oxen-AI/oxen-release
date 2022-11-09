@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::df::agg::{self, DFAggregation};
+use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::util;
@@ -54,12 +56,20 @@ pub struct DFFilter {
 }
 
 #[derive(Clone, Debug)]
+pub struct IndexedItem {
+    pub col: String,
+    pub index: usize,
+}
+
+#[derive(Clone, Debug)]
 pub struct DFOpts {
     pub output: Option<PathBuf>,
     pub slice: Option<String>,
     pub take: Option<String>,
     pub columns: Option<String>,
     pub filter: Option<String>,
+    pub aggregate: Option<String>,
+    pub col_at: Option<String>,
     pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
@@ -74,11 +84,19 @@ impl DFOpts {
             take: None,
             columns: None,
             filter: None,
+            aggregate: None,
+            col_at: None,
             vstack: None,
             add_col: None,
             add_row: None,
             should_randomize: false,
         }
+    }
+
+    pub fn from_agg(query: &str) -> Self {
+        let mut opts = DFOpts::empty();
+        opts.aggregate = Some(String::from(query));
+        opts
     }
 
     pub fn from_filter_schema(schema: &Schema) -> Self {
@@ -100,6 +118,8 @@ impl DFOpts {
             || self.add_col.is_some()
             || self.add_row.is_some()
             || self.filter.is_some()
+            || self.aggregate.is_some()
+            || self.col_at.is_some()
             || self.should_randomize
     }
 
@@ -169,6 +189,37 @@ impl DFOpts {
         None
     }
 
+    /// Parse and return the aggregation if it exists
+    /// 'col_to_agg' -> ('col_1', min('col_2'), n_unique('col_3'))
+    /// returns error if not a valid query
+    pub fn get_aggregation(&self) -> Result<Option<DFAggregation>, OxenError> {
+        if let Some(query) = self.aggregate.clone() {
+            let agg = agg::parse_query(&query)?;
+            return Ok(Some(agg));
+        }
+        Ok(None)
+    }
+
+    pub fn column_at(&self) -> Option<IndexedItem> {
+        if let Some(value) = self.col_at.clone() {
+            // col:index
+            // ie: file:2
+            let delimiter = ":";
+            if value.contains(delimiter) {
+                let mut split = value.split(delimiter);
+                return Some(IndexedItem {
+                    col: String::from(split.next().unwrap()),
+                    index: split
+                        .next()
+                        .unwrap()
+                        .parse::<usize>()
+                        .expect("Index must be usize"),
+                });
+            }
+        }
+        None
+    }
+
     pub fn add_col_vals(&self) -> Option<AddColVals> {
         if let Some(add_col) = self.add_col.clone() {
             let split = add_col
@@ -197,5 +248,49 @@ impl DFOpts {
             return Some(split);
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{df::DFOpts, error::OxenError};
+
+    #[test]
+    fn test_parse_agg_one_lit_input_one_lit_output() -> Result<(), OxenError> {
+        let agg_query = "('col_0') -> (list('col_1'))";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation()?.unwrap();
+
+        // Make sure group_by is correct
+        assert_eq!(agg_opt.group_by.len(), 1);
+        assert_eq!(agg_opt.group_by[0], "col_0");
+
+        // Make sure agg is correct
+        assert_eq!(agg_opt.agg.len(), 1);
+        assert_eq!(agg_opt.agg[0].name, "list");
+        assert_eq!(agg_opt.agg[0].args.len(), 1);
+        assert_eq!(agg_opt.agg[0].args[0], "col_1");
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_agg_two_lit_input_one_lit_output() -> Result<(), OxenError> {
+        let agg_query = "('col_0', 'col_2') -> (list('col_1'))";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation()?.unwrap();
+
+        // Make sure group_by is correct
+        assert_eq!(agg_opt.group_by.len(), 2);
+        assert_eq!(agg_opt.group_by[0], "col_0");
+        assert_eq!(agg_opt.group_by[1], "col_2");
+
+        // Make sure agg is correct
+        assert_eq!(agg_opt.agg.len(), 1);
+        assert_eq!(agg_opt.agg[0].name, "list");
+        assert_eq!(agg_opt.agg[0].args.len(), 1);
+        assert_eq!(agg_opt.agg[0].args[0], "col_1");
+        Ok(())
     }
 }

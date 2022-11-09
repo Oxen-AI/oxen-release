@@ -1,8 +1,8 @@
 use polars::prelude::*;
 
 use crate::constants;
+use crate::df::df_opts::DFOpts;
 use crate::error::OxenError;
-use crate::media::df_opts::DFOpts;
 use crate::model::schema::DataType;
 use crate::util::hasher;
 
@@ -85,7 +85,7 @@ fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new("idx", &indices);
     let collected = df.collect().expect(READ_ERROR);
-    log::debug!("take indicies {:?}", indices);
+    log::debug!("take indices {:?}", indices);
     log::debug!("from df {:?}", collected);
     Ok(collected.take(&idx).expect(READ_ERROR))
 }
@@ -202,6 +202,64 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
     }
 }
 
+fn aggregate_df(df: LazyFrame, aggregation: &str) -> Result<LazyFrame, OxenError> {
+    log::debug!("Got agg: {:?}", aggregation);
+
+    // TODO: How do we want to parse?
+
+    // Chain of functions like the agg API
+    // Ex) [col("name").n_unique().alias("name_n_unique"), col("name").n_unique().alias("name_n_unique")]
+    // Ex) all()
+
+    // Ex) 'file' -> col("label").alias("name"), col("label").count(), col("label").n_unique().alias("thing")
+
+    // OR we do format slightly less verbose, like a lambda fn
+    // Format: 'group_by' -> (return ... )
+    // Ex) 'col_0' -> ('col_1', min('col_2'), n_unique('col_3'))
+
+    // Ex) 'file' -> (alias('label', 'value'), count('label'), max('min_x'), n_unique('label', 'alias_for_n_unique'))
+    // returns list of functions that you can aggregate on
+
+    // Ex) 'file' -> ('label', 'date')
+    // returns 'label' and 'date' columns as lists
+
+    // Ex) 'file' -> 'label'
+    // returns just 'label' column as list
+
+    // Ex) 'file'
+    // returns all fields as lists
+
+    // alias(col_name, new_name)
+    // count(col_name)
+    // n_unique(name)
+    // min(name)
+    // max(name)
+    // arg_min(name)
+    // arg_max(name)
+    // mean(name)
+    // median(name)
+    // mode(name)
+    // std(name)
+    // var(name)
+    // first(name)
+    // last(name)
+    // head(name, n)
+    // tail(name, n)
+
+    Ok(df
+        .groupby([col(aggregation)])
+        .agg([
+            col("label"),
+            col("label").alias("list_label"),
+            col("label").count().alias("label_count"),
+            col("label").n_unique().alias("label_n_unique"),
+            col("min_x").mean().alias("min_x_mean"),
+            // col("file").n_unique().alias("file_n_unique"),
+            // col("file").count().alias("file_count"),
+        ])
+        .sort(aggregation, SortOptions::default()))
+}
+
 pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
@@ -227,10 +285,6 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
-    if let Some(filter) = opts.get_filter() {
-        df = filter_df(df, &filter)?;
-    }
-
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
             let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
@@ -238,13 +292,21 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         }
     }
 
+    if let Some(filter) = opts.get_filter() {
+        df = filter_df(df, &filter)?;
+    }
+
+    if let Some(agg) = &opts.aggregate {
+        df = aggregate_df(df, agg)?;
+    }
+
     if opts.should_randomize {
         // TODO: Inefficient, but let's release
         let full_df = df.collect().unwrap();
         let height = full_df.height() as u32;
-        let mut rand_indicies: Vec<u32> = (0..height).collect();
-        rand_indicies.shuffle(&mut thread_rng());
-        df = take(full_df.lazy(), rand_indicies)?.lazy();
+        let mut rand_indices: Vec<u32> = (0..height).collect();
+        rand_indices.shuffle(&mut thread_rng());
+        df = take(full_df.lazy(), rand_indices)?.lazy();
     }
 
     if let Some((start, end)) = opts.slice_indices() {
@@ -257,6 +319,14 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
 
     if let Some(indices) = opts.take_indices() {
         return take(df, indices);
+    }
+
+    if let Some(item) = opts.column_at() {
+        let full_df = df.collect().unwrap();
+        let value = full_df.column(&item.col).unwrap().get(item.index);
+        let s1 = Series::new("", [value]);
+        let df = DataFrame::new(vec![s1]).unwrap();
+        return Ok(df);
     }
 
     Ok(df.collect().expect(READ_ERROR))
@@ -484,8 +554,24 @@ pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFr
 }
 
 pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
-    let df = read_df(input, opts)?;
-    println!("{}", df);
+    let df = read_df(input, opts.clone())?;
+    if opts.column_at().is_some() {
+        for val in df.get(0).unwrap() {
+            match val {
+                polars::prelude::AnyValue::List(vals) => {
+                    for val in vals.iter() {
+                        println!("{}", val)
+                    }
+                }
+                _ => {
+                    println!("{}", val)
+                }
+            }
+        }
+    } else {
+        println!("{}", df);
+    }
+
     Ok(df)
 }
 

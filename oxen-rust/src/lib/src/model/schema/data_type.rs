@@ -13,8 +13,8 @@ pub enum DataType {
     String,
     Date,
     Time,
+    List(Box<DataType>),
     // TODO: implement these when needed...
-    // List(Box<DataType>),
     // Object(&'static str),
     // Datetime,
     // Duration,
@@ -63,6 +63,7 @@ impl DataType {
             DataType::String => "str",
             DataType::Date => "date",
             DataType::Time => "time",
+            DataType::List(_val) => "list",
             DataType::Null => "null",
             DataType::Unknown => "?",
         }
@@ -84,6 +85,7 @@ impl DataType {
             DataType::String => polars::prelude::DataType::Utf8,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
+            DataType::List(val) => polars::prelude::DataType::List(Box::new(val.to_polars())),
             DataType::Null => polars::prelude::DataType::Null,
             DataType::Unknown => polars::prelude::DataType::Unknown,
         }

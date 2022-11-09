@@ -100,13 +100,15 @@ impl Schema {
 impl fmt::Display for Schema {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut table = comfy_table::Table::new();
+        table.set_header(vec!["id", "name", "dtype"]);
 
-        let mut cells: Vec<comfy_table::Cell> = vec![];
-        for field in self.fields.iter() {
-            let val = format!("{}\n---\n{}", field.name, field.dtype);
-            cells.push(comfy_table::Cell::from(val));
+        for (i, field) in self.fields.iter().enumerate() {
+            let mut cells: Vec<comfy_table::Cell> = vec![];
+            cells.push(comfy_table::Cell::from(format!("{}", i)));
+            cells.push(comfy_table::Cell::from(field.name.to_owned()));
+            cells.push(comfy_table::Cell::from(field.dtype.to_owned()));
+            table.add_row(cells);
         }
-        table.add_row(cells);
 
         write!(f, "{}", table)
     }
