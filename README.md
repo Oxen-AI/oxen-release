@@ -4,7 +4,7 @@ Oxen is command line tooling for working with large machine learning datasets �
 
 It is built from the ground up, optimized to handle many files, process data frames, and track changes in efficient data structures.
 
-[Oxen.ai](https://oxen.ai) is oriented around managing the shift from software 1.0 (writing lines of code) to [software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where you are managing more and more data. The `oxen` command line interface and `oxen-server` binaries are the first steps, but we plan on releasing a fully hosted Hub in the near future to help store securly your data at scale.
+[Oxen.ai](https://oxen.ai) is oriented around managing the shift from software 1.0 (writing lines of code) to [software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where you are managing more and more data. The `oxen` command line interface and `oxen-server` binaries are the first steps, but we plan on releasing a fully hosted Hub in the near future to help store securely your data at scale.
 
 Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and to stay updated on the progress.
 
@@ -137,7 +137,7 @@ $ oxen commit -m "adding rows and rows of data"
 
 Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames checkout the [data point level version control documentation](DataPointLevelVersionControl.md).
 
-Oxen also has some [handy command line tooling](Tabular.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command let's you easily view, modify, slice, and modify the data.
+Oxen also has some [handy command line tooling](DataFrames.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command let's you easily view, modify, slice, and modify the data.
 
 ```bash
 $ oxen df annotations/train.csv
@@ -168,7 +168,7 @@ shape: (10000, 6)
 └─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
 ```
 
-To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](Tabular.md)
+To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](DataFrames.md)
 
 ## Integrating Labeling Tools
 
@@ -180,12 +180,12 @@ For an example of integrating Oxen into your Label Studio workflow, check out ou
 
 If you want to see the differences between your file and the file that is conflicting, you can use the `oxen diff` command.
 
-Oxen knows how to compare text files as well as [tabular data](Tabular.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
+Oxen knows how to compare text files as well as [tabular data](DataFrames.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
 
 If the file is tabular data `oxen diff` will show you the rows that were added or removed.
 
 ```bash
-$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
+$ oxen df annotations/data.csv --add_row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
 $ oxen diff annotations/data.csv 
 
 Added Rows
@@ -262,6 +262,17 @@ $ oxen diff path/to/file.txt
 +another line
 ```
 
+## Indices & Schemas
+
+⚠️ Caution this feature is a work in progress and not merged yet.
+
+Another powerful concept in Oxen is the ability to track data schemas and index subsets of the data. Both the schemas and indices are versioned as the data evolves. To dive deeper into these concepts you can reference the [Oxen indices documentation](Indices.md).
+
+Say for example you have a column of the data that represents whether this example is in the train, test, or validation dataset. You can create an index on that column with the `index` command.
+
+```bash
+$ oxen schema index <SCHEMA_ID> <EXPRESSION>
+```
 
 # Sharing Data and Collaboration
 

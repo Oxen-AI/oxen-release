@@ -50,7 +50,7 @@ If you have ever tried to index hundreds of thousands of images into [git](https
 
 ## Going Beyond Versioning Files
 
-It quickly becomes unmanagable to have a file for each attribute, feature, or output you want to predict. This is much more suited for a DataFrame.
+It quickly becomes unmanageable to have a file for each attribute, feature, or output you want to predict. This is much more suited for a DataFrame.
 
 For example if you wanted to extend the cats vs dogs csv from above to include the bounding boxes around each individual cat and dog, you can represent the input files and outputs like this:
 
@@ -116,7 +116,7 @@ shape: (202599, 41)
 └───────┴────────────┴────────────┴──────────┴─────┴────────────┴────────────┴────────────┴───────┘
 ```
 
-To learn more about the `df` command and common exploratory data analysis operations you might want to perform check out the [Oxen DataFrame documentation](Tabular.md).
+To learn more about the `df` command and common exploratory data analysis operations you might want to perform check out the [Oxen DataFrame documentation](DataFrames.md).
 
 ## Committing DataFrames
 
