@@ -28,49 +28,81 @@ fn is_whitespace(c: char) -> bool {
 }
 
 fn is_single_quote_or_whitespace(c: char) -> bool {
-    c == ' ' || c == '\''
+    c == '\'' || c == ' '
+}
+
+fn is_comma_or_whitespace(c: char) -> bool {
+    c == ',' || c == ' '
 }
 
 fn is_open_paren(c: char) -> bool {
     c == '('
 }
 
-fn is_alphanumeric(c: char) -> bool {
-    c.is_alphanumeric()
+fn is_valid_fn_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
-fn contained_in_single_quotes(input: &str) -> IResult<&str, &str> {
-    delimited(
+fn contained_in_single_quotes(input: &str) -> Result<(&str, &str), OxenError> {
+    let result: IResult<&str, &str> = delimited(
         take_while(is_single_quote_or_whitespace),
         is_not("'"),
         char('\''),
-    )(input)
+    )(input);
+    match result {
+        Ok(result) => Ok(result),
+        _ => Err(OxenError::parse_error(input)),
+    }
 }
 
-fn contained_in_parens(input: &str) -> IResult<&str, &str> {
-    delimited(char('('), is_not(")"), char(')'))(input)
+fn contained_in_parens(input: &str) -> Result<(&str, &str), OxenError> {
+    let result: IResult<&str, &str> = delimited(char('('), is_not(")"), char(')'))(input);
+    match result {
+        Ok(result) => Ok(result),
+        _ => Err(OxenError::parse_error(input)),
+    }
 }
 
-fn split_on_arrow(input: &str) -> IResult<&str, (&str, &str)> {
-    separated_pair(
+fn split_on_arrow(input: &str) -> Result<(&str, (&str, &str)), OxenError> {
+    let result: IResult<&str, (&str, &str)> = separated_pair(
         take_while(is_whitespace),
         tag("->"),
         take_while(is_whitespace),
-    )(input)
+    )(input);
+    match result {
+        Ok(result) => Ok(result),
+        _ => Err(OxenError::parse_error(input)),
+    }
 }
 
-fn take_open_paren(input: &str) -> IResult<&str, &str> {
-    take_while(is_open_paren)(input)
+fn take_open_paren(input: &str) -> Result<(&str, &str), OxenError> {
+    let result: IResult<&str, &str> = take_while(is_open_paren)(input);
+    match result {
+        Ok(result) => Ok(result),
+        _ => Err(OxenError::parse_error(input)),
+    }
 }
 
-fn take_alphanumeric(input: &str) -> IResult<&str, &str> {
-    take_while(is_alphanumeric)(input)
+fn take_fn_name(input: &str) -> Result<(&str, &str), OxenError> {
+    let result: IResult<&str, &str> = take_while(is_valid_fn_char)(input);
+    match result {
+        Ok(result) => Ok(result),
+        _ => Err(OxenError::parse_error(input)),
+    }
+}
+
+fn take_comma(input: &str) -> Result<(&str, &str), OxenError> {
+    let result: IResult<&str, &str> = take_while(is_comma_or_whitespace)(input);
+    match result {
+        Ok(result) => Ok(result),
+        _ => Err(OxenError::parse_error(input)),
+    }
 }
 
 pub fn parse_query(input: &str) -> Result<DFAggregation, OxenError> {
     log::debug!("GOT input: {}", input);
     // ('col_0', 'col_1') -> (list('col_3'), max('col_2'), n_unique('col_2'))
-    let (remaining, parsed) = contained_in_parens(input).unwrap();
+    let (remaining, parsed) = contained_in_parens(input)?;
     log::debug!(
         "contained_in_parens remaining: {}, parsed: {}",
         remaining,
@@ -80,7 +112,7 @@ pub fn parse_query(input: &str) -> Result<DFAggregation, OxenError> {
     // parsed: 'col_0', 'col_1'
     let mut first_args: Vec<String> = vec![];
     for s in parsed.split(',') {
-        let (_, parsed) = contained_in_single_quotes(s).unwrap();
+        let (_, parsed) = contained_in_single_quotes(s)?;
         log::debug!(
             "contained_in_single_quotes remaining: {}, parsed: {}",
             remaining,
@@ -89,50 +121,70 @@ pub fn parse_query(input: &str) -> Result<DFAggregation, OxenError> {
         first_args.push(parsed.to_string());
     }
 
-    let (remaining, parsed) = split_on_arrow(remaining).unwrap();
+    // remaining: -> (list('col_3'), max('col_2'), n_unique('col_2'))
+    let (remaining, parsed) = split_on_arrow(remaining)?;
     log::debug!(
         "split_on_arrow remaining: {}, parsed: {:?}",
         remaining,
         parsed
     );
 
-    let (remaining, parsed) = take_open_paren(remaining).unwrap();
+    // remaining: (list('col_3'), max('col_2'), n_unique('col_2'))
+    let (remaining, parsed) = take_open_paren(remaining)?;
     log::debug!(
         "take_open_paren remaining: {}, parsed: {}",
         remaining,
         parsed
     );
 
-    let (remaining, parsed) = take_alphanumeric(remaining).unwrap();
-    log::debug!(
-        "take_alphanumeric remaining: {}, parsed: {}",
-        remaining,
-        parsed
-    );
-    let fn_name = parsed;
+    // remaining: list('col_3'), max('col_2'), n_unique('col_2'))
+    let mut agg_fns: Vec<DFAggFn> = vec![];
+    let mut result = remaining;
+    while result != ")" {
+        log::debug!("START result {}", result);
+        // result: , max('col_2'), n_unique('col_2'))
+        if result.starts_with(',') {
+            (result, _) = take_comma(result)?;
+        }
 
-    let (remaining, parsed) = contained_in_parens(remaining).unwrap();
-    log::debug!(
-        "contained_in_parens remaining: {}, parsed: {}",
-        remaining,
-        parsed
-    );
+        // result: max('col_2'), n_unique('col_2'))
+        log::debug!("take_comma result {}", result);
+        let (remaining, parsed) = take_fn_name(result)?;
+        log::debug!(
+            "take_alphanumeric remaining: {}, parsed: {}",
+            remaining,
+            parsed
+        );
+        let fn_name = parsed;
 
-    let (remaining, parsed) = contained_in_single_quotes(parsed).unwrap();
-    log::debug!(
-        "contained_in_single_quotes remaining: {}, parsed: {}",
-        remaining,
-        parsed
-    );
-    let second_arg = parsed;
+        // remaining: ('col_2'), n_unique('col_2'))
+        let (remaining, parsed) = contained_in_parens(remaining)?;
+        log::debug!(
+            "contained_in_parens remaining: {}, parsed: {}",
+            remaining,
+            parsed
+        );
+
+        // parsed: 'col_2'
+        let (_, parsed) = contained_in_single_quotes(parsed)?;
+        log::debug!(
+            "contained_in_single_quotes remaining: {}, parsed: {}",
+            remaining,
+            parsed
+        );
+        let arg = parsed;
+
+        agg_fns.push(DFAggFn {
+            name: String::from(fn_name),
+            args: vec![String::from(arg)],
+        });
+        result = remaining;
+    }
 
     log::debug!("GOT remaining: {:?}", remaining);
 
     Ok(DFAggregation {
         group_by: first_args,
-        agg: vec![DFAggFn {
-            name: String::from(fn_name),
-            args: vec![String::from(second_arg)],
-        }],
+        agg: agg_fns,
     })
 }

@@ -256,7 +256,7 @@ mod tests {
     use crate::{df::DFOpts, error::OxenError};
 
     #[test]
-    fn test_parse_agg_one_lit_input_one_lit_output() -> Result<(), OxenError> {
+    fn test_parse_agg_one_lit_input_one_output() -> Result<(), OxenError> {
         let agg_query = "('col_0') -> (list('col_1'))";
 
         let opts = DFOpts::from_agg(agg_query);
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_agg_two_lit_input_one_lit_output() -> Result<(), OxenError> {
+    fn test_parse_agg_two_lit_input_one_output() -> Result<(), OxenError> {
         let agg_query = "('col_0', 'col_2') -> (list('col_1'))";
 
         let opts = DFOpts::from_agg(agg_query);
@@ -291,6 +291,74 @@ mod tests {
         assert_eq!(agg_opt.agg[0].name, "list");
         assert_eq!(agg_opt.agg[0].args.len(), 1);
         assert_eq!(agg_opt.agg[0].args[0], "col_1");
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_agg_two_lit_input_three_output() -> Result<(), OxenError> {
+        let agg_query = "('col_0', 'col_2') -> (list('col_3'), max('col_2'), n_unique('col_1'))";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation()?.unwrap();
+
+        // Make sure group_by is correct
+        assert_eq!(agg_opt.group_by.len(), 2);
+        assert_eq!(agg_opt.group_by[0], "col_0");
+        assert_eq!(agg_opt.group_by[1], "col_2");
+
+        // Make sure agg is correct
+        assert_eq!(agg_opt.agg.len(), 3);
+        assert_eq!(agg_opt.agg[0].name, "list");
+        assert_eq!(agg_opt.agg[0].args.len(), 1);
+        assert_eq!(agg_opt.agg[0].args[0], "col_3");
+
+        assert_eq!(agg_opt.agg[1].name, "max");
+        assert_eq!(agg_opt.agg[1].args.len(), 1);
+        assert_eq!(agg_opt.agg[1].args[0], "col_2");
+
+        assert_eq!(agg_opt.agg[2].name, "n_unique");
+        assert_eq!(agg_opt.agg[2].args.len(), 1);
+        assert_eq!(agg_opt.agg[2].args[0], "col_1");
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_agg_invalid_empty() -> Result<(), OxenError> {
+        let agg_query = "";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation();
+        assert!(agg_opt.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_agg_invalid_string() -> Result<(), OxenError> {
+        let agg_query = "this shouldn't work";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation();
+        assert!(agg_opt.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_agg_invalid_starts_with_paren() -> Result<(), OxenError> {
+        let agg_query = "(this shouldn't work";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation();
+        assert!(agg_opt.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_agg_invalid_no_closed_single_quotes() -> Result<(), OxenError> {
+        let agg_query = "(this shouldn't work)";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation();
+        assert!(agg_opt.is_err());
         Ok(())
     }
 }
