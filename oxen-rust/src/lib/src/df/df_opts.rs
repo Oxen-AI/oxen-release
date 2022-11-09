@@ -73,7 +73,9 @@ pub struct DFOpts {
     pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub sort_by: Option<String>,
     pub should_randomize: bool,
+    pub should_reverse: bool,
 }
 
 impl DFOpts {
@@ -89,7 +91,9 @@ impl DFOpts {
             vstack: None,
             add_col: None,
             add_row: None,
+            sort_by: None,
             should_randomize: false,
+            should_reverse: false,
         }
     }
 
@@ -120,7 +124,9 @@ impl DFOpts {
             || self.filter.is_some()
             || self.aggregate.is_some()
             || self.col_at.is_some()
+            || self.sort_by.is_some()
             || self.should_randomize
+            || self.should_reverse
     }
 
     pub fn slice_indices(&self) -> Option<(i64, i64)> {

@@ -169,21 +169,32 @@ async fn main() {
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::new("add-col")
-                        .long("add-col")
+                    Arg::new("add_col")
+                        .long("add_col")
                         .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::new("add-row")
-                        .long("add-row")
+                    Arg::new("add_row")
+                        .long("add_row")
                         .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("sort_by")
+                        .long("sort_by")
+                        .help("Sort the output by a column name. Is run at the end of all the other transforms.")
                         .takes_value(true),
                 )
                 .arg(
                     Arg::new("randomize")
                         .long("randomize")
                         .help("Randomize the order of the table"),
+                )
+                .arg(
+                    Arg::new("reverse")
+                        .long("reverse")
+                        .help("Reverse the order of the table"),
                 )
                 .arg(
                     Arg::new("schema")
@@ -489,9 +500,11 @@ async fn main() {
                     aggregate: sub_matches.value_of("aggregate").map(String::from),
                     col_at: sub_matches.value_of("col_at").map(String::from),
                     vstack,
-                    add_col: sub_matches.value_of("add-col").map(String::from),
-                    add_row: sub_matches.value_of("add-row").map(String::from),
+                    add_col: sub_matches.value_of("add_col").map(String::from),
+                    add_row: sub_matches.value_of("add_row").map(String::from),
+                    sort_by: sub_matches.value_of("sort_by").map(String::from),
                     should_randomize: sub_matches.is_present("randomize"),
+                    should_reverse: sub_matches.is_present("reverse"),
                 };
 
                 match dispatch::df(path, opts) {
