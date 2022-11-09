@@ -44,38 +44,8 @@ Oxen uses a powerful [DataFrame library](https://pola-rs.github.io/polars-book/u
 # Useful Commands
 
 There are many ways you might want to view, transform, and filter your data on the command line before committing to the version of the dataset.
+
 To quickly see all the options on the `df` command you can run `oxen df --help`.
-
-```
-oxen-df 
-View and transform data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.
-
-USAGE:
-    oxen df [OPTIONS] <PATH>...
-
-ARGS:
-    <PATH>...    The file path you want to process.
-
-OPTIONS:
-        --add-col <add-col>     Add a column with a default value to the data table. If used with
-                                --add-row, row is added first, then column. Format 'name:val:dtype'
-        --add-row <add-row>     Add a row and cast to the values data types to match the current
-                                schema. If used with --add-col, row is added first, then column.
-                                Format 'comma,separated,vals'
-    -c, --columns <columns>     A comma separated set of columns names to look at. Ex file,x,y
-    -f, --filter <filter>       An filter the row data based on an expression. Supported Ops (=, !=,
-                                >, <, <= , >=) Supported dtypes (str,int,float)
-    -h, --help                  Print help information
-    -o, --output <output>       Output file to store the transformed data
-        --randomize             Randomize the order of the table
-    -s, --slice <slice>         A continuous slice of the data you want to look at. Format:
-                                'start..end' Ex) '10..25' will take 15 elements, starting at 10 and
-                                ending at 25.
-        --schema                Print the full list of columns and data types within the schema.
-    -t, --take <take>           A comma separated set of row indices to look at. Ex 1,22,313
-        --vstack <vstack>...    Combine row data from different files. The number of columns must
-                                match.
-```
 
 ## Output Data Formats
 
@@ -310,12 +280,12 @@ shape: (10000, 7)
 └─────────────────────────┴───────┴────────┴────────┴────────┴────────┴─────────┘
 ```
 
-# Add Row
+## Add Row
 
-Sometimes it can be a pain to append data to a data file without writing code to do so. The `--add-row` option makes it as easy as a comma separated list and automatically parses the data to the correct dtypes.
+Sometimes it can be a pain to append data to a data file without writing code to do so. The `--add_row` option makes it as easy as a comma separated list and automatically parses the data to the correct dtypes.
 
 ```bash
-$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0'
+$ oxen df annotations/data.csv --add_row 'images/my_cat.jpg,cat,0,0,0,0'
 
 shape: (10001, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
@@ -341,4 +311,165 @@ shape: (10001, 6)
 ├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
 │ images/my_cat.jpg       ┆ cat   ┆ 0.0    ┆ 0.0    ┆ 0.0    ┆ 0.0    │
 └─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+```
+
+## Aggregate
+
+Oxen DataFrame aggregations can be helpful to quickly get statistics about your data. You can save these statistics to disk and commit them to track your stats about your data over time.
+
+The format for aggregations is similar to a lambda function. The inputs to the function are column name(s) you want to group by. The outputs are functions you want to run over the grouped results.
+
+```
+('col_0') -> (min('col_1'), max('col_2'))
+```
+
+This simple example aggregation would be if you wanted to find a distribution of labels in a dataset.
+
+For example in our Cat Dog dataset you can group by the `'label'` column as input, and then run the `count()` function value over all the values in `'file'` as output.
+
+```
+$ oxen df annotations/train.csv -a "('label') -> (count('file'))"
+
+shape: (2, 2)
+┌───────┬───────────────┐
+│ label ┆ count('file') │
+│ ---   ┆ ---           │
+│ str   ┆ u32           │
+╞═══════╪═══════════════╡
+│ cat   ┆ 4140          │
+├╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ dog   ┆ 4860          │
+└───────┴───────────────┘
+```
+
+You can specify multiple functions to be aggregate on in the output. For example if you wanted the unique file count as well use the `n_unique()` function.
+
+```
+$ oxen df annotations/train.csv -a "('label') -> (count('file'), n_unique('file'))"
+
+shape: (2, 3)
+┌───────┬───────────────┬──────────────────┐
+│ label ┆ count('file') ┆ n_unique('file') │
+│ ---   ┆ ---           ┆ ---              │
+│ str   ┆ u32           ┆ u32              │
+╞═══════╪═══════════════╪══════════════════╡
+│ dog   ┆ 4860          ┆ 3798             │
+├╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ cat   ┆ 4140          ┆ 3525             │
+└───────┴───────────────┴──────────────────┘
+```
+
+Here is a list of supported output aggregation functions:
+
+* `list` aggregate column values into a list
+* `count` count the aggregated values
+* `n_unique` unique count of the aggregated values
+* `min` minimum value of the group
+* `max` maximum value of the group
+* `arg_min` index of minimum value in the group
+* `arg_max` index of maximum value in the group
+* `mean` mean value of the group
+* `median` median value of the group
+* `std` standard deviation of the group
+* `var` variance of the group
+* `first` first value of the group
+* `last` last value in the group
+* `head` first 5 values of group
+* `tail` last 5 values of the group
+
+## Sort
+
+Sorting can be achieved with the `sort_by` flag. For example you may want to find the largest bounding boxes by sorting on the height column.
+
+```
+oxen df annotations/train.csv --sort_by "height"
+
+shape: (9000, 6)
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
+│ ---                     ┆ ---   ┆ ---    ┆ ---    ┆ ---    ┆ ---    │
+│ str                     ┆ str   ┆ f64    ┆ f64    ┆ f64    ┆ f64    │
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│ images/000000580919.jpg ┆ dog   ┆ 61.28  ┆ 88.31  ┆ 2.71   ┆ 1.83   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000577310.jpg ┆ dog   ┆ 132.25 ┆ 193.86 ┆ 3.28   ┆ 1.95   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000393384.jpg ┆ dog   ┆ 138.85 ┆ 89.89  ┆ 1.25   ┆ 2.11   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000477398.jpg ┆ dog   ┆ 185.11 ┆ 195.93 ┆ 2.51   ┆ 2.6    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...   ┆ ...    ┆ ...    ┆ ...    ┆ ...    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000069205.jpg ┆ dog   ┆ 0.0    ┆ 0.0    ┆ 224.0  ┆ 224.0  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000554737.jpg ┆ cat   ┆ 0.0    ┆ 0.0    ┆ 224.0  ┆ 224.0  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000213819.jpg ┆ cat   ┆ 8.32   ┆ 0.0    ┆ 207.77 ┆ 224.0  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000397212.jpg ┆ cat   ┆ 0.36   ┆ 0.0    ┆ 115.5  ┆ 224.0  │
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+```
+
+Sort is also useful in the context of aggregations. When aggregating up statistics they do not come back in a guaranteed order. If you want to see which files have the most labels, you can group the output if an aggregation `count()` function.
+
+```
+$ oxen df annotations/train.csv -a "('file') -> (list('label'), count('label'))" --sort_by "count('label')"
+
+shape: (7128, 3)
+┌─────────────────────────┬───────────────────────────┬────────────────┐
+│ file                    ┆ list('label')             ┆ count('label') │
+│ ---                     ┆ ---                       ┆ ---            │
+│ str                     ┆ list[str]                 ┆ u32            │
+╞═════════════════════════╪═══════════════════════════╪════════════════╡
+│ images/000000060202.jpg ┆ ["dog"]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000518156.jpg ┆ ["cat"]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000347879.jpg ┆ ["cat"]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000290136.jpg ┆ ["dog"]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...                       ┆ ...            │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000398285.jpg ┆ ["dog", "dog", ... "dog"] ┆ 14             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000244933.jpg ┆ ["cat", "cat", ... "cat"] ┆ 17             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000016950.jpg ┆ ["dog", "dog", ... "dog"] ┆ 19             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000315555.jpg ┆ ["dog", "dog", ... "dog"] ┆ 19             │
+└─────────────────────────┴───────────────────────────┴────────────────┘
+```
+
+## Reverse
+
+You can also reverse the order of a data table. By default `--sort_by` sorts in ascending order, but can be reversed with the `--reverse` flag.
+
+```
+oxen df annotations/train.csv -a "('file') -> (count('label'))" --sort_by "count('label')" --reverse
+
+shape: (7128, 2)
+┌─────────────────────────┬────────────────┐
+│ file                    ┆ count('label') │
+│ ---                     ┆ ---            │
+│ str                     ┆ u32            │
+╞═════════════════════════╪════════════════╡
+│ images/000000315555.jpg ┆ 19             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000016950.jpg ┆ 19             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000244933.jpg ┆ 17             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000092869.jpg ┆ 14             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...            │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000038827.jpg ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000470862.jpg ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000292101.jpg ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000345432.jpg ┆ 1              │
+└─────────────────────────┴────────────────┘
 ```
