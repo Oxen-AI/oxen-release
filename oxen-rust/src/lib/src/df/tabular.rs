@@ -325,6 +325,14 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         return Ok(df);
     }
 
+    if let Some(sort_by) = &opts.sort_by {
+        df = df.sort(sort_by, SortOptions::default());
+    }
+
+    if opts.should_reverse {
+        return Ok(df.reverse().collect().expect(READ_ERROR));
+    }
+
     Ok(df.collect().expect(READ_ERROR))
 }
 
