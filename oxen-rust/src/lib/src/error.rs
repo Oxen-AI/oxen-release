@@ -161,6 +161,11 @@ impl OxenError {
         let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
         OxenError::basic_str(&err)
     }
+
+    pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
+        let err = format!("Parse error: {:?}", value.as_ref());
+        OxenError::basic_str(&err)
+    }
 }
 
 impl fmt::Display for OxenError {
