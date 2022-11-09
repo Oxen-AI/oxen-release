@@ -1,9 +1,9 @@
 use std::path::Path;
 
+use crate::df::tabular;
 use crate::error::OxenError;
 use crate::index::CommitDirReader;
 use crate::index::{CommitSchemaRowIndex, SchemaReader, Stager};
-use crate::media::tabular;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util::{self, resource};

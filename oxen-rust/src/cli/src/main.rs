@@ -135,6 +135,19 @@ async fn main() {
                         .takes_value(true),
                 )
                 .arg(
+                    Arg::new("aggregate")
+                        .long("aggregate")
+                        .short('a')
+                        .help("Aggregate up values based on field.")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("col_at")
+                        .long("col_at")
+                        .help("Select a specific row item from column to view it fully. Format: 'col_name:index' ie: 'my_col_name:3'")
+                        .takes_value(true),
+                )
+                .arg(
                     Arg::new("vstack")
                         .long("vstack")
                         .help("Combine row data from different files. The number of columns must match.")
@@ -461,18 +474,20 @@ async fn main() {
             } else {
                 let vstack: Option<Vec<PathBuf>> =
                     if let Some(vstack) = sub_matches.values_of("vstack") {
-                        let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
-                        Some(vals)
+                        let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+                        Some(values)
                     } else {
                         None
                     };
 
-                let opts = liboxen::media::DFOpts {
+                let opts = liboxen::df::DFOpts {
                     output: sub_matches.value_of("output").map(std::path::PathBuf::from),
                     slice: sub_matches.value_of("slice").map(String::from),
                     take: sub_matches.value_of("take").map(String::from),
                     columns: sub_matches.value_of("columns").map(String::from),
                     filter: sub_matches.value_of("filter").map(String::from),
+                    aggregate: sub_matches.value_of("aggregate").map(String::from),
+                    col_at: sub_matches.value_of("col_at").map(String::from),
                     vstack,
                     add_col: sub_matches.value_of("add-col").map(String::from),
                     add_row: sub_matches.value_of("add-row").map(String::from),

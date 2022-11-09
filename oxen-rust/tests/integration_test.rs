@@ -1,10 +1,10 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
+use liboxen::df::tabular;
+use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
-use liboxen::media::tabular;
-use liboxen::media::DFOpts;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
 use liboxen::test;

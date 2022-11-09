@@ -5,6 +5,7 @@
 
 use crate::api;
 use crate::constants;
+use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::schema_writer::SchemaWriter;
 use crate::index::CommitSchemaRowIndex;
@@ -14,7 +15,6 @@ use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
     RefReader, RefWriter, Stager,
 };
-use crate::media::{df_opts::DFOpts, tabular};
 use crate::model::Schema;
 use crate::model::{
     Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
@@ -208,7 +208,7 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
     Ok(())
 }
 
-/// Interact with dataframes from CLI
+/// Interact with DataFrames from CLI
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
 

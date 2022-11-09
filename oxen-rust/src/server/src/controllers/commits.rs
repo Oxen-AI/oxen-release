@@ -1,10 +1,10 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
+use liboxen::df::tabular;
+use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitValidator, CommitWriter};
-use liboxen::media::tabular;
-use liboxen::media::DFOpts;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};

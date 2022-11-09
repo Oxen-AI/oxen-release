@@ -14,12 +14,12 @@ use std::sync::Arc;
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
+use crate::df::tabular;
 use crate::error::OxenError;
 use crate::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader,
     CommitSchemaRowIndex, CommitWriter, RefReader, RefWriter, SchemaReader,
 };
-use crate::media::tabular;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 

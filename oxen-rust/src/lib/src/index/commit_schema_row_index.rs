@@ -9,8 +9,8 @@ use crate::constants::{
 };
 use crate::db;
 use crate::db::str_val_db;
+use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
-use crate::media::{tabular, DFOpts};
 use crate::model::{Commit, CommitEntry, DataFrameDiff, LocalRepository, Schema};
 use crate::util;
 
@@ -510,10 +510,9 @@ impl CommitSchemaRowIndex {
 #[cfg(test)]
 mod tests {
     use crate::command;
+    use crate::df::{tabular, DFOpts};
     use crate::error::OxenError;
     use crate::index::CommitSchemaRowIndex;
-    use crate::media::tabular;
-    use crate::media::DFOpts;
     use crate::model::schema::Field;
     use crate::test;
     use crate::util;

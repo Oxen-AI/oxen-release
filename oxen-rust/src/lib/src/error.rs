@@ -156,6 +156,11 @@ impl OxenError {
         let err = format!("Could not decode value for key: {:?}", key.as_ref());
         OxenError::basic_str(&err)
     }
+
+    pub fn invalid_agg_query<S: AsRef<str>>(query: S) -> OxenError {
+        let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
+        OxenError::basic_str(&err)
+    }
 }
 
 impl fmt::Display for OxenError {
