@@ -166,6 +166,11 @@ impl OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
         OxenError::basic_str(&err)
     }
+
+    pub fn unknown_agg_fn<S: AsRef<str>>(name: S) -> OxenError {
+        let err = format!("Unknown aggregation function: {:?}", name.as_ref());
+        OxenError::basic_str(&err)
+    }
 }
 
 impl fmt::Display for OxenError {
