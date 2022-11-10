@@ -51,7 +51,7 @@ To quickly see all the options on the `df` command you can run `oxen df --help`.
 
 The `--output` option is handy for quickly transforming data files between data formats on disk. Some formats like parquet and arrow are more efficient for data different [tasks](https://towardsdatascience.com/apache-arrow-read-dataframe-with-zero-memory-69634092b1a), but are not human readable like tsv or csv. Data format is always a trade off you'll have to decide on for your application.
 
-Oxen currently supports these file extensions: csv, tsv, ndjson, jsonl, parquet, arrow.
+Oxen currently supports these file extensions: `csv`, `tsv`, `parquet`, `arrow`.
 
 ```bash
 $ oxen df annotations/data.csv -o annotations/data.parquet
@@ -249,10 +249,10 @@ shape: (3, 6)
 
 ## Add Column
 
-Your data might not match the schema of a data frame you want to combine with, in this case you may need to add a column to match the schema. You can do this and project default values with `--add-col 'col:val:dtype'`
+Your data might not match the schema of a data frame you want to combine with, in this case you may need to add a column to match the schema. You can do this and project default values with `--add_col 'col:val:dtype'`
 
 ```bash
-$ oxen df annotations/data.csv --add-col 'is_cute:unknown:str'
+$ oxen df annotations/data.csv --add_col 'is_cute:unknown:str'
 
 shape: (10000, 7)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┬─────────┐
