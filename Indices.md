@@ -1,10 +1,10 @@
 # Oxen Schemas & Indices
 
-Indexing is a powerful tool within your Oxen toolchain. Oxen combines the concepts of DataFrames, Schemas, and Indices to allow you to quickly get to subsets of data that you want to train, evaluate, or simply explore.
+Indexing is a powerful tool within your Oxen toolchain. Oxen combines the concepts of DataFrames, Schemas, and Indices to allow you to quickly explore to subsets of your data at a specific point in time.
 
-If you have not read about Oxen DataFrames, it would be good to read up on the [Data Point Level Version Control documentation](DataPointLevelVersionControl.md) as well as the [DataFrame documentation](DataFrames.md) before continuing.
+If you have not read about Oxen DataFrames, it would be good to read up on [Data Point Level Version Control](DataPointLevelVersionControl.md) as well as [DataFrames](DataFrames.md) before continuing.
 
-## Schemas
+# Schemas
 
 When you add and commit a DataFrame to Oxen, it will automatically track the schema associated with the file.
 
@@ -96,25 +96,108 @@ $ oxen schemas name 36d0edc8779f42e30b0d630aa83bc83c "bounding_box"
 
 One of the benefits of having schemas versioned is it helps you know how your data changes over time. The other added benefit is indexing the data.
 
-## Indices
+# Indices
 
-Often when dealing with large datasets you want to search, filter, and get down to a subset of the data. You may want to train on this subset, evaluate on this subset, or simply fork off this portion of the data and start a new dataset.
+Indices are a useful construct in Oxen to allow constant time O(1) access to your data. This can become crucial when datasets increase in size to millions if not billions of entries.
 
-Oxen makes this easy with the `schema index` sub command.
+One way of searching and finding a subset of a DataFrame is the [--filter](DataFrames.md#filter-rows) option on the [df](DataFrames.md) command. This works fine for relatively small datasets, but at the end of the day filter scans the entire column of data to find what you need, and can be quite slow to scan larger datasets.
 
-The first argument is the schema name or hash, and the second is an expression you want to evaluate.
+If you are willing to put some upfront cost in indexing on commit, Oxen has the ability to lookup data in O(1) constant time.
 
-This knows to go index the massive data.arrow file and run an aggregation on it based on a *column name key*
+Once you create an index on a repository, it will be updated every time you make a new commit with new data.
+
+*TODO: delete indices*
+
+## Primary Key Indices
+
+Since by default Oxen has no context about the DataFrames or the fields being ingested, the first use case for user generated indices is to create constant time access for an internal id in your system to a versioned row in Oxen.
+
+Maybe you know what the primary key of this data should be, or you simply have more information stored in an external database that you'll want to map to later.
+
+Indices can be added with the `schema create_index` subcommand by providing the field name you want to index.
 
 ```
-$ oxen schema index --schema bounding_box --expr "('label') -> "
+$ oxen schema create_index --schema my_schema --field 'my_id'
 ```
 
-Then we can quickly query this data
+You can then quickly get back to any row within that schema that contains a specific ID value
 
 ```
-$ oxen schema query --schema -q 
+$ oxen schema query --schema my_schema --query 'my_id=1234'
 ```
 
-TODO: What is the output of this command?
-TODO: Can we do custom index functions? Like index and search on text? Or by embeddings?
+You can also see the state of the row at a specific commit id by passing the `--source` option. Source can be a commit id or a branch name.
+
+```
+$ oxen schema query --schema my_schema --query 'my_id=1234' --source $COMMIT_ID
+```
+
+This means we can quickly build tools to see how the data points evolves over time.
+
+## Train/Test/Val Indices
+
+Primary key lookups are one example use case for indices. Another example is to split your data into subsets. Indexed values do not have to be unique.
+
+You may want a field that indicates whether this example belongs to train, test, or the validation set of the data. Then quickly pull the data from just the evaluation set.
+
+```
+$ oxen schema create_index --schema bounding_box --field 'eval_set'
+```
+
+To get a quick summary of the distribution of values Oxen indexed you can run a `--query` with the `count()` function.
+
+```
+$ oxen schema query --schema bounding_box --query 'count(eval_set)'
+
+shape: (3, 2)
+┌───────────┬───────────────────┐
+│ eval_set  ┆ count             │
+│ ---       ┆ ---               │
+│ i64       ┆ u32               │
+╞═══════════╪═══════════════════╡
+│ train     ┆ 162770            │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ test      ┆ 19867             │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ valid     ┆ 19962             │
+└───────────┴───────────────────┘
+```
+
+To grab the subset of data that applies to a indexed subset, pass in an `=` expression.
+
+```
+$ oxen schema query --schema bounding_box --query 'eval_set=train'
+
+# TODO: implement
+```
+
+
+TODO: Show how you can push, and access these subsets from a remote server (pull, fetch with apache arrow, etc)
+
+
+## File Path Indices
+
+You may want an index on a field that contains "file" path that references some external data in the system.
+
+If you create an index with the `file` field, OxenHub will know to map this to a file in the repository and try to render the data in place.
+
+```
+$ oxen schema create_index --schema bounding_box --field 'file'
+```
+
+## Classification Label Indices
+
+Another example index might be on a classification label. Say you want to be able to quickly get to all the entries that are tagged as `"person"`
+
+```
+$ oxen schema create_index --schema bounding_box --field 'label'
+$ oxen schema query --schema bounding_box --query 'label=person'
+```
+
+Now let your imagination run wild on the type of data you work with, and how you want to version and see it evolve over time.
+
+# Conclusion
+
+Indexes are a powerful tool that compromise write time for constant time access to your data. They also have the benefit of being versioned so that you know exactly what the state of the index was at any given point in time. This makes time series analysis and debugging your data at any point in time much easier.
+
+Let us know what you think or if you have any other feature requests at hello@oxen.ai.

@@ -5,9 +5,9 @@ What is "data point level version control" and why does it matter?
 
 We built Oxen from the ground up to be able to version large data sets. This includes the ability to version many files at once, as well as the ability to version the data associated with these files which we call "data point level version control".
 
-Machine learning is all about learning a mapping from inputs to outputs. Each input and output can be thought of as a data point. Examples of inputs could be an image, a video, a piece of text, an audio clip, or just a list of numeric [features](https://en.wikipedia.org/wiki/Feature_(machine_learning)) that represent the input at a higher level. Basic outputs are usually labels during [classification](https://en.wikipedia.org/wiki/Statistical_classification) and numeric values in the case of [regression](https://en.wikipedia.org/wiki/Regression_analysis). With the advent of [Generative AI](https://www.sequoiacap.com/article/generative-ai-a-creative-new-world/) outputs are also becoming more complex in the form of human readable text, images, videos and audio.
+Machine learning is all about learning a mapping from inputs to outputs. Each input and output can be thought of as a data point. Examples of inputs could be an image, a video, a piece of text, an audio clip, or just a list of numeric [features](https://en.wikipedia.org/wiki/Feature_(machine_learning)) that represent the input at a higher level. Basic outputs are usually labels during [classification](https://en.wikipedia.org/wiki/Statistical_classification) or numeric values during [regression](https://en.wikipedia.org/wiki/Regression_analysis). With the advent of [Generative AI](https://www.sequoiacap.com/article/generative-ai-a-creative-new-world/) outputs are also becoming more complex in the form of human readable text, images, videos and audio.
 
-<img src="images/InputsOutputs.jpg" alt="Machine Learning Inputs and Outputs" width="400"/>
+## Stop Using Git For Data Files
 
 Usually version control systems track changes on a file level. The hash of the file contents determines whether this file has been changed, moved, removed, etc. 
 
@@ -23,13 +23,13 @@ images/00003.jpg,cat
 images/00004.jpg,dog
 ```
 
-At first it seems perfectly reasonable to also add this file to your standard version control system. After all usually there is a `diff` command that can show you added and modified lines within a file.
+At first it seems perfectly reasonable to add this file to your standard version control system. After all usually there is a `diff` command that can show you added and modified lines within a file.
 
-The problem is unlike code, which is easy to scan line by line for changes, data that is fed into modern machine learning systems can consist of hundreds of thousands if not millions of data points. Imagine adding many new columns, or batches rows to the data, it quickly becomes unwieldy to debug and manage these changes. We need to store these mappings in a more efficient data structure.
+The problem is unlike code, which is easy to scan line by line for changes, data that is fed into modern machine learning systems can consist of hundreds of thousands if not millions of data points. Imagine adding thousands of new rows or new columns to the your data. It quickly becomes unwieldy to debug and manage these changes with a line by line diff. We need to store these mappings in a more efficient data structure.
 
 ## Oxen DataFrames
 
-Oxen takes version control a step further by versioning each row in structured files such as `csv`, `parquet`, `arrow`, `ndjson`, `jsonl` into an [Apache Arrow](https://arrow.apache.org/) DataFrame.
+Oxen takes version control a step further by versioning each row in structured files such as `csv`, `tsv`, `parquet`, `arrow` into an [Apache Arrow](https://arrow.apache.org/) DataFrame.
 
 > Apache Arrow defines a language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware like CPUs and GPUs. The Arrow memory format also supports zero-copy reads for lightning-fast data access without serialization overhead.
 
@@ -79,6 +79,8 @@ It is hard to make sense of this data table without opening some sort of program
 
 Oxen has a convenience command `df` for exploring and transforming DataFrames. If we load the data into an Oxen DataFrame out of the gate we get a much more manageable output.
 
+To learn more about the `df` command and common exploratory data analysis operations you might want to perform check out the [Oxen DataFrame documentation](DataFrames.md).
+
 ```bash
 $ oxen df list_attr_celeba.csv
 shape: (202599, 41)
@@ -116,11 +118,9 @@ shape: (202599, 41)
 └───────┴────────────┴────────────┴──────────┴─────┴────────────┴────────────┴────────────┴───────┘
 ```
 
-To learn more about the `df` command and common exploratory data analysis operations you might want to perform check out the [Oxen DataFrame documentation](DataFrames.md).
-
 ## Committing DataFrames
 
-The real power is when you stage and commit a DataFrame. Oxen processes and hashes each row and tracks the data schema so that we can detect changes. Instead of seeing line by line changes on a diff, you can tell the individual rows and columns that changed. 
+The real power is when you stage and commit a DataFrame. Oxen processes and hashes each row and tracks the data schema over time, so that we can detect changes. Instead of seeing line by line changes on a diff, you can tell the individual rows and columns that changed. 
 
 Committing DataFrames is no different than committing any other file. Behind the scenes Oxen works it's magic to track all the changes.
 
@@ -131,12 +131,12 @@ $ oxen add list_attr_celeba.csv
 $ oxen commit -m "adding all attributes about the faces"
 ```
 
-## Transform and Diff DataFrames
+## Diff Changes
 
-Then we can use the `df` command to project a new column onto the data for whether or not this person "Is_Famous". Everyone in this dataset is a celebrity, and by definition is famous, so we will have the default value be "1".
+Then we can use the [df](DataFrames.md) command with the [--add_col](DataFrames.md#add-column) flag to project a new column onto the data for whether or not this person "Is_Famous". Everyone in this dataset is a celebrity, and by definition is famous, so we will have the default value be "1".
 
 ```bash
-$ oxen df list_attr_celeba.csv --add-col 'Is_Famous:1:i64' --output list_attr_celeba.csv
+$ oxen df list_attr_celeba.csv --add_col 'Is_Famous:1:i64' --output list_attr_celeba.csv
 
 ....
 
@@ -172,7 +172,7 @@ shape: (202599, 1)
 
 We can see that Oxen is taking advantage of the structure of the DataFrame and just returning the columns that were added during the diff.
 
-Imagine for the specific application we are working on we actually just care about a few of the attributes in the table. To view all the columns in a non-collapsed view you can use the `--schema` flag on the `df` command.
+Imagine for the specific application we are working on we actually just care about a few of the attributes in the table. To view all the columns in a non-collapsed view you can use the [--schema](DataFrames.md#view-schema) flag on the [df](DataFrames.md) command.
 
 ```
 $ oxen df list_attr_celeba.csv --schema
@@ -199,7 +199,7 @@ to try in your terminal
 +---------------------+-------+
 ```
 
-Then let's narrow this down to the `image_id`, whether they are `Smiling`, and our new `Is_Famous` column.
+Then let's narrow this down to the `image_id`, whether they are `Smiling`, and our new `Is_Famous` column and overwrite the file with the output.
 
 ```bash
 $ oxen df list_attr_celeba.csv --columns 'image_id,Smiling,Is_Famous' --output list_attr_celeba.csv
@@ -295,8 +295,8 @@ shape: (202599, 39)
 └─────┴─────┴────────────┴─────┴─────┴─────┴─────┴─────┴───────┘
 ```
 
-Note: The `--output` flag has overwritten our initial data. This is nothing to worry about since we already versioned our data with Oxen and can revert to the original at any time 😄.
+Note even though the [--output](DataFrames.md#output-data-formats) flag has overwritten our initial data, we have nothing to worry about since we already versioned our data. With Oxen we can revert to the original at any time 😄.
 
 Hopefully you can see that taking advantage of the innate structure of the data is already a better option than treating it like code, and sifting line by line through `git diff`. This is just one of many advantages you will see by using Oxen.
 
-Next up we will look at [tracking your data](Branching.md) in branches for experiments you want to run.
+Next up see the power of [Oxen Indices](Indices.md) for fast access to your data.
