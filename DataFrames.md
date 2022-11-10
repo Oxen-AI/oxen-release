@@ -315,17 +315,17 @@ shape: (10001, 6)
 
 ## Aggregate
 
-Oxen DataFrame aggregations can be helpful to quickly get statistics about your data. You can save these statistics to disk and commit them to track your stats about your data over time.
+Oxen DataFrame aggregations can be helpful to quickly get statistics about your data. You can save these statistics to disk and commit them to track stats about your data over time.
 
-The format for aggregations is similar to a lambda function. The inputs to the function are column name(s) you want to group by. The outputs are functions you want to run over the grouped results.
+The format for an aggregation query is similar to a lambda function. The inputs to the function are the column name(s) you want to group by. The outputs are functions you want to run over the grouped results.
 
 ```
 ('col_0') -> (min('col_1'), max('col_2'))
 ```
 
-This simple example aggregation would be if you wanted to find a distribution of labels in a dataset.
+This simple example aggregation query would be if you wanted to find a distribution of labels in a dataset.
 
-For example in our Cat Dog dataset you can group by the `'label'` column as input, and then run the `count()` function value over all the values in `'file'` as output.
+For example in our cats vs dogs dataset you can group by the `'label'` column, and then run the `count()` function value over all the values in the `'file'` column.
 
 ```
 $ oxen df annotations/train.csv -a "('label') -> (count('file'))"
@@ -342,7 +342,7 @@ shape: (2, 2)
 └───────┴───────────────┘
 ```
 
-You can specify multiple functions to be aggregate on in the output. For example if you wanted the unique file count as well use the `n_unique()` function.
+You can specify multiple functions in the output. For example if you wanted the unique file count as well as the raw count you can add the `n_unique()` function.
 
 ```
 $ oxen df annotations/train.csv -a "('label') -> (count('file'), n_unique('file'))"
