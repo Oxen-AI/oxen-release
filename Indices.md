@@ -4,6 +4,8 @@ Indexing is a powerful tool within your Oxen toolchain. Oxen combines the concep
 
 If you have not read about Oxen DataFrames, it would be good to read up on [Data Point Level Version Control](DataPointLevelVersionControl.md) as well as [DataFrames](DataFrames.md) before continuing.
 
+⛔️ 👷 Caution, these features are still in development.
+
 # Schemas
 
 When you add and commit a DataFrame to Oxen, it will automatically track the schema associated with the file.
