@@ -181,8 +181,8 @@ async fn main() {
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::new("sort_by")
-                        .long("sort_by")
+                    Arg::new("sort")
+                        .long("sort")
                         .help("Sort the output by a column name. Is run at the end of all the other transforms.")
                         .takes_value(true),
                 )
@@ -534,7 +534,7 @@ async fn main() {
                     vstack,
                     add_col: sub_matches.value_of("add_col").map(String::from),
                     add_row: sub_matches.value_of("add_row").map(String::from),
-                    sort_by: sub_matches.value_of("sort_by").map(String::from),
+                    sort_by: sub_matches.value_of("sort").map(String::from),
                     should_randomize: sub_matches.is_present("randomize"),
                     should_reverse: sub_matches.is_present("reverse"),
                 };
