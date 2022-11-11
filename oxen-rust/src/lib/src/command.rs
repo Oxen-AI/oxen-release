@@ -308,7 +308,12 @@ pub fn schema_query_index(
     if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
         if let Some(field) = schema.get_field(field) {
             let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
-            indexer.query(field, query)
+            if let Some(result) = indexer.query(field, query)? {
+                Ok(result)
+            } else {
+                let err = format!("Val does not exist {}", query);
+                Err(OxenError::basic_str(err))
+            }
         } else {
             Err(OxenError::schema_does_not_have_field(field))
         }
@@ -617,7 +622,7 @@ pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resul
 pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let merger = MergeConflictReader::new(repo)?;
     let conflicts = merger.list_conflicts()?;
-
+    log::debug!("checkout_combine checking path {:?} -> [{}] conflicts", path.as_ref(), conflicts.len());
     // find the path that matches in the conflict, throw error if !found
     if let Some(conflict) = conflicts
         .iter()

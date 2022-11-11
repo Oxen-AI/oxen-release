@@ -1,7 +1,7 @@
 use polars::prelude::{col, AnyValue, DataFrame};
 
 use crate::{
-    constants::{ROW_HASH_COL_NAME, ROW_NUM_COL_NAME},
+    constants::{ROW_NUM_COL_NAME},
     df::tabular,
     error::OxenError,
     index::SchemaFieldValIndex,
@@ -38,10 +38,10 @@ impl SchemaIndexer {
             return Err(OxenError::schema_does_not_have_field(&field.name));
         }
 
-        // Aggregate up all values on that field
+        // Aggregate up all _row_num indices on that field
         let agg_results = content_df
             .groupby([col(&field.name)])
-            .agg([col(ROW_NUM_COL_NAME), col(ROW_HASH_COL_NAME)])
+            .agg([col(ROW_NUM_COL_NAME)])
             .collect()
             .unwrap();
 
@@ -60,46 +60,36 @@ impl SchemaIndexer {
         //       2: [5, 6]
         let agg_row_indices = agg_results.column(ROW_NUM_COL_NAME).unwrap();
 
-        // agg_row_hashes are lists of the grouped row hashes, each is same len as the row_indices
-        // ex) group_by(label)
-        //       0: [87ceb166ad0313730525609380942fd1, a72d61871a0647761adfff20b24ee97b, 7ed97d42afb074edf98d459d8d618606]
-        //       1: [306a4bff4f48082376bd17b411b7f667, ed60d2c75cf8945f079bb3856d22dcdf]
-        //       2: [7297adf68c254b0345307a83d18370ef, 47ceb166ad0313730525609380942fd1]
-        let agg_row_hashes = agg_results.column(ROW_HASH_COL_NAME).unwrap();
+        // One index per value that was aggregated
+        // ie: dog, cat, person
+        let val_index = SchemaFieldValIndex::new(
+            &self.repository,
+            &self.commit,
+            &self.schema,
+            field
+        )?;
 
         for (i, val) in agg_values.iter().enumerate() {
             let buffer = tabular::any_val_to_bytes(&val);
             let val_hash = util::hasher::hash_buffer(&buffer);
 
-            // One index per value that was aggregated
-            // ie: dog, cat, person
-            let val_index = SchemaFieldValIndex::new(
-                &self.repository,
-                &self.commit,
-                &self.schema,
-                field,
-                &val_hash,
-            )?;
-
             // Loop over each set of indices and hashes in Series and add them to index
-            match (agg_row_hashes.get(i), agg_row_indices.get(i)) {
-                (AnyValue::List(hashes), AnyValue::List(indices)) => {
-                    let hashes = hashes.utf8().unwrap();
-                    let indices = indices.u32().unwrap();
+            match agg_row_indices.get(i) {
+                AnyValue::List(indices) => {
 
-                    let _result: Vec<Result<(), OxenError>> = hashes
+                    let indices = indices.u32().unwrap();
+                    let result: Vec<u32> = indices
                         .into_iter()
-                        .zip(indices.into_iter())
-                        .map(|(opt_hash, opt_index)| match (opt_hash, opt_index) {
-                            (Some(hash), Some(index)) => {
-                                // Add to index
-                                val_index.insert_index(hash, index)
+                        .map(|opt_index| match opt_index {
+                            Some(index) => {
+                                index
                             }
                             _ => {
-                                panic!("Invalid types zipped...");
+                                panic!("Invalid value zipped...");
                             }
                         })
                         .collect();
+                    val_index.insert_index(val_hash, result)?;
                 }
                 _ => {
                     panic!("Aggregation must be list...");
@@ -119,7 +109,7 @@ impl SchemaIndexer {
         &self,
         field: &schema::Field,
         query: S,
-    ) -> Result<DataFrame, OxenError> {
+    ) -> Result<Option<DataFrame>, OxenError> {
         // Get the CADF
         let df_path = util::fs::schema_df_path(&self.repository, &self.schema);
         let content_df = tabular::scan_df(&df_path)?;
@@ -131,13 +121,14 @@ impl SchemaIndexer {
             &self.commit,
             &self.schema,
             field,
-            &query_hash,
         )?;
 
-        let indices = val_index.list_indices()?;
-        let df = tabular::take(content_df, indices)?;
-
-        Ok(df)
+        if let Some(indices) = val_index.list_indices(&query_hash)? {
+            let df = tabular::take(content_df, indices)?;
+            Ok(Some(df))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -161,7 +152,7 @@ mod tests {
             let indexer = SchemaIndexer::new(&repo, last_commit, schema);
             indexer.create_index(label_field)?;
 
-            let results = indexer.query(label_field, "cat")?;
+            let results = indexer.query(label_field, "cat")?.unwrap();
             println!("Got index query results: {}", results);
             assert_eq!(results.width(), 8);
             assert_eq!(results.height(), 2);

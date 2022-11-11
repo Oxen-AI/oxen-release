@@ -20,11 +20,10 @@ impl SchemaFieldValIndex {
         repo: &LocalRepository,
         commit: &Commit,
         schema: &Schema,
-        field: &Field,
-        val_hash: &str,
+        field: &Field
     ) -> PathBuf {
         let key_hash = util::hasher::hash_str(&field.name);
-        // .oxen/history/COMMIT_ID/indices/SCHEMA_HASH/fields/FIELD_NAME_HASH/FIELD_VAL_HASH
+        // .oxen/history/COMMIT_ID/indices/SCHEMA_HASH/fields/FIELD_NAME_HASH
         util::fs::oxen_hidden_dir(&repo.path)
             .join(HISTORY_DIR)
             .join(&commit.id)
@@ -32,17 +31,15 @@ impl SchemaFieldValIndex {
             .join(&schema.hash)
             .join(FIELDS_DIR)
             .join(key_hash)
-            .join(val_hash)
     }
 
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
         schema: &Schema,
-        field: &Field,
-        val_hash: &str,
+        field: &Field
     ) -> Result<SchemaFieldValIndex, OxenError> {
-        let db_path = SchemaFieldValIndex::db_dir(repository, commit, schema, field, val_hash);
+        let db_path = SchemaFieldValIndex::db_dir(repository, commit, schema, field);
         log::debug!("SchemaFieldValIndex db {:?}", db_path);
         let opts = db::opts::default();
         if !db_path.exists() {
@@ -54,12 +51,12 @@ impl SchemaFieldValIndex {
         })
     }
 
-    pub fn insert_index<S: AsRef<str>>(&self, row_hash: S, index: u32) -> Result<(), OxenError> {
-        str_val_db::put(&self.field_indices_db, row_hash, &index)
+    pub fn insert_index<S: AsRef<str>>(&self, val: S, indices: Vec<u32>) -> Result<(), OxenError> {
+        str_val_db::put(&self.field_indices_db, val, &indices)
     }
 
-    pub fn list_indices(&self) -> Result<Vec<u32>, OxenError> {
-        str_val_db::list_vals(&self.field_indices_db)
+    pub fn list_indices<S: AsRef<str>>(&self, val: S) -> Result<Option<Vec<u32>>, OxenError> {
+        str_val_db::get(&self.field_indices_db, val)
     }
 }
 
@@ -69,7 +66,7 @@ mod tests {
     use crate::index::SchemaFieldValIndex;
     use crate::model::schema;
     use crate::test;
-    use crate::{command, util};
+    use crate::command;
 
     #[test]
     fn test_list_empty_indices() -> Result<(), OxenError> {
@@ -84,14 +81,11 @@ mod tests {
                 name: String::from("label"),
                 dtype: String::from("str"),
             };
-            let val = "dog";
-            // technically don't have to do this for test...but it's what we do irl
-            let val_hash = util::hasher::hash_str(val);
 
-            let reader = SchemaFieldValIndex::new(&repo, last_commit, schema, &field, &val_hash)?;
-            let indices = reader.list_indices()?;
+            let reader = SchemaFieldValIndex::new(&repo, last_commit, schema, &field)?;
+            let indices = reader.list_indices("cat")?;
 
-            assert_eq!(indices.len(), 0);
+            assert!(indices.is_none());
 
             Ok(())
         })
