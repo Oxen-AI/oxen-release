@@ -1,8 +1,8 @@
-use crate::constants::{HISTORY_DIR, FIELDS_DIR, INDICES_DIR};
+use crate::constants::{HISTORY_DIR, INDICES_DIR};
 use crate::db;
 use crate::db::str_json_db;
 use crate::error::OxenError;
-use crate::model::{Schema, Commit, schema};
+use crate::model::{schema, Commit, Schema};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -16,8 +16,11 @@ pub struct SchemaIndexReader {
 }
 
 impl SchemaIndexReader {
-    
-    pub fn field_indices_db_dir(repo: &LocalRepository, commit: &Commit, schema: &Schema) -> PathBuf {
+    pub fn field_indices_db_dir(
+        repo: &LocalRepository,
+        commit: &Commit,
+        schema: &Schema,
+    ) -> PathBuf {
         // .oxen/history/COMMIT_ID/indices/SCHEMA_HASH/indices
         util::fs::oxen_hidden_dir(&repo.path)
             .join(HISTORY_DIR)
@@ -27,8 +30,13 @@ impl SchemaIndexReader {
             .join(INDICES_DIR)
     }
 
-    pub fn new(repository: &LocalRepository, commit: &Commit, schema: &Schema) -> Result<SchemaIndexReader, OxenError> {
-        let field_indices_db_path = SchemaIndexReader::field_indices_db_dir(repository, commit, schema);
+    pub fn new(
+        repository: &LocalRepository,
+        commit: &Commit,
+        schema: &Schema,
+    ) -> Result<SchemaIndexReader, OxenError> {
+        let field_indices_db_path =
+            SchemaIndexReader::field_indices_db_dir(repository, commit, schema);
         log::debug!("SchemaIndexReader db {:?}", field_indices_db_path);
         let opts = db::opts::default();
         if !field_indices_db_path.exists() {
@@ -39,7 +47,11 @@ impl SchemaIndexReader {
         }
 
         Ok(SchemaIndexReader {
-            field_indices_db: DBWithThreadMode::open_for_read_only(&opts, &field_indices_db_path, false)?,
+            field_indices_db: DBWithThreadMode::open_for_read_only(
+                &opts,
+                &field_indices_db_path,
+                false,
+            )?,
         })
     }
 
@@ -50,7 +62,10 @@ impl SchemaIndexReader {
     }
 
     /// Get a field index by id
-    pub fn get_field_index_by_name<S: AsRef<str>>(&self, name: S) -> Result<Option<schema::Field>, OxenError> {
+    pub fn get_field_index_by_name<S: AsRef<str>>(
+        &self,
+        name: S,
+    ) -> Result<Option<schema::Field>, OxenError> {
         let hashed_name = util::hasher::hash_str(name);
         str_json_db::get(&self.field_indices_db, hashed_name)
     }
@@ -76,7 +91,7 @@ mod tests {
             let schemas = command::schema_list(&repo, Some(&last_commit.id))?;
             let schema = schemas.first().unwrap();
 
-            let index_reader = SchemaIndexReader::new(&repo, &last_commit, &schema)?;
+            let index_reader = SchemaIndexReader::new(&repo, last_commit, schema)?;
             let indices = index_reader.list_field_indices()?;
 
             assert_eq!(indices.len(), 0);

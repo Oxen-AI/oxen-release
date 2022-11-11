@@ -1,7 +1,13 @@
+use polars::prelude::{col, AnyValue, DataFrame};
 
-use polars::prelude::{DataFrame, AnyValue, col};
-
-use crate::{model::{LocalRepository, Schema, schema, Commit}, error::OxenError, util, df::tabular, constants::{ROW_NUM_COL_NAME, ROW_HASH_COL_NAME}, index::SchemaFieldValIndex};
+use crate::{
+    constants::{ROW_HASH_COL_NAME, ROW_NUM_COL_NAME},
+    df::tabular,
+    error::OxenError,
+    index::SchemaFieldValIndex,
+    model::{schema, Commit, LocalRepository, Schema},
+    util,
+};
 
 use super::SchemaIndexWriter;
 
@@ -64,7 +70,7 @@ impl SchemaIndexer {
         for (i, val) in agg_values.iter().enumerate() {
             let buffer = tabular::any_val_to_bytes(&val);
             let val_hash = util::hasher::hash_buffer(&buffer);
-            
+
             // One index per value that was aggregated
             // ie: dog, cat, person
             let val_index = SchemaFieldValIndex::new(
@@ -72,7 +78,7 @@ impl SchemaIndexer {
                 &self.commit,
                 &self.schema,
                 field,
-                &val_hash
+                &val_hash,
             )?;
 
             // Loop over each set of indices and hashes in Series and add them to index
@@ -88,10 +94,10 @@ impl SchemaIndexer {
                             (Some(hash), Some(index)) => {
                                 // Add to index
                                 val_index.insert_index(hash, index)
-                            },
+                            }
                             _ => {
                                 panic!("Invalid types zipped...");
-                            },
+                            }
                         })
                         .collect();
                 }
@@ -109,19 +115,23 @@ impl SchemaIndexer {
     }
 
     /// Query the index on a field and value
-    pub fn query<S: AsRef<str>>(&self, field: &schema::Field, query: S) -> Result<DataFrame, OxenError> {
+    pub fn query<S: AsRef<str>>(
+        &self,
+        field: &schema::Field,
+        query: S,
+    ) -> Result<DataFrame, OxenError> {
         // Get the CADF
         let df_path = util::fs::schema_df_path(&self.repository, &self.schema);
         let content_df = tabular::scan_df(&df_path)?;
 
         let query_hash = util::hasher::hash_str(query);
-        
+
         let val_index = SchemaFieldValIndex::new(
             &self.repository,
             &self.commit,
             &self.schema,
             field,
-            &query_hash
+            &query_hash,
         )?;
 
         let indices = val_index.list_indices()?;
@@ -130,7 +140,6 @@ impl SchemaIndexer {
         Ok(df)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -147,9 +156,9 @@ mod tests {
             let schemas = command::schema_list(&repo, Some(&last_commit.id))?;
             let schema = schemas.first().unwrap();
 
-            let label_field = schema.fields.iter().find(|f| {f.name == "label"}).unwrap();
+            let label_field = schema.fields.iter().find(|f| f.name == "label").unwrap();
 
-            let indexer = SchemaIndexer::new(&repo, &last_commit, &schema);
+            let indexer = SchemaIndexer::new(&repo, last_commit, schema);
             indexer.create_index(label_field)?;
 
             let results = indexer.query(label_field, "cat")?;

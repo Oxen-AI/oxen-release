@@ -42,7 +42,14 @@ impl Schema {
     }
 
     pub fn has_field(&self, field: &Field) -> bool {
-        self.fields.iter().any(|f| f.name == field.name && f.dtype == field.dtype)
+        self.fields
+            .iter()
+            .any(|f| f.name == field.name && f.dtype == field.dtype)
+    }
+
+    pub fn get_field<S: AsRef<str>>(&self, name: S) -> Option<&Field> {
+        let name = name.as_ref();
+        self.fields.iter().find(|f| f.name == name)
     }
 
     fn hash_fields(fields: &Vec<Field>) -> String {

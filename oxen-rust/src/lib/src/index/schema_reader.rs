@@ -1,4 +1,4 @@
-use crate::constants::{HISTORY_DIR, SCHEMAS_DIR, FILES_DIR};
+use crate::constants::{FILES_DIR, HISTORY_DIR, SCHEMAS_DIR};
 use crate::db;
 use crate::db::{str_json_db, str_val_db};
 use crate::error::OxenError;
@@ -24,7 +24,6 @@ impl SchemaReader {
             .join(commit_id)
             .join(SCHEMAS_DIR) // double schemas/schemas is intentional because we have multiple dirs at this level
             .join(SCHEMAS_DIR)
-            
     }
 
     pub fn schema_files_db_dir(repo: &LocalRepository, commit_id: &str) -> PathBuf {
