@@ -1,4 +1,4 @@
-use crate::constants::{HISTORY_DIR, SCHEMAS_DIR, VERSIONS_DIR};
+use crate::constants::{HISTORY_DIR, SCHEMAS_DIR, FILES_DIR};
 use crate::db;
 use crate::db::{str_json_db, str_val_db};
 use crate::error::OxenError;
@@ -17,25 +17,27 @@ pub struct SchemaReader {
 }
 
 impl SchemaReader {
-    pub fn schema_db_dir(repo: &LocalRepository) -> PathBuf {
-        // .oxen/versions/schemas/schemas
+    pub fn schemas_db_dir(repo: &LocalRepository, commit_id: &str) -> PathBuf {
+        // .oxen/history/COMMIT_ID/schemas/schemas
         util::fs::oxen_hidden_dir(&repo.path)
-            .join(VERSIONS_DIR)
+            .join(HISTORY_DIR)
+            .join(commit_id)
             .join(SCHEMAS_DIR) // double schemas/schemas is intentional because we have multiple dirs at this level
             .join(SCHEMAS_DIR)
+            
     }
 
     pub fn schema_files_db_dir(repo: &LocalRepository, commit_id: &str) -> PathBuf {
-        // .oxen/history/COMMIT_ID/schemas
+        // .oxen/history/COMMIT_ID/schemas/files
         util::fs::oxen_hidden_dir(&repo.path)
             .join(HISTORY_DIR)
             .join(commit_id)
             .join(SCHEMAS_DIR)
+            .join(FILES_DIR)
     }
 
-    /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaReader, OxenError> {
-        let schema_db_path = SchemaReader::schema_db_dir(repository);
+        let schema_db_path = SchemaReader::schemas_db_dir(repository, commit_id);
         log::debug!("SchemaReader db {:?}", schema_db_path);
         let schema_files_db_path = SchemaReader::schema_files_db_dir(repository, commit_id);
         log::debug!("SchemaReader files db {:?}", schema_files_db_path);

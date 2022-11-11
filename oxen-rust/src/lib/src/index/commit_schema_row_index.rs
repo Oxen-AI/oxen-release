@@ -404,47 +404,6 @@ impl CommitSchemaRowIndex {
         })
     }
 
-    // pub fn diff_commits(
-    //     repo: &LocalRepository,
-    //     schema: &Schema,
-    //     current_commit: &Commit,
-    //     other_commit: &Commit,
-    //     path: &Path
-    // ) -> Result<DataFrameDiff, OxenError> {
-    //     let current = CommitSchemaRowIndex::new(repo, current_commit, schema, path)?;
-    //     let other = CommitSchemaRowIndex::new(repo, other_commit, schema, path)?;
-
-    //     let current_hash_indices = current.list_file_indices_hash_map()?;
-    //     let other_hash_indices = other.list_file_indices_hash_map()?;
-
-    //     // Added is all the row hashes that are in current that are not in other
-    //     let added_indices: Vec<u32> = current_hash_indices.iter().filter(|(hash, _indices)| {
-    //         !other_hash_indices.contains_key(*hash)
-    //     })
-    //     .map(|(_hash, index_pair)| index_pair.1)
-    //     .collect();
-
-    //     // Removed is all the row hashes that are in other that are not in current
-    //     let removed_indices: Vec<u32> = other_hash_indices
-    //         .iter()
-    //         .filter(|(hash, _indices)| {!current_hash_indices.contains_key(*hash)})
-    //         .map(|(_hash, index_pair)| index_pair.1)
-    //         .collect();
-
-    //     let content_df = tabular::scan_df(path)?;
-    //     let added_df = tabular::take(content_df, added_indices)?;
-
-    //     let content_df = tabular::scan_df(path)?;
-    //     let removed_df = tabular::take(content_df, removed_indices)?;
-
-    //     Ok(DataFrameDiff {
-    //         added_rows: if added_df.height() > 0 { Some(added_df) }  else { None },
-    //         removed_rows: if removed_df.height() > 0 { Some(removed_df) }  else { None },
-    //         added_cols: None,
-    //         removed_cols: None,
-    //     })
-    // }
-
     pub fn df_from_entry(
         repo: &LocalRepository,
         entry: &CommitEntry,
@@ -570,10 +529,10 @@ mod tests {
             test::write_txt_file_to_path(
                 &my_bbox_path,
                 r#"
-file,min_x,min_y,width,height
-train/dog_1.jpg,101.5,32.0,385,330
-train/dog_2.jpg,7.0,29.5,246,247
-train/new.jpg,1.0,1.5,100,20
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/new.jpg,new,1.0,1.5,100,20
 "#,
             )?;
 
@@ -613,7 +572,7 @@ train/new.jpg,1.0,1.5,100,20
                 .join("train")
                 .join("bounding_box.csv");
             let bbox_path = repo.path.join(&bbox_file);
-            test::append_line_txt_file(bbox_path, "train/cat_3.jpg,41.0,31.5,410,427")?;
+            test::append_line_txt_file(bbox_path, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
 
             let schemas = command::schema_list(&repo, None)?;
             let schema = schemas.first().unwrap();
@@ -627,7 +586,7 @@ train/new.jpg,1.0,1.5,100,20
             // Make sure they are the correct shape
             let added_row = diff.added_rows.unwrap();
             assert_eq!(added_row.height(), 1);
-            assert_eq!(added_row.width(), 5);
+            assert_eq!(added_row.width(), 6);
 
             Ok(())
         })
@@ -661,7 +620,7 @@ train/new.jpg,1.0,1.5,100,20
             assert!(diff.removed_cols.is_none());
             // Make sure they are the correct shape
             let added = diff.added_cols.unwrap();
-            assert_eq!(added.height(), 5);
+            assert_eq!(added.height(), 6);
             assert_eq!(added.width(), 1);
 
             Ok(())
@@ -682,10 +641,10 @@ train/new.jpg,1.0,1.5,100,20
             let bbox_file = test::modify_txt_file(
                 bbox_file,
                 r"
-file,min_x,min_y,width,height
-train/dog_1.jpg,101.5,32.0,385,330
-train/dog_2.jpg,7.0,29.5,246,247
-train/cat_2.jpg,30.5,44.0,333,396
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/cat_2.jpg,cat,30.5,44.0,333,396
 ",
             )?;
 
@@ -704,8 +663,8 @@ train/cat_2.jpg,30.5,44.0,333,396
             assert!(diff.removed_cols.is_none());
 
             // Make sure we found the multiple removed rows
-            assert_eq!(removed_row.height(), 2);
-            assert_eq!(removed_row.width(), 5);
+            assert_eq!(removed_row.height(), 3);
+            assert_eq!(removed_row.width(), 6);
             Ok(())
         })
     }
@@ -751,8 +710,8 @@ train/cat_2.jpg,30.5,44.0,333,396
             assert!(diff.removed_cols.is_some());
             // Make sure they are the correct shape
             let removed = diff.removed_cols.unwrap();
-            assert_eq!(removed.height(), 5);
-            assert_eq!(removed.width(), 2);
+            assert_eq!(removed.height(), 6);
+            assert_eq!(removed.width(), 3);
 
             Ok(())
         })

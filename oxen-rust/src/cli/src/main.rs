@@ -217,6 +217,18 @@ async fn main() {
                         .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
                         .arg(Arg::new("NAME").help("Name of the schema."))
                 )
+                .subcommand(
+                    Command::new("create_index")
+                        .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to create the index for."))
+                        .arg(
+                            Arg::new("field")
+                                .short('f')
+                                .long("field")
+                                .help("The field or column name that you want to create the index for.")
+                                .takes_value(true)
+                                .required(true),
+                        )
+                )
         )
         .subcommand(
             Command::new("add")
@@ -537,6 +549,16 @@ async fn main() {
                         let hash = sub_matches.value_of("HASH").expect("required");
                         let val = sub_matches.value_of("NAME").expect("required");
                         match dispatch::schema_name(hash, val) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("create_index", sub_matches) => {
+                        let schema = sub_matches.value_of("SCHEMA").expect("required");
+                        let field = sub_matches.value_of("field").expect("required");
+                        match dispatch::schema_create_index(schema, field) {
                             Ok(_) => {}
                             Err(err) => {
                                 eprintln!("{}", err)

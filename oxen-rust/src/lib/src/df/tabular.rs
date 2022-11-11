@@ -305,16 +305,25 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         df = take(full_df.lazy(), rand_indices)?.lazy();
     }
 
+    if let Some(sort_by) = &opts.sort_by {
+        df = df.sort(sort_by, SortOptions::default());
+    }
+
+    if opts.should_reverse {
+        df = df.reverse();
+    }
+
+    // These ops should be the last ops since they depends on order
     if let Some((start, end)) = opts.slice_indices() {
         if start >= end {
             panic!("Slice error: Start must be greater than end.");
         }
         let len = end - start;
-        return Ok(df.slice(start, len as u32).collect().expect(READ_ERROR));
+        df = df.slice(start, len as u32);
     }
 
     if let Some(indices) = opts.take_indices() {
-        return take(df, indices);
+        df = take(df, indices).unwrap().lazy();
     }
 
     if let Some(item) = opts.column_at() {
@@ -323,14 +332,6 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         let s1 = Series::new("", [value]);
         let df = DataFrame::new(vec![s1]).unwrap();
         return Ok(df);
-    }
-
-    if let Some(sort_by) = &opts.sort_by {
-        df = df.sort(sort_by, SortOptions::default());
-    }
-
-    if opts.should_reverse {
-        return Ok(df.reverse().collect().expect(READ_ERROR));
     }
 
     Ok(df.collect().expect(READ_ERROR))
@@ -346,6 +347,32 @@ pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame
     Ok(df
         .with_row_count(constants::ROW_NUM_COL_NAME, Some(start))
         .expect(READ_ERROR))
+}
+
+pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
+    match value {
+        AnyValue::Null => Vec::<u8>::new(),
+        AnyValue::Int64(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Int32(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Int8(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+        // TODO: handle rows with lists...
+        // AnyValue::List(val) => {
+        //     match val.dtype() {
+        //         DataType::Int32 => {},
+        //         DataType::Float32 => {},
+        //         DataType::Utf8 => {},
+        //         DataType::UInt8 => {},
+        //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
+        //     }
+        // },
+        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => {
+            val.to_le_bytes().to_vec()
+        }
+        _ => Vec::<u8>::new(),
+    }
 }
 
 pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
@@ -380,28 +407,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                                 let mut buffer: Vec<u8> = vec![];
                                 for elem in row.iter() {
                                     // log::debug!("Got elem[{}] {}", i, elem);
-                                    let mut elem: Vec<u8> = match elem {
-                                        AnyValue::Null => Vec::<u8>::new(),
-                                        AnyValue::Int64(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Int32(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Int8(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Utf8(val) => val.as_bytes().to_vec(),
-                                        // AnyValue::List(val) => {
-                                        //     match val.dtype() {
-                                        //         DataType::Int32 => {},
-                                        //         DataType::Float32 => {},
-                                        //         DataType::Utf8 => {},
-                                        //         DataType::UInt8 => {},
-                                        //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
-                                        //     }
-                                        // },
-                                        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => {
-                                            val.to_le_bytes().to_vec()
-                                        }
-                                        _ => Vec::<u8>::new(),
-                                    };
+                                    let mut elem: Vec<u8> = any_val_to_bytes(elem);
                                     // println!("Elem[{}] bytes {:?}", i, elem);
                                     buffer.append(&mut elem);
                                 }
