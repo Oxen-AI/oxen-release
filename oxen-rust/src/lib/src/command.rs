@@ -224,7 +224,7 @@ pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
     tabular::schema_to_string(input)
 }
 
-/// Read the saved off schemas for a commit id
+/// List the saved off schemas for a commit id
 pub fn schema_list(
     repo: &LocalRepository,
     commit_id: Option<&str>,
@@ -246,12 +246,12 @@ pub fn schema_list(
 pub fn schema_show(
     repo: &LocalRepository,
     commit_id: Option<&str>,
-    name_or_hash: &str,
+    schema_ref: &str,
 ) -> Result<Option<Schema>, OxenError> {
     // The list of schemas should not be too long, so just filter right now
     let list: Vec<Schema> = schema_list(repo, commit_id)?
         .into_iter()
-        .filter(|s| s.name == Some(String::from(name_or_hash)) || s.hash == *name_or_hash)
+        .filter(|s| s.name == Some(String::from(schema_ref)) || s.hash == *schema_ref)
         .collect();
     if !list.is_empty() {
         Ok(Some(list.first().unwrap().clone()))
@@ -262,17 +262,46 @@ pub fn schema_show(
 
 pub fn schema_name(
     repo: &LocalRepository,
-    hash: &str,
+    schema_ref: &str,
     val: &str,
 ) -> Result<Option<Schema>, OxenError> {
     let head_commit = head_commit(repo)?;
-    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), hash)? {
+    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
         let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
         schema.name = Some(String::from(val));
         let schema = schema_writer.update_schema(&schema)?;
         Ok(Some(schema))
     } else {
         Ok(None)
+    }
+}
+
+pub fn schema_create_index(
+    repo: &LocalRepository,
+    schema_ref: &str,
+    field: &str,
+) -> Result<(), OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+        
+
+        Ok(())
+    } else {
+        Err(OxenError::schema_does_not_exist(schema_ref))
+    }
+}
+
+pub fn schema_list_indices(
+    repo: &LocalRepository,
+    schema_ref: &str,
+) -> Result<(), OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+        
+        
+        Ok(())
+    } else {
+        Err(OxenError::schema_does_not_exist(schema_ref))
     }
 }
 

@@ -545,7 +545,7 @@ mod tests {
 
             // Add a row to the data (should already have been committed once since run_training_data_repo_test_fully_committed)
             let mut opts = DFOpts::empty();
-            opts.add_row = Some(String::from("train/new.jpg,1.0,2.0,3,4"));
+            opts.add_row = Some(String::from("train/new.jpg,new,1.0,2.0,3,4"));
             opts.output = Some(PathBuf::from(&bbox_path));
             command::df(&bbox_path, opts)?;
 
@@ -584,9 +584,9 @@ mod tests {
             test::write_txt_file_to_path(
                 &my_bbox_path,
                 r#"
-file,min_x,min_y,width,height
-train/new.jpg,1.0,2.0,3,4
-train/new.jpg,5.0,6.0,7,8
+file,label,min_x,min_y,width,height
+train/new.jpg,new,1.0,2.0,3,4
+train/new.jpg,new,5.0,6.0,7,8
 "#,
             )?;
 
@@ -626,9 +626,9 @@ train/new.jpg,5.0,6.0,7,8
             test::write_txt_file_to_path(
                 &my_bbox_path,
                 r#"
-file,min_x,min_y,width,height
-train/dog_1.jpg,101.5,32.0,385,330
-train/dog_2.jpg,7.0,29.5,246,247
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
 "#,
             )?;
 
@@ -671,9 +671,9 @@ train/dog_2.jpg,7.0,29.5,246,247
                 test::write_txt_file_to_path(
                     &my_bbox_path,
                     r#"
-file,min_x,min_y,width,height
-train/dog_1.jpg,101.5,32.0,385,330
-train/dog_2.jpg,7.0,29.5,246,247
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
 "#,
                 )?;
 

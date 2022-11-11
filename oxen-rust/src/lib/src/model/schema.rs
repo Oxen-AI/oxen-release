@@ -41,6 +41,10 @@ impl Schema {
         }
     }
 
+    pub fn has_field(&self, field: &Field) -> bool {
+        self.fields.iter().any(|f| f.name == field.name && f.dtype == field.dtype)
+    }
+
     fn hash_fields(fields: &Vec<Field>) -> String {
         let mut hash_buffers: Vec<String> = vec![];
         for f in fields {

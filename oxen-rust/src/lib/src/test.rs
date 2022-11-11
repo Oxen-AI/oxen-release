@@ -603,12 +603,13 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     )?;
     write_txt_file_to_path(
         train_annotations_dir.join("bounding_box.csv"),
-        r#"file,min_x,min_y,width,height
-train/dog_1.jpg,101.5,32.0,385,330
-train/dog_2.jpg,7.0,29.5,246,247
-train/dog_3.jpg,19.0,63.5,376,421
-train/cat_1.jpg,57.0,35.5,304,427
-train/cat_2.jpg,30.5,44.0,333,396
+        r#"file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_1.jpg,dog,102.5,31.0,386,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/dog_3.jpg,dog,19.0,63.5,376,421
+train/cat_1.jpg,cat,57.0,35.5,304,427
+train/cat_2.jpg,cat,30.5,44.0,333,396
 "#,
     )?;
     write_txt_file_to_path(

@@ -93,10 +93,6 @@ Start with
                     contents.jpg
 
             schemas/
-                schemas/
-                    ROCKS_DB
-                        schema_hash => { schema obj }
-
                 rows/ (global rocks db for row hash to index)
                     ROCKSDB
                         row_hash => {row_num_arrow}
@@ -125,9 +121,13 @@ Start with
 
         .oxen/history/
             commit_id/ (has 4 top level objects "files", "dirs", "schemas", "indexes")
-                schemas/ (quickly look up schema for a file in a commit)
-                    ROCKS_DB
-                        file_name -> { schema_hash }
+                schemas/
+                    schemas/ (list all the schemas in a commit)
+                        ROCKS_DB
+                            schema_hash => { schema_obj }
+                    files/ (quickly look up schema for a file in a commit)
+                        ROCKS_DB
+                            file_name -> { schema_hash }
                 indices/
                     <schema_hash>/
                         files/ (we need a mapping from row hash to the original arrow files)
@@ -135,14 +135,17 @@ Start with
                                 ROCKSDB
                                     row_hash => {row_num_og, row_num_arrow}
 
+                        indices/ (keep track of column names we have hashed)
+                            ROCKSDB
+                                field.col_name.hash -> field.col_name
+
                         fields/ ("file" or "label" or "whatever aggregate query you want")
-                            field.name/
-                                index_val_hash/ ("path/to/file.jpg" or "person")
-                                    <file_name_hash> (same structure as the files dir above, can iterate over files to get full index)
-                                        ROCKSDB
-                                            row_hash => { (now we can diff between commits, based on the query)
-                                                _row_num, (in .arrow file)
-                                            }
+                            field.col_name.hash/
+                                field.value.hash/ ("path/to/file.jpg" or "person")
+                                    ROCKSDB
+                                        row_hash => { (now we can diff between commits, based on the query)
+                                            _row_num, (in .arrow file)
+                                        }
                 dirs/
                 files/
                     path/
