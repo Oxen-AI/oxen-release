@@ -368,9 +368,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
         //     }
         // },
-        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => {
-            val.to_le_bytes().to_vec()
-        }
+        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => val.to_le_bytes().to_vec(),
         _ => Vec::<u8>::new(),
     }
 }

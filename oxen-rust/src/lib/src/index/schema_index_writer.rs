@@ -1,12 +1,11 @@
-
 use crate::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::schema::Field;
-use crate::model::{Schema, Commit};
+use crate::model::{Commit, Schema};
 use crate::util;
 
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 use crate::model::LocalRepository;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use super::SchemaIndexReader;
 
@@ -15,7 +14,11 @@ pub struct SchemaIndexWriter {
 }
 
 impl SchemaIndexWriter {
-    pub fn new(repository: &LocalRepository, commit: &Commit, schema: &Schema) -> Result<SchemaIndexWriter, OxenError> {
+    pub fn new(
+        repository: &LocalRepository,
+        commit: &Commit,
+        schema: &Schema,
+    ) -> Result<SchemaIndexWriter, OxenError> {
         let db_path = SchemaIndexReader::field_indices_db_dir(repository, commit, schema);
 
         let opts = db::opts::default();
@@ -43,7 +46,7 @@ impl SchemaIndexWriter {
 mod tests {
     use crate::command;
     use crate::error::OxenError;
-    use crate::index::{SchemaIndexWriter, SchemaIndexReader};
+    use crate::index::{SchemaIndexReader, SchemaIndexWriter};
     use crate::model::schema;
     use crate::test;
 
@@ -60,11 +63,11 @@ mod tests {
                 dtype: String::from("str"),
             };
             {
-                let writer = SchemaIndexWriter::new(&repo, &last_commit, &schema)?;
+                let writer = SchemaIndexWriter::new(&repo, last_commit, schema)?;
                 writer.create_field_index(&field)?;
             }
 
-            let reader = SchemaIndexReader::new(&repo, &last_commit, &schema)?;
+            let reader = SchemaIndexReader::new(&repo, last_commit, schema)?;
             let schemas = reader.list_field_indices()?;
             assert_eq!(schemas.len(), 1);
 

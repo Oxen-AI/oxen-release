@@ -1,8 +1,8 @@
-use crate::constants::{HISTORY_DIR, FIELDS_DIR, INDICES_DIR};
+use crate::constants::{FIELDS_DIR, HISTORY_DIR, INDICES_DIR};
 use crate::db;
 use crate::db::str_val_db;
 use crate::error::OxenError;
-use crate::model::{Schema, Commit, schema::Field};
+use crate::model::{schema::Field, Commit, Schema};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -21,7 +21,7 @@ impl SchemaFieldValIndex {
         commit: &Commit,
         schema: &Schema,
         field: &Field,
-        val_hash: &str
+        val_hash: &str,
     ) -> PathBuf {
         let key_hash = util::hasher::hash_str(&field.name);
         // .oxen/history/COMMIT_ID/indices/SCHEMA_HASH/fields/FIELD_NAME_HASH/FIELD_VAL_HASH
@@ -40,7 +40,7 @@ impl SchemaFieldValIndex {
         commit: &Commit,
         schema: &Schema,
         field: &Field,
-        val_hash: &str
+        val_hash: &str,
     ) -> Result<SchemaFieldValIndex, OxenError> {
         let db_path = SchemaFieldValIndex::db_dir(repository, commit, schema, field, val_hash);
         log::debug!("SchemaFieldValIndex db {:?}", db_path);
@@ -65,11 +65,11 @@ impl SchemaFieldValIndex {
 
 #[cfg(test)]
 mod tests {
-    use crate::{command, util};
     use crate::error::OxenError;
     use crate::index::SchemaFieldValIndex;
     use crate::model::schema;
     use crate::test;
+    use crate::{command, util};
 
     #[test]
     fn test_list_empty_indices() -> Result<(), OxenError> {
@@ -88,7 +88,7 @@ mod tests {
             // technically don't have to do this for test...but it's what we do irl
             let val_hash = util::hasher::hash_str(val);
 
-            let reader = SchemaFieldValIndex::new(&repo, &last_commit, &schema, &field, &val_hash)?;
+            let reader = SchemaFieldValIndex::new(&repo, last_commit, schema, &field, &val_hash)?;
             let indices = reader.list_indices()?;
 
             assert_eq!(indices.len(), 0);

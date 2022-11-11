@@ -9,12 +9,15 @@ use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::schema_writer::SchemaWriter;
 use crate::index::CommitSchemaRowIndex;
+use crate::index::SchemaIndexReader;
+use crate::index::SchemaIndexer;
 use crate::index::SchemaReader;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
     RefReader, RefWriter, Stager,
 };
+use crate::model::schema;
 use crate::model::Schema;
 use crate::model::{
     Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
@@ -25,6 +28,7 @@ use crate::util;
 use crate::util::resource;
 
 use bytevec::ByteDecodable;
+use polars::prelude::DataFrame;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -283,9 +287,31 @@ pub fn schema_create_index(
 ) -> Result<(), OxenError> {
     let head_commit = head_commit(repo)?;
     if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
-        
+        if let Some(field) = schema.get_field(field) {
+            let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
+            indexer.create_index(field)
+        } else {
+            Err(OxenError::schema_does_not_have_field(field))
+        }
+    } else {
+        Err(OxenError::schema_does_not_exist(schema_ref))
+    }
+}
 
-        Ok(())
+pub fn schema_query_index(
+    repo: &LocalRepository,
+    schema_ref: &str,
+    field: &str,
+    query: &str,
+) -> Result<DataFrame, OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+        if let Some(field) = schema.get_field(field) {
+            let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
+            indexer.query(field, query)
+        } else {
+            Err(OxenError::schema_does_not_have_field(field))
+        }
     } else {
         Err(OxenError::schema_does_not_exist(schema_ref))
     }
@@ -294,12 +320,11 @@ pub fn schema_create_index(
 pub fn schema_list_indices(
     repo: &LocalRepository,
     schema_ref: &str,
-) -> Result<(), OxenError> {
+) -> Result<Vec<schema::Field>, OxenError> {
     let head_commit = head_commit(repo)?;
     if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
-        
-        
-        Ok(())
+        let index_reader = SchemaIndexReader::new(repo, &head_commit, &schema)?;
+        index_reader.list_field_indices()
     } else {
         Err(OxenError::schema_does_not_exist(schema_ref))
     }

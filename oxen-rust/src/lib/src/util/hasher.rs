@@ -16,7 +16,7 @@ pub fn hash_buffer(buffer: &[u8]) -> String {
 
 pub fn hash_str<S: AsRef<str>>(buffer: S) -> String {
     let buffer = buffer.as_ref().as_bytes();
-    hash_buffer(&buffer)
+    hash_buffer(buffer)
 }
 
 pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {

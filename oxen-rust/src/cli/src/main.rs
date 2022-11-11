@@ -229,6 +229,26 @@ async fn main() {
                                 .required(true),
                         )
                 )
+                .subcommand(
+                    Command::new("query")
+                        .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to create the index for."))
+                        .arg(
+                            Arg::new("field")
+                                .short('f')
+                                .long("field")
+                                .help("The field or column name that you want to create the index for.")
+                                .takes_value(true)
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("query")
+                                .short('q')
+                                .long("query")
+                                .help("The query or column value that you want to view the values for.")
+                                .takes_value(true)
+                                .required(true),
+                        )
+                )
         )
         .subcommand(
             Command::new("add")
@@ -556,9 +576,22 @@ async fn main() {
                         }
                     }
                     ("create_index", sub_matches) => {
+                        let schema = sub_matches
+                            .value_of("SCHEMA")
+                            .expect("Must supply a schema ref");
+                        let field = sub_matches.value_of("field").expect("Must supply a field");
+                        match dispatch::schema_create_index(schema, field) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("query", sub_matches) => {
                         let schema = sub_matches.value_of("SCHEMA").expect("required");
                         let field = sub_matches.value_of("field").expect("required");
-                        match dispatch::schema_create_index(schema, field) {
+                        let query = sub_matches.value_of("query").expect("required");
+                        match dispatch::schema_query_index(schema, field, query) {
                             Ok(_) => {}
                             Err(err) => {
                                 eprintln!("{}", err)
