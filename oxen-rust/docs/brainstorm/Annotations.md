@@ -141,6 +141,9 @@ Start with
 
                         fields/ ("file" or "label" or "whatever aggregate query you want")
                             field.col_name.hash/
+                                ROCKSDB
+                                    field.value.hash => list[_row_num]
+
                                 field.value.hash/ ("path/to/file.jpg" or "person")
                                     ROCKSDB
                                         row_hash => { (now we can diff between commits, based on the query)

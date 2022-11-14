@@ -1,15 +1,16 @@
-use polars::prelude::{col, AnyValue, DataFrame};
+use indicatif::ProgressBar;
+use polars::prelude::{col, AnyValue, DataFrame, Expr};
+use rayon::prelude::*;
 
+use crate::index::SchemaIndexWriter;
 use crate::{
-    constants::{ROW_NUM_COL_NAME},
+    constants::ROW_NUM_COL_NAME,
     df::tabular,
     error::OxenError,
     index::SchemaFieldValIndex,
     model::{schema, Commit, LocalRepository, Schema},
     util,
 };
-
-use super::SchemaIndexWriter;
 
 pub struct SchemaIndexer {
     repository: LocalRepository,
@@ -38,6 +39,7 @@ impl SchemaIndexer {
             return Err(OxenError::schema_does_not_have_field(&field.name));
         }
 
+        println!("Aggregating field: {}", field.name);
         // Aggregate up all _row_num indices on that field
         let agg_results = content_df
             .groupby([col(&field.name)])
@@ -45,7 +47,7 @@ impl SchemaIndexer {
             .collect()
             .unwrap();
 
-        log::debug!("Got aggregation: {}", agg_results);
+        println!("Got aggregation: {}", agg_results);
         // agg_values are the grouped value
         // ex) group_by(label)
         //       0: dog
@@ -62,44 +64,46 @@ impl SchemaIndexer {
 
         // One index per value that was aggregated
         // ie: dog, cat, person
-        let val_index = SchemaFieldValIndex::new(
-            &self.repository,
-            &self.commit,
-            &self.schema,
-            field
-        )?;
+        let val_index =
+            SchemaFieldValIndex::new(&self.repository, &self.commit, &self.schema, field)?;
 
-        for (i, val) in agg_values.iter().enumerate() {
-            let buffer = tabular::any_val_to_bytes(&val);
-            let val_hash = util::hasher::hash_buffer(&buffer);
+        let bar = ProgressBar::new(agg_values.len() as u64);
 
-            // Loop over each set of indices and hashes in Series and add them to index
-            match agg_row_indices.get(i) {
-                AnyValue::List(indices) => {
+        agg_values
+            .iter()
+            .zip(agg_row_indices.iter())
+            .par_bridge()
+            .for_each(|(val, indices)| {
+                bar.inc(1);
+                let val = format!("{}", val);
+                // let val_hash = util::hasher::hash_str(&buffer);
 
-                    let indices = indices.u32().unwrap();
-                    let result: Vec<u32> = indices
-                        .into_iter()
-                        .map(|opt_index| match opt_index {
-                            Some(index) => {
-                                index
-                            }
-                            _ => {
-                                panic!("Invalid value zipped...");
-                            }
-                        })
-                        .collect();
-                    val_index.insert_index(val_hash, result)?;
+                // Loop over each set of indices and hashes in Series and add them to index
+                match indices {
+                    AnyValue::List(indices) => {
+                        let indices = indices.u32().unwrap();
+                        let result: Vec<u32> = indices
+                            .into_iter()
+                            .map(|opt_index| match opt_index {
+                                Some(index) => index,
+                                _ => {
+                                    panic!("Invalid value zipped...");
+                                }
+                            })
+                            .collect();
+                        val_index.insert_index(val, result).unwrap();
+                    }
+                    _ => {
+                        panic!("Aggregation must be list...");
+                    }
                 }
-                _ => {
-                    panic!("Aggregation must be list...");
-                }
-            }
-        }
+            });
+        bar.finish();
 
         // Keep track of the field that is being indexed
         let writer = SchemaIndexWriter::new(&self.repository, &self.commit, &self.schema)?;
         writer.create_field_index(field)?;
+        println!("Done.");
 
         Ok(())
     }
@@ -114,16 +118,18 @@ impl SchemaIndexer {
         let df_path = util::fs::schema_df_path(&self.repository, &self.schema);
         let content_df = tabular::scan_df(&df_path)?;
 
-        let query_hash = util::hasher::hash_str(query);
+        let mut cols: Vec<Expr> = vec![];
+        for f in &self.schema.fields {
+            cols.push(col(&f.name));
+        }
+        let content_df = content_df.select(cols);
 
-        let val_index = SchemaFieldValIndex::new(
-            &self.repository,
-            &self.commit,
-            &self.schema,
-            field,
-        )?;
+        // let query_hash = util::hasher::hash_str(query);
 
-        if let Some(indices) = val_index.list_indices(&query_hash)? {
+        let val_index =
+            SchemaFieldValIndex::new(&self.repository, &self.commit, &self.schema, field)?;
+
+        if let Some(indices) = val_index.list_indices(&query)? {
             let df = tabular::take(content_df, indices)?;
             Ok(Some(df))
         } else {
@@ -154,7 +160,7 @@ mod tests {
 
             let results = indexer.query(label_field, "cat")?.unwrap();
             println!("Got index query results: {}", results);
-            assert_eq!(results.width(), 8);
+            assert_eq!(results.width(), 6);
             assert_eq!(results.height(), 2);
 
             Ok(())
