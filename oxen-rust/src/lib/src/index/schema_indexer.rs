@@ -39,7 +39,7 @@ impl SchemaIndexer {
             return Err(OxenError::schema_does_not_have_field(&field.name));
         }
 
-        println!("Aggregating field: {}", field.name);
+        println!("Indexing field: {}", field.name);
         // Aggregate up all _row_num indices on that field
         let agg_results = content_df
             .groupby([col(&field.name)])
@@ -47,7 +47,7 @@ impl SchemaIndexer {
             .collect()
             .unwrap();
 
-        println!("Got aggregation: {}", agg_results);
+        // println!("Got aggregation: {}", agg_results);
         // agg_values are the grouped value
         // ex) group_by(label)
         //       0: dog
@@ -75,8 +75,13 @@ impl SchemaIndexer {
             .par_bridge()
             .for_each(|(val, indices)| {
                 bar.inc(1);
-                let val = format!("{}", val);
-                // let val_hash = util::hasher::hash_str(&buffer);
+                // Convert val to a string we can insert into db
+                let val = match val {
+                    AnyValue::Utf8(val) => val.to_string(),
+                    val => {
+                        format!("{}", val)
+                    }
+                };
 
                 // Loop over each set of indices and hashes in Series and add them to index
                 match indices {
