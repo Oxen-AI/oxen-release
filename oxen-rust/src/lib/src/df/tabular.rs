@@ -88,8 +88,8 @@ fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new("idx", &indices);
     let collected = df.collect().expect(READ_ERROR);
-    log::debug!("take indices {:?}", indices);
-    log::debug!("from df {:?}", collected);
+    // log::debug!("take indices {:?}", indices);
+    // log::debug!("from df {:?}", collected);
     Ok(collected.take(&idx).expect(READ_ERROR))
 }
 
@@ -437,7 +437,6 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 
     let extension = path.extension().and_then(OsStr::to_str);
-    log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
     if opts.has_transform() {
@@ -463,7 +462,6 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
 pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
-    log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
     match extension {
@@ -527,7 +525,6 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
 pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let extension = path.extension().and_then(OsStr::to_str);
-    log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
     match extension {

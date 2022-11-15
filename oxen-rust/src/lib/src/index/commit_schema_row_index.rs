@@ -90,6 +90,10 @@ impl CommitSchemaRowIndex {
         str_val_db::has_key(&self.row_db, hash)
     }
 
+    pub fn get_global_idx<S: AsRef<str>>(&self, hash: S) -> Result<Option<u32>, OxenError> {
+        str_val_db::get(&self.row_db, hash)
+    }
+
     pub fn has_file_key<S: AsRef<str>>(&self, hash: S) -> bool {
         str_val_db::has_key(&self.file_db, hash)
     }
@@ -241,21 +245,28 @@ impl CommitSchemaRowIndex {
                                     (Some(row_hash), Some(row_num)) => {
                                         log::debug!("Checking if we have hash: {}", row_hash);
                                         pb.inc(1);
-                                        if indexer.has_global_key(row_hash) {
-                                            log::debug!("GOT IT: {}", row_hash);
-                                            indexer
-                                                .put_file_index(row_hash, (row_num, row_num))
-                                                .unwrap();
-                                            Some(false)
-                                        } else {
-                                            indexer
-                                                .put_file_index(
-                                                    row_hash,
-                                                    (row_num, old_num_rows + num_new),
-                                                )
-                                                .unwrap();
-                                            num_new += 1;
-                                            Some(true)
+
+                                        match indexer.get_global_idx(row_hash) {
+                                            Ok(Some(global_idx)) => {
+                                                log::debug!("GOT IT: {}, {}", row_hash, global_idx);
+                                                indexer
+                                                    .put_file_index(row_hash, (row_num, global_idx))
+                                                    .unwrap();
+                                                Some(false)
+                                            }
+                                            Ok(None) => {
+                                                indexer
+                                                    .put_file_index(
+                                                        row_hash,
+                                                        (row_num, old_num_rows + num_new),
+                                                    )
+                                                    .unwrap();
+                                                num_new += 1;
+                                                Some(true)
+                                            }
+                                            Err(err) => {
+                                                panic!("Error computing new rows... {}", err);
+                                            }
                                         }
                                     }
                                     _ => None,
@@ -417,6 +428,7 @@ impl CommitSchemaRowIndex {
     pub fn entry_df(&self) -> Result<DataFrame, OxenError> {
         // Sort by the original file row num
         let sorted = self.sorted_entry_df_with_row_hash()?;
+        log::debug!("entry_df got sorted: {}", sorted);
         // Filter down to the original columns
         let opts = DFOpts::from_filter_schema(&self.schema);
         tabular::transform_df(sorted.lazy(), opts)
@@ -426,7 +438,7 @@ impl CommitSchemaRowIndex {
         // Get large arrow file
         let path = util::fs::schema_df_path(&self.repository, &self.schema);
         let version_df = tabular::scan_df(path)?.collect().unwrap();
-        log::debug!("VERSION DF {:?}", version_df);
+        log::debug!("sorted_entry_df_with_row_hash cadf {:?}", version_df);
 
         let file_indices: Vec<RowIndexPair> = self
             .list_file_indices()?
@@ -434,7 +446,10 @@ impl CommitSchemaRowIndex {
             .map(|(_hash, indices)| indices)
             .collect();
 
-        log::debug!("file_indices {:?}", file_indices);
+        // log::debug!(
+        //     "sorted_entry_df_with_row_hash file_indices {:?}",
+        //     file_indices
+        // );
 
         let global_indices: Vec<u32> = file_indices
             .clone()
@@ -447,8 +462,8 @@ impl CommitSchemaRowIndex {
             .map(|(local_idx, _global_idx)| local_idx)
             .collect();
 
-        log::debug!("file_indices global {:?}", global_indices);
-        log::debug!("file_indices local {:?}", local_indices);
+        // log::debug!("file_indices global {:?}", global_indices);
+        // log::debug!("file_indices local {:?}", local_indices);
 
         // Project the original file row nums on in a column
         let mut subset = tabular::take(version_df.lazy(), global_indices)?;
@@ -498,7 +513,7 @@ mod tests {
             assert!(path.exists());
 
             let version_df = tabular::read_df(path, DFOpts::empty())?;
-            assert_eq!(og_df.height(), version_df.height());
+            assert_eq!(og_df.height() + 3, version_df.height());
 
             let row_index_reader =
                 CommitSchemaRowIndex::new(&repo, &commit.id, schema, &og_bbox_file)?;
@@ -515,11 +530,15 @@ mod tests {
     fn test_commit_tabular_data_add_data_different_file_can_fetch_file_content(
     ) -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            // Create a new data file with some annotations
-            let og_bbox_file = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let og_bbox_path = repo.path.join(&og_bbox_file);
+            let commits = command::log(&repo)?;
+            let commit = commits.first().unwrap();
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            // CADF
+            let path = util::fs::schema_df_path(&repo, schema);
+            let og_df = tabular::read_df(&path, DFOpts::empty())?;
+
             let my_bbox_file = Path::new("annotations")
                 .join("train")
                 .join("my_bounding_box.csv");
@@ -537,7 +556,6 @@ train/new.jpg,new,1.0,1.5,100,20
             )?;
 
             let my_df = tabular::read_df(&my_bbox_path, DFOpts::empty())?;
-            let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
             command::add(&repo, &my_bbox_path)?;
             let commit =
                 command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
@@ -710,7 +728,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             assert!(diff.removed_cols.is_some());
             // Make sure they are the correct shape
             let removed = diff.removed_cols.unwrap();
-            assert_eq!(removed.height(), 6);
+            assert_eq!(removed.height(), 9);
             assert_eq!(removed.width(), 3);
 
             Ok(())

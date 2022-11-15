@@ -323,6 +323,7 @@ impl EntryIndexer {
                             // TODO: One liner to get DataFrame from entry
                             let schema_reader =
                                 SchemaReader::new(&self.repository, &entry.commit_id)?;
+                            log::debug!("Looking up schema for file: {:?}", entry.path);
                             let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
                             let reader = CommitSchemaRowIndex::new(
                                 &self.repository,
@@ -331,6 +332,7 @@ impl EntryIndexer {
                                 &entry.path,
                             )?;
                             let mut df = reader.sorted_entry_df_with_row_hash()?;
+                            log::debug!("Pushing DF {}", df);
 
                             // save DataFrame to disk in it's proper version dir
                             let version_path = util::fs::version_dir_from_hash(
@@ -345,11 +347,6 @@ impl EntryIndexer {
                                 util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                             tar.append_path_with_name(version_path, name).unwrap();
-
-                            // TODO:
-                            // Write hash on upload success (so that we know we got the data content successfully, and can do more efficient compute "checksum" on the fly)
-                            // make sure we can pull it on the other side
-                            // have function to loop over tabular entries and construct the CADF in the "correct order" (whatever that is....)
                         } else {
                             let version_path = util::fs::version_path(&self.repository, entry);
                             log::debug!("ZIPPING REGULAR {:?}", version_path);

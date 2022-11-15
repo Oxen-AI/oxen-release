@@ -510,8 +510,8 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     // annotations/
     //   README.md
     //   train/
-    //     one_shot.txt
-    //     two_shot.txt
+    //     one_shot.csv
+    //     two_shot.csv
     //     annotations.txt
     //   test/
     //     annotations.txt
@@ -594,13 +594,14 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     write_txt_file_to_path(
         train_annotations_dir.join("annotations.txt"),
         r#"
-        train/dog_1.jpg 0
-        train/dog_2.jpg 0
-        train/dog_3.jpg 0
-        train/cat_1.jpg 1
-        train/cat_2.jpg 1
+train/dog_1.jpg 0
+train/dog_2.jpg 0
+train/dog_3.jpg 0
+train/cat_1.jpg 1
+train/cat_2.jpg 1
     "#,
     )?;
+
     write_txt_file_to_path(
         train_annotations_dir.join("bounding_box.csv"),
         r#"file,label,min_x,min_y,width,height
@@ -612,30 +613,32 @@ train/cat_1.jpg,cat,57.0,35.5,304,427
 train/cat_2.jpg,cat,30.5,44.0,333,396
 "#,
     )?;
+
     write_txt_file_to_path(
-        train_annotations_dir.join("one_shot.txt"),
-        r#"
-        train/dog_1.jpg 0
-    "#,
+        train_annotations_dir.join("one_shot.csv"),
+        r#"file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+"#,
     )?;
 
     write_txt_file_to_path(
-        train_annotations_dir.join("two_shot.txt"),
-        r#"
-        train/dog_1.jpg 0
-        train/cat_1.jpg 1
-    "#,
+        train_annotations_dir.join("two_shot.csv"),
+        r#"file,label,min_x,min_y,width,height
+train/dog_3.jpg,dog,19.0,63.5,376,421
+train/cat_1.jpg,cat,57.0,35.5,304,427
+"#,
     )?;
 
     // annotations/test/
     let test_annotations_dir = repo_dir.join("annotations/test");
     std::fs::create_dir_all(&test_annotations_dir)?;
     write_txt_file_to_path(
-        test_annotations_dir.join("annotations.txt"),
-        r#"
-        test/1.jpg 0
-        test/2.jpg 1
-    "#,
+        test_annotations_dir.join("annotations.csv"),
+        r#"file,label,min_x,min_y,width,height
+test/dog_3.jpg,dog,19.0,63.5,376,421
+test/cat_1.jpg,cat,57.0,35.5,304,427
+test/unknown.jpg,unknown,0.0,0.0,0,0
+"#,
     )?;
 
     Ok(())

@@ -26,7 +26,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     } else {
         // is file
         if let Some(entry) = reader.get_entry(&path)? {
-            restore_file(repo, &path, &commit, &entry)
+            restore_file(repo, &path, &commit.id, &entry)
         } else {
             let error = format!("Could not restore file: {:?} does not exist", path);
             Err(OxenError::basic_str(error))
@@ -61,7 +61,7 @@ fn restore_dir(
             let reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
             let entries = reader.list_entries()?;
             for entry in entries.iter() {
-                restore_file(repo, &entry.path, commit, entry)?;
+                restore_file(repo, &entry.path, &commit.id, entry)?;
             }
         }
     }
@@ -69,15 +69,15 @@ fn restore_dir(
     Ok(())
 }
 
-fn restore_file(
+pub fn restore_file(
     repo: &LocalRepository,
     path: &Path,
-    commit: &Commit,
+    commit_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
     if util::fs::is_tabular(&entry.path) {
         // Custom logic to restore tabular
-        restore_tabular(repo, path, commit, entry)
+        restore_tabular(repo, path, commit_id, entry)
     } else {
         // just copy data back over if !tabular
         restore_regular(repo, path, entry)
@@ -98,12 +98,12 @@ fn restore_regular(
 fn restore_tabular(
     repo: &LocalRepository,
     path: &Path,
-    commit: &Commit,
+    commit_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
-    let schema_reader = SchemaReader::new(repo, &commit.id)?;
+    let schema_reader = SchemaReader::new(repo, commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-        let row_index_reader = CommitSchemaRowIndex::new(repo, &commit.id, &schema, &entry.path)?;
+        let row_index_reader = CommitSchemaRowIndex::new(repo, commit_id, &schema, &entry.path)?;
         let mut df = row_index_reader.entry_df()?;
         log::debug!("Got subset! {}", df);
         let working_path = repo.path.join(path);

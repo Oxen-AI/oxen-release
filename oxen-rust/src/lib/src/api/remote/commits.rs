@@ -240,7 +240,7 @@ mod tests {
             // has format
             //   annotations/
             //     train/
-            //       one_shot.txt
+            //       one_shot.csv
             //       annotations.txt
             //     test/
             //       annotations.txt
@@ -313,7 +313,7 @@ mod tests {
             // has format
             //   annotations/
             //     train/
-            //       one_shot.txt
+            //       one_shot.csv
             //       annotations.txt
             //     test/
             //       annotations.txt

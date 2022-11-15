@@ -7,11 +7,14 @@ use crate::index::{
     Stager,
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, MergeConflict};
+
 use crate::util;
 
 use rocksdb::DB;
 use std::path::Path;
 use std::str;
+
+use super::restore;
 
 // This is a struct to find the commits we want to merge
 struct MergeCommits {
@@ -307,12 +310,23 @@ impl Merger {
         let head_entries = head_entry_reader.list_entries_set()?;
         let merge_entries = merge_entry_reader.list_entries_set()?;
 
+        log::debug!("lca_entries.len() {}", lca_entries.len());
+        log::debug!("head_entries.len() {}", head_entries.len());
+        log::debug!("merge_entries.len() {}", merge_entries.len());
+
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
             // Check if the entry exists in all 3 commits
             if let Some(head_entry) = head_entries.get(merge_entry) {
                 if let Some(lca_entry) = lca_entries.get(merge_entry) {
                     // If HEAD and LCA are the same but Merge is different, take merge
+                    log::debug!(
+                        "Comparing hashes merge_entry {:?} HEAD {} LCA {} MERGE {}",
+                        merge_entry.path,
+                        head_entry.hash,
+                        lca_entry.hash,
+                        merge_entry.hash
+                    );
                     if head_entry.hash == lca_entry.hash {
                         self.update_entry(merge_entry)?;
                     }
@@ -338,15 +352,18 @@ impl Merger {
                 self.update_entry(merge_entry)?;
             }
         }
+        log::debug!("three_way_merge conflicts.len() {}", conflicts.len());
 
         Ok(conflicts)
     }
 
-    // TODO: might want to move this into a util to restore from version path (in case of compression or other transforms)
     fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
-        let version_file = util::fs::version_path(&self.repository, merge_entry);
-        let dst_path = self.repository.path.join(&merge_entry.path);
-        std::fs::copy(version_file, dst_path)?;
+        restore::restore_file(
+            &self.repository,
+            &merge_entry.path,
+            &merge_entry.commit_id,
+            merge_entry,
+        )?;
         Ok(())
     }
 }
