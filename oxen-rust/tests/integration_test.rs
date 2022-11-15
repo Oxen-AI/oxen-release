@@ -2245,15 +2245,19 @@ fn test_schema_create_index_add_new_file() -> Result<(), OxenError> {
         let bbox_test_filename = Path::new("annotations").join("test").join("new_file.csv");
         let bbox_test_path = repo.path.join(&bbox_test_filename);
         test::write_txt_file_to_path(
-            bbox_test_path,
+            &bbox_test_path,
             r#"file,label,min_x,min_y,width,height
 test/doggy_3.jpg,dog,19.0,63.5,376,421
 test/kitten_1.jpg,cat,57.0,35.5,304,427
 test/unknown_2.jpg,unknown,0.0,0.0,0,0"#,
         )?;
 
+        command::add(&repo, &bbox_test_path)?;
+        command::commit(&repo, "adding new file")?;
+
         // Make sure new row gets added to the index
         let new_index_results = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+        println!("new_index_results {}", new_index_results);
 
         // Make sure we get new results out
         assert_eq!(initial_index.height() + 1, new_index_results.height());
