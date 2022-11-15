@@ -1,10 +1,10 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
+use liboxen::df::tabular;
+use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
-use liboxen::media::tabular;
-use liboxen::media::DFOpts;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
 use liboxen::test;
@@ -96,7 +96,7 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
         // Add a deep file
         command::add(
             &repo,
-            repo.path.join(Path::new("annotations/train/one_shot.txt")),
+            repo.path.join(Path::new("annotations/train/one_shot.csv")),
         )?;
 
         // Make sure that we now see the full annotations/train/ directory
@@ -105,14 +105,14 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
 
         // annotations/
         assert_eq!(repo_status.added_dirs.len(), 1);
-        // annotations/train/one_shot.txt
+        // annotations/train/one_shot.csv
         assert_eq!(repo_status.added_files.len(), 1);
         // train/
         // test/
         assert_eq!(repo_status.untracked_dirs.len(), 2);
         // README.md
         // labels.txt
-        // annotations/train/two_shot.txt
+        // annotations/train/two_shot.csv
         // annotations/train/annotations.txt
         // annotations/train/bounding_box.csv
         assert_eq!(repo_status.untracked_files.len(), 5);
@@ -554,7 +554,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
 fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Modify and add the file deep in a sub dir
-        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
         let file_contents = "train/cat_1.jpg 0";
         test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
@@ -580,7 +580,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
         // Track & commit the file
-        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
         command::add(&repo, &one_shot_path)?;
         command::commit(&repo, "Adding one shot")?;
 
@@ -590,7 +590,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let branch_name = "feature/change-the-shot";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0";
+        let file_contents = "train/cat_1.jpg 0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -621,7 +621,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
         // Track & commit all the data
-        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
         command::add(&repo, &repo.path)?;
         command::commit(&repo, "Adding one shot")?;
 
@@ -631,7 +631,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let branch_name = "feature/modify-data";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0";
+        let file_contents = "train/cat_1.jpg 0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -2009,18 +2009,20 @@ fn test_command_schema_list() -> Result<(), OxenError> {
         let schemas = command::schema_list(&repo, None)?;
         assert_eq!(schemas.len(), 1);
 
-        assert_eq!(schemas[0].hash, "955d23d75fd8ad02ba2011f5e8854c68");
-        assert_eq!(schemas[0].fields.len(), 5);
+        assert_eq!(schemas[0].hash, "b821946753334c083124fd563377d795");
+        assert_eq!(schemas[0].fields.len(), 6);
         assert_eq!(schemas[0].fields[0].name, "file");
         assert_eq!(schemas[0].fields[0].dtype, "str");
-        assert_eq!(schemas[0].fields[1].name, "min_x");
-        assert_eq!(schemas[0].fields[1].dtype, "f64");
-        assert_eq!(schemas[0].fields[2].name, "min_y");
+        assert_eq!(schemas[0].fields[1].name, "label");
+        assert_eq!(schemas[0].fields[1].dtype, "str");
+        assert_eq!(schemas[0].fields[2].name, "min_x");
         assert_eq!(schemas[0].fields[2].dtype, "f64");
-        assert_eq!(schemas[0].fields[3].name, "width");
-        assert_eq!(schemas[0].fields[3].dtype, "i64");
-        assert_eq!(schemas[0].fields[4].name, "height");
+        assert_eq!(schemas[0].fields[3].name, "min_y");
+        assert_eq!(schemas[0].fields[3].dtype, "f64");
+        assert_eq!(schemas[0].fields[4].name, "width");
         assert_eq!(schemas[0].fields[4].dtype, "i64");
+        assert_eq!(schemas[0].fields[5].name, "height");
+        assert_eq!(schemas[0].fields[5].dtype, "i64");
 
         Ok(())
     })
@@ -2040,15 +2042,20 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
             .join("train")
             .join("bounding_box.csv");
         let bbox_file = repo.path.join(&bbox_filename);
-        let bbox_file = test::append_line_txt_file(bbox_file, "train/cat_3.jpg,41.0,31.5,410,427")?;
+        let bbox_file =
+            test::append_line_txt_file(bbox_file, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
         let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
+        let their_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+        println!("their df {}", their_df);
+
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
         command::checkout(&repo, &og_branch.name)?;
 
-        let bbox_file = test::append_line_txt_file(bbox_file, "train/dog_4.jpg,52.0,62.5,256,429")?;
+        let bbox_file =
+            test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
 
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation on main branch")?;
@@ -2061,7 +2068,10 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         assert_eq!(status.merge_conflicts.len(), 1);
 
         // Run command::checkout_theirs() and make sure their changes get kept
-        command::checkout_theirs(&repo, bbox_filename)?;
+        command::checkout_theirs(&repo, &bbox_filename)?;
+        let restored_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+        println!("restored df {}", restored_df);
+
         let file_contents = util::fs::read_from_path(&bbox_file)?;
 
         assert_eq!(file_contents, their_branch_contents);
@@ -2085,7 +2095,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
         command::create_checkout_branch(&repo, branch_name)?;
 
         // Add in a line in this branch
-        let row_from_branch = "train/cat_3.jpg,41.0,31.5,410,427";
+        let row_from_branch = "train/cat_3.jpg,cat,41.0,31.5,410,427";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_branch)?;
 
         // Add the changes
@@ -2095,7 +2105,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
         // Add a more rows on the main branch
         command::checkout(&repo, &og_branch.name)?;
 
-        let row_from_main = "train/dog_4.jpg,52.0,62.5,256,429";
+        let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
         command::add(&repo, &bbox_file)?;
@@ -2113,7 +2123,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
         let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
 
         // This doesn't guarantee order, but let's make sure we have 7 annotations now
-        assert_eq!(df.height(), 7);
+        assert_eq!(df.height(), 8);
 
         Ok(())
     })
@@ -2129,15 +2139,16 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
             .join("bounding_box.csv");
         let bbox_file = repo.path.join(&bbox_filename);
 
-        // Add a more rows on this branch
+        // Add a more columns on this branch
         let branch_name = "ox-add-column";
         command::create_checkout_branch(&repo, branch_name)?;
 
         // Add in a column in this branch
         let mut opts = DFOpts::empty();
-        opts.add_col = Some(String::from("label:unknown:str"));
+        opts.add_col = Some(String::from("random_col:unknown:str"));
         let df = tabular::scan_df(&bbox_file)?;
         let mut df = tabular::transform_df(df, opts)?;
+        println!("WRITE DF IN BRANCH {:?}", df);
         tabular::write_df(&mut df, &bbox_file)?;
 
         // Add the changes
@@ -2147,7 +2158,7 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
         // Add a more rows on the main branch
         command::checkout(&repo, &og_branch.name)?;
 
-        let row_from_main = "train/dog_4.jpg,52.0,62.5,256,429";
+        let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
         command::add(&repo, &bbox_file)?;
@@ -2160,8 +2171,9 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
         let status = command::status(&repo)?;
         assert_eq!(status.merge_conflicts.len(), 1);
 
-        // Run command::checkout_theirs() and make sure their changes get kept
+        // Run command::checkout_theirs() and make sure we cannot
         let result = command::checkout_combine(&repo, bbox_filename);
+        println!("{:?}", result);
         assert!(result.is_err());
 
         Ok(())
@@ -2191,7 +2203,7 @@ fn test_diff_tabular_add_col() -> Result<(), OxenError> {
             diff,
             r"Added Columns
 
-shape: (5, 1)
+shape: (6, 1)
 ┌─────────┐
 │ is_cute │
 │ ---     │
@@ -2206,10 +2218,49 @@ shape: (5, 1)
 │ unknown │
 ├╌╌╌╌╌╌╌╌╌┤
 │ unknown │
+├╌╌╌╌╌╌╌╌╌┤
+│ unknown │
 └─────────┘
 
 "
         );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_schema_create_index_add_new_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Create an index
+        let schemas = command::schema_list(&repo, None)?;
+        let schema_ref = &schemas.first().unwrap().hash;
+        let field_name = "label";
+        command::schema_create_index(&repo, schema_ref, field_name)?;
+
+        // Make sure we can query the data
+        let initial_index = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+
+        // Add and commit a new file with the same schema
+        let bbox_test_filename = Path::new("annotations").join("test").join("new_file.csv");
+        let bbox_test_path = repo.path.join(&bbox_test_filename);
+        test::write_txt_file_to_path(
+            &bbox_test_path,
+            r#"file,label,min_x,min_y,width,height
+test/doggy_3.jpg,dog,19.0,63.5,376,421
+test/kitten_1.jpg,cat,57.0,35.5,304,427
+test/unknown_2.jpg,unknown,0.0,0.0,0,0"#,
+        )?;
+
+        command::add(&repo, &bbox_test_path)?;
+        command::commit(&repo, "adding new file")?;
+
+        // Make sure new row gets added to the index
+        let new_index_results = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+        println!("new_index_results {}", new_index_results);
+
+        // Make sure we get new results out
+        assert_eq!(initial_index.height() + 1, new_index_results.height());
 
         Ok(())
     })

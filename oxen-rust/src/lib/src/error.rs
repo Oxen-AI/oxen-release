@@ -1,4 +1,3 @@
-use datafusion::error::DataFusionError;
 use std::error;
 use std::fmt;
 use std::io;
@@ -29,7 +28,6 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
-    DataFusion(DataFusionError),
 }
 
 impl OxenError {
@@ -72,6 +70,16 @@ impl OxenError {
 
     pub fn schema_does_not_exist_for_file<P: AsRef<Path>>(path: P) -> OxenError {
         let err = format!("Schema does not exist for file {:?}", path.as_ref());
+        OxenError::basic_str(err)
+    }
+
+    pub fn schema_does_not_exist<S: AsRef<str>>(schema_ref: S) -> OxenError {
+        let err = format!("Schema does not exist {:?}", schema_ref.as_ref());
+        OxenError::basic_str(err)
+    }
+
+    pub fn schema_does_not_have_field<S: AsRef<str>>(field: S) -> OxenError {
+        let err = format!("Schema does not have field {:?}", field.as_ref());
         OxenError::basic_str(err)
     }
 
@@ -158,6 +166,21 @@ impl OxenError {
         let err = format!("Could not decode value for key: {:?}", key.as_ref());
         OxenError::basic_str(&err)
     }
+
+    pub fn invalid_agg_query<S: AsRef<str>>(query: S) -> OxenError {
+        let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
+        let err = format!("Parse error: {:?}", value.as_ref());
+        OxenError::basic_str(&err)
+    }
+
+    pub fn unknown_agg_fn<S: AsRef<str>>(name: S) -> OxenError {
+        let err = format!("Unknown aggregation function: {:?}", name.as_ref());
+        OxenError::basic_str(&err)
+    }
 }
 
 impl fmt::Display for OxenError {
@@ -237,11 +260,5 @@ impl From<rocksdb::Error> for OxenError {
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {
         OxenError::ENV(error)
-    }
-}
-
-impl From<DataFusionError> for OxenError {
-    fn from(error: DataFusionError) -> Self {
-        OxenError::DataFusion(error)
     }
 }

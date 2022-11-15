@@ -3,6 +3,7 @@ use crate::index::{CommitDirReader, CommitSchemaRowIndex, SchemaReader};
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 
+#[derive(Debug)]
 struct SimpleHash {
     hash: String,
 }
@@ -35,14 +36,13 @@ impl CommitValidator {
             // Sometimes we have pre computed the HASH, so that we don't have to fully hash contents again to
             // check if data is synced (I guess this is already in the file path...should we just grab it from there instead?)
             // I think the extra hash computation on the server is nice so that you know the actual contents was saved to disk
-            // Cannot be tampered with in flight (I'm not technical enough to even know how you do that in theory but 🤷‍♂️)
             let version_path = util::fs::version_path(&self.repository, entry);
 
             let maybe_hash_file = version_path.parent().unwrap().join("HASH");
-            // log::debug!("Checking for hash file: {:?}", maybe_hash_file);
+            // log::debug!("Entry [{}]: {:?}", i, entry.path);
             if maybe_hash_file.exists() {
                 let hash = util::fs::read_from_path(&maybe_hash_file)?;
-                // log::debug!("GOT HASH FILE {hash} => {:?}", entry.path);
+                // log::debug!("GOT HASH [{i}] {hash} => {:?}", entry.path);
                 hashes.push(SimpleHash { hash });
                 continue;
             }
@@ -57,7 +57,6 @@ impl CommitValidator {
                     &entry.path,
                 )?;
                 let df = reader.sorted_entry_df_with_row_hash()?;
-
                 util::hasher::compute_tabular_hash(&df)
             } else {
                 if !version_path.exists() {
@@ -72,6 +71,8 @@ impl CommitValidator {
                 util::hasher::hash_file_contents(&version_path)?
             };
 
+            // log::debug!("Got hash: {:?} -> {}", entry.path, hash);
+
             hashes.push(SimpleHash { hash })
         }
 
@@ -80,8 +81,14 @@ impl CommitValidator {
     }
 
     pub fn has_all_data(&self, commit: &Commit, size: usize) -> Result<bool, OxenError> {
+        log::debug!(
+            "has_all_data: {size} entries {} -> {}",
+            commit.id,
+            commit.message
+        );
         let commit_entry_reader = CommitDirReader::new(&self.repository, commit)?;
         let entries = commit_entry_reader.list_entries()?;
+
         if size != entries.len() {
             log::debug!("has_all_data {} != {}", size, entries.len());
             return Ok(false);
