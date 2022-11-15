@@ -108,8 +108,6 @@ If you are willing to put some upfront cost in indexing on commit, Oxen has the 
 
 Once you create an index on a repository, it will be updated every time you make a new commit with new data.
 
-*TODO: delete indices*
-
 ## Primary Key Indices
 
 Since by default Oxen has no context about the DataFrames or the fields being ingested, the first use case for user generated indices is to create constant time access for an internal id in your system to a versioned row in Oxen.
@@ -119,22 +117,33 @@ Maybe you know what the primary key of this data should be, or you simply have m
 Indices can be added with the `schema create_index` subcommand by providing the field name you want to index.
 
 ```
-$ oxen schema create_index --schema my_schema --field 'my_id'
+$ oxen schema create_index my_schema --field 'my_id'
 ```
 
 You can then quickly get back to any row within that schema that contains a specific ID value
 
 ```
-$ oxen schema query --schema my_schema --query 'my_id=1234'
+$ oxen schema query my_schema --query 'my_id=1234'
 ```
 
-You can also see the state of the row at a specific commit id by passing the `--source` option. Source can be a commit id or a branch name.
+You can also see the state of the row at a specific commit id by passing the `--source` option. Source can be a commit id or a branch name. This helps build tools to see how the data points evolves over time.
 
 ```
-$ oxen schema query --schema my_schema --query 'my_id=1234' --source $COMMIT_ID
+$ oxen schema query my_schema --query 'my_id=1234' --source $COMMIT_ID
 ```
 
-This means we can quickly build tools to see how the data points evolves over time.
+If you want to see all the indices that exist within a schema, you can run the `schema indices` subcommand.
+
+```
+$ oxen schema indices my_schema
+```
+
+TODO: To delete an index within a schema, you can run the `schema delete_index` subcommand.
+
+```
+$ oxen schema delete_index my_schema --field 'my_id'
+```
+
 
 ## Train/Test/Val Indices
 
@@ -143,13 +152,13 @@ Primary key lookups are one example use case for indices. Another example is to 
 You may want a field that indicates whether this example belongs to train, test, or the validation set of the data. Then quickly pull the data from just the evaluation set.
 
 ```
-$ oxen schema create_index --schema bounding_box --field 'eval_set'
+$ oxen schema create_index bounding_box --field 'eval_set'
 ```
 
 To get a quick summary of the distribution of values Oxen indexed you can run a `--query` with the `count()` function.
 
 ```
-$ oxen schema query --schema bounding_box --query 'count(eval_set)'
+$ oxen schema query bounding_box --query 'count(eval_set)'
 
 shape: (3, 2)
 ┌───────────┬───────────────────┐
@@ -168,7 +177,7 @@ shape: (3, 2)
 To grab the subset of data that applies to a indexed subset, pass in an `=` expression.
 
 ```
-$ oxen schema query --schema bounding_box --query 'eval_set=train'
+$ oxen schema query bounding_box --query 'eval_set=train'
 
 # TODO: implement
 ```
@@ -184,7 +193,7 @@ You may want an index on a field that contains "file" path that references some 
 If you create an index with the `file` field, OxenHub will know to map this to a file in the repository and try to render the data in place.
 
 ```
-$ oxen schema create_index --schema bounding_box --field 'file'
+$ oxen schema create_index bounding_box --field 'file'
 ```
 
 ## Classification Label Indices
@@ -192,8 +201,8 @@ $ oxen schema create_index --schema bounding_box --field 'file'
 Another example index might be on a classification label. Say you want to be able to quickly get to all the entries that are tagged as `"person"`
 
 ```
-$ oxen schema create_index --schema bounding_box --field 'label'
-$ oxen schema query --schema bounding_box --query 'label=person'
+$ oxen schema create_index bounding_box --field 'label'
+$ oxen schema query bounding_box --query 'label=person'
 ```
 
 Now let your imagination run wild on the type of data you work with, and how you want to version and see it evolve over time.
