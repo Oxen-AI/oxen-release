@@ -117,13 +117,13 @@ mod tests {
         crate::test::run_training_data_repo_test_fully_committed(|repo| {
             let history = command::log(&repo)?;
             let commit = history.first().unwrap();
-            let path_str = format!("{}/annotations/train/one_shot.txt", commit.id);
+            let path_str = format!("{}/annotations/train/one_shot.csv", commit.id);
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
                 Ok(Some((commit_id, path))) => {
                     assert_eq!(commit.id, commit_id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
+                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a commit");
@@ -140,14 +140,14 @@ mod tests {
             let branch_name = "my-branch";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
 
-            let path_str = format!("{}/annotations/train/one_shot.txt", branch_name);
+            let path_str = format!("{}/annotations/train/one_shot.csv", branch_name);
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
                 Ok(Some((commit_id, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
+                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a branch");
@@ -164,14 +164,14 @@ mod tests {
             let branch_name = "my/crazy/branch/name";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
 
-            let path_str = format!("{}/annotations/train/one_shot.txt", branch_name);
+            let path_str = format!("{}/annotations/train/one_shot.csv", branch_name);
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
                 Ok(Some((commit_id, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.txt"));
+                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a branch");
