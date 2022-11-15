@@ -1,3 +1,14 @@
+# v0.2.3
+
+*  `oxen df`
+    * `-a` for aggregations
+    * `--sort` to sort by a field
+    * `--reverse` to reverse the order
+* `oxen schemas`
+    * `create_index` subcommand to create an index on a field
+    * `query` subcommand to query an index
+* Bug fixes on indexing DataFrames
+
 # v0.2.2
 
 Update `oxen restore`
