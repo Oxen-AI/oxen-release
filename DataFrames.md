@@ -379,10 +379,10 @@ Here is a list of supported output aggregation functions:
 
 ## Sort
 
-Sorting can be achieved with the `sort_by` flag. For example you may want to find the largest bounding boxes by sorting on the height column.
+Sorting can be achieved with the `sort` flag. For example you may want to find the largest bounding boxes by sorting on the height column.
 
 ```
-oxen df annotations/train.csv --sort_by "height"
+oxen df annotations/train.csv --sort "height"
 
 shape: (9000, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
@@ -413,7 +413,7 @@ shape: (9000, 6)
 Sort is also useful in the context of aggregations. When aggregating up statistics they do not come back in a guaranteed order. If you want to see which files have the most labels, you can group the output if an aggregation `count()` function.
 
 ```
-$ oxen df annotations/train.csv -a "('file') -> (list('label'), count('label'))" --sort_by "count('label')"
+$ oxen df annotations/train.csv -a "('file') -> (list('label'), count('label'))" --sort "count('label')"
 
 shape: (7128, 3)
 ┌─────────────────────────┬───────────────────────────┬────────────────┐
@@ -443,10 +443,10 @@ shape: (7128, 3)
 
 ## Reverse
 
-You can also reverse the order of a data table. By default `--sort_by` sorts in ascending order, but can be reversed with the `--reverse` flag.
+You can also reverse the order of a data table. By default `--sort` sorts in ascending order, but can be reversed with the `--reverse` flag.
 
 ```
-oxen df annotations/train.csv -a "('file') -> (count('label'))" --sort_by "count('label')" --reverse
+oxen df annotations/train.csv -a "('file') -> (count('label'))" --sort "count('label')" --reverse
 
 shape: (7128, 2)
 ┌─────────────────────────┬────────────────┐
