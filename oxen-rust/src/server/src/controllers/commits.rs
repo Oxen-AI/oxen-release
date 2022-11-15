@@ -387,8 +387,13 @@ pub async fn upload(
                                                 let df =
                                                     tabular::read_df(full_path, DFOpts::empty())
                                                         .unwrap();
-                                                // let df = tabular::df_hash_rows(df).unwrap();
+                                                log::debug!(
+                                                    "Got Tabular Upload {:?} DF {}",
+                                                    path,
+                                                    df
+                                                );
                                                 let hash = util::hasher::compute_tabular_hash(&df);
+                                                // log::debug!("Got hash {hash} -> {:?}", path);
 
                                                 util::fs::write_to_path(&hash_file, &hash);
                                             } else {

@@ -1351,7 +1351,7 @@ mod tests {
             //     bounding_box.csv
             //     annotations.txt
             //     two_shot.txt
-            //     one_shot.txt
+            //     one_shot.csv
             //   test/
             //     annotations.txt
             stager.add(&full_annotations_dir, &entry_reader)?;
@@ -1384,7 +1384,7 @@ mod tests {
             let one_shot_file = repo_path
                 .join("annotations")
                 .join("train")
-                .join("one_shot.txt");
+                .join("one_shot.csv");
 
             // Modify the committed file
             let one_shot_file = test::modify_txt_file(one_shot_file, "new content coming in hot")?;
@@ -1452,7 +1452,7 @@ mod tests {
             let one_shot_file = repo_path
                 .join("annotations")
                 .join("train")
-                .join("one_shot.txt");
+                .join("one_shot.csv");
 
             // Remove a committed file
             std::fs::remove_file(&one_shot_file)?;

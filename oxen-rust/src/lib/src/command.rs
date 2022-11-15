@@ -601,6 +601,11 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
 pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let merger = MergeConflictReader::new(repo)?;
     let conflicts = merger.list_conflicts()?;
+    log::debug!(
+        "checkout_theirs {:?} conflicts.len() {}",
+        path.as_ref(),
+        conflicts.len()
+    );
 
     // find the path that matches in the conflict, throw error if !found
     if let Some(conflict) = conflicts

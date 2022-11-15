@@ -96,7 +96,7 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
         // Add a deep file
         command::add(
             &repo,
-            repo.path.join(Path::new("annotations/train/one_shot.txt")),
+            repo.path.join(Path::new("annotations/train/one_shot.csv")),
         )?;
 
         // Make sure that we now see the full annotations/train/ directory
@@ -105,14 +105,14 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
 
         // annotations/
         assert_eq!(repo_status.added_dirs.len(), 1);
-        // annotations/train/one_shot.txt
+        // annotations/train/one_shot.csv
         assert_eq!(repo_status.added_files.len(), 1);
         // train/
         // test/
         assert_eq!(repo_status.untracked_dirs.len(), 2);
         // README.md
         // labels.txt
-        // annotations/train/two_shot.txt
+        // annotations/train/two_shot.csv
         // annotations/train/annotations.txt
         // annotations/train/bounding_box.csv
         assert_eq!(repo_status.untracked_files.len(), 5);
@@ -554,7 +554,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
 fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Modify and add the file deep in a sub dir
-        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
         let file_contents = "train/cat_1.jpg 0";
         test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
@@ -580,7 +580,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
         // Track & commit the file
-        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
         command::add(&repo, &one_shot_path)?;
         command::commit(&repo, "Adding one shot")?;
 
@@ -590,7 +590,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let branch_name = "feature/change-the-shot";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0";
+        let file_contents = "train/cat_1.jpg 0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -621,7 +621,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
         // Track & commit all the data
-        let one_shot_path = repo.path.join("annotations/train/one_shot.txt");
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
         command::add(&repo, &repo.path)?;
         command::commit(&repo, "Adding one shot")?;
 
@@ -631,7 +631,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let branch_name = "feature/modify-data";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0";
+        let file_contents = "train/cat_1.jpg 0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -2045,6 +2045,9 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         let bbox_file =
             test::append_line_txt_file(bbox_file, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
         let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
+        let their_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+        println!("their df {}", their_df);
+
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
@@ -2065,7 +2068,10 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         assert_eq!(status.merge_conflicts.len(), 1);
 
         // Run command::checkout_theirs() and make sure their changes get kept
-        command::checkout_theirs(&repo, bbox_filename)?;
+        command::checkout_theirs(&repo, &bbox_filename)?;
+        let restored_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
+        println!("restored df {}", restored_df);
+
         let file_contents = util::fs::read_from_path(&bbox_file)?;
 
         assert_eq!(file_contents, their_branch_contents);
@@ -2218,6 +2224,39 @@ shape: (6, 1)
 
 "
         );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_schema_create_index_add_new_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Create an index
+        let schemas = command::schema_list(&repo, None)?;
+        let schema_ref = &schemas.first().unwrap().hash;
+        let field_name = "label";
+        command::schema_create_index(&repo, schema_ref, field_name)?;
+
+        // Make sure we can query the data
+        let initial_index = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+
+        // Add and commit a new file with the same schema
+        let bbox_test_filename = Path::new("annotations").join("test").join("new_file.csv");
+        let bbox_test_path = repo.path.join(&bbox_test_filename);
+        test::write_txt_file_to_path(
+            bbox_test_path,
+            r#"file,label,min_x,min_y,width,height
+test/doggy_3.jpg,dog,19.0,63.5,376,421
+test/kitten_1.jpg,cat,57.0,35.5,304,427
+test/unknown_2.jpg,unknown,0.0,0.0,0,0"#,
+        )?;
+
+        // Make sure new row gets added to the index
+        let new_index_results = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+
+        // Make sure we get new results out
+        assert_eq!(initial_index.height() + 1, new_index_results.height());
 
         Ok(())
     })

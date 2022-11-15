@@ -166,7 +166,7 @@ mod tests {
             let results = indexer.query(label_field, "cat")?.unwrap();
             println!("Got index query results: {}", results);
             assert_eq!(results.width(), 6);
-            assert_eq!(results.height(), 2);
+            assert_eq!(results.height(), 3);
 
             Ok(())
         })
