@@ -135,6 +135,19 @@ async fn main() {
                         .takes_value(true),
                 )
                 .arg(
+                    Arg::new("aggregate")
+                        .long("aggregate")
+                        .short('a')
+                        .help("Aggregate up values based on field.")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("col_at")
+                        .long("col_at")
+                        .help("Select a specific row item from column to view it fully. Format: 'col_name:index' ie: 'my_col_name:3'")
+                        .takes_value(true),
+                )
+                .arg(
                     Arg::new("vstack")
                         .long("vstack")
                         .help("Combine row data from different files. The number of columns must match.")
@@ -156,21 +169,32 @@ async fn main() {
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::new("add-col")
-                        .long("add-col")
+                    Arg::new("add_col")
+                        .long("add_col")
                         .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::new("add-row")
-                        .long("add-row")
+                    Arg::new("add_row")
+                        .long("add_row")
                         .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::new("sort")
+                        .long("sort")
+                        .help("Sort the output by a column name. Is run at the end of all the other transforms.")
                         .takes_value(true),
                 )
                 .arg(
                     Arg::new("randomize")
                         .long("randomize")
                         .help("Randomize the order of the table"),
+                )
+                .arg(
+                    Arg::new("reverse")
+                        .long("reverse")
+                        .help("Reverse the order of the table"),
                 )
                 .arg(
                     Arg::new("schema")
@@ -192,6 +216,42 @@ async fn main() {
                     Command::new("name")
                         .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
                         .arg(Arg::new("NAME").help("Name of the schema."))
+                )
+                .subcommand(
+                    Command::new("create_index")
+                        .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to create the index for."))
+                        .arg(
+                            Arg::new("field")
+                                .short('f')
+                                .long("field")
+                                .help("The field or column name that you want to create the index for.")
+                                .takes_value(true)
+                                .required(true),
+                        )
+                )
+                .subcommand(
+                    Command::new("indices")
+                        .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to view the indices for."))
+                )
+                .subcommand(
+                    Command::new("query")
+                        .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to create the index for."))
+                        .arg(
+                            Arg::new("field")
+                                .short('f')
+                                .long("field")
+                                .help("The field or column name that you want to create the index for.")
+                                .takes_value(true)
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("query")
+                                .short('q')
+                                .long("query")
+                                .help("The query or column value that you want to view the values for.")
+                                .takes_value(true)
+                                .required(true),
+                        )
                 )
         )
         .subcommand(
@@ -461,22 +521,26 @@ async fn main() {
             } else {
                 let vstack: Option<Vec<PathBuf>> =
                     if let Some(vstack) = sub_matches.values_of("vstack") {
-                        let vals: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
-                        Some(vals)
+                        let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+                        Some(values)
                     } else {
                         None
                     };
 
-                let opts = liboxen::media::DFOpts {
+                let opts = liboxen::df::DFOpts {
                     output: sub_matches.value_of("output").map(std::path::PathBuf::from),
                     slice: sub_matches.value_of("slice").map(String::from),
                     take: sub_matches.value_of("take").map(String::from),
                     columns: sub_matches.value_of("columns").map(String::from),
                     filter: sub_matches.value_of("filter").map(String::from),
+                    aggregate: sub_matches.value_of("aggregate").map(String::from),
+                    col_at: sub_matches.value_of("col_at").map(String::from),
                     vstack,
-                    add_col: sub_matches.value_of("add-col").map(String::from),
-                    add_row: sub_matches.value_of("add-row").map(String::from),
+                    add_col: sub_matches.value_of("add_col").map(String::from),
+                    add_row: sub_matches.value_of("add_row").map(String::from),
+                    sort_by: sub_matches.value_of("sort").map(String::from),
                     should_randomize: sub_matches.is_present("randomize"),
+                    should_reverse: sub_matches.is_present("reverse"),
                 };
 
                 match dispatch::df(path, opts) {
@@ -509,6 +573,41 @@ async fn main() {
                         let hash = sub_matches.value_of("HASH").expect("required");
                         let val = sub_matches.value_of("NAME").expect("required");
                         match dispatch::schema_name(hash, val) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("create_index", sub_matches) => {
+                        let schema = sub_matches
+                            .value_of("SCHEMA")
+                            .expect("Must supply a schema ref");
+                        let field = sub_matches.value_of("field").expect("Must supply a field");
+                        match dispatch::schema_create_index(schema, field) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("indices", sub_matches) => {
+                        let schema = sub_matches
+                            .value_of("SCHEMA")
+                            .expect("Must supply a schema ref");
+
+                        match dispatch::schema_list_indices(schema) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("query", sub_matches) => {
+                        let schema = sub_matches.value_of("SCHEMA").expect("required");
+                        let field = sub_matches.value_of("field").expect("required");
+                        let query = sub_matches.value_of("query").expect("required");
+                        match dispatch::schema_query_index(schema, field, query) {
                             Ok(_) => {}
                             Err(err) => {
                                 eprintln!("{}", err)
