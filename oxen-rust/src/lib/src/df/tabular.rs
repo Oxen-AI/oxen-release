@@ -1,8 +1,8 @@
-use polars::prelude::*;
+use polars::{lazy::dsl::Expr, prelude::*};
 
 use crate::constants;
+use crate::df::df_opts::DFOpts;
 use crate::error::OxenError;
-use crate::media::df_opts::DFOpts;
 use crate::model::schema::DataType;
 use crate::util::hasher;
 
@@ -14,7 +14,10 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::path::Path;
 
-use super::df_opts::{DFFilter, DFFilterOp};
+use super::{
+    agg::{DFAggFn, DFAggFnType, DFAggregation},
+    df_opts::{DFFilter, DFFilterOp},
+};
 
 const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
 const READ_ERROR: &str = "Could not read tabular data from path";
@@ -85,8 +88,8 @@ fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new("idx", &indices);
     let collected = df.collect().expect(READ_ERROR);
-    log::debug!("take indicies {:?}", indices);
-    log::debug!("from df {:?}", collected);
+    // log::debug!("take indices {:?}", indices);
+    // log::debug!("from df {:?}", collected);
     Ok(collected.take(&idx).expect(READ_ERROR))
 }
 
@@ -202,6 +205,57 @@ fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
     }
 }
 
+fn agg_fn_to_expr(agg: &DFAggFn) -> Result<Expr, OxenError> {
+    let col_name = &agg.args[0];
+    match DFAggFnType::from_fn_name(&agg.name) {
+        DFAggFnType::List => Ok(col(col_name).alias(&format!("list('{}')", col_name))),
+        DFAggFnType::Count => Ok(col(col_name)
+            .count()
+            .alias(&format!("count('{}')", col_name))),
+        DFAggFnType::NUnique => Ok(col(col_name)
+            .n_unique()
+            .alias(&format!("n_unique('{}')", col_name))),
+        DFAggFnType::Min => Ok(col(col_name).min().alias(&format!("min('{}')", col_name))),
+        DFAggFnType::Max => Ok(col(col_name).max().alias(&format!("max('{}')", col_name))),
+        DFAggFnType::ArgMin => Ok(col(col_name)
+            .arg_min()
+            .alias(&format!("arg_min('{}')", col_name))),
+        DFAggFnType::ArgMax => Ok(col(col_name)
+            .arg_max()
+            .alias(&format!("max('{}')", col_name))),
+        DFAggFnType::Mean => Ok(col(col_name).mean().alias(&format!("mean('{}')", col_name))),
+        DFAggFnType::Median => Ok(col(col_name)
+            .median()
+            .alias(&format!("median('{}')", col_name))),
+        DFAggFnType::Std => Ok(col(col_name).std(0).alias(&format!("std('{}')", col_name))),
+        DFAggFnType::Var => Ok(col(col_name).var(0).alias(&format!("var('{}')", col_name))),
+        DFAggFnType::First => Ok(col(col_name)
+            .first()
+            .alias(&format!("first('{}')", col_name))),
+        DFAggFnType::Last => Ok(col(col_name).last().alias(&format!("last('{}')", col_name))),
+        DFAggFnType::Head => Ok(col(col_name)
+            .head(Some(5))
+            .alias(&format!("head('{}', 5)", col_name))),
+        DFAggFnType::Tail => Ok(col(col_name)
+            .tail(Some(5))
+            .alias(&format!("tail('{}', 5)", col_name))),
+        DFAggFnType::Unknown => Err(OxenError::unknown_agg_fn(&agg.name)),
+    }
+}
+
+fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame, OxenError> {
+    log::debug!("Got agg: {:?}", aggregation);
+
+    let group_by: Vec<Expr> = aggregation.group_by.iter().map(|c| col(c)).collect();
+    let agg: Vec<Expr> = aggregation
+        .agg
+        .iter()
+        .map(|f| agg_fn_to_expr(f).expect("Err:"))
+        .collect();
+
+    Ok(df.groupby(group_by).agg(agg))
+}
+
 pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
@@ -227,10 +281,6 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
-    if let Some(filter) = opts.get_filter() {
-        df = filter_df(df, &filter)?;
-    }
-
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
             let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
@@ -238,25 +288,50 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         }
     }
 
+    if let Some(filter) = opts.get_filter() {
+        df = filter_df(df, &filter)?;
+    }
+
+    if let Some(agg) = &opts.get_aggregation()? {
+        df = aggregate_df(df, agg)?;
+    }
+
     if opts.should_randomize {
         // TODO: Inefficient, but let's release
         let full_df = df.collect().unwrap();
         let height = full_df.height() as u32;
-        let mut rand_indicies: Vec<u32> = (0..height).collect();
-        rand_indicies.shuffle(&mut thread_rng());
-        df = take(full_df.lazy(), rand_indicies)?.lazy();
+        let mut rand_indices: Vec<u32> = (0..height).collect();
+        rand_indices.shuffle(&mut thread_rng());
+        df = take(full_df.lazy(), rand_indices)?.lazy();
     }
 
+    if let Some(sort_by) = &opts.sort_by {
+        df = df.sort(sort_by, SortOptions::default());
+    }
+
+    if opts.should_reverse {
+        df = df.reverse();
+    }
+
+    // These ops should be the last ops since they depends on order
     if let Some((start, end)) = opts.slice_indices() {
         if start >= end {
             panic!("Slice error: Start must be greater than end.");
         }
         let len = end - start;
-        return Ok(df.slice(start, len as u32).collect().expect(READ_ERROR));
+        df = df.slice(start, len as u32);
     }
 
     if let Some(indices) = opts.take_indices() {
-        return take(df, indices);
+        df = take(df, indices).unwrap().lazy();
+    }
+
+    if let Some(item) = opts.column_at() {
+        let full_df = df.collect().unwrap();
+        let value = full_df.column(&item.col).unwrap().get(item.index);
+        let s1 = Series::new("", [value]);
+        let df = DataFrame::new(vec![s1]).unwrap();
+        return Ok(df);
     }
 
     Ok(df.collect().expect(READ_ERROR))
@@ -272,6 +347,30 @@ pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame
     Ok(df
         .with_row_count(constants::ROW_NUM_COL_NAME, Some(start))
         .expect(READ_ERROR))
+}
+
+pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
+    match value {
+        AnyValue::Null => Vec::<u8>::new(),
+        AnyValue::Int64(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Int32(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Int8(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
+        AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+        // TODO: handle rows with lists...
+        // AnyValue::List(val) => {
+        //     match val.dtype() {
+        //         DataType::Int32 => {},
+        //         DataType::Float32 => {},
+        //         DataType::Utf8 => {},
+        //         DataType::UInt8 => {},
+        //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
+        //     }
+        // },
+        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => val.to_le_bytes().to_vec(),
+        _ => Vec::<u8>::new(),
+    }
 }
 
 pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
@@ -306,28 +405,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                                 let mut buffer: Vec<u8> = vec![];
                                 for elem in row.iter() {
                                     // log::debug!("Got elem[{}] {}", i, elem);
-                                    let mut elem: Vec<u8> = match elem {
-                                        AnyValue::Null => Vec::<u8>::new(),
-                                        AnyValue::Int64(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Int32(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Int8(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
-                                        AnyValue::Utf8(val) => val.as_bytes().to_vec(),
-                                        // AnyValue::List(val) => {
-                                        //     match val.dtype() {
-                                        //         DataType::Int32 => {},
-                                        //         DataType::Float32 => {},
-                                        //         DataType::Utf8 => {},
-                                        //         DataType::UInt8 => {},
-                                        //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
-                                        //     }
-                                        // },
-                                        AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => {
-                                            val.to_le_bytes().to_vec()
-                                        }
-                                        _ => Vec::<u8>::new(),
-                                    };
+                                    let mut elem: Vec<u8> = any_val_to_bytes(elem);
                                     // println!("Elem[{}] bytes {:?}", i, elem);
                                     buffer.append(&mut elem);
                                 }
@@ -359,7 +437,6 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 
     let extension = path.extension().and_then(OsStr::to_str);
-    log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
     if opts.has_transform() {
@@ -385,7 +462,6 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
 pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
-    log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
     match extension {
@@ -449,7 +525,6 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
 pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let extension = path.extension().and_then(OsStr::to_str);
-    log::debug!("Got extension {:?}", extension);
     let err = format!("Unknown file type {:?}", extension);
 
     match extension {
@@ -484,8 +559,24 @@ pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFr
 }
 
 pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
-    let df = read_df(input, opts)?;
-    println!("{}", df);
+    let df = read_df(input, opts.clone())?;
+    if opts.column_at().is_some() {
+        for val in df.get(0).unwrap() {
+            match val {
+                polars::prelude::AnyValue::List(vals) => {
+                    for val in vals.iter() {
+                        println!("{}", val)
+                    }
+                }
+                _ => {
+                    println!("{}", val)
+                }
+            }
+        }
+    } else {
+        println!("{}", df);
+    }
+
     Ok(df)
 }
 
