@@ -11,7 +11,8 @@ use crate::db;
 use crate::db::str_val_db;
 use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, DataFrameDiff, LocalRepository, Schema};
+use crate::index::{SchemaFieldValIndex, SchemaIndexReader};
+use crate::model::{schema, Commit, CommitEntry, DataFrameDiff, LocalRepository, Schema};
 use crate::util;
 
 use super::SchemaReader;
@@ -124,6 +125,116 @@ impl CommitSchemaRowIndex {
         str_val_db::hash_map(&self.file_db)
     }
 
+    fn select_cols(fields: &[schema::Field]) -> Vec<Expr> {
+        // Start with _row_hash and _row_num columns
+        let mut cols = vec![col(ROW_HASH_COL_NAME), col(ROW_NUM_COL_NAME)];
+        for field in fields.iter() {
+            cols.push(col(&field.name));
+        }
+        cols
+    }
+
+    fn select_apply(
+        repository: LocalRepository,
+        commit: Commit,
+        schema: Schema,
+        path: PathBuf,
+        num_rows: i64,
+        fields: &[schema::Field],
+    ) -> Expr {
+        let indices: Vec<SchemaFieldValIndex> = fields
+            .iter()
+            .map(|field| SchemaFieldValIndex::new(&repository, &commit, &schema, field).unwrap())
+            .collect();
+        let cols = CommitSchemaRowIndex::select_cols(fields);
+
+        as_struct(&cols)
+            .apply(
+                move |s| {
+                    log::debug!("select_apply: series {:?}", s);
+
+                    let indexer =
+                        CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path).unwrap();
+                    let pb = ProgressBar::new(num_rows as u64);
+                    // downcast to struct
+
+                    let ca = s.struct_()?;
+                    // the first two fields from select_cols are _row_hash and _row_num
+                    let s_row_hash = &ca.fields()[0];
+                    let s_row_num = &ca.fields()[1];
+
+                    // downcast the `Series` to their known type
+                    let ca_row_hash = s_row_hash.utf8()?;
+                    let ca_row_num = s_row_num.u32()?;
+
+                    // TODO: This seems inefficient..can we iterate just once over all cols?
+                    if ca.fields().len() > 2 {
+                        for i in 2..ca.fields().len() {
+                            let s_val = &ca.fields()[2].utf8()?;
+
+                            let mut agg: HashMap<&str, Vec<u32>> = HashMap::new();
+                            let _out: UInt32Chunked = s_val
+                                .into_iter()
+                                .zip(ca_row_num)
+                                .map(|(opt_val, opt_row_num)| match (opt_val, opt_row_num) {
+                                    (Some(row_val), Some(row_num)) => {
+                                        // log::debug!("Saving index [{}] -> {}", row_num, row_val);
+
+                                        agg.entry(row_val).or_default().push(row_num);
+
+                                        Some(row_num)
+                                    }
+                                    _ => None,
+                                })
+                                .collect();
+
+                            // log::debug!("Got agg {:?}", agg);
+                            for (key, vals) in agg {
+                                indices[i - 2].insert_index(key, vals).unwrap();
+                            }
+                        }
+                    }
+
+                    // iterate both `ChunkedArrays`
+                    let out: Utf8Chunked = ca_row_hash
+                        .into_iter()
+                        .zip(ca_row_num)
+                        .map(
+                            |(opt_row_hash, opt_row_num)| match (opt_row_hash, opt_row_num) {
+                                (Some(row_hash), Some(row_num)) => {
+                                    pb.inc(1);
+
+                                    // log::debug!("Saving row hash {} -> {}", row_hash, row_num);
+                                    indexer.put_row_index(row_hash, row_num).unwrap();
+
+                                    Some(row_hash)
+                                }
+                                _ => None,
+                            },
+                        )
+                        .collect();
+                    Ok(out.into_series())
+                },
+                GetOutput::from_type(DataType::Utf8),
+            )
+            .alias("_result")
+    }
+
+    fn select_opts(
+        repository: LocalRepository,
+        commit: Commit,
+        schema: Schema,
+        path: PathBuf,
+        num_rows: i64,
+        fields: &[schema::Field],
+    ) -> Vec<Expr> {
+        let mut cols = CommitSchemaRowIndex::select_cols(fields);
+        cols.push(CommitSchemaRowIndex::select_apply(
+            repository, commit, schema, path, num_rows, fields,
+        ));
+        cols
+    }
+
     pub fn index_hash_row_nums(
         repository: LocalRepository,
         commit: Commit,
@@ -133,54 +244,20 @@ impl CommitSchemaRowIndex {
     ) -> Result<DataFrame, OxenError> {
         let num_rows = df.height() as i64;
 
+        let index_reader = SchemaIndexReader::new(&repository, &commit, &schema)?;
+        let index_fields = index_reader.list_field_indices()?;
+
         // Save off hash->row_idx to db
         let df = df
             .lazy()
-            .select([
-                col(ROW_HASH_COL_NAME),
-                col(ROW_NUM_COL_NAME),
-                as_struct(&[col(ROW_HASH_COL_NAME), col(ROW_NUM_COL_NAME)])
-                    .apply(
-                        move |s| {
-                            // log::debug!("s: {:?}", s);
-
-                            let indexer =
-                                CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path)
-                                    .unwrap();
-                            let pb = ProgressBar::new(num_rows as u64);
-                            // downcast to struct
-
-                            let ca = s.struct_()?;
-                            // get the fields as Series
-                            let s_a = &ca.fields()[0];
-                            let s_b = &ca.fields()[1];
-
-                            // downcast the `Series` to their known type
-                            let ca_a = s_a.utf8()?;
-                            let ca_b = s_b.u32()?;
-
-                            // iterate both `ChunkedArrays`
-                            let out: Utf8Chunked = ca_a
-                                .into_iter()
-                                .zip(ca_b)
-                                .map(|(opt_a, opt_b)| match (opt_a, opt_b) {
-                                    (Some(row_hash), Some(row_num)) => {
-                                        pb.inc(1);
-
-                                        log::debug!("Saving row hash: {} -> {}", row_hash, row_num);
-                                        indexer.put_row_index(row_hash, row_num).unwrap();
-
-                                        Some(row_hash)
-                                    }
-                                    _ => None,
-                                })
-                                .collect();
-                            Ok(out.into_series())
-                        },
-                        GetOutput::from_type(DataType::Utf8),
-                    )
-                    .alias("_result"),
-            ])
+            .select(CommitSchemaRowIndex::select_opts(
+                repository,
+                commit,
+                schema,
+                path,
+                num_rows,
+                &index_fields,
+            ))
             .select([col("_result")])
             .collect()
             .unwrap();
@@ -495,16 +572,17 @@ mod tests {
 
     #[test]
     fn test_commit_tabular_data_first_commit_can_fetch_content() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = command::log(&repo)?;
-            let commit = history.first().unwrap();
-
+        test::run_training_data_repo_test_no_commits(|repo| {
             // Create a new data file with some annotations
             let og_bbox_file = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
             let og_bbox_path = repo.path.join(&og_bbox_file);
             let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
+
+            // Add & commit
+            command::add(&repo, og_bbox_path)?;
+            let commit = command::commit(&repo, "Adding bbox training file")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
             let schema = schemas.first().unwrap();
@@ -513,7 +591,7 @@ mod tests {
             assert!(path.exists());
 
             let version_df = tabular::read_df(path, DFOpts::empty())?;
-            assert_eq!(og_df.height() + 3, version_df.height());
+            assert_eq!(og_df.height(), version_df.height());
 
             let row_index_reader =
                 CommitSchemaRowIndex::new(&repo, &commit.id, schema, &og_bbox_file)?;
@@ -730,6 +808,51 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let removed = diff.removed_cols.unwrap();
             assert_eq!(removed.height(), 9);
             assert_eq!(removed.width(), 3);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_data_first_commit_does_save_indexed_fields() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Create a new data file with some annotations
+            let og_bbox_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let og_bbox_path = repo.path.join(&og_bbox_file);
+            let og_df = tabular::read_df(&og_bbox_path, DFOpts::empty())?;
+
+            // Add & commit
+            command::add(&repo, og_bbox_path)?;
+            let commit = command::commit(&repo, "Adding bbox training file")?.unwrap();
+
+            let schemas = command::schema_list(&repo, Some(&commit.id))?;
+            let schema = schemas.first().unwrap();
+
+            // Create the index
+            command::schema_create_index(&repo, &schema.hash, "label")?;
+
+            // Make sure cadf is created
+            let path = util::fs::schema_df_path(&repo, schema);
+            assert!(path.exists());
+
+            let version_df = tabular::read_df(path, DFOpts::empty())?;
+            assert_eq!(og_df.height(), version_df.height());
+
+            // Add & commit another file
+            let new_bbox_file = Path::new("annotations")
+                .join("test")
+                .join("annotations.csv");
+            let new_bbox_path = repo.path.join(&new_bbox_file);
+
+            command::add(&repo, new_bbox_path)?;
+            command::commit(&repo, "Adding bbox test file")?.unwrap();
+
+            let result = command::schema_query_index(&repo, &schema.hash, "label", "unknown")?;
+
+            // There should be one new field indexed with label=="unknown"
+            assert_eq!(result.height(), 1);
 
             Ok(())
         })
