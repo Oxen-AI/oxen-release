@@ -277,6 +277,18 @@ pub fn schema_create_index(schema_ref: &str, field: &str) -> Result<(), OxenErro
     command::schema_create_index(&repository, schema_ref, field)
 }
 
+pub fn schema_list_indices(schema_ref: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let fields = command::schema_list_indices(&repository, schema_ref)?;
+    for field in fields {
+        println!("{}", field.name);
+    }
+
+    Ok(())
+}
+
 pub fn schema_query_index(schema_ref: &str, field: &str, query: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

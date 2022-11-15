@@ -230,6 +230,10 @@ async fn main() {
                         )
                 )
                 .subcommand(
+                    Command::new("indices")
+                        .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to view the indices for."))
+                )
+                .subcommand(
                     Command::new("query")
                         .arg(Arg::new("SCHEMA").help("The schema name or hash that you want to create the index for."))
                         .arg(
@@ -581,6 +585,18 @@ async fn main() {
                             .expect("Must supply a schema ref");
                         let field = sub_matches.value_of("field").expect("Must supply a field");
                         match dispatch::schema_create_index(schema, field) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{}", err)
+                            }
+                        }
+                    }
+                    ("indices", sub_matches) => {
+                        let schema = sub_matches
+                            .value_of("SCHEMA")
+                            .expect("Must supply a schema ref");
+
+                        match dispatch::schema_list_indices(schema) {
                             Ok(_) => {}
                             Err(err) => {
                                 eprintln!("{}", err)
