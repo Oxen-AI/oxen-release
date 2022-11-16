@@ -5,16 +5,19 @@
 
 use crate::api;
 use crate::constants;
+use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::schema_writer::SchemaWriter;
 use crate::index::CommitSchemaRowIndex;
+use crate::index::SchemaIndexReader;
+use crate::index::SchemaIndexer;
 use crate::index::SchemaReader;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
     RefReader, RefWriter, Stager,
 };
-use crate::media::{df_opts::DFOpts, tabular};
+use crate::model::schema;
 use crate::model::Schema;
 use crate::model::{
     Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
@@ -25,6 +28,7 @@ use crate::util;
 use crate::util::resource;
 
 use bytevec::ByteDecodable;
+use polars::prelude::DataFrame;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -208,7 +212,7 @@ pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<()
     Ok(())
 }
 
-/// Interact with dataframes from CLI
+/// Interact with DataFrames from CLI
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
 
@@ -224,7 +228,7 @@ pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
     tabular::schema_to_string(input)
 }
 
-/// Read the saved off schemas for a commit id
+/// List the saved off schemas for a commit id
 pub fn schema_list(
     repo: &LocalRepository,
     commit_id: Option<&str>,
@@ -246,12 +250,12 @@ pub fn schema_list(
 pub fn schema_show(
     repo: &LocalRepository,
     commit_id: Option<&str>,
-    name_or_hash: &str,
+    schema_ref: &str,
 ) -> Result<Option<Schema>, OxenError> {
     // The list of schemas should not be too long, so just filter right now
     let list: Vec<Schema> = schema_list(repo, commit_id)?
         .into_iter()
-        .filter(|s| s.name == Some(String::from(name_or_hash)) || s.hash == *name_or_hash)
+        .filter(|s| s.name == Some(String::from(schema_ref)) || s.hash == *schema_ref)
         .collect();
     if !list.is_empty() {
         Ok(Some(list.first().unwrap().clone()))
@@ -262,17 +266,72 @@ pub fn schema_show(
 
 pub fn schema_name(
     repo: &LocalRepository,
-    hash: &str,
+    schema_ref: &str,
     val: &str,
 ) -> Result<Option<Schema>, OxenError> {
     let head_commit = head_commit(repo)?;
-    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), hash)? {
+    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
         let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
         schema.name = Some(String::from(val));
         let schema = schema_writer.update_schema(&schema)?;
         Ok(Some(schema))
     } else {
         Ok(None)
+    }
+}
+
+pub fn schema_create_index(
+    repo: &LocalRepository,
+    schema_ref: &str,
+    field: &str,
+) -> Result<(), OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+        if let Some(field) = schema.get_field(field) {
+            let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
+            indexer.create_index(field)
+        } else {
+            Err(OxenError::schema_does_not_have_field(field))
+        }
+    } else {
+        Err(OxenError::schema_does_not_exist(schema_ref))
+    }
+}
+
+pub fn schema_query_index(
+    repo: &LocalRepository,
+    schema_ref: &str,
+    field: &str,
+    query: &str,
+) -> Result<DataFrame, OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+        if let Some(field) = schema.get_field(field) {
+            let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
+            if let Some(result) = indexer.query(field, query)? {
+                Ok(result)
+            } else {
+                let err = format!("Val does not exist {}", query);
+                Err(OxenError::basic_str(err))
+            }
+        } else {
+            Err(OxenError::schema_does_not_have_field(field))
+        }
+    } else {
+        Err(OxenError::schema_does_not_exist(schema_ref))
+    }
+}
+
+pub fn schema_list_indices(
+    repo: &LocalRepository,
+    schema_ref: &str,
+) -> Result<Vec<schema::Field>, OxenError> {
+    let head_commit = head_commit(repo)?;
+    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+        let index_reader = SchemaIndexReader::new(repo, &head_commit, &schema)?;
+        index_reader.list_field_indices()
+    } else {
+        Err(OxenError::schema_does_not_exist(schema_ref))
     }
 }
 
@@ -542,6 +601,11 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
 pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let merger = MergeConflictReader::new(repo)?;
     let conflicts = merger.list_conflicts()?;
+    log::debug!(
+        "checkout_theirs {:?} conflicts.len() {}",
+        path.as_ref(),
+        conflicts.len()
+    );
 
     // find the path that matches in the conflict, throw error if !found
     if let Some(conflict) = conflicts
@@ -563,7 +627,11 @@ pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resul
 pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let merger = MergeConflictReader::new(repo)?;
     let conflicts = merger.list_conflicts()?;
-
+    log::debug!(
+        "checkout_combine checking path {:?} -> [{}] conflicts",
+        path.as_ref(),
+        conflicts.len()
+    );
     // find the path that matches in the conflict, throw error if !found
     if let Some(conflict) = conflicts
         .iter()

@@ -16,9 +16,8 @@ pub struct SchemaWriter {
 }
 
 impl SchemaWriter {
-    /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaWriter, OxenError> {
-        let db_path = SchemaReader::schema_db_dir(repository);
+        let db_path = SchemaReader::schemas_db_dir(repository, commit_id);
         let opts = db::opts::default();
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;

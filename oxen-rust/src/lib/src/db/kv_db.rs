@@ -7,7 +7,7 @@ use std::str;
 pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> bool {
     let key = key.as_ref();
     let bytes = key.as_bytes();
-    match db.get(bytes) {
+    match db.get_pinned(bytes) {
         Ok(Some(_value)) => true,
         Ok(None) => false,
         Err(err) => {
