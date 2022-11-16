@@ -45,11 +45,11 @@ FIRST STEP
     - `oxen schema "schema-name" df` will read from that schema hash
 
 2) Add ability to quickly fetch indices from tabular file or paginate
-    - /namespace/reponame/rows/commit/file/
+    - /namespace/repo_name/rows/commit/file/
 
 -- RELEASE
 
-1) Let's do `oxen index -s "bounding_box" -c "file"` to keep track of individual annotations
+1) Let's do `oxen schema index "bounding_box" "file"` to keep track of individual annotations
     - Annotation object is just a link between a row in an .arrow table that is checked in, and the commit id, and a entry on disk
     - You should be able to add one from CLI too without reading from a file
         - OR just add a row to a file, add, commit, boom
@@ -68,9 +68,9 @@ Start with
         
         `oxen schema list`
         
-        `oxen schema name eh219ehdj "bounding_box"`
+        `oxen schema name SCHEMA_HASH "bounding_box"`
 
-    3) Save off row indicies and file content hash pointers to the annotations dir
+    3) Save off row indices and file content hash pointers to the annotations dir
 
         Ex) Query
             Find all the rows (annotations) that belong to a key-val pair
@@ -93,10 +93,6 @@ Start with
                     contents.jpg
 
             schemas/
-                schemas/
-                    ROCKS_DB
-                        schema_hash => { schema obj }
-
                 rows/ (global rocks db for row hash to index)
                     ROCKSDB
                         row_hash => {row_num_arrow}
@@ -125,9 +121,13 @@ Start with
 
         .oxen/history/
             commit_id/ (has 4 top level objects "files", "dirs", "schemas", "indexes")
-                schemas/ (quickly look up schema for a file in a commit)
-                    ROCKS_DB
-                        file_name -> { schema_hash }
+                schemas/
+                    schemas/ (list all the schemas in a commit)
+                        ROCKS_DB
+                            schema_hash => { schema_obj }
+                    files/ (quickly look up schema for a file in a commit)
+                        ROCKS_DB
+                            file_name -> { schema_hash }
                 indices/
                     <schema_hash>/
                         files/ (we need a mapping from row hash to the original arrow files)
@@ -135,14 +135,20 @@ Start with
                                 ROCKSDB
                                     row_hash => {row_num_og, row_num_arrow}
 
+                        indices/ (keep track of column names we have hashed)
+                            ROCKSDB
+                                field.col_name.hash -> field.col_name
+
                         fields/ ("file" or "label" or "whatever aggregate query you want")
-                            field.name/
-                                index_val_hash/ ("path/to/file.jpg" or "person")
-                                    <file_name_hash> (same structure as the files dir above, can iterate over files to get full index)
-                                        ROCKSDB
-                                            row_hash => { (now we can diff between commits, based on the query)
-                                                _row_num, (in .arrow file)
-                                            }
+                            field.col_name.hash/
+                                ROCKSDB
+                                    field.value.hash => list[_row_num]
+
+                                field.value.hash/ ("path/to/file.jpg" or "person")
+                                    ROCKSDB
+                                        row_hash => { (now we can diff between commits, based on the query)
+                                            _row_num, (in .arrow file)
+                                        }
                 dirs/
                 files/
                     path/

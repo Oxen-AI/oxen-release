@@ -41,21 +41,15 @@ impl Schema {
         }
     }
 
-    pub fn from_datafusion(schema: &datafusion::logical_plan::DFSchema) -> Schema {
-        let mut fields: Vec<Field> = vec![];
-        for field in schema.fields() {
-            let f = Field {
-                name: field.name().trim().to_string(),
-                dtype: DataType::from_arrow(field.data_type()).as_str().to_string(),
-            };
-            fields.push(f);
-        }
+    pub fn has_field(&self, field: &Field) -> bool {
+        self.fields
+            .iter()
+            .any(|f| f.name == field.name && f.dtype == field.dtype)
+    }
 
-        Schema {
-            name: None,
-            hash: Schema::hash_fields(&fields),
-            fields,
-        }
+    pub fn get_field<S: AsRef<str>>(&self, name: S) -> Option<&Field> {
+        let name = name.as_ref();
+        self.fields.iter().find(|f| f.name == name)
     }
 
     fn hash_fields(fields: &Vec<Field>) -> String {
@@ -117,13 +111,15 @@ impl Schema {
 impl fmt::Display for Schema {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut table = comfy_table::Table::new();
+        table.set_header(vec!["id", "name", "dtype"]);
 
-        let mut cells: Vec<comfy_table::Cell> = vec![];
-        for field in self.fields.iter() {
-            let val = format!("{}\n---\n{}", field.name, field.dtype);
-            cells.push(comfy_table::Cell::from(val));
+        for (i, field) in self.fields.iter().enumerate() {
+            let mut cells: Vec<comfy_table::Cell> = vec![];
+            cells.push(comfy_table::Cell::from(format!("{}", i)));
+            cells.push(comfy_table::Cell::from(field.name.to_owned()));
+            cells.push(comfy_table::Cell::from(field.dtype.to_owned()));
+            table.add_row(cells);
         }
-        table.add_row(cells);
 
         write!(f, "{}", table)
     }

@@ -52,7 +52,9 @@ Then run the server like this
 
 Make sure your server is running on the default port and host, then run
 
-`cargo test`
+Note: tests open up a lot of file handles, so limit num test threads if running everything.
+
+`cargo test -- --test-threads=3`
 
 To run with all debug output and run a specific test
 

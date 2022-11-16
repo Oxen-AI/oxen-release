@@ -14,6 +14,11 @@ pub fn hash_buffer(buffer: &[u8]) -> String {
     format!("{val:x}")
 }
 
+pub fn hash_str<S: AsRef<str>>(buffer: S) -> String {
+    let buffer = buffer.as_ref().as_bytes();
+    hash_buffer(buffer)
+}
+
 pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
     xxh3_128(buffer)
 }
@@ -28,6 +33,7 @@ pub fn compute_tabular_hash(df: &DataFrame) -> String {
         .unwrap()
         .into_iter()
         .map(|hash| {
+            log::debug!("Combine hash.... {}", hash.unwrap());
             commit_hasher.update(hash.unwrap().as_bytes());
             Ok(())
         })
@@ -37,11 +43,16 @@ pub fn compute_tabular_hash(df: &DataFrame) -> String {
     format!("{val:x}")
 }
 
-pub fn compute_commit_hash(commit_data: &NewCommit, entries: &[impl ContentHashable]) -> String {
+pub fn compute_commit_hash<E>(commit_data: &NewCommit, entries: &[E]) -> String
+where
+    E: ContentHashable + std::fmt::Debug,
+{
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
     log::debug!("Hashing {} entries", entries.len());
-    for entry in entries.iter() {
+    for (i, entry) in entries.iter().enumerate() {
         let hash = entry.content_hash();
+        log::debug!("Entry [{}] hash {}", i, hash);
+
         let input = hash.as_bytes();
         commit_hasher.update(input);
     }

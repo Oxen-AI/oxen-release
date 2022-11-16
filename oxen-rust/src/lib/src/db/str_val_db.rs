@@ -77,16 +77,18 @@ where
 {
     let key = key.as_ref();
 
-    log::debug!(
-        "hash_val_db::put {:?} -> {:?} -> db: {:?}",
-        key,
-        entry,
-        db.path()
-    );
+    log::debug!("str_val_db::put {:?} -> db: {:?}", key, db.path());
 
-    let val = entry.encode::<u8>().unwrap();
-    db.put(key, val)?;
-    Ok(())
+    match entry.encode::<u8>() {
+        Ok(val) => {
+            db.put(key, val)?;
+            Ok(())
+        }
+        Err(err) => {
+            log::error!("Err: Could not encode value {}", err);
+            Err(OxenError::basic_str("Could not encode value..."))
+        }
+    }
 }
 
 /// List Values
