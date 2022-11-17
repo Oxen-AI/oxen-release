@@ -386,7 +386,7 @@ impl CommitEntryWriter {
             } else {
                 let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
 
-                log::debug!("OLD DF: {}", old_df);
+                log::debug!("Append to: {}", old_df);
 
                 // Create new DF from new rows
                 // Loop over the hashes and filter to ones that do not exist
@@ -459,14 +459,27 @@ impl CommitEntryWriter {
         let size: u64 = unsafe { std::mem::transmute(staged_data.added_files.len()) };
         let bar = ProgressBar::new(size);
         let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
+        log::debug!(
+            "commit_staged_entries_with_prog got groups {}",
+            grouped.len()
+        );
+
+        // Track dirs
+        for (_path, staged_dirs) in staged_data.added_dirs.paths.iter() {
+            for staged_dir in staged_dirs.iter() {
+                log::debug!(
+                    "commit_staged_entries_with_prog adding dir {:?}",
+                    staged_dir.path
+                );
+                path_db::put(&self.dir_db, &staged_dir.path, &0)?;
+            }
+        }
 
         // Do regular before tabular
         for (dir, files) in grouped.iter() {
-            // Track the dir
-            path_db::put(&self.dir_db, dir, &0)?;
-
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
+            path_db::put(&self.dir_db, dir, &0)?;
 
             // Commit entries data
             files.par_iter().for_each(|(path, entry)| {
@@ -573,7 +586,10 @@ mod tests {
             let commit = command::commit(&repo, "Committing bbox data")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let path = util::fs::schema_df_path(&repo, schema);
             assert!(path.exists());
@@ -595,7 +611,10 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             // CADF
             let path = util::fs::schema_df_path(&repo, schema);
@@ -607,8 +626,7 @@ mod tests {
             let my_bbox_path = repo.path.join(&my_bbox_file);
             test::write_txt_file_to_path(
                 &my_bbox_path,
-                r#"
-file,label,min_x,min_y,width,height
+                r#"file,label,min_x,min_y,width,height
 train/new.jpg,new,1.0,2.0,3,4
 train/new.jpg,new,5.0,6.0,7,8
 "#,
@@ -620,12 +638,20 @@ train/new.jpg,new,5.0,6.0,7,8
                 command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            for s in schemas.iter() {
+                println!("Schema: {:?} -> {}", s.name, s.hash);
+            }
+
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let path = util::fs::schema_df_path(&repo, schema);
             assert!(path.exists());
 
             let version_df = tabular::read_df(path, DFOpts::empty())?;
+            println!("{}", version_df);
             assert_eq!(og_df.height() + my_df.height(), version_df.height());
 
             Ok(())
@@ -639,7 +665,10 @@ train/new.jpg,new,5.0,6.0,7,8
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             // CADF
             let path = util::fs::schema_df_path(&repo, schema);
@@ -652,8 +681,7 @@ train/new.jpg,new,5.0,6.0,7,8
             // This is the same row content that already exists, so we shouldn't add it again to the version file
             test::write_txt_file_to_path(
                 &my_bbox_path,
-                r#"
-file,label,min_x,min_y,width,height
+                r#"file,label,min_x,min_y,width,height
 train/dog_1.jpg,dog,101.5,32.0,385,330
 train/dog_2.jpg,dog,7.0,29.5,246,247
 "#,
@@ -664,7 +692,10 @@ train/dog_2.jpg,dog,7.0,29.5,246,247
                 command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let path = util::fs::schema_df_path(&repo, schema);
             assert!(path.exists());
@@ -682,7 +713,10 @@ train/dog_2.jpg,dog,7.0,29.5,246,247
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             // CADF
             let path = util::fs::schema_df_path(&repo, schema);
@@ -698,8 +732,7 @@ train/dog_2.jpg,dog,7.0,29.5,246,247
                 // This is the same row content that already exists, so we shouldn't add it again to the version file
                 test::write_txt_file_to_path(
                     &my_bbox_path,
-                    r#"
-file,label,min_x,min_y,width,height
+                    r#"file,label,min_x,min_y,width,height
 train/dog_1.jpg,dog,101.5,32.0,385,330
 train/dog_2.jpg,dog,7.0,29.5,246,247
 "#,
@@ -719,7 +752,10 @@ train/dog_2.jpg,dog,7.0,29.5,246,247
                 command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let path = util::fs::schema_df_path(&repo, schema);
             assert!(path.exists());

@@ -156,7 +156,10 @@ mod tests {
             let history = command::log(&repo)?;
             let last_commit = history.first().unwrap();
             let schemas = command::schema_list(&repo, Some(&last_commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let label_field = schema.fields.iter().find(|f| f.name == "label").unwrap();
 

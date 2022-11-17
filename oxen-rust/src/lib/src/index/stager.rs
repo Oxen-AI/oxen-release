@@ -741,9 +741,17 @@ impl Stager {
         staged_db: &StagedDirEntryDB,
     ) -> Result<(), OxenError> {
         let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-        if let (Some(parent), Some(file_name)) = (relative.parent(), relative.file_name()) {
-            if parent != Path::new("") {
-                path_db::put(&self.dir_db, parent, &0)?;
+        if let Some(file_name) = relative.file_name() {
+            // add all parents up to root
+            let mut components = path.components().collect::<Vec<_>>();
+            log::debug!("add_staged_entry_to_db got components {}", components.len());
+            while !components.is_empty() {
+                if let Some(_component) = components.pop() {
+                    let parent: PathBuf = components.iter().collect();
+                    log::debug!("add_staged_entry_to_db got parent {:?}", parent);
+                    log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
+                    path_db::put(&self.dir_db, parent, &0)?;
+                }
             }
 
             staged_db.add_staged_entry_to_db(file_name, staged_entry)
@@ -1415,6 +1423,10 @@ mod tests {
 
             let repo_path = &stager.repository.path;
             let file_to_rm = repo_path.join("labels.txt");
+
+            println!("BEFORE REMOVE");
+            let status = stager.status(&entry_reader)?;
+            status.print_stdout();
 
             // Remove a committed file
             std::fs::remove_file(&file_to_rm)?;

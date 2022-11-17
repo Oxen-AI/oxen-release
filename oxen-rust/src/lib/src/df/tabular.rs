@@ -77,11 +77,8 @@ pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> 
 }
 
 pub fn scan_df_parquet<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
-    Ok(
-        LazyFrame::scan_parquet(&path, ScanArgsParquet::default()).unwrap_or_else(|_| panic!("{}: {:?}",
-            READ_ERROR,
-            path.as_ref())),
-    )
+    Ok(LazyFrame::scan_parquet(&path, ScanArgsParquet::default())
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 fn read_df_arrow<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
@@ -92,11 +89,8 @@ fn read_df_arrow<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
 }
 
 fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
-    Ok(
-        LazyFrame::scan_ipc(&path, ScanArgsIpc::default()).unwrap_or_else(|_| panic!("{}: {:?}",
-            READ_ERROR,
-            path.as_ref())),
-    )
+    Ok(LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {

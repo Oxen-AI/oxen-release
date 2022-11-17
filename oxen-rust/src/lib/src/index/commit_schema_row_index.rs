@@ -112,7 +112,7 @@ impl CommitSchemaRowIndex {
         indices: Vec<u32>,
     ) -> Result<(), OxenError> {
         let key = hash.as_ref();
-        log::debug!("put_file_index [{:?}] -> {:?}", key, indices);
+        // log::debug!("put_file_index [{:?}] -> {:?}", key, indices);
         let encoded = db::index_db::u32_to_u8(indices);
         self.file_db.put(key, encoded)?;
         Ok(())
@@ -289,6 +289,7 @@ impl CommitSchemaRowIndex {
                 col_names.push(col(field.name()));
             }
         }
+        log::debug!("Compute new rows for file {:?}", entry.path);
         log::debug!("FILTER DOWN TO {:?}", col_names);
 
         // Save off hash->row_idx to db
@@ -299,7 +300,7 @@ impl CommitSchemaRowIndex {
                 as_struct(&[col(ROW_HASH_COL_NAME), col(ROW_NUM_COL_NAME)])
                     .apply(
                         move |s| {
-                            log::debug!("s: {:?}", s);
+                            // log::debug!("s: {:?}", s);
 
                             let indexer = CommitSchemaRowIndex::new(
                                 &repository,
@@ -326,29 +327,37 @@ impl CommitSchemaRowIndex {
                                 .zip(ca_b)
                                 .map(|(opt_a, opt_b)| match (opt_a, opt_b) {
                                     (Some(row_hash), Some(row_num)) => {
-                                        log::debug!("Checking if we have hash: {}", row_hash);
+                                        // log::debug!("compute_new_rows Checking if we have row {} hash: {}", row_num, row_hash);
                                         pb.inc(1);
 
                                         // Check if the row hash is in the global CADF
                                         match indexer.get_global_idx(row_hash) {
                                             Ok(Some(global_idx)) => {
-                                                log::debug!("GOT IT: {}, {}", row_hash, global_idx);
+                                                // log::debug!("GOT IT: {}, {}", row_hash, global_idx);
                                                 // If it is in the global CADF, check if it is in the local file
                                                 match indexer.get_file_indices(row_hash) {
                                                     Ok(Some(mut indices)) => {
-                                                        // If local file has it, append this new local row_num
-                                                        indices.push(row_num);
+                                                        // If local file has row_hash, and we don't already have row_num tracked, append this new local row_num
+                                                        let mut has_row_num = false;
+                                                        for i in indices.iter().skip(1) {
+                                                            if i == &row_num {
+                                                                has_row_num = true;
+                                                            }
+                                                        }
+                                                        if !has_row_num {
+                                                            indices.push(row_num);
+                                                        }
+                                                        // log::debug!("compute_new_rows APPENDING file global {} indices {:?}", row_num, indices);
                                                         indexer
                                                             .put_file_index(row_hash, indices)
                                                             .unwrap();
                                                     }
                                                     Ok(None) => {
                                                         // If local file does not have it, start with [global_idx, local_idx]
+                                                        let indices = vec![global_idx, row_num];
+                                                        // log::debug!("compute_new_rows FIRST file {} indices {:?}", row_num, indices);
                                                         indexer
-                                                            .put_file_index(
-                                                                row_hash,
-                                                                vec![global_idx, row_num],
-                                                            )
+                                                            .put_file_index(row_hash, indices)
                                                             .unwrap();
                                                     }
                                                     Err(err) => {
@@ -364,11 +373,10 @@ impl CommitSchemaRowIndex {
                                                 // It is not in the global CADF, so it will not be in local either
                                                 // Compute global idx based off of old size and current row idx
                                                 let global_idx = old_num_rows + num_new;
+                                                let indices = vec![global_idx, row_num];
+                                                // log::debug!("compute_new_rows first CADF {} indices {:?}", row_num, indices);
                                                 indexer
-                                                    .put_file_index(
-                                                        row_hash,
-                                                        vec![global_idx, row_num],
-                                                    )
+                                                    .put_file_index(row_hash, indices)
                                                     .unwrap();
                                                 num_new += 1;
                                                 Some(true)
@@ -381,7 +389,7 @@ impl CommitSchemaRowIndex {
                                     _ => None,
                                 })
                                 .collect();
-                            log::debug!("Got series: {:?}", out);
+                            // log::debug!("Got series: {:?}", out);
                             Ok(out.into_series())
                         },
                         GetOutput::from_type(DataType::Boolean),
@@ -564,7 +572,7 @@ impl CommitSchemaRowIndex {
             .clone()
             .into_iter()
             .flat_map(|mut indices| {
-                let global_idx = indices.pop().unwrap();
+                let global_idx = indices.remove(0);
                 let mut v: Vec<u32> = vec![];
                 for _ in 0..indices.len() {
                     v.push(global_idx);
@@ -655,7 +663,10 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             // CADF
             let path = util::fs::schema_df_path(&repo, schema);
@@ -683,7 +694,10 @@ train/new.jpg,new,1.0,1.5,100,20
                 command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let path = util::fs::schema_df_path(&repo, schema);
             assert!(path.exists());
@@ -715,7 +729,10 @@ train/new.jpg,new,1.0,1.5,100,20
             test::append_line_txt_file(bbox_path, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
 
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added rows
@@ -750,7 +767,10 @@ train/new.jpg,new,1.0,1.5,100,20
             tabular::write_df(&mut df, &bbox_path)?;
 
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added columns
@@ -790,7 +810,10 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &relative)?;
 
             // Make sure there is only removed rows
@@ -840,7 +863,10 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             tabular::write_df(&mut df, &bbox_path)?;
 
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added columns
