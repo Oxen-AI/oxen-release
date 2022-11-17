@@ -175,6 +175,11 @@ impl CommitEntryWriter {
         entry: CommitEntry,
     ) -> Result<(), OxenError> {
         let entry = self.backup_file_to_versions_dir(commit, entry)?;
+        log::debug!(
+            "add_commit_entry with hash {:?} -> {}",
+            entry.path,
+            entry.hash
+        );
 
         writer.add_commit_entry(&entry)
     }
@@ -262,7 +267,18 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
     ) -> Result<(), OxenError> {
         self.commit_staged_entries_with_prog(commit, staged_data)?;
-        self.aggregate_row_level_results(false)
+
+        // Only consider the commit entries that were staged and are tabular
+        let commit_dir_reader = CommitDirReader::new(&self.repository, &self.commit)?;
+        let tabular_entries: Vec<CommitEntry> = commit_dir_reader
+            .list_entries()?
+            .into_iter()
+            .filter(|e| {
+                util::fs::is_tabular(&e.path) && staged_data.added_files.contains_key(&e.path)
+            })
+            .collect();
+
+        self.aggregate_tabular_entries(tabular_entries, false)
     }
 
     pub fn aggregate_row_level_results(
@@ -276,7 +292,14 @@ impl CommitEntryWriter {
             .into_iter()
             .filter(|e| util::fs::is_tabular(&e.path))
             .collect();
+        self.aggregate_tabular_entries(tabular_entries, should_copy_to_working_dir)
+    }
 
+    fn aggregate_tabular_entries(
+        &self,
+        tabular_entries: Vec<CommitEntry>,
+        should_copy_to_working_dir: bool,
+    ) -> Result<(), OxenError> {
         log::debug!(
             "aggregate_row_level_results got {} tabular entries",
             tabular_entries.len()
@@ -427,25 +450,6 @@ impl CommitEntryWriter {
 
         results
     }
-
-    // fn group_annotations_to_dirs(
-    //     &self,
-    //     annotations: &HashMap<String, Vec2DStr>,
-    // ) -> HashMap<PathBuf, Vec<(PathBuf, Vec2DStr)>> {
-    //     let mut results: HashMap<PathBuf, Vec<(PathBuf, Vec2DStr)>> = HashMap::new();
-
-    //     for (file_str, entry) in annotations.iter() {
-    //         let path = Path::new(file_str);
-    //         if let Some(parent) = path.parent() {
-    //             results
-    //                 .entry(parent.to_path_buf())
-    //                 .or_insert(vec![])
-    //                 .push((path.to_path_buf(), entry.to_vec()));
-    //         }
-    //     }
-
-    //     results
-    // }
 
     fn commit_staged_entries_with_prog(
         &self,

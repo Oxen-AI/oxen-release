@@ -121,8 +121,8 @@ async fn main() -> std::io::Result<()> {
                             .app_data(data.clone())
                             .route("/version", web::get().to(controllers::version::index))
                             .route(
-                                "/{namespace}/{repo_name}",
-                                web::get().to(controllers::version::resolve),
+                                "/api/namespaces",
+                                web::get().to(controllers::namespaces::index),
                             )
                             .wrap(Condition::new(
                                 enable_auth,

@@ -134,7 +134,7 @@ impl SchemaIndexer {
         let val_index =
             SchemaFieldValIndex::new(&self.repository, &self.commit, &self.schema, field)?;
 
-        if let Some(indices) = val_index.list_indices(&query)? {
+        if let Some(indices) = val_index.get_indices(&query)? {
             let df = tabular::take(content_df, indices)?;
             Ok(Some(df))
         } else {
