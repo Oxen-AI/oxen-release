@@ -15,11 +15,13 @@ use liboxen::view::{
 use crate::app_data::OxenAppData;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
+use bytesize::ByteSize;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
+use std::convert::TryFrom;
 use std::path::Path;
 use tar::Archive;
 
@@ -360,7 +362,9 @@ pub async fn upload(
                     while let Some(item) = body.next().await {
                         bytes.extend_from_slice(&item.unwrap());
                     }
-                    log::debug!("Got compressed data {} bytes", bytes.len());
+
+                    let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+                    log::debug!("Got compressed data {}", ByteSize::b(total_size));
 
                     std::thread::spawn(move || {
                         // Get tar.gz bytes for history/COMMIT_ID data

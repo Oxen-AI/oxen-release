@@ -278,13 +278,10 @@ impl CommitEntryWriter {
             })
             .collect();
 
-        self.aggregate_tabular_entries(tabular_entries, false)
+        self.aggregate_tabular_entries(tabular_entries)
     }
 
-    pub fn aggregate_row_level_results(
-        &self,
-        should_copy_to_working_dir: bool,
-    ) -> Result<(), OxenError> {
+    pub fn aggregate_row_level_results(&self) -> Result<(), OxenError> {
         let commit_dir_reader = CommitDirReader::new(&self.repository, &self.commit)?;
 
         let tabular_entries: Vec<CommitEntry> = commit_dir_reader
@@ -292,13 +289,12 @@ impl CommitEntryWriter {
             .into_iter()
             .filter(|e| util::fs::is_tabular(&e.path))
             .collect();
-        self.aggregate_tabular_entries(tabular_entries, should_copy_to_working_dir)
+        self.aggregate_tabular_entries(tabular_entries)
     }
 
     fn aggregate_tabular_entries(
         &self,
         tabular_entries: Vec<CommitEntry>,
-        should_copy_to_working_dir: bool,
     ) -> Result<(), OxenError> {
         log::debug!(
             "aggregate_row_level_results got {} tabular entries",
@@ -312,21 +308,14 @@ impl CommitEntryWriter {
             let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
             let hash_results_file = version_dir.join("data.arrow");
             if !hash_results_file.exists() {
-                log::debug!("No tmp data.arrow file for entry {:?}", entry.path);
+                log::debug!(
+                    "aggregate_tabular_entries no tmp data.arrow file for entry {:?}",
+                    entry.path
+                );
                 continue;
             }
 
             let full_path = &self.repository.path.join(&entry.path);
-            if should_copy_to_working_dir {
-                // TODO: reading data many times, probably shouldn't...?
-                let mut df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
-                // Need to restore parent dir
-                if let Some(parent) = full_path.parent() {
-                    std::fs::create_dir_all(parent)?;
-                }
-                log::debug!("Restoring path {:?}", entry.path);
-                tabular::write_df(&mut df, full_path)?;
-            }
 
             // TODO: should only read data once and filter to get schema, we're reading many times...
             let df = tabular::read_df(full_path, DFOpts::empty())?;
