@@ -375,9 +375,7 @@ impl CommitSchemaRowIndex {
                                                 let global_idx = old_num_rows + num_new;
                                                 let indices = vec![global_idx, row_num];
                                                 // log::debug!("compute_new_rows first CADF {} indices {:?}", row_num, indices);
-                                                indexer
-                                                    .put_file_index(row_hash, indices)
-                                                    .unwrap();
+                                                indexer.put_file_index(row_hash, indices).unwrap();
                                                 num_new += 1;
                                                 Some(true)
                                             }
@@ -596,7 +594,7 @@ impl CommitSchemaRowIndex {
         let mut subset = tabular::take(version_df.lazy(), global_indices)?;
         log::debug!("got subset {}", subset);
 
-        let file_column_name = "_file_row_num";
+        let file_column_name = constants::FILE_ROW_NUM_COL_NAME;
         let column = polars::prelude::Series::new(file_column_name, local_indices);
         let with_og_row_nums = subset
             .with_column(column)

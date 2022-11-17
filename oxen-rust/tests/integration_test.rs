@@ -1411,6 +1411,62 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
     .await
 }
 
+#[tokio::test]
+async fn test_pull_data_frame() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        // Track a file
+        let filename = "annotations/train/bounding_box.csv";
+        let file_path = repo.path.join(filename);
+        let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
+        let og_contents = util::fs::read_from_path(&file_path)?;
+
+        command::add(&repo, &file_path)?;
+        command::commit(&repo, "Adding bounding box file")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+            let file_path = cloned_repo.path.join(filename);
+
+            let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
+            let cloned_contents = util::fs::read_from_path(&file_path)?;
+            assert_eq!(og_df.height(), cloned_df.height());
+            assert_eq!(og_df.width(), cloned_df.width());
+            assert_eq!(cloned_contents, og_contents);
+
+            // Status should be empty too
+            let status = command::status(&cloned_repo)?;
+            status.print_stdout();
+            assert!(status.is_clean());
+
+            // Make sure that CADF gets reconstructed
+            let schemas = command::schema_list(&repo, None)?;
+            let schema = schemas.first().unwrap();
+            let cadf_file = util::fs::schema_df_path(&repo, schema);
+            assert!(cadf_file.exists());
+            let cadf = tabular::read_df(&cadf_file, DFOpts::empty())?;
+            assert_eq!(cadf.height(), cloned_df.height());
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
 // Make sure we can push again after pulling on the other side, then pull again
 #[tokio::test]
 async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
