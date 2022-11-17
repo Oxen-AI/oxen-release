@@ -449,7 +449,13 @@ pub fn commit(sub_matches: &ArgMatches) {
         .values_of_os("")
         .unwrap_or_default()
         .collect::<Vec<_>>();
-    dispatch::commit(args).expect("Could not commit");
+
+    match dispatch::commit(args) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{}", err)
+        }
+    }
 }
 
 pub fn kvdb_inspect(sub_matches: &ArgMatches) {

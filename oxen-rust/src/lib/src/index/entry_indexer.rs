@@ -277,6 +277,13 @@ impl EntryIndexer {
         entries: &[CommitEntry],
         commit: &Commit,
     ) -> Result<(), OxenError> {
+        log::debug!(
+            "PUSH ENTRIES {} -> {} -> '{}'",
+            entries.len(),
+            commit.id,
+            commit.message
+        );
+
         let mut total_size: u64 = 0;
         for entry in entries.iter() {
             // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
@@ -286,7 +293,7 @@ impl EntryIndexer {
                     total_size += metadata.len();
                 }
                 Err(err) => {
-                    log::warn!("Err getting metadata on {:?}\n{:?}", version_path, err);
+                    log::warn!("Err getting metadata on {:?}\n{:?}", entry.path, err);
                 }
             }
         }
@@ -332,6 +339,7 @@ impl EntryIndexer {
                                 &entry.path,
                             )?;
                             let mut df = reader.sorted_entry_df_with_row_hash()?;
+
                             log::debug!("Pushing DF {}", df);
 
                             // save DataFrame to disk in it's proper version dir

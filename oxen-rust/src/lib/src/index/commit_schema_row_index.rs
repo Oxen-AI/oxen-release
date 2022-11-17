@@ -17,11 +17,6 @@ use crate::util;
 
 use super::SchemaReader;
 
-/// indices is a tuple that represents (row_num_og,row_num_versioned)
-/// 1) row_num_og = row number in the original file, so that we can restore properly
-/// 2) row_num_versioned = global row number in the row content hashed arrow file for the schema
-pub type RowIndexPair = (u32, u32);
-
 /// TODO: Rename this to ContentAddressableDataFrame or something
 pub struct CommitSchemaRowIndex {
     row_db: DBWithThreadMode<MultiThreaded>,  // global row hashes
@@ -99,30 +94,40 @@ impl CommitSchemaRowIndex {
         str_val_db::has_key(&self.file_db, hash)
     }
 
+    pub fn get_file_indices<S: AsRef<str>>(&self, hash: S) -> Result<Option<Vec<u32>>, OxenError> {
+        db::index_db::get_indices(&self.file_db, hash)
+    }
+
     /// Write just the global index to the row db
     pub fn put_row_index<S: AsRef<str>>(&self, hash: S, index: u32) -> Result<(), OxenError> {
         str_val_db::put(&self.row_db, &hash, &index)
     }
 
+    /// When inserting vec<u32>
+    /// global index = first index in vec
+    /// local indices = remaining indices
     pub fn put_file_index<S: AsRef<str>>(
         &self,
         hash: S,
-        indices: RowIndexPair,
+        indices: Vec<u32>,
     ) -> Result<(), OxenError> {
-        // Write file level info to the file db
-        str_val_db::put(&self.file_db, hash, &indices)
+        let key = hash.as_ref();
+        log::debug!("put_file_index [{:?}] -> {:?}", key, indices);
+        let encoded = db::index_db::u32_to_u8(indices);
+        self.file_db.put(key, encoded)?;
+        Ok(())
     }
 
     pub fn list_global_indices(&self) -> Result<Vec<(String, u32)>, OxenError> {
         str_val_db::list(&self.row_db)
     }
 
-    pub fn list_file_indices(&self) -> Result<Vec<(String, RowIndexPair)>, OxenError> {
-        str_val_db::list(&self.file_db)
+    pub fn list_file_indices(&self) -> Result<Vec<(String, Vec<u32>)>, OxenError> {
+        db::index_db::list_indices(&self.file_db)
     }
 
-    pub fn list_file_indices_hash_map(&self) -> Result<HashMap<String, RowIndexPair>, OxenError> {
-        str_val_db::hash_map(&self.file_db)
+    pub fn list_file_indices_hash_map(&self) -> Result<HashMap<String, Vec<u32>>, OxenError> {
+        db::index_db::hash_map_indices(&self.file_db)
     }
 
     fn select_cols(fields: &[schema::Field]) -> Vec<Expr> {
@@ -265,7 +270,8 @@ impl CommitSchemaRowIndex {
         Ok(df)
     }
 
-    // This function is nasty, I know, but it works and is pretty efficient
+    // This function is nasty, I know
+    // TODO: Cleanup and refactor to be more efficient
     pub fn compute_new_rows(
         repository: LocalRepository,
         commit: Commit,
@@ -323,19 +329,45 @@ impl CommitSchemaRowIndex {
                                         log::debug!("Checking if we have hash: {}", row_hash);
                                         pb.inc(1);
 
+                                        // Check if the row hash is in the global CADF
                                         match indexer.get_global_idx(row_hash) {
                                             Ok(Some(global_idx)) => {
                                                 log::debug!("GOT IT: {}, {}", row_hash, global_idx);
-                                                indexer
-                                                    .put_file_index(row_hash, (row_num, global_idx))
-                                                    .unwrap();
+                                                // If it is in the global CADF, check if it is in the local file
+                                                match indexer.get_file_indices(row_hash) {
+                                                    Ok(Some(mut indices)) => {
+                                                        // If local file has it, append this new local row_num
+                                                        indices.push(row_num);
+                                                        indexer
+                                                            .put_file_index(row_hash, indices)
+                                                            .unwrap();
+                                                    }
+                                                    Ok(None) => {
+                                                        // If local file does not have it, start with [global_idx, local_idx]
+                                                        indexer
+                                                            .put_file_index(
+                                                                row_hash,
+                                                                vec![global_idx, row_num],
+                                                            )
+                                                            .unwrap();
+                                                    }
+                                                    Err(err) => {
+                                                        panic!(
+                                                            "Error computing new rows... {}",
+                                                            err
+                                                        );
+                                                    }
+                                                }
                                                 Some(false)
                                             }
                                             Ok(None) => {
+                                                // It is not in the global CADF, so it will not be in local either
+                                                // Compute global idx based off of old size and current row idx
+                                                let global_idx = old_num_rows + num_new;
                                                 indexer
                                                     .put_file_index(
                                                         row_hash,
-                                                        (row_num, old_num_rows + num_new),
+                                                        vec![global_idx, row_num],
                                                     )
                                                     .unwrap();
                                                 num_new += 1;
@@ -459,7 +491,7 @@ impl CommitSchemaRowIndex {
         let removed_indices: Vec<u32> = other_hash_indices
             .iter()
             .filter(|(hash, _indices)| !current_hash_indices.contains_key(*hash))
-            .map(|(_hash, index_pair)| index_pair.1)
+            .map(|(_hash, idx_list)| idx_list[0])
             .collect();
 
         // log::debug!("diff_current added_indices {:?}", added_indices);
@@ -517,33 +549,45 @@ impl CommitSchemaRowIndex {
         let version_df = tabular::scan_df(path)?.collect().unwrap();
         log::debug!("sorted_entry_df_with_row_hash cadf {:?}", version_df);
 
-        let file_indices: Vec<RowIndexPair> = self
+        let file_indices: Vec<Vec<u32>> = self
             .list_file_indices()?
             .into_iter()
             .map(|(_hash, indices)| indices)
             .collect();
 
-        // log::debug!(
-        //     "sorted_entry_df_with_row_hash file_indices {:?}",
-        //     file_indices
-        // );
+        log::debug!(
+            "sorted_entry_df_with_row_hash file_indices {:?}",
+            file_indices
+        );
 
         let global_indices: Vec<u32> = file_indices
             .clone()
             .into_iter()
-            .map(|(_local_idx, global_idx)| global_idx)
+            .flat_map(|mut indices| {
+                let global_idx = indices.pop().unwrap();
+                let mut v: Vec<u32> = vec![];
+                for _ in 0..indices.len() {
+                    v.push(global_idx);
+                }
+                v
+            })
             .collect();
+        log::debug!("file_indices global {:?}", global_indices);
 
         let local_indices: Vec<u32> = file_indices
             .into_iter()
-            .map(|(local_idx, _global_idx)| local_idx)
+            .flat_map(|mut indices| {
+                indices.remove(0);
+                indices
+            })
             .collect();
 
-        // log::debug!("file_indices global {:?}", global_indices);
-        // log::debug!("file_indices local {:?}", local_indices);
+        log::debug!("file_indices local {:?}", local_indices);
 
         // Project the original file row nums on in a column
         let mut subset = tabular::take(version_df.lazy(), global_indices)?;
+        log::debug!("got subset {}", subset);
+
         let file_column_name = "_file_row_num";
         let column = polars::prelude::Series::new(file_column_name, local_indices);
         let with_og_row_nums = subset
