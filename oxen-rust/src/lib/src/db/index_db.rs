@@ -93,7 +93,6 @@ pub fn hash_map_indices(
 }
 
 pub fn u32_to_u8(mut indices: Vec<u32>) -> Vec<u8> {
-    
     unsafe {
         let ratio = mem::size_of::<u32>() / mem::size_of::<u8>();
 

@@ -368,6 +368,7 @@ where
     command::add(&repo, &repo_dir.join("train"))?;
     command::add(&repo, &repo_dir.join("test"))?;
     command::add(&repo, &repo_dir.join("annotations"))?;
+    command::add(&repo, &repo_dir.join("nlp"))?;
     command::add(&repo, &repo_dir.join("labels.txt"))?;
     command::add(&repo, &repo_dir.join("README.md"))?;
     command::commit(&repo, "adding all data baby")?;
@@ -389,7 +390,7 @@ where
     Ok(())
 }
 
-/// Run a test on a repo with a bunch of filees
+/// Run a test on a repo with a bunch of files
 pub fn run_training_data_repo_test_fully_committed<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
@@ -403,11 +404,20 @@ where
     command::add(&repo, &repo_dir.join("train"))?;
     command::add(&repo, &repo_dir.join("test"))?;
     command::add(&repo, &repo_dir.join("annotations"))?;
+    command::add(&repo, &repo_dir.join("nlp"))?;
     command::add(&repo, &repo_dir.join("labels.txt"))?;
     command::add(&repo, &repo_dir.join("README.md"))?;
     command::add_tabular(&repo, &repo_dir.join("annotations/train/bounding_box.csv"))?;
 
     command::commit(&repo, "adding all data baby")?;
+
+    // Make it easy to find these schemas during testing
+    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schema_name(
+        &repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
