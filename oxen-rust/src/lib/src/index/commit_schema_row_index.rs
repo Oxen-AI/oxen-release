@@ -1,7 +1,8 @@
 use indicatif::ProgressBar;
 use polars::prelude::*;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::path::{Path, PathBuf};
 
 use crate::constants::{
@@ -16,11 +17,6 @@ use crate::model::{schema, Commit, CommitEntry, DataFrameDiff, LocalRepository, 
 use crate::util;
 
 use super::SchemaReader;
-
-/// indices is a tuple that represents (row_num_og,row_num_versioned)
-/// 1) row_num_og = row number in the original file, so that we can restore properly
-/// 2) row_num_versioned = global row number in the row content hashed arrow file for the schema
-pub type RowIndexPair = (u32, u32);
 
 /// TODO: Rename this to ContentAddressableDataFrame or something
 pub struct CommitSchemaRowIndex {
@@ -91,6 +87,10 @@ impl CommitSchemaRowIndex {
         str_val_db::has_key(&self.row_db, hash)
     }
 
+    pub fn global_count(&self) -> usize {
+        self.row_db.iterator(IteratorMode::Start).count()
+    }
+
     pub fn get_global_idx<S: AsRef<str>>(&self, hash: S) -> Result<Option<u32>, OxenError> {
         str_val_db::get(&self.row_db, hash)
     }
@@ -99,30 +99,40 @@ impl CommitSchemaRowIndex {
         str_val_db::has_key(&self.file_db, hash)
     }
 
+    pub fn get_file_indices<S: AsRef<str>>(&self, hash: S) -> Result<Option<Vec<u32>>, OxenError> {
+        db::index_db::get_indices(&self.file_db, hash)
+    }
+
     /// Write just the global index to the row db
     pub fn put_row_index<S: AsRef<str>>(&self, hash: S, index: u32) -> Result<(), OxenError> {
         str_val_db::put(&self.row_db, &hash, &index)
     }
 
+    /// When inserting vec<u32>
+    /// global index = first index in vec
+    /// local indices = remaining indices
     pub fn put_file_index<S: AsRef<str>>(
         &self,
         hash: S,
-        indices: RowIndexPair,
+        indices: Vec<u32>,
     ) -> Result<(), OxenError> {
-        // Write file level info to the file db
-        str_val_db::put(&self.file_db, hash, &indices)
+        let key = hash.as_ref();
+        // log::debug!("put_file_index [{:?}] -> {:?}", key, indices);
+        let encoded = db::index_db::u32_to_u8(indices);
+        self.file_db.put(key, encoded)?;
+        Ok(())
     }
 
-    pub fn list_global_indices(&self) -> Result<Vec<(String, u32)>, OxenError> {
-        str_val_db::list(&self.row_db)
+    pub fn list_global_indices(&self) -> Result<Vec<u32>, OxenError> {
+        str_val_db::list_vals(&self.row_db)
     }
 
-    pub fn list_file_indices(&self) -> Result<Vec<(String, RowIndexPair)>, OxenError> {
-        str_val_db::list(&self.file_db)
+    pub fn list_file_indices(&self) -> Result<Vec<(String, Vec<u32>)>, OxenError> {
+        db::index_db::list_indices(&self.file_db)
     }
 
-    pub fn list_file_indices_hash_map(&self) -> Result<HashMap<String, RowIndexPair>, OxenError> {
-        str_val_db::hash_map(&self.file_db)
+    pub fn list_file_indices_hash_map(&self) -> Result<HashMap<String, Vec<u32>>, OxenError> {
+        db::index_db::hash_map_indices(&self.file_db)
     }
 
     fn select_cols(fields: &[schema::Field]) -> Vec<Expr> {
@@ -147,14 +157,13 @@ impl CommitSchemaRowIndex {
             .map(|field| SchemaFieldValIndex::new(&repository, &commit, &schema, field).unwrap())
             .collect();
         let cols = CommitSchemaRowIndex::select_cols(fields);
+        let indexer = CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path).unwrap();
 
         as_struct(&cols)
             .apply(
                 move |s| {
                     log::debug!("select_apply: series {:?}", s);
 
-                    let indexer =
-                        CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path).unwrap();
                     let pb = ProgressBar::new(num_rows as u64);
                     // downcast to struct
 
@@ -188,13 +197,14 @@ impl CommitSchemaRowIndex {
                                 })
                                 .collect();
 
-                            // log::debug!("Got agg {:?}", agg);
                             for (key, vals) in agg {
                                 indices[i - 2].insert_index(key, vals).unwrap();
                             }
                         }
                     }
 
+                    // hacky because we only support u32 right now...
+                    let mut count: u32 = u32::try_from(indexer.global_count()).unwrap_or(u32::MAX);
                     // iterate both `ChunkedArrays`
                     let out: Utf8Chunked = ca_row_hash
                         .into_iter()
@@ -204,8 +214,17 @@ impl CommitSchemaRowIndex {
                                 (Some(row_hash), Some(row_num)) => {
                                     pb.inc(1);
 
-                                    // log::debug!("Saving row hash {} -> {}", row_hash, row_num);
-                                    indexer.put_row_index(row_hash, row_num).unwrap();
+                                    if !indexer.has_global_key(row_hash) {
+                                        log::debug!(
+                                            "Saving row hash {:?} {} -> {} -> {}",
+                                            path,
+                                            row_hash,
+                                            row_num,
+                                            count
+                                        );
+                                        indexer.put_row_index(row_hash, count).unwrap();
+                                        count += 1;
+                                    }
 
                                     Some(row_hash)
                                 }
@@ -241,15 +260,15 @@ impl CommitSchemaRowIndex {
         schema: Schema,
         path: PathBuf,
         df: DataFrame,
-    ) -> Result<DataFrame, OxenError> {
+    ) -> Result<(), OxenError> {
         let num_rows = df.height() as i64;
+        log::debug!("index_hash_row_nums {:?} {}", path, df);
 
         let index_reader = SchemaIndexReader::new(&repository, &commit, &schema)?;
         let index_fields = index_reader.list_field_indices()?;
 
         // Save off hash->row_idx to db
-        let df = df
-            .lazy()
+        df.lazy()
             .select(CommitSchemaRowIndex::select_opts(
                 repository,
                 commit,
@@ -261,21 +280,20 @@ impl CommitSchemaRowIndex {
             .select([col("_result")])
             .collect()
             .unwrap();
-        log::debug!("index_hash_row_nums {}", df);
-        Ok(df)
+
+        Ok(())
     }
 
-    // This function is nasty, I know, but it works and is pretty efficient
+    // This function is nasty, I know
+    // TODO: Cleanup and refactor to be more efficient
     pub fn compute_new_rows(
         repository: LocalRepository,
         commit: Commit,
         schema: Schema,
         entry: CommitEntry,
         new_df: DataFrame,
-        old_df: &DataFrame,
     ) -> Result<DataFrame, OxenError> {
         let num_rows = new_df.height() as i64;
-        let old_num_rows = old_df.height() as u32;
 
         let mut col_names = vec![];
         for field in new_df.schema().iter_fields() {
@@ -283,7 +301,9 @@ impl CommitSchemaRowIndex {
                 col_names.push(col(field.name()));
             }
         }
+        log::debug!("Compute new rows for file {:?}", entry.path);
         log::debug!("FILTER DOWN TO {:?}", col_names);
+        log::debug!("compute_new_rows got df {}", new_df);
 
         // Save off hash->row_idx to db
         let df = new_df
@@ -293,7 +313,7 @@ impl CommitSchemaRowIndex {
                 as_struct(&[col(ROW_HASH_COL_NAME), col(ROW_NUM_COL_NAME)])
                     .apply(
                         move |s| {
-                            log::debug!("s: {:?}", s);
+                            // log::debug!("s: {:?}", s);
 
                             let indexer = CommitSchemaRowIndex::new(
                                 &repository,
@@ -313,32 +333,67 @@ impl CommitSchemaRowIndex {
                             let ca_a = s_a.utf8()?;
                             let ca_b = s_b.u32()?;
 
-                            let mut num_new = 0;
+                            // Start at global count
+                            let mut offset: u32 = u32::try_from(indexer.global_count()).unwrap_or(u32::MAX);
                             // iterate both `ChunkedArrays`
                             let out: BooleanChunked = ca_a
                                 .into_iter()
                                 .zip(ca_b)
                                 .map(|(opt_a, opt_b)| match (opt_a, opt_b) {
                                     (Some(row_hash), Some(row_num)) => {
-                                        log::debug!("Checking if we have hash: {}", row_hash);
+                                        // log::debug!("compute_new_rows Checking if we have row {} hash: {}", row_num, row_hash);
                                         pb.inc(1);
 
+                                        // Check if the row hash is in the global CADF
                                         match indexer.get_global_idx(row_hash) {
                                             Ok(Some(global_idx)) => {
-                                                log::debug!("GOT IT: {}, {}", row_hash, global_idx);
-                                                indexer
-                                                    .put_file_index(row_hash, (row_num, global_idx))
-                                                    .unwrap();
+                                                // log::debug!("GOT IT: {}, {}", row_hash, global_idx);
+                                                // If it is in the global CADF, check if it is in the local file
+                                                match indexer.get_file_indices(row_hash) {
+                                                    Ok(Some(mut indices)) => {
+                                                        // If local file has row_hash, and we don't already have row_num tracked, append this new local row_num
+                                                        let mut has_row_num = false;
+                                                        for i in indices.iter().skip(1) {
+                                                            if i == &row_num {
+                                                                has_row_num = true;
+                                                            }
+                                                        }
+                                                        if !has_row_num {
+                                                            indices.push(row_num);
+                                                        }
+                                                        log::debug!("compute_new_rows APPENDING file global {} indices {:?}", row_num, indices);
+                                                        indexer
+                                                            .put_file_index(row_hash, indices)
+                                                            .unwrap();
+                                                    }
+                                                    Ok(None) => {
+                                                        // If local file does not have it, start with [global_idx, local_idx]
+                                                        let indices = vec![global_idx, row_num];
+                                                        log::debug!("compute_new_rows FIRST file {} indices {:?}", row_num, indices);
+                                                        indexer
+                                                            .put_file_index(row_hash, indices)
+                                                            .unwrap();
+                                                    }
+                                                    Err(err) => {
+                                                        panic!(
+                                                            "Error computing new rows... {}",
+                                                            err
+                                                        );
+                                                    }
+                                                }
                                                 Some(false)
                                             }
                                             Ok(None) => {
-                                                indexer
-                                                    .put_file_index(
-                                                        row_hash,
-                                                        (row_num, old_num_rows + num_new),
-                                                    )
-                                                    .unwrap();
-                                                num_new += 1;
+                                                // It is not in the global CADF, so it will not be in local either
+                                                // Compute global idx based off of old size and current row idx
+                                                let global_idx = offset;
+                                                log::debug!("Saving row hash {:?} {} -> {} -> {}", entry.path, row_hash, global_idx, row_num);
+                                                indexer.put_row_index(row_hash, global_idx).unwrap();
+
+                                                let indices = vec![global_idx, row_num];
+                                                log::debug!("compute_new_rows first CADF {} indices {:?}", row_num, indices);
+                                                indexer.put_file_index(row_hash, indices).unwrap();
+                                                offset += 1;
                                                 Some(true)
                                             }
                                             Err(err) => {
@@ -349,7 +404,7 @@ impl CommitSchemaRowIndex {
                                     _ => None,
                                 })
                                 .collect();
-                            log::debug!("Got series: {:?}", out);
+                            // log::debug!("Got series: {:?}", out);
                             Ok(out.into_series())
                         },
                         GetOutput::from_type(DataType::Boolean),
@@ -459,7 +514,7 @@ impl CommitSchemaRowIndex {
         let removed_indices: Vec<u32> = other_hash_indices
             .iter()
             .filter(|(hash, _indices)| !current_hash_indices.contains_key(*hash))
-            .map(|(_hash, index_pair)| index_pair.1)
+            .map(|(_hash, idx_list)| idx_list[0])
             .collect();
 
         // log::debug!("diff_current added_indices {:?}", added_indices);
@@ -517,43 +572,61 @@ impl CommitSchemaRowIndex {
         let version_df = tabular::scan_df(path)?.collect().unwrap();
         log::debug!("sorted_entry_df_with_row_hash cadf {:?}", version_df);
 
-        let file_indices: Vec<RowIndexPair> = self
+        let file_indices: Vec<Vec<u32>> = self
             .list_file_indices()?
             .into_iter()
             .map(|(_hash, indices)| indices)
             .collect();
 
-        // log::debug!(
-        //     "sorted_entry_df_with_row_hash file_indices {:?}",
-        //     file_indices
-        // );
+        log::debug!(
+            "sorted_entry_df_with_row_hash file_indices {:?}",
+            file_indices
+        );
 
         let global_indices: Vec<u32> = file_indices
             .clone()
             .into_iter()
-            .map(|(_local_idx, global_idx)| global_idx)
+            .flat_map(|mut indices| {
+                let global_idx = indices.remove(0);
+                let mut v: Vec<u32> = vec![];
+                for _ in 0..indices.len() {
+                    v.push(global_idx);
+                }
+                v
+            })
             .collect();
+        log::debug!("file_indices global {:?}", global_indices);
 
         let local_indices: Vec<u32> = file_indices
             .into_iter()
-            .map(|(local_idx, _global_idx)| local_idx)
+            .flat_map(|mut indices| {
+                indices.remove(0);
+                indices
+            })
             .collect();
 
-        // log::debug!("file_indices global {:?}", global_indices);
-        // log::debug!("file_indices local {:?}", local_indices);
+        log::debug!("file_indices local {:?}", local_indices);
 
         // Project the original file row nums on in a column
         let mut subset = tabular::take(version_df.lazy(), global_indices)?;
-        let file_column_name = "_file_row_num";
+        // log::debug!("got subset {}", subset);
+
+        let file_column_name = constants::FILE_ROW_NUM_COL_NAME;
         let column = polars::prelude::Series::new(file_column_name, local_indices);
         let with_og_row_nums = subset
             .with_column(column)
             .expect("Could not project row num cols");
+        log::debug!("got projected row num col {}", with_og_row_nums);
 
         // Sort by the original file row num
-        let sorted = with_og_row_nums
+        let mut sorted = with_og_row_nums
             .sort([file_column_name], false)
             .expect("Could sort df");
+
+        let _ = sorted
+            .drop_in_place(constants::FILE_ROW_NUM_COL_NAME)
+            .expect("Could not drop col");
+
         Ok(sorted)
     }
 }
@@ -611,7 +684,10 @@ mod tests {
             let commits = command::log(&repo)?;
             let commit = commits.first().unwrap();
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             // CADF
             let path = util::fs::schema_df_path(&repo, schema);
@@ -639,7 +715,10 @@ train/new.jpg,new,1.0,1.5,100,20
                 command::commit(&repo, "Committing my bbox data, to append onto og data")?.unwrap();
 
             let schemas = command::schema_list(&repo, Some(&commit.id))?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
 
             let path = util::fs::schema_df_path(&repo, schema);
             assert!(path.exists());
@@ -671,7 +750,10 @@ train/new.jpg,new,1.0,1.5,100,20
             test::append_line_txt_file(bbox_path, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
 
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added rows
@@ -706,7 +788,10 @@ train/new.jpg,new,1.0,1.5,100,20
             tabular::write_df(&mut df, &bbox_path)?;
 
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added columns
@@ -746,7 +831,10 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let relative = util::fs::path_relative_to_dir(&bbox_file, &repo.path)?;
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &relative)?;
 
             // Make sure there is only removed rows
@@ -796,7 +884,10 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             tabular::write_df(&mut df, &bbox_path)?;
 
             let schemas = command::schema_list(&repo, None)?;
-            let schema = schemas.first().unwrap();
+            let schema = schemas
+                .iter()
+                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap();
             let diff = CommitSchemaRowIndex::diff_current(&repo, schema, last_commit, &bbox_file)?;
 
             // Make sure there is only added columns
