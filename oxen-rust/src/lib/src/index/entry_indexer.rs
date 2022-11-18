@@ -285,6 +285,8 @@ impl EntryIndexer {
                 let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
                 log::debug!("Looking up schema for file: {:?}", entry.path);
                 let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
+                log::debug!("Got schema: {:?} -> {:?}", entry.path, schema);
+
                 let reader = CommitSchemaRowIndex::new(
                     &self.repository,
                     &entry.commit_id,
