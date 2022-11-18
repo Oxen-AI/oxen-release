@@ -260,8 +260,7 @@ impl CommitSchemaRowIndex {
         schema: Schema,
         path: PathBuf,
         df: DataFrame,
-        new_rows: DataFrame,
-    ) -> Result<DataFrame, OxenError> {
+    ) -> Result<(), OxenError> {
         let num_rows = df.height() as i64;
         log::debug!("index_hash_row_nums {:?} {}", path, df);
 
@@ -269,77 +268,20 @@ impl CommitSchemaRowIndex {
         let index_fields = index_reader.list_field_indices()?;
 
         // Save off hash->row_idx to db
-        df.clone()
-            .lazy()
+        df.lazy()
             .select(CommitSchemaRowIndex::select_opts(
-                repository.clone(),
-                commit.clone(),
-                schema.clone(),
-                path.clone(),
+                repository,
+                commit,
+                schema,
+                path,
                 num_rows,
                 &index_fields,
             ))
             .select([col("_result")])
             .collect()
             .unwrap();
-        // // Select the unique indices
-        // let indexer = CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path).unwrap();
-        // let indices = indexer.list_file_indices()?;
-        // log::debug!("index_hash_row_nums indices {:?}", indices);
 
-        // let global_indices: Vec<u32> = indices
-        //     .clone()
-        //     .into_iter()
-        //     .map(|(_, indices)| {
-        //         // let global_idx = indices[0];
-        //         // let mut result: Vec<u32> = vec![];
-        //         // for _ in 1..indices.len() {
-        //         //     result.push(global_idx);
-        //         // }
-        //         // result
-        //         indices[0]
-        //     })
-        //     // .flatten()
-        //     .collect();
-
-        // let sort_indices: Vec<u32> = indices
-        //     .into_iter()
-        //     .map(|(_, indices)| {
-        //         // let mut result: Vec<u32> = vec![];
-        //         // for i in 1..indices.len() {
-        //         //     result.push(indices[i]);
-        //         // }
-        //         // result
-        //         indices[1]
-        //     })
-        //     // .flatten()
-        //     .collect();
-
-        // log::debug!("index_hash_row_nums global_indices {:?}", global_indices);
-        // log::debug!("index_hash_row_nums sort_indices {:?}", sort_indices);
-
-        // let mut df = tabular::take(df.lazy(), global_indices)?;
-
-        // let file_column_name = constants::FILE_ROW_NUM_COL_NAME;
-        // let column = polars::prelude::Series::new(file_column_name, sort_indices);
-        // let df = df
-        //     .with_column(column)
-        //     .expect("Could not project row num cols");
-        // log::debug!("got projected row num col {}", df);
-
-        // // Sort by the original file row num
-        // let mut df = df.sort([file_column_name], false).expect("Could sort df");
-
-        // let _ = df
-        //     .drop_in_place(constants::ROW_NUM_COL_NAME)
-        //     .expect("Could not drop col");
-        // let _ = df
-        //     .drop_in_place(constants::FILE_ROW_NUM_COL_NAME)
-        //     .expect("Could not drop col");
-        // let df = tabular::df_add_row_num(df)?;
-
-        log::debug!("index_hash_row_nums final df {}", new_rows);
-        Ok(new_rows)
+        Ok(())
     }
 
     // This function is nasty, I know
