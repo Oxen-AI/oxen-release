@@ -67,8 +67,18 @@ impl RefReader {
         let bytes = name.as_bytes();
         match self.refs_db.get(bytes) {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
-            Ok(None) => Ok(None),
+            Ok(None) => {
+                log::debug!(
+                    "get_commit_id_for_branch could not find commit id for branch {}",
+                    name
+                );
+                Ok(None)
+            }
             Err(err) => {
+                log::error!(
+                    "get_commit_id_for_branch error finding commit id for branch {}",
+                    name
+                );
                 let err = format!("{}", err);
                 Err(OxenError::basic_str(&err))
             }
@@ -82,8 +92,9 @@ impl RefReader {
         if let Some(head_ref) = head_ref {
             if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
                 log::debug!(
-                    "RefReader::head_commit_id got commit id for branch {}",
-                    commit_id
+                    "RefReader::head_commit_id got commit id {} for branch {}",
+                    commit_id,
+                    head_ref
                 );
                 Ok(Some(commit_id))
             } else {
@@ -143,12 +154,14 @@ impl RefReader {
     }
 
     pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
+        log::debug!("get_branch_by_name {name}");
         let maybe_head_id = self.head_commit_id()?;
         if maybe_head_id.is_none() {
             return Ok(None);
         }
 
         let head_commit_id = maybe_head_id.unwrap();
+        log::debug!("get_branch_by_name got head_commit_id {}", head_commit_id);
         match self.get_commit_id_for_branch(name) {
             Ok(Some(commit_id)) => Ok(Some(Branch {
                 name: name.to_string(),

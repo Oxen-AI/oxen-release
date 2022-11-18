@@ -61,8 +61,9 @@ fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> 
         assert_eq!(repo_status.untracked_files.len(), 2);
         // train/
         // test/
+        // nlp/
         // annotations/
-        assert_eq!(repo_status.untracked_dirs.len(), 3);
+        assert_eq!(repo_status.untracked_dirs.len(), 4);
 
         Ok(())
     })
@@ -83,8 +84,9 @@ fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
         assert_eq!(repo_status.untracked_files.len(), 1);
         // train/
         // test/
+        // nlp/
         // annotations/
-        assert_eq!(repo_status.untracked_dirs.len(), 3);
+        assert_eq!(repo_status.untracked_dirs.len(), 4);
 
         Ok(())
     })
@@ -107,15 +109,18 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
         assert_eq!(repo_status.added_dirs.len(), 1);
         // annotations/train/one_shot.csv
         assert_eq!(repo_status.added_files.len(), 1);
+        // annotations/test/
         // train/
         // test/
-        assert_eq!(repo_status.untracked_dirs.len(), 2);
+        // nlp/
+        assert_eq!(repo_status.untracked_dirs.len(), 4);
         // README.md
         // labels.txt
+        // annotations/README.md
         // annotations/train/two_shot.csv
         // annotations/train/annotations.txt
         // annotations/train/bounding_box.csv
-        assert_eq!(repo_status.untracked_files.len(), 5);
+        assert_eq!(repo_status.untracked_files.len(), 6);
 
         Ok(())
     })
@@ -342,10 +347,11 @@ fn test_command_commit_dir() -> Result<(), OxenError> {
         command::commit(&repo, "Adding training data")?;
 
         let repo_status = command::status(&repo)?;
+        repo_status.print_stdout();
         assert_eq!(repo_status.added_dirs.len(), 0);
         assert_eq!(repo_status.added_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 2);
-        assert_eq!(repo_status.untracked_dirs.len(), 2);
+        assert_eq!(repo_status.untracked_dirs.len(), 3);
 
         let commits = command::log(&repo)?;
         assert_eq!(commits.len(), 2);
@@ -363,10 +369,12 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
         command::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
         let repo_status = command::status(&repo)?;
+        repo_status.print_stdout();
+
         assert_eq!(repo_status.added_dirs.len(), 0);
         assert_eq!(repo_status.added_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 2);
-        assert_eq!(repo_status.untracked_dirs.len(), 2);
+        assert_eq!(repo_status.untracked_dirs.len(), 3);
 
         let commits = command::log(&repo)?;
         assert_eq!(commits.len(), 2);
@@ -555,7 +563,7 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Modify and add the file deep in a sub dir
         let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
-        let file_contents = "train/cat_1.jpg 0";
+        let file_contents = "file,label\ntrain/cat_1.jpg,0";
         test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -590,7 +598,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let branch_name = "feature/change-the-shot";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0\n";
+        let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -631,7 +639,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let branch_name = "feature/modify-data";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0\n";
+        let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -888,6 +896,98 @@ async fn test_command_push_one_commit() -> Result<(), OxenError> {
                 .await?;
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
+
+        api::remote::repositories::delete(&remote_repo).await?;
+
+        future::ok::<(), OxenError>(()).await
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async {
+        let mut repo = repo;
+
+        // Track the train and annotations dir
+        let train_dir = repo.path.join("train");
+        let annotations_dir = repo.path.join("annotations");
+        let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
+        num_files += util::fs::rcount_files_in_dir(&annotations_dir);
+        command::add(&repo, &train_dir)?;
+        command::add(&repo, &annotations_dir)?;
+        // Commit the train dir
+        let commit = command::commit(&repo, "Adding training data")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create the repo
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it real good
+        command::push(&repo).await?;
+
+        // Sleep so it can unpack...
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        let is_synced =
+            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_files).await?;
+        assert!(is_synced);
+
+        api::remote::repositories::delete(&remote_repo).await?;
+
+        future::ok::<(), OxenError>(()).await
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async {
+        let mut repo = repo;
+
+        // Track the train and annotations dir
+        let train_dir = repo.path.join("train");
+        let train_bounding_box = repo
+            .path
+            .join("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+
+        command::add(&repo, &train_dir)?;
+        command::add(&repo, &train_bounding_box)?;
+        // Commit the train dir
+        command::commit(&repo, "Adding training data")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create the repo
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it real good
+        command::push(&repo).await?;
+
+        // Sleep so it can unpack...
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        // Add and commit the rest of the annotations
+        // The nlp annotations have duplicates which broke the system at a time
+        let annotations_dir = repo.path.join("nlp");
+        command::add(&repo, &annotations_dir)?;
+        let commit = command::commit(&repo, "adding the rest of the annotations")?.unwrap();
+        let commit_reader = CommitDirReader::new(&repo, &commit)?;
+        let num_entries = commit_reader.num_entries()?;
+
+        // Push again
+        command::push(&repo).await?;
+
+        let is_synced =
+            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries).await?;
+        assert!(is_synced);
 
         api::remote::repositories::delete(&remote_repo).await?;
 
@@ -1301,6 +1401,127 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_pull_data_frame() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        // Track a file
+        let filename = "annotations/train/bounding_box.csv";
+        let file_path = repo.path.join(filename);
+        let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
+        let og_contents = util::fs::read_from_path(&file_path)?;
+
+        command::add(&repo, &file_path)?;
+        command::commit(&repo, "Adding bounding box file")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+            let file_path = cloned_repo.path.join(filename);
+
+            let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
+            let cloned_contents = util::fs::read_from_path(&file_path)?;
+            assert_eq!(og_df.height(), cloned_df.height());
+            assert_eq!(og_df.width(), cloned_df.width());
+            assert_eq!(cloned_contents, og_contents);
+
+            // Status should be empty too
+            let status = command::status(&cloned_repo)?;
+            status.print_stdout();
+            assert!(status.is_clean());
+
+            // Make sure that CADF gets reconstructed
+            let schemas = command::schema_list(&repo, None)?;
+            let schema = schemas.first().unwrap();
+            let cadf_file = util::fs::schema_df_path(&repo, schema);
+            assert!(cadf_file.exists());
+            let cadf = tabular::read_df(&cadf_file, DFOpts::empty())?;
+            assert_eq!(cadf.height(), cloned_df.height());
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
+// Test that we pull down the proper data frames
+#[tokio::test]
+async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+        let filename = "nlp/classification/annotations/train.tsv";
+        let file_path = repo.path.join(filename);
+        let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
+        let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
+
+        let schemas = command::schema_list(&repo, None)?;
+        let sentiment_schema = schemas
+            .iter()
+            .find(|s| s.name == Some("text_classification".to_string()))
+            .unwrap();
+        let og_sentiment_cadf_path = util::fs::schema_df_path(&repo, sentiment_schema);
+        let og_sentiment_cadf = tabular::read_df(og_sentiment_cadf_path, DFOpts::empty())?;
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+
+            let filename = "nlp/classification/annotations/train.tsv";
+            let file_path = cloned_repo.path.join(filename);
+            let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
+            let cloned_contents = util::fs::read_from_path(&file_path)?;
+            assert_eq!(og_df.height(), cloned_df.height());
+            assert_eq!(og_df.width(), cloned_df.width());
+            assert_eq!(cloned_contents, og_sentiment_contents);
+            println!("Cloned {:?} {}", filename, cloned_df);
+
+            // Status should be empty too
+            let status = command::status(&cloned_repo)?;
+            status.print_stdout();
+            assert!(status.is_clean());
+
+            // Make sure that CADF gets reconstructed
+            let new_sentiment_cadf_path = util::fs::schema_df_path(&cloned_repo, sentiment_schema);
+            let new_sentiment_cadf = tabular::read_df(new_sentiment_cadf_path, DFOpts::empty())?;
+
+            println!("OG Sentiment CADF {}", og_sentiment_cadf);
+            println!("Cloned Sentiment CADF {}", new_sentiment_cadf);
+
+            assert_eq!(og_sentiment_cadf.height(), new_sentiment_cadf.height());
+            assert_eq!(og_sentiment_cadf.width(), new_sentiment_cadf.width());
 
             api::remote::repositories::delete(&remote_repo).await?;
 
@@ -1885,6 +2106,33 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let dir = Path::new("nlp");
+        let repo_dir = repo.path.join(dir);
+        command::add(&repo, repo_dir)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        // Should add all the sub dirs
+        // nlp/
+        //   classification/
+        //     annotations/
+        assert_eq!(
+            status.added_dirs.paths.get(Path::new("nlp")).unwrap().len(),
+            3
+        );
+        // Should add sub files
+        // nlp/classification/annotations/train.tsv
+        // nlp/classification/annotations/test.tsv
+        assert_eq!(status.added_files.len(), 2);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_restore_directory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let history = command::log(&repo)?;
@@ -1977,6 +2225,195 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_create_cadf_data_frame_with_duplicates() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Commit train
+        let ann_file = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("train.tsv");
+        let ann_path = repo.path.join(&ann_file);
+        command::add(&repo, &ann_path)?;
+        command::commit(&repo, "adding train data with duplicates")?.unwrap();
+
+        // Commit test
+        let ann_file = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("test.tsv");
+        let ann_path = repo.path.join(&ann_file);
+        command::add(&repo, &ann_path)?;
+        command::commit(&repo, "adding test data with duplicates")?.unwrap();
+
+        command::schema_name(
+            &repo,
+            "34a3b58f5471d7ae9580ebcf2582be2f",
+            "text_classification",
+        )?;
+
+        // Check that we saved off the CADF correctly
+        let schema = command::schema_get_from_head(&repo, "text_classification")?.unwrap();
+        let cadf_path = util::fs::schema_df_path(&repo, &schema);
+        let cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
+        println!("CADF {}", cadf);
+
+        // Should have added the _row_num and _row_hash columns
+        assert_eq!(cadf.width(), 4);
+        // Should be 8 unique examples
+        assert_eq!(cadf.height(), 8);
+
+        let result = format!("{}", cadf);
+        let str_val = r"shape: (8, 4)
+┌──────────┬──────────────────────────────┬──────────┬──────────────────────────────────┐
+│ _row_num ┆ text                         ┆ label    ┆ _row_hash                        │
+│ ---      ┆ ---                          ┆ ---      ┆ ---                              │
+│ u32      ┆ str                          ┆ str      ┆ str                              │
+╞══════════╪══════════════════════════════╪══════════╪══════════════════════════════════╡
+│ 0        ┆ My tummy hurts               ┆ negative ┆ 2036786c460064e4f6e6e04130fec79  │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1        ┆ I have a headache            ┆ negative ┆ cc1668083355fd32f615c9b61157832e │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2        ┆ loving the sunshine          ┆ positive ┆ 6332dba68bfbc9958c21a6a7c117dc20 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3        ┆ And another unique one       ┆ positive ┆ 9d5c310dedfc1f4a40673915bde497ca │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4        ┆ I am a lonely example        ┆ negative ┆ 9fc377d8bd34d6b1da0fa38d54f2788  │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 5        ┆ I am adding more examples    ┆ positive ┆ 2a0003e6d101f07baebc99dbc9e2a064 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 6        ┆ One more time                ┆ positive ┆ 65202a577c5f2636f1a0e69955264ef7 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 7        ┆ I am a great testing example ┆ positive ┆ 66e0ee400afea38ddde0d88cfa5feb60 │
+└──────────┴──────────────────────────────┴──────────┴──────────────────────────────────┘";
+
+        assert_eq!(result, str_val);
+
+        Ok(())
+    })
+}
+
+// Make sure we can pull and unpack data from CADF with duplicates
+#[tokio::test]
+async fn test_push_pull_cadf_with_duplicates() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        // Track a dir
+        let train_path = repo.path.join("nlp");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding nlp dir")?.unwrap();
+
+        // Create a schema name, so that we can test pull works
+        let schema_name = "text_classification";
+        command::schema_name(&repo, "34a3b58f5471d7ae9580ebcf2582be2f", schema_name)?;
+
+        let schema = command::schema_get_from_head(&repo, schema_name)?.unwrap();
+        let cadf_path = util::fs::schema_df_path(&repo, &schema);
+        let og_cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
+        println!("{}", og_cadf);
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+
+            let schema = command::schema_get_from_head(&cloned_repo, schema_name)?.unwrap();
+
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            assert_eq!(2, cloned_num_files);
+
+            let cadf_path = util::fs::schema_df_path(&cloned_repo, &schema);
+            let cloned_cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
+            println!("OG: {}", og_cadf);
+            println!("Cloned: {}", cloned_cadf);
+
+            assert_eq!(cloned_cadf.height(), og_cadf.height());
+            assert_eq!(cloned_cadf.width(), og_cadf.width());
+            assert_eq!(format!("{}", cloned_cadf), format!("{}", og_cadf));
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
+#[test]
+fn test_restore_data_frame_with_duplicates() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let ann_file = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("train.tsv");
+        let ann_path = repo.path.join(&ann_file);
+        let orig_df = tabular::read_df(&ann_path, DFOpts::empty())?;
+        let og_contents = util::fs::read_from_path(&ann_path)?;
+
+        // Commit
+        command::add(&repo, &ann_path)?;
+        let commit = command::commit(&repo, "adding data with duplicates")?.unwrap();
+
+        // Remove
+        std::fs::remove_file(&ann_path)?;
+
+        // Restore from commit
+        command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
+
+        // Make sure is same size
+        let restored_df = tabular::read_df(&ann_path, DFOpts::empty())?;
+        assert_eq!(restored_df.height(), orig_df.height());
+        assert_eq!(restored_df.width(), orig_df.width());
+
+        let restored_contents = util::fs::read_from_path(&ann_path)?;
+        assert_eq!(og_contents, restored_contents);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_restore_bounding_box_data_frame() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let ann_file = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let ann_path = repo.path.join(&ann_file);
+        let orig_df = tabular::read_df(&ann_path, DFOpts::empty())?;
+        let og_contents = util::fs::read_from_path(&ann_path)?;
+
+        // Commit
+        command::add(&repo, &ann_path)?;
+        let commit = command::commit(&repo, "adding data with duplicates")?.unwrap();
+
+        // Remove
+        std::fs::remove_file(&ann_path)?;
+
+        // Restore from commit
+        command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
+
+        // Make sure is same size
+        let restored_df = tabular::read_df(&ann_path, DFOpts::empty())?;
+        assert_eq!(restored_df.height(), orig_df.height());
+        assert_eq!(restored_df.width(), orig_df.width());
+
+        let restored_contents = util::fs::read_from_path(&ann_path)?;
+        assert_eq!(og_contents, restored_contents);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_restore_staged_directory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         let relative_path = Path::new("annotations");
@@ -2007,22 +2444,24 @@ fn test_restore_staged_directory() -> Result<(), OxenError> {
 fn test_command_schema_list() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let schemas = command::schema_list(&repo, None)?;
-        assert_eq!(schemas.len(), 1);
+        assert_eq!(schemas.len(), 2);
 
-        assert_eq!(schemas[0].hash, "b821946753334c083124fd563377d795");
-        assert_eq!(schemas[0].fields.len(), 6);
-        assert_eq!(schemas[0].fields[0].name, "file");
-        assert_eq!(schemas[0].fields[0].dtype, "str");
-        assert_eq!(schemas[0].fields[1].name, "label");
-        assert_eq!(schemas[0].fields[1].dtype, "str");
-        assert_eq!(schemas[0].fields[2].name, "min_x");
-        assert_eq!(schemas[0].fields[2].dtype, "f64");
-        assert_eq!(schemas[0].fields[3].name, "min_y");
-        assert_eq!(schemas[0].fields[3].dtype, "f64");
-        assert_eq!(schemas[0].fields[4].name, "width");
-        assert_eq!(schemas[0].fields[4].dtype, "i64");
-        assert_eq!(schemas[0].fields[5].name, "height");
-        assert_eq!(schemas[0].fields[5].dtype, "i64");
+        let schema = command::schema_get_from_head(&repo, "bounding_box")?.unwrap();
+
+        assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
+        assert_eq!(schema.fields.len(), 6);
+        assert_eq!(schema.fields[0].name, "file");
+        assert_eq!(schema.fields[0].dtype, "str");
+        assert_eq!(schema.fields[1].name, "label");
+        assert_eq!(schema.fields[1].dtype, "str");
+        assert_eq!(schema.fields[2].name, "min_x");
+        assert_eq!(schema.fields[2].dtype, "f64");
+        assert_eq!(schema.fields[3].name, "min_y");
+        assert_eq!(schema.fields[3].dtype, "f64");
+        assert_eq!(schema.fields[4].name, "width");
+        assert_eq!(schema.fields[4].dtype, "i64");
+        assert_eq!(schema.fields[5].name, "height");
+        assert_eq!(schema.fields[5].dtype, "i64");
 
         Ok(())
     })
@@ -2233,13 +2672,14 @@ shape: (6, 1)
 fn test_schema_create_index_add_new_file() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Create an index
-        let schemas = command::schema_list(&repo, None)?;
-        let schema_ref = &schemas.first().unwrap().hash;
+        let schema_ref = command::schema_get_from_head(&repo, "bounding_box")?
+            .unwrap()
+            .hash;
         let field_name = "label";
-        command::schema_create_index(&repo, schema_ref, field_name)?;
+        command::schema_create_index(&repo, &schema_ref, field_name)?;
 
         // Make sure we can query the data
-        let initial_index = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+        let initial_index = command::schema_query_index(&repo, &schema_ref, field_name, "dog")?;
 
         // Add and commit a new file with the same schema
         let bbox_test_filename = Path::new("annotations").join("test").join("new_file.csv");
@@ -2256,7 +2696,7 @@ test/unknown_2.jpg,unknown,0.0,0.0,0,0"#,
         command::commit(&repo, "adding new file")?;
 
         // Make sure new row gets added to the index
-        let new_index_results = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+        let new_index_results = command::schema_query_index(&repo, &schema_ref, field_name, "dog")?;
         println!("new_index_results {}", new_index_results);
 
         // Make sure we get new results out

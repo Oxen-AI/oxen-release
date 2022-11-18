@@ -128,7 +128,7 @@ impl CommitWriter {
         // meaning we can check the validity of each commit+entries in the tree if we need
 
         /*
-        Good Explaination: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
+        Good Explanation: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
             When you take a pull from remote or push your changes,
             git will check if the hash of the root are the same or not.
             If it’s different, it will check for the left and right child nodes and will repeat
