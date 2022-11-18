@@ -32,6 +32,7 @@ impl RefWriter {
 
     pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
         // Only create branch if it does not exist already
+        log::debug!("create_branch {} -> {}", name, commit_id);
         if self.has_branch(name) {
             let err = format!("Branch already exists: {}", name);
             Err(OxenError::basic_str(&err))

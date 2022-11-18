@@ -14,6 +14,8 @@ pub fn parse_resource(
     let commit_reader = CommitReader::new(repo)?;
 
     // See if the first component is the commit id
+    log::debug!("parse_resource looking for commit id in path {:?}", path);
+
     if let Some(first_component) = components.first() {
         let base_path: &Path = first_component.as_ref();
         let maybe_commit_id = base_path.to_str().unwrap();
@@ -26,11 +28,17 @@ pub fn parse_resource(
                     file_path = file_path.join(component_path);
                 }
             }
+            log::debug!(
+                "parse_resource got commit.id [{}] and filepath [{:?}]",
+                commit.id,
+                file_path
+            );
             return Ok(Some((commit.id, file_path)));
         }
     }
 
     // See if the component has a valid branch name in it
+    log::debug!("parse_resource looking for branch in path {:?}", path);
     let ref_reader = RefReader::new(repo)?;
     let mut file_path = PathBuf::new();
     while let Some(component) = components.pop() {
@@ -41,6 +49,26 @@ pub fn parse_resource(
             file_path = component_path.join(file_path);
         }
 
+        log::debug!(
+            "parse_resource got file path [{:?}] with {} remaining components",
+            file_path,
+            components.len()
+        );
+        // if we have no components, looking at base dir within that branch
+        if components.is_empty() {
+            let branch_name = file_path.to_str().unwrap();
+            if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
+                log::debug!(
+                    "parse_resource got branch [{}] with no file path",
+                    branch_name
+                );
+
+                return Ok(Some((branch.commit_id, PathBuf::from("./"))));
+            } else {
+                return Ok(None);
+            }
+        }
+
         let mut branch_path = PathBuf::new();
         for component in components.iter() {
             let component_path: &Path = component.as_ref();
@@ -48,8 +76,14 @@ pub fn parse_resource(
         }
 
         let branch_name = branch_path.to_str().unwrap();
-        log::debug!("parse_resource looking for branch {}", branch_name);
+        log::debug!("parse_resource looking for branch [{}]", branch_name);
         if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
+            log::debug!(
+                "parse_resource got branch [{}] and filepath [{:?}]",
+                branch_name,
+                file_path
+            );
+
             return Ok(Some((branch.commit_id, file_path)));
         }
     }
@@ -172,6 +206,30 @@ mod tests {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
+                }
+                _ => {
+                    panic!("Should return a branch");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_parse_resource_for_branch_base_dir() -> Result<(), OxenError> {
+        crate::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "my_branch";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+
+            let path_str = branch_name.to_string();
+            let path = Path::new(&path_str);
+
+            match resource::parse_resource(&repo, path) {
+                Ok(Some((commit_id, path))) => {
+                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    assert_eq!(branch.commit_id, commit_id);
+                    assert_eq!(path, Path::new("./"));
                 }
                 _ => {
                     panic!("Should return a branch");

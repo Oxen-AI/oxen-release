@@ -57,8 +57,8 @@ impl CommitDirEntryWriter {
             last_modified_seconds: time.unix_seconds(),
             last_modified_nanoseconds: time.nanoseconds(),
         };
-
-        path_db::put(&self.db, &entry.path, &entry)
+        let path = entry.path.file_name().unwrap();
+        path_db::put(&self.db, path, &entry)
     }
 
     pub fn add_commit_entry(&self, entry: &CommitEntry) -> Result<(), OxenError> {
