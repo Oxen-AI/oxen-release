@@ -676,9 +676,12 @@ I have a headache	negative
 My tummy hurts	negative
 I have a headache	negative
 loving the sunshine	positive
+And another unique one	positive
 My tummy hurts	negative
 loving the sunshine	positive
 I am a lonely example	negative
+I am adding more examples	positive
+One more time	positive
 "#,
     )?;
 

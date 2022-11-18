@@ -287,7 +287,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
         .join(HISTORY_DIR)
         .join(commit.id.clone());
     // This will be the subdir within the tarball
-    let tar_subdir = Path::new("history").join(commit.id.clone());
+    let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
 
     log::debug!("Compressing commit {}", commit.id);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -297,6 +297,9 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     tar.finish()?;
 
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+    log::debug!("Compressed commit {} size is {}", commit.id, ByteSize::b(total_size));
+
     Ok(buffer)
 }
 

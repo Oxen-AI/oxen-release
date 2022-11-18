@@ -203,6 +203,8 @@ impl CommitSchemaRowIndex {
                         }
                     }
 
+                    // hacky because we only support u32 right now...
+                    let mut count: u32 = u32::try_from(indexer.global_count()).unwrap_or(u32::MAX);
                     // iterate both `ChunkedArrays`
                     let out: Utf8Chunked = ca_row_hash
                         .into_iter()
@@ -213,9 +215,6 @@ impl CommitSchemaRowIndex {
                                     pb.inc(1);
 
                                     if !indexer.has_global_key(row_hash) {
-                                        // hacky because we only support u32 right now...
-                                        let count: u32 = u32::try_from(indexer.global_count())
-                                            .unwrap_or(u32::MAX);
                                         log::debug!(
                                             "Saving row hash {:?} {} -> {} -> {}",
                                             path,
@@ -224,6 +223,7 @@ impl CommitSchemaRowIndex {
                                             count
                                         );
                                         indexer.put_row_index(row_hash, count).unwrap();
+                                        count += 1;
                                     }
 
                                     Some(row_hash)
@@ -260,6 +260,7 @@ impl CommitSchemaRowIndex {
         schema: Schema,
         path: PathBuf,
         df: DataFrame,
+        new_rows: DataFrame,
     ) -> Result<DataFrame, OxenError> {
         let num_rows = df.height() as i64;
         log::debug!("index_hash_row_nums {:?} {}", path, df);
@@ -281,44 +282,64 @@ impl CommitSchemaRowIndex {
             .select([col("_result")])
             .collect()
             .unwrap();
-        // Select the unique indices
-        let indexer = CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path).unwrap();
-        let indices = indexer.list_file_indices()?;
-        log::debug!("index_hash_row_nums indices {:?}", indices);
+        // // Select the unique indices
+        // let indexer = CommitSchemaRowIndex::new(&repository, &commit.id, &schema, &path).unwrap();
+        // let indices = indexer.list_file_indices()?;
+        // log::debug!("index_hash_row_nums indices {:?}", indices);
 
-        let global_indices: Vec<u32> = indices
-            .clone()
-            .into_iter()
-            .map(|(_, indices)| indices[1])
-            .collect();
+        // let global_indices: Vec<u32> = indices
+        //     .clone()
+        //     .into_iter()
+        //     .map(|(_, indices)| {
+        //         // let global_idx = indices[0];
+        //         // let mut result: Vec<u32> = vec![];
+        //         // for _ in 1..indices.len() {
+        //         //     result.push(global_idx);
+        //         // }
+        //         // result
+        //         indices[0]
+        //     })
+        //     // .flatten()
+        //     .collect();
 
-        let sort_indices: Vec<u32> = indices.into_iter().map(|(_, indices)| indices[0]).collect();
+        // let sort_indices: Vec<u32> = indices
+        //     .into_iter()
+        //     .map(|(_, indices)| {
+        //         // let mut result: Vec<u32> = vec![];
+        //         // for i in 1..indices.len() {
+        //         //     result.push(indices[i]);
+        //         // }
+        //         // result
+        //         indices[1]
+        //     })
+        //     // .flatten()
+        //     .collect();
 
-        log::debug!("index_hash_row_nums global_indices {:?}", global_indices);
-        log::debug!("index_hash_row_nums sort_indices {:?}", sort_indices);
+        // log::debug!("index_hash_row_nums global_indices {:?}", global_indices);
+        // log::debug!("index_hash_row_nums sort_indices {:?}", sort_indices);
 
-        let mut df = tabular::take(df.lazy(), global_indices)?;
+        // let mut df = tabular::take(df.lazy(), global_indices)?;
 
-        let file_column_name = constants::FILE_ROW_NUM_COL_NAME;
-        let column = polars::prelude::Series::new(file_column_name, sort_indices);
-        let df = df
-            .with_column(column)
-            .expect("Could not project row num cols");
-        log::debug!("got projected row num col {}", df);
+        // let file_column_name = constants::FILE_ROW_NUM_COL_NAME;
+        // let column = polars::prelude::Series::new(file_column_name, sort_indices);
+        // let df = df
+        //     .with_column(column)
+        //     .expect("Could not project row num cols");
+        // log::debug!("got projected row num col {}", df);
 
-        // Sort by the original file row num
-        let mut df = df.sort([file_column_name], false).expect("Could sort df");
+        // // Sort by the original file row num
+        // let mut df = df.sort([file_column_name], false).expect("Could sort df");
 
-        let _ = df
-            .drop_in_place(constants::ROW_NUM_COL_NAME)
-            .expect("Could not drop col");
-        let _ = df
-            .drop_in_place(constants::FILE_ROW_NUM_COL_NAME)
-            .expect("Could not drop col");
-        let df = tabular::df_add_row_num(df)?;
+        // let _ = df
+        //     .drop_in_place(constants::ROW_NUM_COL_NAME)
+        //     .expect("Could not drop col");
+        // let _ = df
+        //     .drop_in_place(constants::FILE_ROW_NUM_COL_NAME)
+        //     .expect("Could not drop col");
+        // let df = tabular::df_add_row_num(df)?;
 
-        log::debug!("index_hash_row_nums final df {}", df);
-        Ok(df)
+        log::debug!("index_hash_row_nums final df {}", new_rows);
+        Ok(new_rows)
     }
 
     // This function is nasty, I know
@@ -370,7 +391,8 @@ impl CommitSchemaRowIndex {
                             let ca_a = s_a.utf8()?;
                             let ca_b = s_b.u32()?;
 
-                            let mut num_new = 0;
+                            // Start at global count
+                            let mut offset: u32 = u32::try_from(indexer.global_count()).unwrap_or(u32::MAX);
                             // iterate both `ChunkedArrays`
                             let out: BooleanChunked = ca_a
                                 .into_iter()
@@ -422,17 +444,14 @@ impl CommitSchemaRowIndex {
                                             Ok(None) => {
                                                 // It is not in the global CADF, so it will not be in local either
                                                 // Compute global idx based off of old size and current row idx
-
-
-                                                // hacky because we only support u32 right now...
-                                                let global_idx: u32 = u32::try_from(indexer.global_count()).unwrap_or(u32::MAX);
+                                                let global_idx = offset;
                                                 log::debug!("Saving row hash {:?} {} -> {} -> {}", entry.path, row_hash, global_idx, row_num);
                                                 indexer.put_row_index(row_hash, global_idx).unwrap();
 
                                                 let indices = vec![global_idx, row_num];
                                                 log::debug!("compute_new_rows first CADF {} indices {:?}", row_num, indices);
                                                 indexer.put_file_index(row_hash, indices).unwrap();
-                                                num_new += 1;
+                                                offset += 1;
                                                 Some(true)
                                             }
                                             Err(err) => {
