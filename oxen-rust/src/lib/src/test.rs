@@ -373,6 +373,14 @@ where
     command::add(&repo, &repo_dir.join("README.md"))?;
     command::commit(&repo, "adding all data baby")?;
 
+    // Make it easy to find these schemas during testing
+    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schema_name(
+        &repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
+
     // Run test to see if it panic'd
     let result = match test(repo).await {
         Ok(_) => true,

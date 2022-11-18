@@ -1467,6 +1467,71 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
     .await
 }
 
+// Test that we pull down the proper data frames
+#[tokio::test]
+async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+        let filename = "nlp/classification/annotations/train.tsv";
+        let file_path = repo.path.join(filename);
+        let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
+        let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
+
+        let schemas = command::schema_list(&repo, None)?;
+        let sentiment_schema = schemas
+            .iter()
+            .find(|s| s.name == Some("text_classification".to_string()))
+            .unwrap();
+        let og_sentiment_cadf_path = util::fs::schema_df_path(&repo, sentiment_schema);
+        let og_sentiment_cadf = tabular::read_df(og_sentiment_cadf_path, DFOpts::empty())?;
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+
+            let filename = "nlp/classification/annotations/train.tsv";
+            let file_path = cloned_repo.path.join(filename);
+            let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
+            let cloned_contents = util::fs::read_from_path(&file_path)?;
+            assert_eq!(og_df.height(), cloned_df.height());
+            assert_eq!(og_df.width(), cloned_df.width());
+            assert_eq!(cloned_contents, og_sentiment_contents);
+            println!("Cloned {:?} {}", filename, cloned_df);
+
+            // Status should be empty too
+            let status = command::status(&cloned_repo)?;
+            status.print_stdout();
+            assert!(status.is_clean());
+
+            // Make sure that CADF gets reconstructed
+            let new_sentiment_cadf_path = util::fs::schema_df_path(&cloned_repo, sentiment_schema);
+            let new_sentiment_cadf = tabular::read_df(new_sentiment_cadf_path, DFOpts::empty())?;
+
+            println!("OG Sentiment CADF {}", og_sentiment_cadf);
+            println!("Cloned Sentiment CADF {}", new_sentiment_cadf);
+
+            assert_eq!(og_sentiment_cadf.height(), new_sentiment_cadf.height());
+            assert_eq!(og_sentiment_cadf.width(), new_sentiment_cadf.width());
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
 // Make sure we can push again after pulling on the other side, then pull again
 #[tokio::test]
 async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
@@ -2160,6 +2225,58 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_create_cadf_data_frame_with_duplicates() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let ann_file = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("train.tsv");
+        let ann_path = repo.path.join(&ann_file);
+
+        // Commit
+        command::add(&repo, &ann_path)?;
+        command::commit(&repo, "adding data with duplicates")?.unwrap();
+
+        command::schema_name(
+            &repo,
+            "34a3b58f5471d7ae9580ebcf2582be2f",
+            "text_classification",
+        )?;
+
+        // Check that we saved off the CADF correctly
+        let schema = command::schema_get_from_head(&repo, "text_classification")?.unwrap();
+        let cadf_path = util::fs::schema_df_path(&repo, &schema);
+        let cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
+        println!("{}", cadf);
+
+        // Should have added the _row_num and _row_hash columns
+        assert_eq!(cadf.width(), 4);
+        // Should be 4 unique examples
+        assert_eq!(cadf.height(), 4);
+
+        let result = format!("{}", cadf);
+        let str_val = r"shape: (4, 4)
+┌──────────┬───────────────────────┬──────────┬──────────────────────────────────┐
+│ _row_num ┆ text                  ┆ label    ┆ _row_hash                        │
+│ ---      ┆ ---                   ┆ ---      ┆ ---                              │
+│ u32      ┆ str                   ┆ str      ┆ str                              │
+╞══════════╪═══════════════════════╪══════════╪══════════════════════════════════╡
+│ 0        ┆ My tummy hurts        ┆ negative ┆ 2036786c460064e4f6e6e04130fec79  │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1        ┆ I have a headache     ┆ negative ┆ cc1668083355fd32f615c9b61157832e │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2        ┆ loving the sunshine   ┆ positive ┆ 6332dba68bfbc9958c21a6a7c117dc20 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3        ┆ I am a lonely example ┆ negative ┆ 9fc377d8bd34d6b1da0fa38d54f2788  │
+└──────────┴───────────────────────┴──────────┴──────────────────────────────────┘";
+
+        assert_eq!(result, str_val);
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_restore_data_frame_with_duplicates() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let ann_file = Path::new("nlp")
@@ -2257,10 +2374,7 @@ fn test_command_schema_list() -> Result<(), OxenError> {
         let schemas = command::schema_list(&repo, None)?;
         assert_eq!(schemas.len(), 2);
 
-        let schema = schemas
-            .iter()
-            .find(|s| s.name == Some(String::from("bounding_box")))
-            .unwrap();
+        let schema = command::schema_get_from_head(&repo, "bounding_box")?.unwrap();
 
         assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
         assert_eq!(schema.fields.len(), 6);
@@ -2486,17 +2600,14 @@ shape: (6, 1)
 fn test_schema_create_index_add_new_file() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Create an index
-        let schemas = command::schema_list(&repo, None)?;
-        let schema_ref = &schemas
-            .iter()
-            .find(|s| s.name == Some(String::from("bounding_box")))
+        let schema_ref = command::schema_get_from_head(&repo, "bounding_box")?
             .unwrap()
             .hash;
         let field_name = "label";
-        command::schema_create_index(&repo, schema_ref, field_name)?;
+        command::schema_create_index(&repo, &schema_ref, field_name)?;
 
         // Make sure we can query the data
-        let initial_index = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+        let initial_index = command::schema_query_index(&repo, &schema_ref, field_name, "dog")?;
 
         // Add and commit a new file with the same schema
         let bbox_test_filename = Path::new("annotations").join("test").join("new_file.csv");
@@ -2513,7 +2624,7 @@ test/unknown_2.jpg,unknown,0.0,0.0,0,0"#,
         command::commit(&repo, "adding new file")?;
 
         // Make sure new row gets added to the index
-        let new_index_results = command::schema_query_index(&repo, schema_ref, field_name, "dog")?;
+        let new_index_results = command::schema_query_index(&repo, &schema_ref, field_name, "dog")?;
         println!("new_index_results {}", new_index_results);
 
         // Make sure we get new results out

@@ -324,7 +324,7 @@ impl CommitEntryWriter {
             log::debug!("aggregate_row_level_results got OG DF {}", df);
 
             // This is another read, just want to make sure this all works first
-            let mut df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
+            let df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
 
             // After we've read this data.arrow file we should clean it up
             // since all the data will be copied into the master schema/data.arrow file
@@ -345,33 +345,34 @@ impl CommitEntryWriter {
                 std::fs::create_dir_all(&schema_version_dir)?;
                 schema_writer.put_schema(&schema)?;
 
-                // save to first version of the big data.arrow file
-                tabular::write_df(&mut df, &schema_df_path)?;
-
-                // Write the row_hash -> row_num index
-                println!("Creating index for {} rows...", df.height());
-                CommitSchemaRowIndex::index_hash_row_nums(
-                    self.repository.clone(),
-                    self.commit.clone(),
-                    schema.clone(),
-                    entry.path.to_path_buf(),
-                    df,
-                )?;
-
-                // TODO: double read again, fix....
-                let df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
-                let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+                log::debug!("Current DF! {:?}", df);
 
                 // Need to save off indices too
-                println!("Saving index...");
+
                 CommitSchemaRowIndex::compute_new_rows(
                     self.repository.clone(),
                     self.commit.clone(),
                     schema.clone(),
                     entry.clone(),
-                    df,
-                    &old_df,
+                    df.clone(),
                 )?;
+
+                log::debug!("Post compute new rows df! {:?}", df);
+                println!("Saving index...");
+                // Write the row_hash -> row_num index
+                let mut index_result = CommitSchemaRowIndex::index_hash_row_nums(
+                    self.repository.clone(),
+                    self.commit.clone(),
+                    schema.clone(),
+                    entry.path.to_path_buf(),
+                    df.clone(),
+                )?;
+
+                log::debug!("result! {:?}", index_result);
+
+                // save to first version of the big data.arrow file
+                log::debug!("SAVING CADF! {:?}", index_result);
+                tabular::write_df(&mut index_result, &schema_df_path)?;
             } else {
                 let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
 
@@ -386,7 +387,6 @@ impl CommitEntryWriter {
                     schema.clone(),
                     entry.clone(),
                     df,
-                    &old_df,
                 )?;
                 log::debug!("NEW ROWS: {}", new_df);
 

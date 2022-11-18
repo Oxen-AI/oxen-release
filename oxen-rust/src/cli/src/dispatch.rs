@@ -249,7 +249,7 @@ pub fn schema_show(
 ) -> Result<(LocalRepository, Option<schema::Schema>), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
-    let schema = command::schema_show(&repo, None, val)?;
+    let schema = command::schema_get(&repo, None, val)?;
     if let Some(schema) = schema {
         if let Some(name) = &schema.name {
             if verbose {
