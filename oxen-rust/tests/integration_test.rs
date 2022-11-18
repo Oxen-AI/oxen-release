@@ -2227,15 +2227,23 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
 #[test]
 fn test_create_cadf_data_frame_with_duplicates() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
+        // Commit train
         let ann_file = Path::new("nlp")
             .join("classification")
             .join("annotations")
             .join("train.tsv");
         let ann_path = repo.path.join(&ann_file);
-
-        // Commit
         command::add(&repo, &ann_path)?;
-        command::commit(&repo, "adding data with duplicates")?.unwrap();
+        command::commit(&repo, "adding train data with duplicates")?.unwrap();
+
+        // Commit test
+        let ann_file = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("test.tsv");
+        let ann_path = repo.path.join(&ann_file);
+        command::add(&repo, &ann_path)?;
+        command::commit(&repo, "adding test data with duplicates")?.unwrap();
 
         command::schema_name(
             &repo,
@@ -2247,33 +2255,97 @@ fn test_create_cadf_data_frame_with_duplicates() -> Result<(), OxenError> {
         let schema = command::schema_get_from_head(&repo, "text_classification")?.unwrap();
         let cadf_path = util::fs::schema_df_path(&repo, &schema);
         let cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
-        println!("{}", cadf);
+        println!("CADF {}", cadf);
 
         // Should have added the _row_num and _row_hash columns
         assert_eq!(cadf.width(), 4);
-        // Should be 4 unique examples
-        assert_eq!(cadf.height(), 4);
+        // Should be 8 unique examples
+        assert_eq!(cadf.height(), 8);
 
         let result = format!("{}", cadf);
-        let str_val = r"shape: (4, 4)
-┌──────────┬───────────────────────┬──────────┬──────────────────────────────────┐
-│ _row_num ┆ text                  ┆ label    ┆ _row_hash                        │
-│ ---      ┆ ---                   ┆ ---      ┆ ---                              │
-│ u32      ┆ str                   ┆ str      ┆ str                              │
-╞══════════╪═══════════════════════╪══════════╪══════════════════════════════════╡
-│ 0        ┆ My tummy hurts        ┆ negative ┆ 2036786c460064e4f6e6e04130fec79  │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 1        ┆ I have a headache     ┆ negative ┆ cc1668083355fd32f615c9b61157832e │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 2        ┆ loving the sunshine   ┆ positive ┆ 6332dba68bfbc9958c21a6a7c117dc20 │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
-│ 3        ┆ I am a lonely example ┆ negative ┆ 9fc377d8bd34d6b1da0fa38d54f2788  │
-└──────────┴───────────────────────┴──────────┴──────────────────────────────────┘";
+        let str_val = r"shape: (8, 4)
+┌──────────┬──────────────────────────────┬──────────┬──────────────────────────────────┐
+│ _row_num ┆ text                         ┆ label    ┆ _row_hash                        │
+│ ---      ┆ ---                          ┆ ---      ┆ ---                              │
+│ u32      ┆ str                          ┆ str      ┆ str                              │
+╞══════════╪══════════════════════════════╪══════════╪══════════════════════════════════╡
+│ 0        ┆ My tummy hurts               ┆ negative ┆ 2036786c460064e4f6e6e04130fec79  │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 1        ┆ I have a headache            ┆ negative ┆ cc1668083355fd32f615c9b61157832e │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 2        ┆ loving the sunshine          ┆ positive ┆ 6332dba68bfbc9958c21a6a7c117dc20 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 3        ┆ And another unique one       ┆ positive ┆ 9d5c310dedfc1f4a40673915bde497ca │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 4        ┆ I am a lonely example        ┆ negative ┆ 9fc377d8bd34d6b1da0fa38d54f2788  │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 5        ┆ I am adding more examples    ┆ positive ┆ 2a0003e6d101f07baebc99dbc9e2a064 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 6        ┆ One more time                ┆ positive ┆ 65202a577c5f2636f1a0e69955264ef7 │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 7        ┆ I am a great testing example ┆ positive ┆ 66e0ee400afea38ddde0d88cfa5feb60 │
+└──────────┴──────────────────────────────┴──────────┴──────────────────────────────────┘";
 
         assert_eq!(result, str_val);
 
         Ok(())
     })
+}
+
+// Make sure we can pull and unpack data from CADF with duplicates
+#[tokio::test]
+async fn test_push_pull_cadf_with_duplicates() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        // Track a dir
+        let train_path = repo.path.join("nlp");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding nlp dir")?.unwrap();
+
+        // Create a schema name, so that we can test pull works
+        let schema_name = "text_classification";
+        command::schema_name(&repo, "34a3b58f5471d7ae9580ebcf2582be2f", schema_name)?;
+
+        let schema = command::schema_get_from_head(&repo, schema_name)?.unwrap();
+        let cadf_path = util::fs::schema_df_path(&repo, &schema);
+        let og_cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
+        println!("{}", og_cadf);
+        
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+
+            let schema = command::schema_get_from_head(&cloned_repo, schema_name)?.unwrap();
+
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            assert_eq!(2, cloned_num_files);
+
+            let cadf_path = util::fs::schema_df_path(&cloned_repo, &schema);
+            let cloned_cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
+            println!("OG: {}", og_cadf);
+            println!("Cloned: {}", cloned_cadf);
+
+            assert_eq!(cloned_cadf.height(), og_cadf.height());
+            assert_eq!(cloned_cadf.width(), og_cadf.width());
+            assert_eq!(format!("{}", cloned_cadf), format!("{}", og_cadf));
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
 }
 
 #[test]
