@@ -338,96 +338,66 @@ impl CommitEntryWriter {
             log::debug!("put_schema_for_file! {:?}", entry.path);
             schema_writer.put_schema_for_file(&entry.path, &schema)?;
 
-
             let schema_version_dir = util::fs::schema_version_dir(&self.repository, &schema);
             if !schema_version_dir.exists() {
-
                 std::fs::create_dir_all(&schema_version_dir)?;
 
                 // Add schema if it does not exist
                 if !schema_writer.has_schema(&schema) {
                     schema_writer.put_schema(&schema)?;
                 }
-                
+            }
 
-                log::debug!("Current DF! {:?}", df);
+            // Create new DF from new rows
+            // Loop over the hashes and filter to ones that do not exist
+            println!("Computing new rows... from {}", df);
+            let new_rows = CommitSchemaRowIndex::compute_new_rows(
+                self.repository.clone(),
+                self.commit.clone(),
+                schema.clone(),
+                entry.clone(),
+                df,
+            )?;
+            log::debug!("NEW ROWS: {}", new_rows);
 
-                // Need to save off indices too
+            // No new rows
+            if new_rows.height() == 0 {
+                continue;
+            }
 
-                let new_rows = CommitSchemaRowIndex::compute_new_rows(
-                    self.repository.clone(),
-                    self.commit.clone(),
-                    schema.clone(),
-                    entry.clone(),
-                    df.clone(),
-                )?;
-
-                log::debug!("Got New Rows! {:?}", new_rows);
-
-                log::debug!("Post compute new rows df! {:?}", df);
-                println!("Saving index...");
-                // Write the row_hash -> row_num index
-                let index_result = CommitSchemaRowIndex::index_hash_row_nums(
-                    self.repository.clone(),
-                    self.commit.clone(),
-                    schema.clone(),
-                    entry.path.to_path_buf(),
-                    df.clone(),
-                    new_rows,
-                )?;
-
-                log::debug!("result! {:?}", index_result);
-
-                // save to first version of the big data.arrow file
-                let mut new_rows = tabular::df_add_row_num_starting_at(index_result, 0)?;
-                log::debug!("SAVING CADF! {:?}", new_rows);
-
-                tabular::write_df(&mut new_rows, &schema_df_path)?;
-            } else {
+            // Stack if we already have a df
+            let mut full_df = if schema_df_path.exists() {
                 let old_df = tabular::read_df(&schema_df_path, DFOpts::empty())?;
+                std::fs::remove_file(&schema_df_path)?;
 
                 log::debug!("Append to: {}", old_df);
-
-                // Create new DF from new rows
-                // Loop over the hashes and filter to ones that do not exist
-                println!("Computing new rows...");
-                let new_rows = CommitSchemaRowIndex::compute_new_rows(
-                    self.repository.clone(),
-                    self.commit.clone(),
-                    schema.clone(),
-                    entry.clone(),
-                    df,
-                )?;
-                log::debug!("NEW ROWS: {}", new_rows);
-
-                // No new rows
-                if new_rows.height() == 0 {
-                    continue;
-                }
 
                 let start: u32 = old_df.height() as u32;
                 let new_rows = tabular::df_add_row_num_starting_at(new_rows, start)?;
                 log::debug!("NEW ROWS WITH NUM: {}", new_rows);
 
                 // append to big .arrow file with new indices that start at num_rows
-                let mut full_df = old_df.vstack(&new_rows).expect("could not vstack");
-                // println!("TOTAL: {}", full_df);
+                old_df.vstack(&new_rows).expect("could not vstack")
+            } else {
+                // just project row num if not
+                
+                tabular::df_add_row_num_starting_at(new_rows, 0)?
+            };
+            log::debug!("Got full new CADF {}", full_df);
 
-                // write the new row hashes to index
-                println!("Updating index for {} rows...", full_df.height());
-                std::fs::remove_file(&schema_df_path)?;
-                tabular::write_df(&mut full_df, schema_df_path)?;
+            // write the new row hashes to index
+            println!("Updating index for {} rows...", full_df.height());
 
-                // Write the row_hash -> row_num index
-                CommitSchemaRowIndex::index_hash_row_nums(
-                    self.repository.clone(),
-                    self.commit.clone(),
-                    schema,
-                    entry.path.to_path_buf(),
-                    full_df,
-                    new_rows
-                )?;
-            }
+            tabular::write_df(&mut full_df, schema_df_path)?;
+
+            // Write the row_hash -> row_num index
+            CommitSchemaRowIndex::index_hash_row_nums(
+                self.repository.clone(),
+                self.commit.clone(),
+                schema,
+                entry.path.to_path_buf(),
+                full_df,
+            )?;
         }
 
         Ok(())

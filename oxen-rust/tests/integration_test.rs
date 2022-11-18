@@ -563,7 +563,7 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Modify and add the file deep in a sub dir
         let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
-        let file_contents = "train/cat_1.jpg 0";
+        let file_contents = "file,label\ntrain/cat_1.jpg,0";
         test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -598,7 +598,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         let branch_name = "feature/change-the-shot";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0\n";
+        let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -639,7 +639,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         let branch_name = "feature/modify-data";
         command::create_checkout_branch(&repo, branch_name)?;
 
-        let file_contents = "train/cat_1.jpg 0\n";
+        let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 1);
@@ -2309,7 +2309,7 @@ async fn test_push_pull_cadf_with_duplicates() -> Result<(), OxenError> {
         let cadf_path = util::fs::schema_df_path(&repo, &schema);
         let og_cadf = tabular::read_df(&cadf_path, DFOpts::empty())?;
         println!("{}", og_cadf);
-        
+
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
         command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;

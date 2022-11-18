@@ -298,7 +298,11 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
 
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
     let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
-    log::debug!("Compressed commit {} size is {}", commit.id, ByteSize::b(total_size));
+    log::debug!(
+        "Compressed commit {} size is {}",
+        commit.id,
+        ByteSize::b(total_size)
+    );
 
     Ok(buffer)
 }
