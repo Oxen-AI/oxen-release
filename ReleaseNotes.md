@@ -1,3 +1,11 @@
+# v0.2.4
+
+* Bug fixes
+    * Handle duplicate lines in tabular data files
+    * Fix `/dir` endpoint when no path is specified
+    * Re-enable `/file` endpoint
+* Add more tests to catch tabular data edge cases
+
 # v0.2.3
 
 *  `oxen df`
