@@ -247,7 +247,14 @@ pub fn schema_list(
     }
 }
 
-pub fn schema_show(
+pub fn schema_get_from_head(
+    repo: &LocalRepository,
+    schema_ref: &str,
+) -> Result<Option<Schema>, OxenError> {
+    schema_get(repo, None, schema_ref)
+}
+
+pub fn schema_get(
     repo: &LocalRepository,
     commit_id: Option<&str>,
     schema_ref: &str,
@@ -270,7 +277,7 @@ pub fn schema_name(
     val: &str,
 ) -> Result<Option<Schema>, OxenError> {
     let head_commit = head_commit(repo)?;
-    if let Some(mut schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+    if let Some(mut schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
         let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
         schema.name = Some(String::from(val));
         let schema = schema_writer.update_schema(&schema)?;
@@ -286,7 +293,7 @@ pub fn schema_create_index(
     field: &str,
 ) -> Result<(), OxenError> {
     let head_commit = head_commit(repo)?;
-    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+    if let Some(schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
         if let Some(field) = schema.get_field(field) {
             let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
             indexer.create_index(field)
@@ -305,7 +312,7 @@ pub fn schema_query_index(
     query: &str,
 ) -> Result<DataFrame, OxenError> {
     let head_commit = head_commit(repo)?;
-    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+    if let Some(schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
         if let Some(field) = schema.get_field(field) {
             let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
             if let Some(result) = indexer.query(field, query)? {
@@ -327,7 +334,7 @@ pub fn schema_list_indices(
     schema_ref: &str,
 ) -> Result<Vec<schema::Field>, OxenError> {
     let head_commit = head_commit(repo)?;
-    if let Some(schema) = schema_show(repo, Some(&head_commit.id), schema_ref)? {
+    if let Some(schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
         let index_reader = SchemaIndexReader::new(repo, &head_commit, &schema)?;
         index_reader.list_field_indices()
     } else {

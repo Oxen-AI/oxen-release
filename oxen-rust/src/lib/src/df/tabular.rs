@@ -21,6 +21,8 @@ use super::{
 
 const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
 const READ_ERROR: &str = "Could not read tabular data from path";
+const COLLECT_ERROR: &str = "Could not collect DataFrame";
+const TAKE_ERROR: &str = "Could not take DataFrame";
 
 pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
     let error_str = "Could not read csv from path".to_string();
@@ -35,17 +37,18 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
 }
 
 pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    Ok(LazyCsvReader::new(path)
+    Ok(LazyCsvReader::new(&path)
         .with_delimiter(delimiter)
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
         .has_header(true)
         .finish()
-        .expect(READ_ERROR))
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
-    let error_str = "Could not read tabular data from path".to_string();
-    let file = File::open(path.as_ref())?;
+    let path = path.as_ref();
+    let error_str = format!("Could not read tabular data from path {:?}", path);
+    let file = File::open(path)?;
     let df = JsonReader::new(file)
         .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
         .finish()
@@ -62,39 +65,44 @@ pub fn scan_df_json<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     )
     .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
     .finish()
-    .expect(READ_ERROR))
+    .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
-    let error_str = "Could not read tabular data from path".to_string();
-    let file = File::open(path.as_ref())?;
+    let path = path.as_ref();
+    let error_str = format!("Could not read tabular data from path {:?}", path);
+    let file = File::open(path)?;
     let df = ParquetReader::new(file).finish().expect(&error_str);
     Ok(df)
 }
 
 pub fn scan_df_parquet<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
-    Ok(LazyFrame::scan_parquet(path, ScanArgsParquet::default()).expect(READ_ERROR))
+    Ok(LazyFrame::scan_parquet(&path, ScanArgsParquet::default())
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 fn read_df_arrow<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     let file = File::open(path.as_ref())?;
-    Ok(IpcReader::new(file).finish().expect(READ_ERROR))
+    Ok(IpcReader::new(file)
+        .finish()
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
-    Ok(LazyFrame::scan_ipc(path, ScanArgsIpc::default()).expect(READ_ERROR))
+    Ok(LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new("idx", &indices);
-    let collected = df.collect().expect(READ_ERROR);
+    let collected = df.collect().expect(COLLECT_ERROR);
     // log::debug!("take indices {:?}", indices);
     // log::debug!("from df {:?}", collected);
-    Ok(collected.take(&idx).expect(READ_ERROR))
+    Ok(collected.take(&idx).expect(TAKE_ERROR))
 }
 
 pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<LazyFrame, OxenError> {
-    let mut df = df.collect().expect(READ_ERROR);
+    let mut df = df.collect().expect(COLLECT_ERROR);
 
     let dtype = DataType::from_string(dtype).to_polars();
 
@@ -102,13 +110,13 @@ pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<Lazy
     let column = column
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .expect("Could not extend df");
-    df.with_column(column).expect(READ_ERROR);
+    df.with_column(column).expect(COLLECT_ERROR);
     let df = df.lazy();
     Ok(df)
 }
 
 pub fn add_row(df: LazyFrame, vals: Vec<String>) -> Result<LazyFrame, OxenError> {
-    let df = df.collect().expect(READ_ERROR);
+    let df = df.collect().expect(COLLECT_ERROR);
 
     if df.width() != vals.len() {
         let err = format!(
@@ -266,7 +274,7 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
             let new_df = read_df(path, opts).expect(READ_ERROR);
             df = df
                 .collect()
-                .expect(READ_ERROR)
+                .expect(COLLECT_ERROR)
                 .vstack(&new_df)
                 .unwrap()
                 .lazy();
@@ -334,19 +342,19 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         return Ok(df);
     }
 
-    Ok(df.collect().expect(READ_ERROR))
+    Ok(df.collect().expect(COLLECT_ERROR))
 }
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df
         .with_row_count(constants::ROW_NUM_COL_NAME, Some(0))
-        .expect(READ_ERROR))
+        .expect(COLLECT_ERROR))
 }
 
 pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame, OxenError> {
     Ok(df
         .with_row_count(constants::ROW_NUM_COL_NAME, Some(start))
-        .expect(READ_ERROR))
+        .expect(COLLECT_ERROR))
 }
 
 pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {

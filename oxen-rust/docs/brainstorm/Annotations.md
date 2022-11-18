@@ -128,7 +128,7 @@ Start with
                     files/ (quickly look up schema for a file in a commit)
                         ROCKS_DB
                             file_name -> { schema_hash }
-                indices/
+                indices/ (NOTE: all these indices are u32...which will not work if we have billions of rows...but right now the .take() method in polars to select from a DF takes u32)
                     <schema_hash>/
                         files/ (we need a mapping from row hash to the original arrow files)
                             <file_name_hash>/ (file name hash)

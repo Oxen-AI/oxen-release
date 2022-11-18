@@ -1,0 +1,2 @@
+- When adding tabular, save the row hashed to a .arrow file so we don't do it twice
+- Only zip up file indices that are missing on the server when "compressing commit"
