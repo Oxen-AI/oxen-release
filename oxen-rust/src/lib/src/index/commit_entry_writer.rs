@@ -380,7 +380,7 @@ impl CommitEntryWriter {
                 old_df.vstack(&new_rows).expect("could not vstack")
             } else {
                 // just project row num if not
-                
+
                 tabular::df_add_row_num_starting_at(new_rows, 0)?
             };
             log::debug!("Got full new CADF {}", full_df);
