@@ -368,9 +368,18 @@ where
     command::add(&repo, &repo_dir.join("train"))?;
     command::add(&repo, &repo_dir.join("test"))?;
     command::add(&repo, &repo_dir.join("annotations"))?;
+    command::add(&repo, &repo_dir.join("nlp"))?;
     command::add(&repo, &repo_dir.join("labels.txt"))?;
     command::add(&repo, &repo_dir.join("README.md"))?;
     command::commit(&repo, "adding all data baby")?;
+
+    // Make it easy to find these schemas during testing
+    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schema_name(
+        &repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -389,7 +398,7 @@ where
     Ok(())
 }
 
-/// Run a test on a repo with a bunch of filees
+/// Run a test on a repo with a bunch of files
 pub fn run_training_data_repo_test_fully_committed<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
@@ -403,11 +412,20 @@ where
     command::add(&repo, &repo_dir.join("train"))?;
     command::add(&repo, &repo_dir.join("test"))?;
     command::add(&repo, &repo_dir.join("annotations"))?;
+    command::add(&repo, &repo_dir.join("nlp"))?;
     command::add(&repo, &repo_dir.join("labels.txt"))?;
     command::add(&repo, &repo_dir.join("README.md"))?;
     command::add_tabular(&repo, &repo_dir.join("annotations/train/bounding_box.csv"))?;
 
     command::commit(&repo, "adding all data baby")?;
+
+    // Make it easy to find these schemas during testing
+    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schema_name(
+        &repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
@@ -498,6 +516,11 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     //   - has a file at top level (README.md)
     //   - has files/dirs at different levels with same names
     //
+    // nlp/
+    //   classification/
+    //     annotations/
+    //       train.tsv
+    //       test.tsv
     // train/
     //   dog_1.jpg
     //   dog_2.jpg
@@ -639,6 +662,42 @@ test/dog_3.jpg,dog,19.0,63.5,376,421
 test/cat_1.jpg,cat,57.0,35.5,304,427
 test/unknown.jpg,unknown,0.0,0.0,0,0
 "#,
+    )?;
+
+    // nlp/classification/annotations/
+    // Make sure to add a few duplicate examples for testing
+    let nlp_annotations_dir = repo_dir.join("nlp/classification/annotations");
+    std::fs::create_dir_all(&nlp_annotations_dir)?;
+    write_txt_file_to_path(
+        nlp_annotations_dir.join("train.tsv"),
+        r#"text	label
+My tummy hurts	negative
+I have a headache	negative
+My tummy hurts	negative
+I have a headache	negative
+loving the sunshine	positive
+And another unique one	positive
+My tummy hurts	negative
+loving the sunshine	positive
+I am a lonely example	negative
+I am adding more examples	positive
+One more time	positive
+"#,
+    )?;
+
+    write_txt_file_to_path(
+        nlp_annotations_dir.join("test.tsv"),
+        r#"text	label
+My tummy hurts	negative
+My tummy hurts	negative
+My tummy hurts	negative
+I have a headache	negative
+I have a headache	negative
+loving the sunshine	positive
+loving the sunshine	positive
+I am a lonely example	negative
+I am a great testing example	positive
+    "#,
     )?;
 
     Ok(())

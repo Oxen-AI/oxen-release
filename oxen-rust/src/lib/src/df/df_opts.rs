@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::constants::{FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
 use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
@@ -105,6 +106,20 @@ impl DFOpts {
 
     pub fn from_filter_schema(schema: &Schema) -> Self {
         DFOpts::from_filter_fields(schema.fields.clone())
+    }
+
+    pub fn from_filter_schema_exclude_hidden(schema: &Schema) -> Self {
+        let fields: Vec<Field> = schema
+            .fields
+            .clone()
+            .into_iter()
+            .filter(|f| {
+                f.name != ROW_HASH_COL_NAME
+                    && f.name != ROW_NUM_COL_NAME
+                    && f.name != FILE_ROW_NUM_COL_NAME
+            })
+            .collect();
+        DFOpts::from_filter_fields(fields)
     }
 
     pub fn from_filter_fields(fields: Vec<Field>) -> Self {

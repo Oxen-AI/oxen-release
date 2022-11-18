@@ -43,6 +43,10 @@ impl SchemaWriter {
         str_val_db::put(&self.files_db, path.to_str().unwrap(), &schema.hash)
     }
 
+    pub fn has_schema(&self, schema: &Schema) -> bool {
+        str_json_db::has_key(&self.db, &schema.hash)
+    }
+
     pub fn put_schema(&self, schema: &Schema) -> Result<(), OxenError> {
         str_json_db::put(&self.db, &schema.hash, schema)
     }

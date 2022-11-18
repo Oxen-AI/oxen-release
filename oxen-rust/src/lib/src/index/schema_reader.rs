@@ -126,7 +126,7 @@ mod tests {
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
             let schemas = schema_reader.list_schemas()?;
 
-            assert_eq!(schemas.len(), 1);
+            assert_eq!(schemas.len(), 2);
 
             Ok(())
         })

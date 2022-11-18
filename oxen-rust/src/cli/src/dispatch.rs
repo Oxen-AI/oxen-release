@@ -243,21 +243,32 @@ pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn schema_show(val: &str) -> Result<(), OxenError> {
+pub fn schema_show(
+    val: &str,
+    verbose: bool,
+) -> Result<(LocalRepository, Option<schema::Schema>), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let schema = command::schema_show(&repository, None, val)?;
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+    let schema = command::schema_get(&repo, None, val)?;
     if let Some(schema) = schema {
         if let Some(name) = &schema.name {
-            println!("{}\n{}", name, schema)
+            if verbose {
+                println!("{}\n{}", name, schema);
+            }
+            Ok((repo, Some(schema)))
         } else {
-            println!(
-                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
-                schema.hash, schema
-            )
+            if verbose {
+                println!(
+                    "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
+                    schema.hash, schema
+                );
+            }
+            Ok((repo, None))
         }
+    } else {
+        eprintln!("Could not find schema {}", val);
+        Ok((repo, None))
     }
-    Ok(())
 }
 
 pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
