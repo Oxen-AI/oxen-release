@@ -45,3 +45,4 @@ pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
 // Internal Tabular Data Names
 pub const ROW_NUM_COL_NAME: &str = "_row_num";
 pub const ROW_HASH_COL_NAME: &str = "_row_hash";
+pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";

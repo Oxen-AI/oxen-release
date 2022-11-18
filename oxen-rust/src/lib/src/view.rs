@@ -2,10 +2,13 @@ pub mod branch;
 pub mod commit;
 pub mod entry;
 pub mod http;
+pub mod namespace;
 pub mod repository;
 pub mod status_message;
 
 pub use crate::view::status_message::{IsValidStatusMessage, StatusMessage};
+
+pub use crate::view::namespace::{ListNamespacesResponse, NamespaceView};
 
 pub use crate::view::repository::{
     ListRepositoryResponse, RepositoryResolveResponse, RepositoryResponse, RepositoryView,

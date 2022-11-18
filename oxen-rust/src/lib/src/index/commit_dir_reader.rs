@@ -249,8 +249,8 @@ mod tests {
                 println!("{:?}", entry);
             }
 
-            assert_eq!(size, 5);
-            assert_eq!(dir_entries.len(), 5);
+            assert_eq!(size, 6);
+            assert_eq!(dir_entries.len(), 6);
             assert_eq!(
                 dir_entries
                     .clone()
@@ -259,7 +259,7 @@ mod tests {
                     .count(),
                 2
             );
-            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir).count(), 3);
+            assert_eq!(dir_entries.into_iter().filter(|e| e.is_dir).count(), 4);
 
             Ok(())
         })

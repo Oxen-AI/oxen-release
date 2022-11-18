@@ -2369,6 +2369,7 @@ dependencies = [
  "actix-service",
  "actix-web",
  "actix-web-httpauth",
+ "bytesize",
  "chrono",
  "clap",
  "derive_more",

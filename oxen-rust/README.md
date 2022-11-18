@@ -152,7 +152,7 @@ To inspect any of the key value dbs below
     dirs/ (rocksdb of directory names)
       key: path/to/dir
       value: {  }
-    files/ (going to mimick dir structure for fast access to subset)
+    files/ (going to mimic dir structure for fast access to subset)
       path/
         to/
           dir/ (rocks db of files specific to that dir, with relative paths)

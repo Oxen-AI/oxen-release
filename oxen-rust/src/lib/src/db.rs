@@ -1,3 +1,4 @@
+pub mod index_db;
 pub mod kv_db;
 pub mod opts;
 pub mod path_db;
