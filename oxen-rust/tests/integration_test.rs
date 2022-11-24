@@ -1746,7 +1746,15 @@ async fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenErr
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
 
-        // Push it
+        // Push main branch first
+        if command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, "main")
+            .await
+            .is_err()
+        {
+            panic!("Pushing main branch should work");
+        }
+
+        // Then try to push branch that doesn't exist
         if command::push_remote_branch(
             &repo,
             constants::DEFAULT_REMOTE_NAME,

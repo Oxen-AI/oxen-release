@@ -37,7 +37,7 @@ pub const DEFAULT_BRANCH_NAME: &str = "main";
 pub const DEFAULT_REMOTE_NAME: &str = "origin";
 
 // Namespace
-pub const DEFAULT_NAMESPACE: &str = "repositories";
+pub const DEFAULT_NAMESPACE: &str = "ox";
 
 // Commits
 pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
