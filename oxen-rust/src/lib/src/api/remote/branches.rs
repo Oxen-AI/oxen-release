@@ -21,7 +21,7 @@ pub async fn get_by_name(
             Ok(j_res) => Ok(Some(j_res.branch)),
             Err(err) => {
                 log::debug!(
-                    "remote::branches::get_by_name() Could not serialize response [{}] {}",
+                    "remote::branches::get_by_name() Could not deserialize response [{}] {}",
                     err,
                     body
                 );
@@ -73,7 +73,7 @@ pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenErro
             Ok(j_res) => Ok(j_res.branches),
             Err(err) => {
                 log::debug!(
-                    "remote::branches::list() Could not serialize response [{}] {}",
+                    "remote::branches::list() Could not deserialize response [{}] {}",
                     err,
                     body
                 );
