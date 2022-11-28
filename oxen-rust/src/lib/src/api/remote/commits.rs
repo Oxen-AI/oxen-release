@@ -37,7 +37,7 @@ pub async fn get_by_id(
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),
             Err(err) => Err(OxenError::basic_str(&format!(
-                "get_commit_by_id() Could not serialize response [{}]\n{}",
+                "get_commit_by_id() Could not deserialize response [{}]\n{}",
                 err, body
             ))),
         }
@@ -116,7 +116,7 @@ pub async fn get_remote_parent(
         match response {
             Ok(j_res) => Ok(j_res.parents),
             Err(err) => Err(OxenError::basic_str(&format!(
-                "get_remote_parent() Could not serialize response [{}]\n{}",
+                "get_remote_parent() Could not deserialize response [{}]\n{}",
                 err, body
             ))),
         }
@@ -177,7 +177,7 @@ async fn create_commit_obj_on_server(
         match response {
             Ok(response) => Ok(response),
             Err(_) => Err(OxenError::basic_str(&format!(
-                "create_commit_obj_on_server Err serializing status_code[{}] \n\n{}",
+                "create_commit_obj_on_server Err deserializing status_code[{}] \n\n{}",
                 status, body
             ))),
         }
@@ -210,7 +210,7 @@ pub async fn post_tarball_to_server(
             match response {
                 Ok(response) => Ok(response),
                 Err(_) => Err(OxenError::basic_str(&format!(
-                    "post_tarball_to_server Err serializing status_code[{}] \n\n{}",
+                    "post_tarball_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
                 ))),
             }

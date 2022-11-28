@@ -37,7 +37,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(&format!(
-                    "api::repositories::get_by_remote() Could not serialize repository [{}]",
+                    "api::repositories::get_by_remote() Could not deserialize repository [{}]",
                     url
                 )))
             }
@@ -135,7 +135,7 @@ pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(&format!(
-                    "api::repositories::resolve_api_url() Could not serialize repository [{}]",
+                    "api::repositories::resolve_api_url() Could not deserialize repository [{}]",
                     url
                 )))
             }
