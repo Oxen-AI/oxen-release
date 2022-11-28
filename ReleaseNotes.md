@@ -1,3 +1,10 @@
+# v0.2.5
+
+* Bug fixes
+    * Better logging
+    * Don't fail silently on remote push
+
+
 # v0.2.4
 
 * Bug fixes
