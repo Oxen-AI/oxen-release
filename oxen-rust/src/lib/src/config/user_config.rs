@@ -111,9 +111,7 @@ impl UserConfig {
         let host = host.as_ref();
         for config in self.host_configs.iter() {
             if config.host == host {
-                if config.auth_token.is_some() {
-                    log::debug!("got auth_token for host \"{}\"", config.host);
-                } else {
+                if config.auth_token.is_none() {
                     log::debug!("no auth_token found for host \"{}\"", config.host);
                 }
                 return config.auth_token.clone();

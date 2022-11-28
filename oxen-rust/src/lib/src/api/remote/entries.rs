@@ -48,7 +48,7 @@ pub async fn create(
             match response {
                 Ok(result) => Ok(result.entry),
                 Err(_) => Err(OxenError::basic_str(&format!(
-                    "Error serializing EntryResponse: status_code[{}] \n\n{}",
+                    "Error deserializing EntryResponse: status_code[{}] \n\n{}",
                     status, body
                 ))),
             }

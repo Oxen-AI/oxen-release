@@ -511,13 +511,20 @@ impl EntryIndexer {
         remote_repo: &RemoteRepository,
         commit: &Commit,
     ) -> Result<(), OxenError> {
-        // If we have a parent on the remote
-        if let Ok(parents) = api::remote::commits::get_remote_parent(remote_repo, &commit.id).await
-        {
-            // Recursively sync the parents
-            for parent in parents.iter() {
-                self.check_parent_and_pull_commit_objects(remote_repo, parent)
-                    .await?;
+        match api::remote::commits::get_remote_parent(remote_repo, &commit.id).await {
+            Ok(parents) => {
+                if parents.is_empty() {
+                    log::debug!("no parents for commit {}", commit.id);
+                } else {
+                    // Recursively sync the parents
+                    for parent in parents.iter() {
+                        self.check_parent_and_pull_commit_objects(remote_repo, parent)
+                            .await?;
+                    }
+                }
+            }
+            Err(err) => {
+                log::warn!("oxen pull could not get commit parents: {}", err);
             }
         }
 
