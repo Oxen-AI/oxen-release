@@ -276,9 +276,13 @@ pub fn schemas(sub_matches: &ArgMatches) {
 }
 
 pub fn add(sub_matches: &ArgMatches) {
-    let path = sub_matches.value_of("PATH").expect("required");
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
 
-    match dispatch::add(path) {
+    match dispatch::add(paths) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{}", err)
