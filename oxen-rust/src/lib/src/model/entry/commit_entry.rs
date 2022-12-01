@@ -65,8 +65,11 @@ impl CommitEntry {
     }
 
     pub fn extension(&self) -> String {
-        let err = format!("Could not get extension for path: {:?}", self.path);
-        String::from(self.path.extension().expect(&err).to_str().unwrap())
+        if let Some(ext) = self.path.extension() {
+            String::from(ext.to_str().unwrap_or(""))
+        } else {
+            String::from("")
+        }
     }
 
     pub fn to_synced(&self) -> CommitEntry {
