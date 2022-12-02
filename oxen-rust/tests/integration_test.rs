@@ -2140,6 +2140,47 @@ fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
     })
 }
 
+#[tokio::test]
+async fn test_add_commit_push_pull_file_without_extension() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        let filename = "LICENSE";
+        let filepath = repo.path.join(filename);
+
+        let og_content = "I am the License.";
+        test::write_txt_file_to_path(&filepath, og_content)?;
+
+        command::add(&repo, filepath)?;
+        let commit = command::commit(&repo, "Adding file without extension");
+
+        assert!(commit.is_ok());
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            command::pull(&cloned_repo).await?;
+            let filepath = cloned_repo.path.join(filename);
+            let content = util::fs::read_from_path(&filepath)?;
+            assert_eq!(og_content, content);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
 #[test]
 fn test_restore_directory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
