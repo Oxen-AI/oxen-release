@@ -20,6 +20,7 @@ async fn main() {
         .allow_invalid_utf8_for_external_subcommands(true)
         .subcommand(cmd_setup::init())
         .subcommand(cmd_setup::config())
+        .subcommand(cmd_setup::checkout())
         .subcommand(cmd_setup::create_remote())
         .subcommand(cmd_setup::remote())
         .subcommand(cmd_setup::status())
