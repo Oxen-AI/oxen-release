@@ -13,3 +13,5 @@ Why build a new version control system for data?
     * To debug you need native ability to slice, dice, cluster, within a version
 * Better than zip files and checkpoints
     * Can do EDA and run experiments without downloading everything
+
+* Just like there are many humans, will by many models, trained on different data
