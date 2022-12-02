@@ -100,11 +100,13 @@ pub fn set_user_email(email: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn add(path: &str) -> Result<(), OxenError> {
+pub fn add(paths: Vec<PathBuf>) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::add(&repository, Path::new(path))?;
+    for path in paths {
+        command::add(&repository, &path)?;
+    }
 
     Ok(())
 }

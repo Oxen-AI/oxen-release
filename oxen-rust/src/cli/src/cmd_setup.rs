@@ -274,8 +274,7 @@ pub fn schemas() -> Command<'static> {
 pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
-        .arg(arg!(<PATH> ... "The files or directory to add"))
-        .arg_required_else_help(true)
+        .arg(Arg::new("files").required(true).min_values(1))
 }
 
 pub fn restore() -> Command<'static> {
