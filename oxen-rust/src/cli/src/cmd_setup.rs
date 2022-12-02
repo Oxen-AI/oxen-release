@@ -344,7 +344,7 @@ pub fn checkout() -> Command<'static> {
         .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
         .arg(
             Arg::new("create")
-                .long("branch")
+                .long("create")
                 .short('b')
                 .help("Create the branch and check it out")
                 .exclusive(true)
