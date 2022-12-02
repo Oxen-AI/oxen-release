@@ -1,9 +1,17 @@
+# v0.2.6
+
+* Features
+    * `oxen add` accepts multiple values
+* Bug fixes
+    * `oxen checkout` arg parsing
+    * `oxen commit` files without extensions
+
+
 # v0.2.5
 
 * Bug fixes
     * Better logging
     * Don't fail silently on remote push
-
 
 # v0.2.4
 
