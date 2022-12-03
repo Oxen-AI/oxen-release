@@ -135,23 +135,18 @@ impl CommitDirReader {
                 if parent == search_dir
                     || (parent == Path::new("") && search_dir == Path::new("./"))
                 {
-                    dir_paths.push(DirEntry {
-                        filename: String::from(dir.file_name().unwrap().to_str().unwrap()),
-                        is_dir: true,
-                    });
+                    dir_paths.push(self.dir_entry_from_dir(&dir)?);
                 }
             }
         }
 
         let mut file_paths: Vec<DirEntry> = vec![];
+        let commit_reader = CommitReader::new(&self.repository)?;
         let commit_dir_reader =
             CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
         for file in commit_dir_reader.list_entry_page(page_num, page_size)? {
-            file_paths.push(DirEntry {
-                filename: String::from(file.path.file_name().unwrap().to_str().unwrap()),
-                is_dir: false,
-            })
+            file_paths.push(self.dir_entry_from_commit_entry(&file, &commit_reader)?)
         }
 
         // Combine all paths, starting with dirs
@@ -169,6 +164,33 @@ impl CommitDirReader {
         } else {
             Ok((dir_paths, total))
         }
+    }
+
+    fn dir_entry_from_dir(&self, path: &Path) -> Result<DirEntry, OxenError> {
+        // TODO: look up the commit dir and all the entries and sum up the size, as well as find the
+        //       latest committed file
+        return Ok(DirEntry {
+            filename: String::from(path.file_name().unwrap().to_str().unwrap()),
+            is_dir: true,
+            size: 0,
+            latest_commit: None,
+        });
+    }
+
+    fn dir_entry_from_commit_entry(
+        &self,
+        entry: &CommitEntry,
+        commit_reader: &CommitReader,
+    ) -> Result<DirEntry, OxenError> {
+        let size = util::fs::version_file_size(&self.repository, entry)?;
+        let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
+
+        return Ok(DirEntry {
+            filename: String::from(entry.path.file_name().unwrap().to_str().unwrap()),
+            is_dir: false,
+            size,
+            latest_commit: Some(latest_commit),
+        });
     }
 
     pub fn has_prefix_in_dir(&self, prefix: &Path) -> bool {

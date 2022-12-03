@@ -37,6 +37,18 @@ pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
     schema_version_dir(repo, schema).join("data.arrow")
 }
 
+pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<u64, OxenError> {
+    let version_path = version_path(repo, entry);
+    if is_tabular(&version_path) {
+        let data_file = version_path.parent().unwrap().join("data.arrow");
+        let meta = std::fs::metadata(&data_file)?;
+        Ok(meta.len())
+    } else {
+        let meta = std::fs::metadata(&version_path)?;
+        Ok(meta.len())
+    }
+}
+
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(repo, entry.hash.clone(), entry.filename())
 }
