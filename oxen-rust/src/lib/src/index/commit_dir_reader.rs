@@ -128,6 +128,8 @@ impl CommitDirReader {
         page_num: usize,
         page_size: usize,
     ) -> Result<(Vec<DirEntry>, usize), OxenError> {
+        let commit_reader = CommitReader::new(&self.repository)?;
+
         let mut dir_paths: Vec<DirEntry> = vec![];
         for dir in self.list_committed_dirs()? {
             // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
@@ -135,13 +137,12 @@ impl CommitDirReader {
                 if parent == search_dir
                     || (parent == Path::new("") && search_dir == Path::new("./"))
                 {
-                    dir_paths.push(self.dir_entry_from_dir(&dir)?);
+                    dir_paths.push(self.dir_entry_from_dir(&dir, &commit_reader)?);
                 }
             }
         }
 
         let mut file_paths: Vec<DirEntry> = vec![];
-        let commit_reader = CommitReader::new(&self.repository)?;
         let commit_dir_reader =
             CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
@@ -166,14 +167,35 @@ impl CommitDirReader {
         }
     }
 
-    fn dir_entry_from_dir(&self, path: &Path) -> Result<DirEntry, OxenError> {
-        // TODO: look up the commit dir and all the entries and sum up the size, as well as find the
-        //       latest committed file
+    fn dir_entry_from_dir(
+        &self,
+        path: &Path,
+        commit_reader: &CommitReader,
+    ) -> Result<DirEntry, OxenError> {
+        // TODO: this may be slow, but can optimize l8r
+        let commit_dir_reader = CommitDirEntryReader::new(&self.repository, &self.commit_id, path)?;
+        let mut latest_commit = None;
+        // TODO: this is not recursive...but does tell you size files at this level of dir
+        let mut total_size: u64 = 0;
+        for entry in commit_dir_reader.list_entries()? {
+            total_size += util::fs::version_file_size(&self.repository, &entry)?;
+
+            let commit = commit_reader.get_commit_by_id(&entry.commit_id)?;
+            if latest_commit.is_none() {
+                latest_commit = commit.clone();
+            }
+            
+            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp
+            {
+                latest_commit = commit.clone();
+            }
+        }
+
         return Ok(DirEntry {
             filename: String::from(path.file_name().unwrap().to_str().unwrap()),
             is_dir: true,
-            size: 0,
-            latest_commit: None,
+            size: total_size,
+            latest_commit,
         });
     }
 
