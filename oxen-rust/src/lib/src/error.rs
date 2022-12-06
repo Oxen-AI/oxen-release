@@ -103,7 +103,7 @@ impl OxenError {
 
     pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {
         let err = format!(
-            "Commit db currupted, could not find commit: {}",
+            "Commit db corrupted, could not find commit: {}",
             commit_id.as_ref()
         );
         OxenError::basic_str(&err)

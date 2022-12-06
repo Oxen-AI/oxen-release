@@ -128,6 +128,8 @@ impl CommitDirReader {
         page_num: usize,
         page_size: usize,
     ) -> Result<(Vec<DirEntry>, usize), OxenError> {
+        let commit_reader = CommitReader::new(&self.repository)?;
+
         let mut dir_paths: Vec<DirEntry> = vec![];
         for dir in self.list_committed_dirs()? {
             // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
@@ -135,10 +137,7 @@ impl CommitDirReader {
                 if parent == search_dir
                     || (parent == Path::new("") && search_dir == Path::new("./"))
                 {
-                    dir_paths.push(DirEntry {
-                        filename: String::from(dir.file_name().unwrap().to_str().unwrap()),
-                        is_dir: true,
-                    });
+                    dir_paths.push(self.dir_entry_from_dir(&dir, &commit_reader)?);
                 }
             }
         }
@@ -148,10 +147,7 @@ impl CommitDirReader {
             CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
         for file in commit_dir_reader.list_entry_page(page_num, page_size)? {
-            file_paths.push(DirEntry {
-                filename: String::from(file.path.file_name().unwrap().to_str().unwrap()),
-                is_dir: false,
-            })
+            file_paths.push(self.dir_entry_from_commit_entry(&file, &commit_reader)?)
         }
 
         // Combine all paths, starting with dirs
@@ -169,6 +165,53 @@ impl CommitDirReader {
         } else {
             Ok((dir_paths, total))
         }
+    }
+
+    fn dir_entry_from_dir(
+        &self,
+        path: &Path,
+        commit_reader: &CommitReader,
+    ) -> Result<DirEntry, OxenError> {
+        // TODO: this may be slow, but can optimize l8r
+        let commit_dir_reader = CommitDirEntryReader::new(&self.repository, &self.commit_id, path)?;
+        let mut latest_commit = None;
+        // TODO: this is not recursive...but does tell you size files at this level of dir
+        let mut total_size: u64 = 0;
+        for entry in commit_dir_reader.list_entries()? {
+            total_size += util::fs::version_file_size(&self.repository, &entry)?;
+
+            let commit = commit_reader.get_commit_by_id(&entry.commit_id)?;
+            if latest_commit.is_none() {
+                latest_commit = commit.clone();
+            }
+
+            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
+                latest_commit = commit.clone();
+            }
+        }
+
+        return Ok(DirEntry {
+            filename: String::from(path.file_name().unwrap().to_str().unwrap()),
+            is_dir: true,
+            size: total_size,
+            latest_commit,
+        });
+    }
+
+    fn dir_entry_from_commit_entry(
+        &self,
+        entry: &CommitEntry,
+        commit_reader: &CommitReader,
+    ) -> Result<DirEntry, OxenError> {
+        let size = util::fs::version_file_size(&self.repository, entry)?;
+        let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
+
+        return Ok(DirEntry {
+            filename: String::from(entry.path.file_name().unwrap().to_str().unwrap()),
+            is_dir: false,
+            size,
+            latest_commit: Some(latest_commit),
+        });
     }
 
     pub fn has_prefix_in_dir(&self, prefix: &Path) -> bool {
