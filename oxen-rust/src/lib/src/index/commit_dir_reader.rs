@@ -184,9 +184,8 @@ impl CommitDirReader {
             if latest_commit.is_none() {
                 latest_commit = commit.clone();
             }
-            
-            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp
-            {
+
+            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
                 latest_commit = commit.clone();
             }
         }
