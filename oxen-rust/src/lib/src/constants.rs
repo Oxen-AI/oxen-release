@@ -27,6 +27,8 @@ pub const FIELDS_DIR: &str = "fields";
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
+/// data.arrow
+pub const DATA_ARROW_FILE: &str = "data.arrow";
 
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";

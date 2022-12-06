@@ -2247,6 +2247,72 @@ fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
 }
 
 #[test]
+fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let history = command::log(&repo)?;
+        let last_commit = history.first().unwrap();
+
+        let bbox_file = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_path = repo.path.join(&bbox_file);
+
+        let og_contents = util::fs::read_from_path(&bbox_path)?;
+
+        let og_df = tabular::scan_df(&bbox_path)?;
+        let vals: Vec<String> = ["train/dog_99.jpg", "dog", "101.5", "32.0", "385", "330"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let mut new_df = tabular::add_row(og_df, vals)?.collect().unwrap();
+        tabular::write_df(&mut new_df, &bbox_path)?;
+
+        command::restore(
+            &repo,
+            RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
+        )?;
+        let restored_contents = util::fs::read_from_path(&bbox_path)?;
+        assert_eq!(og_contents, restored_contents);
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 0);
+        assert!(status.is_clean());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_restore_modified_text_data() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let history = command::log(&repo)?;
+        let last_commit = history.first().unwrap();
+
+        let bbox_file = Path::new("annotations")
+            .join("train")
+            .join("annotations.txt");
+        let bbox_path = repo.path.join(&bbox_file);
+
+        let og_contents = util::fs::read_from_path(&bbox_path)?;
+        let new_contents = format!("{og_contents}\nnew 0");
+        util::fs::write_to_path(&bbox_path, &new_contents);
+
+        command::restore(
+            &repo,
+            RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
+        )?;
+        let restored_contents = util::fs::read_from_path(&bbox_path)?;
+        assert_eq!(og_contents, restored_contents);
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 0);
+        assert!(status.is_clean());
+
+        Ok(())
+    })
+}
+
+#[test]
 fn test_restore_staged_file() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         let bbox_file = Path::new("annotations")

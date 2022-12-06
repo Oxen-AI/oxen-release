@@ -1,8 +1,9 @@
+use filetime::FileTime;
 use std::path::Path;
 
 use crate::df::tabular;
 use crate::error::OxenError;
-use crate::index::CommitDirReader;
+use crate::index::{CommitDirEntryWriter, CommitDirReader};
 use crate::index::{CommitSchemaRowIndex, SchemaReader, Stager};
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
@@ -77,11 +78,21 @@ pub fn restore_file(
 ) -> Result<(), OxenError> {
     if util::fs::is_tabular(&entry.path) {
         // Custom logic to restore tabular
-        restore_tabular(repo, path, commit_id, entry)
+        restore_tabular(repo, path, commit_id, entry)?;
     } else {
         // just copy data back over if !tabular
-        restore_regular(repo, path, entry)
+        restore_regular(repo, path, entry)?;
     }
+
+    // Update the local modified timestamps
+    let dir = path.parent().unwrap();
+    let committer = CommitDirEntryWriter::new(repo, commit_id, dir).unwrap();
+    let working_path = repo.path.join(path);
+    let metadata = std::fs::metadata(working_path).unwrap();
+    let mtime = FileTime::from_last_modification_time(&metadata);
+    committer.set_file_timestamps(entry, &mtime).unwrap();
+
+    Ok(())
 }
 
 fn restore_regular(
@@ -108,7 +119,7 @@ fn restore_tabular(
         log::debug!("Got subset! {}", df);
         let working_path = repo.path.join(path);
         log::debug!("Write to {:?}", working_path);
-        tabular::write_df(&mut df, working_path)?;
+        tabular::write_df(&mut df, &working_path)?;
     } else {
         log::error!(
             "Could not restore tabular file, no schema found for file {:?}",

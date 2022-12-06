@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::api;
-use crate::constants::HISTORY_DIR;
+use crate::constants::{DATA_ARROW_FILE, HISTORY_DIR};
 use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
 use crate::index::{
@@ -280,7 +280,7 @@ impl EntryIndexer {
 
         println!("🐂 push computing size...");
         for entry in entries.iter() {
-            // If tabular, we save off data.arrow file that we are going to push, and compute size off of
+            // If tabular, we save off data file that we are going to push, and compute size off of
             let version_path = if util::fs::is_tabular(&entry.path) {
                 let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
                 log::debug!("Looking up schema for file: {:?}", entry.path);
@@ -296,11 +296,12 @@ impl EntryIndexer {
                 let mut df = reader.sorted_entry_df_with_row_hash()?;
 
                 log::debug!("Saving and computing size for DF {}", df);
+                log::debug!("Got df to version path {}", df);
 
                 // save DataFrame to disk in it's proper version dir
                 let version_path =
                     util::fs::version_dir_from_hash(&self.repository, entry.hash.clone())
-                        .join("data.arrow");
+                        .join(DATA_ARROW_FILE);
                 tabular::write_df(&mut df, &version_path)?;
 
                 version_path
@@ -370,7 +371,7 @@ impl EntryIndexer {
                                 &self.repository,
                                 entry.hash.clone(),
                             )
-                            .join("data.arrow");
+                            .join(DATA_ARROW_FILE);
                             log::debug!("ZIPPING TABULAR {:?}", version_path);
 
                             let name =
@@ -709,9 +710,9 @@ impl EntryIndexer {
                             }
                         } else {
                             let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
-                            let hash_results_file = version_dir.join("data.arrow");
+                            let hash_results_file = version_dir.join(DATA_ARROW_FILE);
                             if !hash_results_file.exists() {
-                                log::error!("pull_entries_for_commit no tmp data.arrow file for entry {:?} -> {:?}", entry.path, hash_results_file);
+                                log::error!("pull_entries_for_commit no tmp data file for entry {:?} -> {:?}", entry.path, hash_results_file);
                                 return;
                             }
 
