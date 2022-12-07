@@ -1,4 +1,4 @@
-use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
+use crate::constants::{self, DATA_ARROW_FILE, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::db::path_db;
 use crate::df::{tabular, DFOpts};
@@ -255,7 +255,7 @@ impl CommitEntryWriter {
 
         // Save off in a .arrow file we will aggregate and collect at the end of the commit
         // into the global .arrow file
-        let hash_results_file = version_dir.join("data.arrow");
+        let hash_results_file = version_dir.join(DATA_ARROW_FILE);
         tabular::write_df(&mut df, hash_results_file)?;
 
         Ok(entry)
@@ -304,12 +304,12 @@ impl CommitEntryWriter {
         // but this works for now
         for entry in tabular_entries.iter() {
             log::debug!("Merging tabular entry {:?}", entry.path);
-            // Only merge newly added files, it's only newly added if it has this data.arrow file
+            // Only merge newly added files, it's only newly added if it has this data file
             let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
-            let hash_results_file = version_dir.join("data.arrow");
+            let hash_results_file = version_dir.join(DATA_ARROW_FILE);
             if !hash_results_file.exists() {
                 log::debug!(
-                    "aggregate_tabular_entries no tmp data.arrow file for entry {:?}",
+                    "aggregate_tabular_entries no tmp data arrow file for entry {:?}",
                     entry.path
                 );
                 continue;
@@ -326,12 +326,12 @@ impl CommitEntryWriter {
             // This is another read, just want to make sure this all works first
             let df = tabular::read_df(&hash_results_file, DFOpts::empty())?;
 
-            // After we've read this data.arrow file we should clean it up
-            // since all the data will be copied into the master schema/data.arrow file
+            // After we've read this data arrow file we should clean it up
+            // since all the data will be copied into the master schema/data arrow file
             std::fs::remove_file(hash_results_file)?;
 
             log::debug!("Add to existing schema! {:?}", schema);
-            // Get handle on the full data.arrow
+            // Get handle on the full arrow data
             let schema_df_path = util::fs::schema_df_path(&self.repository, &schema);
 
             let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
