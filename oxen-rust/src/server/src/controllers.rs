@@ -5,4 +5,5 @@ pub mod entries;
 pub mod file;
 pub mod namespaces;
 pub mod repositories;
+pub mod schemas;
 pub mod version;

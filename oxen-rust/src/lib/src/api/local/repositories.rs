@@ -6,8 +6,8 @@ use crate::index::{CommitDirReader, CommitWriter, RefWriter};
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
 
+use jwalk::WalkDir;
 use std::path::Path;
-use walkdir::WalkDir;
 
 pub fn get_by_namespace_and_name(
     sync_dir: &Path,
@@ -95,14 +95,14 @@ pub fn list_repos_in_namespace(namespace_path: &Path) -> Vec<LocalRepository> {
     {
         // if the directory has a .oxen dir, let's add it, otherwise ignore
         let local_dir = entry.path();
-        let oxen_dir = util::fs::oxen_hidden_dir(local_dir);
+        let oxen_dir = util::fs::oxen_hidden_dir(&local_dir);
         log::debug!(
             "api::local::entries::list_repos_in_namespace got local dir {:?}",
             local_dir
         );
 
         if oxen_dir.exists() {
-            if let Ok(repository) = LocalRepository::from_dir(local_dir) {
+            if let Ok(repository) = LocalRepository::from_dir(&local_dir) {
                 repos.push(repository);
             }
         }
