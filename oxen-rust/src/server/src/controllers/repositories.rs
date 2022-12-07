@@ -1,7 +1,6 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-use liboxen::error::OxenError;
 use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
@@ -193,26 +192,12 @@ pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, actix
     }
 }
 
-pub fn get_version_path_for_commit_id(
-    repo: &LocalRepository,
-    commit_id: &str,
-    filepath: &Path,
-) -> Result<PathBuf, OxenError> {
-    match api::local::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
-            Some(entry) => Ok(util::fs::version_path(repo, &entry)),
-            None => Err(OxenError::file_does_not_exist(filepath)),
-        },
-        None => Err(OxenError::commit_id_does_not_exist(commit_id)),
-    }
-}
-
 fn p_get_file_for_commit_id(
     repo: &LocalRepository,
     commit_id: &str,
     filepath: &Path,
 ) -> Result<NamedFile, actix_web::Error> {
-    match get_version_path_for_commit_id(repo, commit_id, filepath) {
+    match util::fs::version_path_for_commit_id(repo, commit_id, filepath) {
         Ok(version_path) => {
             log::debug!(
                 "p_get_file_for_commit_id looking for {:?} -> {:?}",
