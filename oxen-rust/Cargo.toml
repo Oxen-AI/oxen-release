@@ -33,7 +33,6 @@ openssl = { version = "0.10" }
 dotenv = "0.9.0"
 flate2 = "1.0.23"
 tar = "0.4.38"
-walkdir = "2"
 env_logger = "0.9.0"
 log = "0.4.17"
 actix-web-httpauth = "0.6.0"
