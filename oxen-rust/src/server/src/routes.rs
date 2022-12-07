@@ -91,6 +91,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/schemas/{resource:.*}",
         web::get().to(controllers::schemas::get),
     )
+    // ----- DataFrame ----- //
+    .route(
+        "/{namespace}/{repo_name}/df/{resource:.*}",
+        web::get().to(controllers::df::get),
+    )
 
     // .route(
     //     "/{namespace}/{repo_name}/commits/{commit_id}/entries",

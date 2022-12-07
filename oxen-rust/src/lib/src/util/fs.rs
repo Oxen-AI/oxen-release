@@ -9,6 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::{fs, io};
 
+use crate::api;
 use crate::constants;
 use crate::constants::DATA_ARROW_FILE;
 use crate::error::OxenError;
@@ -36,6 +37,28 @@ pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
 
 pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
     schema_version_dir(repo, schema).join(DATA_ARROW_FILE)
+}
+
+pub fn version_path_for_commit_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+    filepath: &Path,
+) -> Result<PathBuf, OxenError> {
+    match api::local::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
+            Some(entry) => {
+                let path = version_path(repo, &entry);
+                if is_tabular(filepath) {
+                    let data_file = path.parent().unwrap().join(DATA_ARROW_FILE);
+                    Ok(data_file)
+                } else {
+                    Ok(path)
+                }
+            }
+            None => Err(OxenError::file_does_not_exist(filepath)),
+        },
+        None => Err(OxenError::commit_id_does_not_exist(commit_id)),
+    }
 }
 
 pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<u64, OxenError> {
