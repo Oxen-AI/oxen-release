@@ -302,7 +302,10 @@ pub fn is_image(path: &Path) -> bool {
 }
 
 pub fn is_text(path: &Path) -> bool {
-    let exts: HashSet<String> = vec!["txt"].into_iter().map(String::from).collect();
+    let exts: HashSet<String> = vec!["txt", "json", "xml"]
+        .into_iter()
+        .map(String::from)
+        .collect();
     contains_ext(path, &exts)
 }
 
@@ -321,6 +324,24 @@ pub fn is_utf8(path: &Path) -> bool {
         from_utf8(line.as_bytes()).is_ok()
     } else {
         false
+    }
+}
+
+pub fn file_datatype(path: &Path) -> String {
+    if is_text(path) {
+        String::from("text")
+    } else if is_image(path) {
+        String::from("image")
+    } else if is_video(path) {
+        String::from("video")
+    } else if is_audio(path) {
+        String::from("audio")
+    } else if is_tabular(path) {
+        String::from("tabular")
+    } else if is_utf8(path) {
+        String::from("text")
+    } else {
+        String::from("unknown")
     }
 }
 
