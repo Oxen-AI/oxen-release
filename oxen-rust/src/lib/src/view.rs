@@ -10,7 +10,7 @@ pub mod status_message;
 
 pub use crate::view::status_message::{IsValidStatusMessage, StatusMessage};
 
-pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameResponse};
+pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameSliceResponse};
 pub use crate::view::namespace::{ListNamespacesResponse, NamespaceView};
 pub use crate::view::schema::{ListSchemaResponse, SchemaResponse};
 

@@ -4,11 +4,10 @@ use std::str;
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 
-
 use crate::model::Schema;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct JsonDataShape {
+pub struct JsonDataSize {
     pub height: usize,
     pub width: usize,
 }
@@ -16,22 +15,23 @@ pub struct JsonDataShape {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataFrame {
     pub schema: Schema,
-    pub shape: JsonDataShape,
+    pub size: JsonDataSize,
     pub data: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct JsonDataFrameResponse {
+pub struct JsonDataFrameSliceResponse {
     pub status: String,
     pub status_message: String,
     pub df: JsonDataFrame,
+    pub full_size: JsonDataSize,
 }
 
 impl JsonDataFrame {
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
         JsonDataFrame {
             schema: Schema::from_polars(&df.schema()),
-            shape: JsonDataShape {
+            size: JsonDataSize {
                 height: df.height(),
                 width: df.width(),
             },
@@ -40,7 +40,7 @@ impl JsonDataFrame {
     }
 
     fn json_data(df: &mut DataFrame) -> serde_json::Value {
-        println!("Serializing df: [{}]", df);
+        log::debug!("Serializing df: [{}]", df);
 
         // TODO: serialize to json
         let data: Vec<u8> = Vec::new();
@@ -50,10 +50,8 @@ impl JsonDataFrame {
         writer.finish(df).expect("Could not write df json buffer");
 
         let buffer = buf.into_inner().expect("Could not get buffer");
-        println!("Got buf len: [{}]", buffer.len());
 
         let json_str = str::from_utf8(&buffer).unwrap();
-        println!("Got json_str: [{}]", json_str);
 
         serde_json::from_str(json_str).unwrap()
     }
