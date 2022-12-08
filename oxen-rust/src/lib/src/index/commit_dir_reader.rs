@@ -195,6 +195,7 @@ impl CommitDirReader {
             is_dir: true,
             size: total_size,
             latest_commit,
+            datatype: String::from("dir"),
         });
     }
 
@@ -211,6 +212,7 @@ impl CommitDirReader {
             is_dir: false,
             size,
             latest_commit: Some(latest_commit),
+            datatype: util::fs::file_datatype(entry.path.as_path()),
         });
     }
 

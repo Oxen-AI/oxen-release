@@ -8,4 +8,5 @@ pub struct DirEntry {
     pub is_dir: bool,
     pub size: u64,
     pub latest_commit: Option<Commit>,
+    pub datatype: String,
 }
