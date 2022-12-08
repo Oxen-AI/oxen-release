@@ -322,16 +322,16 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
     }
 
     // These ops should be the last ops since they depends on order
+    if let Some(indices) = opts.take_indices() {
+        df = take(df, indices).unwrap().lazy();
+    }
+
     if let Some((start, end)) = opts.slice_indices() {
         if start >= end {
             panic!("Slice error: Start must be greater than end.");
         }
         let len = end - start;
         df = df.slice(start, len as u32);
-    }
-
-    if let Some(indices) = opts.take_indices() {
-        df = take(df, indices).unwrap().lazy();
     }
 
     if let Some(item) = opts.column_at() {
