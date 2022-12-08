@@ -7,6 +7,7 @@ use nom::{
     bytes::complete::tag,
     bytes::complete::take_while,
     character::complete::char,
+    character::complete::one_of,
     sequence::{delimited, separated_pair},
     IResult,
 };
@@ -70,8 +71,12 @@ fn is_whitespace(c: char) -> bool {
     c == ' '
 }
 
-fn is_single_quote_or_whitespace(c: char) -> bool {
-    c == '\'' || c == ' '
+fn is_quote(c: char) -> bool {
+    c == '\'' || c == '"'
+}
+
+fn is_quote_or_whitespace(c: char) -> bool {
+    is_quote(c) || c == ' '
 }
 
 fn is_comma_or_whitespace(c: char) -> bool {
@@ -86,11 +91,11 @@ fn is_valid_fn_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-fn contained_in_single_quotes(input: &str) -> Result<(&str, &str), OxenError> {
+fn contained_in_quotes(input: &str) -> Result<(&str, &str), OxenError> {
     let result: IResult<&str, &str> = delimited(
-        take_while(is_single_quote_or_whitespace),
-        is_not("'"),
-        char('\''),
+        take_while(is_quote_or_whitespace),
+        is_not("'\""),
+        one_of("'\""),
     )(input);
     match result {
         Ok(result) => Ok(result),
@@ -155,9 +160,9 @@ pub fn parse_query(input: &str) -> Result<DFAggregation, OxenError> {
     // parsed: 'col_0', 'col_1'
     let mut first_args: Vec<String> = vec![];
     for s in parsed.split(',') {
-        let (_, parsed) = contained_in_single_quotes(s)?;
+        let (_, parsed) = contained_in_quotes(s)?;
         log::debug!(
-            "contained_in_single_quotes remaining: {}, parsed: {}",
+            "contained_in_quotes remaining: {}, parsed: {}",
             remaining,
             parsed
         );
@@ -209,9 +214,9 @@ pub fn parse_query(input: &str) -> Result<DFAggregation, OxenError> {
         );
 
         // parsed: 'col_2'
-        let (_, parsed) = contained_in_single_quotes(parsed)?;
+        let (_, parsed) = contained_in_quotes(parsed)?;
         log::debug!(
-            "contained_in_single_quotes remaining: {}, parsed: {}",
+            "contained_in_quotes remaining: {}, parsed: {}",
             remaining,
             parsed
         );
