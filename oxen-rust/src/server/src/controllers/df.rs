@@ -76,8 +76,7 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                     },
                     Err(err) => {
                         log::error!("df::get err: {:?}", err);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
                     }
                 }
             } else {
