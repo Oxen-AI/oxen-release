@@ -296,6 +296,25 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_double_quotes() -> Result<(), OxenError> {
+        let agg_query = "(\"col_0\") -> (count(\"col_1\"))";
+
+        let opts = DFOpts::from_agg(agg_query);
+        let agg_opt = opts.get_aggregation()?.unwrap();
+
+        // Make sure group_by is correct
+        assert_eq!(agg_opt.group_by.len(), 1);
+        assert_eq!(agg_opt.group_by[0], "col_0");
+
+        // Make sure agg is correct
+        assert_eq!(agg_opt.agg.len(), 1);
+        assert_eq!(agg_opt.agg[0].name, "count");
+        assert_eq!(agg_opt.agg[0].args.len(), 1);
+        assert_eq!(agg_opt.agg[0].args[0], "col_1");
+        Ok(())
+    }
+
+    #[test]
     fn test_parse_agg_two_lit_input_one_output() -> Result<(), OxenError> {
         let agg_query = "('col_0', 'col_2') -> (list('col_1'))";
 
