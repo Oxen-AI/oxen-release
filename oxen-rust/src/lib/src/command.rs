@@ -11,7 +11,6 @@ use crate::index::schema_writer::SchemaWriter;
 use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaIndexReader;
 use crate::index::SchemaIndexer;
-use crate::index::SchemaReader;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
@@ -233,18 +232,7 @@ pub fn schema_list(
     repo: &LocalRepository,
     commit_id: Option<&str>,
 ) -> Result<Vec<Schema>, OxenError> {
-    if let Some(commit_id) = commit_id {
-        if let Some(commit) = commit_from_branch_or_commit_id(repo, commit_id)? {
-            let schema_reader = SchemaReader::new(repo, &commit.id)?;
-            schema_reader.list_schemas()
-        } else {
-            Err(OxenError::commit_id_does_not_exist(commit_id))
-        }
-    } else {
-        let head_commit = head_commit(repo)?;
-        let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
-        schema_reader.list_schemas()
-    }
+    api::local::schemas::list(repo, commit_id)
 }
 
 pub fn schema_get_from_head(
@@ -340,26 +328,6 @@ pub fn schema_list_indices(
     } else {
         Err(OxenError::schema_does_not_exist(schema_ref))
     }
-}
-
-fn commit_from_branch_or_commit_id<S: AsRef<str>>(
-    repo: &LocalRepository,
-    val: S,
-) -> Result<Option<Commit>, OxenError> {
-    let val = val.as_ref();
-    let commit_reader = CommitReader::new(repo)?;
-    if let Some(commit) = commit_reader.get_commit_by_id(val)? {
-        return Ok(Some(commit));
-    }
-
-    let ref_reader = RefReader::new(repo)?;
-    if let Some(branch) = ref_reader.get_branch_by_name(val)? {
-        if let Some(commit) = commit_reader.get_commit_by_id(branch.commit_id)? {
-            return Ok(Some(commit));
-        }
-    }
-
-    Ok(None)
 }
 
 /// # Restore a removed file that was committed

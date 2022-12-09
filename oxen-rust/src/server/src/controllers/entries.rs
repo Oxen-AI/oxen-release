@@ -1,5 +1,4 @@
 use crate::app_data::OxenAppData;
-use crate::controllers;
 use crate::view::PaginatedLinesResponse;
 
 use liboxen::api;
@@ -278,9 +277,7 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
                     commit_id,
                     filepath
                 );
-                match controllers::repositories::get_version_path_for_commit_id(
-                    &repo, &commit_id, &filepath,
-                ) {
+                match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
                     Ok(version_path) => {
                         let start = page_num * page_size;
                         let (lines, total_entries) =
