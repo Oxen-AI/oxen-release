@@ -183,12 +183,14 @@ shape: (10000, 2)
 
 Oxen has some powerful filter commands built into the CLI. You can quickly filter data down based on a expression involving a column name, an operation, and a row value.
 
-Supported operations: =, !=, >, <, <= , >=
+Supported filter operations: ==, !=, >, <, <= , >=
+
+Supported logical operations: &&, ||
 
 Supported row dtypes: str, i32, i64, f32, f64
 
 ```bash
-$ oxen df annotations/data.csv --filter 'label=dog'
+$ oxen df annotations/data.csv --filter 'label == dog && height >= 200'
 
 shape: (5356, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬───────┬────────┐
