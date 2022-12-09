@@ -1,3 +1,15 @@
+# v0.2.7
+
+* Features
+    * oxen-server
+        * HTTP APIs for fetching schemas and data frames
+        * return more robust metadata on listing directories
+    * oxen
+        * support for multi argument filters ie "label == person && is_correct == true"
+        * support for single or double quotes on aggregations
+* Bug Fixes
+    * fix restore tabular modified file
+
 # v0.2.6
 
 * Features
@@ -5,7 +17,6 @@
 * Bug fixes
     * `oxen checkout` arg parsing
     * `oxen commit` files without extensions
-
 
 # v0.2.5
 
