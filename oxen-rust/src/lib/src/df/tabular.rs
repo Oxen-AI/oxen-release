@@ -1,10 +1,10 @@
 use polars::{lazy::dsl::Expr, prelude::*};
 
-use crate::constants;
 use crate::df::df_opts::DFOpts;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::util::hasher;
+use crate::{constants, df::filter::DFLogicalOp};
 
 use comfy_table::Table;
 use indicatif::ProgressBar;
@@ -16,7 +16,7 @@ use std::path::Path;
 
 use super::{
     agg::{DFAggFn, DFAggFnType, DFAggregation},
-    df_opts::{DFFilter, DFFilterOp},
+    filter::{DFFilterExp, DFFilterOp, DFFilterVal},
 };
 
 const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
@@ -173,7 +173,7 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
     }
 }
 
-fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilter) -> AnyValue<'a> {
+fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
     if let Some(value) = df
         .schema()
         .expect("Unable to get schema from data frame")
@@ -199,18 +199,33 @@ fn lit_from_any(value: &AnyValue) -> Expr {
     }
 }
 
-fn filter_df(df: LazyFrame, filter: &DFFilter) -> Result<LazyFrame, OxenError> {
-    log::debug!("Got filter: {:?}", filter);
-    let val = val_from_df_and_filter(&df, filter);
+fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
+    let val = val_from_df_and_filter(df, filter);
     let val = lit_from_any(&val);
     match filter.op {
-        DFFilterOp::EQ => Ok(df.filter(col(&filter.field).eq(val))),
-        DFFilterOp::GT => Ok(df.filter(col(&filter.field).gt(val))),
-        DFFilterOp::LT => Ok(df.filter(col(&filter.field).lt(val))),
-        DFFilterOp::GTE => Ok(df.filter(col(&filter.field).gt_eq(val))),
-        DFFilterOp::LTE => Ok(df.filter(col(&filter.field).lt_eq(val))),
-        DFFilterOp::NEQ => Ok(df.filter(col(&filter.field).neq(val))),
+        DFFilterOp::EQ => col(&filter.field).eq(val),
+        DFFilterOp::GT => col(&filter.field).gt(val),
+        DFFilterOp::LT => col(&filter.field).lt(val),
+        DFFilterOp::GTE => col(&filter.field).gt_eq(val),
+        DFFilterOp::LTE => col(&filter.field).lt_eq(val),
+        DFFilterOp::NEQ => col(&filter.field).neq(val),
     }
+}
+
+fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
+    log::debug!("Got filter: {:?}", filter);
+    let mut vals = filter.vals.iter();
+    let mut expr: Expr = filter_from_val(&df, vals.next().unwrap());
+    for op in &filter.logical_ops {
+        let chain_expr: Expr = filter_from_val(&df, vals.next().unwrap());
+
+        match op {
+            DFLogicalOp::AND => expr = expr.and(chain_expr),
+            DFLogicalOp::OR => expr = expr.or(chain_expr),
+        }
+    }
+
+    Ok(df.filter(expr))
 }
 
 fn agg_fn_to_expr(agg: &DFAggFn) -> Result<Expr, OxenError> {
@@ -296,8 +311,15 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         }
     }
 
-    if let Some(filter) = opts.get_filter() {
-        df = filter_df(df, &filter)?;
+    match opts.get_filter() {
+        Ok(filter) => {
+            if let Some(filter) = filter {
+                df = filter_df(df, &filter)?;
+            }
+        }
+        Err(err) => {
+            log::error!("Could not parse filter: {err}");
+        }
     }
 
     if let Some(agg) = &opts.get_aggregation()? {
@@ -603,4 +625,107 @@ pub fn schema_to_string<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
     }
 
     Ok(format!("{}", table))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        df::{filter, tabular},
+        error::OxenError,
+    };
+    use polars::prelude::*;
+
+    #[test]
+    fn test_filter_single_expr() -> Result<(), OxenError> {
+        let query = Some("label == dog".to_string());
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["cat", "dog", "unknown"],
+            "min_x" => &["0.0", "1.0", "2.0"],
+            "max_x" => &["3.0", "4.0", "5.0"],
+        )
+        .unwrap();
+
+        let filter = filter::parse(query)?.unwrap();
+        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
+
+        assert_eq!(
+            r"shape: (1, 4)
+┌──────────┬───────┬───────┬───────┐
+│ image    ┆ label ┆ min_x ┆ max_x │
+│ ---      ┆ ---   ┆ ---   ┆ ---   │
+│ str      ┆ str   ┆ str   ┆ str   │
+╞══════════╪═══════╪═══════╪═══════╡
+│ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
+└──────────┴───────┴───────┴───────┘",
+            format!("{}", filtered_df)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter_multiple_or_expr() -> Result<(), OxenError> {
+        let query = Some("label == dog || label == cat".to_string());
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["cat", "dog", "unknown"],
+            "min_x" => &["0.0", "1.0", "2.0"],
+            "max_x" => &["3.0", "4.0", "5.0"],
+        )
+        .unwrap();
+
+        let filter = filter::parse(query)?.unwrap();
+        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
+
+        println!("{}", filtered_df);
+
+        assert_eq!(
+            r"shape: (2, 4)
+┌──────────┬───────┬───────┬───────┐
+│ image    ┆ label ┆ min_x ┆ max_x │
+│ ---      ┆ ---   ┆ ---   ┆ ---   │
+│ str      ┆ str   ┆ str   ┆ str   │
+╞══════════╪═══════╪═══════╪═══════╡
+│ 0000.jpg ┆ cat   ┆ 0.0   ┆ 3.0   │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
+└──────────┴───────┴───────┴───────┘",
+            format!("{}", filtered_df)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter_multiple_and_expr() -> Result<(), OxenError> {
+        let query = Some("label == dog && is_correct == true".to_string());
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["dog", "dog", "unknown"],
+            "min_x" => &[0.0, 1.0, 2.0],
+            "max_x" => &[3.0, 4.0, 5.0],
+            "is_correct" => &[true, false, false],
+        )
+        .unwrap();
+
+        let filter = filter::parse(query)?.unwrap();
+        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
+
+        println!("{}", filtered_df);
+
+        assert_eq!(
+            r"shape: (1, 5)
+┌──────────┬───────┬───────┬───────┬────────────┐
+│ image    ┆ label ┆ min_x ┆ max_x ┆ is_correct │
+│ ---      ┆ ---   ┆ ---   ┆ ---   ┆ ---        │
+│ str      ┆ str   ┆ f64   ┆ f64   ┆ bool       │
+╞══════════╪═══════╪═══════╪═══════╪════════════╡
+│ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
+└──────────┴───────┴───────┴───────┴────────────┘",
+            format!("{}", filtered_df)
+        );
+
+        Ok(())
+    }
 }

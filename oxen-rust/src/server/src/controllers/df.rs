@@ -49,7 +49,7 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                         Ok(lazy_df) => {
                             let polars_schema = lazy_df.schema().unwrap();
                             let schema = Schema::from_polars(&polars_schema);
-                            let mut filter = DFOpts::from_filter_schema_exclude_hidden(&schema);
+                            let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
                             log::debug!("Initial filter {:?}", filter);
                             filter = parse_opts(query, &mut filter);
 
