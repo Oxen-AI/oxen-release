@@ -83,7 +83,7 @@ pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -
                 }
 
                 // TODO: if tabular, get content from data file
-                log::debug!("Checking for content file {}", content_file);
+                // log::debug!("Checking for content file {}", content_file);
 
                 let version_path = repo.path.join(content_file);
                 if util::fs::is_tabular(&version_path) {
@@ -217,7 +217,7 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, filepath))) =
+            if let Ok(Some((commit_id, _, filepath))) =
                 util::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
@@ -269,7 +269,7 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             log::debug!("list_lines_in_file got repo [{}]", name);
-            if let Ok(Some((commit_id, filepath))) =
+            if let Ok(Some((commit_id, _, filepath))) =
                 util::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(

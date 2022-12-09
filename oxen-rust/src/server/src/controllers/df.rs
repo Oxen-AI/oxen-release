@@ -35,7 +35,7 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
     log::debug!("file::get repo name [{}] resource [{:?}]", name, resource,);
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, filepath))) =
+            if let Ok(Some((commit_id, _, filepath))) =
                 util::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
