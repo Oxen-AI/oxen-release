@@ -447,7 +447,7 @@ impl CommitSchemaRowIndex {
             let removed_fields = schema_current.removed_fields(schema);
 
             let added_cols = if !added_fields.is_empty() {
-                let opts = DFOpts::from_filter_fields(added_fields);
+                let opts = DFOpts::from_columns(added_fields);
                 let df_added = tabular::read_df(&current_path, opts)?;
                 log::debug!("Got added col df: {}", df_added);
                 if df_added.width() > 0 {
@@ -460,7 +460,7 @@ impl CommitSchemaRowIndex {
             };
 
             let removed_cols = if !removed_fields.is_empty() {
-                let opts = DFOpts::from_filter_fields(removed_fields);
+                let opts = DFOpts::from_columns(removed_fields);
                 // Read CDAF
                 let df_removed = tabular::read_df(&content_addressable_df_path, opts)?;
                 log::debug!("Got removed col df: {}", df_removed);
@@ -522,12 +522,12 @@ impl CommitSchemaRowIndex {
         // log::debug!("diff_current removed_indices {:?}", removed_indices);
 
         // Take added from the added df
-        let opts = DFOpts::from_filter_schema(schema);
+        let opts = DFOpts::from_schema_columns(schema);
         let current_df = tabular::transform_df(current_df.lazy(), opts)?;
         let added_rows = tabular::take(current_df.lazy(), added_indices)?;
 
         // Take removed from CADF (Content Addressable Data Frame)
-        let opts = DFOpts::from_filter_schema(schema);
+        let opts = DFOpts::from_schema_columns(schema);
         let content_df = tabular::transform_df(content_df, opts)?;
         let removed_rows = tabular::take(content_df.lazy(), removed_indices)?;
 
@@ -562,7 +562,7 @@ impl CommitSchemaRowIndex {
         let sorted = self.sorted_entry_df_with_row_hash()?;
         log::debug!("entry_df got sorted: {}", sorted);
         // Filter down to the original columns
-        let opts = DFOpts::from_filter_schema(&self.schema);
+        let opts = DFOpts::from_schema_columns(&self.schema);
         tabular::transform_df(sorted.lazy(), opts)
     }
 
@@ -879,7 +879,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                     dtype: String::from("f64"),
                 },
             ];
-            let opts = DFOpts::from_filter_fields(fields);
+            let opts = DFOpts::from_columns(fields);
             let mut df = tabular::read_df(&bbox_path, opts)?;
             tabular::write_df(&mut df, &bbox_path)?;
 

@@ -718,7 +718,7 @@ impl EntryIndexer {
 
                             let mut df = tabular::read_df(&hash_results_file, DFOpts::empty()).unwrap();
                             let schema = schema::Schema::from_polars(&df.schema());
-                            let filter = DFOpts::from_filter_schema_exclude_hidden(&schema);
+                            let filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
                             df = tabular::transform_df(df.lazy(), filter).unwrap();
 
                             // Need to restore parent dir

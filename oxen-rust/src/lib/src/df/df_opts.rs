@@ -5,55 +5,14 @@ use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::Schema;
-use crate::util;
+
+use super::filter::{self, DFFilterExp};
 
 #[derive(Debug)]
 pub struct AddColVals {
     pub name: String,
     pub value: String,
     pub dtype: String,
-}
-
-#[derive(Clone, Debug)]
-pub enum DFFilterOp {
-    EQ,
-    LT,
-    GT,
-    GTE,
-    LTE,
-    NEQ,
-}
-
-impl DFFilterOp {
-    pub fn from_str_op(s: &str) -> DFFilterOp {
-        match s {
-            "=" => DFFilterOp::EQ,
-            "<" => DFFilterOp::LT,
-            ">" => DFFilterOp::GT,
-            "<=" => DFFilterOp::LTE,
-            ">=" => DFFilterOp::GTE,
-            "!=" => DFFilterOp::NEQ,
-            _ => panic!("Unknown DFFilterOp"),
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            DFFilterOp::EQ => "=",
-            DFFilterOp::LT => "<",
-            DFFilterOp::GT => ">",
-            DFFilterOp::LTE => "<=",
-            DFFilterOp::GTE => ">=",
-            DFFilterOp::NEQ => "!=",
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct DFFilter {
-    pub op: DFFilterOp,
-    pub field: String,
-    pub value: String,
 }
 
 #[derive(Clone, Debug)]
@@ -104,11 +63,17 @@ impl DFOpts {
         opts
     }
 
-    pub fn from_filter_schema(schema: &Schema) -> Self {
-        DFOpts::from_filter_fields(schema.fields.clone())
+    pub fn from_filter_query(query: &str) -> Self {
+        let mut opts = DFOpts::empty();
+        opts.filter = Some(String::from(query));
+        opts
     }
 
-    pub fn from_filter_schema_exclude_hidden(schema: &Schema) -> Self {
+    pub fn from_schema_columns(schema: &Schema) -> Self {
+        DFOpts::from_columns(schema.fields.clone())
+    }
+
+    pub fn from_schema_columns_exclude_hidden(schema: &Schema) -> Self {
         let fields: Vec<Field> = schema
             .fields
             .clone()
@@ -119,10 +84,10 @@ impl DFOpts {
                     && f.name != FILE_ROW_NUM_COL_NAME
             })
             .collect();
-        DFOpts::from_filter_fields(fields)
+        DFOpts::from_columns(fields)
     }
 
-    pub fn from_filter_fields(fields: Vec<Field>) -> Self {
+    pub fn from_columns(fields: Vec<Field>) -> Self {
         let str_fields: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
         let mut opts = DFOpts::empty();
         opts.columns = Some(str_fields.join(","));
@@ -184,30 +149,8 @@ impl DFOpts {
         None
     }
 
-    pub fn get_filter(&self) -> Option<DFFilter> {
-        if let Some(filter) = self.filter.clone() {
-            // Order in which we check matters because some ops are substrings of others, put the longest ones first
-            let ops = vec![
-                DFFilterOp::NEQ,
-                DFFilterOp::GTE,
-                DFFilterOp::LTE,
-                DFFilterOp::EQ,
-                DFFilterOp::GT,
-                DFFilterOp::LT,
-            ];
-
-            for op in ops.iter() {
-                if filter.contains(op.as_str()) {
-                    let split = util::str::split_and_trim(&filter, op.as_str());
-                    return Some(DFFilter {
-                        op: op.clone(),
-                        field: split[0].to_owned(),
-                        value: split[1].to_owned(),
-                    });
-                }
-            }
-        }
-        None
+    pub fn get_filter(&self) -> Result<Option<DFFilterExp>, OxenError> {
+        filter::parse(self.filter.clone())
     }
 
     /// Parse and return the aggregation if it exists
@@ -398,6 +341,16 @@ mod tests {
 
         let opts = DFOpts::from_agg(agg_query);
         let agg_opt = opts.get_aggregation();
+        assert!(agg_opt.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_filter_single_query() -> Result<(), OxenError> {
+        let query = "";
+
+        let opts = DFOpts::from_filter_query(query);
+        let agg_opt = opts.get_filter();
         assert!(agg_opt.is_err());
         Ok(())
     }
