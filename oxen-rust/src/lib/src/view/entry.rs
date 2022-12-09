@@ -16,6 +16,12 @@ pub struct RemoteEntryResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct ResourceVersion {
+    pub path: String,
+    pub version: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedEntries {
     pub status: String,
     pub status_message: String,
@@ -31,6 +37,7 @@ pub struct PaginatedDirEntries {
     pub status: String,
     pub status_message: String,
     pub entries: Vec<DirEntry>,
+    pub resource: ResourceVersion,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,

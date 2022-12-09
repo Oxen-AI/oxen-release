@@ -4,12 +4,12 @@ use crate::model::{Commit, LocalRepository};
 
 use std::path::{Path, PathBuf};
 
-/// Returns commit_id,filepath
+/// Returns commit_id,branch_or_commit_id,filepath
 /// Parses a path looking for either a commit id or a branch name, returns None of neither exist
 pub fn parse_resource(
     repo: &LocalRepository,
     path: &Path,
-) -> Result<Option<(String, PathBuf)>, OxenError> {
+) -> Result<Option<(String, String, PathBuf)>, OxenError> {
     let mut components = path.components().collect::<Vec<_>>();
     let commit_reader = CommitReader::new(repo)?;
 
@@ -33,7 +33,7 @@ pub fn parse_resource(
                 commit.id,
                 file_path
             );
-            return Ok(Some((commit.id, file_path)));
+            return Ok(Some((commit.id.clone(), commit.id, file_path)));
         }
     }
 
@@ -63,7 +63,7 @@ pub fn parse_resource(
                     branch_name
                 );
 
-                return Ok(Some((branch.commit_id, PathBuf::from("./"))));
+                return Ok(Some((branch.commit_id, branch.name, PathBuf::from("./"))));
             } else {
                 return Ok(None);
             }
@@ -84,7 +84,7 @@ pub fn parse_resource(
                 file_path
             );
 
-            return Ok(Some((branch.commit_id, file_path)));
+            return Ok(Some((branch.commit_id, branch.name, file_path)));
         }
     }
 
@@ -155,7 +155,7 @@ mod tests {
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
-                Ok(Some((commit_id, path))) => {
+                Ok(Some((commit_id, _, path))) => {
                     assert_eq!(commit.id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
                 }
@@ -178,7 +178,7 @@ mod tests {
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
-                Ok(Some((commit_id, path))) => {
+                Ok(Some((commit_id, _branch_name, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
@@ -202,7 +202,7 @@ mod tests {
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
-                Ok(Some((commit_id, path))) => {
+                Ok(Some((commit_id, _branch_name, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
@@ -226,7 +226,7 @@ mod tests {
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
-                Ok(Some((commit_id, path))) => {
+                Ok(Some((commit_id, _branch_name, path))) => {
                     println!("Got branch: {:?} -> {:?}", branch, path);
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("./"));

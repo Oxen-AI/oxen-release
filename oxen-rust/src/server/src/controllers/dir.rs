@@ -4,6 +4,7 @@ use crate::controllers::entries::PageNumQuery;
 use liboxen::api;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
+use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedDirEntries, StatusMessage};
 
@@ -31,7 +32,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, filepath))) =
+            if let Ok(Some((commit_id, branch_or_commit_id, filepath))) =
                 util::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
@@ -39,7 +40,14 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
                     commit_id,
                     filepath
                 );
-                match list_directory_for_commit(&repo, &commit_id, &filepath, page_num, page_size) {
+                match list_directory_for_commit(
+                    &repo,
+                    &commit_id,
+                    &branch_or_commit_id,
+                    &filepath,
+                    page_num,
+                    page_size,
+                ) {
                     Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
                     Err(status_message) => HttpResponse::InternalServerError().json(status_message),
                 }
@@ -62,6 +70,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
 fn list_directory_for_commit(
     repo: &LocalRepository,
     commit_id: &str,
+    branch_or_commit_id: &str,
     directory: &Path,
     page_num: usize,
     page_size: usize,
@@ -91,6 +100,10 @@ fn list_directory_for_commit(
                         page_number: page_num,
                         total_pages: total_pages as usize,
                         total_entries,
+                        resource: ResourceVersion {
+                            path: directory.to_str().unwrap().to_string(),
+                            version: branch_or_commit_id.to_string(),
+                        },
                         entries,
                     };
                     Ok((view, commit))
