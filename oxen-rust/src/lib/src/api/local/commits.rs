@@ -37,3 +37,23 @@ pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit
     }
     Ok(commits)
 }
+
+pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
+    repo: &LocalRepository,
+    val: S,
+) -> Result<Option<Commit>, OxenError> {
+    let val = val.as_ref();
+    let commit_reader = CommitReader::new(repo)?;
+    if let Some(commit) = commit_reader.get_commit_by_id(val)? {
+        return Ok(Some(commit));
+    }
+
+    let ref_reader = RefReader::new(repo)?;
+    if let Some(branch) = ref_reader.get_branch_by_name(val)? {
+        if let Some(commit) = commit_reader.get_commit_by_id(branch.commit_id)? {
+            return Ok(Some(commit));
+        }
+    }
+
+    Ok(None)
+}
