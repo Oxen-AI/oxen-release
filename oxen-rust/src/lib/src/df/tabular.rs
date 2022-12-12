@@ -279,6 +279,11 @@ fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame,
     Ok(df.groupby(group_by).agg(agg))
 }
 
+fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
+    log::debug!("Got unique: {:?}", columns);
+    Ok(df.unique(Some(columns), UniqueKeepStrategy::First))
+}
+
 pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
@@ -320,6 +325,10 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         Err(err) => {
             log::error!("Could not parse filter: {err}");
         }
+    }
+
+    if let Some(columns) = opts.unique_columns() {
+        df = unique_df(df, columns)?;
     }
 
     if let Some(agg) = &opts.get_aggregation()? {
@@ -630,7 +639,7 @@ pub fn schema_to_string<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        df::{filter, tabular},
+        df::{filter, tabular, DFOpts},
         error::OxenError,
     };
     use polars::prelude::*;
@@ -722,6 +731,78 @@ mod tests {
 │ str      ┆ str   ┆ f64   ┆ f64   ┆ bool       │
 ╞══════════╪═══════╪═══════╪═══════╪════════════╡
 │ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
+└──────────┴───────┴───────┴───────┴────────────┘",
+            format!("{}", filtered_df)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unique_single_field() -> Result<(), OxenError> {
+        let fields = "label";
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["dog", "dog", "unknown"],
+            "min_x" => &[0.0, 1.0, 2.0],
+            "max_x" => &[3.0, 4.0, 5.0],
+            "is_correct" => &[true, false, false],
+        )
+        .unwrap();
+
+        let mut opts = DFOpts::from_unique(fields);
+        // sort for tests because it comes back random
+        opts.sort_by = Some(String::from("image"));
+        let filtered_df = tabular::transform_df(df.lazy(), opts)?;
+
+        println!("{}", filtered_df);
+
+        assert_eq!(
+            r"shape: (2, 5)
+┌──────────┬─────────┬───────┬───────┬────────────┐
+│ image    ┆ label   ┆ min_x ┆ max_x ┆ is_correct │
+│ ---      ┆ ---     ┆ ---   ┆ ---   ┆ ---        │
+│ str      ┆ str     ┆ f64   ┆ f64   ┆ bool       │
+╞══════════╪═════════╪═══════╪═══════╪════════════╡
+│ 0000.jpg ┆ dog     ┆ 0.0   ┆ 3.0   ┆ true       │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 0002.jpg ┆ unknown ┆ 2.0   ┆ 5.0   ┆ false      │
+└──────────┴─────────┴───────┴───────┴────────────┘",
+            format!("{}", filtered_df)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_unique_multi_field() -> Result<(), OxenError> {
+        let fields = "image,label";
+        let df = df!(
+            "image" => &["0000.jpg", "0000.jpg", "0002.jpg"],
+            "label" => &["dog", "dog", "dog"],
+            "min_x" => &[0.0, 1.0, 2.0],
+            "max_x" => &[3.0, 4.0, 5.0],
+            "is_correct" => &[true, false, false],
+        )
+        .unwrap();
+
+        let mut opts = DFOpts::from_unique(fields);
+        // sort for tests because it comes back random
+        opts.sort_by = Some(String::from("image"));
+        let filtered_df = tabular::transform_df(df.lazy(), opts)?;
+
+        println!("{}", filtered_df);
+
+        assert_eq!(
+            r"shape: (2, 5)
+┌──────────┬───────┬───────┬───────┬────────────┐
+│ image    ┆ label ┆ min_x ┆ max_x ┆ is_correct │
+│ ---      ┆ ---   ┆ ---   ┆ ---   ┆ ---        │
+│ str      ┆ str   ┆ f64   ┆ f64   ┆ bool       │
+╞══════════╪═══════╪═══════╪═══════╪════════════╡
+│ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ 0002.jpg ┆ dog   ┆ 2.0   ┆ 5.0   ┆ false      │
 └──────────┴───────┴───────┴───────┴────────────┘",
             format!("{}", filtered_df)
         );
