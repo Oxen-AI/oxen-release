@@ -48,7 +48,7 @@ impl CommitReader {
         let mut commits: HashSet<Commit> = HashSet::new();
         CommitDBReader::history_from_commit_id(&self.db, commit_id, &mut commits)?;
         let mut commits: Vec<Commit> = commits.into_iter().collect();
-        commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        commits.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         Ok(commits)
     }
 
@@ -58,7 +58,7 @@ impl CommitReader {
         let mut commits: Vec<Commit> = CommitDBReader::history_from_commit(&self.db, &head_commit)?
             .into_iter()
             .collect();
-        commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        commits.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         Ok(commits)
     }
 

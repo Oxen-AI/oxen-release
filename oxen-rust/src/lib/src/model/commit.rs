@@ -7,8 +7,9 @@ pub struct NewCommit {
     pub parent_ids: Vec<String>,
     pub message: String,
     pub author: String,
+    pub email: String,
     #[serde(with = "time::serde::rfc3339")]
-    pub timestamp: OffsetDateTime,
+    pub created_at: OffsetDateTime,
 }
 
 impl NewCommit {
@@ -17,7 +18,8 @@ impl NewCommit {
             parent_ids: commit.parent_ids.to_owned(),
             message: commit.message.to_owned(),
             author: commit.author.to_owned(),
-            timestamp: commit.timestamp.to_owned(),
+            email: commit.email.to_owned(),
+            created_at: commit.created_at.to_owned(),
         }
     }
 }
@@ -28,8 +30,9 @@ pub struct Commit {
     pub parent_ids: Vec<String>,
     pub message: String,
     pub author: String,
+    pub email: String,
     #[serde(with = "time::serde::rfc3339")]
-    pub timestamp: OffsetDateTime,
+    pub created_at: OffsetDateTime,
 }
 
 // Hash on the id field so we can quickly look up
@@ -52,7 +55,8 @@ impl Commit {
             parent_ids: new_commit.parent_ids.to_owned(),
             message: new_commit.message.to_owned(),
             author: new_commit.author.to_owned(),
-            timestamp: new_commit.timestamp.to_owned(),
+            email: new_commit.email.to_owned(),
+            created_at: new_commit.created_at.to_owned(),
         }
     }
 
