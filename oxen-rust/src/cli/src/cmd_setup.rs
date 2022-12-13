@@ -9,6 +9,7 @@ pub const LOG: &str = "log";
 pub const DF: &str = "df";
 pub const SCHEMAS: &str = "schemas";
 pub const ADD: &str = "add";
+pub const RM: &str = "rm";
 pub const COMMIT: &str = "commit";
 pub const RESTORE: &str = "restore";
 pub const BRANCH: &str = "branch";
@@ -281,6 +282,12 @@ pub fn schemas() -> Command<'static> {
 pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
+        .arg(Arg::new("files").required(true).min_values(1))
+}
+
+pub fn rm() -> Command<'static> {
+    Command::new(RM)
+        .about("Removes the specified files from the index")
         .arg(Arg::new("files").required(true).min_values(1))
 }
 

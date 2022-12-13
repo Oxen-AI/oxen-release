@@ -291,6 +291,21 @@ pub fn add(sub_matches: &ArgMatches) {
     }
 }
 
+pub fn rm(sub_matches: &ArgMatches) {
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
+
+    match dispatch::rm(paths) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{}", err)
+        }
+    }
+}
+
 pub fn restore(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("PATH").expect("required");
 
