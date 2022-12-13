@@ -7,12 +7,12 @@ use crate::opts::RestoreOpts;
 use crate::util;
 use crate::{command, db};
 
-use chrono::Local;
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
+use time::OffsetDateTime;
 
 use crate::model::LocalRepository;
 
@@ -42,7 +42,7 @@ impl CommitWriter {
 
     fn create_commit_data(&self, message: &str) -> Result<NewCommit, OxenError> {
         let cfg = UserConfig::default()?;
-        let timestamp = Local::now();
+        let timestamp = OffsetDateTime::now_utc();
         let ref_reader = RefReader::new(&self.repository)?;
         // Commit
         //  - parent_ids (can be empty if root)
@@ -62,8 +62,7 @@ impl CommitWriter {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
                         author: cfg.name,
-                        date: timestamp,
-                        timestamp: timestamp.timestamp_nanos(),
+                        timestamp,
                     })
                 }
             }
@@ -74,8 +73,7 @@ impl CommitWriter {
                     parent_ids: vec![],
                     message: String::from(message),
                     author: cfg.name,
-                    date: Local::now(),
-                    timestamp: timestamp.timestamp_nanos(),
+                    timestamp,
                 })
             }
         }
@@ -84,7 +82,7 @@ impl CommitWriter {
     // Reads commit ids from merge commit files then removes them
     fn create_merge_commit(&self, message: &str) -> Result<NewCommit, OxenError> {
         let cfg = UserConfig::default()?;
-        let timestamp = Local::now();
+        let timestamp = OffsetDateTime::now_utc();
         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
         let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
         let orig_head_path = hidden_dir.join(ORIG_HEAD_FILE);
@@ -101,8 +99,7 @@ impl CommitWriter {
             parent_ids: vec![merge_commit_id, head_commit_id],
             message: String::from(message),
             author: cfg.name,
-            date: timestamp,
-            timestamp: timestamp.timestamp_nanos(),
+            timestamp,
         })
     }
 
@@ -177,13 +174,13 @@ impl CommitWriter {
         message: &str,
     ) -> Result<Commit, OxenError> {
         let cfg = UserConfig::default()?;
-        let timestamp = Local::now();
+        let timestamp = OffsetDateTime::now_utc();
+
         let commit = NewCommit {
             parent_ids,
             message: String::from(message),
             author: cfg.name,
-            date: timestamp,
-            timestamp: timestamp.timestamp_nanos(),
+            timestamp,
         };
         let entries: Vec<StagedEntry> = status
             .added_files

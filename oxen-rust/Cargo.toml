@@ -66,6 +66,7 @@ difference = "2.0.0"
 bytevec = "0.2.0"
 async-std = "1.12.0"
 nom = "7.1.1"
+time = { version = "0.3.17", features = ["serde"] }
 
 [workspace]
 members = ["src/cli", "src/lib", "src/server"]

@@ -173,8 +173,8 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository, RepositoryNew};
     use crate::test;
-    use chrono::Local;
     use std::path::Path;
+    use time::OffsetDateTime;
 
     #[test]
     fn test_local_repository_api_create_empty_with_commit() -> Result<(), OxenError> {
@@ -182,7 +182,7 @@ mod tests {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
             let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
-            let timestamp = Local::now();
+            let timestamp = OffsetDateTime::now_utc();
             let repo_new = RepositoryNew {
                 namespace: String::from(namespace),
                 name: String::from(name),
@@ -191,8 +191,7 @@ mod tests {
                     parent_ids: vec![],
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
-                    date: timestamp,
-                    timestamp: timestamp.timestamp_nanos(),
+                    timestamp,
                 }),
             };
             let _repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
