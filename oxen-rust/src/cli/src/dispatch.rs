@@ -111,6 +111,17 @@ pub fn add(paths: Vec<PathBuf>) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn rm(paths: Vec<PathBuf>) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    for path in paths {
+        command::rm(&repository, &path)?;
+    }
+
+    Ok(())
+}
+
 pub fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
