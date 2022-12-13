@@ -93,7 +93,7 @@ impl StagedData {
         self.__collect_merge_conflicts(&mut outputs, skip, limit, print_all);
         self.__collect_untracked_dirs(&mut outputs, skip, limit, print_all);
         self.__collect_untracked_files(&mut outputs, skip, limit, print_all);
-        // self.__collect_removed_files(&mut outputs, skip, limit, print_all);
+        self.__collect_removed_files(&mut outputs, skip, limit, print_all);
 
         outputs
     }
@@ -300,8 +300,8 @@ impl StagedData {
             return;
         }
 
-        outputs.push("Removed files".to_string().normal());
-        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
+        outputs.push("Removed Files\n".to_string().normal());
+        outputs.push(format!("{}", MSG_OXEN_RM_FILE_EXAMPLE).normal());
 
         let mut files = self.removed_files.clone();
         files.sort();
@@ -622,11 +622,10 @@ mod tests {
         let mut staged_data = StagedData::empty();
         staged_data.removed_files.push(PathBuf::from("README.md"));
 
-        let num_to_print = 3;
-        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        let outputs = staged_data.__collect_outputs(0, 0, true);
         assert_eq!(outputs[0], "Removed Files\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RM_FILE_EXAMPLE.normal());
-        assert_eq!(outputs[2], "  removed: ".normal());
+        assert_eq!(outputs[2], "  removed: ".red());
         assert_eq!(outputs[3], "README.md\n".red().bold());
     }
 }
