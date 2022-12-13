@@ -191,7 +191,8 @@ mod tests {
                     parent_ids: vec![],
                     message: String::from(constants::INITIAL_COMMIT_MSG),
                     author: String::from("Ox"),
-                    timestamp,
+                    email: String::from("ox@oxen.ai"),
+                    created_at: timestamp,
                 }),
             };
             let _repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;

@@ -301,7 +301,7 @@ impl StagedData {
         }
 
         outputs.push("Removed Files\n".to_string().normal());
-        outputs.push(format!("{}", MSG_OXEN_RM_FILE_EXAMPLE).normal());
+        outputs.push(MSG_OXEN_RM_FILE_EXAMPLE.to_string().normal());
 
         let mut files = self.removed_files.clone();
         files.sort();

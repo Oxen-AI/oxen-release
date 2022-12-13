@@ -62,7 +62,8 @@ impl CommitWriter {
                         parent_ids: vec![parent_id],
                         message: String::from(message),
                         author: cfg.name,
-                        timestamp,
+                        email: cfg.email,
+                        created_at: timestamp,
                     })
                 }
             }
@@ -73,7 +74,8 @@ impl CommitWriter {
                     parent_ids: vec![],
                     message: String::from(message),
                     author: cfg.name,
-                    timestamp,
+                    email: cfg.email,
+                    created_at: timestamp,
                 })
             }
         }
@@ -99,7 +101,8 @@ impl CommitWriter {
             parent_ids: vec![merge_commit_id, head_commit_id],
             message: String::from(message),
             author: cfg.name,
-            timestamp,
+            email: cfg.email,
+            created_at: timestamp,
         })
     }
 
@@ -180,7 +183,8 @@ impl CommitWriter {
             parent_ids,
             message: String::from(message),
             author: cfg.name,
-            timestamp,
+            email: cfg.email,
+            created_at: timestamp,
         };
         let entries: Vec<StagedEntry> = status
             .added_files
