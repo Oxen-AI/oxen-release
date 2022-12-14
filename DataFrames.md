@@ -1,10 +1,15 @@
+
 # Tabular Data in Oxen
 
 As a data scientist or machine learning engineer we deal with a lot of tabular data. Whether it is csv, parquet, or line delimited json, it is useful to store your training data in data frames that we can filter, aggregate, slice and dice.
 
-To follow along with the examples below feel free to grab to grab the example data from [data/CatDogBBox.tar.gz](data/CatDogBBox.tar.gz).
+To follow along with the examples below feel free to grab to grab the example data from our public [CatDogBoundingBox](https://www.oxen.ai/ox/CatDogBoundingBox) repository.
 
-TODO: Update with a link to data in OxenHub (why are we downloading tarballs??) this is the problem we are solving.
+```bash
+$ oxen clone http://hub.oxen.ai/ox/CatDogBoundingBox
+$ cd CatDogBoundingBox
+$ oxen pull origin main
+```
 
 ## oxen df
 
