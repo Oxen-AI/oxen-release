@@ -2,7 +2,7 @@
 
 Oxen is command line tooling for working with large machine learning datasets.
 
-The name Oxen comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to his fields 🐂 🌾. Let Oxen take care of this layer of your infrastructure so you can focus on the higher level ML problems that matter to your product.
+The name Oxen comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🐂 🌾. Let Oxen take care of grunt work of your infrastructure so you can focus on the higher level ML problems that matter to your product.
 
 It is built from the ground up to be fast 🔥 and easy to learn 🧠
 
