@@ -1,3 +1,12 @@
+# v0.3.0
+
+* Features
+    * `oxen df --unique`
+    * `oxen rm`
+* Schema changes
+    * add "email" to Commit
+    * changed "timestamp" format on Commit to be RFC3339
+
 # v0.2.7
 
 * Features
