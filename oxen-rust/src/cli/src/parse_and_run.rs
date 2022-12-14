@@ -148,6 +148,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         add_col: sub_matches.value_of("add_col").map(String::from),
         add_row: sub_matches.value_of("add_row").map(String::from),
         sort_by: sub_matches.value_of("sort").map(String::from),
+        unique: sub_matches.value_of("unique").map(String::from),
         should_randomize: sub_matches.is_present("randomize"),
         should_reverse: sub_matches.is_present("reverse"),
     }
@@ -283,6 +284,21 @@ pub fn add(sub_matches: &ArgMatches) {
         .collect();
 
     match dispatch::add(paths) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{}", err)
+        }
+    }
+}
+
+pub fn rm(sub_matches: &ArgMatches) {
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
+
+    match dispatch::rm(paths) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{}", err)

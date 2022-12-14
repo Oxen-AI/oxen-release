@@ -1,6 +1,6 @@
 [package]
 name = "oxen-cli"
-version = "0.2.7"
+version = "0.3.0"
 edition = "2018"
 
 [dependencies]
@@ -10,6 +10,7 @@ env_logger = "0.9.0"
 colored = "2.0.0"
 rpassword = "6.0"
 tokio = { version = "1", features = ["full"] }
+time = { version = "0.3.17", features = ["serde"] }
 
 [[bin]]
 name = "oxen"

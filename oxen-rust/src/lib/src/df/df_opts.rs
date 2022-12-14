@@ -34,6 +34,7 @@ pub struct DFOpts {
     pub add_col: Option<String>,
     pub add_row: Option<String>,
     pub sort_by: Option<String>,
+    pub unique: Option<String>,
     pub should_randomize: bool,
     pub should_reverse: bool,
 }
@@ -52,6 +53,7 @@ impl DFOpts {
             add_col: None,
             add_row: None,
             sort_by: None,
+            unique: None,
             should_randomize: false,
             should_reverse: false,
         }
@@ -66,6 +68,12 @@ impl DFOpts {
     pub fn from_filter_query(query: &str) -> Self {
         let mut opts = DFOpts::empty();
         opts.filter = Some(String::from(query));
+        opts
+    }
+
+    pub fn from_unique(fields_str: &str) -> Self {
+        let mut opts = DFOpts::empty();
+        opts.unique = Some(String::from(fields_str));
         opts
     }
 
@@ -105,6 +113,7 @@ impl DFOpts {
             || self.aggregate.is_some()
             || self.col_at.is_some()
             || self.sort_by.is_some()
+            || self.unique.is_some()
             || self.should_randomize
             || self.should_reverse
     }
@@ -140,6 +149,17 @@ impl DFOpts {
 
     pub fn columns_names(&self) -> Option<Vec<String>> {
         if let Some(columns) = self.columns.clone() {
+            let split = columns
+                .split(',')
+                .map(String::from)
+                .collect::<Vec<String>>();
+            return Some(split);
+        }
+        None
+    }
+
+    pub fn unique_columns(&self) -> Option<Vec<String>> {
+        if let Some(columns) = self.unique.clone() {
             let split = columns
                 .split(',')
                 .map(String::from)

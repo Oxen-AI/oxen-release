@@ -11,6 +11,7 @@ use liboxen::util;
 use colored::Colorize;
 use std::env;
 use std::path::{Path, PathBuf};
+use time::format_description;
 
 pub fn init(path: &str) -> Result<(), OxenError> {
     let directory = std::fs::canonicalize(PathBuf::from(&path))?;
@@ -111,6 +112,17 @@ pub fn add(paths: Vec<PathBuf>) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn rm(paths: Vec<PathBuf>) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    for path in paths {
+        command::rm(&repository, &path)?;
+    }
+
+    Ok(())
+}
+
 pub fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -194,14 +206,16 @@ pub fn log_commits() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    // Fri, 21 Oct 2022 16:08:39 -0700
+    let format = format_description::parse(
+        "[weekday], [day] [month repr:long] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory]",
+    ).unwrap();
+
     for commit in command::log(&repository)? {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{}\n", commit_id_str);
         println!("Author: {}", commit.author);
-        println!(
-            "Date:   {}\n",
-            commit.date.format(util::oxen_date_format::FORMAT)
-        );
+        println!("Date:   {}\n", commit.timestamp.format(&format).unwrap());
         println!("    {}\n", commit.message);
     }
 
