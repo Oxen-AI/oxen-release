@@ -194,6 +194,22 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     Ok(())
 }
 
+/// Removes the path from disk then adds it to the removed index
+pub fn rm<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    if path.is_dir() {
+        return Err(OxenError::basic_str(
+            "oxen rm not supported for directories.",
+        ));
+    }
+
+    if path.exists() {
+        std::fs::remove_file(path)?;
+    }
+
+    add(repo, path)
+}
+
 /// # Add tabular file to track row level changes
 pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();

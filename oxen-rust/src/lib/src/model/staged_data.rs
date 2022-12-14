@@ -7,6 +7,8 @@ use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStag
 pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
 pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
     "  (use \"oxen add <file>...\" to update what will be committed)\n";
+pub const MSG_OXEN_RM_FILE_EXAMPLE: &str =
+    "  (use \"oxen rm <file>...\" to update what will be committed)\n";
 pub const MSG_OXEN_ADD_DIR_EXAMPLE: &str =
     "  (use \"oxen add <dir>...\" to update what will be committed)\n";
 pub const MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT: &str =
@@ -91,6 +93,7 @@ impl StagedData {
         self.__collect_merge_conflicts(&mut outputs, skip, limit, print_all);
         self.__collect_untracked_dirs(&mut outputs, skip, limit, print_all);
         self.__collect_untracked_files(&mut outputs, skip, limit, print_all);
+        self.__collect_removed_files(&mut outputs, skip, limit, print_all);
 
         outputs
     }
@@ -297,8 +300,8 @@ impl StagedData {
             return;
         }
 
-        outputs.push("Removed files:".to_string().normal());
-        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
+        outputs.push("Removed Files\n".to_string().normal());
+        outputs.push(MSG_OXEN_RM_FILE_EXAMPLE.to_string().normal());
 
         let mut files = self.removed_files.clone();
         files.sort();
@@ -445,7 +448,7 @@ mod tests {
 
     use crate::model::staged_data::{
         MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE,
-        MSG_OXEN_RESTORE_STAGED_FILE,
+        MSG_OXEN_RESTORE_STAGED_FILE, MSG_OXEN_RM_FILE_EXAMPLE,
     };
     use crate::model::StagedEntryStatus;
     use crate::model::{StagedData, StagedEntry};
@@ -612,5 +615,17 @@ mod tests {
         assert_eq!(outputs[5], "(4 items)\n".normal());
         assert_eq!(outputs[6], "  train/       ".red().bold());
         assert_eq!(outputs[7], "(10 items)\n".normal());
+    }
+
+    #[test]
+    fn test_staged_data_remove_file() {
+        let mut staged_data = StagedData::empty();
+        staged_data.removed_files.push(PathBuf::from("README.md"));
+
+        let outputs = staged_data.__collect_outputs(0, 0, true);
+        assert_eq!(outputs[0], "Removed Files\n".normal());
+        assert_eq!(outputs[1], MSG_OXEN_RM_FILE_EXAMPLE.normal());
+        assert_eq!(outputs[2], "  removed: ".red());
+        assert_eq!(outputs[3], "README.md\n".red().bold());
     }
 }

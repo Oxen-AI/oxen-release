@@ -12,6 +12,7 @@ use liboxen::util;
 
 use futures::future;
 use std::path::Path;
+use std::path::PathBuf;
 
 #[test]
 fn test_command_init() -> Result<(), OxenError> {
@@ -2816,6 +2817,33 @@ test/unknown_2.jpg,unknown,0.0,0.0,0,0"#,
 
         // Make sure we get new results out
         assert_eq!(initial_index.height() + 1, new_index_results.height());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_status_rm_regular_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Move the file to a new name
+        let og_basename = PathBuf::from("README.md");
+        let og_file = repo.path.join(&og_basename);
+        std::fs::remove_file(&og_file)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        assert_eq!(status.removed_files.len(), 1);
+
+        command::rm(&repo, &og_file)?;
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        assert_eq!(status.added_files.len(), 1);
+        assert_eq!(
+            status.added_files[&og_basename].status,
+            StagedEntryStatus::Removed
+        );
 
         Ok(())
     })

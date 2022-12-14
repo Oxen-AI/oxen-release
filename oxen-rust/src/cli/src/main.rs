@@ -28,6 +28,7 @@ async fn main() {
         .subcommand(cmd_setup::df())
         .subcommand(cmd_setup::schemas())
         .subcommand(cmd_setup::add())
+        .subcommand(cmd_setup::rm())
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::branch())
         .subcommand(cmd_setup::merge())
@@ -53,6 +54,7 @@ async fn main() {
         Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
         Some((cmd_setup::SCHEMAS, sub_matches)) => parse_and_run::schemas(sub_matches),
         Some((cmd_setup::ADD, sub_matches)) => parse_and_run::add(sub_matches),
+        Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches),
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches),
         Some((cmd_setup::BRANCH, sub_matches)) => parse_and_run::branch(sub_matches).await,
         Some((cmd_setup::CHECKOUT, sub_matches)) => parse_and_run::checkout(sub_matches),

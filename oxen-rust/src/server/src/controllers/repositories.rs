@@ -221,13 +221,13 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
-    use chrono::Local;
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepositoryNew};
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
+    use time::OffsetDateTime;
 
     use crate::controllers;
     use crate::test;
@@ -306,7 +306,7 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_respositories_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let timestamp = Local::now();
+        let timestamp = OffsetDateTime::now_utc();
         let repo_new = RepositoryNew {
             name: String::from("Testing-Name"),
             namespace: String::from("Testing-Namespace"),
@@ -315,8 +315,8 @@ mod tests {
                 parent_ids: vec![],
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
-                date: timestamp,
-                timestamp: timestamp.timestamp_nanos(),
+                email: String::from("ox@oxen.ai"),
+                timestamp,
             }),
         };
         let data = serde_json::to_string(&repo_new)?;

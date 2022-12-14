@@ -9,6 +9,7 @@ pub const LOG: &str = "log";
 pub const DF: &str = "df";
 pub const SCHEMAS: &str = "schemas";
 pub const ADD: &str = "add";
+pub const RM: &str = "rm";
 pub const COMMIT: &str = "commit";
 pub const RESTORE: &str = "restore";
 pub const BRANCH: &str = "branch";
@@ -165,7 +166,6 @@ pub fn df() -> Command<'static> {
         .arg(
             Arg::new("slice")
                 .long("slice")
-                .short('s')
                 .help("A continuous slice of the data you want to look at. Format: 'start..end' Ex) '10..25' will take 15 elements, starting at 10 and ending at 25.")
                 .takes_value(true),
         )
@@ -191,7 +191,15 @@ pub fn df() -> Command<'static> {
         .arg(
             Arg::new("sort")
                 .long("sort")
+                .short('s')
                 .help("Sort the output by a column name. Is run at the end of all the other transforms.")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("unique")
+                .long("unique")
+                .short('u')
+                .help("Unique the output by a set of column names. Takes a comma separated set of column names ie: \"text,label\".")
                 .takes_value(true),
         )
         .arg(
@@ -274,6 +282,12 @@ pub fn schemas() -> Command<'static> {
 pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
+        .arg(Arg::new("files").required(true).min_values(1))
+}
+
+pub fn rm() -> Command<'static> {
+    Command::new(RM)
+        .about("Removes the specified files from the index")
         .arg(Arg::new("files").required(true).min_values(1))
 }
 

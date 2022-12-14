@@ -1,16 +1,15 @@
-use crate::util::oxen_date_format;
-use chrono::{DateTime, Local};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
+use time::OffsetDateTime;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NewCommit {
     pub parent_ids: Vec<String>,
     pub message: String,
     pub author: String,
-    #[serde(with = "oxen_date_format")]
-    pub date: DateTime<Local>,
-    pub timestamp: i64,
+    pub email: String,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
 }
 
 impl NewCommit {
@@ -19,7 +18,7 @@ impl NewCommit {
             parent_ids: commit.parent_ids.to_owned(),
             message: commit.message.to_owned(),
             author: commit.author.to_owned(),
-            date: commit.date.to_owned(),
+            email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
         }
     }
@@ -31,9 +30,9 @@ pub struct Commit {
     pub parent_ids: Vec<String>,
     pub message: String,
     pub author: String,
-    #[serde(with = "oxen_date_format")]
-    pub date: DateTime<Local>,
-    pub timestamp: i64,
+    pub email: String,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
 }
 
 // Hash on the id field so we can quickly look up
@@ -56,7 +55,7 @@ impl Commit {
             parent_ids: new_commit.parent_ids.to_owned(),
             message: new_commit.message.to_owned(),
             author: new_commit.author.to_owned(),
-            date: new_commit.date.to_owned(),
+            email: new_commit.email.to_owned(),
             timestamp: new_commit.timestamp.to_owned(),
         }
     }
