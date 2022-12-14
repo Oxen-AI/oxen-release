@@ -9,7 +9,7 @@ pub struct NewCommit {
     pub author: String,
     pub email: String,
     #[serde(with = "time::serde::rfc3339")]
-    pub created_at: OffsetDateTime,
+    pub timestamp: OffsetDateTime,
 }
 
 impl NewCommit {
@@ -19,7 +19,7 @@ impl NewCommit {
             message: commit.message.to_owned(),
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
-            created_at: commit.created_at.to_owned(),
+            timestamp: commit.timestamp.to_owned(),
         }
     }
 }
@@ -32,7 +32,7 @@ pub struct Commit {
     pub author: String,
     pub email: String,
     #[serde(with = "time::serde::rfc3339")]
-    pub created_at: OffsetDateTime,
+    pub timestamp: OffsetDateTime,
 }
 
 // Hash on the id field so we can quickly look up
@@ -56,7 +56,7 @@ impl Commit {
             message: new_commit.message.to_owned(),
             author: new_commit.author.to_owned(),
             email: new_commit.email.to_owned(),
-            created_at: new_commit.created_at.to_owned(),
+            timestamp: new_commit.timestamp.to_owned(),
         }
     }
 

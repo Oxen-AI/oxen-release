@@ -316,7 +316,7 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
-                created_at: timestamp,
+                timestamp,
             }),
         };
         let data = serde_json::to_string(&repo_new)?;

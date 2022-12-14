@@ -215,7 +215,7 @@ pub fn log_commits() -> Result<(), OxenError> {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{}\n", commit_id_str);
         println!("Author: {}", commit.author);
-        println!("Date:   {}\n", commit.created_at.format(&format).unwrap());
+        println!("Date:   {}\n", commit.timestamp.format(&format).unwrap());
         println!("    {}\n", commit.message);
     }
 

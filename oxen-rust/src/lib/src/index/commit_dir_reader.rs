@@ -185,7 +185,7 @@ impl CommitDirReader {
                 latest_commit = commit.clone();
             }
 
-            if latest_commit.as_ref().unwrap().created_at > commit.as_ref().unwrap().created_at {
+            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
                 latest_commit = commit.clone();
             }
         }

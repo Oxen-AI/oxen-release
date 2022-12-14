@@ -63,7 +63,7 @@ impl CommitWriter {
                         message: String::from(message),
                         author: cfg.name,
                         email: cfg.email,
-                        created_at: timestamp,
+                        timestamp,
                     })
                 }
             }
@@ -75,7 +75,7 @@ impl CommitWriter {
                     message: String::from(message),
                     author: cfg.name,
                     email: cfg.email,
-                    created_at: timestamp,
+                    timestamp,
                 })
             }
         }
@@ -102,7 +102,7 @@ impl CommitWriter {
             message: String::from(message),
             author: cfg.name,
             email: cfg.email,
-            created_at: timestamp,
+            timestamp,
         })
     }
 
@@ -184,7 +184,7 @@ impl CommitWriter {
             message: String::from(message),
             author: cfg.name,
             email: cfg.email,
-            created_at: timestamp,
+            timestamp,
         };
         let entries: Vec<StagedEntry> = status
             .added_files
