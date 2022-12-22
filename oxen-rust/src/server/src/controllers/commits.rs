@@ -22,12 +22,23 @@ use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use std::convert::TryFrom;
+use std::io::Read;
+use std::io::Write;
 use std::path::Path;
+use std::path::PathBuf;
 use tar::Archive;
 
 #[derive(Deserialize, Debug)]
 pub struct SizeQuery {
     size: usize,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ChunkedDataUploadQuery {
+    hash: String,        // UUID to tie all the chunks together (hash of the contents)
+    chunk_num: usize,    // which chunk it is, so that we can combine it all in the end
+    total_chunks: usize, // how many chunks to expect
+    total_size: usize,   // total size so we can know when we are finished
 }
 
 // List commits for a repository
@@ -347,13 +358,14 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     }
 }
 
-/// Controller to upload the commit database
-pub async fn upload(
+/// Controller to upload large chunks of data that will be combined at the end
+pub async fn upload_chunk(
     req: HttpRequest,
-    mut body: web::Payload, // the actual file body
+    mut chunk: web::Payload,                   // the chunk of the file body,
+    query: web::Query<ChunkedDataUploadQuery>, // gives the file
 ) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    // name to the repo, should be in url path so okay to unwap
+    // name to the repo, should be in url path so okay to unwrap
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
@@ -361,82 +373,192 @@ pub async fn upload(
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
-            let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-
             match api::local::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
+                    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+                    let id = query.hash.clone();
+                    let size = query.total_size;
+                    let chunk_num = query.chunk_num;
+                    let total_chunks = query.total_chunks;
+
+                    log::debug!("upload_raw got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}");
+
+                    // Create a tmp dir for this upload
+                    let tmp_dir = hidden_dir.join("tmp").join("chunked").join(id);
+                    let chunk_file = tmp_dir.join(format!("chunk_{:016}", chunk_num));
+
+                    // mkdir if !exists
+                    if !tmp_dir.exists() {
+                        if let Err(err) = std::fs::create_dir_all(&tmp_dir) {
+                            log::error!("Could not complete chunk upload, mkdir failed: {:?}", err);
+                            return Ok(HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error()));
+                        }
+                    }
+
+                    // Read bytes from body
+                    let mut bytes = web::BytesMut::new();
+                    while let Some(item) = chunk.next().await {
+                        bytes.extend_from_slice(&item.unwrap());
+                    }
+
+                    // Write to tmp file
+                    log::debug!("upload_raw writing file {:?}", chunk_file);
+                    match std::fs::File::create(&chunk_file) {
+                        Ok(mut f) => {
+                            match f.write_all(&bytes) {
+                                Ok(_) => {
+                                    // Successfully wrote chunk
+                                    log::debug!(
+                                        "upload_raw successfully wrote chunk {:?}",
+                                        chunk_file
+                                    );
+
+                                    check_if_upload_complete_and_unpack(
+                                        hidden_dir,
+                                        tmp_dir,
+                                        total_chunks,
+                                        size,
+                                    );
+
+                                    Ok(HttpResponse::Ok().json(CommitResponse {
+                                        status: String::from(STATUS_SUCCESS),
+                                        status_message: String::from(MSG_RESOURCE_CREATED),
+                                        commit: commit.to_owned(),
+                                    }))
+                                }
+                                Err(err) => {
+                                    log::error!(
+                                        "Could not complete chunk upload, file create failed: {:?}",
+                                        err
+                                    );
+                                    Ok(HttpResponse::InternalServerError()
+                                        .json(StatusMessage::internal_server_error()))
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "Could not complete chunk upload, file create failed: {:?}",
+                                err
+                            );
+                            Ok(HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error()))
+                        }
+                    }
+                }
+                Ok(None) => {
+                    log::error!("Could not find commit [{}]", commit_id);
+                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                }
+                Err(err) => {
+                    log::error!("Error finding commit [{}]: {}", commit_id, err);
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
+                }
+            }
+        }
+        Ok(None) => {
+            log::debug!("404 could not get repo {}", repo_name,);
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+        }
+        Err(repo_err) => {
+            log::error!("Err get_by_name: {}", repo_err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
+}
+
+fn check_if_upload_complete_and_unpack(
+    hidden_dir: PathBuf,
+    tmp_dir: PathBuf,
+    total_chunks: usize,
+    total_size: usize,
+) {
+    let mut files = util::fs::list_files_in_dir(&tmp_dir);
+
+    if total_chunks < files.len() {
+        return;
+    }
+    files.sort();
+
+    let mut uploaded_size: u64 = 0;
+    for file in files.iter() {
+        match std::fs::metadata(file) {
+            Ok(metadata) => {
+                uploaded_size += metadata.len();
+            }
+            Err(err) => {
+                log::warn!("Err getting metadata on {:?}\n{:?}", file, err);
+            }
+        }
+    }
+
+    log::debug!(
+        "upload_raw checking if complete... {} == {}",
+        total_size,
+        uploaded_size
+    );
+
+    if total_size == (uploaded_size as usize) {
+        std::thread::spawn(move || {
+            // Get tar.gz bytes for history/COMMIT_ID data
+            log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
+
+            let mut buffer: Vec<u8> = Vec::new();
+            for file in files.iter() {
+                log::debug!("Reading file bytes {:?}", file);
+                let mut f = std::fs::File::open(file).unwrap();
+
+                f.read_to_end(&mut buffer).unwrap();
+            }
+
+            // Unpack tarball to our hidden dir
+            let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
+            unpack_entry_tarball(&hidden_dir, &mut archive);
+
+            // Cleanup tmp files
+            std::fs::remove_dir_all(tmp_dir).unwrap();
+        });
+    }
+}
+
+/// Controller to upload the commit database
+pub async fn upload(
+    req: HttpRequest,
+    mut body: web::Payload, // the actual file body
+) -> Result<HttpResponse, Error> {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    // name to the repo, should be in url path so okay to unwrap
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => {
+            match api::local::commits::get_by_id(&repo, commit_id) {
+                Ok(Some(commit)) => {
+                    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+
+                    // Read bytes from body
                     let mut bytes = web::BytesMut::new();
                     while let Some(item) = body.next().await {
                         bytes.extend_from_slice(&item.unwrap());
                     }
 
+                    // Compute total size as u64
                     let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
                     log::debug!("Got compressed data {}", ByteSize::b(total_size));
 
+                    // Unpack in background thread because could take awhile
                     std::thread::spawn(move || {
                         // Get tar.gz bytes for history/COMMIT_ID data
                         log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
                         // Unpack tarball to our hidden dir
                         let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-
-                        // Unpack and compute HASH and save next to the file to speed up computation later
-                        match archive.entries() {
-                            Ok(entries) => {
-                                for file in entries {
-                                    if let Ok(mut file) = file {
-                                        // Why hash now? To make sure everything synced properly
-                                        // When we want to check is_synced, it is expensive to rehash everything
-                                        // But since upload is network bound already, hashing here makes sense, and we will just
-                                        // load the HASH file later
-                                        file.unpack_in(&hidden_dir).unwrap();
-                                        let path = file.path().unwrap();
-                                        let full_path = hidden_dir.join(&path);
-                                        let hash_dir = full_path.parent().unwrap();
-                                        let hash_file = hash_dir.join("HASH");
-                                        if path.starts_with("versions/files/") {
-                                            if util::fs::is_tabular(&path) {
-                                                let df =
-                                                    tabular::read_df(full_path, DFOpts::empty())
-                                                        .unwrap();
-                                                log::debug!(
-                                                    "Got Tabular Upload {:?} DF {}",
-                                                    path,
-                                                    df
-                                                );
-                                                let hash = util::hasher::compute_tabular_hash(&df);
-                                                // log::debug!("Got hash {hash} -> {:?}", path);
-
-                                                util::fs::write_to_path(&hash_file, &hash);
-                                            } else {
-                                                // log::debug!(
-                                                //     "Compute hash for file {:?}",
-                                                //     full_path
-                                                // );
-                                                let hash =
-                                                    util::hasher::hash_file_contents(&full_path)
-                                                        .unwrap();
-                                                // log::debug!(
-                                                //     "Computed hash [{hash}] for file {:?}",
-                                                //     full_path
-                                                // );
-
-                                                util::fs::write_to_path(&hash_file, &hash);
-                                            }
-                                        }
-                                    } else {
-                                        log::error!("Could not unpack file in archive...");
-                                    }
-                                }
-                            }
-                            Err(err) => {
-                                log::error!("Could not unpack entries from archive...");
-                                log::error!("Err: {:?}", err);
-                            }
-                        }
-
-                        log::debug!("Done decompressing.");
+                        unpack_entry_tarball(&hidden_dir, &mut archive);
                     });
-                    // handle.join().unwrap();
 
                     Ok(HttpResponse::Ok().json(CommitResponse {
                         status: String::from(STATUS_SUCCESS),
@@ -464,6 +586,56 @@ pub async fn upload(
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
     }
+}
+
+fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
+    // Unpack and compute HASH and save next to the file to speed up computation later
+    match archive.entries() {
+        Ok(entries) => {
+            for file in entries {
+                if let Ok(mut file) = file {
+                    // Why hash now? To make sure everything synced properly
+                    // When we want to check is_synced, it is expensive to rehash everything
+                    // But since upload is network bound already, hashing here makes sense, and we will just
+                    // load the HASH file later
+                    file.unpack_in(hidden_dir).unwrap();
+                    let path = file.path().unwrap();
+                    let full_path = hidden_dir.join(&path);
+                    let hash_dir = full_path.parent().unwrap();
+                    let hash_file = hash_dir.join("HASH");
+                    if path.starts_with("versions/files/") {
+                        if util::fs::is_tabular(&path) {
+                            let df = tabular::read_df(full_path, DFOpts::empty()).unwrap();
+                            log::debug!("Got Tabular Upload {:?} DF {}", path, df);
+                            let hash = util::hasher::compute_tabular_hash(&df);
+                            // log::debug!("Got hash {hash} -> {:?}", path);
+
+                            util::fs::write_to_path(&hash_file, &hash);
+                        } else {
+                            // log::debug!(
+                            //     "Compute hash for file {:?}",
+                            //     full_path
+                            // );
+                            let hash = util::hasher::hash_file_contents(&full_path).unwrap();
+                            // log::debug!(
+                            //     "Computed hash [{hash}] for file {:?}",
+                            //     full_path
+                            // );
+
+                            util::fs::write_to_path(&hash_file, &hash);
+                        }
+                    }
+                } else {
+                    log::error!("Could not unpack file in archive...");
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Could not unpack entries from archive...");
+            log::error!("Err: {:?}", err);
+        }
+    }
+    log::debug!("Done decompressing.");
 }
 
 fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {

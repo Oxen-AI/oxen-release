@@ -344,8 +344,8 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // We want each chunk to be ~= 5mb
-        let avg_chunk_size = 500_000;
+        // We want each chunk to be ~= 10mb
+        let avg_chunk_size = 10_000_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size as u64));
 
@@ -392,6 +392,7 @@ impl EntryIndexer {
                     tar.finish().unwrap();
                     let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
                     let size = buffer.len() as u64;
+                    log::debug!("Got tarball buffer of size {}", size);
 
                     api::remote::commits::post_tarball_to_server(remote_repo, commit, buffer)
                         .await?;
