@@ -200,17 +200,42 @@ pub async fn post_tarball_to_server(
 ) -> Result<(), OxenError> {
     let chunk_size: usize = 5_000_000;
     if buffer.len() > chunk_size {
-        upload_tarball_to_server_in_chunks(remote_repo, commit, buffer, chunk_size).await?;
+        upload_tarball_to_server_in_chunks(remote_repo, commit, &buffer, chunk_size).await?;
     } else {
-        upload_single_tarball_to_server(remote_repo, commit, buffer).await?;
+        let num_retries = 3;
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries)
+            .await?;
     }
     Ok(())
+}
+
+async fn upload_single_tarball_to_server_with_retry(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    buffer: &Vec<u8>,
+    num_retries: usize,
+) -> Result<(), OxenError> {
+    let mut total_tries = 0;
+    while total_tries != num_retries {
+        if upload_single_tarball_to_server(remote_repo, commit, buffer)
+            .await
+            .is_ok()
+        {
+            return Ok(());
+        }
+        total_tries += 1;
+        // Exponentially back off
+        let sleep_time = total_tries * total_tries;
+        std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+    }
+
+    Err(OxenError::basic_str("Upload retry failed."))
 }
 
 async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    buffer: Vec<u8>,
+    buffer: &Vec<u8>,
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -219,7 +244,8 @@ async fn upload_single_tarball_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client.post(url).body(buffer).send().await {
+    // Have to clone for retry logic
+    match client.post(url).body(buffer.clone()).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
@@ -244,31 +270,68 @@ async fn upload_single_tarball_to_server(
 async fn upload_tarball_to_server_in_chunks(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    buffer: Vec<u8>,
+    buffer: &Vec<u8>,
     chunk_size: usize,
 ) -> Result<(), OxenError> {
     let total_size = buffer.len();
     let chunks: Vec<&[u8]> = buffer.chunks(chunk_size).collect();
     let hash = hash_buffer(&buffer);
+    let num_retries = 3;
     for (i, chunk) in chunks.iter().enumerate() {
-        upload_tarball_chunk_to_server(
+        upload_tarball_chunk_to_server_with_retry(
             remote_repo,
             commit,
-            chunk.to_vec(),
+            &chunk.to_vec(),
             &hash,
             i,
             chunks.len(),
             total_size,
+            num_retries,
         )
         .await?;
     }
     Ok(())
 }
 
+async fn upload_tarball_chunk_to_server_with_retry(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    chunk: &Vec<u8>,
+    hash: &str,
+    chunk_num: usize,
+    total_chunks: usize,
+    total_size: usize,
+    num_retries: usize,
+) -> Result<(), OxenError> {
+    let mut total_tries = 0;
+    while total_tries != num_retries {
+        if upload_tarball_chunk_to_server(
+            remote_repo,
+            commit,
+            &chunk.to_vec(),
+            &hash,
+            chunk_num,
+            total_chunks,
+            total_size,
+        )
+        .await
+        .is_ok()
+        {
+            return Ok(());
+        }
+        total_tries += 1;
+        // Exponentially back off
+        let sleep_time = total_tries * total_tries;
+        std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+    }
+
+    Err(OxenError::basic_str("Upload chunk retry failed."))
+}
+
 async fn upload_tarball_chunk_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    chunk: Vec<u8>,
+    chunk: &Vec<u8>,
     hash: &str,
     chunk_num: usize,
     total_chunks: usize,
@@ -284,7 +347,7 @@ async fn upload_tarball_chunk_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client.post(url).body(chunk).send().await {
+    match client.post(url).body(chunk.clone()).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
