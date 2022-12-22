@@ -235,7 +235,7 @@ async fn upload_single_tarball_to_server(
             }
         }
         Err(e) => {
-            let err_str = format!("Err uploading tarball: {:?}", e);
+            let err_str = format!("Err upload_single_tarball_to_server: {:?}", e);
             Err(OxenError::basic_str(err_str))
         }
     }
@@ -300,7 +300,7 @@ async fn upload_tarball_chunk_to_server(
             }
         }
         Err(e) => {
-            let err_str = format!("Err uploading tarball: {:?}", e);
+            let err_str = format!("Err upload_tarball_chunk_to_server: {:?}", e);
             Err(OxenError::basic_str(err_str))
         }
     }
