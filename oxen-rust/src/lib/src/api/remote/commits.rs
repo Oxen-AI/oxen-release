@@ -19,6 +19,13 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 
+struct ChunkParams {
+    chunk_num: usize,
+    total_chunks: usize,
+    total_size: usize,
+    num_retries: usize,
+}
+
 pub async fn get_by_id(
     repository: &RemoteRepository,
     commit_id: &str,
@@ -145,7 +152,7 @@ pub async fn post_commit_to_server(
     // This will be the subdir within the tarball
     let tar_subdir = Path::new("history").join(commit.id.clone());
 
-    let enc = GzEncoder::new(Vec::new(), Compression::fast());
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
     tar.append_dir_all(&tar_subdir, commit_dir)?;
@@ -198,6 +205,7 @@ pub async fn post_tarball_to_server(
     commit: &Commit,
     buffer: Vec<u8>,
 ) -> Result<(), OxenError> {
+    // Chunk into 5mb chunks
     let chunk_size: usize = 5_000_000;
     if buffer.len() > chunk_size {
         upload_tarball_to_server_in_chunks(remote_repo, commit, &buffer, chunk_size).await?;
@@ -212,21 +220,27 @@ pub async fn post_tarball_to_server(
 async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    buffer: &Vec<u8>,
+    buffer: &[u8],
     num_retries: usize,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
     while total_tries != num_retries {
-        if upload_single_tarball_to_server(remote_repo, commit, buffer)
-            .await
-            .is_ok()
-        {
-            return Ok(());
+        match upload_single_tarball_to_server(remote_repo, commit, buffer).await {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                total_tries += 1;
+                // Exponentially back off
+                let sleep_time = total_tries * total_tries;
+                log::debug!(
+                    "upload_single_tarball_to_server_with_retry upload failed sleeping {}: {:?}",
+                    sleep_time,
+                    err
+                );
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+            }
         }
-        total_tries += 1;
-        // Exponentially back off
-        let sleep_time = total_tries * total_tries;
-        std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
     }
 
     Err(OxenError::basic_str("Upload retry failed."))
@@ -235,7 +249,7 @@ async fn upload_single_tarball_to_server_with_retry(
 async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    buffer: &Vec<u8>,
+    buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -244,8 +258,7 @@ async fn upload_single_tarball_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    // Have to clone for retry logic
-    match client.post(url).body(buffer.clone()).send().await {
+    match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
@@ -270,23 +283,26 @@ async fn upload_single_tarball_to_server(
 async fn upload_tarball_to_server_in_chunks(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    buffer: &Vec<u8>,
+    buffer: &[u8],
     chunk_size: usize,
 ) -> Result<(), OxenError> {
     let total_size = buffer.len();
     let chunks: Vec<&[u8]> = buffer.chunks(chunk_size).collect();
-    let hash = hash_buffer(&buffer);
+    let hash = hash_buffer(buffer);
     let num_retries = 3;
     for (i, chunk) in chunks.iter().enumerate() {
+        let params = ChunkParams {
+            chunk_num: i,
+            total_chunks: chunks.len(),
+            total_size,
+            num_retries,
+        };
         upload_tarball_chunk_to_server_with_retry(
             remote_repo,
             commit,
-            &chunk.to_vec(),
+            chunk,
             &hash,
-            i,
-            chunks.len(),
-            total_size,
-            num_retries,
+            params
         )
         .await?;
     }
@@ -296,33 +312,38 @@ async fn upload_tarball_to_server_in_chunks(
 async fn upload_tarball_chunk_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    chunk: &Vec<u8>,
+    chunk: &[u8],
     hash: &str,
-    chunk_num: usize,
-    total_chunks: usize,
-    total_size: usize,
-    num_retries: usize,
+    params: ChunkParams,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
-    while total_tries != num_retries {
-        if upload_tarball_chunk_to_server(
+    while total_tries != params.num_retries {
+        match upload_tarball_chunk_to_server(
             remote_repo,
             commit,
-            &chunk.to_vec(),
-            &hash,
-            chunk_num,
-            total_chunks,
-            total_size,
+            chunk,
+            hash,
+            params.chunk_num,
+            params.total_chunks,
+            params.total_size,
         )
         .await
-        .is_ok()
         {
-            return Ok(());
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                total_tries += 1;
+                // Exponentially back off
+                let sleep_time = total_tries * total_tries;
+                log::debug!(
+                    "upload_tarball_chunk_to_server_with_retry upload failed sleeping {}: {:?}",
+                    sleep_time,
+                    err
+                );
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+            }
         }
-        total_tries += 1;
-        // Exponentially back off
-        let sleep_time = total_tries * total_tries;
-        std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
     }
 
     Err(OxenError::basic_str("Upload chunk retry failed."))
@@ -331,7 +352,7 @@ async fn upload_tarball_chunk_to_server_with_retry(
 async fn upload_tarball_chunk_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    chunk: &Vec<u8>,
+    chunk: &[u8],
     hash: &str,
     chunk_num: usize,
     total_chunks: usize,
@@ -347,7 +368,7 @@ async fn upload_tarball_chunk_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client.post(url).body(chunk.clone()).send().await {
+    match client.post(url).body(chunk.to_owned()).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
