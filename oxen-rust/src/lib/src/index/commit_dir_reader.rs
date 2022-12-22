@@ -172,21 +172,33 @@ impl CommitDirReader {
         path: &Path,
         commit_reader: &CommitReader,
     ) -> Result<DirEntry, OxenError> {
-        // TODO: this may be slow, but can optimize l8r
-        let commit_dir_reader = CommitDirEntryReader::new(&self.repository, &self.commit_id, path)?;
+        let commit = commit_reader.get_commit_by_id(&self.commit_id)?.unwrap();
+        let commit_dir_reader = CommitDirReader::new(&self.repository, &commit)?;
+
+        // Find latest commit within dir and compute recursive size
         let mut latest_commit = None;
-        // TODO: this is not recursive...but does tell you size files at this level of dir
         let mut total_size: u64 = 0;
-        for entry in commit_dir_reader.list_entries()? {
-            total_size += util::fs::version_file_size(&self.repository, &entry)?;
+        // This lists all the committed dirs
+        let dirs = commit_dir_reader.list_committed_dirs()?;
+        for dir in dirs {
+            // Have to make sure we are in a subset of the dir (not really a tree structure)
+            if dir.starts_with(path) {
+                let commit_dir_reader =
+                    CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
+                for entry in commit_dir_reader.list_entries()? {
+                    total_size += util::fs::version_file_size(&self.repository, &entry)?;
 
-            let commit = commit_reader.get_commit_by_id(&entry.commit_id)?;
-            if latest_commit.is_none() {
-                latest_commit = commit.clone();
-            }
+                    let commit = commit_reader.get_commit_by_id(&entry.commit_id)?;
+                    if latest_commit.is_none() {
+                        latest_commit = commit.clone();
+                    }
 
-            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
-                latest_commit = commit.clone();
+                    if latest_commit.as_ref().unwrap().timestamp
+                        > commit.as_ref().unwrap().timestamp
+                    {
+                        latest_commit = commit.clone();
+                    }
+                }
             }
         }
 

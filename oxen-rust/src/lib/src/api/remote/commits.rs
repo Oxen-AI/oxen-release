@@ -297,14 +297,8 @@ async fn upload_tarball_to_server_in_chunks(
             total_size,
             num_retries,
         };
-        upload_tarball_chunk_to_server_with_retry(
-            remote_repo,
-            commit,
-            chunk,
-            &hash,
-            params
-        )
-        .await?;
+        upload_tarball_chunk_to_server_with_retry(remote_repo, commit, chunk, &hash, params)
+            .await?;
     }
     Ok(())
 }
