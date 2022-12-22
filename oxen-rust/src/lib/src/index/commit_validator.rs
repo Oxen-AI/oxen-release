@@ -97,9 +97,9 @@ impl CommitValidator {
             return Ok(false);
         }
 
-        for (i, entry) in entries.iter().enumerate() {
-            log::debug!("has_all_data entry[{i}] {:?}", entry.path);
-        }
+        // for (i, entry) in entries.iter().enumerate() {
+        //     log::debug!("has_all_data entry[{i}] {:?}", entry.path);
+        // }
 
         let n_commit = NewCommit::from_commit(commit); // need this to pass in metadata about commit
         let entries_id = util::hasher::compute_commit_hash(&n_commit, &entries);

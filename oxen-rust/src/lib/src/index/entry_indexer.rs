@@ -344,8 +344,8 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // We want each chunk to be ~= 10mb
-        let avg_chunk_size = 10_000_000;
+        // Size we want each chunk to be
+        let avg_chunk_size = 1_000_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size as u64));
 

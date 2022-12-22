@@ -51,9 +51,9 @@ where
 {
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
     log::debug!("Hashing {} entries", entries.len());
-    for (i, entry) in entries.iter().enumerate() {
+    for (_, entry) in entries.iter().enumerate() {
         let hash = entry.content_hash();
-        log::debug!("Entry [{}] hash {}", i, hash);
+        // log::debug!("Entry [{}] hash {}", i, hash);
 
         let input = hash.as_bytes();
         commit_hasher.update(input);
