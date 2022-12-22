@@ -344,7 +344,7 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // Size we want each chunk to be
+        // Average chunk size of 1mb
         let avg_chunk_size = 1_000_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size as u64));
@@ -360,7 +360,7 @@ impl EntryIndexer {
             .map(|chunk| {
                 async move {
                     // 1) zip up entries into tarballs
-                    let enc = GzEncoder::new(Vec::new(), Compression::fast());
+                    let enc = GzEncoder::new(Vec::new(), Compression::default());
                     let mut tar = tar::Builder::new(enc);
                     for entry in chunk.iter() {
                         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
@@ -380,7 +380,7 @@ impl EntryIndexer {
                             tar.append_path_with_name(version_path, name).unwrap();
                         } else {
                             let version_path = util::fs::version_path(&self.repository, entry);
-                            log::debug!("ZIPPING REGULAR {:?}", version_path);
+                            // log::debug!("ZIPPING REGULAR {:?}", version_path);
                             let name =
                                 util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
