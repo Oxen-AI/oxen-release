@@ -6,7 +6,7 @@ use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::db::path_db;
@@ -176,6 +176,7 @@ impl CommitDirReader {
         let commit_dir_reader = CommitDirReader::new(&self.repository, &commit)?;
 
         // Find latest commit within dir and compute recursive size
+        let commits: HashMap<String, Commit> = HashMap::new();
         let mut latest_commit = None;
         let mut total_size: u64 = 0;
         // This lists all the committed dirs
@@ -188,7 +189,12 @@ impl CommitDirReader {
                 for entry in commit_dir_reader.list_entries()? {
                     total_size += util::fs::version_file_size(&self.repository, &entry)?;
 
-                    let commit = commit_reader.get_commit_by_id(&entry.commit_id)?;
+                    let commit = if commits.contains_key(&entry.commit_id) {
+                        Some(commits[&entry.commit_id].clone())
+                    } else {
+                        commit_reader.get_commit_by_id(&entry.commit_id)?
+                    };
+
                     if latest_commit.is_none() {
                         latest_commit = commit.clone();
                     }
