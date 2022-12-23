@@ -36,7 +36,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
             Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
             Err(err) => {
                 log::debug!("Err: {}", err);
-                Err(OxenError::basic_str(&format!(
+                Err(OxenError::basic_str(format!(
                     "api::repositories::get_by_remote() Could not deserialize repository [{}]",
                     url
                 )))
@@ -79,7 +79,7 @@ pub async fn create<S: AsRef<str>>(
                     "Could not create or find repository [{}]: {}\n{}",
                     name, err, body
                 );
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     } else {
@@ -99,7 +99,7 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(&format!(
+            Err(_) => Err(OxenError::basic_str(format!(
                 "status_code[{}], could not delete repository \n\n{}",
                 status, body
             ))),
@@ -134,7 +134,7 @@ pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
             Ok(j_res) => Ok(Some(j_res.repository_api_url)),
             Err(err) => {
                 log::debug!("Err: {}", err);
-                Err(OxenError::basic_str(&format!(
+                Err(OxenError::basic_str(format!(
                     "api::repositories::resolve_api_url() Could not deserialize repository [{}]",
                     url
                 )))

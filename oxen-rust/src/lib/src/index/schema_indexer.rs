@@ -31,7 +31,7 @@ impl SchemaIndexer {
     pub fn create_index(&self, field: &schema::Field) -> Result<(), OxenError> {
         // Get the data frame of the schema
         let df_path = util::fs::schema_df_path(&self.repository, &self.schema);
-        let content_df = tabular::scan_df(&df_path)?;
+        let content_df = tabular::scan_df(df_path)?;
 
         // Check to make sure the field exists in the schema
         let df_schema = Schema::from_polars(&content_df.schema().unwrap());
@@ -121,7 +121,7 @@ impl SchemaIndexer {
     ) -> Result<Option<DataFrame>, OxenError> {
         // Get the CADF
         let df_path = util::fs::schema_df_path(&self.repository, &self.schema);
-        let content_df = tabular::scan_df(&df_path)?;
+        let content_df = tabular::scan_df(df_path)?;
 
         let mut cols: Vec<Expr> = vec![];
         for f in &self.schema.fields {

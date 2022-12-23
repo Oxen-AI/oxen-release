@@ -80,7 +80,7 @@ pub fn list_remotes_verbose() -> Result<(), OxenError> {
 }
 
 pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::default_or_create()?;
+    let mut config = UserConfig::get_or_create()?;
     config.add_host_auth_token(host, token);
     config.save_default()?;
     println!("Authentication token set for host: {}", host);
@@ -88,14 +88,14 @@ pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
 }
 
 pub fn set_user_name(name: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::default_or_create()?;
+    let mut config = UserConfig::get_or_create()?;
     config.name = String::from(name);
     config.save_default()?;
     Ok(())
 }
 
 pub fn set_user_email(email: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::default_or_create()?;
+    let mut config = UserConfig::get_or_create()?;
     config.email = String::from(email);
     config.save_default()?;
     Ok(())
@@ -106,7 +106,7 @@ pub fn add(paths: Vec<PathBuf>) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     for path in paths {
-        command::add(&repository, &path)?;
+        command::add(&repository, path)?;
     }
 
     Ok(())
@@ -117,7 +117,7 @@ pub fn rm(paths: Vec<PathBuf>) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     for path in paths {
-        command::rm(&repository, &path)?;
+        command::rm(&repository, path)?;
     }
 
     Ok(())

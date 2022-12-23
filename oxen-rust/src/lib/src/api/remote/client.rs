@@ -38,7 +38,7 @@ pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {
 pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenError> {
     let builder = builder();
 
-    let config = UserConfig::default()?;
+    let config = UserConfig::get()?;
     if let Some(auth_token) = config.auth_token_for_host(host.as_ref()) {
         let auth_header = format!("Bearer {}", auth_token);
         let mut auth_value = match header::HeaderValue::from_str(auth_header.as_str()) {
