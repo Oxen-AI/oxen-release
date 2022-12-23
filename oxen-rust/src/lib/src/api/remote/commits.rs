@@ -45,7 +45,7 @@ pub async fn get_by_id(
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),
-            Err(err) => Err(OxenError::basic_str(&format!(
+            Err(err) => Err(OxenError::basic_str(format!(
                 "get_commit_by_id() Could not deserialize response [{}]\n{}",
                 err, body
             ))),
@@ -124,7 +124,7 @@ pub async fn get_remote_parent(
             serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.parents),
-            Err(err) => Err(OxenError::basic_str(&format!(
+            Err(err) => Err(OxenError::basic_str(format!(
                 "get_remote_parent() Could not deserialize response [{}]\n{}",
                 err, body
             ))),
@@ -188,7 +188,7 @@ async fn create_commit_obj_on_server(
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response),
-            Err(_) => Err(OxenError::basic_str(&format!(
+            Err(_) => Err(OxenError::basic_str(format!(
                 "create_commit_obj_on_server Err deserializing status_code[{}] \n\n{}",
                 status, body
             ))),
@@ -267,7 +267,7 @@ async fn upload_single_tarball_to_server(
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
-                Err(_) => Err(OxenError::basic_str(&format!(
+                Err(_) => Err(OxenError::basic_str(format!(
                     "upload_single_tarball_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
                 ))),
@@ -371,7 +371,7 @@ async fn upload_tarball_chunk_to_server(
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
-                Err(_) => Err(OxenError::basic_str(&format!(
+                Err(_) => Err(OxenError::basic_str(format!(
                     "upload_tarball_chunk_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
                 ))),

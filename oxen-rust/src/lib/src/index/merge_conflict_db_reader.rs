@@ -35,7 +35,7 @@ impl MergeConflictDBReader {
                     "MergeConflictDBReader::get_conflict Error reading db\nErr: {}",
                     err
                 );
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     }

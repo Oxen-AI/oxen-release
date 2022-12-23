@@ -33,12 +33,12 @@ impl SchemaIndexWriter {
 
     pub fn create_field_index(&self, field: &Field) -> Result<(), OxenError> {
         let hashed_name = util::hasher::hash_str(&field.name);
-        str_json_db::put(&self.field_indices_db, &hashed_name, field)
+        str_json_db::put(&self.field_indices_db, hashed_name, field)
     }
 
     pub fn delete_field_index(&self, field: &Field) -> Result<(), OxenError> {
         let hashed_name = util::hasher::hash_str(&field.name);
-        str_json_db::delete(&self.field_indices_db, &hashed_name)
+        str_json_db::delete(&self.field_indices_db, hashed_name)
     }
 }
 
