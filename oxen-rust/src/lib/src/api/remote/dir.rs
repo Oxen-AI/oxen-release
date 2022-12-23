@@ -25,13 +25,13 @@ pub async fn list_dir(
         let response: Result<PaginatedDirEntries, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(&format!(
+            Err(_) => Err(OxenError::basic_str(format!(
                 "api::dir::list_dir {} Err status_code[{}] \n\n{}",
                 url, status, body
             ))),
         }
     } else {
         let err = format!("api::dir::list_dir Err request failed: {}", url);
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(err))
     }
 }

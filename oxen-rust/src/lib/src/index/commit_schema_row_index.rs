@@ -578,10 +578,10 @@ impl CommitSchemaRowIndex {
             .map(|(_hash, indices)| indices)
             .collect();
 
-        log::debug!(
-            "sorted_entry_df_with_row_hash file_indices {:?}",
-            file_indices
-        );
+        // log::debug!(
+        //     "sorted_entry_df_with_row_hash file_indices {:?}",
+        //     file_indices
+        // );
 
         let global_indices: Vec<u32> = file_indices
             .clone()
@@ -595,7 +595,7 @@ impl CommitSchemaRowIndex {
                 v
             })
             .collect();
-        log::debug!("file_indices global {:?}", global_indices);
+        // log::debug!("file_indices global {:?}", global_indices);
 
         let local_indices: Vec<u32> = file_indices
             .into_iter()
@@ -605,7 +605,7 @@ impl CommitSchemaRowIndex {
             })
             .collect();
 
-        log::debug!("file_indices local {:?}", local_indices);
+        // log::debug!("file_indices local {:?}", local_indices);
 
         // Project the original file row nums on in a column
         let mut subset = tabular::take(version_df.lazy(), global_indices)?;

@@ -42,7 +42,7 @@ impl UserConfig {
         }
     }
 
-    pub fn default() -> Result<UserConfig, OxenError> {
+    pub fn get() -> Result<UserConfig, OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
             let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
             let mut config_file = oxen_dir.join(Path::new(USER_CONFIG_FILENAME));
@@ -64,8 +64,8 @@ impl UserConfig {
         }
     }
 
-    pub fn default_or_create() -> Result<UserConfig, OxenError> {
-        match Self::default() {
+    pub fn get_or_create() -> Result<UserConfig, OxenError> {
+        match Self::get() {
             Ok(config) => Ok(config),
             Err(_err) => {
                 let config = Self::new_empty();

@@ -24,7 +24,7 @@ impl RefDBReader {
             Ok(None) => Ok(None),
             Err(err) => {
                 let err = format!("{}", err);
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     }

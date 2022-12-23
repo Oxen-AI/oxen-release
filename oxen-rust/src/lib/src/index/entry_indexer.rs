@@ -186,7 +186,7 @@ impl EntryIndexer {
             }
             Err(err) => {
                 let err = format!("Could not push missing commit err: {}", err);
-                return Err(OxenError::basic_str(&err));
+                return Err(OxenError::basic_str(err));
             }
         }
 
@@ -311,7 +311,7 @@ impl EntryIndexer {
             };
 
             // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
-            match fs::metadata(&version_path) {
+            match fs::metadata(version_path) {
                 Ok(metadata) => {
                     total_size += metadata.len();
                 }
@@ -344,10 +344,10 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // We want each chunk to be ~= 5mb
-        let avg_chunk_size = 500_000;
+        // Average chunk size of 1mb
+        let avg_chunk_size = 1_000_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
-        let bar = Arc::new(ProgressBar::new(total_size as u64));
+        let bar = Arc::new(ProgressBar::new(total_size));
 
         let mut chunk_size = entries.len() / num_chunks;
         if num_chunks > entries.len() {
@@ -360,7 +360,7 @@ impl EntryIndexer {
             .map(|chunk| {
                 async move {
                     // 1) zip up entries into tarballs
-                    let enc = GzEncoder::new(Vec::new(), Compression::fast());
+                    let enc = GzEncoder::new(Vec::new(), Compression::default());
                     let mut tar = tar::Builder::new(enc);
                     for entry in chunk.iter() {
                         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
@@ -380,7 +380,7 @@ impl EntryIndexer {
                             tar.append_path_with_name(version_path, name).unwrap();
                         } else {
                             let version_path = util::fs::version_path(&self.repository, entry);
-                            log::debug!("ZIPPING REGULAR {:?}", version_path);
+                            // log::debug!("ZIPPING REGULAR {:?}", version_path);
                             let name =
                                 util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
@@ -392,6 +392,7 @@ impl EntryIndexer {
                     tar.finish().unwrap();
                     let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
                     let size = buffer.len() as u64;
+                    log::debug!("Got tarball buffer of size {}", size);
 
                     api::remote::commits::post_tarball_to_server(remote_repo, commit, buffer)
                         .await?;
@@ -640,7 +641,7 @@ impl EntryIndexer {
             // We want each chunk to be ~= 5mb
             let avg_chunk_size = 500000;
             let num_chunks = ((size / avg_chunk_size) + 1) as usize;
-            let bar = Arc::new(ProgressBar::new(size as u64));
+            let bar = Arc::new(ProgressBar::new(size));
 
             let mut chunk_size = entries.len() / num_chunks;
             if num_chunks > entries.len() {
