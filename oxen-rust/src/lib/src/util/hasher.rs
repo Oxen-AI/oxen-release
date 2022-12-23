@@ -88,7 +88,7 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
                 "util::hasher::hash_file_contents Could not open file {:?}",
                 path
             );
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     }
 }
@@ -114,7 +114,7 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
                 "util::hasher::hash_file_contents Could not open file {:?}",
                 path
             );
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     }
 }

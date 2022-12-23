@@ -49,7 +49,7 @@ impl OxenError {
 
     pub fn remote_repo_not_found<T: AsRef<str>>(url: T) -> OxenError {
         let err = format!("Remote repository does not exist {}", url.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn head_not_found() -> OxenError {
@@ -88,17 +88,17 @@ impl OxenError {
             "\nSchema has changed\n\nOld\n{}\n\nCurrent\n{}\n",
             old_schema, current_schema
         );
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Remote branch `{}` not found", name.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn local_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Local branch `{}` not found", name.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {
@@ -106,22 +106,22 @@ impl OxenError {
             "Commit db corrupted, could not find commit: {}",
             commit_id.as_ref()
         );
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn commit_id_does_not_exist<T: AsRef<str>>(commit_id: T) -> OxenError {
         let err = format!("Could not find commit: {}", commit_id.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn local_parent_link_broken<T: AsRef<str>>(commit_id: T) -> OxenError {
         let err = format!("Broken link to parent commit: {}", commit_id.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File does not exist: {:?}", path.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
@@ -133,17 +133,17 @@ impl OxenError {
             path.as_ref(),
             commit_id.as_ref()
         );
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn file_has_no_parent<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File has no parent: {:?}", path.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn could_not_convert_path_to_str<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File has no name: {:?}", path.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn local_commit_or_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
@@ -151,7 +151,7 @@ impl OxenError {
             "Local branch or commit reference `{}` not found",
             name.as_ref()
         );
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn could_not_find_merge_conflict<P: AsRef<Path>>(path: P) -> OxenError {
@@ -159,27 +159,27 @@ impl OxenError {
             "Could not find merge conflict for path: {:?}",
             path.as_ref()
         );
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn could_not_decode_value_for_key_error<S: AsRef<str>>(key: S) -> OxenError {
         let err = format!("Could not decode value for key: {:?}", key.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn invalid_agg_query<S: AsRef<str>>(query: S) -> OxenError {
         let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 
     pub fn unknown_agg_fn<S: AsRef<str>>(name: S) -> OxenError {
         let err = format!("Unknown aggregation function: {:?}", name.as_ref());
-        OxenError::basic_str(&err)
+        OxenError::basic_str(err)
     }
 }
 

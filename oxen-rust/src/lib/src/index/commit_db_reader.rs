@@ -82,7 +82,7 @@ impl CommitDBReader {
                     "Error commits_db to find commit_id {:?}\nErr: {}",
                     commit_id, err
                 );
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     }

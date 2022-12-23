@@ -186,7 +186,7 @@ impl EntryIndexer {
             }
             Err(err) => {
                 let err = format!("Could not push missing commit err: {}", err);
-                return Err(OxenError::basic_str(&err));
+                return Err(OxenError::basic_str(err));
             }
         }
 
@@ -311,7 +311,7 @@ impl EntryIndexer {
             };
 
             // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
-            match fs::metadata(&version_path) {
+            match fs::metadata(version_path) {
                 Ok(metadata) => {
                     total_size += metadata.len();
                 }
@@ -347,7 +347,7 @@ impl EntryIndexer {
         // Average chunk size of 1mb
         let avg_chunk_size = 1_000_000;
         let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
-        let bar = Arc::new(ProgressBar::new(total_size as u64));
+        let bar = Arc::new(ProgressBar::new(total_size));
 
         let mut chunk_size = entries.len() / num_chunks;
         if num_chunks > entries.len() {
@@ -641,7 +641,7 @@ impl EntryIndexer {
             // We want each chunk to be ~= 5mb
             let avg_chunk_size = 500000;
             let num_chunks = ((size / avg_chunk_size) + 1) as usize;
-            let bar = Arc::new(ProgressBar::new(size as u64));
+            let bar = Arc::new(ProgressBar::new(size));
 
             let mut chunk_size = entries.len() / num_chunks;
             if num_chunks > entries.len() {
