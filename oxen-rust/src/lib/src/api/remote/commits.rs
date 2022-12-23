@@ -4,6 +4,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
+use crate::util::hasher::hash_buffer;
 // use crate::util::ReadProgress;
 use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
 
@@ -13,9 +14,17 @@ use std::time;
 
 use async_compression::futures::bufread::GzipDecoder;
 use async_tar::Archive;
+use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
+
+struct ChunkParams {
+    chunk_num: usize,
+    total_chunks: usize,
+    total_size: usize,
+    num_retries: usize,
+}
 
 pub async fn get_by_id(
     repository: &RemoteRepository,
@@ -36,7 +45,7 @@ pub async fn get_by_id(
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),
-            Err(err) => Err(OxenError::basic_str(&format!(
+            Err(err) => Err(OxenError::basic_str(format!(
                 "get_commit_by_id() Could not deserialize response [{}]\n{}",
                 err, body
             ))),
@@ -115,7 +124,7 @@ pub async fn get_remote_parent(
             serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.parents),
-            Err(err) => Err(OxenError::basic_str(&format!(
+            Err(err) => Err(OxenError::basic_str(format!(
                 "get_remote_parent() Could not deserialize response [{}]\n{}",
                 err, body
             ))),
@@ -129,7 +138,7 @@ pub async fn post_commit_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
-) -> Result<CommitResponse, OxenError> {
+) -> Result<(), OxenError> {
     // First create commit on server
     create_commit_obj_on_server(remote_repo, commit).await?;
 
@@ -149,10 +158,13 @@ pub async fn post_commit_to_server(
     tar.append_dir_all(&tar_subdir, commit_dir)?;
     tar.finish()?;
 
-    println!("Syncing commit {}", commit.id);
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    let response = post_tarball_to_server(remote_repo, commit, buffer).await?;
-    Ok(response)
+    println!(
+        "Syncing commit {} with size {}",
+        commit.id,
+        ByteSize::b(buffer.len() as u64)
+    );
+    post_tarball_to_server(remote_repo, commit, buffer).await
 }
 
 async fn create_commit_obj_on_server(
@@ -176,7 +188,7 @@ async fn create_commit_obj_on_server(
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response),
-            Err(_) => Err(OxenError::basic_str(&format!(
+            Err(_) => Err(OxenError::basic_str(format!(
                 "create_commit_obj_on_server Err deserializing status_code[{}] \n\n{}",
                 status, body
             ))),
@@ -192,6 +204,52 @@ pub async fn post_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: Vec<u8>,
+) -> Result<(), OxenError> {
+    // Chunk into 5mb chunks
+    let chunk_size: usize = 5_000_000;
+    if buffer.len() > chunk_size {
+        upload_tarball_to_server_in_chunks(remote_repo, commit, &buffer, chunk_size).await?;
+    } else {
+        let num_retries = 3;
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries)
+            .await?;
+    }
+    Ok(())
+}
+
+async fn upload_single_tarball_to_server_with_retry(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    buffer: &[u8],
+    num_retries: usize,
+) -> Result<(), OxenError> {
+    let mut total_tries = 0;
+    while total_tries != num_retries {
+        match upload_single_tarball_to_server(remote_repo, commit, buffer).await {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                total_tries += 1;
+                // Exponentially back off
+                let sleep_time = total_tries * total_tries;
+                log::debug!(
+                    "upload_single_tarball_to_server_with_retry upload failed sleeping {}: {:?}",
+                    sleep_time,
+                    err
+                );
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+            }
+        }
+    }
+
+    Err(OxenError::basic_str("Upload retry failed."))
+}
+
+async fn upload_single_tarball_to_server(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -200,23 +258,127 @@ pub async fn post_tarball_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client.post(url).body(buffer).send().await {
+    match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
             let status = res.status();
             let body = res.text().await?;
 
-            log::debug!("post_tarball_to_server got response {}", body);
+            log::debug!("upload_single_tarball_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
-                Err(_) => Err(OxenError::basic_str(&format!(
-                    "post_tarball_to_server Err deserializing status_code[{}] \n\n{}",
+                Err(_) => Err(OxenError::basic_str(format!(
+                    "upload_single_tarball_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
                 ))),
             }
         }
         Err(e) => {
-            let err_str = format!("Err uploading tarball: {:?}", e);
+            let err_str = format!("Err upload_single_tarball_to_server: {:?}", e);
+            Err(OxenError::basic_str(err_str))
+        }
+    }
+}
+
+async fn upload_tarball_to_server_in_chunks(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    buffer: &[u8],
+    chunk_size: usize,
+) -> Result<(), OxenError> {
+    let total_size = buffer.len();
+    let chunks: Vec<&[u8]> = buffer.chunks(chunk_size).collect();
+    let hash = hash_buffer(buffer);
+    let num_retries = 3;
+    for (i, chunk) in chunks.iter().enumerate() {
+        let params = ChunkParams {
+            chunk_num: i,
+            total_chunks: chunks.len(),
+            total_size,
+            num_retries,
+        };
+        upload_tarball_chunk_to_server_with_retry(remote_repo, commit, chunk, &hash, params)
+            .await?;
+    }
+    Ok(())
+}
+
+async fn upload_tarball_chunk_to_server_with_retry(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    chunk: &[u8],
+    hash: &str,
+    params: ChunkParams,
+) -> Result<(), OxenError> {
+    let mut total_tries = 0;
+    while total_tries != params.num_retries {
+        match upload_tarball_chunk_to_server(
+            remote_repo,
+            commit,
+            chunk,
+            hash,
+            params.chunk_num,
+            params.total_chunks,
+            params.total_size,
+        )
+        .await
+        {
+            Ok(_) => {
+                return Ok(());
+            }
+            Err(err) => {
+                total_tries += 1;
+                // Exponentially back off
+                let sleep_time = total_tries * total_tries;
+                log::debug!(
+                    "upload_tarball_chunk_to_server_with_retry upload failed sleeping {}: {:?}",
+                    sleep_time,
+                    err
+                );
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+            }
+        }
+    }
+
+    Err(OxenError::basic_str("Upload chunk retry failed."))
+}
+
+async fn upload_tarball_chunk_to_server(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+    chunk: &[u8],
+    hash: &str,
+    chunk_num: usize,
+    total_chunks: usize,
+    total_size: usize,
+) -> Result<CommitResponse, OxenError> {
+    let uri = format!(
+        "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}",
+        commit.id, chunk_num, total_size, hash, total_chunks
+    );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::builder_for_url(&url)?
+        .timeout(time::Duration::from_secs(120))
+        .build()?;
+
+    match client.post(url).body(chunk.to_owned()).send().await {
+        Ok(res) => {
+            let status = res.status();
+            let body = res.text().await?;
+
+            log::debug!("upload_tarball_chunk_to_server got response {}", body);
+            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(response) => Ok(response),
+                Err(_) => Err(OxenError::basic_str(format!(
+                    "upload_tarball_chunk_to_server Err deserializing status_code[{}] \n\n{}",
+                    status, body
+                ))),
+            }
+        }
+        Err(e) => {
+            let err_str = format!("Err upload_tarball_chunk_to_server: {:?}", e);
             Err(OxenError::basic_str(err_str))
         }
     }
@@ -254,10 +416,7 @@ mod tests {
             .unwrap();
 
             // Post commit
-            let result_commit =
-                api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit)
-                    .await?;
-            assert_eq!(result_commit.commit.id, commit.id);
+            api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit).await?;
 
             Ok(remote_repo)
         })
@@ -327,10 +486,8 @@ mod tests {
             .unwrap();
 
             // Post commit but not the actual files
-            let result_commit =
-                api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit)
-                    .await?;
-            assert_eq!(result_commit.commit.id, commit.id);
+            api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit).await?;
+
             let commit_entry_reader = CommitDirReader::new(&local_repo, &commit)?;
             let num_entries = commit_entry_reader.num_entries()?;
 

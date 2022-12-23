@@ -47,7 +47,7 @@ pub async fn create(
                 serde_json::from_str(&body);
             match response {
                 Ok(result) => Ok(result.entry),
-                Err(_) => Err(OxenError::basic_str(&format!(
+                Err(_) => Err(OxenError::basic_str(format!(
                     "Error deserializing EntryResponse: status_code[{}] \n\n{}",
                     status, body
                 ))),
@@ -55,7 +55,7 @@ pub async fn create(
         }
         Err(err) => {
             let err = format!("api::entries::create err: {}", err);
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     }
 }
@@ -90,11 +90,11 @@ pub async fn download_entries(
                 "api::entries::download_entries Err request failed [{}] {}",
                 status, url
             );
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     } else {
         let err = format!("api::entries::download_entries Err request failed: {}", url);
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(err))
     }
 }
 
@@ -148,7 +148,7 @@ pub async fn download_content_by_ids(
             "api::entries::download_content_by_ids Err request failed: {}",
             url
         );
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(err))
     }
 }
 
@@ -198,7 +198,7 @@ pub async fn download_entry(
         std::fs::copy(fpath, version_path)?;
     } else {
         let err = format!("Could not download entry status: {}", status);
-        return Err(OxenError::basic_str(&err));
+        return Err(OxenError::basic_str(err));
     }
 
     Ok(true)

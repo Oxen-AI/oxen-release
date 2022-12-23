@@ -113,7 +113,7 @@ impl LocalRepository {
             Ok(None) => Ok(None),
             Err(_) => {
                 let err = format!("Could not clone remote {} not found", url);
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     }
@@ -180,7 +180,7 @@ impl LocalRepository {
         let repo_path = dst.join(&repo.name);
         if repo_path.exists() {
             let err = format!("Directory already exists: {}", repo.name);
-            return Err(OxenError::basic_str(&err));
+            return Err(OxenError::basic_str(err));
         }
 
         // if directory does not exist, create it

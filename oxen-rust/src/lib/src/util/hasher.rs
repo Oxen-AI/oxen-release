@@ -51,9 +51,9 @@ where
 {
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
     log::debug!("Hashing {} entries", entries.len());
-    for (i, entry) in entries.iter().enumerate() {
+    for (_, entry) in entries.iter().enumerate() {
         let hash = entry.content_hash();
-        log::debug!("Entry [{}] hash {}", i, hash);
+        // log::debug!("Entry [{}] hash {}", i, hash);
 
         let input = hash.as_bytes();
         commit_hasher.update(input);
@@ -88,7 +88,7 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
                 "util::hasher::hash_file_contents Could not open file {:?}",
                 path
             );
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     }
 }
@@ -114,7 +114,7 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
                 "util::hasher::hash_file_contents Could not open file {:?}",
                 path
             );
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     }
 }

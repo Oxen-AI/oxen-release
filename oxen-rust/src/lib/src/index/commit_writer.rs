@@ -41,7 +41,7 @@ impl CommitWriter {
     }
 
     fn create_commit_data(&self, message: &str) -> Result<NewCommit, OxenError> {
-        let cfg = UserConfig::default()?;
+        let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
         let ref_reader = RefReader::new(&self.repository)?;
         // Commit
@@ -83,7 +83,7 @@ impl CommitWriter {
 
     // Reads commit ids from merge commit files then removes them
     fn create_merge_commit(&self, message: &str) -> Result<NewCommit, OxenError> {
-        let cfg = UserConfig::default()?;
+        let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
         let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
@@ -160,11 +160,7 @@ impl CommitWriter {
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
         log::debug!("gen_commit from {} files", status.added_files.len());
-        let entries: Vec<StagedEntry> = status
-            .added_files
-            .iter()
-            .map(|(_, entry)| entry.clone())
-            .collect();
+        let entries: Vec<StagedEntry> = status.added_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(commit_data, &entries);
         log::debug!("gen_commit id {}", id);
         Commit::from_new_and_id(commit_data, id)
@@ -176,7 +172,7 @@ impl CommitWriter {
         parent_ids: Vec<String>,
         message: &str,
     ) -> Result<Commit, OxenError> {
-        let cfg = UserConfig::default()?;
+        let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
 
         let commit = NewCommit {
@@ -186,11 +182,7 @@ impl CommitWriter {
             email: cfg.email,
             timestamp,
         };
-        let entries: Vec<StagedEntry> = status
-            .added_files
-            .iter()
-            .map(|(_, entry)| entry.clone())
-            .collect();
+        let entries: Vec<StagedEntry> = status.added_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
         self.add_commit_from_status(&commit, status)?;
@@ -407,7 +399,7 @@ impl CommitWriter {
             self.set_working_repo_to_commit_id(&commit_id)
         } else {
             let err = format!("Could not get commit id for branch: {}", name);
-            Err(OxenError::basic_str(&err))
+            Err(OxenError::basic_str(err))
         }
     }
 
@@ -425,7 +417,7 @@ impl CommitWriter {
                     "Error commits_db to find commit_id {:?}\nErr: {}",
                     commit_id, err
                 );
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     }

@@ -120,7 +120,7 @@ pub fn create_empty(
         .join(Path::new(&new_repo.name));
     if repo_dir.exists() {
         let err = format!("Repository already exists {:?}", repo_dir);
-        return Err(OxenError::basic_str(&err));
+        return Err(OxenError::basic_str(err));
     }
 
     // Create the repo dir
@@ -158,7 +158,7 @@ pub fn create_empty(
 pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
     if !repo.path.exists() {
         let err = format!("Repository does not exist {:?}", repo.path);
-        return Err(OxenError::basic_str(&err));
+        return Err(OxenError::basic_str(err));
     }
 
     std::fs::remove_dir_all(&repo.path)?;
