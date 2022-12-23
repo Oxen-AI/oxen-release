@@ -52,7 +52,7 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
                     "Could not create or find branch [{}]: {}\n{}",
                     repository.name, err, body
                 );
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     } else {
@@ -109,7 +109,7 @@ pub async fn update(
                     "Could not update branch [{}]: {}\n{}",
                     repository.name, err, body
                 );
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     } else {
@@ -133,7 +133,7 @@ pub async fn delete(
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(&format!(
+            Err(_) => Err(OxenError::basic_str(format!(
                 "status_code[{}], could not delete branch \n\n{}",
                 status, body
             ))),

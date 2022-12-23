@@ -92,7 +92,7 @@ impl Stager {
         if path == Path::new(".") {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
-                let entry_path = self.repository.path.join(&path);
+                let entry_path = self.repository.path.join(path);
                 self.add(&entry_path, commit_reader)?;
             }
             log::debug!("ADD CURRENT DIR: {:?}", path);
@@ -459,7 +459,7 @@ impl Stager {
                                 let path = dir_entry.path();
                                 let path = util::fs::path_relative_to_dir(&path, &repository.path)
                                     .unwrap();
-                                let is_added = staged_dir_db.has_entry(&path);
+                                let is_added = staged_dir_db.has_entry(path);
                                 // log::debug!(
                                 //     "list_unadded_files_in_dir checking is added? {:?} -> {}",
                                 //     path,
@@ -505,7 +505,7 @@ impl Stager {
     pub fn add_dir(&self, dir: &Path, entry_reader: &CommitDirReader) -> Result<(), OxenError> {
         if !dir.exists() || !dir.is_dir() {
             let err = format!("Cannot stage non-existant dir: {:?}", dir);
-            return Err(OxenError::basic_str(&err));
+            return Err(OxenError::basic_str(err));
         }
 
         // add the the directory to list of dirs we are tracking so that when we find untracked files

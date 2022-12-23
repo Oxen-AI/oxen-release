@@ -80,7 +80,7 @@ impl RefReader {
                     name
                 );
                 let err = format!("{}", err);
-                Err(OxenError::basic_str(&err))
+                Err(OxenError::basic_str(err))
             }
         }
     }

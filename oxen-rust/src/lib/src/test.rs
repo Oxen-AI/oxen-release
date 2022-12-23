@@ -365,12 +365,12 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
-    command::add(&repo, &repo_dir.join("train"))?;
-    command::add(&repo, &repo_dir.join("test"))?;
-    command::add(&repo, &repo_dir.join("annotations"))?;
-    command::add(&repo, &repo_dir.join("nlp"))?;
-    command::add(&repo, &repo_dir.join("labels.txt"))?;
-    command::add(&repo, &repo_dir.join("README.md"))?;
+    command::add(&repo, repo_dir.join("train"))?;
+    command::add(&repo, repo_dir.join("test"))?;
+    command::add(&repo, repo_dir.join("annotations"))?;
+    command::add(&repo, repo_dir.join("nlp"))?;
+    command::add(&repo, repo_dir.join("labels.txt"))?;
+    command::add(&repo, repo_dir.join("README.md"))?;
     command::commit(&repo, "adding all data baby")?;
 
     // Make it easy to find these schemas during testing
@@ -409,13 +409,13 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
-    command::add(&repo, &repo_dir.join("train"))?;
-    command::add(&repo, &repo_dir.join("test"))?;
-    command::add(&repo, &repo_dir.join("annotations"))?;
-    command::add(&repo, &repo_dir.join("nlp"))?;
-    command::add(&repo, &repo_dir.join("labels.txt"))?;
-    command::add(&repo, &repo_dir.join("README.md"))?;
-    command::add_tabular(&repo, &repo_dir.join("annotations/train/bounding_box.csv"))?;
+    command::add(&repo, repo_dir.join("train"))?;
+    command::add(&repo, repo_dir.join("test"))?;
+    command::add(&repo, repo_dir.join("annotations"))?;
+    command::add(&repo, repo_dir.join("nlp"))?;
+    command::add(&repo, repo_dir.join("labels.txt"))?;
+    command::add(&repo, repo_dir.join("README.md"))?;
+    command::add_tabular(&repo, repo_dir.join("annotations/train/bounding_box.csv"))?;
 
     command::commit(&repo, "adding all data baby")?;
 
@@ -706,7 +706,7 @@ I am a great testing example	positive
 pub fn add_file_to_dir(dir: &Path, contents: &str, extension: &str) -> Result<PathBuf, OxenError> {
     // Generate random name, because tests run in parallel, then return that name
     let file_path = PathBuf::from(format!("{}.{extension}", uuid::Uuid::new_v4()));
-    let full_path = dir.join(&file_path);
+    let full_path = dir.join(file_path);
     // println!("add_txt_file_to_dir: {:?} to {:?}", file_path, full_path);
 
     let mut file = File::create(&full_path)?;
@@ -779,13 +779,13 @@ pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, Oxen
             uuid::Uuid::new_v4(),
             ext.to_str().unwrap()
         ));
-        let full_new_path = dir.join(&new_path);
+        let full_new_path = dir.join(new_path);
 
         // println!("COPY FILE FROM {:?} => {:?}", file_path, full_new_path);
         std::fs::copy(file_path, &full_new_path)?;
         Ok(full_new_path)
     } else {
         let err = format!("Unknown extension file: {:?}", file_path);
-        Err(OxenError::basic_str(&err))
+        Err(OxenError::basic_str(err))
     }
 }
