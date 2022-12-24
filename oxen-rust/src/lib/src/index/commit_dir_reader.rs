@@ -187,7 +187,7 @@ impl CommitDirReader {
                 let commit_dir_reader =
                     CommitDirEntryReader::new(&self.repository, &self.commit_id, &dir)?;
                 for entry in commit_dir_reader.list_entries()? {
-                    total_size += util::fs::version_file_size(&self.repository, &entry)?;
+                    total_size += entry.num_bytes;
 
                     let commit = if commits.contains_key(&entry.commit_id) {
                         Some(commits[&entry.commit_id].clone())
