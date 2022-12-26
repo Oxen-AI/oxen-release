@@ -2735,54 +2735,55 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
     })
 }
 
-// #[test]
-// fn test_diff_tabular_add_col() -> Result<(), OxenError> {
-//     test::run_training_data_repo_test_fully_committed(|repo| {
-//         let bbox_filename = Path::new("annotations")
-//             .join("train")
-//             .join("bounding_box.csv");
-//         let bbox_file = repo.path.join(&bbox_filename);
+// TODO: More tabular diff tests
+#[test]
+fn test_diff_tabular_add_col() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
 
-//         let mut opts = DFOpts::empty();
-//         // Add Column
-//         opts.add_col = Some(String::from("is_cute:unknown:str"));
-//         // Save to Output
-//         opts.output = Some(bbox_file.clone());
-//         // Perform df transform
-//         command::df(bbox_file, opts)?;
+        let mut opts = DFOpts::empty();
+        // Add Column
+        opts.add_col = Some(String::from("is_cute:unknown:str"));
+        // Save to Output
+        opts.output = Some(bbox_file.clone());
+        // Perform df transform
+        command::df(bbox_file, opts)?;
 
-//         let diff = command::diff(&repo, None, &bbox_filename);
-//         assert!(diff.is_ok());
-//         let diff = diff.unwrap();
-//         assert_eq!(
-//             diff,
-//             r"Added Columns
+        let diff = command::diff(&repo, None, &bbox_filename);
+        assert!(diff.is_ok());
+        let diff = diff.unwrap();
+        assert_eq!(
+            diff,
+            r"Added Columns
 
-// shape: (6, 1)
-// ┌─────────┐
-// │ is_cute │
-// │ ---     │
-// │ str     │
-// ╞═════════╡
-// │ unknown │
-// ├╌╌╌╌╌╌╌╌╌┤
-// │ unknown │
-// ├╌╌╌╌╌╌╌╌╌┤
-// │ unknown │
-// ├╌╌╌╌╌╌╌╌╌┤
-// │ unknown │
-// ├╌╌╌╌╌╌╌╌╌┤
-// │ unknown │
-// ├╌╌╌╌╌╌╌╌╌┤
-// │ unknown │
-// └─────────┘
+shape: (6, 1)
+┌─────────┐
+│ is_cute │
+│ ---     │
+│ str     │
+╞═════════╡
+│ unknown │
+├╌╌╌╌╌╌╌╌╌┤
+│ unknown │
+├╌╌╌╌╌╌╌╌╌┤
+│ unknown │
+├╌╌╌╌╌╌╌╌╌┤
+│ unknown │
+├╌╌╌╌╌╌╌╌╌┤
+│ unknown │
+├╌╌╌╌╌╌╌╌╌┤
+│ unknown │
+└─────────┘
 
-// "
-//         );
+"
+        );
 
-//         Ok(())
-//     })
-// }
+        Ok(())
+    })
+}
 
 #[test]
 fn test_status_rm_regular_file() -> Result<(), OxenError> {

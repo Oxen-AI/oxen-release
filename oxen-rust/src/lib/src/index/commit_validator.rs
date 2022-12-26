@@ -1,6 +1,5 @@
-use crate::df::{DFOpts, tabular};
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, SchemaReader};
+use crate::index::CommitDirReader;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 
@@ -51,31 +50,7 @@ impl CommitValidator {
                 continue;
             }
 
-            // let hash = if util::fs::is_tabular(&entry.path) {
-            //     let df_path = util::fs::df_version_path(&self.repository, entry);
-            //     if !df_path.exists() {
-            //         log::error!(
-            //             "Could not find df version path for {:?} -> {:?}",
-            //             entry.path,
-            //             df_path
-            //         );
-            //         return Ok(None);
-            //     }
-
-            //     util::hasher::hash_file_contents(&df_path)?
-            // } else {
-            //     if !version_path.exists() {
-            //         log::error!(
-            //             "Could not find version path for {:?} -> {:?}",
-            //             entry.path,
-            //             version_path
-            //         );
-            //         return Ok(None);
-            //     }
-
             let hash = util::hasher::hash_file_contents(&version_path)?;
-            // };
-
             // log::debug!("Got hash: {:?} -> {}", entry.path, hash);
 
             hashes.push(SimpleHash { hash })

@@ -1,10 +1,9 @@
 use filetime::FileTime;
 use std::path::Path;
 
-use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
+use crate::index::Stager;
 use crate::index::{CommitDirEntryWriter, CommitDirReader};
-use crate::index::{Stager};
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util::{self, resource};
@@ -76,13 +75,8 @@ pub fn restore_file(
     commit_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
-    // if util::fs::is_tabular(&entry.path) {
-    //     // Custom logic to restore tabular
-    //     restore_tabular(repo, path, entry)?;
-    // } else {
-        // just copy data back over if !tabular
-        restore_regular(repo, path, entry)?;
-    // }
+    // copy data back over
+    restore_regular(repo, path, entry)?;
 
     // Update the local modified timestamps
     let dir = path.parent().unwrap();
@@ -103,19 +97,5 @@ fn restore_regular(
     let version_path = util::fs::version_path(repo, entry);
     let working_path = repo.path.join(path);
     std::fs::copy(version_path, working_path)?;
-    Ok(())
-}
-
-fn restore_tabular(
-    repo: &LocalRepository,
-    path: &Path,
-    entry: &CommitEntry,
-) -> Result<(), OxenError> {
-    let df_path = util::fs::df_version_path(repo, entry);
-    let mut df = tabular::read_df(df_path, DFOpts::empty())?;
-    log::debug!("Restore DF! {}", df);
-    let working_path = repo.path.join(path);
-    log::debug!("Write to {:?}", working_path);
-    tabular::write_df(&mut df, &working_path)?;
     Ok(())
 }
