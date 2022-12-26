@@ -1,5 +1,6 @@
+use crate::df::{DFOpts, tabular};
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, CommitSchemaRowIndex, SchemaReader};
+use crate::index::{CommitDirReader, SchemaReader};
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 
@@ -50,29 +51,30 @@ impl CommitValidator {
                 continue;
             }
 
-            let hash = if util::fs::is_tabular(&entry.path) {
-                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
-                let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
-                let reader = CommitSchemaRowIndex::new(
-                    &self.repository,
-                    &entry.commit_id,
-                    &schema,
-                    &entry.path,
-                )?;
-                let df = reader.sorted_entry_df_with_row_hash()?;
-                util::hasher::compute_tabular_hash(&df)
-            } else {
-                if !version_path.exists() {
-                    log::debug!(
-                        "Could not find version path for {:?} -> {:?}",
-                        entry.path,
-                        version_path
-                    );
-                    return Ok(None);
-                }
+            // let hash = if util::fs::is_tabular(&entry.path) {
+            //     let df_path = util::fs::df_version_path(&self.repository, entry);
+            //     if !df_path.exists() {
+            //         log::error!(
+            //             "Could not find df version path for {:?} -> {:?}",
+            //             entry.path,
+            //             df_path
+            //         );
+            //         return Ok(None);
+            //     }
 
-                util::hasher::hash_file_contents(&version_path)?
-            };
+            //     util::hasher::hash_file_contents(&df_path)?
+            // } else {
+            //     if !version_path.exists() {
+            //         log::error!(
+            //             "Could not find version path for {:?} -> {:?}",
+            //             entry.path,
+            //             version_path
+            //         );
+            //         return Ok(None);
+            //     }
+
+            let hash = util::hasher::hash_file_contents(&version_path)?;
+            // };
 
             // log::debug!("Got hash: {:?} -> {}", entry.path, hash);
 

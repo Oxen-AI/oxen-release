@@ -35,9 +35,10 @@ pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
         .join(&schema.hash)
 }
 
-pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
-    schema_version_dir(repo, schema).join(DATA_ARROW_FILE)
-}
+// NOTE: This was for CADF, was too inefficient for now
+// pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
+//     schema_version_dir(repo, schema).join(DATA_ARROW_FILE)
+// }
 
 pub fn version_path_for_commit_id(
     repo: &LocalRepository,
@@ -48,12 +49,12 @@ pub fn version_path_for_commit_id(
         Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
             Some(entry) => {
                 let path = version_path(repo, &entry);
-                if is_tabular(filepath) {
-                    let data_file = path.parent().unwrap().join(DATA_ARROW_FILE);
-                    Ok(data_file)
-                } else {
-                    Ok(path)
-                }
+                // if is_tabular(filepath) {
+                //     let data_file = path.parent().unwrap().join(DATA_ARROW_FILE);
+                //     Ok(data_file)
+                // } else {
+                Ok(path)
+                // }
             }
             None => Err(OxenError::file_does_not_exist(filepath)),
         },
@@ -63,28 +64,33 @@ pub fn version_path_for_commit_id(
 
 pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<u64, OxenError> {
     let version_path = version_path(repo, entry);
-    if is_tabular(&version_path) {
-        let data_file = version_path.parent().unwrap().join(DATA_ARROW_FILE);
-        if !data_file.exists() {
-            // just for unit tests to pass for now, we only really call file size from the server
-            // on the client we don't have the data.arrow file and would have to compute size on the fly
-            // but a warning for now should be good
-            log::warn!("TODO: compute size of data file: {:?}", data_file);
-            return Ok(0);
-        }
-        let meta = std::fs::metadata(&data_file)?;
-        Ok(meta.len())
-    } else {
+    // if is_tabular(&version_path) {
+    //     let data_file = version_path.parent().unwrap().join(DATA_ARROW_FILE);
+    //     if !data_file.exists() {
+    //         // just for unit tests to pass for now, we only really call file size from the server
+    //         // on the client we don't have the data.arrow file and would have to compute size on the fly
+    //         // but a warning for now should be good
+    //         log::warn!("TODO: compute size of data file: {:?}", data_file);
+    //         return Ok(0);
+    //     }
+    //     let meta = std::fs::metadata(&data_file)?;
+    //     Ok(meta.len())
+    // } else {
         if !version_path.exists() {
             return Err(OxenError::file_does_not_exist(version_path));
         }
         let meta = std::fs::metadata(&version_path)?;
         Ok(meta.len())
-    }
+    // }
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(repo, entry.hash.clone(), entry.filename())
+}
+
+pub fn df_version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
+    let version_dir = version_dir_from_hash(repo, entry.hash.clone());
+    version_dir.join(DATA_ARROW_FILE)
 }
 
 pub fn version_path_from_hash_and_file(

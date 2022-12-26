@@ -671,14 +671,7 @@ impl Stager {
         }
 
         // compute the hash to know if it has changed
-        // TODO: Look where all this is used, and abstract away....
-        let hash = if util::fs::is_tabular(path) {
-            let df = tabular::read_df(path, DFOpts::empty())?;
-            let df = tabular::df_hash_rows(df)?;
-            util::hasher::compute_tabular_hash(&df)
-        } else {
-            util::hasher::hash_file_contents(path)?
-        };
+        let hash = util::hasher::hash_file_contents(path)?;
 
         // Key is the filename relative to the repository
         // if repository: /Users/username/Datasets/MyRepo

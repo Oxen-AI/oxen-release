@@ -7,7 +7,7 @@ use colored::Colorize;
 use difference::{Changeset, Difference};
 use std::path::Path;
 
-use super::{CommitSchemaRowIndex, SchemaReader};
+use super::{SchemaReader};
 
 pub fn diff(
     repo: &LocalRepository,
@@ -101,24 +101,26 @@ pub fn diff_tabular(
 ) -> Result<String, OxenError> {
     let schema_reader = SchemaReader::new(repo, &commit.id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(path)? {
-        let diff = CommitSchemaRowIndex::diff_current(repo, &schema, commit, path)?;
+        // TODO: fix with arrow datafusion?
+
+        // let diff = CommitSchemaRowIndex::diff_current(repo, &schema, commit, path)?;
 
         let mut results: Vec<String> = vec![];
-        if let Some(rows) = diff.added_rows {
-            results.push(format!("Added Rows\n\n{}\n\n", rows));
-        }
+        // if let Some(rows) = diff.added_rows {
+        //     results.push(format!("Added Rows\n\n{}\n\n", rows));
+        // }
 
-        if let Some(rows) = diff.removed_rows {
-            results.push(format!("Removed Rows\n\n{}\n\n", rows));
-        }
+        // if let Some(rows) = diff.removed_rows {
+        //     results.push(format!("Removed Rows\n\n{}\n\n", rows));
+        // }
 
-        if let Some(cols) = diff.added_cols {
-            results.push(format!("Added Columns\n\n{}\n\n", cols));
-        }
+        // if let Some(cols) = diff.added_cols {
+        //     results.push(format!("Added Columns\n\n{}\n\n", cols));
+        // }
 
-        if let Some(cols) = diff.removed_cols {
-            results.push(format!("Removed Columns\n\n{}\n\n", cols));
-        }
+        // if let Some(cols) = diff.removed_cols {
+        //     results.push(format!("Removed Columns\n\n{}\n\n", cols));
+        // }
 
         Ok(results.join("\n"))
     } else {
