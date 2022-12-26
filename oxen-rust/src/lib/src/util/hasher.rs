@@ -1,8 +1,6 @@
-use crate::constants;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
-use polars::prelude::DataFrame;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;

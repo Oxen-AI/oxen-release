@@ -7,7 +7,7 @@ use colored::Colorize;
 use difference::{Changeset, Difference};
 use std::path::Path;
 
-use super::{SchemaReader};
+use super::SchemaReader;
 
 pub fn diff(
     repo: &LocalRepository,

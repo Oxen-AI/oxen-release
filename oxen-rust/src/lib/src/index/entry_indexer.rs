@@ -6,7 +6,6 @@ use flate2::Compression;
 use futures::{stream, StreamExt};
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
-use polars::prelude::IntoLazy;
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
@@ -14,14 +13,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::api;
-use crate::constants::{DATA_ARROW_FILE, HISTORY_DIR};
-use crate::df::{tabular, DFOpts};
+use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader,
-    CommitWriter, RefReader, RefWriter, SchemaReader,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter,
+    RefReader, RefWriter,
 };
-use crate::model::{schema, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 
 pub struct EntryIndexer {
@@ -282,7 +280,7 @@ impl EntryIndexer {
             // let version_path = if util::fs::is_tabular(&entry.path) {
             //     util::fs::df_version_path(&self.repository, entry)
             // } else {
-                // not tabular, regular file
+            // not tabular, regular file
             let version_path = util::fs::version_path(&self.repository, entry);
             // };
 
@@ -351,12 +349,12 @@ impl EntryIndexer {
 
                         //     tar.append_path_with_name(version_path, name).unwrap();
                         // } else {
-                            let version_path = util::fs::version_path(&self.repository, entry);
-                            // log::debug!("ZIPPING REGULAR {:?}", version_path);
-                            let name =
-                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                        let version_path = util::fs::version_path(&self.repository, entry);
+                        // log::debug!("ZIPPING REGULAR {:?}", version_path);
+                        let name =
+                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                            tar.append_path_with_name(version_path, name).unwrap();
+                        tar.append_path_with_name(version_path, name).unwrap();
                         // }
                     }
 
@@ -672,37 +670,18 @@ impl EntryIndexer {
                         log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                         let version_path = util::fs::version_path(&self.repository, entry);
                         // We will unpack tabular later into CADF
-                        // if !util::fs::is_tabular(&entry.path)
-                        // {
-                            if std::fs::copy(&version_path, &filepath).is_err() {
-                                log::error!(
-                                    "Could not unpack file {:?} -> {:?}",
-                                    version_path,
-                                    filepath
-                                );
-                            }
-                        // } else {
-                        //     let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
-                        //     let hash_results_file = version_dir.join(DATA_ARROW_FILE);
-                        //     if !hash_results_file.exists() {
-                        //         log::error!("pull_entries_for_commit no tmp data file for entry {:?} -> {:?}", entry.path, hash_results_file);
-                        //         return;
-                        //     }
+                        if std::fs::copy(&version_path, &filepath).is_err() {
+                            log::error!(
+                                "Could not unpack file {:?} -> {:?}",
+                                version_path,
+                                filepath
+                            );
+                        }
 
-                        //     let mut df = tabular::read_df(&hash_results_file, DFOpts::empty()).unwrap();
-                        //     let schema = schema::Schema::from_polars(&df.schema());
-                        //     let filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
-                        //     df = tabular::transform_df(df.lazy(), filter).unwrap();
-
-                        //     // Need to restore parent dir
-                        //     if let Some(parent) = filepath.parent() {
-                        //         std::fs::create_dir_all(parent).unwrap();
-                        //     }
-                        //     log::debug!("Restoring tabular {:?} -> {}\nto path {:?}", entry.path, df, filepath);
-                        //     tabular::write_df(&mut df, &filepath).unwrap();
-                        // }
-
-                        log::debug!("pull_entries_for_commit updating timestamp for {:?}", filepath);
+                        log::debug!(
+                            "pull_entries_for_commit updating timestamp for {:?}",
+                            filepath
+                        );
                         if filepath.exists() {
                             let metadata = fs::metadata(filepath).unwrap();
                             let mtime = FileTime::from_last_modification_time(&metadata);

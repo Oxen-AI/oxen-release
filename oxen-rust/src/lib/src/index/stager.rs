@@ -7,8 +7,6 @@ use crate::index::{
     StagedDirEntryDB,
 };
 
-use crate::df::tabular;
-use crate::df::DFOpts;
 use crate::model::{
     CommitEntry, EntryType, LocalRepository, MergeConflict, StagedData, StagedDirStats,
     StagedEntry, StagedEntryStatus,

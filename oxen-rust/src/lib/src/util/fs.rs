@@ -76,11 +76,11 @@ pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<
     //     let meta = std::fs::metadata(&data_file)?;
     //     Ok(meta.len())
     // } else {
-        if !version_path.exists() {
-            return Err(OxenError::file_does_not_exist(version_path));
-        }
-        let meta = std::fs::metadata(&version_path)?;
-        Ok(meta.len())
+    if !version_path.exists() {
+        return Err(OxenError::file_does_not_exist(version_path));
+    }
+    let meta = std::fs::metadata(&version_path)?;
+    Ok(meta.len())
     // }
 }
 

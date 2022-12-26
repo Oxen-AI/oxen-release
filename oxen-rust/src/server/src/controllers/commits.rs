@@ -1,8 +1,6 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants::HISTORY_DIR;
-use liboxen::df::tabular;
-use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::{CommitValidator, CommitWriter};
 use liboxen::model::{Commit, LocalRepository};
