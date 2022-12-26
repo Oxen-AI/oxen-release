@@ -35,7 +35,7 @@ pub use crate::index::commit_validator::CommitValidator;
 pub use crate::index::commit_writer::CommitWriter;
 pub use crate::index::entry_indexer::EntryIndexer;
 
-pub use crate::index::commit_schema_row_index::CommitSchemaRowIndex;
+// pub use crate::index::commit_schema_row_index::CommitSchemaRowIndex;
 pub use crate::index::merge_conflict_db_reader::MergeConflictDBReader;
 pub use crate::index::merge_conflict_reader::MergeConflictReader;
 pub use crate::index::merger::Merger;
@@ -46,7 +46,7 @@ pub use crate::index::restore::restore;
 pub use crate::index::schema_field_val_index::SchemaFieldValIndex;
 pub use crate::index::schema_index_reader::SchemaIndexReader;
 pub use crate::index::schema_index_writer::SchemaIndexWriter;
-pub use crate::index::schema_indexer::SchemaIndexer;
+// pub use crate::index::schema_indexer::SchemaIndexer;
 pub use crate::index::schema_reader::SchemaReader;
 pub use crate::index::schema_writer::SchemaWriter;
 pub use crate::index::staged_dir_entry_db::StagedDirEntryDB;

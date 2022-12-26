@@ -604,26 +604,8 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     let hash_dir = full_path.parent().unwrap();
                     let hash_file = hash_dir.join("HASH");
                     if path.starts_with("versions/files/") {
-                        if util::fs::is_tabular(&path) {
-                            let df = tabular::read_df(full_path, DFOpts::empty()).unwrap();
-                            log::debug!("Got Tabular Upload {:?} DF {}", path, df);
-                            let hash = util::hasher::compute_tabular_hash(&df);
-                            // log::debug!("Got hash {hash} -> {:?}", path);
-
-                            util::fs::write_to_path(&hash_file, &hash);
-                        } else {
-                            // log::debug!(
-                            //     "Compute hash for file {:?}",
-                            //     full_path
-                            // );
-                            let hash = util::hasher::hash_file_contents(&full_path).unwrap();
-                            // log::debug!(
-                            //     "Computed hash [{hash}] for file {:?}",
-                            //     full_path
-                            // );
-
-                            util::fs::write_to_path(&hash_file, &hash);
-                        }
+                        let hash = util::hasher::hash_file_contents(&full_path).unwrap();
+                        util::fs::write_to_path(&hash_file, &hash);
                     }
                 } else {
                     log::error!("Could not unpack file in archive...");

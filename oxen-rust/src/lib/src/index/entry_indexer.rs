@@ -19,12 +19,10 @@ use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
 use crate::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader,
-    CommitSchemaRowIndex, CommitWriter, RefReader, RefWriter, SchemaReader,
+    CommitWriter, RefReader, RefWriter, SchemaReader,
 };
 use crate::model::{schema, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
-
-use super::CommitEntryWriter;
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -281,34 +279,12 @@ impl EntryIndexer {
         println!("🐂 push computing size...");
         for entry in entries.iter() {
             // If tabular, we save off data file that we are going to push, and compute size off of
-            let version_path = if util::fs::is_tabular(&entry.path) {
-                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
-                log::debug!("Looking up schema for file: {:?}", entry.path);
-                let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
-                log::debug!("Got schema: {:?} -> {:?}", entry.path, schema);
-
-                let reader = CommitSchemaRowIndex::new(
-                    &self.repository,
-                    &entry.commit_id,
-                    &schema,
-                    &entry.path,
-                )?;
-                let mut df = reader.sorted_entry_df_with_row_hash()?;
-
-                log::debug!("Saving and computing size for DF {}", df);
-                log::debug!("Got df to version path {}", df);
-
-                // save DataFrame to disk in it's proper version dir
-                let version_path =
-                    util::fs::version_dir_from_hash(&self.repository, entry.hash.clone())
-                        .join(DATA_ARROW_FILE);
-                tabular::write_df(&mut df, &version_path)?;
-
-                version_path
-            } else {
+            // let version_path = if util::fs::is_tabular(&entry.path) {
+            //     util::fs::df_version_path(&self.repository, entry)
+            // } else {
                 // not tabular, regular file
-                util::fs::version_path(&self.repository, entry)
-            };
+            let version_path = util::fs::version_path(&self.repository, entry);
+            // };
 
             // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
             match fs::metadata(version_path) {
@@ -365,27 +341,23 @@ impl EntryIndexer {
                     for entry in chunk.iter() {
                         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
 
-                        if util::fs::is_tabular(&entry.path) {
-                            // TODO: Look into apache arrow flight for more efficient transfer of CADF
-                            let version_path = util::fs::version_dir_from_hash(
-                                &self.repository,
-                                entry.hash.clone(),
-                            )
-                            .join(DATA_ARROW_FILE);
-                            log::debug!("ZIPPING TABULAR {:?}", version_path);
+                        // if util::fs::is_tabular(&entry.path) {
+                        //     // TODO: Look into apache arrow flight for more efficient transfer of arrow files
+                        //     let version_path = util::fs::df_version_path(&self.repository, &entry);
+                        //     log::debug!("ZIPPING TABULAR {:?} -> {:?}", entry.path, version_path);
 
-                            let name =
-                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                        //     let name =
+                        //         util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                            tar.append_path_with_name(version_path, name).unwrap();
-                        } else {
+                        //     tar.append_path_with_name(version_path, name).unwrap();
+                        // } else {
                             let version_path = util::fs::version_path(&self.repository, entry);
                             // log::debug!("ZIPPING REGULAR {:?}", version_path);
                             let name =
                                 util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                             tar.append_path_with_name(version_path, name).unwrap();
-                        }
+                        // }
                     }
 
                     // TODO: Clean this up... many places it could fail, but just want to get something working
@@ -700,8 +672,8 @@ impl EntryIndexer {
                         log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                         let version_path = util::fs::version_path(&self.repository, entry);
                         // We will unpack tabular later into CADF
-                        if !util::fs::is_tabular(&entry.path)
-                        {
+                        // if !util::fs::is_tabular(&entry.path)
+                        // {
                             if std::fs::copy(&version_path, &filepath).is_err() {
                                 log::error!(
                                     "Could not unpack file {:?} -> {:?}",
@@ -709,26 +681,26 @@ impl EntryIndexer {
                                     filepath
                                 );
                             }
-                        } else {
-                            let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
-                            let hash_results_file = version_dir.join(DATA_ARROW_FILE);
-                            if !hash_results_file.exists() {
-                                log::error!("pull_entries_for_commit no tmp data file for entry {:?} -> {:?}", entry.path, hash_results_file);
-                                return;
-                            }
+                        // } else {
+                        //     let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
+                        //     let hash_results_file = version_dir.join(DATA_ARROW_FILE);
+                        //     if !hash_results_file.exists() {
+                        //         log::error!("pull_entries_for_commit no tmp data file for entry {:?} -> {:?}", entry.path, hash_results_file);
+                        //         return;
+                        //     }
 
-                            let mut df = tabular::read_df(&hash_results_file, DFOpts::empty()).unwrap();
-                            let schema = schema::Schema::from_polars(&df.schema());
-                            let filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
-                            df = tabular::transform_df(df.lazy(), filter).unwrap();
+                        //     let mut df = tabular::read_df(&hash_results_file, DFOpts::empty()).unwrap();
+                        //     let schema = schema::Schema::from_polars(&df.schema());
+                        //     let filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
+                        //     df = tabular::transform_df(df.lazy(), filter).unwrap();
 
-                            // Need to restore parent dir
-                            if let Some(parent) = filepath.parent() {
-                                std::fs::create_dir_all(parent).unwrap();
-                            }
-                            log::debug!("Restoring tabular {:?} -> {}\nto path {:?}", entry.path, df, filepath);
-                            tabular::write_df(&mut df, &filepath).unwrap();
-                        }
+                        //     // Need to restore parent dir
+                        //     if let Some(parent) = filepath.parent() {
+                        //         std::fs::create_dir_all(parent).unwrap();
+                        //     }
+                        //     log::debug!("Restoring tabular {:?} -> {}\nto path {:?}", entry.path, df, filepath);
+                        //     tabular::write_df(&mut df, &filepath).unwrap();
+                        // }
 
                         log::debug!("pull_entries_for_commit updating timestamp for {:?}", filepath);
                         if filepath.exists() {
@@ -746,18 +718,8 @@ impl EntryIndexer {
             bar.finish();
         }
 
-        // Unpack tabular data
-        self.unpack_tabular(commit)?;
-
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
-
-        Ok(())
-    }
-
-    fn unpack_tabular(&self, commit: &Commit) -> Result<(), OxenError> {
-        let writer = CommitEntryWriter::new(&self.repository, commit)?;
-        writer.aggregate_row_level_results()?;
 
         Ok(())
     }

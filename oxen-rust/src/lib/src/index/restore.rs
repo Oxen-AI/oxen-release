@@ -1,10 +1,10 @@
 use filetime::FileTime;
 use std::path::Path;
 
-use crate::df::tabular;
+use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
 use crate::index::{CommitDirEntryWriter, CommitDirReader};
-use crate::index::{CommitSchemaRowIndex, SchemaReader, Stager};
+use crate::index::{Stager};
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util::{self, resource};
@@ -76,13 +76,13 @@ pub fn restore_file(
     commit_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
-    if util::fs::is_tabular(&entry.path) {
-        // Custom logic to restore tabular
-        restore_tabular(repo, path, commit_id, entry)?;
-    } else {
+    // if util::fs::is_tabular(&entry.path) {
+    //     // Custom logic to restore tabular
+    //     restore_tabular(repo, path, entry)?;
+    // } else {
         // just copy data back over if !tabular
         restore_regular(repo, path, entry)?;
-    }
+    // }
 
     // Update the local modified timestamps
     let dir = path.parent().unwrap();
@@ -109,22 +109,13 @@ fn restore_regular(
 fn restore_tabular(
     repo: &LocalRepository,
     path: &Path,
-    commit_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
-    let schema_reader = SchemaReader::new(repo, commit_id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-        let row_index_reader = CommitSchemaRowIndex::new(repo, commit_id, &schema, &entry.path)?;
-        let mut df = row_index_reader.entry_df()?;
-        log::debug!("Got subset! {}", df);
-        let working_path = repo.path.join(path);
-        log::debug!("Write to {:?}", working_path);
-        tabular::write_df(&mut df, &working_path)?;
-    } else {
-        log::error!(
-            "Could not restore tabular file, no schema found for file {:?}",
-            entry.path
-        );
-    }
+    let df_path = util::fs::df_version_path(repo, entry);
+    let mut df = tabular::read_df(df_path, DFOpts::empty())?;
+    log::debug!("Restore DF! {}", df);
+    let working_path = repo.path.join(path);
+    log::debug!("Write to {:?}", working_path);
+    tabular::write_df(&mut df, &working_path)?;
     Ok(())
 }
