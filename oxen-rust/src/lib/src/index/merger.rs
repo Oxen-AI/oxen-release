@@ -741,7 +741,7 @@ mod tests {
             let human_branch_name = "add-human-label";
             command::create_checkout_branch(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
-            command::add(&repo, &labels_path)?;
+            command::add(&repo, labels_path)?;
             command::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again

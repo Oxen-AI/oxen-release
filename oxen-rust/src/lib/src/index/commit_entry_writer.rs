@@ -242,7 +242,7 @@ impl CommitEntryWriter {
         );
 
         for entry in tabular_entries.iter() {
-            let df_file = util::fs::version_path(&self.repository, &entry);
+            let df_file = util::fs::version_path(&self.repository, entry);
             if !df_file.exists() {
                 log::error!(
                     "create_schemas_for_tabular_data no data arrow file for entry {:?} -> {:?}",
