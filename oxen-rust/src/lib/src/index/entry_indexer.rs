@@ -333,6 +333,7 @@ impl EntryIndexer {
         let results = stream::iter(chunks)
             .map(|chunk| {
                 async move {
+                    // TODO: zip up data files smaller that avg chunk size, but just chunk and send larger files on their own
                     // 1) zip up entries into tarballs
                     let enc = GzEncoder::new(Vec::new(), Compression::default());
                     let mut tar = tar::Builder::new(enc);
