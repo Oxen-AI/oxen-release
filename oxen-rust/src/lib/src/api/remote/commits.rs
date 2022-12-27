@@ -211,8 +211,8 @@ pub async fn post_data_to_server(
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
-    // Chunk into 5mb chunks
-    let chunk_size: usize = 5_000_000;
+    // Chunk into 1mb chunks
+    let chunk_size: usize = 1024 * 1024;
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
             remote_repo,
@@ -409,7 +409,12 @@ async fn upload_data_chunk_to_server(
         commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("upload_data_chunk_to_server posting to url {}", url);
+    let total_size = chunk.len() as u64;
+    log::debug!(
+        "upload_data_chunk_to_server posting {} to url {}",
+        ByteSize::b(total_size),
+        url
+    );
 
     let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
