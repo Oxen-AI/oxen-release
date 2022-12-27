@@ -59,7 +59,7 @@ mod tests {
             let file_to_add = repo.path.join("labels.txt");
 
             // Commit the file
-            command::add(&repo, &file_to_add)?;
+            command::add(&repo, file_to_add)?;
             let commit = command::commit(&repo, "Adding labels file")?.unwrap();
 
             let entries = api::local::entries::list_all(&repo, &commit)?;
@@ -76,7 +76,7 @@ mod tests {
             let file_to_add = repo.path.join("labels.txt");
 
             // Commit the file
-            command::add(&repo, &file_to_add)?;
+            command::add(&repo, file_to_add)?;
             let commit = command::commit(&repo, "Adding labels file")?.unwrap();
 
             let count = api::local::entries::count_for_commit(&repo, &commit)?;

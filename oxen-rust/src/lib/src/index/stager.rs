@@ -1087,7 +1087,7 @@ mod tests {
             stager.add_file(&hello_file, &entry_reader)?;
 
             // we should be able to fetch this entry json
-            let entry = stager.get_entry(&relative_path).unwrap().unwrap();
+            let entry = stager.get_entry(relative_path).unwrap().unwrap();
             assert!(!entry.hash.is_empty());
             assert_eq!(entry.status, StagedEntryStatus::Added);
 

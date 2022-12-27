@@ -85,6 +85,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/file/{resource:.*}",
         web::get().to(controllers::file::get),
     )
+    .route(
+        "/{namespace}/{repo_name}/meta/{resource:.*}",
+        web::get().to(controllers::file::meta_data),
+    )
     // ----- Versions ----- //
     .route(
         "/{namespace}/{repo_name}/versions",
