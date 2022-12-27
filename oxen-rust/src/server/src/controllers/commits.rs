@@ -33,10 +33,12 @@ pub struct SizeQuery {
 
 #[derive(Deserialize, Debug)]
 pub struct ChunkedDataUploadQuery {
-    hash: String,        // UUID to tie all the chunks together (hash of the contents)
-    chunk_num: usize,    // which chunk it is, so that we can combine it all in the end
-    total_chunks: usize, // how many chunks to expect
-    total_size: usize,   // total size so we can know when we are finished
+    hash: String,             // UUID to tie all the chunks together (hash of the contents)
+    chunk_num: usize,         // which chunk it is, so that we can combine it all in the end
+    total_chunks: usize,      // how many chunks to expect
+    total_size: usize,        // total size so we can know when we are finished
+    is_compressed: bool,      // whether or not we need to decompress the archive
+    filename: Option<String>, // maybe a file name if !compressed
 }
 
 // List commits for a repository
@@ -417,6 +419,8 @@ pub async fn upload_chunk(
                                         tmp_dir,
                                         total_chunks,
                                         size,
+                                        query.is_compressed,
+                                        query.filename.to_owned(),
                                     );
 
                                     Ok(HttpResponse::Ok().json(CommitResponse {
@@ -472,6 +476,8 @@ fn check_if_upload_complete_and_unpack(
     tmp_dir: PathBuf,
     total_chunks: usize,
     total_size: usize,
+    is_compressed: bool,
+    filename: Option<String>,
 ) {
     let mut files = util::fs::list_files_in_dir(&tmp_dir);
 
@@ -511,9 +517,43 @@ fn check_if_upload_complete_and_unpack(
                 f.read_to_end(&mut buffer).unwrap();
             }
 
-            // Unpack tarball to our hidden dir
-            let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
-            unpack_entry_tarball(&hidden_dir, &mut archive);
+            // TODO: better error handling...
+            // Combine into actual file data
+            if is_compressed {
+                // Unpack tarball to our hidden dir
+                let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
+                unpack_entry_tarball(&hidden_dir, &mut archive);
+            } else {
+                // just write buffer to disk
+                match filename {
+                    Some(filename) => {
+                        // TODO: better error handling...
+
+                        log::debug!("Got filename {}", filename);
+                        let full_path = hidden_dir.join(filename);
+                        log::debug!("Unpack to {:?}", full_path);
+                        if let Some(parent) = full_path.parent() {
+                            if !parent.exists() {
+                                std::fs::create_dir_all(parent)
+                                    .expect("Could not create parent dir");
+                            }
+                        }
+
+                        let mut f = std::fs::File::create(&full_path).expect("Could write file");
+                        match f.write_all(&buffer) {
+                            Ok(_) => {
+                                log::debug!("Unpack successful! {:?}", full_path);
+                            }
+                            Err(err) => {
+                                log::error!("Could not write all data to disk {:?}", err);
+                            }
+                        }
+                    }
+                    None => {
+                        log::error!("Must supply filename if !compressed");
+                    }
+                }
+            }
 
             // Cleanup tmp files
             std::fs::remove_dir_all(tmp_dir).unwrap();

@@ -325,7 +325,7 @@ fn test_command_checkout_commit_id() -> Result<(), OxenError> {
         assert!(world_file.exists());
 
         // We checkout the previous commit
-        command::checkout(&repo, &first_commit.unwrap().id)?;
+        command::checkout(&repo, first_commit.unwrap().id)?;
 
         // // Then we do not have the world file anymore
         assert!(!world_file.exists());
@@ -343,7 +343,7 @@ fn test_command_commit_dir() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Track the file
         let train_dir = repo.path.join("train");
-        command::add(&repo, &train_dir)?;
+        command::add(&repo, train_dir)?;
         // Commit the file
         command::commit(&repo, "Adding training data")?;
 
@@ -366,7 +366,7 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Track the annotations dir, which has sub dirs
         let annotations_dir = repo.path.join("annotations");
-        command::add(&repo, &annotations_dir)?;
+        command::add(&repo, annotations_dir)?;
         command::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
         let repo_status = command::status(&repo)?;
@@ -442,7 +442,7 @@ fn test_command_checkout_added_file() -> Result<(), OxenError> {
         assert!(world_file.exists());
 
         // Go back to the main branch
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
 
         // The world file should no longer be there
         assert!(hello_file.exists());
@@ -500,7 +500,7 @@ fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
         assert!(keep_file.exists());
 
         // Go back to the main branch
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
 
         // The world file should no longer be there
         assert!(hello_file.exists());
@@ -546,7 +546,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
         assert_eq!(util::fs::read_from_path(&hello_file)?, "World");
 
         // Go back to the main branch
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
 
         // The file contents should be Hello, not World
         log::debug!("HELLO FILE NAME: {:?}", hello_file);
@@ -570,7 +570,7 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
         assert_eq!(status.modified_files.len(), 1);
         // Add the top level directory, and make sure the modified file gets added
         let annotation_dir_path = repo.path.join("annotations");
-        command::add(&repo, &annotation_dir_path)?;
+        command::add(&repo, annotation_dir_path)?;
         let status = command::status(&repo)?;
         status.print_stdout();
         assert_eq!(status.added_files.len(), 1);
@@ -610,7 +610,7 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
 
@@ -654,7 +654,7 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
 
@@ -694,7 +694,7 @@ fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
         assert_eq!(status.added_dirs.len(), 0);
 
         // checkout OG and make sure it removes the train dir
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
         assert!(!train_path.exists());
 
         // checkout branch again and make sure it reverts
@@ -724,7 +724,7 @@ fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?;
 
         // checkout OG and make sure it removes the train dir
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
         assert!(!new_dir_path.exists());
 
         // checkout branch again and make sure it reverts
@@ -770,7 +770,7 @@ fn test_command_restore_removed_file_from_branch_with_commits_between() -> Resul
         command::commit(&repo, "Adding labels file")?;
 
         let train_dir = repo.path.join("train");
-        command::add(&repo, &train_dir)?;
+        command::add(&repo, train_dir)?;
         command::commit(&repo, "Adding train dir")?;
 
         // Branch
@@ -791,7 +791,7 @@ fn test_command_restore_removed_file_from_branch_with_commits_between() -> Resul
         assert!(!file_to_remove.exists());
 
         // Switch back to main branch
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
         // Make sure we restore file
         assert!(file_to_remove.exists());
 
@@ -856,7 +856,7 @@ fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         command::commit(&repo, "Removing train dir")?;
 
         // checkout OG and make sure it restores the train dir
-        command::checkout(&repo, &orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name)?;
         assert!(dir_to_remove.exists());
         assert_eq!(util::fs::rcount_files_in_dir(&dir_to_remove), og_num_files);
 
@@ -1930,7 +1930,7 @@ fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError>
 
         // Add another commit on this branch
         let labels_path = repo.path.join("labels.txt");
-        command::add(&repo, &labels_path)?;
+        command::add(&repo, labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
 
         // Checkout main again
@@ -1960,7 +1960,7 @@ fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> 
 
         // Add another commit on this branch
         let labels_path = repo.path.join("labels.txt");
-        command::add(&repo, &labels_path)?;
+        command::add(&repo, labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
 
         // Checkout main again
@@ -1995,7 +1995,7 @@ fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
         command::commit(&repo, "adding none category")?;
 
         // Add a "person" category on a the main branch
-        command::checkout(&repo, &og_branch.name)?;
+        command::checkout(&repo, og_branch.name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
         command::add(&repo, &labels_path)?;
@@ -2033,7 +2033,7 @@ fn test_can_add_merge_conflict() -> Result<(), OxenError> {
         command::commit(&repo, "adding none category")?;
 
         // Add a "person" category on a the main branch
-        command::checkout(&repo, &og_branch.name)?;
+        command::checkout(&repo, og_branch.name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
         command::add(&repo, &labels_path)?;
@@ -2080,7 +2080,7 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         command::commit(&repo, "adding none category")?;
 
         // Add a "person" category on a the main branch
-        command::checkout(&repo, &og_branch.name)?;
+        command::checkout(&repo, og_branch.name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
         command::add(&repo, &labels_path)?;
@@ -2192,14 +2192,14 @@ fn test_restore_directory() -> Result<(), OxenError> {
 
         // Remove one file
         let bbox_file = annotations_dir.join("train").join("bounding_box.csv");
-        let bbox_path = repo.path.join(&bbox_file);
+        let bbox_path = repo.path.join(bbox_file);
 
         let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
         std::fs::remove_file(&bbox_path)?;
 
         // Modify another file
         let readme_file = annotations_dir.join("README.md");
-        let readme_path = repo.path.join(&readme_file);
+        let readme_path = repo.path.join(readme_file);
         let og_readme_contents = util::fs::read_from_path(&readme_path)?;
 
         let readme_path = test::append_line_txt_file(readme_path, "Adding s'more")?;
@@ -2607,7 +2607,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
-        command::checkout(&repo, &og_branch.name)?;
+        command::checkout(&repo, og_branch.name)?;
 
         let bbox_file =
             test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
@@ -2658,7 +2658,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
-        command::checkout(&repo, &og_branch.name)?;
+        command::checkout(&repo, og_branch.name)?;
 
         let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
@@ -2711,12 +2711,12 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
         command::commit(&repo, "Adding new column as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
-        command::checkout(&repo, &og_branch.name)?;
+        command::checkout(&repo, og_branch.name)?;
 
         let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
-        command::add(&repo, &bbox_file)?;
+        command::add(&repo, bbox_file)?;
         command::commit(&repo, "Adding new row on main branch")?;
 
         // Try to merge in the changes
@@ -2735,7 +2735,6 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
     })
 }
 
-// TODO: More tabular diff tests
 #[test]
 fn test_diff_tabular_add_col() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
@@ -2780,6 +2779,103 @@ shape: (6, 1)
 
 "
         );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_diff_tabular_add_row() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
+
+        let mut opts = DFOpts::empty();
+        // Add Row
+        opts.add_row = Some(String::from("train/cat_100.jpg,cat,100.0,100.0,100,100"));
+        // Save to Output
+        opts.output = Some(bbox_file.clone());
+        // Perform df transform
+        command::df(bbox_file, opts)?;
+
+        match command::diff(&repo, None, &bbox_filename) {
+            Ok(diff) => {
+                println!("{}", diff);
+
+                assert_eq!(
+                    diff,
+                    r"Added Rows
+
+shape: (1, 6)
+┌───────────────────┬───────┬───────┬───────┬───────┬────────┐
+│ file              ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+│ ---               ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
+│ str               ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
+╞═══════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
+│ train/cat_100.jpg ┆ cat   ┆ 100.0 ┆ 100.0 ┆ 100   ┆ 100    │
+└───────────────────┴───────┴───────┴───────┴───────┴────────┘
+
+"
+                );
+            }
+            Err(err) => {
+                panic!("Error diffing: {}", err);
+            }
+        }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_diff_tabular_remove_row() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
+
+        // Remove a row
+        test::modify_txt_file(
+            bbox_file,
+            r"
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/cat_2.jpg,cat,30.5,44.0,333,396
+",
+        )?;
+
+        match command::diff(&repo, None, &bbox_filename) {
+            Ok(diff) => {
+                println!("{}", diff);
+
+                assert_eq!(
+                    diff,
+                    r"Removed Rows
+
+shape: (3, 6)
+┌─────────────────┬───────┬───────┬───────┬───────┬────────┐
+│ file            ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+│ ---             ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
+│ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
+╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
+│ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
+└─────────────────┴───────┴───────┴───────┴───────┴────────┘
+
+"
+                );
+            }
+            Err(err) => {
+                panic!("Error diffing: {}", err);
+            }
+        }
 
         Ok(())
     })
