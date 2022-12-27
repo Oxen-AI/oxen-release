@@ -272,7 +272,6 @@ impl EntryIndexer {
     fn compute_entries_size(&self, entries: &[CommitEntry]) -> Result<u64, OxenError> {
         let mut total_size: u64 = 0;
 
-        println!("🐂 push computing size...");
         for entry in entries.iter() {
             let version_path = util::fs::version_path(&self.repository, entry);
             match fs::metadata(version_path) {
@@ -300,6 +299,7 @@ impl EntryIndexer {
             commit.message
         );
 
+        println!("🐂 push computing size...");
         let total_size = self.compute_entries_size(entries)?;
 
         println!(
@@ -308,8 +308,9 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // Average chunk size of ~4mb
-        let avg_chunk_size = 1024 * 1024 * 4;
+        // Average chunk size of ~1mb
+        let avg_chunk_size = 1024 * 1024;
+
         let bar = Arc::new(ProgressBar::new(total_size));
 
         // Since some files may be much larger than others....and zipping this larger files into a tarball then sending
@@ -338,6 +339,10 @@ impl EntryIndexer {
             avg_chunk_size,
             &bar,
         );
+
+        // large_entries_sync.await?;
+        // small_entries_sync.await?;
+        // Ok(())
 
         match futures::future::join(large_entries_sync, small_entries_sync).await {
             (Ok(_), Ok(_)) => Ok(()),
@@ -397,7 +402,7 @@ impl EntryIndexer {
                     futures::future::ok::<u64, OxenError>(size).await
                 }
             })
-            .buffer_unordered(num_cpus::get());
+            .buffer_unordered(8);
 
         results
             .for_each(|result| async {
@@ -486,7 +491,8 @@ impl EntryIndexer {
                     }
                 }
             })
-            .buffer_unordered(num_cpus::get());
+            .buffer_unordered(8);
+        // .buffer_unordered(num_cpus::get());
 
         results
             .for_each(|result| async {
@@ -724,8 +730,8 @@ impl EntryIndexer {
 
             let (content_ids, size) = self.get_missing_content_ids(&entries);
 
-            // We want each chunk to be ~= 5mb
-            let avg_chunk_size = 500000;
+            // We want each chunk to be ~= 1mb
+            let avg_chunk_size = 1024 * 1024;
             let num_chunks = ((size / avg_chunk_size) + 1) as usize;
             let bar = Arc::new(ProgressBar::new(size));
 
