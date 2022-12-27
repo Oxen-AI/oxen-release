@@ -289,7 +289,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             let filename = "labels.txt";
             let filepath = repo.path.join(filename);
-            command::add(&repo, &filepath)?;
+            command::add(&repo, filepath)?;
             let commit = command::commit(&repo, "Adding labels file")?.unwrap();
 
             let reader = CommitDirReader::new(&repo, &commit)?;
