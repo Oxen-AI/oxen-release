@@ -340,6 +340,11 @@ impl EntryIndexer {
             &bar,
         );
 
+        // large_entries_sync.await?;
+        // small_entries_sync.await?;
+
+        // Ok(())
+
         match tokio::join!(large_entries_sync, small_entries_sync) {
             (Ok(_), Ok(_)) => Ok(()),
             (Err(err), Ok(_)) => {
@@ -374,9 +379,10 @@ impl EntryIndexer {
             Arc<ProgressBar>,
         );
         type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
         log::debug!("Chunking and sending {} larger files", entries.len());
-        let chunks: Vec<PieceOfWork> = entries
+        let entries: Vec<PieceOfWork> = entries
             .iter()
             .map(|e| {
                 (
@@ -389,13 +395,27 @@ impl EntryIndexer {
             })
             .collect();
 
-        let worker_count: usize = num_cpus::get();
-        let queue = Arc::new(TaskQueue::new(chunks.len()));
-        for chunk in chunks {
-            queue.try_push(chunk).unwrap();
+        let queue = Arc::new(TaskQueue::new(entries.len()));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+        for entry in entries.iter() {
+            queue.try_push(entry.to_owned()).unwrap();
+            finished_queue.try_push(false).unwrap();
         }
+
+        let worker_count: usize = if num_cpus::get() > entries.len() {
+            entries.len()
+        } else {
+            num_cpus::get()
+        };
+
+        log::debug!(
+            "worker_count {} entries len {}",
+            worker_count,
+            entries.len()
+        );
         for worker in 0..worker_count {
             let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
             tokio::spawn(async move {
                 loop {
                     let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
@@ -437,13 +457,15 @@ impl EntryIndexer {
                             log::error!("Error uploading chunk: {:?}", err)
                         }
                     }
-                    
+                    finished_queue.pop().await;
                 }
             });
         }
-        while queue.len() > 0 {
-            log::debug!("Waiting for {} workers to finish...", queue.len());
-            sleep(Duration::from_millis(100)).await;
+
+        while finished_queue.len() > 0 {
+            log::debug!("Before waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_secs(1)).await;
+            log::debug!("After waiting for {} workers to finish...", queue.len());
         }
         log::debug!("All large file tasks done. :-)");
 
@@ -482,6 +504,7 @@ impl EntryIndexer {
             Arc<ProgressBar>,
         );
         type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
         log::debug!("Creating {num_chunks} chunks from {total_size} bytes with size {chunk_size}");
         let chunks: Vec<PieceOfWork> = entries
@@ -499,11 +522,15 @@ impl EntryIndexer {
 
         let worker_count: usize = num_cpus::get();
         let queue = Arc::new(TaskQueue::new(chunks.len()));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
         for chunk in chunks {
             queue.try_push(chunk).unwrap();
+            finished_queue.try_push(false).unwrap();
         }
+
         for worker in 0..worker_count {
             let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
             tokio::spawn(async move {
                 loop {
                     let (chunk, repo, commit, remote_repo, bar) = queue.pop().await;
@@ -558,13 +585,13 @@ impl EntryIndexer {
                             log::error!("Error uploading chunk: {:?}", err)
                         }
                     }
-                    
+                    finished_queue.pop().await;
                 }
             });
         }
-        while queue.len() > 0 {
+        while finished_queue.len() > 0 {
             log::debug!("Waiting for {} workers to finish...", queue.len());
-            sleep(Duration::from_millis(100)).await;
+            sleep(Duration::from_millis(1)).await;
         }
         log::debug!("All tasks done. :-)");
 
