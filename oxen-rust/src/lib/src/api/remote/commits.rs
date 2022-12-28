@@ -20,7 +20,6 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
-use reqwest::Client;
 
 struct ChunkParams {
     chunk_num: usize,
@@ -167,10 +166,12 @@ pub async fn post_commit_to_server(
         commit.id,
         ByteSize::b(buffer.len() as u64)
     );
-    // let is_compressed = true;
-    // let filename = None;
-    // post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename).await
-    Ok(())
+
+    let bar = Arc::new(ProgressBar::new(buffer.len() as u64));
+
+    let is_compressed = true;
+    let filename = None;
+    post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename, bar).await
 }
 
 async fn create_commit_obj_on_server(
@@ -209,11 +210,10 @@ async fn create_commit_obj_on_server(
 pub async fn post_data_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    client: &Client,
-
     buffer: Vec<u8>,
     is_compressed: bool,
     filename: &Option<String>,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     // Chunk into 1mb chunks
     let chunk_size: usize = 1024 * 1024 * 4;
@@ -225,11 +225,12 @@ pub async fn post_data_to_server(
             chunk_size,
             is_compressed,
             filename,
+            bar,
         )
         .await?;
     } else {
         let num_retries = 3;
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, client, &buffer, num_retries)
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries, bar)
             .await?;
     }
     Ok(())
@@ -238,14 +239,13 @@ pub async fn post_data_to_server(
 pub async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    client: &Client,
-
     buffer: &[u8],
     num_retries: usize,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
     while total_tries != num_retries {
-        match upload_single_tarball_to_server(remote_repo, commit, client, buffer).await {
+        match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -269,16 +269,17 @@ pub async fn upload_single_tarball_to_server_with_retry(
 async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    client: &Client,
     buffer: &[u8],
+    bar: Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    // let client = client::builder_for_url(&url)?
-    //     .timeout(time::Duration::from_secs(120))
-    //     .build()?;
+    let client = client::builder_for_url(&url)?
+        .timeout(time::Duration::from_secs(120))
+        .build()?;
 
+    let size = buffer.len() as u64;
     match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
             let status = res.status();
@@ -287,7 +288,10 @@ async fn upload_single_tarball_to_server(
             log::debug!("upload_single_tarball_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
-                Ok(response) => Ok(response),
+                Ok(response) => {
+                    bar.inc(size);
+                    Ok(response)
+                }
                 Err(_) => Err(OxenError::basic_str(format!(
                     "upload_single_tarball_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
@@ -308,6 +312,7 @@ async fn upload_data_to_server_in_chunks(
     chunk_size: usize,
     is_compressed: bool,
     filename: &Option<String>,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let total_size = buffer.len();
     log::debug!(
@@ -322,7 +327,6 @@ async fn upload_data_to_server_in_chunks(
         chunks.len(),
         ByteSize::b(total_size as u64)
     );
-    let bar = Arc::new(ProgressBar::new(total_size as u64));
 
     for (i, chunk) in chunks.iter().enumerate() {
         let params = ChunkParams {
@@ -341,9 +345,8 @@ async fn upload_data_to_server_in_chunks(
             filename,
         )
         .await?;
-        bar.inc(chunk_size as u64);
+        bar.inc(chunk.len() as u64)
     }
-    bar.finish();
     Ok(())
 }
 

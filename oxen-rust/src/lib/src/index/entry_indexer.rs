@@ -12,7 +12,6 @@ use std::fs;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use reqwest::Client;
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
@@ -341,22 +340,18 @@ impl EntryIndexer {
             &bar,
         );
 
-        // large_entries_sync.await?;
-        small_entries_sync.await?;
-        Ok(())
-
-        // match futures::future::join(large_entries_sync, small_entries_sync).await {
-        //     (Ok(_), Ok(_)) => Ok(()),
-        //     (Err(err), Ok(_)) => {
-        //         let err = format!("Error syncing large entries: {}", err);
-        //         Err(OxenError::basic_str(err))
-        //     }
-        //     (Ok(_), Err(err)) => {
-        //         let err = format!("Error syncing small entries: {}", err);
-        //         Err(OxenError::basic_str(err))
-        //     }
-        //     _ => Err(OxenError::basic_str("Unknown error syncing entries")),
-        // }
+        match tokio::join!(large_entries_sync, small_entries_sync) {
+            (Ok(_), Ok(_)) => Ok(()),
+            (Err(err), Ok(_)) => {
+                let err = format!("Error syncing large entries: {}", err);
+                Err(OxenError::basic_str(err))
+            }
+            (Ok(_), Err(err)) => {
+                let err = format!("Error syncing small entries: {}", err);
+                Err(OxenError::basic_str(err))
+            }
+            _ => Err(OxenError::basic_str("Unknown error syncing entries")),
+        }
     }
 
     async fn chunk_and_send_large_entries(
@@ -370,52 +365,87 @@ impl EntryIndexer {
             return Ok(());
         }
 
-        let results = stream::iter(entries)
-            .map(|entry| {
-                async move {
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (
+            CommitEntry,
+            LocalRepository,
+            Commit,
+            RemoteRepository,
+            Arc<ProgressBar>,
+        );
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+
+        log::debug!("Chunking and sending {} larger files", entries.len());
+        let chunks: Vec<PieceOfWork> = entries
+            .iter()
+            .map(|e| {
+                (
+                    e.to_owned(),
+                    self.repository.to_owned(),
+                    commit.to_owned(),
+                    remote_repo.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
+
+        let worker_count: usize = num_cpus::get();
+        let queue = Arc::new(TaskQueue::new(chunks.len()));
+        for chunk in chunks {
+            queue.try_push(chunk).unwrap();
+        }
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
+
                     // TODO:...this reads everything into memory for each entry, might want to stream chunks as we read them from disk
 
                     // read file buffer
-                    let version_path = util::fs::version_path(&self.repository, &entry);
-                    let f = std::fs::File::open(&version_path)?;
+                    let version_path = util::fs::version_path(&repo, &entry);
+                    let f = std::fs::File::open(&version_path).unwrap();
                     let mut reader = BufReader::new(f);
                     let mut buffer = Vec::new();
 
                     // Read file into vector.
-                    reader.read_to_end(&mut buffer)?;
+                    reader.read_to_end(&mut buffer).unwrap();
 
                     let size = buffer.len() as u64;
                     log::debug!("Got entry buffer of size {}", size);
 
                     // Send data to server
-                    // let is_compressed = false;
-                    // let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                    // let path = util::fs::path_relative_to_dir(&version_path, &hidden_dir)?;
-                    // let file_name = Some(String::from(path.to_str().unwrap()));
-                    // api::remote::commits::post_data_to_server(
-                    //     remote_repo,
-                    //     commit,
-                    //     buffer,
-                    //     is_compressed,
-                    //     &file_name,
-                    // )
-                    // .await?;
-                    let size = 0;
-                    futures::future::ok::<u64, OxenError>(size).await
-                }
-            })
-            .buffer_unordered(8);
-
-        results
-            .for_each(|result| async {
-                match result {
-                    Ok(size) => bar.inc(size),
-                    Err(e) => {
-                        log::error!("Could not push entry: {}", e)
+                    let is_compressed = false;
+                    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+                    let path = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                    let file_name = Some(String::from(path.to_str().unwrap()));
+                    match api::remote::commits::post_data_to_server(
+                        &remote_repo,
+                        &commit,
+                        buffer,
+                        is_compressed,
+                        &file_name,
+                        bar,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            log::debug!("Successfully uploaded data!")
+                        }
+                        Err(err) => {
+                            log::error!("Error uploading chunk: {:?}", err)
+                        }
                     }
+                    
                 }
-            })
-            .await;
+            });
+        }
+        while queue.len() > 0 {
+            log::debug!("Waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_millis(100)).await;
+        }
+        log::debug!("All large file tasks done. :-)");
 
         Ok(())
     }
@@ -443,27 +473,57 @@ impl EntryIndexer {
         }
 
         // Split into chunks, zip up, and post to server
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (
+            Vec<CommitEntry>,
+            LocalRepository,
+            Commit,
+            RemoteRepository,
+            Arc<ProgressBar>,
+        );
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+
         log::debug!("Creating {num_chunks} chunks from {total_size} bytes with size {chunk_size}");
-        let chunks: Vec<&[CommitEntry]> = entries.chunks(chunk_size).collect();
+        let chunks: Vec<PieceOfWork> = entries
+            .chunks(chunk_size)
+            .map(|c| {
+                (
+                    c.to_owned(),
+                    self.repository.to_owned(),
+                    commit.to_owned(),
+                    remote_repo.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
 
-        let client = Client::builder().build()?;
+        let worker_count: usize = num_cpus::get();
+        let queue = Arc::new(TaskQueue::new(chunks.len()));
+        for chunk in chunks {
+            queue.try_push(chunk).unwrap();
+        }
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (chunk, repo, commit, remote_repo, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
 
-        let bodies = stream::iter(chunks)
-            .map(|chunk| { 
-                let enc = GzEncoder::new(Vec::new(), Compression::default());
-                let mut tar = tar::Builder::new(enc);
-                for entry in chunk.iter() {
-                    let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                    let version_path = util::fs::version_path(&self.repository, entry);
-                    let name =
-                        util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                    let enc = GzEncoder::new(Vec::new(), Compression::default());
+                    let mut tar = tar::Builder::new(enc);
+                    log::debug!("Chunk size {}", chunk.len());
+                    log::debug!("got repo {:?}", &repo.path);
+                    for entry in chunk.into_iter() {
+                        let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+                        let version_path = util::fs::version_path(&repo, &entry);
+                        let name =
+                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                    tar.append_path_with_name(version_path, name).unwrap();
-                }
+                        tar.append_path_with_name(version_path, name).unwrap();
+                    }
 
-                let buffer = match tar.into_inner() {
-                    Ok(gz_encoder) => {
-                        match gz_encoder.finish() {
+                    let buffer = match tar.into_inner() {
+                        Ok(gz_encoder) => match gz_encoder.finish() {
                             Ok(buffer) => {
                                 let size = buffer.len() as u64;
                                 log::debug!("Got tarball buffer of size {}", size);
@@ -472,48 +532,42 @@ impl EntryIndexer {
                             Err(err) => {
                                 panic!("Error creating tar.gz on entries: {}", err)
                             }
+                        },
+                        Err(err) => {
+                            panic!("Error creating tar of entries: {}", err)
+                        }
+                    };
+
+                    // Send tar.gz to server
+                    let is_compressed = true;
+                    let file_name = None;
+                    match api::remote::commits::post_data_to_server(
+                        &remote_repo,
+                        &commit,
+                        buffer,
+                        is_compressed,
+                        &file_name,
+                        bar,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            log::debug!("Successfully uploaded data!")
+                        }
+                        Err(err) => {
+                            log::error!("Error uploading chunk: {:?}", err)
                         }
                     }
-                    Err(err) => {
-                        panic!("Error creating tar of entries: {}", err)
-                    }
-                };
-
-                let uri = format!("/commits/{}/data", commit.id);
-                let url = api::endpoint::url_from_repo(remote_repo, &uri).unwrap();
-
-                println!("Sending buffer {} to url {}", buffer.len(), url);
-
-                let send_fut = client.post(&url).body(buffer.to_owned()).send();
-                async move {
-                    (send_fut.await, url)
+                    
                 }
-            })
-            .buffer_unordered(10);
+            });
+        }
+        while queue.len() > 0 {
+            log::debug!("Waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_millis(100)).await;
+        }
+        log::debug!("All tasks done. :-)");
 
-        bodies.for_each(|result| async {
-            match result {
-                (Ok(r), u) => {
-                    println!("Got result {:?}", r);
-                },
-                (Err(err), u) => {
-                    eprintln!("Error {:?}", err);
-                }
-            }
-        }).await;
-
-        // results.await;
-
-        // results
-        //     .for_each(|result| async {
-        //         match result {
-        //             Ok(size) => bar.inc(size),
-        //             Err(e) => {
-        //                 log::error!("Could not push entry: {}", e)
-        //             }
-        //         }
-        //     })
-        //     .await;
         Ok(())
     }
 
