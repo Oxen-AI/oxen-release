@@ -20,6 +20,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
+use reqwest::Client;
 
 struct ChunkParams {
     chunk_num: usize,
@@ -166,9 +167,10 @@ pub async fn post_commit_to_server(
         commit.id,
         ByteSize::b(buffer.len() as u64)
     );
-    let is_compressed = true;
-    let filename = None;
-    post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename).await
+    // let is_compressed = true;
+    // let filename = None;
+    // post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename).await
+    Ok(())
 }
 
 async fn create_commit_obj_on_server(
@@ -207,12 +209,14 @@ async fn create_commit_obj_on_server(
 pub async fn post_data_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
+    client: &Client,
+
     buffer: Vec<u8>,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
     // Chunk into 1mb chunks
-    let chunk_size: usize = 1024 * 1024;
+    let chunk_size: usize = 1024 * 1024 * 4;
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
             remote_repo,
@@ -225,21 +229,23 @@ pub async fn post_data_to_server(
         .await?;
     } else {
         let num_retries = 3;
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries)
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, client, &buffer, num_retries)
             .await?;
     }
     Ok(())
 }
 
-async fn upload_single_tarball_to_server_with_retry(
+pub async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
+    client: &Client,
+
     buffer: &[u8],
     num_retries: usize,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
     while total_tries != num_retries {
-        match upload_single_tarball_to_server(remote_repo, commit, buffer).await {
+        match upload_single_tarball_to_server(remote_repo, commit, client, buffer).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -263,14 +269,15 @@ async fn upload_single_tarball_to_server_with_retry(
 async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
+    client: &Client,
     buffer: &[u8],
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = client::builder_for_url(&url)?
-        .timeout(time::Duration::from_secs(120))
-        .build()?;
+    // let client = client::builder_for_url(&url)?
+    //     .timeout(time::Duration::from_secs(120))
+    //     .build()?;
 
     match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
