@@ -329,13 +329,19 @@ async fn upload_data_to_server_in_chunks(
     );
 
     for (i, chunk) in chunks.iter().enumerate() {
+        log::debug!(
+            "upload_data_to_server_in_chunks uploading chunk {} of size {}",
+            i,
+            ByteSize::b(chunks.len() as u64)
+        );
+
         let params = ChunkParams {
             chunk_num: i,
             total_chunks: chunks.len(),
             total_size,
             num_retries,
         };
-        upload_data_chunk_to_server_with_retry(
+        match upload_data_chunk_to_server_with_retry(
             remote_repo,
             commit,
             chunk,
@@ -344,7 +350,15 @@ async fn upload_data_to_server_in_chunks(
             is_compressed,
             filename,
         )
-        .await?;
+        .await
+        {
+            Ok(_) => {
+                log::debug!("Success uploading chunk!")
+            }
+            Err(err) => {
+                log::error!("Err uploading chunk: {}", err)
+            }
+        }
         bar.inc(chunk.len() as u64)
     }
     Ok(())
