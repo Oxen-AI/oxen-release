@@ -12,6 +12,7 @@ use std::fs;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use reqwest::Client;
 
 use crate::api;
 use crate::constants::HISTORY_DIR;
@@ -309,7 +310,7 @@ impl EntryIndexer {
         );
 
         // Average chunk size of ~1mb
-        let avg_chunk_size = 1024 * 1024;
+        let avg_chunk_size = 1024 * 1024 * 4;
 
         let bar = Arc::new(ProgressBar::new(total_size));
 
@@ -341,21 +342,21 @@ impl EntryIndexer {
         );
 
         // large_entries_sync.await?;
-        // small_entries_sync.await?;
-        // Ok(())
+        small_entries_sync.await?;
+        Ok(())
 
-        match futures::future::join(large_entries_sync, small_entries_sync).await {
-            (Ok(_), Ok(_)) => Ok(()),
-            (Err(err), Ok(_)) => {
-                let err = format!("Error syncing large entries: {}", err);
-                Err(OxenError::basic_str(err))
-            }
-            (Ok(_), Err(err)) => {
-                let err = format!("Error syncing small entries: {}", err);
-                Err(OxenError::basic_str(err))
-            }
-            _ => Err(OxenError::basic_str("Unknown error syncing entries")),
-        }
+        // match futures::future::join(large_entries_sync, small_entries_sync).await {
+        //     (Ok(_), Ok(_)) => Ok(()),
+        //     (Err(err), Ok(_)) => {
+        //         let err = format!("Error syncing large entries: {}", err);
+        //         Err(OxenError::basic_str(err))
+        //     }
+        //     (Ok(_), Err(err)) => {
+        //         let err = format!("Error syncing small entries: {}", err);
+        //         Err(OxenError::basic_str(err))
+        //     }
+        //     _ => Err(OxenError::basic_str("Unknown error syncing entries")),
+        // }
     }
 
     async fn chunk_and_send_large_entries(
@@ -387,18 +388,19 @@ impl EntryIndexer {
                     log::debug!("Got entry buffer of size {}", size);
 
                     // Send data to server
-                    let is_compressed = false;
-                    let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                    let path = util::fs::path_relative_to_dir(&version_path, &hidden_dir)?;
-                    let file_name = Some(String::from(path.to_str().unwrap()));
-                    api::remote::commits::post_data_to_server(
-                        remote_repo,
-                        commit,
-                        buffer,
-                        is_compressed,
-                        &file_name,
-                    )
-                    .await?;
+                    // let is_compressed = false;
+                    // let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+                    // let path = util::fs::path_relative_to_dir(&version_path, &hidden_dir)?;
+                    // let file_name = Some(String::from(path.to_str().unwrap()));
+                    // api::remote::commits::post_data_to_server(
+                    //     remote_repo,
+                    //     commit,
+                    //     buffer,
+                    //     is_compressed,
+                    //     &file_name,
+                    // )
+                    // .await?;
+                    let size = 0;
                     futures::future::ok::<u64, OxenError>(size).await
                 }
             })
@@ -443,67 +445,75 @@ impl EntryIndexer {
         // Split into chunks, zip up, and post to server
         log::debug!("Creating {num_chunks} chunks from {total_size} bytes with size {chunk_size}");
         let chunks: Vec<&[CommitEntry]> = entries.chunks(chunk_size).collect();
-        let results = stream::iter(chunks)
-            .map(|chunk| {
-                async move {
-                    // zip up entries into tarballs
-                    let enc = GzEncoder::new(Vec::new(), Compression::default());
-                    let mut tar = tar::Builder::new(enc);
-                    for entry in chunk.iter() {
-                        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-                        let version_path = util::fs::version_path(&self.repository, entry);
-                        let name =
-                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                        tar.append_path_with_name(version_path, name).unwrap();
-                    }
+        let client = Client::builder().build()?;
 
-                    match tar.into_inner() {
-                        Ok(gz_encoder) => {
-                            match gz_encoder.finish() {
-                                Ok(buffer) => {
-                                    let size = buffer.len() as u64;
-                                    log::debug!("Got tarball buffer of size {}", size);
+        let bodies = stream::iter(chunks)
+            .map(|chunk| { 
+                let enc = GzEncoder::new(Vec::new(), Compression::default());
+                let mut tar = tar::Builder::new(enc);
+                for entry in chunk.iter() {
+                    let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+                    let version_path = util::fs::version_path(&self.repository, entry);
+                    let name =
+                        util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                                    // Send tar.gz to server
-                                    let is_compressed = true;
-                                    let file_name = None;
-                                    api::remote::commits::post_data_to_server(
-                                        remote_repo,
-                                        commit,
-                                        buffer,
-                                        is_compressed,
-                                        &file_name,
-                                    )
-                                    .await?;
-                                    futures::future::ok::<u64, OxenError>(size).await
-                                }
-                                Err(err) => {
-                                    let err = format!("Error creating tar.gz on entries: {}", err);
-                                    Err(OxenError::basic_str(err))
-                                }
+                    tar.append_path_with_name(version_path, name).unwrap();
+                }
+
+                let buffer = match tar.into_inner() {
+                    Ok(gz_encoder) => {
+                        match gz_encoder.finish() {
+                            Ok(buffer) => {
+                                let size = buffer.len() as u64;
+                                log::debug!("Got tarball buffer of size {}", size);
+                                buffer
+                            }
+                            Err(err) => {
+                                panic!("Error creating tar.gz on entries: {}", err)
                             }
                         }
-                        Err(err) => {
-                            let err = format!("Error creating tar of entries: {}", err);
-                            Err(OxenError::basic_str(err))
-                        }
                     }
-                }
-            })
-            .buffer_unordered(8);
-        // .buffer_unordered(num_cpus::get());
+                    Err(err) => {
+                        panic!("Error creating tar of entries: {}", err)
+                    }
+                };
 
-        results
-            .for_each(|result| async {
-                match result {
-                    Ok(size) => bar.inc(size),
-                    Err(e) => {
-                        log::error!("Could not push entry: {}", e)
-                    }
+                let uri = format!("/commits/{}/data", commit.id);
+                let url = api::endpoint::url_from_repo(remote_repo, &uri).unwrap();
+
+                println!("Sending buffer {} to url {}", buffer.len(), url);
+
+                let send_fut = client.post(&url).body(buffer.to_owned()).send();
+                async move {
+                    (send_fut.await, url)
                 }
             })
-            .await;
+            .buffer_unordered(10);
+
+        bodies.for_each(|result| async {
+            match result {
+                (Ok(r), u) => {
+                    println!("Got result {:?}", r);
+                },
+                (Err(err), u) => {
+                    eprintln!("Error {:?}", err);
+                }
+            }
+        }).await;
+
+        // results.await;
+
+        // results
+        //     .for_each(|result| async {
+        //         match result {
+        //             Ok(size) => bar.inc(size),
+        //             Err(e) => {
+        //                 log::error!("Could not push entry: {}", e)
+        //             }
+        //         }
+        //     })
+        //     .await;
         Ok(())
     }
 
