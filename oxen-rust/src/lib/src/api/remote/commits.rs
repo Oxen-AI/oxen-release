@@ -1,15 +1,16 @@
-use crate::api;
 use crate::api::remote::client;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::util::hasher::hash_buffer;
+use crate::{api, constants};
 // use crate::util::ReadProgress;
 use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
 
 use std::path::Path;
 use std::str;
+use std::sync::Arc;
 use std::time;
 
 use async_compression::futures::bufread::GzipDecoder;
@@ -18,12 +19,13 @@ use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
+use indicatif::ProgressBar;
 
-struct ChunkParams {
-    chunk_num: usize,
-    total_chunks: usize,
-    total_size: usize,
-    num_retries: usize,
+pub struct ChunkParams {
+    pub chunk_num: usize,
+    pub total_chunks: usize,
+    pub total_size: usize,
+    pub num_retries: usize,
 }
 
 pub async fn get_by_id(
@@ -164,7 +166,12 @@ pub async fn post_commit_to_server(
         commit.id,
         ByteSize::b(buffer.len() as u64)
     );
-    post_tarball_to_server(remote_repo, commit, buffer).await
+
+    let bar = Arc::new(ProgressBar::new(buffer.len() as u64));
+
+    let is_compressed = true;
+    let filename = None;
+    post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename, bar).await
 }
 
 async fn create_commit_obj_on_server(
@@ -200,32 +207,44 @@ async fn create_commit_obj_on_server(
     }
 }
 
-pub async fn post_tarball_to_server(
+pub async fn post_data_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: Vec<u8>,
+    is_compressed: bool,
+    filename: &Option<String>,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    // Chunk into 5mb chunks
-    let chunk_size: usize = 5_000_000;
+    let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
     if buffer.len() > chunk_size {
-        upload_tarball_to_server_in_chunks(remote_repo, commit, &buffer, chunk_size).await?;
+        upload_data_to_server_in_chunks(
+            remote_repo,
+            commit,
+            &buffer,
+            chunk_size,
+            is_compressed,
+            filename,
+            bar,
+        )
+        .await?;
     } else {
         let num_retries = 3;
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries)
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries, bar)
             .await?;
     }
     Ok(())
 }
 
-async fn upload_single_tarball_to_server_with_retry(
+pub async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
     num_retries: usize,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
     while total_tries != num_retries {
-        match upload_single_tarball_to_server(remote_repo, commit, buffer).await {
+        match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -250,6 +269,7 @@ async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
+    bar: Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -258,6 +278,7 @@ async fn upload_single_tarball_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
+    let size = buffer.len() as u64;
     match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
             let status = res.status();
@@ -266,7 +287,10 @@ async fn upload_single_tarball_to_server(
             log::debug!("upload_single_tarball_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
-                Ok(response) => Ok(response),
+                Ok(response) => {
+                    bar.inc(size);
+                    Ok(response)
+                }
                 Err(_) => Err(OxenError::basic_str(format!(
                     "upload_single_tarball_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
@@ -280,46 +304,84 @@ async fn upload_single_tarball_to_server(
     }
 }
 
-async fn upload_tarball_to_server_in_chunks(
+async fn upload_data_to_server_in_chunks(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
     chunk_size: usize,
+    is_compressed: bool,
+    filename: &Option<String>,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let total_size = buffer.len();
+    log::debug!(
+        "upload_data_to_server_in_chunks chunking data {} ...",
+        total_size
+    );
     let chunks: Vec<&[u8]> = buffer.chunks(chunk_size).collect();
     let hash = hash_buffer(buffer);
     let num_retries = 3;
+    log::debug!(
+        "upload_data_to_server_in_chunks got {} chunks from {}",
+        chunks.len(),
+        ByteSize::b(total_size as u64)
+    );
+
     for (i, chunk) in chunks.iter().enumerate() {
+        log::debug!(
+            "upload_data_to_server_in_chunks uploading chunk {} of size {}",
+            i,
+            ByteSize::b(chunks.len() as u64)
+        );
+
         let params = ChunkParams {
             chunk_num: i,
             total_chunks: chunks.len(),
             total_size,
             num_retries,
         };
-        upload_tarball_chunk_to_server_with_retry(remote_repo, commit, chunk, &hash, params)
-            .await?;
+        match upload_data_chunk_to_server_with_retry(
+            remote_repo,
+            commit,
+            chunk,
+            &hash,
+            &params,
+            is_compressed,
+            filename,
+        )
+        .await
+        {
+            Ok(_) => {
+                log::debug!("Success uploading chunk!")
+            }
+            Err(err) => {
+                log::error!("Err uploading chunk: {}", err)
+            }
+        }
+        bar.inc(chunk.len() as u64)
     }
     Ok(())
 }
 
-async fn upload_tarball_chunk_to_server_with_retry(
+pub async fn upload_data_chunk_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     chunk: &[u8],
     hash: &str,
-    params: ChunkParams,
+    params: &ChunkParams,
+    is_compressed: bool,
+    filename: &Option<String>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
     while total_tries != params.num_retries {
-        match upload_tarball_chunk_to_server(
+        match upload_data_chunk_to_server(
             remote_repo,
             commit,
             chunk,
             hash,
-            params.chunk_num,
-            params.total_chunks,
-            params.total_size,
+            params,
+            is_compressed,
+            filename,
         )
         .await
         {
@@ -331,7 +393,7 @@ async fn upload_tarball_chunk_to_server_with_retry(
                 // Exponentially back off
                 let sleep_time = total_tries * total_tries;
                 log::debug!(
-                    "upload_tarball_chunk_to_server_with_retry upload failed sleeping {}: {:?}",
+                    "upload_data_chunk_to_server_with_retry upload failed sleeping {}: {:?}",
                     sleep_time,
                     err
                 );
@@ -343,20 +405,39 @@ async fn upload_tarball_chunk_to_server_with_retry(
     Err(OxenError::basic_str("Upload chunk retry failed."))
 }
 
-async fn upload_tarball_chunk_to_server(
+async fn upload_data_chunk_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     chunk: &[u8],
     hash: &str,
-    chunk_num: usize,
-    total_chunks: usize,
-    total_size: usize,
+    params: &ChunkParams,
+    is_compressed: bool,
+    filename: &Option<String>,
 ) -> Result<CommitResponse, OxenError> {
+    let maybe_filename = if !is_compressed {
+        format!(
+            "&filename={}",
+            urlencoding::encode(
+                filename
+                    .as_ref()
+                    .expect("Must provide filename if !compressed")
+            )
+        )
+    } else {
+        String::from("")
+    };
+
     let uri = format!(
-        "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}",
-        commit.id, chunk_num, total_size, hash, total_chunks
+        "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
+        commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let total_size = chunk.len() as u64;
+    log::debug!(
+        "upload_data_chunk_to_server posting {} to url {}",
+        ByteSize::b(total_size),
+        url
+    );
 
     let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
@@ -367,18 +448,18 @@ async fn upload_tarball_chunk_to_server(
             let status = res.status();
             let body = res.text().await?;
 
-            log::debug!("upload_tarball_chunk_to_server got response {}", body);
+            log::debug!("upload_data_chunk_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_tarball_chunk_to_server Err deserializing status_code[{}] \n\n{}",
+                    "upload_data_chunk_to_server Err deserializing status_code[{}] \n\n{}",
                     status, body
                 ))),
             }
         }
         Err(e) => {
-            let err_str = format!("Err upload_tarball_chunk_to_server: {:?}", e);
+            let err_str = format!("Err upload_data_chunk_to_server: {:?}", e);
             Err(OxenError::basic_str(err_str))
         }
     }

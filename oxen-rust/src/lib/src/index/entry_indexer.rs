@@ -6,25 +6,23 @@ use flate2::Compression;
 use futures::{stream, StreamExt};
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
-use polars::prelude::IntoLazy;
 use rayon::prelude::*;
 use std::collections::{HashMap, VecDeque};
 use std::fs;
+use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::api;
-use crate::constants::{DATA_ARROW_FILE, HISTORY_DIR};
-use crate::df::{tabular, DFOpts};
+use crate::api::remote::commits::ChunkParams;
+use crate::constants::{AVG_CHUNK_SIZE, HISTORY_DIR};
 use crate::error::OxenError;
 use crate::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader,
-    CommitSchemaRowIndex, CommitWriter, RefReader, RefWriter, SchemaReader,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter,
+    RefReader, RefWriter,
 };
-use crate::model::{schema, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
-
-use super::CommitEntryWriter;
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -272,45 +270,11 @@ impl EntryIndexer {
         Ok(entries_to_sync)
     }
 
-    fn compute_entries_size_and_setup_dfs(
-        &self,
-        entries: &[CommitEntry],
-    ) -> Result<u64, OxenError> {
+    fn compute_entries_size(&self, entries: &[CommitEntry]) -> Result<u64, OxenError> {
         let mut total_size: u64 = 0;
 
-        println!("🐂 push computing size...");
         for entry in entries.iter() {
-            // If tabular, we save off data file that we are going to push, and compute size off of
-            let version_path = if util::fs::is_tabular(&entry.path) {
-                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
-                log::debug!("Looking up schema for file: {:?}", entry.path);
-                let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
-                log::debug!("Got schema: {:?} -> {:?}", entry.path, schema);
-
-                let reader = CommitSchemaRowIndex::new(
-                    &self.repository,
-                    &entry.commit_id,
-                    &schema,
-                    &entry.path,
-                )?;
-                let mut df = reader.sorted_entry_df_with_row_hash()?;
-
-                log::debug!("Saving and computing size for DF {}", df);
-                log::debug!("Got df to version path {}", df);
-
-                // save DataFrame to disk in it's proper version dir
-                let version_path =
-                    util::fs::version_dir_from_hash(&self.repository, entry.hash.clone())
-                        .join(DATA_ARROW_FILE);
-                tabular::write_df(&mut df, &version_path)?;
-
-                version_path
-            } else {
-                // not tabular, regular file
-                util::fs::version_path(&self.repository, entry)
-            };
-
-            // log::debug!("push [{}] adding entry to push {:?}", commit.id, entry);
+            let version_path = util::fs::version_path(&self.repository, entry);
             match fs::metadata(version_path) {
                 Ok(metadata) => {
                     total_size += metadata.len();
@@ -336,7 +300,8 @@ impl EntryIndexer {
             commit.message
         );
 
-        let total_size = self.compute_entries_size_and_setup_dfs(entries)?;
+        println!("🐂 push computing size...");
+        let total_size = self.compute_entries_size(entries)?;
 
         println!(
             "🐂 push {} files with size {}",
@@ -344,73 +309,316 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // Average chunk size of 1mb
-        let avg_chunk_size = 1_000_000;
-        let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
         let bar = Arc::new(ProgressBar::new(total_size));
+
+        // Since some files may be much larger than others....and zipping this larger files into a tarball then sending
+        // is slower than just chunking and sending
+
+        // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
+        let entries_to_bundle: Vec<CommitEntry> = entries
+            .iter()
+            .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
+            .map(|e| e.to_owned())
+            .collect();
+
+        // For files larger than AVG_CHUNK_SIZE, we are going break them into chunks and send the chunks in parallel
+        let larger_entries: Vec<CommitEntry> = entries
+            .iter()
+            .filter(|e| e.num_bytes > AVG_CHUNK_SIZE)
+            .map(|e| e.to_owned())
+            .collect();
+
+        let large_entries_sync = self.chunk_and_send_large_entries(
+            remote_repo,
+            larger_entries,
+            commit,
+            AVG_CHUNK_SIZE,
+            &bar,
+        );
+        let small_entries_sync = self.bundle_and_send_small_entries(
+            remote_repo,
+            entries_to_bundle,
+            commit,
+            AVG_CHUNK_SIZE,
+            &bar,
+        );
+
+        match tokio::join!(large_entries_sync, small_entries_sync) {
+            (Ok(_), Ok(_)) => Ok(()),
+            (Err(err), Ok(_)) => {
+                let err = format!("Error syncing large entries: {}", err);
+                Err(OxenError::basic_str(err))
+            }
+            (Ok(_), Err(err)) => {
+                let err = format!("Error syncing small entries: {}", err);
+                Err(OxenError::basic_str(err))
+            }
+            _ => Err(OxenError::basic_str("Unknown error syncing entries")),
+        }
+    }
+
+    async fn chunk_and_send_large_entries(
+        &self,
+        remote_repo: &RemoteRepository,
+        entries: Vec<CommitEntry>,
+        commit: &Commit,
+        chunk_size: u64,
+        bar: &Arc<ProgressBar>,
+    ) -> Result<(), OxenError> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (
+            CommitEntry,
+            LocalRepository,
+            Commit,
+            RemoteRepository,
+            Arc<ProgressBar>,
+        );
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
+        log::debug!("Chunking and sending {} larger files", entries.len());
+        let entries: Vec<PieceOfWork> = entries
+            .iter()
+            .map(|e| {
+                (
+                    e.to_owned(),
+                    self.repository.to_owned(),
+                    commit.to_owned(),
+                    remote_repo.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
+
+        let queue = Arc::new(TaskQueue::new(entries.len()));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+        for entry in entries.iter() {
+            queue.try_push(entry.to_owned()).unwrap();
+            finished_queue.try_push(false).unwrap();
+        }
+
+        let worker_count: usize = if num_cpus::get() > entries.len() {
+            entries.len()
+        } else {
+            num_cpus::get()
+        };
+
+        log::debug!(
+            "worker_count {} entries len {}",
+            worker_count,
+            entries.len()
+        );
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
+
+                    // Open versioned file
+                    let version_path = util::fs::version_path(&repo, &entry);
+                    let f = std::fs::File::open(&version_path).unwrap();
+                    let mut reader = BufReader::new(f);
+
+                    // Read chunks
+                    let total_size = entry.num_bytes;
+                    let num_chunks = ((total_size / chunk_size) + 1) as usize;
+                    let num_retries = 3;
+                    let mut total_read = 0;
+                    let mut chunk_size = chunk_size;
+
+                    // TODO: We could probably upload chunks in parallel too
+                    for i in 0..num_chunks {
+                        // Make sure we read the last size correctly
+                        if (total_read + chunk_size) > total_size {
+                            chunk_size = total_size % chunk_size;
+                        }
+
+                        // Only read as much as you need to send so we don't blow up memory on large files
+                        let mut buffer = vec![0u8; chunk_size as usize];
+                        reader.read_exact(&mut buffer).unwrap();
+                        total_read += chunk_size;
+
+                        let size = buffer.len() as u64;
+                        log::debug!("Got entry buffer of size {}", size);
+
+                        // Send data to server
+                        let is_compressed = false;
+                        let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+                        let path =
+                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                        let file_name = Some(String::from(path.to_str().unwrap()));
+
+                        let params = ChunkParams {
+                            chunk_num: i,
+                            total_chunks: num_chunks,
+                            total_size: total_size as usize,
+                            num_retries,
+                        };
+
+                        match api::remote::commits::upload_data_chunk_to_server_with_retry(
+                            &remote_repo,
+                            &commit,
+                            &buffer,
+                            &entry.hash,
+                            &params,
+                            is_compressed,
+                            &file_name,
+                        )
+                        .await
+                        {
+                            Ok(_) => {
+                                bar.inc(buffer.len() as u64);
+                                log::debug!("Successfully uploaded chunk {}/{}", i, num_chunks)
+                            }
+                            Err(err) => {
+                                log::error!("Error uploading chunk: {:?}", err)
+                            }
+                        }
+                    }
+
+                    finished_queue.pop().await;
+                }
+            });
+        }
+
+        while finished_queue.len() > 0 {
+            log::debug!("Before waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_secs(1)).await;
+            log::debug!("After waiting for {} workers to finish...", queue.len());
+        }
+        log::debug!("All large file tasks done. :-)");
+
+        Ok(())
+    }
+
+    /// Sends entries in tarballs of size ~chunk size
+    async fn bundle_and_send_small_entries(
+        &self,
+        remote_repo: &RemoteRepository,
+        entries: Vec<CommitEntry>,
+        commit: &Commit,
+        avg_chunk_size: u64,
+        bar: &Arc<ProgressBar>,
+    ) -> Result<(), OxenError> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+
+        // Compute size for this subset of entries
+        let total_size = self.compute_entries_size(&entries)?;
+        let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
 
         let mut chunk_size = entries.len() / num_chunks;
         if num_chunks > entries.len() {
             chunk_size = entries.len();
         }
 
+        // Split into chunks, zip up, and post to server
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (
+            Vec<CommitEntry>,
+            LocalRepository,
+            Commit,
+            RemoteRepository,
+            Arc<ProgressBar>,
+        );
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
         log::debug!("Creating {num_chunks} chunks from {total_size} bytes with size {chunk_size}");
-        let chunks: Vec<&[CommitEntry]> = entries.chunks(chunk_size).collect();
-        let results = stream::iter(chunks)
-            .map(|chunk| {
-                async move {
-                    // 1) zip up entries into tarballs
+        let chunks: Vec<PieceOfWork> = entries
+            .chunks(chunk_size)
+            .map(|c| {
+                (
+                    c.to_owned(),
+                    self.repository.to_owned(),
+                    commit.to_owned(),
+                    remote_repo.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
+
+        let worker_count: usize = num_cpus::get();
+        let queue = Arc::new(TaskQueue::new(chunks.len()));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+        for chunk in chunks {
+            queue.try_push(chunk).unwrap();
+            finished_queue.try_push(false).unwrap();
+        }
+
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (chunk, repo, commit, remote_repo, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
+
                     let enc = GzEncoder::new(Vec::new(), Compression::default());
                     let mut tar = tar::Builder::new(enc);
-                    for entry in chunk.iter() {
-                        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+                    log::debug!("Chunk size {}", chunk.len());
+                    log::debug!("got repo {:?}", &repo.path);
+                    for entry in chunk.into_iter() {
+                        let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+                        let version_path = util::fs::version_path(&repo, &entry);
+                        let name =
+                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                        if util::fs::is_tabular(&entry.path) {
-                            // TODO: Look into apache arrow flight for more efficient transfer of CADF
-                            let version_path = util::fs::version_dir_from_hash(
-                                &self.repository,
-                                entry.hash.clone(),
-                            )
-                            .join(DATA_ARROW_FILE);
-                            log::debug!("ZIPPING TABULAR {:?}", version_path);
+                        tar.append_path_with_name(version_path, name).unwrap();
+                    }
 
-                            let name =
-                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                    let buffer = match tar.into_inner() {
+                        Ok(gz_encoder) => match gz_encoder.finish() {
+                            Ok(buffer) => {
+                                let size = buffer.len() as u64;
+                                log::debug!("Got tarball buffer of size {}", size);
+                                buffer
+                            }
+                            Err(err) => {
+                                panic!("Error creating tar.gz on entries: {}", err)
+                            }
+                        },
+                        Err(err) => {
+                            panic!("Error creating tar of entries: {}", err)
+                        }
+                    };
 
-                            tar.append_path_with_name(version_path, name).unwrap();
-                        } else {
-                            let version_path = util::fs::version_path(&self.repository, entry);
-                            // log::debug!("ZIPPING REGULAR {:?}", version_path);
-                            let name =
-                                util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
-
-                            tar.append_path_with_name(version_path, name).unwrap();
+                    // Send tar.gz to server
+                    let is_compressed = true;
+                    let file_name = None;
+                    match api::remote::commits::post_data_to_server(
+                        &remote_repo,
+                        &commit,
+                        buffer,
+                        is_compressed,
+                        &file_name,
+                        bar,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            log::debug!("Successfully uploaded data!")
+                        }
+                        Err(err) => {
+                            log::error!("Error uploading chunk: {:?}", err)
                         }
                     }
-
-                    // TODO: Clean this up... many places it could fail, but just want to get something working
-                    tar.finish().unwrap();
-                    let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
-                    let size = buffer.len() as u64;
-                    log::debug!("Got tarball buffer of size {}", size);
-
-                    api::remote::commits::post_tarball_to_server(remote_repo, commit, buffer)
-                        .await?;
-                    futures::future::ok::<u64, OxenError>(size).await
+                    finished_queue.pop().await;
                 }
-            })
-            .buffer_unordered(num_cpus::get());
-
-        results
-            .for_each(|result| async {
-                match result {
-                    Ok(size) => bar.inc(size),
-                    Err(e) => {
-                        log::error!("Could not push entry: {}", e)
-                    }
-                }
-            })
-            .await;
+            });
+        }
+        while finished_queue.len() > 0 {
+            log::debug!("Waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_millis(1)).await;
+        }
+        log::debug!("All tasks done. :-)");
 
         Ok(())
     }
@@ -638,9 +846,8 @@ impl EntryIndexer {
 
             let (content_ids, size) = self.get_missing_content_ids(&entries);
 
-            // We want each chunk to be ~= 5mb
-            let avg_chunk_size = 500000;
-            let num_chunks = ((size / avg_chunk_size) + 1) as usize;
+            // Compute num chunks
+            let num_chunks = ((size / AVG_CHUNK_SIZE) + 1) as usize;
             let bar = Arc::new(ProgressBar::new(size));
 
             let mut chunk_size = entries.len() / num_chunks;
@@ -700,37 +907,18 @@ impl EntryIndexer {
                         log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                         let version_path = util::fs::version_path(&self.repository, entry);
                         // We will unpack tabular later into CADF
-                        if !util::fs::is_tabular(&entry.path)
-                        {
-                            if std::fs::copy(&version_path, &filepath).is_err() {
-                                log::error!(
-                                    "Could not unpack file {:?} -> {:?}",
-                                    version_path,
-                                    filepath
-                                );
-                            }
-                        } else {
-                            let version_dir = util::fs::version_dir_from_hash(&self.repository, entry.hash.clone());
-                            let hash_results_file = version_dir.join(DATA_ARROW_FILE);
-                            if !hash_results_file.exists() {
-                                log::error!("pull_entries_for_commit no tmp data file for entry {:?} -> {:?}", entry.path, hash_results_file);
-                                return;
-                            }
-
-                            let mut df = tabular::read_df(&hash_results_file, DFOpts::empty()).unwrap();
-                            let schema = schema::Schema::from_polars(&df.schema());
-                            let filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
-                            df = tabular::transform_df(df.lazy(), filter).unwrap();
-
-                            // Need to restore parent dir
-                            if let Some(parent) = filepath.parent() {
-                                std::fs::create_dir_all(parent).unwrap();
-                            }
-                            log::debug!("Restoring tabular {:?} -> {}\nto path {:?}", entry.path, df, filepath);
-                            tabular::write_df(&mut df, &filepath).unwrap();
+                        if std::fs::copy(&version_path, &filepath).is_err() {
+                            log::error!(
+                                "Could not unpack file {:?} -> {:?}",
+                                version_path,
+                                filepath
+                            );
                         }
 
-                        log::debug!("pull_entries_for_commit updating timestamp for {:?}", filepath);
+                        log::debug!(
+                            "pull_entries_for_commit updating timestamp for {:?}",
+                            filepath
+                        );
                         if filepath.exists() {
                             let metadata = fs::metadata(filepath).unwrap();
                             let mtime = FileTime::from_last_modification_time(&metadata);
@@ -746,18 +934,8 @@ impl EntryIndexer {
             bar.finish();
         }
 
-        // Unpack tabular data
-        self.unpack_tabular(commit)?;
-
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
-
-        Ok(())
-    }
-
-    fn unpack_tabular(&self, commit: &Commit) -> Result<(), OxenError> {
-        let writer = CommitEntryWriter::new(&self.repository, commit)?;
-        writer.aggregate_row_level_results()?;
 
         Ok(())
     }

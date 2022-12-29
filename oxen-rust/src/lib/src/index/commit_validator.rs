@@ -1,5 +1,5 @@
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, CommitSchemaRowIndex, SchemaReader};
+use crate::index::CommitDirReader;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 
@@ -32,7 +32,7 @@ impl CommitValidator {
     ) -> Result<Option<String>, OxenError> {
         // log::debug!("Computing commit hash for {} entries", entries.len());
         let mut hashes: Vec<SimpleHash> = vec![];
-        for (i, entry) in entries.iter().enumerate() {
+        for (_, entry) in entries.iter().enumerate() {
             // Sometimes we have pre computed the HASH, so that we don't have to fully hash contents again to
             // check if data is synced (I guess this is already in the file path...should we just grab it from there instead?)
             // I think the extra hash computation on the server is nice so that you know the actual contents was saved to disk
@@ -42,38 +42,15 @@ impl CommitValidator {
             // log::debug!("Entry [{}]: {:?}", i, entry.path);
             if maybe_hash_file.exists() {
                 let hash = util::fs::read_from_path(&maybe_hash_file)?;
-                log::debug!(
-                    "compute_versions_hash cached hash [{i}] {hash} => {:?}",
-                    entry.path
-                );
+                // log::debug!(
+                //     "compute_versions_hash cached hash [{i}] {hash} => {:?}",
+                //     entry.path
+                // );
                 hashes.push(SimpleHash { hash });
                 continue;
             }
 
-            let hash = if util::fs::is_tabular(&entry.path) {
-                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
-                let schema = schema_reader.get_schema_for_file(&entry.path)?.unwrap();
-                let reader = CommitSchemaRowIndex::new(
-                    &self.repository,
-                    &entry.commit_id,
-                    &schema,
-                    &entry.path,
-                )?;
-                let df = reader.sorted_entry_df_with_row_hash()?;
-                util::hasher::compute_tabular_hash(&df)
-            } else {
-                if !version_path.exists() {
-                    log::debug!(
-                        "Could not find version path for {:?} -> {:?}",
-                        entry.path,
-                        version_path
-                    );
-                    return Ok(None);
-                }
-
-                util::hasher::hash_file_contents(&version_path)?
-            };
-
+            let hash = util::hasher::hash_file_contents(&version_path)?;
             // log::debug!("Got hash: {:?} -> {}", entry.path, hash);
 
             hashes.push(SimpleHash { hash })

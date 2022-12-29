@@ -30,7 +30,7 @@ where
     T: de::DeserializeOwned,
 {
     let path = path.as_ref();
-    log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
+    // log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
     if let Some(key) = path.to_str() {
         return str_json_db::get(db, key);
     }

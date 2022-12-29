@@ -204,64 +204,6 @@ pub fn schemas(sub_matches: &ArgMatches) {
                     }
                 }
             }
-            ("create_index", sub_matches) => {
-                let schema = sub_matches
-                    .value_of("SCHEMA")
-                    .expect("Must supply a schema ref");
-                let field = sub_matches.value_of("field").expect("Must supply a field");
-                match dispatch::schema_create_index(schema, field) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
-                }
-            }
-            ("indices", sub_matches) => {
-                let schema = sub_matches
-                    .value_of("SCHEMA")
-                    .expect("Must supply a schema ref");
-
-                match dispatch::schema_list_indices(schema) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
-                }
-            }
-            ("query", sub_matches) => {
-                let schema = sub_matches.value_of("SCHEMA").expect("required");
-                let field = sub_matches.value_of("field").expect("required");
-                let query = sub_matches.value_of("query").expect("required");
-                match dispatch::schema_query_index(schema, field, query) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
-                }
-            }
-            ("df", sub_matches) => {
-                let schema = sub_matches.value_of("DF_SPEC").expect("required");
-                let verbose = false; // do not print schema
-                match dispatch::schema_show(schema, verbose) {
-                    Ok((repo, Some(schema))) => {
-                        let path = liboxen::util::fs::schema_df_path(&repo, &schema);
-                        let opts = parse_df_sub_matches(sub_matches);
-
-                        match dispatch::df(path, opts) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                eprintln!("{}", err)
-                            }
-                        }
-                    }
-                    Ok((_, None)) => {
-                        eprintln!("Could not find schema {}", schema);
-                    }
-                    Err(err) => {
-                        eprintln!("{}", err)
-                    }
-                }
-            }
             (cmd, _) => {
                 eprintln!("Unknown subcommand {}", cmd)
             }

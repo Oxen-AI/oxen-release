@@ -37,7 +37,7 @@ where
     T: de::DeserializeOwned,
 {
     let key = key.as_ref();
-    log::debug!("kv_json_db::get({:?}) from db {:?}", key, db.path());
+    // log::debug!("kv_json_db::get({:?}) from db {:?}", key, db.path());
 
     let bytes = key.as_bytes();
     match db.get(bytes) {

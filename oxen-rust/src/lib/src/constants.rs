@@ -48,3 +48,7 @@ pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
 pub const ROW_NUM_COL_NAME: &str = "_row_num";
 pub const ROW_HASH_COL_NAME: &str = "_row_hash";
 pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
+
+// Data transfer
+// Average chunk size of ~4mb
+pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;

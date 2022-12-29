@@ -9,7 +9,7 @@ clap = { version = "3.1.0", features = ["cargo"] }
 indicatif = "0.17.1"
 jwalk = "0.6.0"
 rayon = "1.5.1"
-reqwest = { version = "0.11.11", features = ["multipart", "json", "gzip", "stream"] }
+reqwest = { version = "0.11.13", features = ["multipart", "json", "gzip", "stream"] }
 serde = { version = "1.0.136", features = ["derive"] }
 serde_url_params = "0.2.1"
 serde_json = "1.0.78"
@@ -57,6 +57,7 @@ rand = "0.8.5"
 async-std = "1.12.0"
 nom = "7.1.1"
 time = { version = "0.3.17", features = ["serde"] }
+deadqueue = "0.2.4"
 
 [lib]
 name = "liboxen"
