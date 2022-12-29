@@ -1,10 +1,10 @@
-use crate::api;
 use crate::api::remote::client;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::util::hasher::hash_buffer;
+use crate::{api, constants};
 // use crate::util::ReadProgress;
 use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
 
@@ -215,8 +215,7 @@ pub async fn post_data_to_server(
     filename: &Option<String>,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    // Chunk into 1mb chunks
-    let chunk_size: usize = 1024 * 1024 * 4;
+    let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
             remote_repo,
