@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::api;
+use crate::api::remote::commits::ChunkParams;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::index::{
@@ -330,8 +331,13 @@ impl EntryIndexer {
             .map(|e| e.to_owned())
             .collect();
 
-        let large_entries_sync =
-            self.chunk_and_send_large_entries(remote_repo, larger_entries, commit, &bar);
+        let large_entries_sync = self.chunk_and_send_large_entries(
+            remote_repo,
+            larger_entries,
+            commit,
+            avg_chunk_size,
+            &bar,
+        );
         let small_entries_sync = self.bundle_and_send_small_entries(
             remote_repo,
             entries_to_bundle,
@@ -364,6 +370,7 @@ impl EntryIndexer {
         remote_repo: &RemoteRepository,
         entries: Vec<CommitEntry>,
         commit: &Commit,
+        chunk_size: u64,
         bar: &Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
         if entries.is_empty() {
@@ -421,42 +428,68 @@ impl EntryIndexer {
                     let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
                     log::debug!("worker[{}] processing task...", worker);
 
-                    // TODO:...this reads everything into memory for each entry, might want to stream chunks as we read them from disk
-
-                    // read file buffer
+                    // Open versioned file
                     let version_path = util::fs::version_path(&repo, &entry);
                     let f = std::fs::File::open(&version_path).unwrap();
                     let mut reader = BufReader::new(f);
-                    let mut buffer = Vec::new();
 
-                    // Read file into vector.
-                    reader.read_to_end(&mut buffer).unwrap();
+                    // Read chunks
+                    let total_size = entry.num_bytes;
+                    let num_chunks = ((total_size / chunk_size) + 1) as usize;
+                    let num_retries = 3;
+                    let mut total_read = 0;
+                    let mut chunk_size = chunk_size;
 
-                    let size = buffer.len() as u64;
-                    log::debug!("Got entry buffer of size {}", size);
-
-                    // Send data to server
-                    let is_compressed = false;
-                    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-                    let path = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
-                    let file_name = Some(String::from(path.to_str().unwrap()));
-                    match api::remote::commits::post_data_to_server(
-                        &remote_repo,
-                        &commit,
-                        buffer,
-                        is_compressed,
-                        &file_name,
-                        bar,
-                    )
-                    .await
-                    {
-                        Ok(_) => {
-                            log::debug!("Successfully uploaded data!")
+                    // TODO: We could probably upload chunks in parallel too
+                    for i in 0..num_chunks {
+                        // Make sure we read the last size correctly
+                        if (total_read + chunk_size) > total_size {
+                            chunk_size = total_size % chunk_size;
                         }
-                        Err(err) => {
-                            log::error!("Error uploading chunk: {:?}", err)
+
+                        // Only read as much as you need to send so we don't blow up memory on large files
+                        let mut buffer = vec![0u8; chunk_size as usize];
+                        reader.read_exact(&mut buffer).unwrap();
+                        total_read += chunk_size;
+
+                        let size = buffer.len() as u64;
+                        log::debug!("Got entry buffer of size {}", size);
+
+                        // Send data to server
+                        let is_compressed = false;
+                        let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+                        let path =
+                            util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
+                        let file_name = Some(String::from(path.to_str().unwrap()));
+
+                        let params = ChunkParams {
+                            chunk_num: i,
+                            total_chunks: num_chunks,
+                            total_size: total_size as usize,
+                            num_retries,
+                        };
+
+                        match api::remote::commits::upload_data_chunk_to_server_with_retry(
+                            &remote_repo,
+                            &commit,
+                            &buffer,
+                            &entry.hash,
+                            &params,
+                            is_compressed,
+                            &file_name,
+                        )
+                        .await
+                        {
+                            Ok(_) => {
+                                bar.inc(buffer.len() as u64);
+                                log::debug!("Successfully uploaded chunk {}/{}", i, num_chunks)
+                            }
+                            Err(err) => {
+                                log::error!("Error uploading chunk: {:?}", err)
+                            }
                         }
                     }
+
                     finished_queue.pop().await;
                 }
             });

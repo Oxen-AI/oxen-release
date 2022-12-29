@@ -21,11 +21,11 @@ use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
 
-struct ChunkParams {
-    chunk_num: usize,
-    total_chunks: usize,
-    total_size: usize,
-    num_retries: usize,
+pub struct ChunkParams {
+    pub chunk_num: usize,
+    pub total_chunks: usize,
+    pub total_size: usize,
+    pub num_retries: usize,
 }
 
 pub async fn get_by_id(
@@ -364,7 +364,7 @@ async fn upload_data_to_server_in_chunks(
     Ok(())
 }
 
-async fn upload_data_chunk_to_server_with_retry(
+pub async fn upload_data_chunk_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     chunk: &[u8],
