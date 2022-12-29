@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crate::api;
 use crate::api::remote::commits::ChunkParams;
-use crate::constants::HISTORY_DIR;
+use crate::constants::{AVG_CHUNK_SIZE, HISTORY_DIR};
 use crate::error::OxenError;
 use crate::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter,
@@ -309,25 +309,22 @@ impl EntryIndexer {
             ByteSize::b(total_size)
         );
 
-        // Average chunk size of ~1mb
-        let avg_chunk_size = 1024 * 1024 * 4;
-
         let bar = Arc::new(ProgressBar::new(total_size));
 
         // Since some files may be much larger than others....and zipping this larger files into a tarball then sending
         // is slower than just chunking and sending
 
-        // For files smaller than avg_chunk_size, we are going to group them, zip them up, and transfer them
+        // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
         let entries_to_bundle: Vec<CommitEntry> = entries
             .iter()
-            .filter(|e| e.num_bytes < avg_chunk_size)
+            .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
             .map(|e| e.to_owned())
             .collect();
 
-        // For files larger than avg_chunk_size, we are going break them into chunks and send the chunks in parallel
+        // For files larger than AVG_CHUNK_SIZE, we are going break them into chunks and send the chunks in parallel
         let larger_entries: Vec<CommitEntry> = entries
             .iter()
-            .filter(|e| e.num_bytes > avg_chunk_size)
+            .filter(|e| e.num_bytes > AVG_CHUNK_SIZE)
             .map(|e| e.to_owned())
             .collect();
 
@@ -335,21 +332,16 @@ impl EntryIndexer {
             remote_repo,
             larger_entries,
             commit,
-            avg_chunk_size,
+            AVG_CHUNK_SIZE,
             &bar,
         );
         let small_entries_sync = self.bundle_and_send_small_entries(
             remote_repo,
             entries_to_bundle,
             commit,
-            avg_chunk_size,
+            AVG_CHUNK_SIZE,
             &bar,
         );
-
-        // large_entries_sync.await?;
-        // small_entries_sync.await?;
-
-        // Ok(())
 
         match tokio::join!(large_entries_sync, small_entries_sync) {
             (Ok(_), Ok(_)) => Ok(()),
@@ -854,9 +846,8 @@ impl EntryIndexer {
 
             let (content_ids, size) = self.get_missing_content_ids(&entries);
 
-            // We want each chunk to be ~= 1mb
-            let avg_chunk_size = 1024 * 1024;
-            let num_chunks = ((size / avg_chunk_size) + 1) as usize;
+            // Compute num chunks
+            let num_chunks = ((size / AVG_CHUNK_SIZE) + 1) as usize;
             let bar = Arc::new(ProgressBar::new(size));
 
             let mut chunk_size = entries.len() / num_chunks;
