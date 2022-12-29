@@ -271,18 +271,6 @@ $ oxen diff path/to/file.txt
 +another line
 ```
 
-## Indices & Schemas
-
-⚠️ Caution this feature is a work in progress and not merged yet.
-
-Another powerful concept in Oxen is the ability to track data schemas and index subsets of the data. Both the schemas and indices are versioned as the data evolves. To dive deeper into these concepts you can reference the [Oxen indices documentation](Indices.md).
-
-Say for example you have a column of the data that represents whether this example is in the train, test, or validation dataset. You can create an index on that column with the `index` command.
-
-```bash
-$ oxen schema index <SCHEMA_ID> <EXPRESSION>
-```
-
 # Sharing Data and Collaboration
 
 Oxen enables sharing data and collaboration between teams with `oxen-server`. Some teams setup a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
