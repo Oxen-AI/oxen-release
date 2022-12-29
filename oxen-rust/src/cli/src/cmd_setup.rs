@@ -232,50 +232,6 @@ pub fn schemas() -> Command<'static> {
                 .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
                 .arg(Arg::new("NAME").help("Name of the schema.")),
         )
-        .subcommand(
-            Command::new("create_index")
-                .arg(
-                    Arg::new("SCHEMA")
-                        .help("The schema name or hash that you want to create the index for."),
-                )
-                .arg(
-                    Arg::new("field")
-                        .short('f')
-                        .long("field")
-                        .help("The field or column name that you want to create the index for.")
-                        .takes_value(true)
-                        .required(true),
-                ),
-        )
-        .subcommand(
-            Command::new("indices").arg(
-                Arg::new("SCHEMA")
-                    .help("The schema name or hash that you want to view the indices for."),
-            ),
-        )
-        .subcommand(
-            Command::new("query")
-                .arg(
-                    Arg::new("SCHEMA")
-                        .help("The schema name or hash that you want to create the index for."),
-                )
-                .arg(
-                    Arg::new("field")
-                        .short('f')
-                        .long("field")
-                        .help("The field or column name that you want to create the index for.")
-                        .takes_value(true)
-                        .required(true),
-                )
-                .arg(
-                    Arg::new("query")
-                        .short('q')
-                        .long("query")
-                        .help("The query or column value that you want to view the values for.")
-                        .takes_value(true)
-                        .required(true),
-                ),
-        )
         .subcommand(df())
 }
 

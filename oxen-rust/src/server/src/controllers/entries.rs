@@ -2,7 +2,6 @@ use crate::app_data::OxenAppData;
 use crate::view::PaginatedLinesResponse;
 
 use liboxen::api;
-use liboxen::constants::DATA_ARROW_FILE;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
 use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
@@ -82,17 +81,8 @@ pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -
                     continue;
                 }
 
-                // TODO: if tabular, get content from data file
-                // log::debug!("Checking for content file {}", content_file);
-
                 let version_path = repo.path.join(content_file);
-                if util::fs::is_tabular(&version_path) {
-                    let data_file = version_path.parent().unwrap().join(DATA_ARROW_FILE);
-                    let path = Path::new(content_file);
-                    // in order to unzip it to data on the other end
-                    let content_file = path.parent().unwrap().join(DATA_ARROW_FILE);
-                    tar.append_path_with_name(data_file, content_file).unwrap();
-                } else if version_path.exists() {
+                if version_path.exists() {
                     tar.append_path_with_name(version_path, content_file)
                         .unwrap();
                 } else {

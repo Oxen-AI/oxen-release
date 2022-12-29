@@ -8,9 +8,9 @@ use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::schema_writer::SchemaWriter;
-use crate::index::CommitSchemaRowIndex;
+// use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaIndexReader;
-use crate::index::SchemaIndexer;
+// use crate::index::SchemaIndexer;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
@@ -27,7 +27,6 @@ use crate::util;
 use crate::util::resource;
 
 use bytevec::ByteDecodable;
-use polars::prelude::DataFrame;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -288,48 +287,6 @@ pub fn schema_name(
         Ok(Some(schema))
     } else {
         Ok(None)
-    }
-}
-
-pub fn schema_create_index(
-    repo: &LocalRepository,
-    schema_ref: &str,
-    field: &str,
-) -> Result<(), OxenError> {
-    let head_commit = head_commit(repo)?;
-    if let Some(schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
-        if let Some(field) = schema.get_field(field) {
-            let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
-            indexer.create_index(field)
-        } else {
-            Err(OxenError::schema_does_not_have_field(field))
-        }
-    } else {
-        Err(OxenError::schema_does_not_exist(schema_ref))
-    }
-}
-
-pub fn schema_query_index(
-    repo: &LocalRepository,
-    schema_ref: &str,
-    field: &str,
-    query: &str,
-) -> Result<DataFrame, OxenError> {
-    let head_commit = head_commit(repo)?;
-    if let Some(schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
-        if let Some(field) = schema.get_field(field) {
-            let indexer = SchemaIndexer::new(repo, &head_commit, &schema);
-            if let Some(result) = indexer.query(field, query)? {
-                Ok(result)
-            } else {
-                let err = format!("Val does not exist {}", query);
-                Err(OxenError::basic_str(err))
-            }
-        } else {
-            Err(OxenError::schema_does_not_have_field(field))
-        }
-    } else {
-        Err(OxenError::schema_does_not_exist(schema_ref))
     }
 }
 
@@ -629,8 +586,10 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         .find(|c| c.merge_entry.path == path.as_ref())
     {
         if util::fs::is_tabular(&conflict.head_entry.path) {
-            let df_head = CommitSchemaRowIndex::df_from_entry(repo, &conflict.head_entry)?;
-            let df_merge = CommitSchemaRowIndex::df_from_entry(repo, &conflict.merge_entry)?;
+            let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
+            let df_head = tabular::read_df(df_head_path, DFOpts::empty())?;
+            let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
+            let df_merge = tabular::read_df(df_merge_path, DFOpts::empty())?;
 
             log::debug!("GOT DF HEAD {}", df_head);
             log::debug!("GOT DF MERGE {}", df_merge);
