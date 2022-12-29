@@ -1,3 +1,14 @@
+# v0.4.0
+
+* Features
+    * Faster data upload 🔥
+    * Chunked data APIs
+
+* Breaking Changes
+    * Removed CADF
+    * Remove `oxen index` commands
+
+
 # v0.3.0
 
 * Features
