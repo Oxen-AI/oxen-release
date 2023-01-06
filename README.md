@@ -1,8 +1,10 @@
 # 🐂 oxen-release
 
-Oxen is command line tooling for working with large machine learning datasets.
+Oxen helps you version on your machine learning datasets like you version your code. 
 
-The name Oxen comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🐂 🌾. Let Oxen take care of grunt work of your infrastructure so you can focus on the higher level ML problems that matter to your product.
+In a world of [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where we are replacing lines with neural networks and large datasets, we need better tooling to keep track of changes to the data and models over time.
+
+Versioning datasets with `git` or `git lfs` is slow and painful 😩. Git was built for code repositories, not data. Oxen is built from the ground up for speed and large datasets 🐂 💨 and is 10-100x faster than using git.
 
 It is built from the ground up to be fast 🔥 and easy to learn 🧠
 
@@ -16,6 +18,10 @@ It is built from the ground up to be fast 🔥 and easy to learn 🧠
 * Syncs to [OxenHub](https://oxen.ai) for visualization and collaboration on public and private repositories.
 
 Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and to stay updated on the progress.
+
+# Why the name Oxen?
+
+"Oxen" comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🐂 🌾. Let Oxen take care of grunt work of your infrastructure so you can focus on the higher level ML problems that matter to your product.
 
 # Overview
 
