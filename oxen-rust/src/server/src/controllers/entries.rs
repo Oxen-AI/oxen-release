@@ -2,6 +2,7 @@ use crate::app_data::OxenAppData;
 use crate::view::PaginatedLinesResponse;
 
 use liboxen::api;
+use liboxen::constants::AVG_CHUNK_SIZE;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
 use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
@@ -26,6 +27,12 @@ pub struct PageNumQuery {
     pub page_size: Option<usize>,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct ChunkQuery {
+    pub chunk_start: Option<u64>,
+    pub chunk_size: Option<u64>,
+}
+
 pub async fn create(
     req: HttpRequest,
     body: web::Payload,
@@ -48,7 +55,10 @@ pub async fn create(
     }
 }
 
-pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -> HttpResponse {
+pub async fn download_data_from_version_paths(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -60,7 +70,7 @@ pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -
                 bytes.extend_from_slice(&item.unwrap());
             }
             log::debug!(
-                "download_content_by_ids got repo [{}] and content_ids size {}",
+                "download_data_from_version_paths got repo [{}] and content_ids size {}",
                 name,
                 bytes.len()
             );
@@ -97,6 +107,61 @@ pub async fn download_content_by_ids(req: HttpRequest, mut body: web::Payload) -
             tar.finish().unwrap();
             let buffer: Vec<u8> = tar.into_inner().unwrap().finish().unwrap();
             HttpResponse::Ok().body(buffer)
+        }
+        Ok(None) => {
+            log::debug!("Could not find repo with name {}", name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Unable to get repository {}. Err: {}", name, err);
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+/// Download a chunk of a larger file
+pub async fn download_chunk(req: HttpRequest, query: web::Query<ChunkQuery>) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+        Ok(Some(repo)) => {
+            if let Ok(Some((commit_id, _, filepath))) =
+                util::resource::parse_resource(&repo, &resource)
+            {
+                log::debug!(
+                    "entries::download_chunk commit_id [{}] and filepath {:?}",
+                    commit_id,
+                    filepath
+                );
+
+                match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
+                    Ok(version_path) => {
+                        let chunk_start: u64 = query.chunk_start.unwrap_or(0);
+                        let chunk_size: u64 = query.chunk_size.unwrap_or(AVG_CHUNK_SIZE);
+
+                        let mut f = File::open(version_path).unwrap();
+                        f.seek(std::io::SeekFrom::Start(chunk_start)).unwrap();
+                        let mut buffer = vec![0u8; chunk_size as usize];
+                        f.read_exact(&mut buffer).unwrap();
+
+                        HttpResponse::Ok().body(buffer)
+                    }
+                    Err(err) => {
+                        log::error!("Error listing lines in file {:?}", err);
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
+                    }
+                }
+            } else {
+                log::debug!(
+                    "entries::download_chunk could not find resource from uri {:?}",
+                    resource
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
         }
         Ok(None) => {
             log::debug!("Could not find repo with name {}", name);
