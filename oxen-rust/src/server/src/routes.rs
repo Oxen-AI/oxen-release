@@ -89,10 +89,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/meta/{resource:.*}",
         web::get().to(controllers::file::meta_data),
     )
+    .route(
+        "/{namespace}/{repo_name}/chunk/{resource:.*}", // Download a chunk of a larger versioned file
+        web::get().to(controllers::entries::download_chunk),
+    )
     // ----- Versions ----- //
     .route(
-        "/{namespace}/{repo_name}/versions",
-        web::post().to(controllers::entries::download_content_by_ids),
+        "/{namespace}/{repo_name}/versions", // Download tar.gz set of version files
+        web::post().to(controllers::entries::download_data_from_version_paths),
     )
     // ----- Schemas ----- //
     .route(

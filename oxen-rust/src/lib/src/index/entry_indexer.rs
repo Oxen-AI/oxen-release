@@ -3,7 +3,6 @@ use bytesize::ByteSize;
 use filetime::FileTime;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use futures::{stream, StreamExt};
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
@@ -274,15 +273,7 @@ impl EntryIndexer {
         let mut total_size: u64 = 0;
 
         for entry in entries.iter() {
-            let version_path = util::fs::version_path(&self.repository, entry);
-            match fs::metadata(version_path) {
-                Ok(metadata) => {
-                    total_size += metadata.len();
-                }
-                Err(err) => {
-                    log::warn!("Err getting metadata on {:?}\n{:?}", entry.path, err);
-                }
-            }
+            total_size += entry.num_bytes;
         }
         Ok(total_size)
     }
@@ -304,18 +295,18 @@ impl EntryIndexer {
         let total_size = self.compute_entries_size(entries)?;
 
         println!(
-            "🐂 push {} files with size {}",
+            "Pushing {} files with size {}",
             entries.len(),
             ByteSize::b(total_size)
         );
 
         let bar = Arc::new(ProgressBar::new(total_size));
 
-        // Since some files may be much larger than others....and zipping this larger files into a tarball then sending
-        // is slower than just chunking and sending
+        // Some files may be much larger than others....so we can't just zip them up and send them
+        // since bodies will be too big. Hence we chunk and send the big ones, and bundle and send the small ones
 
         // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
-        let entries_to_bundle: Vec<CommitEntry> = entries
+        let smaller_entries: Vec<CommitEntry> = entries
             .iter()
             .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
             .map(|e| e.to_owned())
@@ -337,7 +328,7 @@ impl EntryIndexer {
         );
         let small_entries_sync = self.bundle_and_send_small_entries(
             remote_repo,
-            entries_to_bundle,
+            smaller_entries,
             commit,
             AVG_CHUNK_SIZE,
             &bar,
@@ -488,9 +479,8 @@ impl EntryIndexer {
         }
 
         while finished_queue.len() > 0 {
-            log::debug!("Before waiting for {} workers to finish...", queue.len());
+            // log::debug!("Before waiting for {} workers to finish...", queue.len());
             sleep(Duration::from_secs(1)).await;
-            log::debug!("After waiting for {} workers to finish...", queue.len());
         }
         log::debug!("All large file tasks done. :-)");
 
@@ -615,7 +605,7 @@ impl EntryIndexer {
             });
         }
         while finished_queue.len() > 0 {
-            log::debug!("Waiting for {} workers to finish...", queue.len());
+            // log::debug!("Waiting for {} workers to finish...", queue.len());
             sleep(Duration::from_millis(1)).await;
         }
         log::debug!("All tasks done. :-)");
@@ -792,21 +782,30 @@ impl EntryIndexer {
         Ok(entries[0..limit].to_vec())
     }
 
-    fn get_missing_content_ids(&self, entries: &[CommitEntry]) -> (Vec<String>, u64) {
-        let mut content_ids: Vec<String> = vec![];
+    fn get_missing_commit_entries(&self, entries: &[CommitEntry]) -> Vec<CommitEntry> {
+        let mut missing_entries: Vec<CommitEntry> = vec![];
 
-        let mut size: u64 = 0;
-        for entry in entries.iter() {
+        for entry in entries {
             let version_path = util::fs::version_path(&self.repository, entry);
-            if !version_path.exists() || util::fs::is_tabular(&version_path) {
-                let version_path =
-                    util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
-                content_ids.push(String::from(version_path.to_str().unwrap()));
-                size += entry.num_bytes;
+            if !version_path.exists() {
+                missing_entries.push(entry.to_owned())
             }
         }
 
-        (content_ids, size)
+        missing_entries
+    }
+
+    fn version_paths_from_entries(&self, entries: &[CommitEntry]) -> Vec<String> {
+        let mut content_ids: Vec<String> = vec![];
+
+        for entry in entries.iter() {
+            let version_path = util::fs::version_path(&self.repository, entry);
+            let version_path =
+                util::fs::path_relative_to_dir(&version_path, &self.repository.path).unwrap();
+            content_ids.push(String::from(version_path.to_str().unwrap()));
+        }
+
+        content_ids
     }
 
     fn group_entries_to_parent_dirs(
@@ -844,99 +843,288 @@ impl EntryIndexer {
             let total = if limit > 0 { limit } else { entries.len() };
             println!("🐂 pulling commit {} with {} entries", commit.id, total);
 
-            let (content_ids, size) = self.get_missing_content_ids(&entries);
+            let missing_entries = self.get_missing_commit_entries(&entries);
+            let total_size = self.compute_entries_size(&missing_entries)?;
+            println!("Total size {}", ByteSize::b(total_size));
 
-            // Compute num chunks
-            let num_chunks = ((size / AVG_CHUNK_SIZE) + 1) as usize;
-            let bar = Arc::new(ProgressBar::new(size));
+            // Some files may be much larger than others....so we can't just download them within a single body
+            // Hence we chunk and send the big ones, and bundle and download the small ones
 
-            let mut chunk_size = entries.len() / num_chunks;
-            if num_chunks > entries.len() {
-                chunk_size = entries.len();
+            // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
+            let smaller_entries: Vec<CommitEntry> = missing_entries
+                .iter()
+                .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
+                .map(|e| e.to_owned())
+                .collect();
+
+            // For files larger than AVG_CHUNK_SIZE, we are going break them into chunks and download the chunks in parallel
+            let larger_entries: Vec<CommitEntry> = missing_entries
+                .iter()
+                .filter(|e| e.num_bytes > AVG_CHUNK_SIZE)
+                .map(|e| e.to_owned())
+                .collect();
+
+            // Progress bar to be shared between small and large entries
+            let bar = Arc::new(ProgressBar::new(total_size));
+
+            let large_entries_sync = self.pull_large_entries(remote_repo, larger_entries, &bar);
+
+            let small_entries_sync = self.pull_small_entries(remote_repo, smaller_entries, &bar);
+
+            match tokio::join!(large_entries_sync, small_entries_sync) {
+                (Ok(_), Ok(_)) => {
+                    log::debug!("Successfully synced entries!")
+                }
+                (Err(err), Ok(_)) => {
+                    let err = format!("Error syncing large entries: {}", err);
+                    return Err(OxenError::basic_str(err));
+                }
+                (Ok(_), Err(err)) => {
+                    let err = format!("Error syncing small entries: {}", err);
+                    return Err(OxenError::basic_str(err));
+                }
+                _ => return Err(OxenError::basic_str("Unknown error syncing entries")),
             }
 
-            log::debug!(
-                "pull_entries_for_commit got {} missing content IDs",
-                content_ids.len()
-            );
-
-            // Chunk and run downloads in parallel
-            let chunks: Vec<&[String]> = content_ids.chunks(chunk_size).collect();
-            let results = stream::iter(chunks)
-                .map(|chunk| {
-                    let repo = self.repository.clone();
-
-                    async move {
-                        api::remote::entries::download_content_by_ids(&repo, remote_repo, chunk)
-                            .await
-                    }
-                })
-                // Number of CPUs will be number of par requests
-                .buffer_unordered(num_cpus::get());
-
-            // Collect results in progress bar, cannot `async move` progress bar above
-            results
-                .for_each(|result| async {
-                    match result {
-                        Ok(size) => bar.inc(size),
-                        Err(err) => {
-                            log::error!("Could not download content... {:?}", err)
-                        }
-                    }
-                })
-                .await;
-            bar.finish();
-
-            println!("Unpacking...");
-            let bar = Arc::new(ProgressBar::new(entries.len() as u64));
-            let dir_entries = self.group_entries_to_parent_dirs(&entries);
-
-            dir_entries.par_iter().for_each(|(dir, entries)| {
-                let committer =
-                    CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
-                entries.par_iter().for_each(|entry| {
-                    let filepath = self.repository.path.join(&entry.path);
-                    if self.should_copy_entry(entry, &filepath) {
-                        if let Some(parent) = filepath.parent() {
-                            if !parent.exists() {
-                                log::debug!("Create parent dir {:?}", parent);
-                                std::fs::create_dir_all(parent).unwrap();
-                            }
-                        }
-
-                        log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
-                        let version_path = util::fs::version_path(&self.repository, entry);
-                        // We will unpack tabular later into CADF
-                        if std::fs::copy(&version_path, &filepath).is_err() {
-                            log::error!(
-                                "Could not unpack file {:?} -> {:?}",
-                                version_path,
-                                filepath
-                            );
-                        }
-
-                        log::debug!(
-                            "pull_entries_for_commit updating timestamp for {:?}",
-                            filepath
-                        );
-                        if filepath.exists() {
-                            let metadata = fs::metadata(filepath).unwrap();
-                            let mtime = FileTime::from_last_modification_time(&metadata);
-                            committer.set_file_timestamps(entry, &mtime).unwrap();
-                        } else {
-                            log::error!("could not update timestamp for entry {:?}", entry.path);
-                        }
-                    }
-                    bar.inc(1);
-                });
-            });
-
-            bar.finish();
+            self.unpack_version_files(commit, missing_entries)?;
         }
 
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
 
+        Ok(())
+    }
+
+    async fn pull_large_entries(
+        &self,
+        remote_repo: &RemoteRepository,
+        entries: Vec<CommitEntry>,
+        bar: &Arc<ProgressBar>,
+    ) -> Result<(), OxenError> {
+        if entries.is_empty() {
+            return Ok(());
+        }
+
+        // Pull the large entries in parallel
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (
+            CommitEntry,
+            LocalRepository,
+            RemoteRepository,
+            Arc<ProgressBar>,
+        );
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
+        log::debug!("Chunking and sending {} larger files", entries.len());
+        let entries: Vec<PieceOfWork> = entries
+            .iter()
+            .map(|e| {
+                (
+                    e.to_owned(),
+                    self.repository.to_owned(),
+                    remote_repo.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
+
+        let queue = Arc::new(TaskQueue::new(entries.len()));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+        for entry in entries.iter() {
+            queue.try_push(entry.to_owned()).unwrap();
+            finished_queue.try_push(false).unwrap();
+        }
+
+        let worker_count: usize = if num_cpus::get() > entries.len() {
+            entries.len()
+        } else {
+            num_cpus::get()
+        };
+
+        log::debug!(
+            "worker_count {} entries len {}",
+            worker_count,
+            entries.len()
+        );
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (entry, repo, remote_repo, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
+
+                    // Chunk and individual files
+                    match api::remote::entries::download_large_entry(
+                        &repo,
+                        &remote_repo,
+                        &entry,
+                        &bar,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            log::debug!("Downloaded large entry {:?}", entry.path);
+                        }
+                        Err(err) => {
+                            log::error!("Could not download chunk... {}", err)
+                        }
+                    }
+
+                    finished_queue.pop().await;
+                }
+            });
+        }
+
+        while finished_queue.len() > 0 {
+            // log::debug!("Before waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_secs(1)).await;
+        }
+        log::debug!("All large file tasks done. :-)");
+
+        Ok(())
+    }
+
+    async fn pull_small_entries(
+        &self,
+        remote_repo: &RemoteRepository,
+        entries: Vec<CommitEntry>,
+        bar: &Arc<ProgressBar>,
+    ) -> Result<(), OxenError> {
+        let content_ids = self.version_paths_from_entries(&entries);
+        if content_ids.is_empty() {
+            return Ok(());
+        }
+
+        let total_size = self.compute_entries_size(&entries)?;
+
+        // Compute num chunks
+        let num_chunks = ((total_size / AVG_CHUNK_SIZE) + 1) as usize;
+
+        let mut chunk_size = entries.len() / num_chunks;
+        if num_chunks > entries.len() {
+            chunk_size = entries.len();
+        }
+
+        log::debug!(
+            "pull_entries_for_commit got {} missing content IDs",
+            content_ids.len()
+        );
+
+        // Split into chunks, zip up, and post to server
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (
+            Vec<String>,
+            LocalRepository,
+            RemoteRepository,
+            Arc<ProgressBar>,
+        );
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
+        log::debug!("pull_small_entries creating {num_chunks} chunks from {total_size} bytes with size {chunk_size}");
+        let chunks: Vec<PieceOfWork> = content_ids
+            .chunks(chunk_size)
+            .map(|c| {
+                (
+                    c.to_owned(),
+                    self.repository.to_owned(),
+                    remote_repo.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
+
+        let worker_count: usize = num_cpus::get();
+        let queue = Arc::new(TaskQueue::new(chunks.len()));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+        for chunk in chunks {
+            queue.try_push(chunk).unwrap();
+            finished_queue.try_push(false).unwrap();
+        }
+
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (chunk, repo, remote_repo, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
+
+                    match api::remote::entries::download_data_from_version_paths(
+                        &repo,
+                        &remote_repo,
+                        &chunk,
+                    )
+                    .await
+                    {
+                        Ok(download_size) => {
+                            bar.inc(download_size);
+                        }
+                        Err(err) => {
+                            log::error!("Could not download entries... {}", err)
+                        }
+                    }
+
+                    finished_queue.pop().await;
+                }
+            });
+        }
+        while finished_queue.len() > 0 {
+            // log::debug!("Waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_millis(1)).await;
+        }
+        log::debug!("All tasks done. :-)");
+
+        Ok(())
+    }
+
+    fn unpack_version_files(
+        &self,
+        commit: &Commit,
+        entries: Vec<CommitEntry>,
+    ) -> Result<(), OxenError> {
+        println!("Unpacking...");
+        let bar = Arc::new(ProgressBar::new(entries.len() as u64));
+        let dir_entries = self.group_entries_to_parent_dirs(&entries);
+
+        dir_entries.par_iter().for_each(|(dir, entries)| {
+            let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
+            entries.par_iter().for_each(|entry| {
+                let filepath = self.repository.path.join(&entry.path);
+                if self.should_copy_entry(entry, &filepath) {
+                    if let Some(parent) = filepath.parent() {
+                        if !parent.exists() {
+                            log::debug!("Create parent dir {:?}", parent);
+                            std::fs::create_dir_all(parent).unwrap();
+                        }
+                    }
+
+                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
+                    let version_path = util::fs::version_path(&self.repository, entry);
+                    // We will unpack tabular later into CADF
+                    if std::fs::copy(&version_path, &filepath).is_err() {
+                        log::error!("Could not unpack file {:?} -> {:?}", version_path, filepath);
+                    }
+
+                    log::debug!(
+                        "pull_entries_for_commit updating timestamp for {:?}",
+                        filepath
+                    );
+                    if filepath.exists() {
+                        let metadata = fs::metadata(filepath).unwrap();
+                        let mtime = FileTime::from_last_modification_time(&metadata);
+                        committer.set_file_timestamps(entry, &mtime).unwrap();
+                    } else {
+                        log::error!("could not update timestamp for entry {:?}", entry.path);
+                    }
+                }
+                bar.inc(1);
+            });
+        });
+
+        bar.finish();
         Ok(())
     }
 
