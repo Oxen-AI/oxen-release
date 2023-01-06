@@ -1415,7 +1415,6 @@ mod tests {
             let repo_path = &stager.repository.path;
             let file_to_rm = repo_path.join("labels.txt");
 
-            println!("BEFORE REMOVE");
             let status = stager.status(&entry_reader)?;
             status.print_stdout();
 

@@ -368,6 +368,7 @@ where
     command::add(&repo, repo_dir.join("train"))?;
     command::add(&repo, repo_dir.join("test"))?;
     command::add(&repo, repo_dir.join("annotations"))?;
+    command::add(&repo, repo_dir.join("large_files"))?;
     command::add(&repo, repo_dir.join("nlp"))?;
     command::add(&repo, repo_dir.join("labels.txt"))?;
     command::add(&repo, repo_dir.join("README.md"))?;
@@ -412,6 +413,7 @@ where
     command::add(&repo, repo_dir.join("train"))?;
     command::add(&repo, repo_dir.join("test"))?;
     command::add(&repo, repo_dir.join("annotations"))?;
+    command::add(&repo, repo_dir.join("large_files"))?;
     command::add(&repo, repo_dir.join("nlp"))?;
     command::add(&repo, repo_dir.join("labels.txt"))?;
     command::add(&repo, repo_dir.join("README.md"))?;
@@ -508,19 +510,26 @@ pub fn test_jpeg_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
 }
 
+pub fn test_large_file() -> &'static Path {
+    Path::new("data/test/text/celeb_a_200k.csv")
+}
+
 pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
     // Directory Structure
     // Features:
     //   - has multiple content types (jpg, txt, md)
+    //   - has a few large data files that we have to chunk and transfer
     //   - has multiple directory levels (annotations/train/one_shot.txt)
-    //   - has a file at top level (README.md)
-    //   - has files/dirs at different levels with same names
+    //   - has files at top level (README.md)
+    //   - has files without extensions (LICENSE)
+    //   - has files/dirs at different levels with same names (annotations.txt)
     //
     // nlp/
     //   classification/
     //     annotations/
     //       train.tsv
     //       test.tsv
+    //
     // train/
     //   dog_1.jpg
     //   dog_2.jpg
@@ -539,6 +548,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     //   test/
     //     annotations.txt
     // labels.txt
+    // LICENSE
     // README.md
 
     // README.md
@@ -562,6 +572,13 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
         cat
     "#,
     )?;
+
+    // large_files
+    let large_dir = repo_dir.join("large_files");
+    std::fs::create_dir_all(&large_dir)?;
+    let large_file_1 = large_dir.join("test.csv");
+    let from_file = test_large_file();
+    std::fs::copy(from_file, large_file_1)?;
 
     // train/
     let train_dir = repo_dir.join("train");
