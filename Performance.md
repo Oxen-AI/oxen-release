@@ -2,14 +2,16 @@
 
 Using the CelebA dataset as an example using Oxen
 
-`oxen add images` takes ~8 sec
+`oxen add images` takes ~10 sec
 `oxen commit -m "adding images"` takes ~41 sec
 
 Compare this to a system like [git lfs](https://git-lfs.github.com/) on the same dataset
 
 `git lfs track images` takes ~17 sec
 `git add images` takes ~136 sec
-`git commit -m "addimg images"` takes ~44 sec
+`git commit -m "adding images"` takes ~44 sec
+`git remote add origin https://huggingface.co/datasets/gschoeni/CelebA`
+`git push origin master`
 
 If you add this up oxen takes ~49 sec to git's ~197 sec which is about a 4x speed improvement for adding and committing.
 

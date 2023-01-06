@@ -1,13 +1,18 @@
+# v0.4.1
+
+* Features
+    * Faster data download 🔥
+    * Chunked download data APIs
+
 # v0.4.0
 
 * Features
     * Faster data upload 🔥
-    * Chunked data APIs
+    * Chunked upload data APIs
 
 * Breaking Changes
     * Removed CADF
     * Remove `oxen index` commands
-
 
 # v0.3.0
 
