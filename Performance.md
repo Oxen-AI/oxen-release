@@ -10,8 +10,12 @@ Compare this to a system like [git lfs](https://git-lfs.github.com/) on the same
 `git lfs track images` takes ~17 sec
 `git add images` takes ~136 sec
 `git commit -m "adding images"` takes ~44 sec
-`git remote add origin https://huggingface.co/datasets/gschoeni/CelebA`
-`git push origin master`
+`git remote add origin https://huggingface.co/datasets/<username>/CelebA`
+
+Fail....
+`git push origin master` takes ~320 secs but failed
+
+fatal: the remote end hung up unexpectedly
 
 If you add this up oxen takes ~49 sec to git's ~197 sec which is about a 4x speed improvement for adding and committing.
 
