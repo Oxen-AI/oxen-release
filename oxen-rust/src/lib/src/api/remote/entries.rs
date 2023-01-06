@@ -118,9 +118,7 @@ pub async fn download_large_entry(
 
     // Write files to .oxen/tmp/HASH/chunk_0..N
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    let tmp_dir = Path::new(&hidden_dir)
-        .join("tmp")
-        .join(&entry.hash);
+    let tmp_dir = Path::new(&hidden_dir).join("tmp").join(&entry.hash);
 
     // TODO: We could probably upload chunks in parallel too
     for i in 0..num_chunks {
