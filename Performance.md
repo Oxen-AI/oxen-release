@@ -1,4 +1,4 @@
-# Initial Performance Numbers
+# Performance Numbers
 
 ## CelebA Dataset
 
