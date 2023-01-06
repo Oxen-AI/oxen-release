@@ -1,25 +1,58 @@
-## Initial Performance Numbers
+# Initial Performance Numbers
 
-Using the CelebA dataset as an example using Oxen
+## CelebA Dataset
 
-`oxen add images` takes ~10 sec
-`oxen commit -m "adding images"` takes ~41 sec
+The CelebA dataset has 202,599 images of celebrity faces and their attributes. 
+
+~ TLDR ~
+
+* ✅ Oxen syncs all the images in under 6 minutes
+* ⛔️ git+git lfs failed to sync to hugging face, took 9 minutes before a `fatal: the remote end hung up unexpectedly` error
+* 😩 DVC+Dags Hub took over 2 hours and 40 minutes with intermittent failures
+
+# 🐂 Oxen
+
+```
+oxen add images # ~10 sec
+oxen commit -m "adding images # ~41 sec
+oxen push origin main # ~308.98 secs
+```
+
+Total time or <6 min to sync to Oxen.
+
+# Git + Git LFS
 
 Compare this to a system like [git lfs](https://git-lfs.github.com/) on the same dataset
 
-`git lfs track images` takes ~17 sec
-`git add images` takes ~136 sec
-`git commit -m "adding images"` takes ~44 sec
-`git remote add origin https://huggingface.co/datasets/<username>/CelebA`
+```
+git lfs track images # ~17 sec
+git add images # ~136 sec
+git commit -m "adding images" # ~44 sec
+```
 
-Fail....
-`git push origin master` takes ~320 secs but failed
+Then we try to push but... fatal: the remote end hung up unexpectedly
 
-fatal: the remote end hung up unexpectedly
+```
+git remote add origin https://huggingface.co/datasets/<username>/CelebA
+git push origin master # ~318 secs but failed
+```
 
-If you add this up oxen takes ~49 sec to git's ~197 sec which is about a 4x speed improvement for adding and committing.
+![git lfs push fail](images/GitLFS_HuggingFace_Fail.png)
 
-## How it Works
+Total time: ~9 minutes until a failure, unknown time if success 🤷‍♂️
 
-One of the first optimizations we implemented at Oxen was swapping out the hashing algorithm. The traditional SHA-1 algorithm that git uses has bandwidth about 0.8 GB/sec. This becomes a pain when dealing with larger datasets. At Oxen we chose a non-cryptographic hash function that enables speed ups to ~30 GB/sec. We also take advantage of all the cores of your machine when indexing your changes.
+
+# DVC + DagsHub
+
+DVC is built on top of git + an open source project and can be synced to a hub called DagsHub.
+
+```
+dvc init
+dvc add images/ # ~460.13 secs
+dvc push -r origin # ~160.95 mins
+```
+
+~2 hours 40 minutes with intermittent failures
+
+![dvc push fail](images/DVC_Dagshub_Fail.png)
 

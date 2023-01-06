@@ -1,27 +1,29 @@
-# 🐂 oxen-release
+# 🐂 Oxen
 
 Oxen helps you version on your machine learning datasets like you version your code. 
 
-In a world of [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) where we are replacing lines with neural networks and large datasets, we need better tooling to keep track of changes to the data and models over time.
+The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
-Versioning datasets with `git` or `git lfs` is slow and painful 😩. Git was built for code repositories, not data. Oxen is built from the ground up for speed and large datasets 🐂 💨 and is 10-100x faster than using git.
+Versioning datasets with `git` or `git lfs` is [slow and painful 😩](Performance.md). Git was built over 18 years ago and is optimized for code repositories, not large datasets.
 
-It is built from the ground up to be fast 🔥 and easy to learn 🧠
+Oxen 🐂 is built from the ground up for speed and can large datasets. It is 10-100x faster than using git or other tooling build on top of git.
 
-* Optimized to handle many files / large files that would be inefficient to store in git
-  * Images, Videos, Audio, Text, Parquet, Json, Models etc
-* Native DataFrame processing
-* Tracks changes in an efficient data structure
-* Mirrors git commands, easy to learn
-* Helps slice dice your data to the subset you need for training, testing, and evaluation.
-* CLI + Server to sync your changes between team members and other infrastructure
-* Syncs to [OxenHub](https://oxen.ai) for visualization and collaboration on public and private repositories.
+# Features
+
+* 🔥 Fast (10-100x faster than existing tools)
+* 🧠 Easy to learn (same commands as git)
+* 🗄️ Index lots files (millions of images? no problem)
+* 🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
+* 📊 Native DataFrame processing ([oxen df](DataFrames.md) command for data exploration)
+* 📈 Tracks changes over time (never worry about losing the state of your data)
+* 🤝 Collaborate with your team (sync to an oxen-server)
+* 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
 Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and to stay updated on the progress.
 
 # Why the name Oxen?
 
-"Oxen" comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🐂 🌾. Let Oxen take care of grunt work of your infrastructure so you can focus on the higher level ML problems that matter to your product.
+"Oxen" 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of grunt work of your infrastructure so you can focus on the higher level ML problems that matter to your product.
 
 # Overview
 
