@@ -1,5 +1,6 @@
 use crate::api;
 use crate::api::remote::client;
+use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
@@ -13,9 +14,12 @@ use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
+use indicatif::ProgressBar;
 use std::fs;
 use std::io::prelude::*;
 use std::io::Cursor;
+use std::path::Path;
+use std::sync::Arc;
 use tokio_util::codec::{BytesCodec, FramedRead};
 
 pub async fn create(
@@ -98,7 +102,187 @@ pub async fn download_entries(
     }
 }
 
-pub async fn download_content_by_ids(
+pub async fn download_large_entry(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    entry: &CommitEntry,
+    bar: &Arc<ProgressBar>,
+) -> Result<(), OxenError> {
+    // Read chunks
+    let chunk_size = AVG_CHUNK_SIZE;
+    let total_size = entry.num_bytes;
+    let num_chunks = ((total_size / chunk_size) + 1) as usize;
+    let num_retries = 3;
+    let mut total_read = 0;
+    let mut chunk_size = chunk_size;
+
+    // Write files to .oxen/tmp/HASH/chunk_0..N
+    let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
+    let tmp_dir = Path::new(&hidden_dir).join("tmp").join(&entry.hash);
+
+    // TODO: We could probably upload chunks in parallel too
+    for i in 0..num_chunks {
+        // Make sure we read the last size correctly
+        if (total_read + chunk_size) > total_size {
+            chunk_size = total_size % chunk_size;
+        }
+
+        let filename = format!("chunk_{}", i);
+        let tmp_file = tmp_dir.join(filename);
+
+        try_download_entry_chunk(
+            remote_repo,
+            entry,
+            &tmp_file,
+            total_read,
+            chunk_size,
+            num_retries,
+        )
+        .await?;
+
+        bar.inc(chunk_size);
+
+        total_read += chunk_size;
+    }
+
+    // Once all downloaded, recombine file and delete temp dir
+    let full_path = local_repo.path.join(&entry.path);
+    log::debug!("Unpack to {:?}", full_path);
+    if let Some(parent) = full_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
+    match std::fs::File::create(&full_path) {
+        Ok(mut combined_file) => {
+            for i in 0..num_chunks {
+                let filename = format!("chunk_{}", i);
+                let tmp_file = tmp_dir.join(filename);
+
+                log::debug!("Reading file bytes {:?}", tmp_file);
+                match std::fs::File::open(&tmp_file) {
+                    Ok(mut chunk_file) => {
+                        let mut buffer: Vec<u8> = Vec::new();
+                        chunk_file
+                            .read_to_end(&mut buffer)
+                            .expect("Could not read tmp file to end...");
+
+                        match combined_file.write_all(&buffer) {
+                            Ok(_) => {
+                                log::debug!("Unpack successful! {:?}", full_path);
+                                std::fs::remove_file(tmp_file)?;
+                            }
+                            Err(err) => {
+                                log::error!("Could not write all data to disk {:?}", err);
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        let err = format!("Could not read chunk file {:?}: {}", tmp_file, err);
+                        return Err(OxenError::basic_str(err));
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            let err = format!("Could not write combined file {:?}: {}", full_path, err);
+            return Err(OxenError::basic_str(err));
+        }
+    }
+
+    // Copy to version path
+    let version_path = util::fs::version_path(local_repo, entry);
+    log::debug!("Copying to version path {:?}", version_path);
+    if let Some(parent) = version_path.parent() {
+        if !parent.exists() {
+            log::debug!("Creating parent {:?}", parent);
+            let err = format!("Could not create version dir path {:?}", parent);
+            std::fs::create_dir_all(parent).expect(&err);
+        }
+    }
+    match std::fs::copy(&full_path, &version_path) {
+        Ok(_) => {}
+        Err(err) => {
+            let err = format!(
+                "Could not copy file {:?} to {:?}: {}",
+                full_path, version_path, err
+            );
+            return Err(OxenError::basic_str(err));
+        }
+    }
+
+    Ok(())
+}
+
+async fn try_download_entry_chunk(
+    remote_repo: &RemoteRepository,
+    entry: &CommitEntry,
+    dest: &Path,
+    chunk_start: u64,
+    chunk_size: u64,
+    num_retries: usize,
+) -> Result<(), OxenError> {
+    let mut try_num = 0;
+    while try_num < num_retries {
+        match download_entry_chunk(remote_repo, entry, dest, chunk_start, chunk_size).await {
+            Ok(_) => {
+                log::debug!("Downloaded chunk {:?}", dest);
+                return Ok(());
+            }
+            Err(err) => {
+                log::error!("Error trying to download chunk: {}", err);
+                try_num += 1;
+            }
+        }
+    }
+    Err(OxenError::basic_str("Retry download chunk failed"))
+}
+
+/// Downloads a chunk of a file
+async fn download_entry_chunk(
+    remote_repo: &RemoteRepository,
+    entry: &CommitEntry,
+    dest: &Path,
+    chunk_start: u64,
+    chunk_size: u64,
+) -> Result<(), OxenError> {
+    log::debug!("download_entry_chunk entry {:?}", entry.path);
+
+    let filename = entry.path.to_str().unwrap();
+    let uri = format!(
+        "/chunk/{}/{}?chunk_start={}&chunk_size={}",
+        entry.commit_id, filename, chunk_start, chunk_size
+    );
+
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("download_entry_chunk {}", url);
+
+    let client = client::new_for_url(&url)?;
+    let response = client.get(&url).send().await?;
+
+    if let Some(parent) = dest.parent() {
+        if !parent.exists() {
+            log::debug!("Create parent dir {:?}", parent);
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
+    let status = response.status();
+    if 200 == status {
+        // Copy to file
+        let mut dest = { fs::File::create(dest)? };
+        let mut content = Cursor::new(response.bytes().await?);
+        std::io::copy(&mut content, &mut dest)?;
+        Ok(())
+    } else {
+        let err = format!("Could not download entry status: {}", status);
+        Err(OxenError::basic_str(err))
+    }
+}
+
+pub async fn download_data_from_version_paths(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     content_ids: &[String],
@@ -145,7 +329,7 @@ pub async fn download_content_by_ids(
         Ok(size)
     } else {
         let err = format!(
-            "api::entries::download_content_by_ids Err request failed: {}",
+            "api::entries::download_data_from_version_paths Err request failed: {}",
             url
         );
         Err(OxenError::basic_str(err))

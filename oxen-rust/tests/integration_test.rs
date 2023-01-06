@@ -63,8 +63,9 @@ fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> 
         // train/
         // test/
         // nlp/
+        // large_files/
         // annotations/
-        assert_eq!(repo_status.untracked_dirs.len(), 4);
+        assert_eq!(repo_status.untracked_dirs.len(), 5);
 
         Ok(())
     })
@@ -86,8 +87,9 @@ fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
         // train/
         // test/
         // nlp/
+        // large_files/
         // annotations/
-        assert_eq!(repo_status.untracked_dirs.len(), 4);
+        assert_eq!(repo_status.untracked_dirs.len(), 5);
 
         Ok(())
     })
@@ -112,9 +114,10 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
         assert_eq!(repo_status.added_files.len(), 1);
         // annotations/test/
         // train/
+        // large_files/
         // test/
         // nlp/
-        assert_eq!(repo_status.untracked_dirs.len(), 4);
+        assert_eq!(repo_status.untracked_dirs.len(), 5);
         // README.md
         // labels.txt
         // annotations/README.md
@@ -352,7 +355,7 @@ fn test_command_commit_dir() -> Result<(), OxenError> {
         assert_eq!(repo_status.added_dirs.len(), 0);
         assert_eq!(repo_status.added_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 2);
-        assert_eq!(repo_status.untracked_dirs.len(), 3);
+        assert_eq!(repo_status.untracked_dirs.len(), 4);
 
         let commits = command::log(&repo)?;
         assert_eq!(commits.len(), 2);
@@ -375,7 +378,7 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
         assert_eq!(repo_status.added_dirs.len(), 0);
         assert_eq!(repo_status.added_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 2);
-        assert_eq!(repo_status.untracked_dirs.len(), 3);
+        assert_eq!(repo_status.untracked_dirs.len(), 4);
 
         let commits = command::log(&repo)?;
         assert_eq!(commits.len(), 2);
@@ -1542,6 +1545,11 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         command::add(&repo, &train_path)?;
         command::commit(&repo, "Adding train dir")?.unwrap();
 
+        // Track larger files
+        let larger_dir = repo.path.join("large_files");
+        command::add(&repo, &larger_dir)?;
+        command::commit(&repo, "Adding larger files")?.unwrap();
+
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
         command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
@@ -1557,8 +1565,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
-            // 5 training files
-            assert_eq!(5, cloned_num_files);
+            assert_eq!(6, cloned_num_files);
             let og_commits = command::log(&repo)?;
             let cloned_commits = command::log(&cloned_repo)?;
             assert_eq!(og_commits.len(), cloned_commits.len());
@@ -1581,25 +1588,23 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             // Pull it on the OG side
             command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
-            // Now there should be 6 train files
-            assert_eq!(6, og_num_files);
+            // Now there should be 7 train files
+            assert_eq!(7, og_num_files);
 
             // Add another file on the OG side, and push it back
             let hotdog_path = Path::new("data/test/images/hotdog_2.jpg");
             let new_file_path = train_path.join("hotdog_2.jpg");
             std::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&repo, &train_path)?;
-            let commit = command::commit(&repo, "Adding next file to train dir")?.unwrap();
-            println!("========== AFTER COMMIT {:?}", commit);
+            command::commit(&repo, "Adding next file to train dir")?.unwrap();
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
-            println!("========== AFTER PUSH REMOTE BRANCH {:?}", commit);
 
             // Pull it on the second side again
             command::pull_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
                 .await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
-            // Now there should be 7 train files
-            assert_eq!(7, cloned_num_files);
+            // Now there should be 7 train/ files and 1 in large_files/
+            assert_eq!(8, cloned_num_files);
 
             api::remote::repositories::delete(&remote_repo).await?;
 
@@ -2560,7 +2565,7 @@ fn test_restore_staged_directory() -> Result<(), OxenError> {
 fn test_command_schema_list() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let schemas = command::schema_list(&repo, None)?;
-        assert_eq!(schemas.len(), 2);
+        assert_eq!(schemas.len(), 3);
 
         let schema = command::schema_get_from_head(&repo, "bounding_box")?.unwrap();
 
