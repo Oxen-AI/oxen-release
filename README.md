@@ -143,6 +143,64 @@ $ oxen restore path/to/file.txt
 
 Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the [restore documentation](commands/Restore.md).
 
+## Advanced Features
+
+Oxen has many more advanced features such as [computing diffs](#diff) between tabular data as well as convenient DataFrame manipulation through the [oxen df](DataFrames.md) command.
+
+Feel free to skip down to the more [advanced features](#data-point-level-version-control).
+
+# Sharing Data and Collaboration
+
+There are two ways you can collaborate on your data with Oxen. 
+
+1) Using the [OxenHub](https://www.oxen.ai/register) platform
+2) Self hosting using the [oxen-server](#setup-an-oxen-server) binary
+
+The easiest route is to sign up for an account on [OxenHub](https://www.oxen.ai/register) and sync your data to a repository there.
+
+## Create an account
+
+Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register
+
+## Create a data repository
+
+From your home page you can view your repositories and create a new repository.
+
+![repository home page](images/MyRepos.png)
+
+Pick a name and give your repository a description. Repositories can be public for anyone to view, or private just for you and your company.
+
+![repository home page](images/CreateRepository.png)
+
+## Push your data
+
+Once you have created a repository, you will see a URL you can push your data to in the format `https://hub.oxen.ai/<username>/<repo_name>`
+
+From your data repository that you [created above](#create-repository) you can simply add the remote and push.
+
+```bash
+$ oxen set-remote origin https://hub.oxen.ai/<username>/<repo_name>
+$ oxen push origin main
+```
+
+🎉 Congrats! You should now be able to see your data in the hub.
+
+Now you can setup your training job or another collaborator on your team to use your data by cloning it and pulling the branch you want.
+
+```bash
+$ oxen clone https://hub.oxen.ai/<username>/<repo_name>
+$ cd <repo_name>
+$ oxen pull origin main
+```
+
+## Self Hosting
+
+Oxen enables self hosting with the `oxen-server` binary. You do not get any of the UI features of the hub, but this is a nice option to kick the tires or set up internal infrastructure. Some teams setup a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
+
+You can read more about self hosting [here](SelfHosting.md).
+
+# Diving Deeper
+
 ## Data Point Level Version Control
 
 Oxen is smart about what file types you are adding. For example if you track a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) Oxen will index and keep track of each row of data.
@@ -185,7 +243,7 @@ shape: (10000, 6)
 └─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
 ```
 
-To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](DataFrames.md)
+To learn more about what you can do with tabular data in Oxen you can reference the documentation [here].(DataFrames.md)
 
 ## Integrating Labeling Tools
 
@@ -277,106 +335,6 @@ $ oxen diff path/to/file.txt
 -la-dee-da
 +la-doo-da
 +another line
-```
-
-# Sharing Data and Collaboration
-
-Oxen enables sharing data and collaboration between teams with `oxen-server`. Some teams setup a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
-
-## Setup an Oxen Server
-
-You can either setup an `oxen-server` instance yourself, or use the hosted version on OxenHub. To use the hosted OxenHub solution you can contact us [here](https://airtable.com/shril5UTTVvKVZAFE). 
-
-To setup a local Oxen Server instance, first [install](Installation.md) the `oxen-server` binary.
-
-The server can be run with access token authentication turned on or off. The server runs with no authentication by default:
-
-```bash
-$ oxen-server start
-```
-
-To enable authentication, generate a token to give it to the user to access to the server
-
-```bash
-$ oxen-server add-user --email YOUR_EMAIL --name YOUR_NAME
-
-User access token created:
-
-XXXXXXXX
-
-To give user access have them run the command `oxen config --auth <HOST> <TOKEN>`
-```
-
-You may have different authentication tokens for different hosts. From the client side, you can setup an auth token per host with the `config` command. If you ever need to debug or edit the tokens manually, they are stored in the `~/.oxen/user_config.toml` file.
-
-```bash
-$ oxen config --auth <HOST> <TOKEN>
-$ cat ~/.oxen/user_config.toml
-```
-
-To run the server with authentication, use the `-a` flag
-
-```bash
-$ oxen-server start -a
-```
-
-The default directory that Oxen stores data is `/tmp/oxen_sync`, we definitely do not want this in production. To change it set the SYNC_DIR environment variable to a path.
-
-```
-$ export SYNC_DIR=/Path/To/Data
-$ oxen-server start -a
-
-Running 🐂 server on 0.0.0.0:3000
-Syncing to directory: /Path/To/Data
-[2022-06-08T10:00:48Z INFO  actix_server::builder] Starting 8 workers
-[2022-06-08T10:00:48Z INFO  actix_server::server] Actix runtime found; starting in Actix runtime
-```
-
-If you want to change the default `IP ADDRESS` and `PORT` you can do so by passing them in with the `-i` and `-p` parameters.
-
-```bash
-$ oxen-server start -i 0.0.0.0 -p 4321
-```
-
-## Pushing the Changes
-
-Once you have committed data locally and are ready to share them with colleagues (or the world) you will have to push them to a remote.
-
-You can either create a remote through the web UI on [OxenHub](https://oxen.ai) or if you have setup a server your self, you will have to run the `create-remote` command.
-
-```bash
-$ oxen create-remote MyNamespace MyRepoName <HOST>
-```
-
-Repositories that live on an Oxen Server have the idea of a `namespace` and a `name` to help you organize your repositories.
-
-Once you know your remote repository URL you can add it as a remote.
-
-```bash
-$ oxen remote add origin http://<HOST>/MyNamespace/MyRepoName
-```
-
-Once a remote is set you can push
-
-```bash
-$ oxen push origin main
-```
-
-You can change the remote (origin) and the branch (main) to whichever remote and branch you want to push.
-
-## Clone the Changes
-
-To clone a repository from remote server you can use the URL you provided previously, and pull the changes to a new machine.
-
-```bash
-$ oxen clone http://<HOST>/MyNamespace/MyRepoName
-```
-
-Note: Due to the potential size of data, oxen does not immediately pull the data. You have to navigate into the directory, and pull the specific branch that you want.
-
-```bash
-$ cd MyRepoName
-$ oxen pull origin main
 ```
 
 ## Branching
