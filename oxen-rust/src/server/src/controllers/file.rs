@@ -4,6 +4,7 @@ use liboxen::api;
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
+use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{FileMetaData, FileMetaDataResponse, StatusMessage};
 use std::path::{Path, PathBuf};
@@ -79,6 +80,10 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
                             meta: FileMetaData {
                                 size: meta.len(),
                                 data_type: util::fs::file_datatype(&version_path),
+                                resource: ResourceVersion {
+                                    path: String::from(filepath.to_str().unwrap()),
+                                    version: commit_id,
+                                },
                             },
                         };
                         HttpResponse::Ok().json(meta)
