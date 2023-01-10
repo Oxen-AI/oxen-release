@@ -1,7 +1,7 @@
 pub mod branch;
 pub mod commit;
 pub mod entry;
-pub mod file_meta_data;
+pub mod entry_meta_data;
 pub mod http;
 pub mod json_data_frame;
 pub mod namespace;
@@ -30,4 +30,4 @@ pub use crate::view::commit::{
 
 pub use crate::view::branch::{BranchNew, BranchResponse, BranchUpdate, ListBranchesResponse};
 
-pub use crate::view::file_meta_data::{FileMetaData, FileMetaDataResponse};
+pub use crate::view::entry_meta_data::EntryMetaDataResponse;

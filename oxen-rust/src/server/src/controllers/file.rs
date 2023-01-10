@@ -6,10 +6,10 @@ use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{FileMetaData, FileMetaDataResponse, StatusMessage};
+use liboxen::view::{EntryMetaDataResponse, StatusMessage};
 use std::path::{Path, PathBuf};
 
-use liboxen::model::LocalRepository;
+use liboxen::model::{DirEntry, LocalRepository};
 use liboxen::util;
 
 pub async fn get(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
@@ -72,18 +72,25 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
                             version_path
                         );
 
+                        // Unwraps should be find since above call already checks for existence
                         let meta = std::fs::metadata(&version_path).unwrap();
+                        let latest_commit = api::local::commits::get_by_id(&repo, &commit_id)
+                            .unwrap()
+                            .unwrap();
 
-                        let meta = FileMetaDataResponse {
+                        let meta = EntryMetaDataResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_FOUND),
-                            meta: FileMetaData {
+                            entry: DirEntry {
+                                filename: String::from(filepath.to_str().unwrap()),
+                                is_dir: false,
                                 size: meta.len(),
-                                data_type: util::fs::file_datatype(&version_path),
-                                resource: ResourceVersion {
-                                    path: String::from(filepath.to_str().unwrap()),
-                                    version: commit_id,
-                                },
+                                latest_commit: Some(latest_commit),
+                                datatype: util::fs::file_datatype(&filepath),
+                            },
+                            resource: ResourceVersion {
+                                path: String::from(filepath.to_str().unwrap()),
+                                version: commit_id,
                             },
                         };
                         HttpResponse::Ok().json(meta)
