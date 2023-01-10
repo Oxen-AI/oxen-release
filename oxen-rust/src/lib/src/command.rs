@@ -238,8 +238,8 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
-    tabular::schema_to_string(input)
+pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
+    tabular::schema_to_string(input, flatten)
 }
 
 /// List the saved off schemas for a commit id
