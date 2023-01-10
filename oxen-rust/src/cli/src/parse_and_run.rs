@@ -156,8 +156,8 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
 
 pub fn df(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("DF_SPEC").expect("required");
-    if sub_matches.is_present("schema") {
-        match dispatch::df_schema(path) {
+    if sub_matches.is_present("schema") || sub_matches.is_present("schema_flat") {
+        match dispatch::df_schema(path, sub_matches.is_present("schema_flat")) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{}", err)

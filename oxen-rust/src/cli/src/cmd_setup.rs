@@ -215,6 +215,11 @@ pub fn df() -> Command<'static> {
         .arg(
             Arg::new("schema")
                 .long("schema")
+                .help("Print the full list of columns and data types within the schema in a dataframe."),
+        )
+        .arg(
+            Arg::new("schema_flat")
+                .long("schema_flat")
                 .help("Print the full list of columns and data types within the schema."),
         )
 }

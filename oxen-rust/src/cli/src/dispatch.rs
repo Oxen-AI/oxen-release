@@ -253,8 +253,8 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<(), OxenError> {
-    let result = command::df_schema(input)?;
+pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<(), OxenError> {
+    let result = command::df_schema(input, flatten)?;
     println!("{}", result);
     Ok(())
 }
