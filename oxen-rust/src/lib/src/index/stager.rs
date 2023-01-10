@@ -8,8 +8,8 @@ use crate::index::{
 };
 
 use crate::model::{
-    CommitEntry, EntryType, LocalRepository, MergeConflict, StagedData, StagedDirStats,
-    StagedEntry, StagedEntryStatus,
+    CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
+    StagedEntryStatus,
 };
 use crate::util;
 
@@ -526,7 +526,7 @@ impl Stager {
 
             paths.par_iter().for_each(|path| {
                 let full_path = self.repository.path.join(path);
-                match self.add_file_in_dir_db(&full_path, &entry_reader, &staged_db) {
+                match self.add_staged_entry_in_dir_db(&full_path, &entry_reader, &staged_db) {
                     Ok(_) => {
                         // all good
                     }
@@ -590,17 +590,8 @@ impl Stager {
         path: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<PathBuf, OxenError> {
-        self.add_file_with_type(path, entry_reader, EntryType::Regular)
-    }
-
-    pub fn add_file_with_type(
-        &self,
-        path: &Path,
-        entry_reader: &CommitDirReader,
-        entry_type: EntryType,
-    ) -> Result<PathBuf, OxenError> {
-        log::debug!("--- START OXEN ADD {:?} ({:?}) ---", entry_type, path);
-        let relative = self.add_staged_entry(path, entry_reader, entry_type)?;
+        log::debug!("--- START OXEN ADD {:?} ---", path);
+        let relative = self.add_staged_entry(path, entry_reader)?;
 
         // We should tracking changes to this parent dir too
         let path_parent = path.parent();
@@ -617,28 +608,10 @@ impl Stager {
         Ok(relative)
     }
 
-    pub fn add_tabular_file(
-        &self,
-        path: &Path,
-        entry_reader: &CommitDirReader,
-    ) -> Result<PathBuf, OxenError> {
-        self.add_staged_entry(path, entry_reader, EntryType::Tabular)
-    }
-
-    fn add_file_in_dir_db(
-        &self,
-        path: &Path,
-        entry_reader: &CommitDirEntryReader,
-        staged_db: &StagedDirEntryDB,
-    ) -> Result<PathBuf, OxenError> {
-        self.add_staged_entry_in_dir_db(path, entry_reader, EntryType::Regular, staged_db)
-    }
-
     fn add_staged_entry(
         &self,
         path: &Path,
         entry_reader: &CommitDirReader,
-        entry_type: EntryType,
     ) -> Result<PathBuf, OxenError> {
         if let Some(parent) = path.parent() {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
@@ -648,7 +621,7 @@ impl Stager {
                 &entry_reader.commit_id,
                 &relative_parent,
             )?;
-            self.add_staged_entry_in_dir_db(path, &entry_reader, entry_type, &staged_db)
+            self.add_staged_entry_in_dir_db(path, &entry_reader, &staged_db)
         } else {
             log::error!("add_staged_entry no parent... {:?}", path);
             Err(OxenError::file_has_no_parent(path))
@@ -659,7 +632,6 @@ impl Stager {
         &self,
         path: &Path,
         entry_reader: &CommitDirEntryReader,
-        entry_type: EntryType,
         staged_db: &StagedDirEntryDB,
     ) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
@@ -680,7 +652,6 @@ impl Stager {
         let mut staged_entry = StagedEntry {
             hash: hash.to_owned(),
             status: StagedEntryStatus::Added,
-            entry_type,
         };
 
         // Check if it is a merge conflict, then we can add it

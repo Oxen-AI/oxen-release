@@ -1,6 +1,5 @@
 pub mod commit_entry;
 pub mod dir_entry;
-pub mod entry_type;
 pub mod remote_entry;
 pub mod staged_entry;
 

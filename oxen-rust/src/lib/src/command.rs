@@ -18,9 +18,7 @@ use crate::index::{
 };
 use crate::model::schema;
 use crate::model::Schema;
-use crate::model::{
-    Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
-};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::RestoreOpts;
 use crate::util;
@@ -207,23 +205,6 @@ pub fn rm<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenErr
     }
 
     add(repo, path)
-}
-
-/// # Add tabular file to track row level changes
-pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let path = path.as_ref();
-    if !path.is_file() {
-        log::warn!("Could not find file {:?}", path);
-        return Err(OxenError::basic_str(
-            "Err: oxen add -d <path> must be valid file",
-        ));
-    }
-
-    let stager = Stager::new_with_merge(repo)?;
-    let commit = head_commit(repo)?;
-    let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add_file_with_type(path.as_ref(), &reader, EntryType::Tabular)?;
-    Ok(())
 }
 
 /// Interact with DataFrames from CLI
