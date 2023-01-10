@@ -80,13 +80,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/dir/{resource:.*}",
         web::get().to(controllers::dir::get),
     )
-    // ----- File ----- //
+    // ----- File (returns raw file data) ----- //
     .route(
         "/{namespace}/{repo_name}/file/{resource:.*}",
         web::get().to(controllers::file::get),
     )
+    // ----- Entry (returns meta data for a file or a dir) ----- //
     .route(
-        "/{namespace}/{repo_name}/meta/{resource:.*}",
+        "/{namespace}/{repo_name}/entry/{resource:.*}",
         web::get().to(controllers::file::meta_data),
     )
     .route(
