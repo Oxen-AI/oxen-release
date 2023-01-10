@@ -29,7 +29,6 @@ pub use crate::model::remote_branch::RemoteBranch;
 // Entry
 pub use crate::model::entry::commit_entry::CommitEntry;
 pub use crate::model::entry::dir_entry::DirEntry;
-pub use crate::model::entry::entry_type::EntryType;
 pub use crate::model::entry::remote_entry::RemoteEntry;
 pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 pub use crate::model::entry::ContentHashable;

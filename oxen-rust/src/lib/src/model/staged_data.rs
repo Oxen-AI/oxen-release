@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats};
 
+use super::Schema;
+
 pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
 pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
     "  (use \"oxen add <file>...\" to update what will be committed)\n";
@@ -21,6 +23,7 @@ pub const MSG_OXEN_RESTORE_STAGED_FILE: &str =
 pub struct StagedData {
     pub added_dirs: SummarizedStagedDirStats,
     pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
+    pub added_schemas: HashMap<PathBuf, Schema>,    // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -33,6 +36,7 @@ impl StagedData {
         StagedData {
             added_dirs: SummarizedStagedDirStats::new(),
             added_files: HashMap::new(),
+            added_schemas: HashMap::new(),
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: vec![],
@@ -44,6 +48,7 @@ impl StagedData {
     pub fn is_clean(&self) -> bool {
         self.added_dirs.is_empty()
             && self.added_files.is_empty()
+            && self.added_schemas.is_empty()
             && self.untracked_files.is_empty()
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()

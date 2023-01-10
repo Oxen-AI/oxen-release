@@ -417,7 +417,7 @@ where
     command::add(&repo, repo_dir.join("nlp"))?;
     command::add(&repo, repo_dir.join("labels.txt"))?;
     command::add(&repo, repo_dir.join("README.md"))?;
-    command::add_tabular(&repo, repo_dir.join("annotations/train/bounding_box.csv"))?;
+    command::add(&repo, repo_dir.join("annotations/train/bounding_box.csv"))?;
 
     command::commit(&repo, "adding all data baby")?;
 
