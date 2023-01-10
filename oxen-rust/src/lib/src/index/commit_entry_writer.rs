@@ -1,12 +1,11 @@
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::db;
 use crate::db::path_db;
-use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
-use crate::index::{CommitDirEntryWriter, CommitDirReader, RefReader, RefWriter, SchemaWriter};
-// use crate::model::schema;
+use crate::index::{CommitDirEntryWriter, RefReader, RefWriter, SchemaWriter};
+use crate::model::schema::Schema;
 use crate::model::{
-    schema, Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
+    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
 use crate::util;
 
@@ -218,53 +217,25 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
     ) -> Result<(), OxenError> {
         self.commit_staged_entries_with_prog(commit, staged_data)?;
-
-        // Only consider the commit entries that were staged and are tabular to find the schemas
-        let commit_dir_reader = CommitDirReader::new(&self.repository, &self.commit)?;
-        let tabular_entries: Vec<CommitEntry> = commit_dir_reader
-            .list_entries()?
-            .into_iter()
-            .filter(|e| {
-                util::fs::is_tabular(&e.path) && staged_data.added_files.contains_key(&e.path)
-            })
-            .collect();
-
-        self.create_schemas_for_tabular_data(tabular_entries)
+        self.commit_schemas(commit, &staged_data.added_schemas)
     }
 
-    fn create_schemas_for_tabular_data(
+    fn commit_schemas(
         &self,
-        tabular_entries: Vec<CommitEntry>,
+        commit: &Commit,
+        schemas: &HashMap<PathBuf, Schema>,
     ) -> Result<(), OxenError> {
-        log::debug!(
-            "create_schemas_for_tabular_data got {} tabular entries",
-            tabular_entries.len()
-        );
+        log::debug!("commit_schemas got {} schemas", schemas.len());
 
-        for entry in tabular_entries.iter() {
-            let df_file = util::fs::version_path(&self.repository, entry);
-            if !df_file.exists() {
-                log::error!(
-                    "create_schemas_for_tabular_data no data arrow file for entry {:?} -> {:?}",
-                    entry.path,
-                    df_file
-                );
-                continue;
-            }
-
-            let full_path = &self.repository.path.join(&entry.path);
-            let df = tabular::read_df(full_path, DFOpts::empty())?;
-            let schema = schema::Schema::from_polars(&df.schema());
-
-            let schema_writer = SchemaWriter::new(&self.repository, &entry.commit_id)?;
-
+        let schema_writer = SchemaWriter::new(&self.repository, &commit.id)?;
+        for (path, schema) in schemas.iter() {
             // Add schema if it does not exist
-            if !schema_writer.has_schema(&schema) {
-                schema_writer.put_schema(&schema)?;
+            if !schema_writer.has_schema(schema) {
+                schema_writer.put_schema(schema)?;
             }
 
             // Map the file to the schema
-            schema_writer.put_schema_for_file(&entry.path, &schema)?;
+            schema_writer.put_schema_for_file(path, schema)?;
         }
 
         Ok(())

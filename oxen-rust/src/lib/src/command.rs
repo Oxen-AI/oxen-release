@@ -7,10 +7,7 @@ use crate::api;
 use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
-use crate::index::schema_writer::SchemaWriter;
-// use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaIndexReader;
-// use crate::index::SchemaIndexer;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
@@ -255,20 +252,9 @@ pub fn schema_get(
     }
 }
 
-pub fn schema_name(
-    repo: &LocalRepository,
-    schema_ref: &str,
-    val: &str,
-) -> Result<Option<Schema>, OxenError> {
-    let head_commit = head_commit(repo)?;
-    if let Some(mut schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
-        let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
-        schema.name = Some(String::from(val));
-        let schema = schema_writer.update_schema(&schema)?;
-        Ok(Some(schema))
-    } else {
-        Ok(None)
-    }
+pub fn schema_name(repo: &LocalRepository, path: &Path, val: &str) -> Result<Schema, OxenError> {
+    let stager = Stager::new(repo)?;
+    stager.update_staged_schema_name(path, val)
 }
 
 pub fn schema_list_indices(

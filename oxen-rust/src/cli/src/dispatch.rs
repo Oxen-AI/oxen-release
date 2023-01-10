@@ -282,8 +282,8 @@ pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let schema = command::schema_name(&repository, schema_ref, val)?;
-    println!("{}", schema.unwrap());
+    let schema = command::schema_name(&repository, Path::new(schema_ref), val)?;
+    println!("{}", schema);
 
     Ok(())
 }
