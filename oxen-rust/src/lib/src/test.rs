@@ -375,10 +375,14 @@ where
     command::commit(&repo, "adding all data baby")?;
 
     // Make it easy to find these schemas during testing
-    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schema_name(
         &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
+        Path::new("annotations/train/bounding_box.csv"),
+        "bounding_box",
+    )?;
+    command::schema_name(
+        &repo,
+        Path::new("nlp/classification/annotations/train.csv"),
         "text_classification",
     )?;
 
@@ -417,15 +421,18 @@ where
     command::add(&repo, repo_dir.join("nlp"))?;
     command::add(&repo, repo_dir.join("labels.txt"))?;
     command::add(&repo, repo_dir.join("README.md"))?;
-    command::add(&repo, repo_dir.join("annotations/train/bounding_box.csv"))?;
 
     command::commit(&repo, "adding all data baby")?;
 
     // Make it easy to find these schemas during testing
-    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schema_name(
         &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
+        Path::new("annotations/train/bounding_box.csv"),
+        "bounding_box",
+    )?;
+    command::schema_name(
+        &repo,
+        Path::new("nlp/classification/annotations/train.csv"),
         "text_classification",
     )?;
 
@@ -542,6 +549,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     // annotations/
     //   README.md
     //   train/
+    //     bounding_box.csv
     //     one_shot.csv
     //     two_shot.csv
     //     annotations.txt
@@ -629,7 +637,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     )?;
 
     // annotations/train/
-    let train_annotations_dir = repo_dir.join("annotations/train");
+    let train_annotations_dir = repo_dir.join("annotations").join("train");
     std::fs::create_dir_all(&train_annotations_dir)?;
     write_txt_file_to_path(
         train_annotations_dir.join("annotations.txt"),
@@ -670,7 +678,7 @@ train/cat_1.jpg,cat,57.0,35.5,304,427
     )?;
 
     // annotations/test/
-    let test_annotations_dir = repo_dir.join("annotations/test");
+    let test_annotations_dir = repo_dir.join("annotations").join("test");
     std::fs::create_dir_all(&test_annotations_dir)?;
     write_txt_file_to_path(
         test_annotations_dir.join("annotations.csv"),
