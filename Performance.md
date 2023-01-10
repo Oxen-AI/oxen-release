@@ -11,6 +11,10 @@ The CelebA dataset has 202,599 images of celebrity faces and their attributes.
 * ⛔️ git+git lfs failed to sync to hugging face, took 9 minutes before a `fatal: the remote end hung up unexpectedly` error
 * 😩 DVC+Dags Hub took over 2 hours and 40 minutes with intermittent failures
 
+<p align="center">
+    <img src="images/PerformanceNumbers.png" alt="oxen performance metrics" width="400" />
+</p>
+
 # 🐂 Oxen
 
 ```
