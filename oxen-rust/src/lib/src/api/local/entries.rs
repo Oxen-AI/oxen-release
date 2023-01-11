@@ -36,12 +36,13 @@ pub fn list_page(
 pub fn list_directory(
     repo: &LocalRepository,
     commit: &Commit,
+    branch_or_commit_id: &str,
     directory: &Path,
     page_num: &usize,
     page_size: &usize,
 ) -> Result<(Vec<DirEntry>, usize), OxenError> {
     let reader = CommitDirReader::new(repo, commit)?;
-    reader.list_directory(directory, *page_num, *page_size)
+    reader.list_directory(directory, branch_or_commit_id, *page_num, *page_size)
 }
 
 #[cfg(test)]
