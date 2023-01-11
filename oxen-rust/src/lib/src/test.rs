@@ -372,8 +372,7 @@ where
     command::add(&repo, repo_dir.join("nlp"))?;
     command::add(&repo, repo_dir.join("labels.txt"))?;
     command::add(&repo, repo_dir.join("README.md"))?;
-    command::commit(&repo, "adding all data baby")?;
-
+    
     // Make it easy to find these schemas during testing
     command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schema_name(
@@ -381,6 +380,8 @@ where
         "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",
     )?;
+    
+    command::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -418,8 +419,6 @@ where
     command::add(&repo, repo_dir.join("labels.txt"))?;
     command::add(&repo, repo_dir.join("README.md"))?;
 
-    command::commit(&repo, "adding all data baby")?;
-
     // Make it easy to find these schemas during testing
     command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schema_name(
@@ -427,6 +426,9 @@ where
         "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",
     )?;
+    
+
+    command::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
