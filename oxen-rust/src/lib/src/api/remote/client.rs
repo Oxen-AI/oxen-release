@@ -90,10 +90,12 @@ fn parse_status_and_message(
 ) -> Result<String, OxenError> {
     match response.status.as_str() {
         http::STATUS_SUCCESS => {
-            if status != 200 {
+            if !status.is_success() {
                 return Err(OxenError::basic_str(format!(
-                    "Err status [{}] from url {}",
-                    status, url
+                    "Err status [{}] from url {} [{}]",
+                    status,
+                    url,
+                    response.desc_or_msg()
                 )));
             }
 
