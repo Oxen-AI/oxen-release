@@ -7,10 +7,7 @@ use crate::api;
 use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
-use crate::index::schema_writer::SchemaWriter;
-// use crate::index::CommitSchemaRowIndex;
 use crate::index::SchemaIndexReader;
-// use crate::index::SchemaIndexer;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
@@ -18,9 +15,7 @@ use crate::index::{
 };
 use crate::model::schema;
 use crate::model::Schema;
-use crate::model::{
-    Branch, Commit, EntryType, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
-};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::RestoreOpts;
 use crate::util;
@@ -209,23 +204,6 @@ pub fn rm<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenErr
     add(repo, path)
 }
 
-/// # Add tabular file to track row level changes
-pub fn add_tabular<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let path = path.as_ref();
-    if !path.is_file() {
-        log::warn!("Could not find file {:?}", path);
-        return Err(OxenError::basic_str(
-            "Err: oxen add -d <path> must be valid file",
-        ));
-    }
-
-    let stager = Stager::new_with_merge(repo)?;
-    let commit = head_commit(repo)?;
-    let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add_file_with_type(path.as_ref(), &reader, EntryType::Tabular)?;
-    Ok(())
-}
-
 /// Interact with DataFrames from CLI
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
@@ -238,8 +216,17 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn df_schema<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
-    tabular::schema_to_string(input)
+pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
+    tabular::schema_to_string(input, flatten)
+}
+
+/// List staged schema
+pub fn schema_get_staged(
+    repo: &LocalRepository,
+    schema_ref: &str,
+) -> Result<Option<Schema>, OxenError> {
+    let stager = Stager::new(repo)?;
+    stager.get_staged_schema(schema_ref)
 }
 
 /// List the saved off schemas for a commit id
@@ -248,6 +235,11 @@ pub fn schema_list(
     commit_id: Option<&str>,
 ) -> Result<Vec<Schema>, OxenError> {
     api::local::schemas::list(repo, commit_id)
+}
+
+pub fn schema_list_staged(repo: &LocalRepository) -> Result<Vec<Schema>, OxenError> {
+    let stager = Stager::new(repo)?;
+    stager.list_staged_schemas()
 }
 
 pub fn schema_get_from_head(
@@ -274,20 +266,9 @@ pub fn schema_get(
     }
 }
 
-pub fn schema_name(
-    repo: &LocalRepository,
-    schema_ref: &str,
-    val: &str,
-) -> Result<Option<Schema>, OxenError> {
-    let head_commit = head_commit(repo)?;
-    if let Some(mut schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
-        let schema_writer = SchemaWriter::new(repo, &head_commit.id)?;
-        schema.name = Some(String::from(val));
-        let schema = schema_writer.update_schema(&schema)?;
-        Ok(Some(schema))
-    } else {
-        Ok(None)
-    }
+pub fn schema_name(repo: &LocalRepository, hash: &str, val: &str) -> Result<(), OxenError> {
+    let stager = Stager::new(repo)?;
+    stager.update_schema_names_for_hash(hash, val)
 }
 
 pub fn schema_list_indices(

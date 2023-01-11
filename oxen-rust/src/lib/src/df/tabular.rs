@@ -6,6 +6,7 @@ use crate::model::schema::DataType;
 use crate::util::hasher;
 use crate::{constants, df::filter::DFLogicalOp};
 
+use colored::Colorize;
 use comfy_table::Table;
 use indicatif::ProgressBar;
 use rand::prelude::SliceRandom;
@@ -19,20 +20,41 @@ use super::{
     filter::{DFFilterExp, DFFilterOp, DFFilterVal},
 };
 
-const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
+const DEFAULT_INFER_SCHEMA_LEN: usize = 10000;
 const READ_ERROR: &str = "Could not read tabular data from path";
 const COLLECT_ERROR: &str = "Could not collect DataFrame";
 const TAKE_ERROR: &str = "Could not take DataFrame";
+const CSV_READ_ERROR: &str = "Could not read csv from path";
 
-pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
-    let error_str = "Could not read csv from path".to_string();
-    let df = CsvReader::from_path(path.as_ref())
-        .expect(&error_str)
+fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFrame, OxenError> {
+    let result = reader
         .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
         .has_header(true)
         .with_delimiter(delimiter)
-        .finish()
-        .expect(&error_str);
+        .finish();
+
+    match result {
+        Ok(df) => Ok(df),
+        Err(err) => {
+            let warning = "Consider specifying a schema for the dtypes.".yellow();
+            let suggestion = "You can set a schema for a file with: \n\n  oxen schemas set <file> \"col_name_1:dtype,col_name_2:dtype\" \n";
+            eprintln!("Warn: {}\n\n{}", warning, suggestion);
+
+            let err = format!("{}: {:?}", CSV_READ_ERROR, err);
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
+pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
+    let df = match CsvReader::from_path(path.as_ref()) {
+        Ok(reader) => try_infer_schema_csv(reader, delimiter)?,
+        Err(err) => {
+            let err = format!("{}: {:?}", CSV_READ_ERROR, err);
+            return Err(OxenError::basic_str(err));
+        }
+    };
+
     Ok(df)
 }
 
@@ -367,8 +389,8 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
 
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
-        let value = full_df.column(&item.col).unwrap().get(item.index);
-        let s1 = Series::new("", [value]);
+        let value = full_df.column(&item.col).unwrap().get(item.index).unwrap();
+        let s1 = Series::new("", &[value]);
         let df = DataFrame::new(vec![s1]).unwrap();
         return Ok(df);
     }
@@ -619,21 +641,37 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
     Ok(df)
 }
 
-pub fn schema_to_string<P: AsRef<Path>>(input: P) -> Result<String, OxenError> {
+pub fn schema_to_string<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
     let df = scan_df(input)?;
     let schema = df.schema().expect("Could not get schema");
 
-    let mut table = Table::new();
-    table.set_header(vec!["column", "dtype"]);
+    if flatten {
+        let mut result = String::new();
+        for (i, field) in schema.iter_fields().enumerate() {
+            if i != 0 {
+                result = format!("{},", result);
+            }
 
-    for field in schema.iter_fields() {
-        let dtype = DataType::from_polars(field.data_type());
-        let field_str = String::from(field.name());
-        let dtype_str = String::from(DataType::as_str(&dtype));
-        table.add_row(vec![field_str, dtype_str]);
+            let dtype = DataType::from_polars(field.data_type());
+            let field_str = String::from(field.name());
+            let dtype_str = String::from(DataType::as_str(&dtype));
+            result = format!("{}{}:{}", result, field_str, dtype_str);
+        }
+
+        Ok(result)
+    } else {
+        let mut table = Table::new();
+        table.set_header(vec!["column", "dtype"]);
+
+        for field in schema.iter_fields() {
+            let dtype = DataType::from_polars(field.data_type());
+            let field_str = String::from(field.name());
+            let dtype_str = String::from(DataType::as_str(&dtype));
+            table.add_row(vec![field_str, dtype_str]);
+        }
+
+        Ok(format!("{}", table))
     }
-
-    Ok(format!("{}", table))
 }
 
 #[cfg(test)]

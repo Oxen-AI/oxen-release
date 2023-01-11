@@ -1,5 +1,4 @@
 use crate::model::ContentHashable;
-use crate::model::EntryType;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
@@ -13,7 +12,6 @@ pub enum StagedEntryStatus {
 pub struct StagedEntry {
     pub hash: String,
     pub status: StagedEntryStatus,
-    pub entry_type: EntryType,
 }
 
 impl StagedEntry {
@@ -21,7 +19,6 @@ impl StagedEntry {
         StagedEntry {
             hash: String::from(""),
             status,
-            entry_type: EntryType::Regular,
         }
     }
 }

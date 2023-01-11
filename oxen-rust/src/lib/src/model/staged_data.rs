@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats};
 
+use super::Schema;
+
 pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
 pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
     "  (use \"oxen add <file>...\" to update what will be committed)\n";
@@ -17,10 +19,13 @@ pub const MSG_OXEN_RESTORE_FILE: &str =
     "  (use \"oxen restore <file>...\" to discard changes in working directory)";
 pub const MSG_OXEN_RESTORE_STAGED_FILE: &str =
     "  (use \"oxen restore --staged <file> ...\" to unstage)\n";
+pub const MSG_OXEN_SHOW_SCHEMA_STAGED: &str =
+    "  (use \"oxen schemas show <HASH> --staged\" to view staged schema)\n";
 
 pub struct StagedData {
     pub added_dirs: SummarizedStagedDirStats,
     pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
+    pub added_schemas: HashMap<PathBuf, Schema>,    // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -33,6 +38,7 @@ impl StagedData {
         StagedData {
             added_dirs: SummarizedStagedDirStats::new(),
             added_files: HashMap::new(),
+            added_schemas: HashMap::new(),
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: vec![],
@@ -44,6 +50,7 @@ impl StagedData {
     pub fn is_clean(&self) -> bool {
         self.added_dirs.is_empty()
             && self.added_files.is_empty()
+            && self.added_schemas.is_empty()
             && self.untracked_files.is_empty()
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
@@ -89,6 +96,7 @@ impl StagedData {
 
         self.__collect_added_dirs(&mut outputs, skip, limit, print_all);
         self.__collect_added_files(&mut outputs, skip, limit, print_all);
+        self.__collect_added_schemas(&mut outputs, skip, limit, print_all);
         self.__collect_modified_files(&mut outputs, skip, limit, print_all);
         self.__collect_merge_conflicts(&mut outputs, skip, limit, print_all);
         self.__collect_untracked_dirs(&mut outputs, skip, limit, print_all);
@@ -218,7 +226,7 @@ impl StagedData {
         if self.added_files.is_empty() {
             return;
         }
-        outputs.push("Files to be committed:\n".normal());
+        outputs.push("Files to be committed\n".normal());
         if !self.added_files.is_empty() || !self.added_dirs.is_empty() {
             outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
         }
@@ -247,6 +255,44 @@ impl StagedData {
                         format!("{}\n", path.to_str().unwrap()).green().bold(),
                     ]
                 }
+            },
+            outputs,
+            skip,
+            limit,
+            print_all,
+        );
+    }
+
+    fn __collect_added_schemas(
+        &self,
+        outputs: &mut Vec<ColoredString>,
+        skip: usize,
+        limit: usize,
+        print_all: bool,
+    ) {
+        if self.added_schemas.is_empty() {
+            return;
+        }
+        outputs.push("Schemas to be committed\n".normal());
+        outputs.push(MSG_OXEN_SHOW_SCHEMA_STAGED.normal());
+
+        let mut files_vec: Vec<(&PathBuf, &Schema)> =
+            self.added_schemas.iter().map(|(k, v)| (k, v)).collect();
+        files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
+        self.__collapse_outputs(
+            &files_vec,
+            |(path, schema)| {
+                let schema_ref = if let Some(name) = &schema.name {
+                    name
+                } else {
+                    &schema.hash
+                };
+                vec![
+                    "  detected schema: ".green(),
+                    format!("{} {}\n", path.to_str().unwrap(), schema_ref)
+                        .green()
+                        .bold(),
+                ]
             },
             outputs,
             skip,
@@ -488,7 +534,7 @@ mod tests {
 
         let num_to_print = 3;
         let outputs = staged_data.__collect_outputs(0, num_to_print, false);
-        assert_eq!(outputs[0], "Files to be committed:\n".normal());
+        assert_eq!(outputs[0], "Files to be committed\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
         assert_eq!(outputs[2], "  new file: ".green());
         assert_eq!(outputs[3], "file_1.jpg\n".green().bold());
@@ -525,7 +571,7 @@ mod tests {
 
         let num_to_print = 3;
         let outputs = staged_data.__collect_outputs(2, num_to_print, false);
-        assert_eq!(outputs[0], "Files to be committed:\n".normal());
+        assert_eq!(outputs[0], "Files to be committed\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
         assert_eq!(outputs[2], "  new file: ".green());
         assert_eq!(outputs[3], "file_3.jpg\n".green().bold());

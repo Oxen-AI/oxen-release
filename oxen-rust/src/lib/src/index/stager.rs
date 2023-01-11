@@ -1,20 +1,24 @@
 use crate::constants;
 use crate::db;
 use crate::db::path_db;
+use crate::df::tabular;
+use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::index::{
     CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
 };
 
+use crate::model::schema;
 use crate::model::{
-    CommitEntry, EntryType, LocalRepository, MergeConflict, StagedData, StagedDirStats,
-    StagedEntry, StagedEntryStatus,
+    CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
+    StagedEntryStatus,
 };
 use crate::util;
 
 use filetime::FileTime;
 use indicatif::ProgressBar;
+use itertools::Itertools;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -35,40 +39,57 @@ pub enum FileStatus {
 
 pub struct Stager {
     dir_db: DBWithThreadMode<MultiThreaded>,
+    schemas_db: DBWithThreadMode<MultiThreaded>,
     pub repository: LocalRepository,
     merger: Option<Merger>,
 }
 
 impl Stager {
-    pub fn dirs_db_path(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path)
+    pub fn dirs_db_path(path: &Path) -> Result<PathBuf, OxenError> {
+        let path = util::fs::oxen_hidden_dir(path)
             .join(Path::new(STAGED_DIR))
-            .join(constants::DIRS_DIR)
+            .join(constants::DIRS_DIR);
+
+        log::debug!("Stager new dir dir_db_path {:?}", path);
+        if !path.exists() {
+            std::fs::create_dir_all(&path)?;
+        }
+
+        Ok(path)
+    }
+
+    pub fn schemas_db_path(path: &Path) -> Result<PathBuf, OxenError> {
+        let path = util::fs::oxen_hidden_dir(path)
+            .join(Path::new(STAGED_DIR))
+            .join(constants::SCHEMAS_DIR);
+        log::debug!("Stager new dir schemas_db_path {:?}", path);
+        if !path.exists() {
+            std::fs::create_dir_all(&path)?;
+        }
+        Ok(path)
     }
 
     pub fn new(repository: &LocalRepository) -> Result<Stager, OxenError> {
-        let db_path = Stager::dirs_db_path(&repository.path);
-        log::debug!("Stager new dir db_path {:?}", db_path);
-        if !db_path.exists() {
-            std::fs::create_dir_all(&db_path)?;
-        }
+        let dir_db_path = Stager::dirs_db_path(&repository.path)?;
+        let schemas_db_path = Stager::schemas_db_path(&repository.path)?;
+
         let opts = db::opts::default();
         Ok(Stager {
-            dir_db: DBWithThreadMode::open(&opts, &db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dir_db_path)?,
+            schemas_db: DBWithThreadMode::open(&opts, schemas_db_path)?,
             repository: repository.clone(),
             merger: None,
         })
     }
 
     pub fn new_with_merge(repository: &LocalRepository) -> Result<Stager, OxenError> {
-        let db_path = Stager::dirs_db_path(&repository.path);
-        log::debug!("Stager new_with_merge dir db_path {:?}", db_path);
-        if !db_path.exists() {
-            std::fs::create_dir_all(&db_path)?;
-        }
+        let dir_db_path = Stager::dirs_db_path(&repository.path)?;
+        let schemas_db_path = Stager::schemas_db_path(&repository.path)?;
+
         let opts = db::opts::default();
         Ok(Stager {
-            dir_db: DBWithThreadMode::open(&opts, &db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dir_db_path)?,
+            schemas_db: DBWithThreadMode::open(&opts, schemas_db_path)?,
             repository: repository.clone(),
             merger: Some(Merger::new(&repository.clone())?),
         })
@@ -208,7 +229,15 @@ impl Stager {
             self.process_dir(dir, &mut staged_data)?;
         }
 
+        // Find merge conflicts
         staged_data.merge_conflicts = self.list_merge_conflicts()?;
+
+        // Populate schemas from db
+        let mut schemas: HashMap<PathBuf, schema::Schema> = HashMap::new();
+        for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
+            schemas.insert(path, schema);
+        }
+        staged_data.added_schemas = schemas;
 
         Ok(staged_data)
     }
@@ -526,7 +555,7 @@ impl Stager {
 
             paths.par_iter().for_each(|path| {
                 let full_path = self.repository.path.join(path);
-                match self.add_file_in_dir_db(&full_path, &entry_reader, &staged_db) {
+                match self.add_staged_entry_in_dir_db(&full_path, &entry_reader, &staged_db) {
                     Ok(_) => {
                         // all good
                     }
@@ -590,17 +619,8 @@ impl Stager {
         path: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<PathBuf, OxenError> {
-        self.add_file_with_type(path, entry_reader, EntryType::Regular)
-    }
-
-    pub fn add_file_with_type(
-        &self,
-        path: &Path,
-        entry_reader: &CommitDirReader,
-        entry_type: EntryType,
-    ) -> Result<PathBuf, OxenError> {
-        log::debug!("--- START OXEN ADD {:?} ({:?}) ---", entry_type, path);
-        let relative = self.add_staged_entry(path, entry_reader, entry_type)?;
+        log::debug!("--- START OXEN ADD {:?} ---", path);
+        let relative = self.add_staged_entry(path, entry_reader)?;
 
         // We should tracking changes to this parent dir too
         let path_parent = path.parent();
@@ -612,34 +632,47 @@ impl Stager {
                 path_db::put(&self.dir_db, relative_parent, &0)?;
             }
         }
+
         log::debug!("--- END OXEN ADD ({:?}) ---", path);
 
         Ok(relative)
     }
 
-    pub fn add_tabular_file(
-        &self,
-        path: &Path,
-        entry_reader: &CommitDirReader,
-    ) -> Result<PathBuf, OxenError> {
-        self.add_staged_entry(path, entry_reader, EntryType::Tabular)
+    /// Update the name of a staged schema, assuming it exists
+    pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
+        for (path, mut schema) in
+            path_db::list_path_entries::<schema::Schema>(&self.schemas_db, Path::new(""))?
+        {
+            if schema.hash == hash {
+                schema.name = Some(String::from(name));
+                path_db::put(&self.schemas_db, path, &schema)?;
+            }
+        }
+        Ok(())
     }
 
-    fn add_file_in_dir_db(
-        &self,
-        path: &Path,
-        entry_reader: &CommitDirEntryReader,
-        staged_db: &StagedDirEntryDB,
-    ) -> Result<PathBuf, OxenError> {
-        self.add_staged_entry_in_dir_db(path, entry_reader, EntryType::Regular, staged_db)
+    pub fn get_staged_schema(&self, schema_ref: &str) -> Result<Option<schema::Schema>, OxenError> {
+        for schema in path_db::list_entries::<schema::Schema>(&self.schemas_db)? {
+            if schema.hash == schema_ref || schema.name == Some(schema_ref.to_string()) {
+                return Ok(Some(schema));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn list_staged_schemas(&self) -> Result<Vec<schema::Schema>, OxenError> {
+        Ok(path_db::list_entries::<schema::Schema>(&self.schemas_db)?
+            .into_iter()
+            .unique_by(|p| p.hash.to_owned())
+            .collect::<Vec<_>>())
     }
 
     fn add_staged_entry(
         &self,
         path: &Path,
         entry_reader: &CommitDirReader,
-        entry_type: EntryType,
     ) -> Result<PathBuf, OxenError> {
+        log::debug!("add_staged_entry {:?}", path);
         if let Some(parent) = path.parent() {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db = StagedDirEntryDB::new(&self.repository, &relative_parent)?;
@@ -648,7 +681,8 @@ impl Stager {
                 &entry_reader.commit_id,
                 &relative_parent,
             )?;
-            self.add_staged_entry_in_dir_db(path, &entry_reader, entry_type, &staged_db)
+
+            self.add_staged_entry_in_dir_db(path, &entry_reader, &staged_db)
         } else {
             log::error!("add_staged_entry no parent... {:?}", path);
             Err(OxenError::file_has_no_parent(path))
@@ -659,7 +693,6 @@ impl Stager {
         &self,
         path: &Path,
         entry_reader: &CommitDirEntryReader,
-        entry_type: EntryType,
         staged_db: &StagedDirEntryDB,
     ) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
@@ -680,7 +713,6 @@ impl Stager {
         let mut staged_entry = StagedEntry {
             hash: hash.to_owned(),
             status: StagedEntryStatus::Added,
-            entry_type,
         };
 
         // Check if it is a merge conflict, then we can add it
@@ -719,7 +751,7 @@ impl Stager {
             }
         }
 
-        log::debug!("add_staged_entry_in_dir_db {:?}", staged_entry);
+        log::debug!("add_staged_entry_in_dir_db {:?} {:?}", path, staged_entry);
         self.add_staged_entry_to_db(&path, &staged_entry, staged_db)?;
 
         Ok(path)
@@ -743,6 +775,25 @@ impl Stager {
                     log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
                     path_db::put(&self.dir_db, parent, &0)?;
                 }
+            }
+
+            // If tabular, add schema
+            if util::fs::is_tabular(path) {
+                log::debug!(
+                    "add_staged_entry_to_db is tabular! compute schema {:?}",
+                    path
+                );
+                let full_path = self.repository.path.join(path);
+
+                let df = tabular::read_df(&full_path, DFOpts::empty())?;
+                let schema = schema::Schema::from_polars(&df.schema());
+                log::debug!(
+                    "add_staged_entry_to_db is tabular! got schema {:?} -> {:?}",
+                    full_path,
+                    schema
+                );
+
+                path_db::put(&self.schemas_db, path, &schema)?;
             }
 
             staged_db.add_staged_entry_to_db(file_name, staged_entry)
@@ -891,6 +942,7 @@ impl Stager {
         let staged_dir_db = StagedDirEntryDB::new(&self.repository, Path::new(""))?;
         staged_dir_db.unstage()?;
         path_db::clear(&self.dir_db)?;
+        path_db::clear(&self.schemas_db)?;
         Ok(())
     }
 }
