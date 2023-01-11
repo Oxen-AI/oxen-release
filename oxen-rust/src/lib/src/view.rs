@@ -5,6 +5,7 @@ pub mod entry_meta_data;
 pub mod http;
 pub mod json_data_frame;
 pub mod namespace;
+pub mod oxen_response;
 pub mod repository;
 pub mod schema;
 pub mod status_message;
@@ -31,3 +32,5 @@ pub use crate::view::commit::{
 pub use crate::view::branch::{BranchNew, BranchResponse, BranchUpdate, ListBranchesResponse};
 
 pub use crate::view::entry_meta_data::EntryMetaDataResponse;
+
+pub use crate::view::oxen_response::OxenResponse;

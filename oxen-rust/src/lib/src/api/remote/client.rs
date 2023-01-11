@@ -1,5 +1,6 @@
-use crate::config::UserConfig;
 use crate::error::OxenError;
+use crate::view::http;
+use crate::{config::UserConfig, view::OxenResponse};
 
 pub use reqwest::Url;
 use reqwest::{header, Client, ClientBuilder, IntoUrl};
@@ -61,4 +62,51 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
 
 fn builder() -> ClientBuilder {
     Client::builder().user_agent(format!("{}/{}", USER_AGENT, VERSION))
+}
+
+/// Performs an extra parse to validate that the response is success
+pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
+    let status = res.status();
+    let body = res.text().await?;
+
+    let response: Result<OxenResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => parse_status_and_message(url, body, status, response),
+        Err(err) => {
+            log::debug!("Err: {}", err);
+            Err(OxenError::basic_str(format!(
+                "Could not deserialize response from [{}]",
+                url
+            )))
+        }
+    }
+}
+
+fn parse_status_and_message(
+    url: &str,
+    body: String,
+    status: reqwest::StatusCode,
+    response: OxenResponse,
+) -> Result<String, OxenError> {
+    match response.status.as_str() {
+        http::STATUS_SUCCESS => {
+            if status != 200 {
+                return Err(OxenError::basic_str(format!(
+                    "Err status [{}] from url {}",
+                    status, url
+                )));
+            }
+
+            Ok(body)
+        }
+        http::STATUS_WARNING => Err(OxenError::basic_str(format!(
+            "Remote Warning: {}",
+            response.desc_or_msg()
+        ))),
+        http::STATUS_ERROR => Err(OxenError::basic_str(format!(
+            "Remote Err: {}",
+            response.desc_or_msg()
+        ))),
+        status => Err(OxenError::basic_str(format!("Unknown status [{}]", status))),
+    }
 }
