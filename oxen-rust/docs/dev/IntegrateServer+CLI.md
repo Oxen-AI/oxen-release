@@ -33,7 +33,7 @@ pub fn list(
         .send()
     {
         // Serialize the json into the structure you would like
-        let body = res.text()?;
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<ListBranchesResponse, serde_json::Error> = serde_json::from_str(&body);
         // Handle Serialization Errors
         match response {
