@@ -779,12 +779,19 @@ impl Stager {
 
             // If tabular, add schema
             if util::fs::is_tabular(path) {
-                log::debug!("add_staged_entry_to_db is tabular! compute schema {:?}", path);
+                log::debug!(
+                    "add_staged_entry_to_db is tabular! compute schema {:?}",
+                    path
+                );
                 let full_path = self.repository.path.join(path);
 
                 let df = tabular::read_df(&full_path, DFOpts::empty())?;
                 let schema = schema::Schema::from_polars(&df.schema());
-                log::debug!("add_staged_entry_to_db is tabular! got schema {:?} -> {:?}", full_path, schema);
+                log::debug!(
+                    "add_staged_entry_to_db is tabular! got schema {:?} -> {:?}",
+                    full_path,
+                    schema
+                );
 
                 path_db::put(&self.schemas_db, path, &schema)?;
             }
