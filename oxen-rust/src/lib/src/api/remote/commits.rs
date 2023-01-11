@@ -37,12 +37,12 @@ pub async fn get_by_id(
     log::debug!("remote::commits::get_by_id {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(url).send().await {
+    if let Ok(res) = client.get(&url).send().await {
         if res.status() == 404 {
             return Ok(None);
         }
 
-        let body = res.text().await?;
+        let body = client::parse_json_body(&url, res).await?;
         log::debug!("api::remote::commits::get_by_id Got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -67,8 +67,8 @@ pub async fn commit_is_synced(
     log::debug!("commit_is_synced checking URL: {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(url).send().await {
-        let body = res.text().await?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -120,8 +120,8 @@ pub async fn get_remote_parent(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(url).send().await {
-        let body = res.text().await?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<CommitParentsResponse, serde_json::Error> =
             serde_json::from_str(&body);
         match response {
@@ -184,20 +184,19 @@ async fn create_commit_obj_on_server(
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client
-        .post(url)
+        .post(&url)
         .body(reqwest::Body::from(body))
         .send()
         .await
     {
-        let status = res.status();
-        let body = res.text().await?;
+        let body = client::parse_json_body(&url, res).await?;
         log::debug!("create_commit_obj_on_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response),
             Err(_) => Err(OxenError::basic_str(format!(
-                "create_commit_obj_on_server Err deserializing status_code[{}] \n\n{}",
-                status, body
+                "create_commit_obj_on_server Err deserializing \n\n{}",
+                body
             ))),
         }
     } else {
@@ -279,10 +278,9 @@ async fn upload_single_tarball_to_server(
         .build()?;
 
     let size = buffer.len() as u64;
-    match client.post(url).body(buffer.to_owned()).send().await {
+    match client.post(&url).body(buffer.to_owned()).send().await {
         Ok(res) => {
-            let status = res.status();
-            let body = res.text().await?;
+            let body = client::parse_json_body(&url, res).await?;
 
             log::debug!("upload_single_tarball_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -292,8 +290,8 @@ async fn upload_single_tarball_to_server(
                     Ok(response)
                 }
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_single_tarball_to_server Err deserializing status_code[{}] \n\n{}",
-                    status, body
+                    "upload_single_tarball_to_server Err deserializing \n\n{}",
+                    body
                 ))),
             }
         }
@@ -443,18 +441,17 @@ async fn upload_data_chunk_to_server(
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
-    match client.post(url).body(chunk.to_owned()).send().await {
+    match client.post(&url).body(chunk.to_owned()).send().await {
         Ok(res) => {
-            let status = res.status();
-            let body = res.text().await?;
+            let body = client::parse_json_body(&url, res).await?;
 
             log::debug!("upload_data_chunk_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_data_chunk_to_server Err deserializing status_code[{}] \n\n{}",
-                    status, body
+                    "upload_data_chunk_to_server Err deserializing\n\n{}",
+                    body
                 ))),
             }
         }

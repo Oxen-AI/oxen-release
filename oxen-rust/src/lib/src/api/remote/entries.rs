@@ -42,18 +42,17 @@ pub async fn create(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("create entry: {}", url);
     let client = client::new_for_url(&url)?;
-    match client.post(url).body(body).send().await {
+    match client.post(&url).body(body).send().await {
         Ok(res) => {
-            let status = res.status();
-            let body = res.text().await?;
+            let body = client::parse_json_body(&url, res).await?;
             log::debug!("api::remote::entries::create {}", body);
             let response: Result<RemoteEntryResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(result) => Ok(result.entry),
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "Error deserializing EntryResponse: status_code[{}] \n\n{}",
-                    status, body
+                    "Error deserializing EntryResponse: \n\n{}",
+                    body
                 ))),
             }
         }
