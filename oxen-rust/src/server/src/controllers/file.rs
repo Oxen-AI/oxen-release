@@ -147,7 +147,7 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, _, filepath))) =
+            if let Ok(Some((commit_id, branch_or_commit_id, filepath))) =
                 util::resource::parse_resource(&repo, &resource)
             {
                 match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
@@ -166,7 +166,7 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
 
                         let resource = ResourceVersion {
                             path: String::from(filepath.to_str().unwrap()),
-                            version: commit_id,
+                            version: branch_or_commit_id,
                         };
                         let meta = EntryMetaDataResponse {
                             status: String::from(STATUS_SUCCESS),
