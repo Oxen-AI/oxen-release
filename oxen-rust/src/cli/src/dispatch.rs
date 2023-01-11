@@ -250,31 +250,29 @@ pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn schema_show(
-    val: &str,
-    verbose: bool,
-) -> Result<(LocalRepository, Option<schema::Schema>), OxenError> {
+pub fn schema_show(val: &str, staged: bool) -> Result<Option<schema::Schema>, OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
-    let schema = command::schema_get(&repo, None, val)?;
+
+    let schema = if staged {
+        command::schema_get_staged(&repo, val)?
+    } else {
+        command::schema_get(&repo, None, val)?
+    };
+
     if let Some(schema) = schema {
         if let Some(name) = &schema.name {
-            if verbose {
-                println!("{}\n{}", name, schema);
-            }
-            Ok((repo, Some(schema)))
+            println!("{}\n{}", name, schema);
+            Ok(Some(schema))
         } else {
-            if verbose {
-                println!(
-                    "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
-                    schema.hash, schema
-                );
-            }
-            Ok((repo, None))
+            println!(
+                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
+                schema.hash, schema
+            );
+            Ok(None)
         }
     } else {
-        eprintln!("Could not find schema {}", val);
-        Ok((repo, None))
+        Err(OxenError::schema_does_not_exist(val))
     }
 }
 
@@ -282,18 +280,13 @@ pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let schema = command::schema_name(&repository, Path::new(schema_ref), val)?;
-    println!("{}", schema);
+    command::schema_name(&repository, schema_ref, val)?;
+    if let Some(schema) = schema_show(schema_ref, true)? {
+        println!("{}", schema);
+    }
 
     Ok(())
 }
-
-// pub fn schema_create_index(schema_ref: &str, field: &str) -> Result<(), OxenError> {
-//     let repo_dir = env::current_dir().unwrap();
-//     let repository = LocalRepository::from_dir(&repo_dir)?;
-
-//     command::schema_create_index(&repository, schema_ref, field)
-// }
 
 pub fn schema_list_indices(schema_ref: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
@@ -307,26 +300,24 @@ pub fn schema_list_indices(schema_ref: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-// pub fn schema_query_index(schema_ref: &str, field: &str, query: &str) -> Result<(), OxenError> {
-//     let repo_dir = env::current_dir().unwrap();
-//     let repository = LocalRepository::from_dir(&repo_dir)?;
+pub fn schema_list(staged: bool) -> Result<(), OxenError> {
+    println!("schema_list staged? {}", staged);
 
-//     let df = command::schema_query_index(&repository, schema_ref, field, query)?;
-//     println!("{}", df);
-
-//     Ok(())
-// }
-
-pub fn schema_list() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let schemas = command::schema_list(&repository, None)?;
+    let schemas = if staged {
+        command::schema_list_staged(&repository)?
+    } else {
+        command::schema_list(&repository, None)?
+    };
+
     if schemas.is_empty() {
         eprintln!("{}", OxenError::no_schemas_found());
     } else {
         let result = schema::Schema::schemas_to_string(&schemas);
         println!("{}", result);
     }
+
     Ok(())
 }
 

@@ -2464,7 +2464,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         let bbox_filename = Path::new("annotations")
             .join("train")
             .join("bounding_box.csv");
-        let bbox_file = repo.path.join(&bbox_filename);
+        let bbox_file = repo.path.join(bbox_filename);
         command::add(&repo, bbox_file)?;
 
         // Make sure it is staged
@@ -2475,8 +2475,8 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         }
 
         // name the schema when staged
-        let schema_name = "bounding_box";
-        command::schema_name(&repo, &bbox_filename, schema_name)?;
+        let schema_name = "b821946753334c083124fd563377d795";
+        command::schema_name(&repo, schema_name, schema_name)?;
 
         // Schema should be committed after commit
         command::commit(&repo, "Adding bounding box schema")?;

@@ -375,14 +375,10 @@ where
     command::commit(&repo, "adding all data baby")?;
 
     // Make it easy to find these schemas during testing
+    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schema_name(
         &repo,
-        Path::new("annotations/train/bounding_box.csv"),
-        "bounding_box",
-    )?;
-    command::schema_name(
-        &repo,
-        Path::new("nlp/classification/annotations/train.csv"),
+        "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",
     )?;
 
@@ -425,14 +421,10 @@ where
     command::commit(&repo, "adding all data baby")?;
 
     // Make it easy to find these schemas during testing
+    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schema_name(
         &repo,
-        Path::new("annotations/train/bounding_box.csv"),
-        "bounding_box",
-    )?;
-    command::schema_name(
-        &repo,
-        Path::new("nlp/classification/annotations/train.csv"),
+        "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",
     )?;
 

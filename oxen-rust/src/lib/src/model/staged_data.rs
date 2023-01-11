@@ -282,9 +282,14 @@ impl StagedData {
         self.__collapse_outputs(
             &files_vec,
             |(path, schema)| {
+                let schema_ref = if let Some(name) = &schema.name {
+                    name
+                } else {
+                    &schema.hash
+                };
                 vec![
-                    "  new schema: ".green(),
-                    format!("{} {}\n", schema.hash, path.to_str().unwrap())
+                    "  detected schema: ".green(),
+                    format!("{} {}\n", schema_ref, path.to_str().unwrap())
                         .green()
                         .bold(),
                 ]

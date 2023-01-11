@@ -58,6 +58,7 @@ async-std = "1.12.0"
 nom = "7.1.1"
 time = { version = "0.3.17", features = ["serde"] }
 deadqueue = "0.2.4"
+itertools = "0.10.5"
 
 [lib]
 name = "liboxen"
