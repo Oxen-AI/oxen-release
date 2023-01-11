@@ -92,12 +92,12 @@ impl OxenError {
     }
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
-        let err = format!("Remote branch `{}` not found", name.as_ref());
+        let err = format!("Remote branch '{}' not found", name.as_ref());
         OxenError::basic_str(err)
     }
 
     pub fn local_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
-        let err = format!("Local branch `{}` not found", name.as_ref());
+        let err = format!("Local branch '{}' not found", name.as_ref());
         OxenError::basic_str(err)
     }
 

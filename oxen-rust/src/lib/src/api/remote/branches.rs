@@ -14,8 +14,8 @@ pub async fn get_by_name(
     let url = api::endpoint::url_from_repo(repository, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(url).send().await {
-        let body = res.text().await?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(Some(j_res.branch)),
@@ -42,8 +42,8 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
     let params = serde_json::to_string(&json!({ "name": name }))?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(url).body(params).send().await {
-        let body = res.text().await?;
+    if let Ok(res) = client.post(&url).body(params).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response.branch),
@@ -66,8 +66,8 @@ pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenErro
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(url).send().await {
-        let body = res.text().await?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<ListBranchesResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.branches),
@@ -99,8 +99,8 @@ pub async fn update(
     let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.put(url).body(params).send().await {
-        let body = res.text().await?;
+    if let Ok(res) = client.put(&url).body(params).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(response.branch),
@@ -127,15 +127,14 @@ pub async fn delete(
     log::debug!("Deleting branch: {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.delete(url).send().await {
-        let status = res.status();
-        let body = res.text().await?;
+    if let Ok(res) = client.delete(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(format!(
-                "status_code[{}], could not delete branch \n\n{}",
-                status, body
+                "could not delete branch \n\n{}",
+                body
             ))),
         }
     } else {

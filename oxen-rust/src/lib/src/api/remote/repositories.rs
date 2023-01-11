@@ -18,18 +18,8 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
-        let status = res.status();
-        if 404 == status {
-            return Ok(None);
-        }
-
-        let body = res.text().await?;
-        log::debug!(
-            "repositories::get_by_remote {}\nstatus[{}] {}",
-            url,
-            status,
-            body
-        );
+        let body = client::parse_json_body(&url, res).await?;
+        log::debug!("repositories::get_by_remote {}\n {}", url, body);
 
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -62,9 +52,9 @@ pub async fn create<S: AsRef<str>>(
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.post(&url).json(&params).send().await {
-        let status = res.status();
-        let body = res.text().await?;
-        log::debug!("Response [{}] {}", status, body);
+        let body = client::parse_json_body(&url, res).await?;
+
+        log::debug!("repositories::create response {}", body);
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(response) => Ok(RemoteRepository::from_view(
@@ -93,15 +83,14 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
     log::debug!("Deleting repository: {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.delete(url).send().await {
-        let status = res.status();
-        let body = res.text().await?;
+    if let Ok(res) = client.delete(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(format!(
-                "status_code[{}], could not delete repository \n\n{}",
-                status, body
+                "Could not delete repository \n\n{}",
+                body
             ))),
         }
     } else {
@@ -120,13 +109,8 @@ pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
             return Ok(None);
         }
 
-        let body = res.text().await?;
-        log::debug!(
-            "repositories::resolve_api_url {}\nstatus[{}] {}",
-            url,
-            status,
-            body
-        );
+        let body = client::parse_json_body(url, res).await?;
+        log::debug!("repositories::resolve_api_url {}\n{}", url, body);
 
         let response: Result<RepositoryResolveResponse, serde_json::Error> =
             serde_json::from_str(&body);
