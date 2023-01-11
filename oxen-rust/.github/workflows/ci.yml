@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
-      - uses: icepuma/rust-action@master
+      - uses: icepuma/rust-action@32deca3ee074df35b446b23b973b4acda4c4541f
       - run: |
           cargo build
           mkdir /tmp/oxen_sync/
