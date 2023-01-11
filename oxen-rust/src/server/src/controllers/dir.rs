@@ -83,7 +83,12 @@ fn list_directory_for_commit(
                 commit.message
             );
             match api::local::entries::list_directory(
-                repo, &commit, directory, &page_num, &page_size,
+                repo,
+                &commit,
+                branch_or_commit_id,
+                directory,
+                &page_num,
+                &page_size,
             ) {
                 Ok((entries, total_entries)) => {
                     log::debug!(

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::Commit;
+use crate::{model::Commit, view::entry::ResourceVersion};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirEntry {
@@ -9,4 +9,5 @@ pub struct DirEntry {
     pub size: u64,
     pub latest_commit: Option<Commit>,
     pub datatype: String,
+    pub resource: ResourceVersion,
 }

@@ -4,6 +4,7 @@ use crate::error::OxenError;
 use crate::index::{CommitDirEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
+use crate::view::entry::ResourceVersion;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
@@ -125,6 +126,7 @@ impl CommitDirReader {
     pub fn list_directory(
         &self,
         search_dir: &Path,
+        branch_or_commit_id: &str,
         page_num: usize,
         page_size: usize,
     ) -> Result<(Vec<DirEntry>, usize), OxenError> {
@@ -137,7 +139,11 @@ impl CommitDirReader {
                 if parent == search_dir
                     || (parent == Path::new("") && search_dir == Path::new("./"))
                 {
-                    dir_paths.push(self.dir_entry_from_dir(&dir, &commit_reader)?);
+                    dir_paths.push(self.dir_entry_from_dir(
+                        &dir,
+                        &commit_reader,
+                        branch_or_commit_id,
+                    )?);
                 }
             }
         }
@@ -147,7 +153,11 @@ impl CommitDirReader {
             CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
         for file in commit_dir_reader.list_entry_page(page_num, page_size)? {
-            file_paths.push(self.dir_entry_from_commit_entry(&file, &commit_reader)?)
+            file_paths.push(self.dir_entry_from_commit_entry(
+                &file,
+                &commit_reader,
+                branch_or_commit_id,
+            )?)
         }
 
         // Combine all paths, starting with dirs
@@ -171,6 +181,7 @@ impl CommitDirReader {
         &self,
         path: &Path,
         commit_reader: &CommitReader,
+        branch_or_commit_id: &str,
     ) -> Result<DirEntry, OxenError> {
         let commit = commit_reader.get_commit_by_id(&self.commit_id)?.unwrap();
         let commit_dir_reader = CommitDirReader::new(&self.repository, &commit)?;
@@ -214,6 +225,10 @@ impl CommitDirReader {
             size: total_size,
             latest_commit,
             datatype: String::from("dir"),
+            resource: ResourceVersion {
+                version: branch_or_commit_id.to_string(),
+                path: path.to_str().unwrap().to_string(),
+            },
         });
     }
 
@@ -221,6 +236,7 @@ impl CommitDirReader {
         &self,
         entry: &CommitEntry,
         commit_reader: &CommitReader,
+        branch_or_commit_id: &str,
     ) -> Result<DirEntry, OxenError> {
         let size = util::fs::version_file_size(&self.repository, entry)?;
         let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
@@ -231,6 +247,10 @@ impl CommitDirReader {
             size,
             latest_commit: Some(latest_commit),
             datatype: util::fs::file_datatype(entry.path.as_path()),
+            resource: ResourceVersion {
+                version: branch_or_commit_id.to_string(),
+                path: entry.path.to_str().unwrap().to_string(),
+            },
         });
     }
 
@@ -307,7 +327,7 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) = reader.list_directory(Path::new("./"), 1, 10)?;
+            let (dir_entries, size) = reader.list_directory(Path::new("./"), &commit.id, 1, 10)?;
             for entry in dir_entries.iter() {
                 println!("{:?}", entry);
             }
@@ -335,7 +355,8 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) = reader.list_directory(Path::new("train"), 1, 10)?;
+            let (dir_entries, size) =
+                reader.list_directory(Path::new("train"), &commit.id, 1, 10)?;
 
             assert_eq!(size, 5);
             assert_eq!(dir_entries.len(), 5);
@@ -352,7 +373,7 @@ mod tests {
 
             let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) =
-                reader.list_directory(Path::new("annotations/train"), 1, 10)?;
+                reader.list_directory(Path::new("annotations/train"), &commit.id, 1, 10)?;
 
             assert_eq!(size, 4);
             assert_eq!(dir_entries.len(), 4);
@@ -368,7 +389,8 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) = reader.list_directory(Path::new("train"), 2, 3)?;
+            let (dir_entries, size) =
+                reader.list_directory(Path::new("train"), &commit.id, 2, 3)?;
             for entry in dir_entries.iter() {
                 println!("{:?}", entry);
             }

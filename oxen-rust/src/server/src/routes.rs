@@ -91,6 +91,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::get().to(controllers::file::meta_data),
     )
     .route(
+        "/{namespace}/{repo_name}/meta/{resource:.*}",
+        web::get().to(controllers::file::meta_data_legacy),
+    )
+    .route(
         "/{namespace}/{repo_name}/chunk/{resource:.*}", // Download a chunk of a larger versioned file
         web::get().to(controllers::entries::download_chunk),
     )

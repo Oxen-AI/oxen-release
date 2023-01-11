@@ -47,6 +47,92 @@ pub async fn get(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     }
 }
 
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct FileMetaData {
+    pub size: u64,
+    pub data_type: String,
+    pub resource: ResourceVersion,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct FileMetaDataResponse {
+    pub status: String,
+    pub status_message: String,
+    pub meta: FileMetaData,
+}
+
+pub async fn meta_data_legacy(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+
+    log::debug!(
+        "file::meta_data repo name [{}] resource [{:?}]",
+        name,
+        resource,
+    );
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+        Ok(Some(repo)) => {
+            if let Ok(Some((commit_id, _, filepath))) =
+                util::resource::parse_resource(&repo, &resource)
+            {
+                match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
+                    Ok(version_path) => {
+                        log::debug!(
+                            "file::meta_data looking for {:?} -> {:?}",
+                            filepath,
+                            version_path
+                        );
+
+                        let meta = std::fs::metadata(&version_path).unwrap();
+
+                        let meta = FileMetaDataResponse {
+                            status: String::from(STATUS_SUCCESS),
+                            status_message: String::from(MSG_RESOURCE_FOUND),
+                            meta: FileMetaData {
+                                size: meta.len(),
+                                data_type: util::fs::file_datatype(&version_path),
+                                resource: ResourceVersion {
+                                    path: String::from(filepath.to_str().unwrap()),
+                                    version: commit_id,
+                                },
+                            },
+                        };
+                        HttpResponse::Ok().json(meta)
+                    }
+                    Err(err) => {
+                        log::error!("file::meta_data get entry err: {:?}", err);
+                        // gives a 404
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                }
+            } else {
+                log::debug!(
+                    "file::meta_data could not find resource from uri {:?}",
+                    resource
+                );
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+        }
+        Ok(None) => {
+            log::debug!("file::meta_data could not find repo with name {}", name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!(
+                "file::meta_data unable to get file {:?}. Err: {}",
+                resource,
+                err
+            );
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
 pub async fn meta_data(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
@@ -78,6 +164,10 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
                             .unwrap()
                             .unwrap();
 
+                        let resource = ResourceVersion {
+                            path: String::from(filepath.to_str().unwrap()),
+                            version: commit_id,
+                        };
                         let meta = EntryMetaDataResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_FOUND),
@@ -87,10 +177,7 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
                                 size: meta.len(),
                                 latest_commit: Some(latest_commit),
                                 datatype: util::fs::file_datatype(&filepath),
-                            },
-                            resource: ResourceVersion {
-                                path: String::from(filepath.to_str().unwrap()),
-                                version: commit_id,
+                                resource,
                             },
                         };
                         HttpResponse::Ok().json(meta)

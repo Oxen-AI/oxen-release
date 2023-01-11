@@ -15,7 +15,7 @@ pub struct RemoteEntryResponse {
     pub entry: RemoteEntry,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ResourceVersion {
     pub path: String,
     pub version: String,
