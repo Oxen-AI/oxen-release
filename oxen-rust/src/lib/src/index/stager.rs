@@ -18,6 +18,7 @@ use crate::util;
 
 use filetime::FileTime;
 use indicatif::ProgressBar;
+use itertools::Itertools;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -647,23 +648,32 @@ impl Stager {
     }
 
     /// Update the name of a staged schema, assuming it exists
-    pub fn update_staged_schema_name(
-        &self,
-        path: &Path,
-        name: &str,
-    ) -> Result<schema::Schema, OxenError> {
-        match path_db::get_entry::<&Path, schema::Schema>(&self.schemas_db, path) {
-            Ok(Some(mut schema)) => {
+    pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
+        for (path, mut schema) in
+            path_db::list_path_entries::<schema::Schema>(&self.schemas_db, Path::new(""))?
+        {
+            if schema.hash == hash {
                 schema.name = Some(String::from(name));
                 path_db::put(&self.schemas_db, path, &schema)?;
-                Ok(schema)
-            }
-            Ok(None) => Err(OxenError::schema_does_not_exist(path.to_str().unwrap())),
-            Err(err) => {
-                let err = format!("Err: Could not update schema name {}", err);
-                Err(OxenError::basic_str(err))
             }
         }
+        Ok(())
+    }
+
+    pub fn get_staged_schema(&self, schema_ref: &str) -> Result<Option<schema::Schema>, OxenError> {
+        for schema in path_db::list_entries::<schema::Schema>(&self.schemas_db)? {
+            if schema.hash == schema_ref || schema.name == Some(schema_ref.to_string()) {
+                return Ok(Some(schema));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn list_staged_schemas(&self) -> Result<Vec<schema::Schema>, OxenError> {
+        Ok(path_db::list_entries::<schema::Schema>(&self.schemas_db)?
+            .into_iter()
+            .unique_by(|p| p.hash.to_owned())
+            .collect::<Vec<_>>())
     }
 
     fn add_staged_entry(

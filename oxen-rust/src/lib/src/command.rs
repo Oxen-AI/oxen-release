@@ -220,12 +220,26 @@ pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, Oxen
     tabular::schema_to_string(input, flatten)
 }
 
+/// List staged schema
+pub fn schema_get_staged(
+    repo: &LocalRepository,
+    schema_ref: &str,
+) -> Result<Option<Schema>, OxenError> {
+    let stager = Stager::new(repo)?;
+    stager.get_staged_schema(schema_ref)
+}
+
 /// List the saved off schemas for a commit id
 pub fn schema_list(
     repo: &LocalRepository,
     commit_id: Option<&str>,
 ) -> Result<Vec<Schema>, OxenError> {
     api::local::schemas::list(repo, commit_id)
+}
+
+pub fn schema_list_staged(repo: &LocalRepository) -> Result<Vec<Schema>, OxenError> {
+    let stager = Stager::new(repo)?;
+    stager.list_staged_schemas()
 }
 
 pub fn schema_get_from_head(
@@ -252,9 +266,9 @@ pub fn schema_get(
     }
 }
 
-pub fn schema_name(repo: &LocalRepository, path: &Path, val: &str) -> Result<Schema, OxenError> {
+pub fn schema_name(repo: &LocalRepository, hash: &str, val: &str) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
-    stager.update_staged_schema_name(path, val)
+    stager.update_schema_names_for_hash(hash, val)
 }
 
 pub fn schema_list_indices(

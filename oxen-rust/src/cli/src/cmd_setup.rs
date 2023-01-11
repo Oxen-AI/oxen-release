@@ -227,10 +227,21 @@ pub fn df() -> Command<'static> {
 pub fn schemas() -> Command<'static> {
     Command::new(SCHEMAS)
         .about("Manage schemas that are created from committing tabular data")
-        .subcommand(Command::new("list"))
+        .subcommand(
+            Command::new("list").arg(
+                Arg::new("staged")
+                    .long("staged")
+                    .help("List the staged schemas"),
+            ),
+        )
         .subcommand(
             Command::new("show")
-                .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view.")),
+                .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view."))
+                .arg(
+                    Arg::new("staged")
+                        .long("staged")
+                        .help("Show the staged schema"),
+                ),
         )
         .subcommand(
             Command::new("name")

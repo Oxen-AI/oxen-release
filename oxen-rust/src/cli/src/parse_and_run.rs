@@ -178,16 +178,18 @@ pub fn df(sub_matches: &ArgMatches) {
 pub fn schemas(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
-            ("list", _sub_matches) => match dispatch::schema_list() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{}", err)
+            ("list", sub_matches) => {
+                match dispatch::schema_list(sub_matches.is_present("staged")) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{}", err)
+                    }
                 }
-            },
+            }
             ("show", sub_matches) => {
                 let val = sub_matches.value_of("NAME_OR_HASH").expect("required");
-                let verbose = true; // do not print schema
-                match dispatch::schema_show(val, verbose) {
+
+                match dispatch::schema_show(val, sub_matches.is_present("staged")) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{}", err)
@@ -209,7 +211,7 @@ pub fn schemas(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        match dispatch::schema_list() {
+        match dispatch::schema_list(false) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{}", err)
