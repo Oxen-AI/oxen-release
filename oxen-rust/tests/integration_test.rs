@@ -2475,8 +2475,9 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         }
 
         // name the schema when staged
-        let schema_name = "b821946753334c083124fd563377d795";
-        command::schema_name(&repo, schema_name, schema_name)?;
+        let schema_ref = "b821946753334c083124fd563377d795";
+        let schema_name = "bounding_box";
+        command::schema_name(&repo, schema_ref, schema_name)?;
 
         // Schema should be committed after commit
         command::commit(&repo, "Adding bounding box schema")?;
@@ -2505,16 +2506,6 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
 
         Ok(())
     })
-}
-
-#[test]
-fn test_restore_staged_schema() -> Result<(), OxenError> {
-    panic!("TODO");
-}
-
-#[test]
-fn test_set_staged_schema() -> Result<(), OxenError> {
-    panic!("TODO");
 }
 
 #[test]

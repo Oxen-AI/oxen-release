@@ -633,15 +633,6 @@ impl Stager {
             }
         }
 
-        // If tabular, add schema
-        if util::fs::is_tabular(path) {
-            let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-
-            let df = tabular::read_df(path, DFOpts::empty())?;
-            let schema = schema::Schema::from_polars(&df.schema());
-            path_db::put(&self.schemas_db, relative_path, &schema)?;
-        }
-
         log::debug!("--- END OXEN ADD ({:?}) ---", path);
 
         Ok(relative)
@@ -681,6 +672,7 @@ impl Stager {
         path: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<PathBuf, OxenError> {
+        log::debug!("add_staged_entry {:?}", path);
         if let Some(parent) = path.parent() {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db = StagedDirEntryDB::new(&self.repository, &relative_parent)?;
@@ -689,6 +681,7 @@ impl Stager {
                 &entry_reader.commit_id,
                 &relative_parent,
             )?;
+
             self.add_staged_entry_in_dir_db(path, &entry_reader, &staged_db)
         } else {
             log::error!("add_staged_entry no parent... {:?}", path);
@@ -758,7 +751,7 @@ impl Stager {
             }
         }
 
-        log::debug!("add_staged_entry_in_dir_db {:?}", staged_entry);
+        log::debug!("add_staged_entry_in_dir_db {:?} {:?}", path, staged_entry);
         self.add_staged_entry_to_db(&path, &staged_entry, staged_db)?;
 
         Ok(path)
@@ -782,6 +775,18 @@ impl Stager {
                     log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
                     path_db::put(&self.dir_db, parent, &0)?;
                 }
+            }
+
+            // If tabular, add schema
+            if util::fs::is_tabular(path) {
+                log::debug!("add_staged_entry_to_db is tabular! compute schema {:?}", path);
+                let full_path = self.repository.path.join(path);
+
+                let df = tabular::read_df(&full_path, DFOpts::empty())?;
+                let schema = schema::Schema::from_polars(&df.schema());
+                log::debug!("add_staged_entry_to_db is tabular! got schema {:?} -> {:?}", full_path, schema);
+
+                path_db::put(&self.schemas_db, path, &schema)?;
             }
 
             staged_db.add_staged_entry_to_db(file_name, staged_entry)

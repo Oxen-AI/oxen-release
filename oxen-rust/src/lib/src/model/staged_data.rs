@@ -289,7 +289,7 @@ impl StagedData {
                 };
                 vec![
                     "  detected schema: ".green(),
-                    format!("{} {}\n", schema_ref, path.to_str().unwrap())
+                    format!("{} {}\n", path.to_str().unwrap(), schema_ref)
                         .green()
                         .bold(),
                 ]
