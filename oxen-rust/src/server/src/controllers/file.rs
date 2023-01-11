@@ -176,7 +176,7 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
                                 is_dir: false,
                                 size: meta.len(),
                                 latest_commit: Some(latest_commit),
-                                datatype: util::fs::file_datatype(&filepath),
+                                datatype: util::fs::file_datatype(&version_path),
                                 resource,
                             },
                         };
