@@ -785,15 +785,21 @@ impl Stager {
                 );
                 let full_path = self.repository.path.join(path);
 
-                let df = tabular::read_df(&full_path, DFOpts::empty())?;
-                let schema = schema::Schema::from_polars(&df.schema());
-                log::debug!(
-                    "add_staged_entry_to_db is tabular! got schema {:?} -> {:?}",
-                    full_path,
-                    schema
-                );
+                match tabular::read_df(&full_path, DFOpts::empty()) {
+                    Ok(df) => {
+                        let schema = schema::Schema::from_polars(&df.schema());
+                        log::debug!(
+                            "add_staged_entry_to_db is tabular! got schema {:?} -> {:?}",
+                            full_path,
+                            schema
+                        );
 
-                path_db::put(&self.schemas_db, path, &schema)?;
+                        path_db::put(&self.schemas_db, path, &schema)?;
+                    }
+                    Err(err) => {
+                        log::warn!("Could not compute schema for file: {}", err);
+                    }
+                }
             }
 
             staged_db.add_staged_entry_to_db(file_name, staged_entry)
