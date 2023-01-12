@@ -6,6 +6,7 @@
         * entry and meta endpoints return resource, version, path and datatype
     * Bump polars version
     * Support for json and jsonl file schemas
+    * Add server driven warnings to CLI
 * Bug Fixes
     * Infer schema from more lines (100 -> 10,000)
 
