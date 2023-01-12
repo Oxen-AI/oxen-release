@@ -1,3 +1,14 @@
+# v0.4.2+1
+
+* Features
+    * Schema computation and naming now done in `oxen add` staging area before commit
+    * Oxen Server API Changes
+        * entry and meta endpoints return resource, version, path and datatype
+    * Bump polars version
+    * Support for json and jsonl file schemas
+* Bug Fixes
+    * Infer schema from more lines (100 -> 10,000)
+
 # v0.4.1
 
 * Features
