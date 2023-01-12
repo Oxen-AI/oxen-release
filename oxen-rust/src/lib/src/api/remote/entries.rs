@@ -286,6 +286,39 @@ pub async fn download_data_from_version_paths(
     remote_repo: &RemoteRepository,
     content_ids: &[String],
 ) -> Result<u64, OxenError> {
+    let total_retries = 3;
+    let mut num_retries = 0;
+
+    while num_retries < total_retries {
+        match try_download_data_from_version_paths(local_repo, remote_repo, content_ids).await {
+            Ok(val) => return Ok(val),
+            Err(err) => {
+                num_retries += 1;
+                // Exponentially back off
+                let sleep_time = num_retries * num_retries;
+                log::warn!(
+                    "Could not download content {:?} sleeping {}",
+                    err,
+                    sleep_time
+                );
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+            }
+        }
+    }
+
+    let err = format!(
+        "Err: Failed to download {} files after {} retries",
+        content_ids.len(),
+        total_retries
+    );
+    return Err(OxenError::basic_str(err));
+}
+
+pub async fn try_download_data_from_version_paths(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    content_ids: &[String],
+) -> Result<u64, OxenError> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     for content_id in content_ids.iter() {
         let line = format!("{}\n", content_id);
