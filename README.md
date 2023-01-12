@@ -31,7 +31,14 @@ The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in man
 
 # Installation
 
-Navigate to [releases](https://github.com/Oxen-AI/oxen-release/releases) and download the latest version for your workstation or follow the [installation instructions](Installation.md) for using homebrew or the debian package.
+For Mac Users
+
+```bash
+$ brew tap Oxen-AI/oxen
+$ brew install oxen
+```
+
+For other platforms follow the [installation instructions](Installation.md).
 
 # Basic Commands
 
