@@ -18,6 +18,10 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
+        if 404 == res.status() {
+            return Ok(None);
+        }
+
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("repositories::get_by_remote {}\n {}", url, body);
 
