@@ -232,6 +232,8 @@ async fn try_download_entry_chunk(
             Err(err) => {
                 log::error!("Error trying to download chunk: {}", err);
                 try_num += 1;
+                let sleep_time = try_num * try_num;
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
             }
         }
     }
@@ -311,7 +313,7 @@ pub async fn download_data_from_version_paths(
         content_ids.len(),
         total_retries
     );
-    return Err(OxenError::basic_str(err));
+    Err(OxenError::basic_str(err))
 }
 
 pub async fn try_download_data_from_version_paths(
