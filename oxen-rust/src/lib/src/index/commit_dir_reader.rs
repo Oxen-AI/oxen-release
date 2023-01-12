@@ -241,12 +241,13 @@ impl CommitDirReader {
         let size = util::fs::version_file_size(&self.repository, entry)?;
         let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
 
+        let version_path = util::fs::version_path(&self.repository, entry);
         return Ok(DirEntry {
             filename: String::from(entry.path.file_name().unwrap().to_str().unwrap()),
             is_dir: false,
             size,
             latest_commit: Some(latest_commit),
-            datatype: util::fs::file_datatype(entry.path.as_path()),
+            datatype: util::fs::file_datatype(&version_path),
             resource: ResourceVersion {
                 version: branch_or_commit_id.to_string(),
                 path: entry.path.to_str().unwrap().to_string(),

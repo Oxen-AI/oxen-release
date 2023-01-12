@@ -354,6 +354,7 @@ pub fn is_utf8(path: &Path) -> bool {
 }
 
 pub fn file_datatype(path: &Path) -> String {
+    log::debug!("Checking data type for path: {:?}", path);
     if is_markdown(path) {
         String::from("markdown")
     } else if is_image(path) {
@@ -660,6 +661,46 @@ mod tests {
                     .join("59")
                     .join(Path::new("E029D4812AEBF0"))
                     .join(Path::new("1234.txt"))
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn detect_file_type() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            assert_eq!(
+                "tabular",
+                util::fs::file_datatype(
+                    &repo
+                        .path
+                        .join("annotations")
+                        .join("train")
+                        .join("bounding_box.csv")
+                )
+            );
+            assert_eq!(
+                "text",
+                util::fs::file_datatype(
+                    &repo
+                        .path
+                        .join("annotations")
+                        .join("train")
+                        .join("annotations.txt")
+                )
+            );
+
+            let test_id_file = repo.path.join("test_id.txt");
+            let test_id_file_no_ext = repo.path.join("test_id");
+            std::fs::copy("data/test/text/test_id.txt", &test_id_file)?;
+            std::fs::copy("data/test/text/test_id.txt", &test_id_file_no_ext)?;
+
+            assert_eq!("text", util::fs::file_datatype(&test_id_file));
+            assert_eq!("text", util::fs::file_datatype(&test_id_file_no_ext));
+            assert_eq!(
+                "image",
+                util::fs::file_datatype(&repo.path.join("test").join("1.jpg"))
             );
 
             Ok(())

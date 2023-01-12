@@ -68,6 +68,11 @@ pub async fn commit_is_synced(
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
+        let status = res.status();
+        if 404 == status {
+            return Ok(false);
+        }
+
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
