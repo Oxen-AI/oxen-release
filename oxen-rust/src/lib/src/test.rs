@@ -236,19 +236,12 @@ where
 
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
-        Ok(remote_repo) => {
-            // Cleanup remote repo
-            api::remote::repositories::delete(&remote_repo).await?;
-            true
-        }
+        Ok(_remote_repo) => true,
         Err(err) => {
             eprintln!("Error running test. Err: {}", err);
             false
         }
     };
-
-    // Cleanup local repo
-    std::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);

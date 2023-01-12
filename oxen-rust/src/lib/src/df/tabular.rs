@@ -69,7 +69,7 @@ pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, 
 
 pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let error_str = format!("Could not read tabular data from path {:?}", path);
+    let error_str = format!("Could not read json data from path {:?}", path);
     let file = File::open(path)?;
     let df = JsonReader::new(file)
         .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
@@ -78,7 +78,18 @@ pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn scan_df_json<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
+pub fn read_df_jsonl<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let error_str = format!("Could not read line delimited data from path {:?}", path);
+    let file = File::open(path)?;
+    let df = JsonLineReader::new(file)
+        .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .finish()
+        .expect(&error_str);
+    Ok(df)
+}
+
+pub fn scan_df_jsonl<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     Ok(LazyJsonLineReader::new(
         path.as_ref()
             .to_str()
@@ -507,8 +518,9 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     } else {
         match extension {
             Some(extension) => match extension {
-                "ndjson" => read_df_json(path),
-                "jsonl" => read_df_json(path),
+                "ndjson" => read_df_jsonl(path),
+                "jsonl" => read_df_jsonl(path),
+                "json" => read_df_json(path),
                 "tsv" => read_df_csv(path, b'\t'),
                 "csv" => read_df_csv(path, b','),
                 "parquet" => read_df_parquet(path),
@@ -527,8 +539,8 @@ pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 
     match extension {
         Some(extension) => match extension {
-            "ndjson" => scan_df_json(path),
-            "jsonl" => scan_df_json(path),
+            "ndjson" => scan_df_jsonl(path),
+            "jsonl" => scan_df_jsonl(path),
             "tsv" => scan_df_csv(path, b'\t'),
             "csv" => scan_df_csv(path, b','),
             "parquet" => scan_df_parquet(path),
@@ -544,7 +556,22 @@ pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<()
     let error_str = format!("Could not save tabular data to path: {:?}", output);
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
-    JsonWriter::new(f).finish(df).expect(&error_str);
+    JsonWriter::new(f)
+        .with_json_format(JsonFormat::Json)
+        .finish(df)
+        .expect(&error_str);
+    Ok(())
+}
+
+pub fn write_df_jsonl<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(), OxenError> {
+    let output = output.as_ref();
+    let error_str = format!("Could not save tabular data to path: {:?}", output);
+    log::debug!("Writing file {:?}", output);
+    let f = std::fs::File::create(output).unwrap();
+    JsonWriter::new(f)
+        .with_json_format(JsonFormat::JsonLines)
+        .finish(df)
+        .expect(&error_str);
     Ok(())
 }
 
@@ -590,8 +617,9 @@ pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenE
 
     match extension {
         Some(extension) => match extension {
-            "ndjson" => write_df_json(df, path),
-            "jsonl" => write_df_json(df, path),
+            "ndjson" => write_df_jsonl(df, path),
+            "jsonl" => write_df_jsonl(df, path),
+            "json" => write_df_json(df, path),
             "tsv" => write_df_csv(df, path, b'\t'),
             "csv" => write_df_csv(df, path, b','),
             "parquet" => write_df_parquet(df, path),
@@ -843,6 +871,52 @@ mod tests {
 │ 0002.jpg ┆ dog   ┆ 2.0   ┆ 5.0   ┆ false      │
 └──────────┴───────┴───────┴───────┴────────────┘",
             format!("{}", filtered_df)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_json() -> Result<(), OxenError> {
+        let df = tabular::read_df_json("data/test/text/test.json")?;
+
+        println!("{}", df);
+
+        assert_eq!(
+            r"shape: (2, 3)
+┌─────┬───────────┬──────────┐
+│ id  ┆ text      ┆ category │
+│ --- ┆ ---       ┆ ---      │
+│ i64 ┆ str       ┆ str      │
+╞═════╪═══════════╪══════════╡
+│ 1   ┆ I love it ┆ positive │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ I hate it ┆ negative │
+└─────┴───────────┴──────────┘",
+            format!("{}", df)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_jsonl() -> Result<(), OxenError> {
+        let df = tabular::read_df_jsonl("data/test/text/test.jsonl")?;
+
+        println!("{}", df);
+
+        assert_eq!(
+            r"shape: (2, 3)
+┌─────┬───────────┬──────────┐
+│ id  ┆ text      ┆ category │
+│ --- ┆ ---       ┆ ---      │
+│ i64 ┆ str       ┆ str      │
+╞═════╪═══════════╪══════════╡
+│ 1   ┆ I love it ┆ positive │
+├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
+│ 1   ┆ I hate it ┆ negative │
+└─────┴───────────┴──────────┘",
+            format!("{}", df)
         );
 
         Ok(())
