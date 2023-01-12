@@ -15,6 +15,11 @@ pub async fn get_by_name(
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
+        let status = res.status();
+        if 404 == status {
+            return Ok(None);
+        }
+
         let body = client::parse_json_body(&url, res).await?;
         let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
