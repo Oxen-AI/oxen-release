@@ -6,7 +6,7 @@ use crate::util;
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
 // use crate::util::ReadProgress;
-use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
+use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage, StatusMessage};
 
 use std::path::Path;
 use std::str;
@@ -137,6 +137,30 @@ pub async fn get_remote_parent(
         }
     } else {
         Err(OxenError::basic_str("get_remote_parent() Request failed"))
+    }
+}
+
+pub async fn post_push_complete(
+    remote_repo: &RemoteRepository,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    let uri = format!("/commits/{}/complete", commit_id);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("post_push_complete: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(_) => Ok(()),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "post_push_complete() Could not deserialize response [{}]\n{}",
+                err, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("post_push_complete() Request failed"))
     }
 }
 

@@ -92,7 +92,7 @@ impl LocalRepository {
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let toml = toml::to_string(&self)?;
-        util::fs::write_to_path(path, &toml);
+        util::fs::write_to_path(path, &toml)?;
         Ok(())
     }
 
@@ -197,7 +197,7 @@ impl LocalRepository {
         local_repo.add_remote("origin", &repo.remote.url);
 
         let toml = toml::to_string(&local_repo)?;
-        util::fs::write_to_path(&repo_config_file, &toml);
+        util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
         let indexer = EntryIndexer::new(&local_repo)?;

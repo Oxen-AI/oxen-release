@@ -27,7 +27,7 @@ impl RefWriter {
     }
 
     pub fn set_head(&self, name: &str) {
-        util::fs::write_to_path(&self.head_file, name);
+        util::fs::write_to_path(&self.head_file, name).expect("Could not write to head");
     }
 
     pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<Branch, OxenError> {

@@ -126,17 +126,19 @@ pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
     }
 }
 
-pub fn write_to_path(path: &Path, value: &str) {
+pub fn write_to_path(path: &Path, value: &str) -> Result<(), OxenError> {
     match File::create(path) {
         Ok(mut file) => match file.write(value.as_bytes()) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("Could not write file {:?}\n{}", path, err)
-            }
+            Ok(_) => Ok(()),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "Could not write file {:?}\n{}",
+                path, err
+            ))),
         },
-        Err(err) => {
-            eprintln!("Could not create file {:?}\n{}", path, err)
-        }
+        Err(err) => Err(OxenError::basic_str(format!(
+            "Could not create file to write {:?}\n{}",
+            path, err
+        ))),
     }
 }
 
