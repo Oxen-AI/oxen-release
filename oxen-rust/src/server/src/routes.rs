@@ -35,6 +35,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::post().to(controllers::commits::upload),
     )
     .route(
+        "/{namespace}/{repo_name}/commits/{commit_id}/complete",
+        web::post().to(controllers::commits::complete),
+    )
+    .route(
         "/{namespace}/{repo_name}/commits/{commit_id}/upload_chunk",
         web::post().to(controllers::commits::upload_chunk),
     )

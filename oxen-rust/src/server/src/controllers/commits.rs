@@ -1,8 +1,10 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::compute::commit_cacher;
+use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
-use liboxen::index::{CommitValidator, CommitWriter};
+use liboxen::index::{commit_validator, CommitWriter};
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -139,8 +141,9 @@ pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpRe
                 match api::local::commits::get_by_id_or_branch(&repository, commit_or_branch) {
                     Ok(Some(commit)) => {
                         let mut is_valid = false;
-                        let validator = CommitValidator::new(&repository);
-                        if let Ok(result) = validator.has_all_data(&commit, size) {
+                        if let Ok(result) =
+                            commit_validator::has_all_data(&repository, &commit, size)
+                        {
                             is_valid = result;
                         }
 
@@ -626,6 +629,68 @@ pub async fn upload(
     }
 }
 
+/// Notify that the push should be complete, and we should start doing our background processing
+pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    // name to the repo, should be in url path so okay to unwrap
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => {
+            match api::local::commits::get_by_id(&repo, commit_id) {
+                Ok(Some(commit)) => {
+                    // Kick off processing in background thread because could take awhile
+                    std::thread::spawn(move || {
+                        log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+                        match commit_cacher::run_all(&repo, &commit) {
+                            Ok(_) => {
+                                log::debug!(
+                                    "Success processing commit {:?} on repo {:?}",
+                                    commit,
+                                    repo.path
+                                );
+                            }
+                            Err(err) => {
+                                log::error!(
+                                    "Could not process commit {:?} on repo {:?}: {}",
+                                    commit,
+                                    repo.path,
+                                    err
+                                );
+                            }
+                        }
+                    });
+
+                    Ok(HttpResponse::Ok().json(StatusMessage {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_FOUND),
+                    }))
+                }
+                Ok(None) => {
+                    log::error!("Could not find commit [{}]", commit_id);
+                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                }
+                Err(err) => {
+                    log::error!("Error finding commit [{}]: {}", commit_id, err);
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
+                }
+            }
+        }
+        Ok(None) => {
+            log::debug!("404 could not get repo {}", repo_name,);
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+        }
+        Err(repo_err) => {
+            log::error!("Err get_by_name: {}", repo_err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
+}
+
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     // Unpack and compute HASH and save next to the file to speed up computation later
     match archive.entries() {
@@ -640,10 +705,11 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     let path = file.path().unwrap();
                     let full_path = hidden_dir.join(&path);
                     let hash_dir = full_path.parent().unwrap();
-                    let hash_file = hash_dir.join("HASH");
+                    let hash_file = hash_dir.join(HASH_FILE);
                     if path.starts_with("versions/files/") {
                         let hash = util::hasher::hash_file_contents(&full_path).unwrap();
-                        util::fs::write_to_path(&hash_file, &hash);
+                        util::fs::write_to_path(&hash_file, &hash)
+                            .expect("Could not write hash file");
                     }
                 } else {
                     log::error!("Could not unpack file in archive...");
@@ -854,7 +920,7 @@ mod tests {
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
         command::add(&repo, &hello_file)?;
         let commit = command::commit(&repo, "First commit")?.unwrap();
 
@@ -867,7 +933,7 @@ mod tests {
         let zipped_filename = "blah.txt";
         let zipped_file_contents = "sup";
         let random_file = commit_dir.join(zipped_filename);
-        util::fs::write_to_path(&random_file, zipped_file_contents);
+        util::fs::write_to_path(&random_file, zipped_file_contents)?;
 
         println!("Compressing commit {}...", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());

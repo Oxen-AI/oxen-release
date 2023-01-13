@@ -29,7 +29,6 @@ pub use crate::index::commit_dir_entry_writer::CommitDirEntryWriter;
 pub use crate::index::commit_dir_reader::CommitDirReader;
 pub use crate::index::commit_entry_writer::CommitEntryWriter;
 pub use crate::index::commit_reader::CommitReader;
-pub use crate::index::commit_validator::CommitValidator;
 pub use crate::index::commit_writer::CommitWriter;
 pub use crate::index::entry_indexer::EntryIndexer;
 

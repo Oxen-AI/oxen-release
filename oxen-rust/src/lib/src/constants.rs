@@ -19,6 +19,8 @@ pub const ROWS_DIR: &str = "rows";
 pub const FILES_DIR: &str = "files";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
+/// prefix for the commit entry dirs
+pub const CACHE_DIR: &str = "cache";
 /// prefix for the commit indices
 pub const INDICES_DIR: &str = "indices";
 /// prefix for the schema fields that are indexed
@@ -33,6 +35,9 @@ pub const DATA_ARROW_FILE: &str = "data.arrow";
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";
 pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
+
+// Precomputed vals
+pub const HASH_FILE: &str = "HASH";
 
 // Default Remotes and Origins
 pub const DEFAULT_BRANCH_NAME: &str = "main";
