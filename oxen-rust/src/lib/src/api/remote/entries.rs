@@ -1,9 +1,9 @@
-use crate::api;
 use crate::api::remote::client;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
+use crate::{api, constants};
 // use crate::util::ReadProgress;
 use crate::view::RemoteEntryResponse;
 
@@ -111,7 +111,6 @@ pub async fn download_large_entry(
     let chunk_size = AVG_CHUNK_SIZE;
     let total_size = entry.num_bytes;
     let num_chunks = ((total_size / chunk_size) + 1) as usize;
-    let num_retries = 3;
     let mut total_read = 0;
     let mut chunk_size = chunk_size;
 
@@ -129,15 +128,7 @@ pub async fn download_large_entry(
         let filename = format!("chunk_{}", i);
         let tmp_file = tmp_dir.join(filename);
 
-        try_download_entry_chunk(
-            remote_repo,
-            entry,
-            &tmp_file,
-            total_read,
-            chunk_size,
-            num_retries,
-        )
-        .await?;
+        try_download_entry_chunk(remote_repo, entry, &tmp_file, total_read, chunk_size).await?;
 
         bar.inc(chunk_size);
 
@@ -220,10 +211,9 @@ async fn try_download_entry_chunk(
     dest: &Path,
     chunk_start: u64,
     chunk_size: u64,
-    num_retries: usize,
 ) -> Result<(), OxenError> {
     let mut try_num = 0;
-    while try_num < num_retries {
+    while try_num < constants::NUM_HTTP_RETRIES {
         match download_entry_chunk(remote_repo, entry, dest, chunk_start, chunk_size).await {
             Ok(_) => {
                 log::debug!("Downloaded chunk {:?}", dest);
@@ -232,6 +222,8 @@ async fn try_download_entry_chunk(
             Err(err) => {
                 log::error!("Error trying to download chunk: {}", err);
                 try_num += 1;
+                let sleep_time = try_num * try_num;
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
     }
@@ -282,6 +274,39 @@ async fn download_entry_chunk(
 }
 
 pub async fn download_data_from_version_paths(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    content_ids: &[String],
+) -> Result<u64, OxenError> {
+    let total_retries = constants::NUM_HTTP_RETRIES;
+    let mut num_retries = 0;
+
+    while num_retries < total_retries {
+        match try_download_data_from_version_paths(local_repo, remote_repo, content_ids).await {
+            Ok(val) => return Ok(val),
+            Err(err) => {
+                num_retries += 1;
+                // Exponentially back off
+                let sleep_time = num_retries * num_retries;
+                log::warn!(
+                    "Could not download content {:?} sleeping {}",
+                    err,
+                    sleep_time
+                );
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
+            }
+        }
+    }
+
+    let err = format!(
+        "Err: Failed to download {} files after {} retries",
+        content_ids.len(),
+        total_retries
+    );
+    Err(OxenError::basic_str(err))
+}
+
+pub async fn try_download_data_from_version_paths(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     content_ids: &[String],
