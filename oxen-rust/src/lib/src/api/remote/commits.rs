@@ -25,7 +25,6 @@ pub struct ChunkParams {
     pub chunk_num: usize,
     pub total_chunks: usize,
     pub total_size: usize,
-    pub num_retries: usize,
 }
 
 pub async fn get_by_id(
@@ -232,9 +231,7 @@ pub async fn post_data_to_server(
         )
         .await?;
     } else {
-        let num_retries = 3;
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, num_retries, bar)
-            .await?;
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, bar).await?;
     }
     Ok(())
 }
@@ -243,11 +240,10 @@ pub async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
-    num_retries: usize,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
-    while total_tries != num_retries {
+    while total_tries < constants::NUM_HTTP_RETRIES {
         match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
@@ -261,7 +257,7 @@ pub async fn upload_single_tarball_to_server_with_retry(
                     sleep_time,
                     err
                 );
-                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
     }
@@ -323,7 +319,6 @@ async fn upload_data_to_server_in_chunks(
     );
     let chunks: Vec<&[u8]> = buffer.chunks(chunk_size).collect();
     let hash = hash_buffer(buffer);
-    let num_retries = 3;
     log::debug!(
         "upload_data_to_server_in_chunks got {} chunks from {}",
         chunks.len(),
@@ -341,7 +336,6 @@ async fn upload_data_to_server_in_chunks(
             chunk_num: i,
             total_chunks: chunks.len(),
             total_size,
-            num_retries,
         };
         match upload_data_chunk_to_server_with_retry(
             remote_repo,
@@ -376,7 +370,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
-    while total_tries != params.num_retries {
+    while total_tries < constants::NUM_HTTP_RETRIES {
         match upload_data_chunk_to_server(
             remote_repo,
             commit,
@@ -400,7 +394,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
                     sleep_time,
                     err
                 );
-                std::thread::sleep(std::time::Duration::from_secs(sleep_time as u64));
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
     }

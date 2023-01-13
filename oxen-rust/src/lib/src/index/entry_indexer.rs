@@ -419,7 +419,6 @@ impl EntryIndexer {
                     // Read chunks
                     let total_size = entry.num_bytes;
                     let num_chunks = ((total_size / chunk_size) + 1) as usize;
-                    let num_retries = 3;
                     let mut total_read = 0;
                     let mut chunk_size = chunk_size;
 
@@ -449,7 +448,6 @@ impl EntryIndexer {
                             chunk_num: i,
                             total_chunks: num_chunks,
                             total_size: total_size as usize,
-                            num_retries,
                         };
 
                         match api::remote::commits::upload_data_chunk_to_server_with_retry(
