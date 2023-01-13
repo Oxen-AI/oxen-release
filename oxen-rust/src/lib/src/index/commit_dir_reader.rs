@@ -188,7 +188,7 @@ impl CommitDirReader {
 
         // Find latest commit within dir and compute recursive size
         let commits: HashMap<String, Commit> = HashMap::new();
-        let mut latest_commit = None;
+        let mut latest_commit = Some(commit);
         let mut total_size: u64 = 0;
         // This lists all the committed dirs
         let dirs = commit_dir_reader.list_committed_dirs()?;
