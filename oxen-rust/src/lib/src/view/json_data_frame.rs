@@ -25,6 +25,10 @@ pub struct JsonDataFrameSliceResponse {
     pub status_message: String,
     pub df: JsonDataFrame,
     pub full_size: JsonDataSize,
+    pub page_number: usize,
+    pub page_size: usize,
+    pub total_pages: usize,
+    pub total_entries: usize,
 }
 
 impl JsonDataFrame {

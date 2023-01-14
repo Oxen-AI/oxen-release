@@ -1,6 +1,6 @@
 use crate::app_data::OxenAppData;
 
-use liboxen::api;
+use liboxen::{api, constants};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::df::{tabular, DFOpts};
@@ -23,6 +23,8 @@ pub struct DFOptsQuery {
     pub sort_by: Option<String>,
     pub randomize: Option<bool>,
     pub reverse: Option<bool>,
+    pub page_num: Option<usize>,
+    pub page_size: Option<usize>,
 }
 
 pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
@@ -51,12 +53,21 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                             let schema = Schema::from_polars(&polars_schema);
                             let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
                             log::debug!("Initial filter {:?}", filter);
-                            filter = parse_opts(query, &mut filter);
+                            filter = parse_opts(&query, &mut filter);
 
                             log::debug!("Got filter {:?}", filter);
                             let lazy_cp = lazy_df.clone();
                             let mut df = tabular::transform_df(lazy_cp, filter).unwrap();
                             let full_df = lazy_df.collect().unwrap();
+                            let page_size = query
+                                .page_size
+                                .unwrap_or(constants::DEFAULT_PAGE_SIZE);
+                            let page_num = query
+                                .page_num
+                                .unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+                            let total_pages = (full_df.height() / page_size) + 1;
+
                             let response = JsonDataFrameSliceResponse {
                                 status: String::from(STATUS_SUCCESS),
                                 status_message: String::from(MSG_RESOURCE_FOUND),
@@ -65,6 +76,10 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                                     width: full_df.width(),
                                     height: full_df.height(),
                                 },
+                                page_number: page_num,
+                                page_size,
+                                total_pages,
+                                total_entries: full_df.height(),
                             };
                             HttpResponse::Ok().json(response)
                         }
@@ -99,7 +114,7 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
 }
 
 /// Provide some default vals for opts
-fn parse_opts(query: web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> DFOpts {
+fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> DFOpts {
     // Default to 0..10 unless they ask for "all"
     if let Some(slice) = query.slice.clone() {
         if slice == "all" {
@@ -119,6 +134,8 @@ fn parse_opts(query: web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> DFOpts
         filter_ops.columns = Some(columns);
     }
 
+    filter_ops.page_num = query.page_num;
+    filter_ops.page_size = query.page_size;
     filter_ops.take = query.take.clone();
     filter_ops.filter = query.filter.clone();
     filter_ops.aggregate = query.aggregate.clone();
