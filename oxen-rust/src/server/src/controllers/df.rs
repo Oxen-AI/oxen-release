@@ -59,12 +59,8 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                             let lazy_cp = lazy_df.clone();
                             let mut df = tabular::transform_df(lazy_cp, filter).unwrap();
                             let full_df = lazy_df.collect().unwrap();
-                            let page_size = query
-                                .page_size
-                                .unwrap_or(constants::DEFAULT_PAGE_SIZE);
-                            let page_num = query
-                                .page_num
-                                .unwrap_or(constants::DEFAULT_PAGE_NUM);
+                            let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+                            let page_num = query.page_num.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
                             let total_pages = (full_df.height() / page_size) + 1;
 
