@@ -19,6 +19,7 @@ pub const CLONE: &str = "clone";
 pub const PUSH: &str = "push";
 pub const PULL: &str = "pull";
 pub const DIFF: &str = "diff";
+pub const MIGRATE: &str = "migrate";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const READ_LINES: &str = "read-lines";
 
@@ -390,6 +391,19 @@ pub fn diff() -> Command<'static> {
         .about("Compare file from a commit history")
         .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
         .arg(Arg::new("PATH").required(false))
+}
+
+pub fn migrate() -> Command<'static> {
+    Command::new(MIGRATE)
+        .about("Migrate a repository or set of repositories")
+        .arg(Arg::new("PATH").required(true))
+        .arg(
+            Arg::new("all")
+                .long("all")
+                .short('a')
+                .help("Migrate all the oxen repositories in this directory")
+                .takes_value(false),
+        )
 }
 
 pub fn read_lines() -> Command<'static> {
