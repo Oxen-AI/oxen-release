@@ -4,6 +4,7 @@
 //!
 
 use crate::api;
+use crate::compute;
 use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
@@ -877,6 +878,30 @@ pub async fn pull_remote_branch(
         branch: String::from(branch),
     };
     indexer.pull(&rb).await?;
+    Ok(())
+}
+
+/// Run the computation cache on all repositories within a directory
+pub fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
+    let namespaces = api::local::repositories::list_namespaces(path)?;
+    for namespace in namespaces {
+        let namespace_path = path.join(namespace);
+        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        for repo in repos {
+            log::debug!("pre-compute commit data for repo {:?}", repo.path);
+            migrate_repo(&repo)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Run the computation cache on all repositories within a directory
+pub fn migrate_repo(repo: &LocalRepository) -> Result<(), OxenError> {
+    let commits = log(repo)?;
+    for commit in commits {
+        compute::commit_cacher::run_all(repo, &commit)?;
+    }
     Ok(())
 }
 
