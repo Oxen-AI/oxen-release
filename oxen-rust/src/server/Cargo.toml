@@ -4,33 +4,33 @@ version = "0.4.2+1"
 edition = "2018"
 
 [dependencies]
-liboxen = { path = "../lib" }
-chrono = "0.4.19"
-clap = { version = "3.1.0", features = ["cargo"] }
-actix-web = { version = "4", features = ["openssl"] }
-serde = { version = "1.0.136", features = ["derive"] }
-serde_json = "1.0.78"
-env_logger = "0.9.0"
-log = "0.4.17"
-dotenv = "0.9.0"
-bytesize = "1.1.0"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
-rocksdb = { version = "0.18.0", default-features = false, features = ["lz4"] }
 actix-files = "0.6.0"
 actix-http = "3.0.4"
-actix-web-httpauth = "0.6.0"
-futures-util = "0.3.21"
-futures = "0.3.21"
-flate2 = "1.0.23"
-tar = "0.4.38"
 actix-service = "2.0.2"
+actix-web = { version = "4", features = ["openssl"] }
+actix-web-httpauth = "0.6.0"
+bytesize = "1.1.0"
+chrono = "0.4.19"
+clap = { version = "3.1.0", features = ["cargo"] }
+derive_more = "0.99.17"
+dotenv = "0.9.0"
+env_logger = "0.9.0"
+flate2 = "1.0.23"
+futures = "0.3.21"
+futures-util = "0.3.21"
+hex = "0.4.3"
 jsonwebtoken = "8"
-x25519-dalek = "1"
+liboxen = { path = "../lib" }
+log = "0.4.17"
 rand = "0.8.0"
 rand_core = "0.5"
-derive_more = "0.99.17"
-hex = "0.4.3"
+rocksdb = { version = "0.18.0", default-features = false, features = ["lz4"] }
+serde = { version = "1.0.136", features = ["derive"] }
+serde_json = "1.0.78"
+tar = "0.4.38"
 time = { version = "0.3.17", features = ["serde"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
+x25519-dalek = "1"
 
 
 [[bin]]

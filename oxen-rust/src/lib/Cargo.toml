@@ -4,61 +4,62 @@ version = "0.4.2+1"
 edition = "2018"
 
 [dependencies]
+actix-files = "0.6.0"
+actix-web = { version = "4", features = ["openssl"] }
+async-compression = { version = "0.3.14", features = ["futures-io", "gzip"] }
+async-recursion = "1.0.0"
+async-std = "1.12.0"
+async-tar = "0.4.2"
+bytes = "1.2.1"
+bytesize = "1.1.0"
+bytevec = "0.2.0"
 chrono = "0.4.22"
 clap = { version = "3.1.0", features = ["cargo"] }
+colored = "2.0.0"
+comfy-table = "6.1.0"
+deadqueue = "0.2.4"
+difference = "2.0.0"
+dirs = "4.0.0"
+dotenv = "0.9.0"
+env_logger = "0.9.0"
+filetime = "0.2.16"
+flate2 = "1.0.23"
+fs_extra = "1.2.0"
+futures = "0.3"
+futures-util = "0.3.21"
+http = "0.2.6"
 indicatif = "0.17.1"
+itertools = "0.10.5"
 jwalk = "0.6.0"
+lazy_static = "1.4.0"
+log = "0.4.17"
+nom = "7.1.1"
+num_cpus = "1.13.1"
+openssl = { version = "0.10" }
+polars = { version = "0.26.1", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
+rand = "0.8.5"
 rayon = "1.5.1"
 reqwest = { version = "0.11.13", features = ["multipart", "json", "gzip", "stream"] }
-serde = { version = "1.0.136", features = ["derive"] }
-serde_url_params = "0.2.1"
-serde_json = "1.0.78"
-serde_derive = "1.0"
-toml = "0.5.8"
-futures = "0.3"
-signal-hook = "0.3.13"
-rpassword = "6.0"
-dirs = "4.0.0"
-urlencoding = "2.1.0"
-http = "0.2.6"
-url = "2.2.2"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
-colored = "2.0.0"
 rocksdb = { version = "0.18.0", default-features = false, features = ["lz4"] }
-actix-web = { version = "4", features = ["openssl"] }
-actix-files = "0.6.0"
-openssl = { version = "0.10" }
-dotenv = "0.9.0"
-flate2 = "1.0.23"
+rpassword = "6.0"
+serde = { version = "1.0.136", features = ["derive"] }
+serde_derive = "1.0"
+serde_json = "1.0.78"
+serde_url_params = "0.2.1"
+signal-hook = "0.3.13"
+simdutf8 = "0.1.4"
 tar = "0.4.38"
-env_logger = "0.9.0"
-log = "0.4.17"
-futures-util = "0.3.21"
-threadpool = "1.8.1"
-xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
-lazy_static = "1.4.0"
-filetime = "0.2.16"
-bytesize = "1.1.0"
-num_cpus = "1.13.1"
-polars = { version = "0.26.1", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
-comfy-table = "6.1.0"
-unicode-truncate = "0.2.0"
 termion = "1.5.6"
+threadpool = "1.8.1"
+time = { version = "0.3.17", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7.4"
-async-compression = { version = "0.3.14", features = ["futures-io", "gzip"] }
-async-tar = "0.4.2"
-async-recursion = "1.0.0"
-bytes = "1.2.1"
-simdutf8 = "0.1.4"
-difference = "2.0.0"
-bytevec = "0.2.0"
-rand = "0.8.5"
-async-std = "1.12.0"
-nom = "7.1.1"
-time = { version = "0.3.17", features = ["serde"] }
-deadqueue = "0.2.4"
-itertools = "0.10.5"
+toml = "0.5.8"
+unicode-truncate = "0.2.0"
+url = "2.2.2"
+urlencoding = "2.1.0"
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
+xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
 
 [lib]
 name = "liboxen"
