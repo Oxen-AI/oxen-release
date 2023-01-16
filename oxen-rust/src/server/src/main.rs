@@ -124,6 +124,10 @@ async fn main() -> std::io::Result<()> {
                                 "/api/namespaces",
                                 web::get().to(controllers::namespaces::index),
                             )
+                            .route(
+                                "/api/namespaces/{namespace}",
+                                web::get().to(controllers::namespaces::show),
+                            )
                             .wrap(Condition::new(
                                 enable_auth,
                                 HttpAuthentication::bearer(auth::validator::validate),
