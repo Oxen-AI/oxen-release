@@ -3,6 +3,7 @@ pub mod commit;
 pub mod data_frame_diff;
 pub mod entry;
 pub mod merge_conflict;
+pub mod namespace;
 pub mod remote;
 pub mod remote_branch;
 pub mod repository;
@@ -44,3 +45,5 @@ pub use crate::model::remote::Remote;
 pub use crate::model::data_frame_diff::DataFrameDiff;
 
 pub use crate::model::schema::Schema;
+
+pub use crate::model::namespace::Namespace;
