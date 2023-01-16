@@ -1,2 +1,2 @@
+pub mod content_validator;
 pub mod convert_to_arrow;
-pub mod entry_hash_cacher;

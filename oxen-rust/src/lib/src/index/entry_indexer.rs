@@ -118,22 +118,26 @@ impl EntryIndexer {
         match api::remote::commits::commit_is_synced(remote_repo, &local_commit.id, num_entries)
             .await
         {
-            Ok(true) => {
-                // We have remote commit, stop syncing
-                log::debug!(
-                    "rpush_missing_commit_objects STOP, we have remote parent {} -> '{}'",
-                    local_commit.id,
-                    local_commit.message
-                );
+            Ok(Some(sync_status)) => {
+                if sync_status.is_valid {
+                    // We have remote commit, stop syncing
+                    log::debug!(
+                        "rpush_missing_commit_objects STOP, we have remote parent {} -> '{}'",
+                        local_commit.id,
+                        local_commit.message
+                    );
+                    // Add the last one because we are going to pop it off
+                    unsynced_commits.push_back(local_commit.to_owned());
+                } else if sync_status.is_processing {
+                    println!("Commit is still processing on server {}", local_commit.id);
 
-                log::debug!(
-                    "rpush_missing_commit_objects unsynced_commits.push_back root {:?}",
-                    local_commit
-                );
-                // Add the last one because we are going to pop it off
-                unsynced_commits.push_back(local_commit.to_owned());
+                    // Add the last one because we are going to pop it off
+                    unsynced_commits.push_back(local_commit.to_owned());
+                } else {
+                    return Err(OxenError::basic_str(sync_status.status_description));
+                }
             }
-            Ok(false) => {
+            Ok(None) => {
                 log::debug!(
                     "rpush_missing_commit_objects CONTINUE Didn't find remote parent: {} -> '{}'",
                     local_commit.id,

@@ -38,6 +38,7 @@ pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
 
 // Precomputed vals
 pub const HASH_FILE: &str = "HASH";
+pub const CONTENT_IS_VALID: &str = "CONTENT_IS_VALID";
 
 // Default Remotes and Origins
 pub const DEFAULT_BRANCH_NAME: &str = "main";
