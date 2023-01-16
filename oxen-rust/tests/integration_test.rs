@@ -936,9 +936,10 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
         // Sleep so it can unpack...
         std::thread::sleep(std::time::Duration::from_secs(2));
 
-        let is_synced =
-            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_files).await?;
-        assert!(is_synced);
+        let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_files)
+            .await?
+            .unwrap();
+        assert!(is_synced.is_valid);
 
         api::remote::repositories::delete(&remote_repo).await?;
 
@@ -990,8 +991,10 @@ async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenE
         command::push(&repo).await?;
 
         let is_synced =
-            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries).await?;
-        assert!(is_synced);
+            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
+                .await?
+                .unwrap();
+        assert!(is_synced.is_valid);
 
         api::remote::repositories::delete(&remote_repo).await?;
 

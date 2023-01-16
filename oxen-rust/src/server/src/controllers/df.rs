@@ -45,8 +45,9 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                 );
 
                 match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
-                    Ok(version_path) => match tabular::scan_df(version_path) {
+                    Ok(version_path) => match tabular::scan_df(&version_path) {
                         Ok(lazy_df) => {
+                            log::debug!("Read version file {:?}", version_path);
                             let polars_schema = lazy_df.schema().unwrap();
                             let schema = Schema::from_polars(&polars_schema);
                             let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);

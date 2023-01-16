@@ -9,7 +9,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
 
-use super::cachers::{convert_to_arrow, entry_hash_cacher};
+use super::cachers::content_validator;
 use lazy_static::lazy_static;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde::{Deserialize, Serialize};
@@ -24,8 +24,8 @@ pub enum CacherStatusType {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct CacherStatus {
-    status: CacherStatusType,
-    status_message: String,
+    pub status: CacherStatusType,
+    pub status_message: String,
 }
 
 impl CacherStatus {
@@ -57,8 +57,8 @@ lazy_static! {
     /// These are all the cachers we are going to run in `run_all`
     static ref CACHERS: HashMap<String, CommitCacher> = {
         let mut cachers = HashMap::new();
-        cachers.insert(String::from("COMMIT_HASH"), entry_hash_cacher::compute_and_write_hash as CommitCacher);
-        cachers.insert(String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher);
+        cachers.insert(String::from("COMMIT_CONTENT_IS_VALID"), content_validator::compute as CommitCacher);
+        // cachers.insert(String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher);
         cachers
     };
 }
@@ -91,7 +91,7 @@ pub fn get_status(
 }
 
 /// Return all the statuses from cacher processes that were run
-pub fn get_all_statuses(
+pub fn get_failures(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<CacherStatus>, OxenError> {
@@ -99,8 +99,36 @@ pub fn get_all_statuses(
     let opts = db::opts::default();
     let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, db_path)?;
 
-    let vals = str_json_db::list_vals::<CacherStatus>(&db)?;
+    let vals = str_json_db::list_vals::<CacherStatus>(&db)?
+        .into_iter()
+        .filter(|v| v.status == CacherStatusType::Failed)
+        .collect();
     Ok(vals)
+}
+
+/// Return all the statuses from cacher processes that were run
+pub fn get_all_statuses(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CacherStatus>, OxenError> {
+    let db_path = cached_status_db_path(repo, commit);
+    // Check if db path exists
+    if !db_path.exists() {
+        return Ok(vec![]);
+    }
+    let opts = db::opts::default();
+    let db = DBWithThreadMode::open(&opts, db_path);
+    match db {
+        Ok(db) => {
+            let vals = str_json_db::list_vals::<CacherStatus>(&db)?;
+            Ok(vals)
+        }
+        Err(_) => {
+            // If db path exists, and error, it's probably because we are trying to open from different processes
+            log::debug!("Could not open db....still processing");
+            Ok(vec![CacherStatus::pending()])
+        }
+    }
 }
 
 /// Run all the cachers and update their status's as you go

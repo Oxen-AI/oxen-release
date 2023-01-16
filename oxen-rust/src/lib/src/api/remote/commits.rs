@@ -60,26 +60,27 @@ pub async fn commit_is_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
     num_entries: usize,
-) -> Result<bool, OxenError> {
+) -> Result<Option<IsValidStatusMessage>, OxenError> {
     let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
-        let status = res.status();
-        if 404 == status {
-            return Ok(false);
+        if res.status() == 404 {
+            return Ok(None);
         }
 
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(j_res.is_valid),
+            Ok(j_res) => Ok(Some(j_res)),
             Err(err) => {
                 log::debug!("Error getting remote commit {}", err);
-                Ok(false)
+                Err(OxenError::basic_str(
+                    "commit_is_synced() unable to parse body",
+                ))
             }
         }
     } else {
@@ -556,8 +557,9 @@ mod tests {
 
             let is_synced =
                 api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                    .await?;
-            assert!(is_synced);
+                    .await?
+                    .unwrap();
+            assert!(is_synced.is_valid);
 
             api::remote::repositories::delete(&remote_repo).await?;
 
@@ -598,8 +600,9 @@ mod tests {
             // Should not be synced because we didn't actually post the files
             let is_synced =
                 api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                    .await?;
-            assert!(!is_synced);
+                    .await?
+                    .unwrap();
+            assert!(!is_synced.is_valid);
 
             Ok(remote_repo)
         })

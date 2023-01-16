@@ -888,8 +888,15 @@ pub fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
         let namespace_path = path.join(namespace);
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
-            log::debug!("pre-compute commit data for repo {:?}", repo.path);
-            migrate_repo(&repo)?;
+            println!("Migrate repo {:?}", repo.path);
+            match migrate_repo(&repo) {
+                Ok(_) => {
+                    println!("Done.");
+                }
+                Err(err) => {
+                    log::error!("Could not migrate repo {:?}\nErr: {}", repo.path, err)
+                }
+            }
         }
     }
 

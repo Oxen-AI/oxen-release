@@ -11,9 +11,12 @@ use std::{fs, io};
 
 use crate::api;
 use crate::constants;
+use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
+use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository, Schema};
+use crate::model::Commit;
+use crate::model::{CommitEntry, LocalRepository};
 
 pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
     PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
@@ -27,18 +30,12 @@ pub fn repo_exists(repo_path: &Path) -> bool {
     oxen_hidden_dir(repo_path).exists()
 }
 
-pub fn schema_version_dir(repo: &LocalRepository, schema: &Schema) -> PathBuf {
-    // .oxen/versions/schemas/SCHEMA_HASH
+pub fn commit_content_is_valid_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
     oxen_hidden_dir(&repo.path)
-        .join(constants::VERSIONS_DIR)
-        .join(constants::SCHEMAS_DIR)
-        .join(&schema.hash)
+        .join(HISTORY_DIR)
+        .join(&commit.id)
+        .join(CONTENT_IS_VALID)
 }
-
-// NOTE: This was for CADF, was too inefficient for now
-// pub fn schema_df_path(repo: &LocalRepository, schema: &Schema) -> PathBuf {
-//     schema_version_dir(repo, schema).join(DATA_ARROW_FILE)
-// }
 
 pub fn version_path_for_commit_id(
     repo: &LocalRepository,
@@ -49,12 +46,12 @@ pub fn version_path_for_commit_id(
         Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
             Some(entry) => {
                 let path = version_path(repo, &entry);
-                // if is_tabular(filepath) {
-                //     let data_file = path.parent().unwrap().join(DATA_ARROW_FILE);
-                //     Ok(data_file)
-                // } else {
-                Ok(path)
-                // }
+                let arrow_path = path.parent().unwrap().join(DATA_ARROW_FILE);
+                if arrow_path.exists() {
+                    Ok(arrow_path)
+                } else {
+                    Ok(path)
+                }
             }
             None => Err(OxenError::file_does_not_exist(filepath)),
         },
@@ -380,6 +377,13 @@ pub fn contains_ext(path: &Path, exts: &HashSet<String>) -> bool {
             Some(ext) => exts.contains(ext),
             None => false,
         },
+        None => false,
+    }
+}
+
+pub fn has_ext(path: &Path, ext: &str) -> bool {
+    match path.extension() {
+        Some(extension) => extension == ext,
         None => false,
     }
 }
