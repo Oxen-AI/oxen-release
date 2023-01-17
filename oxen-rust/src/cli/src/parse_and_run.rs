@@ -1,6 +1,7 @@
 use clap::ArgMatches;
-use liboxen::opts::RestoreOpts;
+use liboxen::model::LocalRepository;
 use liboxen::util;
+use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 
 use crate::dispatch;
@@ -420,6 +421,32 @@ pub fn commit(sub_matches: &ArgMatches) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{}", err)
+        }
+    }
+}
+
+pub fn migrate(sub_matches: &ArgMatches) {
+    let path_str = sub_matches.value_of("PATH").expect("required");
+    let path = Path::new(path_str);
+
+    if sub_matches.is_present("all") {
+        match command::migrate_all_repos(path) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("Err: {}", err)
+            }
+        }
+    } else {
+        match LocalRepository::new(path) {
+            Ok(repo) => match command::migrate_repo(&repo) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Err: {}", err)
+                }
+            },
+            Err(err) => {
+                println!("Err: {}", err)
+            }
         }
     }
 }

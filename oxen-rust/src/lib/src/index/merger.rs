@@ -108,8 +108,8 @@ impl Merger {
         let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
         let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
         let orig_head_path = hidden_dir.join(ORIG_HEAD_FILE);
-        util::fs::write_to_path(&merge_head_path, &merge_commits.merge.id);
-        util::fs::write_to_path(&orig_head_path, &merge_commits.head.id);
+        util::fs::write_to_path(&merge_head_path, &merge_commits.merge.id)?;
+        util::fs::write_to_path(&orig_head_path, &merge_commits.head.id)?;
 
         for conflict in conflicts.iter() {
             let key = conflict.head_entry.path.to_str().unwrap();
@@ -390,7 +390,7 @@ mod tests {
 
         let a_branch = command::current_branch(repo)?.unwrap();
         let a_path = repo.path.join("a.txt");
-        util::fs::write_to_path(&a_path, "a");
+        util::fs::write_to_path(&a_path, "a")?;
         command::add(repo, a_path)?;
         // Return the lowest common ancestor for the tests
         let lca = command::commit(repo, "Committing a.txt file")?;
@@ -398,26 +398,26 @@ mod tests {
         // Make changes on B
         command::create_checkout_branch(repo, merge_branch_name)?;
         let b_path = repo.path.join("b.txt");
-        util::fs::write_to_path(&b_path, "b");
+        util::fs::write_to_path(&b_path, "b")?;
         command::add(repo, b_path)?;
         command::commit(repo, "Committing b.txt file")?;
 
         // Checkout A again to make another change
         command::checkout(repo, &a_branch.name)?;
         let c_path = repo.path.join("c.txt");
-        util::fs::write_to_path(&c_path, "c");
+        util::fs::write_to_path(&c_path, "c")?;
         command::add(repo, c_path)?;
         command::commit(repo, "Committing c.txt file")?;
 
         let d_path = repo.path.join("d.txt");
-        util::fs::write_to_path(&d_path, "d");
+        util::fs::write_to_path(&d_path, "d")?;
         command::add(repo, d_path)?;
         command::commit(repo, "Committing d.txt file")?;
 
         // Checkout merge branch (B) to make another change
         command::checkout(repo, merge_branch_name)?;
         let e_path = repo.path.join("e.txt");
-        util::fs::write_to_path(&e_path, "e");
+        util::fs::write_to_path(&e_path, "e")?;
         command::add(repo, e_path)?;
         command::commit(repo, "Committing e.txt file")?;
 
@@ -433,7 +433,7 @@ mod tests {
             // Write and commit hello file to main branch
             let og_branch = command::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
-            util::fs::write_to_path(&hello_file, "Hello");
+            util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
             command::commit(&repo, "Adding hello file")?;
 
@@ -442,7 +442,7 @@ mod tests {
             command::create_checkout_branch(&repo, branch_name)?;
 
             let world_file = repo.path.join("world.txt");
-            util::fs::write_to_path(&world_file, "World");
+            util::fs::write_to_path(&world_file, "World")?;
             command::add(&repo, &world_file)?;
             command::commit(&repo, "Adding world file")?;
 
@@ -473,12 +473,12 @@ mod tests {
             // Write and add hello file
             let og_branch = command::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
-            util::fs::write_to_path(&hello_file, "Hello");
+            util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
 
             // Write and add world file
             let world_file = repo.path.join("world.txt");
-            util::fs::write_to_path(&world_file, "World");
+            util::fs::write_to_path(&world_file, "World")?;
             command::add(&repo, &world_file)?;
 
             // Commit two files
@@ -518,13 +518,13 @@ mod tests {
             // Write and add hello file
             let og_branch = command::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
-            util::fs::write_to_path(&hello_file, "Hello");
+            util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
 
             // Write and add world file
             let world_file = repo.path.join("world.txt");
             let og_contents = "World";
-            util::fs::write_to_path(&world_file, og_contents);
+            util::fs::write_to_path(&world_file, og_contents)?;
             command::add(&repo, &world_file)?;
 
             // Commit two files
@@ -642,7 +642,7 @@ mod tests {
 
             let a_branch = command::current_branch(&repo)?.unwrap();
             let a_path = repo.path.join("a.txt");
-            util::fs::write_to_path(&a_path, "a");
+            util::fs::write_to_path(&a_path, "a")?;
             command::add(&repo, &a_path)?;
             // Return the lowest common ancestor for the tests
             command::commit(&repo, "Committing a.txt file")?;
@@ -653,7 +653,7 @@ mod tests {
 
             // Add a text new text file
             let b_path = repo.path.join("b.txt");
-            util::fs::write_to_path(&b_path, "b");
+            util::fs::write_to_path(&b_path, "b")?;
             command::add(&repo, &b_path)?;
 
             // Modify the text file a.txt
@@ -668,7 +668,7 @@ mod tests {
 
             // Add new file c.txt on main branch
             let c_path = repo.path.join("c.txt");
-            util::fs::write_to_path(&c_path, "c");
+            util::fs::write_to_path(&c_path, "c")?;
             command::add(&repo, &c_path)?;
 
             // Modify a.txt from main branch
@@ -680,7 +680,7 @@ mod tests {
 
             // Commit some more changes to main branch
             let d_path = repo.path.join("d.txt");
-            util::fs::write_to_path(&d_path, "d");
+            util::fs::write_to_path(&d_path, "d")?;
             command::add(&repo, &d_path)?;
             command::commit(&repo, "Committing d.txt file")?;
 
@@ -689,7 +689,7 @@ mod tests {
 
             // Add another branch
             let e_path = repo.path.join("e.txt");
-            util::fs::write_to_path(&e_path, "e");
+            util::fs::write_to_path(&e_path, "e")?;
             command::add(&repo, &e_path)?;
             command::commit(&repo, "Committing e.txt file")?;
 
@@ -724,7 +724,7 @@ mod tests {
 
             let og_branch = command::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
-            util::fs::write_to_path(&labels_path, "cat\ndog");
+            util::fs::write_to_path(&labels_path, "cat\ndog")?;
             command::add(&repo, &labels_path)?;
             // Return the lowest common ancestor for the tests
             command::commit(&repo, "Add initial labels.txt file with cat and dog")?;

@@ -1,10 +1,18 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::compute::cachers::content_validator;
+use liboxen::compute::commit_cacher;
+use liboxen::compute::commit_cacher::CacherStatusType;
+use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
-use liboxen::index::{CommitValidator, CommitWriter};
+use liboxen::index::CommitWriter;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
+use liboxen::view::http::MSG_FAILED_PROCESS;
+use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
+use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
+use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{
     CommitParentsResponse, CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage,
@@ -25,11 +33,6 @@ use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use tar::Archive;
-
-#[derive(Deserialize, Debug)]
-pub struct SizeQuery {
-    size: usize,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct ChunkedDataUploadQuery {
@@ -124,12 +127,11 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpResponse {
+pub async fn is_synced(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
-    let size = query.size;
 
     if let (Some(namespace), Some(name), Some(commit_or_branch)) =
         (namespace, name, commit_or_branch)
@@ -137,19 +139,69 @@ pub async fn is_synced(req: HttpRequest, query: web::Query<SizeQuery>) -> HttpRe
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => {
                 match api::local::commits::get_by_id_or_branch(&repository, commit_or_branch) {
-                    Ok(Some(commit)) => {
-                        let mut is_valid = false;
-                        let validator = CommitValidator::new(&repository);
-                        if let Ok(result) = validator.has_all_data(&commit, size) {
-                            is_valid = result;
+                    Ok(Some(commit)) => match commit_cacher::get_status(&repository, &commit) {
+                        Ok(Some(CacherStatusType::Success)) => {
+                            match content_validator::is_valid(&repository, &commit) {
+                                Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
+                                    status: String::from(STATUS_SUCCESS),
+                                    status_message: String::from(MSG_RESOURCE_FOUND),
+                                    status_description: String::from(""),
+                                    is_processing: false,
+                                    is_valid: true,
+                                }),
+                                err => HttpResponse::Ok().json(IsValidStatusMessage {
+                                    status: String::from(STATUS_ERROR),
+                                    status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
+                                    status_description: format!("Err: {:?}", err),
+                                    is_processing: false,
+                                    is_valid: false,
+                                }),
+                            }
                         }
+                        Ok(Some(CacherStatusType::Pending)) => {
+                            HttpResponse::Ok().json(IsValidStatusMessage {
+                                status: String::from(STATUS_SUCCESS),
+                                status_message: String::from(MSG_RESOURCE_IS_PROCESSING),
+                                status_description: String::from("Commit is still processing"),
+                                is_processing: true,
+                                is_valid: false,
+                            })
+                        }
+                        Ok(Some(CacherStatusType::Failed)) => {
+                            let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
+                            let error_str = errors
+                                .into_iter()
+                                .map(|e| e.status_message)
+                                .collect::<Vec<String>>()
+                                .join(", ");
 
-                        HttpResponse::Ok().json(IsValidStatusMessage {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_FOUND),
-                            is_valid,
-                        })
-                    }
+                            HttpResponse::Ok().json(IsValidStatusMessage {
+                                status: String::from(STATUS_ERROR),
+                                status_message: String::from(MSG_FAILED_PROCESS),
+                                status_description: format!("Err: {}", error_str),
+                                is_processing: false,
+                                is_valid: false,
+                            })
+                        }
+                        Ok(None) => {
+                            log::debug!(
+                                "commit or branch {} does not exist for repo: {}",
+                                commit_or_branch,
+                                name
+                            );
+                            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                        }
+                        err => {
+                            log::debug!("Error getting status... {:?}", err);
+                            HttpResponse::Ok().json(IsValidStatusMessage {
+                                status: String::from(STATUS_ERROR),
+                                status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
+                                status_description: format!("Err: {:?}", err),
+                                is_processing: false,
+                                is_valid: false,
+                            })
+                        }
+                    },
                     Ok(None) => {
                         log::debug!(
                             "commit or branch {} does not exist for repo: {}",
@@ -505,59 +557,58 @@ fn check_if_upload_complete_and_unpack(
     );
 
     if total_size == (uploaded_size as usize) {
-        std::thread::spawn(move || {
-            // Get tar.gz bytes for history/COMMIT_ID data
-            log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
+        // std::thread::spawn(move || {
+        // Get tar.gz bytes for history/COMMIT_ID data
+        log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
 
-            let mut buffer: Vec<u8> = Vec::new();
-            for file in files.iter() {
-                log::debug!("Reading file bytes {:?}", file);
-                let mut f = std::fs::File::open(file).unwrap();
+        let mut buffer: Vec<u8> = Vec::new();
+        for file in files.iter() {
+            log::debug!("Reading file bytes {:?}", file);
+            let mut f = std::fs::File::open(file).unwrap();
 
-                f.read_to_end(&mut buffer).unwrap();
-            }
+            f.read_to_end(&mut buffer).unwrap();
+        }
 
-            // TODO: better error handling...
-            // Combine into actual file data
-            if is_compressed {
-                // Unpack tarball to our hidden dir
-                let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
-                unpack_entry_tarball(&hidden_dir, &mut archive);
-            } else {
-                // just write buffer to disk
-                match filename {
-                    Some(filename) => {
-                        // TODO: better error handling...
+        // TODO: better error handling...
+        // Combine into actual file data
+        if is_compressed {
+            // Unpack tarball to our hidden dir
+            let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
+            unpack_entry_tarball(&hidden_dir, &mut archive);
+        } else {
+            // just write buffer to disk
+            match filename {
+                Some(filename) => {
+                    // TODO: better error handling...
 
-                        log::debug!("Got filename {}", filename);
-                        let full_path = hidden_dir.join(filename);
-                        log::debug!("Unpack to {:?}", full_path);
-                        if let Some(parent) = full_path.parent() {
-                            if !parent.exists() {
-                                std::fs::create_dir_all(parent)
-                                    .expect("Could not create parent dir");
-                            }
-                        }
-
-                        let mut f = std::fs::File::create(&full_path).expect("Could write file");
-                        match f.write_all(&buffer) {
-                            Ok(_) => {
-                                log::debug!("Unpack successful! {:?}", full_path);
-                            }
-                            Err(err) => {
-                                log::error!("Could not write all data to disk {:?}", err);
-                            }
+                    log::debug!("Got filename {}", filename);
+                    let full_path = hidden_dir.join(filename);
+                    log::debug!("Unpack to {:?}", full_path);
+                    if let Some(parent) = full_path.parent() {
+                        if !parent.exists() {
+                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
                         }
                     }
-                    None => {
-                        log::error!("Must supply filename if !compressed");
+
+                    let mut f = std::fs::File::create(&full_path).expect("Could write file");
+                    match f.write_all(&buffer) {
+                        Ok(_) => {
+                            log::debug!("Unpack successful! {:?}", full_path);
+                        }
+                        Err(err) => {
+                            log::error!("Could not write all data to disk {:?}", err);
+                        }
                     }
                 }
+                None => {
+                    log::error!("Must supply filename if !compressed");
+                }
             }
+        }
 
-            // Cleanup tmp files
-            std::fs::remove_dir_all(tmp_dir).unwrap();
-        });
+        // Cleanup tmp files
+        std::fs::remove_dir_all(tmp_dir).unwrap();
+        // });
     }
 }
 
@@ -590,18 +641,80 @@ pub async fn upload(
                     log::debug!("Got compressed data {}", ByteSize::b(total_size));
 
                     // Unpack in background thread because could take awhile
-                    std::thread::spawn(move || {
-                        // Get tar.gz bytes for history/COMMIT_ID data
-                        log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
-                        // Unpack tarball to our hidden dir
-                        let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-                        unpack_entry_tarball(&hidden_dir, &mut archive);
-                    });
+                    // std::thread::spawn(move || {
+                    // Get tar.gz bytes for history/COMMIT_ID data
+                    log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
+                    // Unpack tarball to our hidden dir
+                    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+                    unpack_entry_tarball(&hidden_dir, &mut archive);
+                    // });
 
                     Ok(HttpResponse::Ok().json(CommitResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_CREATED),
                         commit: commit.to_owned(),
+                    }))
+                }
+                Ok(None) => {
+                    log::error!("Could not find commit [{}]", commit_id);
+                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                }
+                Err(err) => {
+                    log::error!("Error finding commit [{}]: {}", commit_id, err);
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
+                }
+            }
+        }
+        Ok(None) => {
+            log::debug!("404 could not get repo {}", repo_name,);
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+        }
+        Err(repo_err) => {
+            log::error!("Err get_by_name: {}", repo_err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
+}
+
+/// Notify that the push should be complete, and we should start doing our background processing
+pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    // name to the repo, should be in url path so okay to unwrap
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => {
+            match api::local::commits::get_by_id(&repo, commit_id) {
+                Ok(Some(commit)) => {
+                    // Kick off processing in background thread because could take awhile
+                    std::thread::spawn(move || {
+                        log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+                        match commit_cacher::run_all(&repo, &commit) {
+                            Ok(_) => {
+                                log::debug!(
+                                    "Success processing commit {:?} on repo {:?}",
+                                    commit,
+                                    repo.path
+                                );
+                            }
+                            Err(err) => {
+                                log::error!(
+                                    "Could not process commit {:?} on repo {:?}: {}",
+                                    commit,
+                                    repo.path,
+                                    err
+                                );
+                            }
+                        }
+                    });
+
+                    Ok(HttpResponse::Ok().json(StatusMessage {
+                        status: String::from(STATUS_SUCCESS),
+                        status_message: String::from(MSG_RESOURCE_FOUND),
                     }))
                 }
                 Ok(None) => {
@@ -640,10 +753,11 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     let path = file.path().unwrap();
                     let full_path = hidden_dir.join(&path);
                     let hash_dir = full_path.parent().unwrap();
-                    let hash_file = hash_dir.join("HASH");
+                    let hash_file = hash_dir.join(HASH_FILE);
                     if path.starts_with("versions/files/") {
                         let hash = util::hasher::hash_file_contents(&full_path).unwrap();
-                        util::fs::write_to_path(&hash_file, &hash);
+                        util::fs::write_to_path(&hash_file, &hash)
+                            .expect("Could not write hash file");
                     }
                 } else {
                     log::error!("Could not unpack file in archive...");
@@ -854,7 +968,7 @@ mod tests {
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
         command::add(&repo, &hello_file)?;
         let commit = command::commit(&repo, "First commit")?.unwrap();
 
@@ -867,7 +981,7 @@ mod tests {
         let zipped_filename = "blah.txt";
         let zipped_file_contents = "sup";
         let random_file = commit_dir.join(zipped_filename);
-        util::fs::write_to_path(&random_file, zipped_file_contents);
+        util::fs::write_to_path(&random_file, zipped_file_contents)?;
 
         println!("Compressing commit {}...", commit.id);
         let enc = GzEncoder::new(Vec::new(), Compression::default());

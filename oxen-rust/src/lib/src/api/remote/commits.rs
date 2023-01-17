@@ -1,12 +1,13 @@
 use crate::api::remote::client;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
+use crate::model::commit::CommitWithSize;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
 // use crate::util::ReadProgress;
-use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage};
+use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage, StatusMessage};
 
 use std::path::Path;
 use std::str;
@@ -59,27 +60,27 @@ pub async fn get_by_id(
 pub async fn commit_is_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
-    num_entries: usize,
-) -> Result<bool, OxenError> {
-    let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
+) -> Result<Option<IsValidStatusMessage>, OxenError> {
+    let uri = format!("/commits/{}/is_synced", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
-        let status = res.status();
-        if 404 == status {
-            return Ok(false);
+        if res.status() == 404 {
+            return Ok(None);
         }
 
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("commit_is_synced got response body: {}", body);
         let response: Result<IsValidStatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(j_res.is_valid),
+            Ok(j_res) => Ok(Some(j_res)),
             Err(err) => {
                 log::debug!("Error getting remote commit {}", err);
-                Ok(false)
+                Err(OxenError::basic_str(
+                    "commit_is_synced() unable to parse body",
+                ))
             }
         }
     } else {
@@ -140,13 +141,45 @@ pub async fn get_remote_parent(
     }
 }
 
+pub async fn post_push_complete(
+    remote_repo: &RemoteRepository,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    let uri = format!("/commits/{}/complete", commit_id);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("post_push_complete: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(_) => Ok(()),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "post_push_complete() Could not deserialize response [{}]\n{}",
+                err, body
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("post_push_complete() Request failed"))
+    }
+}
+
 pub async fn post_commit_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
+    unsynced_entries_size: u64,
 ) -> Result<(), OxenError> {
-    // First create commit on server
-    create_commit_obj_on_server(remote_repo, commit).await?;
+    // Compute the size of the commit
+    let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id);
+    let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + unsynced_entries_size;
+
+    // First create commit on server with size
+    let commit_w_size = CommitWithSize::from_commit(commit, size);
+    create_commit_obj_on_server(remote_repo, &commit_w_size).await?;
 
     // Then zip up and send the history db
     println!("Compressing commit {}", commit.id);
@@ -180,11 +213,11 @@ pub async fn post_commit_to_server(
 
 async fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
+    commit: &CommitWithSize,
 ) -> Result<CommitResponse, OxenError> {
     let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
     let body = serde_json::to_string(&commit).unwrap();
-    log::debug!("create_commit_obj_on_server {}", url);
+    log::debug!("create_commit_obj_on_server {}\n{}", url, body);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client
@@ -467,7 +500,6 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::CommitDirReader;
     use crate::test;
 
     use std::thread;
@@ -493,7 +525,14 @@ mod tests {
             .unwrap();
 
             // Post commit
-            api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit).await?;
+            let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
+            api::remote::commits::post_commit_to_server(
+                &local_repo,
+                &remote_repo,
+                &commit,
+                entries_size,
+            )
+            .await?;
 
             Ok(remote_repo)
         })
@@ -524,16 +563,13 @@ mod tests {
             // Push it
             command::push(&local_repo).await?;
 
-            let commit_entry_reader = CommitDirReader::new(&local_repo, commit)?;
-            let num_entries = commit_entry_reader.num_entries()?;
-
             // We unzip in a background thread, so give it a second
             thread::sleep(std::time::Duration::from_secs(1));
 
-            let is_synced =
-                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                    .await?;
-            assert!(is_synced);
+            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+                .await?
+                .unwrap();
+            assert!(is_synced.is_valid);
 
             api::remote::repositories::delete(&remote_repo).await?;
 
@@ -563,19 +599,23 @@ mod tests {
             .unwrap();
 
             // Post commit but not the actual files
-            api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit).await?;
-
-            let commit_entry_reader = CommitDirReader::new(&local_repo, &commit)?;
-            let num_entries = commit_entry_reader.num_entries()?;
+            let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
+            api::remote::commits::post_commit_to_server(
+                &local_repo,
+                &remote_repo,
+                &commit,
+                entries_size,
+            )
+            .await?;
 
             // We unzip in a background thread, so give it a second
             thread::sleep(std::time::Duration::from_secs(1));
 
             // Should not be synced because we didn't actually post the files
-            let is_synced =
-                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                    .await?;
-            assert!(!is_synced);
+            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+                .await?
+                .unwrap();
+            assert!(!is_synced.is_valid);
 
             Ok(remote_repo)
         })
