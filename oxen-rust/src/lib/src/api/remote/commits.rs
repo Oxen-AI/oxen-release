@@ -1,6 +1,7 @@
 use crate::api::remote::client;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
+use crate::model::commit::CommitWithSize;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util;
 use crate::util::hasher::hash_buffer;
@@ -170,8 +171,16 @@ pub async fn post_commit_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
 ) -> Result<(), OxenError> {
-    // First create commit on server
-    create_commit_obj_on_server(remote_repo, commit).await?;
+    // Compute the size of the commit
+    let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id);
+    // TODO: add on the size of the entries diff
+    let size = fs_extra::dir::get_size(commit_history_dir).unwrap();
+
+    // First create commit on server with size
+    let commit_w_size = CommitWithSize::from_commit(commit, size);
+    create_commit_obj_on_server(remote_repo, &commit_w_size).await?;
 
     // Then zip up and send the history db
     println!("Compressing commit {}", commit.id);
@@ -205,11 +214,11 @@ pub async fn post_commit_to_server(
 
 async fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
-    commit: &Commit,
+    commit: &CommitWithSize,
 ) -> Result<CommitResponse, OxenError> {
     let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
     let body = serde_json::to_string(&commit).unwrap();
-    log::debug!("create_commit_obj_on_server {}", url);
+    log::debug!("create_commit_obj_on_server {}\n{}", url, body);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client
