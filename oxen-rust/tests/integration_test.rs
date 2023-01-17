@@ -150,7 +150,7 @@ fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenErro
         let initial_len = commits.len();
 
         let labels_path = repo.path.join("labels.txt");
-        util::fs::write_to_path(&labels_path, "changing this guy, but not committing");
+        util::fs::write_to_path(&labels_path, "changing this guy, but not committing")?;
 
         command::commit(&repo, "Should not work")?;
         let commits = command::log(&repo)?;
@@ -165,7 +165,7 @@ fn test_command_status_has_txt_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello World");
+        util::fs::write_to_path(&hello_file, "Hello World")?;
 
         // Get status
         let repo_status = command::status(&repo)?;
@@ -183,7 +183,7 @@ fn test_command_add_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello World");
+        util::fs::write_to_path(&hello_file, "Hello World")?;
 
         // Track the file
         command::add(&repo, &hello_file)?;
@@ -203,7 +203,7 @@ fn test_command_commit_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello World");
+        util::fs::write_to_path(&hello_file, "Hello World")?;
 
         // Track the file
         command::add(&repo, &hello_file)?;
@@ -230,7 +230,7 @@ fn test_command_restore_removed_file_from_head() -> Result<(), OxenError> {
         // Write to file
         let hello_filename = "hello.txt";
         let hello_file = repo.path.join(hello_filename);
-        util::fs::write_to_path(&hello_file, "Hello World");
+        util::fs::write_to_path(&hello_file, "Hello World")?;
 
         // Track the file
         command::add(&repo, &hello_file)?;
@@ -257,7 +257,7 @@ fn test_command_restore_file_from_commit_id() -> Result<(), OxenError> {
         // Write to file
         let hello_filename = "hello.txt";
         let hello_file = repo.path.join(hello_filename);
-        util::fs::write_to_path(&hello_file, "Hello World");
+        util::fs::write_to_path(&hello_file, "Hello World")?;
 
         // Track the file
         command::add(&repo, &hello_file)?;
@@ -305,7 +305,7 @@ fn test_command_checkout_commit_id() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write a hello file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
 
         // Stage a hello file
         command::add(&repo, &hello_file)?;
@@ -315,7 +315,7 @@ fn test_command_checkout_commit_id() -> Result<(), OxenError> {
 
         // Write a world
         let world_file = repo.path.join("world.txt");
-        util::fs::write_to_path(&world_file, "World");
+        util::fs::write_to_path(&world_file, "World")?;
 
         // Stage a world file
         command::add(&repo, &world_file)?;
@@ -392,7 +392,7 @@ fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenEr
     test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
 
         // Track & commit the file
         command::add(&repo, &hello_file)?;
@@ -412,7 +412,7 @@ fn test_command_checkout_added_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
 
         // Track & commit the file
         command::add(&repo, &hello_file)?;
@@ -427,7 +427,7 @@ fn test_command_checkout_added_file() -> Result<(), OxenError> {
 
         // Write a second file
         let world_file = repo.path.join("world.txt");
-        util::fs::write_to_path(&world_file, "World");
+        util::fs::write_to_path(&world_file, "World")?;
 
         // Track & commit the second file in the branch
         command::add(&repo, &world_file)?;
@@ -465,11 +465,11 @@ fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
 
         // Have another file lying around we will not remove
         let keep_file = repo.path.join("keep_me.txt");
-        util::fs::write_to_path(&keep_file, "I am untracked, don't remove me");
+        util::fs::write_to_path(&keep_file, "I am untracked, don't remove me")?;
 
         // Track & commit the file
         command::add(&repo, &hello_file)?;
@@ -484,7 +484,7 @@ fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
 
         // Write a second file
         let world_file = repo.path.join("world.txt");
-        util::fs::write_to_path(&world_file, "World");
+        util::fs::write_to_path(&world_file, "World")?;
 
         // Track & commit the second file in the branch
         command::add(&repo, &world_file)?;
@@ -525,7 +525,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello");
+        util::fs::write_to_path(&hello_file, "Hello")?;
 
         // Track & commit the file
         command::add(&repo, &hello_file)?;
@@ -916,8 +916,7 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
         // Track the train and annotations dir
         let train_dir = repo.path.join("train");
         let annotations_dir = repo.path.join("annotations");
-        let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
-        num_files += util::fs::rcount_files_in_dir(&annotations_dir);
+
         command::add(&repo, &train_dir)?;
         command::add(&repo, &annotations_dir)?;
         // Commit the train dir
@@ -936,9 +935,10 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
         // Sleep so it can unpack...
         std::thread::sleep(std::time::Duration::from_secs(2));
 
-        let is_synced =
-            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_files).await?;
-        assert!(is_synced);
+        let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+            .await?
+            .unwrap();
+        assert!(is_synced.is_valid);
 
         api::remote::repositories::delete(&remote_repo).await?;
 
@@ -983,15 +983,14 @@ async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenE
         let annotations_dir = repo.path.join("nlp");
         command::add(&repo, &annotations_dir)?;
         let commit = command::commit(&repo, "adding the rest of the annotations")?.unwrap();
-        let commit_reader = CommitDirReader::new(&repo, &commit)?;
-        let num_entries = commit_reader.num_entries()?;
 
         // Push again
         command::push(&repo).await?;
 
-        let is_synced =
-            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries).await?;
-        assert!(is_synced);
+        let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+            .await?
+            .unwrap();
+        assert!(is_synced.is_valid);
 
         api::remote::repositories::delete(&remote_repo).await?;
 
@@ -1206,7 +1205,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         let party_ppl_filename = "party_ppl.txt";
         let party_ppl_contents = String::from("Wassup Party Ppl");
         let party_ppl_file_path = repo.path.join(party_ppl_filename);
-        util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents);
+        util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents)?;
 
         // Add and commit and push
         command::add(&repo, &party_ppl_file_path)?;
@@ -1248,7 +1247,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             let send_it_back_filename = "send_it_back.txt";
             let send_it_back_contents = String::from("Hello from the other side");
             let send_it_back_file_path = cloned_repo.path.join(send_it_back_filename);
-            util::fs::write_to_path(&send_it_back_file_path, &send_it_back_contents);
+            util::fs::write_to_path(&send_it_back_file_path, &send_it_back_contents)?;
 
             // Add and commit and push
             command::add(&cloned_repo, &send_it_back_file_path)?;
@@ -1269,7 +1268,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             // Modify the party ppl contents
             let party_ppl_contents = String::from("Late to the party");
-            util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents);
+            util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents)?;
             command::add(&repo, &party_ppl_file_path)?;
             command::commit(&repo, "Modified party ppl contents")?;
             command::push(&repo).await?;
@@ -1337,7 +1336,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             // Modify the file in the cloned dir
             let cloned_filepath = cloned_repo.path.join(filename);
             let changed_content = "messing up the labels";
-            util::fs::write_to_path(&cloned_filepath, changed_content);
+            util::fs::write_to_path(&cloned_filepath, changed_content)?;
             command::add(&cloned_repo, &cloned_filepath)?;
             command::commit(&cloned_repo, "I messed with the label file")?.unwrap();
 
@@ -1779,7 +1778,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
         // Second commit
         let new_filename = "new.txt";
         let new_filepath = repo.path.join(new_filename);
-        util::fs::write_to_path(&new_filepath, "hallo");
+        util::fs::write_to_path(&new_filepath, "hallo")?;
         command::add(&repo, &new_filepath)?;
         command::commit(&repo, "Adding a new file")?.unwrap();
 
@@ -2286,7 +2285,7 @@ fn test_restore_modified_text_data() -> Result<(), OxenError> {
 
         let og_contents = util::fs::read_from_path(&bbox_path)?;
         let new_contents = format!("{og_contents}\nnew 0");
-        util::fs::write_to_path(&bbox_path, &new_contents);
+        util::fs::write_to_path(&bbox_path, &new_contents)?;
 
         command::restore(
             &repo,

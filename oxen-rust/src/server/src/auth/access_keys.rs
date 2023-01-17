@@ -58,7 +58,7 @@ impl AccessKeyManager {
             let public = PublicKey::from(&secret);
             let key = hex::encode(public.as_bytes());
             log::debug!("Got secret key: {}", key);
-            util::fs::write_to_path(&secret_file, &key);
+            util::fs::write_to_path(&secret_file, &key)?;
         }
 
         let db = if read_only {

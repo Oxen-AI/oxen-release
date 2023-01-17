@@ -1,6 +1,6 @@
 use crate::error::OxenError;
-use crate::index::{CommitReader, RefReader};
-use crate::model::{Commit, LocalRepository};
+use crate::index::{CommitDirReader, CommitReader, RefReader};
+use crate::model::{Commit, CommitEntry, LocalRepository};
 
 pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let reader = CommitReader::new(repo)?;
@@ -36,6 +36,21 @@ pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit
         }
     }
     Ok(commits)
+}
+
+pub fn commit_content_size(repo: &LocalRepository, commit: &Commit) -> Result<u64, OxenError> {
+    let reader = CommitDirReader::new(repo, commit)?;
+    let entries = reader.list_entries()?;
+    compute_entries_size(&entries)
+}
+
+pub fn compute_entries_size(entries: &[CommitEntry]) -> Result<u64, OxenError> {
+    let mut total_size: u64 = 0;
+
+    for entry in entries.iter() {
+        total_size += entry.num_bytes;
+    }
+    Ok(total_size)
 }
 
 pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(

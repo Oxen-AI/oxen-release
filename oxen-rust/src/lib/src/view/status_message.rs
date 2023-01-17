@@ -11,6 +11,8 @@ pub struct StatusMessage {
 pub struct IsValidStatusMessage {
     pub status: String,
     pub status_message: String,
+    pub status_description: String,
+    pub is_processing: bool,
     pub is_valid: bool,
 }
 

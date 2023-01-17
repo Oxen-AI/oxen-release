@@ -38,6 +38,7 @@ async fn main() {
         .subcommand(cmd_setup::push())
         .subcommand(cmd_setup::pull())
         .subcommand(cmd_setup::diff())
+        .subcommand(cmd_setup::migrate())
         .subcommand(cmd_setup::read_lines());
 
     let matches = command.get_matches();
@@ -64,6 +65,7 @@ async fn main() {
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches),
         Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
         Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches),
+        Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
         Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),
         // TODO: Get these in the help command instead of just falling back
