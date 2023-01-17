@@ -390,13 +390,8 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         df = take(df, indices).unwrap().lazy();
     }
 
-    if let Some((start, end)) = opts.slice_indices() {
-        if start >= end {
-            panic!("Slice error: Start must be greater than end.");
-        }
-        let len = end - start;
-        df = df.slice(start, len as u32);
-    }
+    // Maybe slice it up
+    df = slice(df, &opts);
 
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
@@ -407,6 +402,23 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
     }
 
     Ok(df.collect().expect(COLLECT_ERROR))
+}
+
+fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
+    if opts.page_num.is_some() || opts.page_size.is_some() {
+        let page_num = opts.page_num.unwrap_or(0);
+        let page_size = opts.page_size.unwrap_or(10);
+        let start = page_num * page_size;
+        df.slice(start as i64, page_size as u32)
+    } else if let Some((start, end)) = opts.slice_indices() {
+        if start >= end {
+            panic!("Slice error: Start must be greater than end.");
+        }
+        let len = end - start;
+        df.slice(start, len as u32)
+    } else {
+        df
+    }
 }
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
