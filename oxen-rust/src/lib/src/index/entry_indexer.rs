@@ -70,8 +70,6 @@ impl EntryIndexer {
 
         // If there are any unsynced commits, sync their entries
         if !unsynced_commits.is_empty() {
-            let last_commit = unsynced_commits.pop_front().unwrap().commit;
-
             log::debug!(
                 "Push entries for {} unsynced commits",
                 unsynced_commits.len()
@@ -79,8 +77,7 @@ impl EntryIndexer {
 
             // recursively check commits against remote head
             // and sync ones that have not been synced
-            self.rpush_entries(&remote_repo, &last_commit, &unsynced_commits)
-                .await?;
+            self.rpush_entries(&remote_repo, &unsynced_commits).await?;
 
             // update the branch after everything else is synced
             log::debug!(
@@ -88,14 +85,52 @@ impl EntryIndexer {
                 &rb.branch,
                 &head_commit
             );
+
+            // Remotely validate commit
+            // This is an async process on the server so good to stall the user here so they don't push again
+            // If they did push again before this is finished they would get a still syncing error
+            self.poll_until_synced(&remote_repo, &head_commit).await?;
+
+            // Update the remote branch name last
             api::remote::branches::update(&remote_repo, &rb.branch, &head_commit).await?;
             println!(
-                "Updated remote branch {} to {}",
+                "Updated remote branch {} -> {}",
                 &rb.branch, &head_commit.id
             );
         }
 
         Ok(remote_repo)
+    }
+
+    async fn poll_until_synced(
+        &self,
+        remote_repo: &RemoteRepository,
+        commit: &Commit,
+    ) -> Result<(), OxenError> {
+        println!("Remote verifying commit...");
+        let progress = ProgressBar::new_spinner();
+
+        loop {
+            progress.tick();
+            match api::remote::commits::commit_is_synced(remote_repo, &commit.id).await {
+                Ok(Some(sync_status)) => {
+                    if sync_status.is_valid {
+                        progress.finish();
+                        println!("✅ push successful");
+                        return Ok(());
+                    }
+                }
+                Ok(None) => {
+                    progress.finish();
+                    return Err(OxenError::basic_str("Err: Commit never got pushed"));
+                }
+                Err(err) => {
+                    progress.finish();
+                    return Err(err);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(750));
+        }
     }
 
     fn local_branch_exists(&self, name: &str) -> Result<bool, OxenError> {
@@ -220,11 +255,9 @@ impl EntryIndexer {
     async fn rpush_entries(
         &self,
         remote_repo: &RemoteRepository,
-        head_commit: &Commit,
         unsynced_commits: &VecDeque<UnsyncedCommitEntries>,
     ) -> Result<(), OxenError> {
         log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
-        let mut last_commit = head_commit.clone();
         for unsynced in unsynced_commits.iter() {
             let commit = &unsynced.commit;
             let entries = &unsynced.entries;
@@ -235,11 +268,9 @@ impl EntryIndexer {
                 commit.message
             );
 
-            let entries = self.read_unsynced_entries(&last_commit, commit)?;
             if !entries.is_empty() {
-                self.push_entries(remote_repo, &entries, commit).await?;
+                self.push_entries(remote_repo, entries, commit).await?;
             }
-            last_commit = commit.clone();
         }
         Ok(())
     }
