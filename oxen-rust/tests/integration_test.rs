@@ -916,8 +916,7 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
         // Track the train and annotations dir
         let train_dir = repo.path.join("train");
         let annotations_dir = repo.path.join("annotations");
-        let mut num_files = util::fs::rcount_files_in_dir(&train_dir);
-        num_files += util::fs::rcount_files_in_dir(&annotations_dir);
+
         command::add(&repo, &train_dir)?;
         command::add(&repo, &annotations_dir)?;
         // Commit the train dir
@@ -936,7 +935,7 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
         // Sleep so it can unpack...
         std::thread::sleep(std::time::Duration::from_secs(2));
 
-        let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_files)
+        let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
             .await?
             .unwrap();
         assert!(is_synced.is_valid);
@@ -984,16 +983,13 @@ async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenE
         let annotations_dir = repo.path.join("nlp");
         command::add(&repo, &annotations_dir)?;
         let commit = command::commit(&repo, "adding the rest of the annotations")?.unwrap();
-        let commit_reader = CommitDirReader::new(&repo, &commit)?;
-        let num_entries = commit_reader.num_entries()?;
 
         // Push again
         command::push(&repo).await?;
 
-        let is_synced =
-            api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                .await?
-                .unwrap();
+        let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+            .await?
+            .unwrap();
         assert!(is_synced.is_valid);
 
         api::remote::repositories::delete(&remote_repo).await?;

@@ -60,9 +60,8 @@ pub async fn get_by_id(
 pub async fn commit_is_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
-    num_entries: usize,
 ) -> Result<Option<IsValidStatusMessage>, OxenError> {
-    let uri = format!("/commits/{}/is_synced?size={}", commit_id, num_entries);
+    let uri = format!("/commits/{}/is_synced", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
 
@@ -170,13 +169,13 @@ pub async fn post_commit_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
+    unsynced_entries_size: u64,
 ) -> Result<(), OxenError> {
     // Compute the size of the commit
     let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
         .join(&commit.id);
-    // TODO: add on the size of the entries diff
-    let size = fs_extra::dir::get_size(commit_history_dir).unwrap();
+    let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + unsynced_entries_size;
 
     // First create commit on server with size
     let commit_w_size = CommitWithSize::from_commit(commit, size);
@@ -501,7 +500,6 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::index::CommitDirReader;
     use crate::test;
 
     use std::thread;
@@ -527,7 +525,14 @@ mod tests {
             .unwrap();
 
             // Post commit
-            api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit).await?;
+            let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
+            api::remote::commits::post_commit_to_server(
+                &local_repo,
+                &remote_repo,
+                &commit,
+                entries_size,
+            )
+            .await?;
 
             Ok(remote_repo)
         })
@@ -558,16 +563,12 @@ mod tests {
             // Push it
             command::push(&local_repo).await?;
 
-            let commit_entry_reader = CommitDirReader::new(&local_repo, commit)?;
-            let num_entries = commit_entry_reader.num_entries()?;
-
             // We unzip in a background thread, so give it a second
             thread::sleep(std::time::Duration::from_secs(1));
 
-            let is_synced =
-                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                    .await?
-                    .unwrap();
+            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+                .await?
+                .unwrap();
             assert!(is_synced.is_valid);
 
             api::remote::repositories::delete(&remote_repo).await?;
@@ -598,19 +599,22 @@ mod tests {
             .unwrap();
 
             // Post commit but not the actual files
-            api::remote::commits::post_commit_to_server(&local_repo, &remote_repo, &commit).await?;
-
-            let commit_entry_reader = CommitDirReader::new(&local_repo, &commit)?;
-            let num_entries = commit_entry_reader.num_entries()?;
+            let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
+            api::remote::commits::post_commit_to_server(
+                &local_repo,
+                &remote_repo,
+                &commit,
+                entries_size,
+            )
+            .await?;
 
             // We unzip in a background thread, so give it a second
             thread::sleep(std::time::Duration::from_secs(1));
 
             // Should not be synced because we didn't actually post the files
-            let is_synced =
-                api::remote::commits::commit_is_synced(&remote_repo, &commit.id, num_entries)
-                    .await?
-                    .unwrap();
+            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+                .await?
+                .unwrap();
             assert!(!is_synced.is_valid);
 
             Ok(remote_repo)
