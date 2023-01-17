@@ -37,6 +37,8 @@ pub struct DFOpts {
     pub unique: Option<String>,
     pub should_randomize: bool,
     pub should_reverse: bool,
+    pub page_num: Option<usize>,
+    pub page_size: Option<usize>,
 }
 
 impl DFOpts {
@@ -56,6 +58,8 @@ impl DFOpts {
             unique: None,
             should_randomize: false,
             should_reverse: false,
+            page_num: None,
+            page_size: None,
         }
     }
 
@@ -104,6 +108,8 @@ impl DFOpts {
 
     pub fn has_transform(&self) -> bool {
         self.slice.is_some()
+            || self.page_num.is_some()
+            || self.page_size.is_some()
             || self.take.is_some()
             || self.columns.is_some()
             || self.vstack.is_some()

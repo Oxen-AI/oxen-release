@@ -9,6 +9,7 @@
 //!
 
 extern crate bytesize;
+extern crate fs_extra;
 extern crate lazy_static;
 
 pub mod api;
