@@ -1,3 +1,14 @@
+# v0.4.3
+
+* Features
+    * Push commit size before syncing data to make sure we have enough remote storage
+    * Add compute cache post commit to perform operations that we may want to cache per commit
+    * Update is_synced api to give more detailed information on sync status
+    * Add disk usage API for a namespace
+    * Add pagination for data frame api
+    * Add default for latest commit for an empty directory
+    * Add retry and sleep for pulling data
+
 # v0.4.2+1
 
 * Features

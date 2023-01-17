@@ -14,8 +14,8 @@ $ brew install oxen
 ### Debian
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.2/oxen-0.4.2-1-any.deb
-$ sudo dpkg -i oxen-0.4.2-1-any.deb
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.3/oxen-0.4.3-1-any.deb
+$ sudo dpkg -i oxen-0.4.3-1-any.deb
 ```
 
 ## Oxen Server
@@ -32,15 +32,16 @@ $ brew install oxen-server
 ### Docker
 
 ```bash
-$ docker load < oxen-server-docker-0.4.2.tar
-$ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/hub:0.4.2
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.3/oxen-server-0.4.3.tar
+$ docker load < oxen-server-0.4.3.tar
+$ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/hub:0.4.3
 ```
 
 ### Debian
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.2/oxen-server-0.4.2-1-any.deb
-$ sudo dpkg -i oxen-server-0.4.2-1-any.deb
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.3/oxen-server-0.4.3-1-any.deb
+$ sudo dpkg -i oxen-server-0.4.3-1-any.deb
 ```
 
 To get up and running using the client and server, you can follow the [getting started docs](README.md).
