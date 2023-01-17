@@ -30,10 +30,11 @@ Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and 
 The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straight forward to version your datasets with Oxen.
 
 <p>
-<script id="asciicast-1eET4CpwEIgMsuT0o0IvAfx3T" src="https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T.js" async preload autoplay startAt=2></script>
+<script id="asciicast-1eET4CpwEIgMsuT0o0IvAfx3T" src="https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T.js" async preload autoplay startAt=2>
+</script>
 </p>
-
-[![asciicast](https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T.svg)](https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T?autoplay=1&startAt=2&preload=1&loop=1)
+<!-- 
+[![asciicast](https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T.svg)](https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T?autoplay=1&startAt=2&preload=1&loop=1) -->
 
 # Installation
 
