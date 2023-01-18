@@ -55,14 +55,13 @@ Here is a quick overview of common commands translated to Oxen.
 
 ## Setup User
 
-For your commit log, you will have to setup your local Oxen user name and email. You can get an authentication token from [OxenHub](https://oxen.ai/) if you would like to sync there.
+For your commit history, you will have to setup your local Oxen user name and email. This is what will show up in `oxen log` or in the OxenHub dashboard for who changed what.
 
 ```bash
-$ oxen config --name <NAME> --email <EMAIL>
-$ oxen config --auth hub.oxen.ai <TOKEN>
+$ oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
 ```
 
-## Create Repository
+## Create Local Repository
 
 First create a new directory, navigate into it, and perform
 
@@ -179,11 +178,22 @@ The easiest route is to sign up for an account on [OxenHub](https://www.oxen.ai/
 
 Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register
 
-## Create a data repository
+## Your Repositories
 
 From your home page you can view your repositories and create a new repository.
 
 ![repository home page](images/MyRepos.png)
+
+## Setup Authorization
+
+You will notice on the side panel you have access to your API Key. In order to push data to your repository you will need to copy this key and set it up in your user config. This saves your key in `~/.oxen/user_config.toml` with one key per host if you ever need to push to multiple hosts.
+
+```bash
+$ oxen config --auth hub.oxen.ai YOUR_API_KEY
+$ cat ~/.oxen/user_config.toml
+```
+
+## Create Remote Repository
 
 Pick a name and give your repository a description. Repositories can be public for anyone to view, or private just for you and your company.
 
