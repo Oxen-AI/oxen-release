@@ -4,7 +4,7 @@ Oxen helps you version on your machine learning datasets like you version your c
 
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
-Versioning datasets with `git` or `git lfs` is [slow and painful 😩](Performance.md). Git was built over 18 years ago and is optimized for code repositories, not large datasets.
+Versioning datasets used to be [slow and painful 😩](Performance.md). Classic version control tools are optimized for code repositories, not large datasets.
 
 Oxen 🐂 is built from the ground up for speed and can large datasets. It is 10-100x faster than using git or other tooling build on top of git.
 
@@ -27,11 +27,11 @@ Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and 
 
 # Overview
 
-No need to learn a new paradigm.
+No need to learn a new paradigm. 
 
 The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straight forward to version your datasets with Oxen.
 
-Watch as we commit hundreds of thousands of images to a an Oxen repository in a matter of seconds.
+Watch as we commit hundreds of thousands of images to a an Oxen repository in a matter of seconds 🚀
 
 <p align="center">
     <img src="images/cli-celeba.gif" alt="oxen cli demo" />
