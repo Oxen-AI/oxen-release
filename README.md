@@ -1,10 +1,10 @@
 # 🐂 Oxen
 
-Oxen helps you version on your machine learning datasets like you version your code. 
+Oxen helps you version your machine learning datasets like you version your code. 
 
-Versioning datasets can be [slow and painful 😩](Performance.md). Not anymore! Classic version control tools are optimized for code repositories, where as Oxen is optimized for large datasets.
+Versioning datasets can be [slow and painful 😩](Performance.md). Not anymore! Classic version control tools are optimized for code repositories, whereas Oxen is optimized for large datasets.
 
-Built from the ground up for speed, Oxen is 10-100x faster than using git or other tooling build on top of git.
+Built from the ground up for speed, Oxen is 10-100x faster than using git or other tooling built on top of git.
 
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
@@ -13,7 +13,7 @@ The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c3
 
 * 🔥 Fast (10-100x faster than existing tools)
 * 🧠 Easy to learn (same commands as git)
-* 🗄️ Index lots files (millions of images? no problem)
+* 🗄️ Index lots of files (millions of images? no problem)
 * 🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
 * 📊 Native DataFrame processing ([oxen df](DataFrames.md) command for data exploration)
 * 📈 Tracks changes over time (never worry about losing the state of your data)
@@ -24,15 +24,15 @@ Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and 
 
 # Why the name Oxen?
 
-"Oxen" 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of grunt work of your infrastructure so you can focus on the higher level ML problems that matter to your product.
+"Oxen" 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of the grunt work of your infrastructure so you can focus on the higher-level ML problems that matter to your product.
 
 # Overview
 
 No need to learn a new paradigm. 
 
-The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straight forward to version your datasets with Oxen.
+The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straightforward to version your datasets with Oxen.
 
-Watch as we commit hundreds of thousands of images to a an Oxen repository in a matter of seconds 🚀
+Watch as we commit hundreds of thousands of images to an Oxen repository in a matter of seconds 🚀
 
 <p align="center">
     <img src="images/cli-celeba.gif" alt="oxen cli demo" />
@@ -55,7 +55,7 @@ Here is a quick overview of common commands translated to Oxen.
 
 ## Setup User
 
-For your commit history, you will have to setup your local Oxen user name and email. This is what will show up in `oxen log` or in the OxenHub dashboard for who changed what.
+For your commit history, you will have to set up your local Oxen user name and email. This is what will show up in `oxen log` or in the OxenHub dashboard for who changed what.
 
 ```bash
 $ oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
@@ -63,7 +63,7 @@ $ oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
 
 ## Create Local Repository
 
-First create a new directory, navigate into it, and perform
+First, create a new directory, navigate into it, and perform
 
 ```bash
 $ oxen init
@@ -121,7 +121,7 @@ $ oxen commit -m "Some informative commit message"
 
 ## Log
 
-You can see the history of changes on your current branch with by running.
+You can see the history of changes on your current branch by running:
 
 ```bash
 $ oxen log
@@ -170,7 +170,7 @@ Feel free to skip down to the more [advanced features](#data-point-level-version
 There are two ways you can collaborate on your data with Oxen. 
 
 1) Using the [OxenHub](https://www.oxen.ai/register) platform
-2) Self hosting using the [oxen-server](#setup-an-oxen-server) binary
+2) Self-hosting using the [oxen-server](#setup-an-oxen-server) binary
 
 The easiest route is to sign up for an account on [OxenHub](https://www.oxen.ai/register) and sync your data to a repository there.
 
@@ -180,7 +180,7 @@ Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register
 
 ## Your Repositories
 
-From your home page you can view your repositories and create a new repository.
+From your home page, you can view your repositories and create a new repository.
 
 ![repository home page](images/MyRepos.png)
 
@@ -203,7 +203,7 @@ Pick a name and give your repository a description. Repositories can be public f
 
 Once you have created a repository, you will see a URL you can push your data to in the format `https://hub.oxen.ai/<username>/<repo_name>`
 
-From your data repository that you [created above](#create-repository) you can simply add the remote and push.
+From the data repository that you [created above](#create-repository) you can simply add the remote and push.
 
 ```bash
 $ oxen set-remote origin https://hub.oxen.ai/<username>/<repo_name>
@@ -212,7 +212,7 @@ $ oxen push origin main
 
 🎉 Congrats! You should now be able to see your data in the hub.
 
-Now you can setup your training job or another collaborator on your team to use your data by cloning it and pulling the branch you want.
+Now you can set up your training job or another collaborator on your team to use your data by cloning it and pulling the branch you want.
 
 ```bash
 $ oxen clone https://hub.oxen.ai/<username>/<repo_name>
@@ -222,24 +222,24 @@ $ oxen pull origin main
 
 ## Self Hosting
 
-Oxen enables self hosting with the `oxen-server` binary. You do not get any of the UI features of the hub, but this is a nice option to kick the tires or set up internal infrastructure. Some teams setup a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
+Oxen enables self-hosting with the `oxen-server` binary. You do not get any of the UI features of the hub, but this is a nice option to kick the tires or set up internal infrastructure. Some teams set up a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
 
-You can read more about self hosting [here](SelfHosting.md).
+You can read more about self-hosting [here](SelfHosting.md).
 
 # Diving Deeper
 
 ## Data Point Level Version Control
 
-Oxen is smart about what file types you are adding. For example if you track a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) Oxen will index and keep track of each row of data.
+Oxen is smart about what file types you are adding. For example, if you track a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) Oxen will index and keep track of each row of data.
 
 ```bash
 $ oxen add annotations/train.csv
 $ oxen commit -m "adding rows and rows of data"
 ```
 
-Under the hood Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames checkout the [data point level version control documentation](DataPointLevelVersionControl.md).
+Under the hood, Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames check out the [data point level version control documentation](DataPointLevelVersionControl.md).
 
-Oxen also has some [handy command line tooling](DataFrames.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command let's you easily view, modify, slice, and modify the data.
+Oxen also has some [handy command line tooling](DataFrames.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command lets you easily view, modify, slice, and modify the data.
 
 ```bash
 $ oxen df annotations/train.csv
@@ -270,19 +270,19 @@ shape: (10000, 6)
 └─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
 ```
 
-To learn more about what you can do with tabular data in Oxen you can reference the documentation [here].(DataFrames.md)
+To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](DataFrames.md)
 
 ## Integrating Labeling Tools
 
-For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow. 
+For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open-source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow. 
 
 For an example of integrating Oxen into your Label Studio workflow, check out our [Oxen Annotation Documentation](annotation/LabelStudio.md).
 
 ## Diff
 
-If you want to see the differences between your file and the file that is conflicting, you can use the `oxen diff` command.
+If you want to see the differences between your file and the conflicting file, you can use the `oxen diff` command.
 
-Oxen knows how to compare text files as well as [tabular data](DataFrames.md) between commits. Currently you must specify the specific path to the file you want to compare the changes.
+Oxen knows how to compare text files as well as [tabular data](DataFrames.md) between commits. Currently, you must specify the specific path to the file you want to compare the changes.
 
 If the file is tabular data `oxen diff` will show you the rows that were added or removed.
 
@@ -417,7 +417,7 @@ $ oxen checkout main
 $ oxen merge branch_name
 ```
 
-If there are conflicts, Oxen will flag them and you will need to add and commit the files again in a separate commit. Oxen currently does not add any modifications to your working file, just flags as conflicting. If you simply want to take your version, just add and commit again.
+If there are conflicts, Oxen will flag them and you will need to add and commit the files again in a separate commit. Oxen currently does not add any modifications to your working file, just flags it as conflicting. If you simply want to take your version, just add and commit again.
 
 ```bash
 $ oxen add file/with/conflict.jpg
