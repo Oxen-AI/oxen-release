@@ -27,14 +27,15 @@ Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and 
 
 # Overview
 
+No need to learn a new paradigm.
+
 The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straight forward to version your datasets with Oxen.
 
-<p>
-<script id="asciicast-1eET4CpwEIgMsuT0o0IvAfx3T" src="https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T.js" async preload autoplay startAt=2>
-</script>
+Watch as we commit hundreds of thousands of images to a an Oxen repository in a matter of seconds.
+
+<p align="center">
+    <img src="images/cli-celeba.gif" alt="oxen cli demo" />
 </p>
-<!-- 
-[![asciicast](https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T.svg)](https://asciinema.org/a/1eET4CpwEIgMsuT0o0IvAfx3T?autoplay=1&startAt=2&preload=1&loop=1) -->
 
 # Installation
 
