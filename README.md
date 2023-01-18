@@ -2,11 +2,12 @@
 
 Oxen helps you version on your machine learning datasets like you version your code. 
 
+Versioning datasets can be [slow and painful 😩](Performance.md). Not anymore! Classic version control tools are optimized for code repositories, where as Oxen is optimized for large datasets.
+
+Built from the ground up for speed, Oxen is 10-100x faster than using git or other tooling build on top of git.
+
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
-Versioning datasets used to be [slow and painful 😩](Performance.md). Classic version control tools are optimized for code repositories, not large datasets.
-
-Oxen 🐂 is built from the ground up for speed and can large datasets. It is 10-100x faster than using git or other tooling build on top of git.
 
 # Features
 
