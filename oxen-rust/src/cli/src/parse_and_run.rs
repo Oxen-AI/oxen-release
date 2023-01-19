@@ -140,8 +140,18 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
     liboxen::df::DFOpts {
         output: sub_matches.value_of("output").map(std::path::PathBuf::from),
         slice: sub_matches.value_of("slice").map(String::from),
-        page_size: None, // only for http API right now
-        page_num: None,  // only for http API right now
+        page_size: sub_matches
+            .value_of("page_size")
+            .map(String::from)
+            .unwrap_or_else(|| String::from("1"))
+            .parse::<usize>()
+            .ok(),
+        page_num: sub_matches
+            .value_of("page_num")
+            .map(String::from)
+            .unwrap_or_else(|| String::from("1"))
+            .parse::<usize>()
+            .ok(),
         take: sub_matches.value_of("take").map(String::from),
         columns: sub_matches.value_of("columns").map(String::from),
         filter: sub_matches.value_of("filter").map(String::from),
