@@ -948,7 +948,7 @@ impl EntryIndexer {
                 _ => return Err(OxenError::basic_str("Unknown error syncing entries")),
             }
 
-            self.unpack_version_files(commit, missing_entries)?;
+            self.unpack_version_files(commit, entries)?;
         }
 
         // Cleanup files that shouldn't be there
