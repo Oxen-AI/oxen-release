@@ -143,13 +143,13 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         page_size: sub_matches
             .value_of("page_size")
             .map(String::from)
-            .unwrap_or_else(|| String::from("1"))
+            .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
             .ok(),
         page_num: sub_matches
             .value_of("page_num")
             .map(String::from)
-            .unwrap_or_else(|| String::from("1"))
+            .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
             .ok(),
         take: sub_matches.value_of("take").map(String::from),
