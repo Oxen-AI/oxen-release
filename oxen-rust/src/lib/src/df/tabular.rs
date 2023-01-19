@@ -57,7 +57,7 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
 }
 
 pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    // TODO: the LazyCSVReader was failing on new lines...
+    // TODO: The LazyCsvReader was acting funky here...
     let df = read_df_csv(path, delimiter)?;
     Ok(df.lazy())
 }
