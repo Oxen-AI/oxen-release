@@ -53,14 +53,16 @@ git commit -m "adding images" # ~32 sec
 Push to GitHub had a transfer speed anywhere from 80-100 kb/s
 
 ```
-git remote add origin git@github.com:Oxen-AI/GitLFT-CelebA.git
-git push origin main # ~251 mins
+$ git remote add origin git@github.com:Oxen-AI/GitLFT-CelebA.git
+$ git push origin main # ~264 mins
+
+Uploading LFS objects: 100% (202468/202468), 1.4 GB | 99 KB/s, done.                                                                                                             
+________________________________________________________
+Executed in  264.55 mins    fish           external
+
 ```
 
-![git lfs push fail](images/GitLFS-SlowPush.png)
-
-Total time: ~4 hours
-
+Total time: ~4.4 hours
 
 # DVC + DagsHub
 
