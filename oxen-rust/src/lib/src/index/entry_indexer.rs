@@ -116,7 +116,7 @@ impl EntryIndexer {
                 Ok(Some(sync_status)) => {
                     if sync_status.is_valid {
                         progress.finish();
-                        println!("✅ push successful");
+                        println!("✅ push successful\n");
                         return Ok(());
                     }
                 }
