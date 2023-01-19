@@ -8,8 +8,8 @@ The CelebA dataset has 202,599 images of celebrity faces and their attributes.
 
 * ✅ Oxen syncs all the images in under 6 minutes
 * 👎 aws s3 cp takes almost 40 minutes to sync all 200k images
-* ⛔️ git+git lfs failed to sync to hugging face, took 9 minutes before a `fatal: the remote end hung up unexpectedly` error
 * 😩 DVC+Dags Hub took over 2 hours and 40 minutes with intermittent failures
+* 🐢 git+git lfs syncing GitHub took over 4 hours
 
 <p align="center">
     <img src="images/PerformanceNumbers.png" alt="oxen performance metrics" width="400" />
@@ -42,21 +42,24 @@ Executed in   38.87 mins
 Compare this to a system like [git lfs](https://git-lfs.github.com/) on the same dataset
 
 ```
+git init
+git lfs install
 git lfs track "*.jpg"
-git add images # ~136 sec
-git commit -m "adding images" # ~44 sec
+git add .gitattributes
+git add images # ~189 sec
+git commit -m "adding images" # ~32 sec
 ```
 
-Then we try to push but... fatal: the remote end hung up unexpectedly
+Push to GitHub had a transfer speed anywhere from 80-100 kb/s
 
 ```
-git remote add origin https://huggingface.co/datasets/<username>/CelebA
-git push origin master # ~318 secs but failed
+git remote add origin git@github.com:Oxen-AI/GitLFT-CelebA.git
+git push origin main # ~251 mins
 ```
 
-![git lfs push fail](images/GitLFS_HuggingFace_Fail.png)
+![git lfs push fail](images/GitLFS-SlowPush.png)
 
-Total time: ~9 minutes until a failure, unknown time if success 🤷‍♂️
+Total time: ~4 hours
 
 
 # DVC + DagsHub
