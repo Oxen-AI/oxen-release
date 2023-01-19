@@ -42,7 +42,7 @@ Executed in   38.87 mins
 Compare this to a system like [git lfs](https://git-lfs.github.com/) on the same dataset
 
 ```
-git lfs track images # ~17 sec
+git lfs track "*.jpg"
 git add images # ~136 sec
 git commit -m "adding images" # ~44 sec
 ```
