@@ -38,7 +38,8 @@ jobs:
 
       - name: Package Oxen Server
         run: |
-          fpm \                                                                                                                                                   (base) 
+          cd target/release
+          && fpm \
             -s dir -t deb \
             -p oxen-server-${{ github.event.release.tag_name }}-any.deb \
             --name oxen-server \
@@ -49,9 +50,7 @@ jobs:
             --maintainer "OxenAI hello@oxen.ai" \
             oxen-server=/usr/bin/oxen-server
 
-      - name: Package Oxen Binary
-        run: |
-          fpm \                                                                                                                                                   (base) 
+          && fpm \
             -s dir -t deb \
             -p oxen-${{ github.event.release.tag_name }}-1-any.deb \
             --name oxen \
