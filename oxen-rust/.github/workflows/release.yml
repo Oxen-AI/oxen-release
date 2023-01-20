@@ -97,10 +97,10 @@ jobs:
             ${{ runner.OS }}-build-
 
       - name: Build Docker
-        run: docker build -t oxen/${{ github.ref }} .
+        run: docker build -t oxen/oxen-server/${{ github.sha }} .
 
       - name: Save Docker
-        run: docker save oxen/${{ github.ref }} -o oxen-${{ github.sha }}.tar
+        run: docker save oxen/oxen-server/${{ github.sha }} -o oxen-${{ github.sha }}.tar
 
       - name: Upload docker to release
         uses: svenstaro/upload-release-action@v1-release
