@@ -47,24 +47,19 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
 }
 
 pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
-    let df = match CsvReader::from_path(path.as_ref()) {
-        Ok(reader) => try_infer_schema_csv(reader, delimiter)?,
+    match CsvReader::from_path(path.as_ref()) {
+        Ok(reader) => Ok(try_infer_schema_csv(reader, delimiter)?),
         Err(err) => {
             let err = format!("{}: {:?}", CSV_READ_ERROR, err);
-            return Err(OxenError::basic_str(err));
+            Err(OxenError::basic_str(err))
         }
-    };
-
-    Ok(df)
+    }
 }
 
 pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    Ok(LazyCsvReader::new(&path)
-        .with_delimiter(delimiter)
-        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
-        .has_header(true)
-        .finish()
-        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
+    // TODO: The LazyCsvReader was acting funky here...
+    let df = read_df_csv(path, delimiter)?;
+    Ok(df.lazy())
 }
 
 pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
@@ -405,12 +400,14 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
 }
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
+    log::debug!("SLICE {:?}", opts);
     if opts.page_num.is_some() || opts.page_size.is_some() {
-        let page_num = opts.page_num.unwrap_or(0);
+        let page_num = opts.page_num.unwrap_or(1);
         let page_size = opts.page_size.unwrap_or(10);
-        let start = page_num * page_size;
+        let start = (page_num - 1) * page_size;
         df.slice(start as i64, page_size as u32)
     } else if let Some((start, end)) = opts.slice_indices() {
+        log::debug!("SLICE with indices {:?}..{:?}", start, end);
         if start >= end {
             panic!("Slice error: Start must be greater than end.");
         }

@@ -40,11 +40,18 @@ impl EntryIndexer {
     }
 
     pub async fn push(&self, rb: &RemoteBranch) -> Result<RemoteRepository, OxenError> {
-        if !self.local_branch_exists(&rb.branch)? {
+        let ref_reader = RefReader::new(&self.repository)?;
+        let branch = ref_reader.get_branch_by_name(&rb.branch)?;
+        if branch.is_none() {
             return Err(OxenError::local_branch_not_found(&rb.branch));
         }
 
-        println!("🐂 Oxen push {} {}", rb.remote, rb.branch);
+        let branch = branch.unwrap();
+
+        println!(
+            "🐂 Oxen push {} {} -> {}",
+            rb.remote, branch.name, branch.commit_id
+        );
         let remote = self
             .repository
             .get_remote(&rb.remote)
@@ -60,7 +67,7 @@ impl EntryIndexer {
 
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
-        let head_commit = commit_reader.head_commit()?;
+        let head_commit = commit_reader.get_commit_by_id(branch.commit_id)?.unwrap();
 
         // This method will check with server to find out what commits need to be pushed
         // will fill in commits that are not synced
@@ -116,7 +123,7 @@ impl EntryIndexer {
                 Ok(Some(sync_status)) => {
                     if sync_status.is_valid {
                         progress.finish();
-                        println!("✅ push successful");
+                        println!("✅ push successful\n");
                         return Ok(());
                     }
                 }
@@ -131,11 +138,6 @@ impl EntryIndexer {
             }
             std::thread::sleep(std::time::Duration::from_millis(750));
         }
-    }
-
-    fn local_branch_exists(&self, name: &str) -> Result<bool, OxenError> {
-        let ref_reader = RefReader::new(&self.repository)?;
-        Ok(ref_reader.has_branch(name))
     }
 
     #[async_recursion]
@@ -948,7 +950,7 @@ impl EntryIndexer {
                 _ => return Err(OxenError::basic_str("Unknown error syncing entries")),
             }
 
-            self.unpack_version_files(commit, missing_entries)?;
+            self.unpack_version_files(commit, entries)?;
         }
 
         // Cleanup files that shouldn't be there
