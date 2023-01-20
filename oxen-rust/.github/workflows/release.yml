@@ -10,14 +10,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
+
       # cache the build assets so they don't recompile every time.
       - name: Cache Rust dependencies
-        uses: actions/cache@v1.0.1
+        uses: actions/cache@v3
         with:
-          path: target
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-build-
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -87,14 +92,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-      # cache the build assets so they don't recompile every time.
-      - name: Cache dependencies
-        uses: actions/cache@v1.0.1
-        with:
-          path: target
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-build-
 
       - name: Build Docker
         run: docker build -t oxen/oxen-server/${{ github.sha }} .
@@ -117,13 +114,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
+
       - name: Cache Rust dependencies
-        uses: actions/cache@v1.0.1
+        uses: actions/cache@v3
         with:
-          path: target
-          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-build-
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
