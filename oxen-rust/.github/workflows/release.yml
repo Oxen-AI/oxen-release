@@ -39,7 +39,7 @@ jobs:
 
       - name: Package Oxen Server
         run: |
-          cd target/release
+          cd target/release \
           && fpm \
             -s dir -t deb \
             -p oxen-server-${{ github.event.release.tag_name }}-any.deb \
@@ -49,8 +49,7 @@ jobs:
             --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
             --url "https://oxen.ai" \
             --maintainer "OxenAI hello@oxen.ai" \
-            oxen-server=/usr/bin/oxen-server
-
+            oxen-server=/usr/bin/oxen-server \
           && fpm \
             -s dir -t deb \
             -p oxen-${{ github.event.release.tag_name }}-1-any.deb \
