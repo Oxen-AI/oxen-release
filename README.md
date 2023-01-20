@@ -8,6 +8,10 @@ Built from the ground up for speed, Oxen is 10-100x faster than using git or oth
 
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
+# OxenHub
+
+Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
+
 
 # Features
 
@@ -19,8 +23,6 @@ The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c3
 * 📈 Tracks changes over time (never worry about losing the state of your data)
 * 🤝 Collaborate with your team (sync to an oxen-server)
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
-
-Sign up [here](https://airtable.com/shril5UTTVvKVZAFE) for more information and to stay updated on the progress.
 
 # Why the name Oxen?
 
