@@ -69,16 +69,16 @@ jobs:
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-${{ github.sha }}-1-any.deb
-          asset_name: oxen-server-${{ github.sha }}-1-any.deb
+          file: oxen-server-${{ github.sha }}-any.deb
+          asset_name: oxen-server-${{ github.sha }}-any.deb
           tag: ${{ github.ref }}
 
       - name: Upload oxen binary to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-${{ github.sha }}-1-any.deb
-          asset_name: oxen-${{ github.sha }}-1-any.deb
+          file: oxen-${{ github.sha }}-any.deb
+          asset_name: oxen-${{ github.sha }}-any.deb
           tag: ${{ github.ref }}
 
   release_docker:
