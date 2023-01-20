@@ -42,9 +42,9 @@ jobs:
           cd target/release \
           && fpm \
             -s dir -t deb \
-            -p oxen-server-${{ github.event.release.tag_name }}-any.deb \
+            -p oxen-server-${{ github.ref }}-any.deb \
             --name oxen-server \
-            --version ${{ github.event.release.tag_name }} \
+            --version ${{ github.ref }} \
             --architecture all \
             --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
             --url "https://oxen.ai" \
@@ -52,9 +52,9 @@ jobs:
             oxen-server=/usr/bin/oxen-server \
           && fpm \
             -s dir -t deb \
-            -p oxen-${{ github.event.release.tag_name }}-1-any.deb \
+            -p oxen-${{ github.ref }}-1-any.deb \
             --name oxen \
-            --version ${{ github.event.release.tag_name }} \
+            --version ${{ github.ref }} \
             --architecture all \
             --description "Oxen is a command line tool to version and manage large machine learning datasets" \
             --url "https://oxen.ai" \
@@ -65,16 +65,16 @@ jobs:
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-${{ github.event.release.tag_name }}-1-any.deb
-          asset_name: oxen-server-${{ github.event.release.tag_name }}-1-any.deb
+          file: target/release/oxen-server-${{ github.ref }}-1-any.deb
+          asset_name: oxen-server-${{ github.ref }}-1-any.deb
           tag: ${{ github.ref }}
 
       - name: Upload oxen binary to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-${{ github.event.release.tag_name }}-1-any.deb
-          asset_name: oxen-${{ github.event.release.tag_name }}-1-any.deb
+          file: target/release/oxen-${{ github.ref }}-1-any.deb
+          asset_name: oxen-${{ github.ref }}-1-any.deb
           tag: ${{ github.ref }}
 
   release_mac:
