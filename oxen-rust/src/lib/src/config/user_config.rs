@@ -71,7 +71,7 @@ impl UserConfig {
                 let config = Self::new_empty();
                 config.save_default()?;
                 println!(
-                    "Oxen config file not found, created a new config file in \"$HOME/.oxen/{}",
+                    "🐂 created a new config file in \"$HOME/.oxen/{}",
                     USER_CONFIG_FILENAME
                 );
                 Ok(config)
