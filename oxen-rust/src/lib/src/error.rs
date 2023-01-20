@@ -10,7 +10,7 @@ pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for director
 pub const HEAD_NOT_FOUND: &str = "HEAD not found";
 
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
-    "Err: oxen not configured, set email and name with:\n\noxen config --name <NAME> --email <EMAIL>\n";
+    "Err: oxen not configured, set email and name with:\n\noxen config --name YOUR_NAME --email YOUR_EMAIL\n";
 
 pub const AUTH_TOKEN_NOT_FOUND: &str =
     "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
