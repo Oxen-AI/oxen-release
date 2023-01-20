@@ -1,10 +1,10 @@
-on:
+'on':
   release:
-    types: [created]
-
+    types:
+      - created
 jobs:
-  release-ubuntu-22.04:
-    name: release ${{ matrix.target }}
+  release_ubuntu_2204:
+    name: 'release ${{ matrix.target }}'
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
@@ -12,7 +12,6 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             archive: tar.gz tar.xz tar.zst
-
     steps:
       - uses: actions/checkout@master
       - uses: actions-rs/toolchain@v1
@@ -23,13 +22,12 @@ jobs:
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.0
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          GITHUB_TOKEN: '${{ secrets.RELEASE_GITHUB_TOKEN }}'
         with:
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
-  
-  release-ubuntu-20.04:
-    name: release ${{ matrix.target }}
+          RUSTTARGET: '${{ matrix.target }}'
+          EXTRA_FILES: README.md LICENSE
+  release_ubuntu_2004:
+    name: 'release ${{ matrix.target }}'
     runs-on: ubuntu-20.04
     strategy:
       fail-fast: false
@@ -37,7 +35,6 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             archive: tar.gz tar.xz tar.zst
-
     steps:
       - uses: actions/checkout@master
       - uses: actions-rs/toolchain@v1
@@ -48,13 +45,12 @@ jobs:
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.0
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          GITHUB_TOKEN: '${{ secrets.RELEASE_GITHUB_TOKEN }}'
         with:
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
-
-  release-macos:
-    name: release ${{ matrix.target }}
+          RUSTTARGET: '${{ matrix.target }}'
+          EXTRA_FILES: README.md LICENSE
+  release_macos:
+    name: 'release ${{ matrix.target }}'
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -72,7 +68,7 @@ jobs:
       - name: Compile and release
         uses: rust-build/rust-build.action@v1.4.0
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          GITHUB_TOKEN: '${{ secrets.RELEASE_GITHUB_TOKEN }}'
         with:
-          RUSTTARGET: ${{ matrix.target }}
-          EXTRA_FILES: "README.md LICENSE"
+          RUSTTARGET: '${{ matrix.target }}'
+          EXTRA_FILES: README.md LICENSE
