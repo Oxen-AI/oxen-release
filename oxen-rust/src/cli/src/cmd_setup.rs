@@ -171,6 +171,18 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("page_num")
+                .long("page_num")
+                .help("Paginated through the data frame. Default page_num = 1")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("page_size")
+                .long("page_size")
+                .help("Paginated through the data frame. Default page_size = 10")
+                .takes_value(true),
+        )
+        .arg(
             Arg::new("take")
                 .long("take")
                 .short('t')
