@@ -39,20 +39,24 @@ jobs:
 
       - name: Package Oxen Server
         run: |
-          cd target/release \
-          && fpm \
+          fpm \
             -s dir -t deb \
-            -p oxen-server-${{ github.ref }}-any.deb \
+            -p target/release/oxen-server-${{ github.ref }}-any.deb \
+            -C target/release \
             --name oxen-server \
             --version ${{ github.ref }} \
             --architecture all \
             --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
             --url "https://oxen.ai" \
             --maintainer "OxenAI hello@oxen.ai" \
-            oxen-server=/usr/bin/oxen-server \
-          && fpm \
+            oxen-server=/usr/bin/oxen-server
+
+      - name: Package Oxen Server
+        run: |
+          fpm \
             -s dir -t deb \
-            -p oxen-${{ github.ref }}-1-any.deb \
+            -p target/release/oxen-${{ github.ref }}-any.deb \
+            -C target/release \
             --name oxen \
             --version ${{ github.ref }} \
             --architecture all \
