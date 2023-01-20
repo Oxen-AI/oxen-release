@@ -31,7 +31,7 @@ jobs:
           && sudo apt-get install -y \
           libdbus-1-dev \
           ruby ruby-dev rubygems build-essential \
-          gem install --no-ri --no-rdoc fpm
+          gem install fpm
 
       - name: Build oxen
         run: cargo build --release
