@@ -1,7 +1,8 @@
-'on':
-  release:
-    types:
-      - created
+on:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - '*'
 jobs:
   release_ubuntu_latest:
     runs-on: ubuntu-latest
