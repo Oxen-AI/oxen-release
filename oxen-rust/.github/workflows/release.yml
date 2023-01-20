@@ -97,14 +97,14 @@ jobs:
         run: docker build -t oxen/oxen-server/${{ github.sha }} .
 
       - name: Save Docker
-        run: docker save oxen/oxen-server/${{ github.sha }} -o oxen-${{ github.sha }}.tar
+        run: docker save oxen/oxen-server/${{ github.sha }} -o oxen-server-docker-${{ github.sha }}.tar
 
       - name: Upload docker to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-${{ github.sha }}.tar
-          asset_name: oxen-${{ github.sha }}.tar
+          file: oxen-server-docker-${{ github.sha }}.tar
+          asset_name: oxen-server-docker-${{ github.sha }}.tar
           tag: ${{ github.ref }}
 
 
