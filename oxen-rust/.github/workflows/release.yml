@@ -30,8 +30,8 @@ jobs:
           sudo apt-get update \
           && sudo apt-get install -y \
           libdbus-1-dev \
-          ruby-dev build-essential \
-          gem i fpm -f
+          ruby ruby-dev rubygems build-essential \
+          gem install --no-ri --no-rdoc fpm
 
       - name: Build oxen
         run: cargo build --release
