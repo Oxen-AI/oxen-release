@@ -3,72 +3,126 @@
     types:
       - created
 jobs:
-  release_ubuntu_2204:
-    name: 'release ${{ matrix.target }}'
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
+  release_ubuntu_latest:
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@master
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v1
+      # cache the build assets so they don't recompile every time.
+      - name: Cache Rust dependencies
+        uses: actions/cache@v1.0.1
         with:
-          profile: minimal
+          path: target
+          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-build-
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
           toolchain: stable
-          override: true
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.0
-        env:
-          GITHUB_TOKEN: '${{ secrets.RELEASE_GITHUB_TOKEN }}'
-        with:
-          RUSTTARGET: '${{ matrix.target }}'
-          EXTRA_FILES: README.md LICENSE
-  release_ubuntu_2004:
-    name: 'release ${{ matrix.target }}'
-    runs-on: ubuntu-20.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
-    steps:
-      - uses: actions/checkout@master
-      - uses: actions-rs/toolchain@v1
-        with:
           profile: minimal
-          toolchain: stable
+          default: true
           override: true
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.0
-        env:
-          GITHUB_TOKEN: '${{ secrets.RELEASE_GITHUB_TOKEN }}'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          ruby-dev build-essential \
+          gem i fpm -f
+
+      - name: Build oxen
+        run: cargo build --release
+
+      - name: Package Oxen Server
+        run: |
+          fpm \                                                                                                                                                   (base) 
+            -s dir -t deb \
+            -p oxen-server-${{ github.event.release.tag_name }}-any.deb \
+            --name oxen-server \
+            --version ${{ github.event.release.tag_name }} \
+            --architecture all \
+            --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen-server=/usr/bin/oxen-server
+
+      - name: Package Oxen Binary
+        run: |
+          fpm \                                                                                                                                                   (base) 
+            -s dir -t deb \
+            -p oxen-${{ github.event.release.tag_name }}-1-any.deb \
+            --name oxen \
+            --version ${{ github.event.release.tag_name }} \
+            --architecture all \
+            --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen=/usr/bin/oxen
+
+      - name: Upload oxen server binary to release
+        uses: svenstaro/upload-release-action@v1-release
         with:
-          RUSTTARGET: '${{ matrix.target }}'
-          EXTRA_FILES: README.md LICENSE
-  release_macos:
-    name: 'release ${{ matrix.target }}'
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-server-${{ github.event.release.tag_name }}-1-any.deb
+          asset_name: oxen-server-${{ github.event.release.tag_name }}-1-any.deb
+          tag: build-${{ github.ref }}
+          overwrite: true
+
+      - name: Upload oxen binary to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-${{ github.event.release.tag_name }}-1-any.deb
+          asset_name: oxen-${{ github.event.release.tag_name }}-1-any.deb
+          tag: build-${{ github.ref }}
+          overwrite: true
+
+  release_mac:
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-apple-darwin
-            archive: tar.gz
+
     steps:
-      - uses: actions/checkout@master
-      - uses: actions-rs/toolchain@v1
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Cache Rust dependencies
+        uses: actions/cache@v1.0.1
         with:
+          path: target
+          key: ${{ runner.OS }}-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-build-
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          target: x86_64-apple-darwin
+          default: true
           profile: minimal
           toolchain: stable
           override: true
-      - name: Compile and release
-        uses: rust-build/rust-build.action@v1.4.0
-        env:
-          GITHUB_TOKEN: '${{ secrets.RELEASE_GITHUB_TOKEN }}'
+
+      - name: Build oxen for mac
+        run: cargo build --release
+
+      - name: Tar.gz oxen for mac
+        run: tar -czf target/release/oxen-mac.tar.gz target/release/oxen
+
+      - name: Tar.gz oxen-server for mac
+        run: tar -czf target/release/oxen-server-mac.tar.gz target/release/oxen-server
+
+      - name: Upload oxen to release
+        uses: svenstaro/upload-release-action@v1-release
         with:
-          RUSTTARGET: '${{ matrix.target }}'
-          EXTRA_FILES: README.md LICENSE
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-mac.tar.gz
+          asset_name: oxen-mac.tar.gz
+          tag: build-${{ github.ref }}
+
+      - name: Upload oxen-server to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-server-mac.tar.gz
+          asset_name: oxen-server-mac.tar.gz
+          tag: build-${{ github.ref }}
