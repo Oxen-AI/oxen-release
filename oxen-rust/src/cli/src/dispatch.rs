@@ -1,3 +1,4 @@
+use liboxen::api;
 use liboxen::command;
 use liboxen::config::UserConfig;
 use liboxen::df::df_opts::DFOpts;
@@ -13,8 +14,26 @@ use std::env;
 use std::path::{Path, PathBuf};
 use time::format_description;
 
-pub fn init(path: &str) -> Result<(), OxenError> {
+pub async fn init(path: &str) -> Result<(), OxenError> {
     let directory = std::fs::canonicalize(PathBuf::from(&path))?;
+
+    // Do the version check in the dispatch because it's only really the CLI that needs to do it
+    let config = UserConfig::get_or_create()?;
+    if let Some(host) = config.default_host {
+        match api::remote::version::get_remote_version(&host).await {
+            Ok(local_version) => {
+                let remote_version: &str = env!("CARGO_PKG_VERSION");
+
+                if local_version != remote_version {
+                    println!("There is a newer Oxen version 🐂 {}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n\n", remote_version);
+                }
+            }
+            Err(err) => {
+                eprintln!("Err checking remote version: {}", err)
+            }
+        }
+    }
+
     command::init(&directory)?;
     println!("🐂 repository initialized at: {:?}", directory);
     Ok(())
@@ -97,6 +116,17 @@ pub fn set_user_name(name: &str) -> Result<(), OxenError> {
 pub fn set_user_email(email: &str) -> Result<(), OxenError> {
     let mut config = UserConfig::get_or_create()?;
     config.email = String::from(email);
+    config.save_default()?;
+    Ok(())
+}
+
+pub fn set_default_host(host: &str) -> Result<(), OxenError> {
+    let mut config = UserConfig::get_or_create()?;
+    if host.is_empty() {
+        config.default_host = None;
+    } else {
+        config.default_host = Some(String::from(host));
+    }
     config.save_default()?;
     Ok(())
 }

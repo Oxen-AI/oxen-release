@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use crate::dispatch;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
-pub fn init(sub_matches: &ArgMatches) {
+pub async fn init(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("PATH").unwrap_or(".");
 
-    match dispatch::init(path) {
+    match dispatch::init(path).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{}", err)
@@ -43,6 +43,15 @@ pub fn config(sub_matches: &ArgMatches) {
 
     if let Some(email) = sub_matches.value_of("email") {
         match dispatch::set_user_email(email) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{}", err)
+            }
+        }
+    }
+
+    if let Some(email) = sub_matches.value_of("default-host") {
+        match dispatch::set_default_host(email) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{}", err)

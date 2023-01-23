@@ -17,6 +17,7 @@ pub struct HostConfig {
 pub struct UserConfig {
     pub name: String,
     pub email: String,
+    pub default_host: Option<String>,
     host_configs: Vec<HostConfig>,
 }
 
@@ -30,6 +31,7 @@ impl UserConfig {
         UserConfig {
             name: user.name.to_owned(),
             email: user.email.to_owned(),
+            default_host: Some(String::from("hub.oxen.ai")),
             host_configs: Vec::new(),
         }
     }
@@ -38,6 +40,7 @@ impl UserConfig {
         UserConfig {
             name: String::from(""),
             email: String::from(""),
+            default_host: Some(String::from("hub.oxen.ai")),
             host_configs: Vec::new(),
         }
     }

@@ -9,6 +9,7 @@ pub mod oxen_response;
 pub mod repository;
 pub mod schema;
 pub mod status_message;
+pub mod version;
 
 pub use crate::view::status_message::{IsValidStatusMessage, StatusMessage};
 
@@ -34,3 +35,4 @@ pub use crate::view::branch::{BranchNew, BranchResponse, BranchUpdate, ListBranc
 pub use crate::view::entry_meta_data::EntryMetaDataResponse;
 
 pub use crate::view::oxen_response::OxenResponse;
+pub use crate::view::version::VersionResponse;
