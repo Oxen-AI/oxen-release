@@ -14,10 +14,90 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      - name: Echo release env
+      # cache the build assets so they don't recompile every time.
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          default: true
+          override: true
+
+      - name: Install system dependencies
         run: |
-          echo $RELEASE_VERSION
-          echo ${{ env.RELEASE_VERSION }}
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          ruby ruby-dev rubygems build-essential \
+          && sudo gem install fpm
+
+      - name: Build oxen
+        run: cargo build --release
+
+      - name: Package Oxen Server
+        run: |
+          fpm \
+            -s dir -t deb \
+            -p oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb \
+            -C target/release \
+            --name oxen-server \
+            --version ${{ env.RELEASE_VERSION }} \
+            --architecture all \
+            --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen-server=/usr/bin/oxen-server
+
+      - name: Package Oxen CLI
+        run: |
+          fpm \
+            -s dir -t deb \
+            -p oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb \
+            -C target/release \
+            --name oxen \
+            --version ${{ env.RELEASE_VERSION }} \
+            --architecture all \
+            --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen=/usr/bin/oxen
+
+      - name: Upload Oxen Server binary to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          asset_name: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          tag: ${{ github.ref }}
+
+      - name: Upload Oxen CLI binary to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          asset_name: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          tag: ${{ github.ref }}
+
+  release_ubuntu_20_04:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+      
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       # cache the build assets so they don't recompile every time.
       - name: Cache Rust dependencies
@@ -101,18 +181,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v1
 
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
       - name: Build Docker
-        run: docker build -t oxen/oxen-server/${{ github.sha }} .
+        run: docker build -t oxen/oxen-server/${{ env.RELEASE_VERSION }} .
 
       - name: Save Docker
-        run: docker save oxen/oxen-server/${{ github.sha }} -o oxen-server-docker-${{ github.sha }}.tar
+        run: docker save oxen/oxen-server/${{ env.RELEASE_VERSION }} -o oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
 
       - name: Upload docker to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-docker-${{ github.sha }}.tar
-          asset_name: oxen-server-docker-${{ github.sha }}.tar
+          file: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
+          asset_name: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
           tag: ${{ github.ref }}
 
 
@@ -122,6 +205,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
+
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
@@ -147,23 +233,23 @@ jobs:
         run: cargo build --release
 
       - name: Tar.gz oxen for mac
-        run: tar -czf target/release/oxen-mac.tar.gz target/release/oxen
+        run: tar -czf target/release/oxen-mac-${{ env.RELEASE_VERSION }}.tar.gz target/release/oxen
 
       - name: Tar.gz oxen-server for mac
-        run: tar -czf target/release/oxen-server-mac.tar.gz target/release/oxen-server
+        run: tar -czf target/release/oxen-server-mac-${{ env.RELEASE_VERSION }}.tar.gz target/release/oxen-server
 
       - name: Upload oxen to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-mac.tar.gz
-          asset_name: oxen-mac.tar.gz
+          file: target/release/oxen-mac-${{ env.RELEASE_VERSION }}.tar.gz
+          asset_name: oxen-mac-${{ env.RELEASE_VERSION }}.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-mac.tar.gz
-          asset_name: oxen-server-mac.tar.gz
+          file: target/release/oxen-server-mac-${{ env.RELEASE_VERSION }}.tar.gz
+          asset_name: oxen-server-mac-${{ env.RELEASE_VERSION }}.tar.gz
           tag: ${{ github.ref }}
