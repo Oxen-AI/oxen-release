@@ -1,3 +1,12 @@
+
+# v0.4.4
+
+* Bug Fixes
+  * Fix reading CSVs with quotes and newlines
+  * Fix page_size and page_num params for DataFrames
+  * Fix partial pull then full
+  * Fix pushing to a remote branch you are not currently on
+
 # v0.4.3
 
 * Features
