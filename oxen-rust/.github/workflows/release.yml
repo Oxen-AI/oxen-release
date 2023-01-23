@@ -134,7 +134,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb \
+            -p oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb \
             -C target/release \
             --name oxen-server \
             --version ${{ env.RELEASE_VERSION }} \
@@ -148,7 +148,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb \
+            -p oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb \
             -C target/release \
             --name oxen \
             --version ${{ env.RELEASE_VERSION }} \
@@ -162,16 +162,16 @@ jobs:
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
-          asset_name: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          file: oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
+          asset_name: oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
           tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
         uses: svenstaro/upload-release-action@v1-release
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
-          asset_name: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          file: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
+          asset_name: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
           tag: ${{ github.ref }}
 
   release_docker:
