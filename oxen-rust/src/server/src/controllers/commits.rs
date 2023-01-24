@@ -184,8 +184,9 @@ pub async fn is_synced(req: HttpRequest) -> HttpResponse {
                             })
                         }
                         Ok(None) => {
+                            // This means background status was never kicked off...
                             log::debug!(
-                                "commit or branch {} does not exist for repo: {}",
+                                "get_status commit {} no status kicked off for repo: {}",
                                 commit_or_branch,
                                 name
                             );
@@ -638,7 +639,11 @@ pub async fn upload(
 
                     // Compute total size as u64
                     let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-                    log::debug!("Got compressed data {}", ByteSize::b(total_size));
+                    log::debug!(
+                        "Got compressed data for commit {} -> {}",
+                        commit_id,
+                        ByteSize::b(total_size)
+                    );
 
                     // Unpack in background thread because could take awhile
                     // std::thread::spawn(move || {
@@ -777,7 +782,9 @@ fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
-            Ok(_) => {}
+            Ok(_) => {
+                log::debug!("Successfully added commit [{}] to db", commit.id);
+            }
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);
             }

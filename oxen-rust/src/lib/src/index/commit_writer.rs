@@ -218,6 +218,7 @@ impl CommitWriter {
     pub fn add_commit_to_db(&self, commit: &Commit) -> Result<(), OxenError> {
         // Write commit json to db
         let commit_json = serde_json::to_string(&commit)?;
+        log::debug!("add_commit_to_db [{}] -> {}", commit.id, commit_json);
         self.commits_db.put(&commit.id, commit_json.as_bytes())?;
         Ok(())
     }

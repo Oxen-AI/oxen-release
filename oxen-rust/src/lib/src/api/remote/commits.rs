@@ -67,6 +67,7 @@ pub async fn commit_is_synced(
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
+        log::debug!("commit_is_synced Got response [{}]", res.status());
         if res.status() == 404 {
             return Ok(None);
         }
@@ -608,14 +609,11 @@ mod tests {
             )
             .await?;
 
-            // We unzip in a background thread, so give it a second
-            thread::sleep(std::time::Duration::from_secs(1));
-
             // Should not be synced because we didn't actually post the files
-            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
-                .await?
-                .unwrap();
-            assert!(!is_synced.is_valid);
+            let is_synced =
+                api::remote::commits::commit_is_synced(&remote_repo, &commit.id).await?;
+            // We never kicked off the background processes
+            assert!(is_synced.is_none());
 
             Ok(remote_repo)
         })
