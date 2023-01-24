@@ -261,7 +261,7 @@ async fn download_entry_chunk(
     }
 
     let status = response.status();
-    if 200 == status {
+    if reqwest::StatusCode::OK == status {
         // Copy to file
         let mut dest = { fs::File::create(dest)? };
         let mut content = Cursor::new(response.bytes().await?);
@@ -284,6 +284,7 @@ pub async fn download_data_from_version_paths(
     while num_retries < total_retries {
         match try_download_data_from_version_paths(local_repo, remote_repo, content_ids).await {
             Ok(val) => return Ok(val),
+            Err(OxenError::Authentication(val)) => return Err(OxenError::Authentication(val)),
             Err(err) => {
                 num_retries += 1;
                 // Exponentially back off
@@ -320,7 +321,13 @@ pub async fn try_download_data_from_version_paths(
     let url = api::endpoint::url_from_repo(remote_repo, "/versions")?;
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).body(body).send().await {
+    if let Ok(res) = client.get(&url).body(body).send().await {
+        if reqwest::StatusCode::UNAUTHORIZED == res.status() {
+            let err = "Err: unauthorized request to download data".to_string();
+            log::error!("{}", err);
+            return Err(OxenError::authentication(err));
+        }
+
         let reader = res
             .bytes_stream()
             .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
@@ -387,7 +394,7 @@ pub async fn download_entry(
     }
 
     let status = response.status();
-    if 200 == status {
+    if reqwest::StatusCode::OK == status {
         // Copy to working dir
         let mut dest = { fs::File::create(&fpath)? };
         let mut content = Cursor::new(response.bytes().await?);
