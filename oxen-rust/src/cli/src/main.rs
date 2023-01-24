@@ -44,7 +44,7 @@ async fn main() {
     let matches = command.get_matches();
 
     match matches.subcommand() {
-        Some((cmd_setup::INIT, sub_matches)) => parse_and_run::init(sub_matches),
+        Some((cmd_setup::INIT, sub_matches)) => parse_and_run::init(sub_matches).await,
         Some((cmd_setup::CONFIG, sub_matches)) => parse_and_run::config(sub_matches),
         Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
             parse_and_run::create_remote(sub_matches).await

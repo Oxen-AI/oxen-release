@@ -11,11 +11,20 @@ pub fn get_by_id_or_branch(
     repo: &LocalRepository,
     branch_or_commit: &str,
 ) -> Result<Option<Commit>, OxenError> {
+    log::debug!(
+        "get_by_id_or_branch checking commit id {} in {:?}",
+        branch_or_commit,
+        repo.path
+    );
     let ref_reader = RefReader::new(repo)?;
     let commit_id = match ref_reader.get_commit_id_for_branch(branch_or_commit)? {
         Some(branch_commit_id) => branch_commit_id,
         None => String::from(branch_or_commit),
     };
+    log::debug!(
+        "get_by_id_or_branch resolved commit id {}",
+        branch_or_commit
+    );
     let reader = CommitReader::new(repo)?;
     reader.get_commit_by_id(commit_id)
 }
