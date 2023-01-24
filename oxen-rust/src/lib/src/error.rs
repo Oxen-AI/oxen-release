@@ -19,6 +19,7 @@ pub const AUTH_TOKEN_NOT_FOUND: &str =
 pub enum OxenError {
     IO(io::Error),
     Basic(String),
+    Authentication(String),
     TomlSer(toml::ser::Error),
     TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
@@ -33,6 +34,10 @@ pub enum OxenError {
 impl OxenError {
     pub fn basic_str<T: AsRef<str>>(s: T) -> Self {
         OxenError::Basic(String::from(s.as_ref()))
+    }
+
+    pub fn authentication<T: AsRef<str>>(s: T) -> Self {
+        OxenError::Authentication(String::from(s.as_ref()))
     }
 
     pub fn local_repo_not_found() -> OxenError {
