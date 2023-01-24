@@ -119,7 +119,7 @@ async fn main() -> std::io::Result<()> {
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())
-                            .route("/version", web::get().to(controllers::version::index))
+                            .route("/api/version", web::get().to(controllers::version::index))
                             .route(
                                 "/api/namespaces",
                                 web::get().to(controllers::namespaces::index),

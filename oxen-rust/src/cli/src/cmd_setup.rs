@@ -55,6 +55,12 @@ pub fn config() -> Command<'static> {
                 .help("Set the authentication token for a specific oxen-server host.")
                 .takes_value(true),
         )
+        .arg(
+            Arg::new("default-host")
+                .long("default-host")
+                .help("Sets the default host used to check version numbers. If empty, the CLI will not do a version check.")
+                .takes_value(true),
+        )
 }
 
 pub fn create_remote() -> Command<'static> {
