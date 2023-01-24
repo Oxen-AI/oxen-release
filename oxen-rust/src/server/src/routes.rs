@@ -105,6 +105,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     // ----- Versions ----- //
     .route(
         "/{namespace}/{repo_name}/versions", // Download tar.gz set of version files
+        web::get().to(controllers::entries::download_data_from_version_paths),
+    )
+    // POST to versions will be depreciated...
+    .route(
+        "/{namespace}/{repo_name}/versions", // Download tar.gz set of version files
         web::post().to(controllers::entries::download_data_from_version_paths),
     )
     // ----- Schemas ----- //

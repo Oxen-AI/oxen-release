@@ -932,12 +932,12 @@ impl EntryIndexer {
             let bar = Arc::new(ProgressBar::new(total_size));
 
             let large_entries_sync = self.pull_large_entries(remote_repo, larger_entries, &bar);
-
             let small_entries_sync = self.pull_small_entries(remote_repo, smaller_entries, &bar);
 
             match tokio::join!(large_entries_sync, small_entries_sync) {
                 (Ok(_), Ok(_)) => {
-                    log::debug!("Successfully synced entries!")
+                    log::debug!("Successfully synced entries!");
+                    self.unpack_version_files(commit, entries)?;
                 }
                 (Err(err), Ok(_)) => {
                     let err = format!("Error syncing large entries: {}", err);
@@ -949,8 +949,6 @@ impl EntryIndexer {
                 }
                 _ => return Err(OxenError::basic_str("Unknown error syncing entries")),
             }
-
-            self.unpack_version_files(commit, entries)?;
         }
 
         // Cleanup files that shouldn't be there
