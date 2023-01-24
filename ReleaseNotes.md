@@ -1,3 +1,7 @@
+# v0.4.5
+
+* Features
+  * Checks version with oxen-server to verify we have an up to date client
 
 # v0.4.4
 
