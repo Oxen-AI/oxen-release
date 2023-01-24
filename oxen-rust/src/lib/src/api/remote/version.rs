@@ -8,6 +8,7 @@ pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
+        log::debug!("get_remote_version got status: {}", res.status());
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("get_remote_version got body: {}", body);
         let response: Result<VersionResponse, serde_json::Error> = serde_json::from_str(&body);
