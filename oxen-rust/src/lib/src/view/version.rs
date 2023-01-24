@@ -4,5 +4,5 @@ use serde::{Deserialize, Serialize};
 pub struct VersionResponse {
     pub status: String,
     pub status_message: String,
-    pub version: String,
+    pub oxen_version: String,
 }

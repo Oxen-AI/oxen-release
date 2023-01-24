@@ -21,10 +21,10 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     let config = UserConfig::get_or_create()?;
     if let Some(host) = config.default_host {
         match api::remote::version::get_remote_version(&host).await {
-            Ok(local_version) => {
-                let remote_version: &str = env!("CARGO_PKG_VERSION");
+            Ok(remote_version) => {
+                let local_version: &str = env!("CARGO_PKG_VERSION");
 
-                if local_version != remote_version {
+                if remote_version != local_version {
                     println!("There is a newer Oxen version 🐂 {}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n\n", remote_version);
                 }
             }
