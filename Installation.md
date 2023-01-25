@@ -11,11 +11,18 @@ $ brew tap Oxen-AI/oxen
 $ brew install oxen
 ```
 
-### Debian
+### Ubuntu Latest
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.3/oxen-0.4.3-1-any.deb
-$ sudo dpkg -i oxen-0.4.3-1-any.deb
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.6/oxen-ubuntu-latest-0.4.6.deb
+$ sudo dpkg -i oxen-ubuntu-latest-0.4.6.deb
+```
+
+### Ubuntu 20.04
+
+```bash
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.6/oxen-ubuntu-20.04-0.4.6.deb
+$ sudo dpkg -i oxen-ubuntu-20.04-0.4.6.deb
 ```
 
 ## Oxen Server
@@ -32,16 +39,16 @@ $ brew install oxen-server
 ### Docker
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.3/oxen-server-0.4.3.tar
-$ docker load < oxen-server-0.4.3.tar
-$ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/hub:0.4.3
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.6/oxen-server-docker-0.4.6.tar
+$ docker load < oxen-server-docker-0.4.6.tar
+$ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/oxen-server:latest
 ```
 
-### Debian
+### Ubuntu Latest
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.3/oxen-server-0.4.3-1-any.deb
-$ sudo dpkg -i oxen-server-0.4.3-1-any.deb
+$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.6/oxen-server-ubuntu-latest-0.4.6.deb
+$ sudo dpkg -i oxen-server-ubuntu-latest-0.4.6.deb
 ```
 
 To get up and running using the client and server, you can follow the [getting started docs](README.md).
