@@ -155,8 +155,8 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
             .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
             .ok(),
-        page_num: sub_matches
-            .value_of("page_num")
+        page: sub_matches
+            .value_of("page")
             .map(String::from)
             .unwrap_or_else(|| String::from(""))
             .parse::<usize>()

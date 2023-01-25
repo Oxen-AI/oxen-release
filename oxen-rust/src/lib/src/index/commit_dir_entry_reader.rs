@@ -87,9 +87,9 @@ impl CommitDirEntryReader {
 
     pub fn list_entry_page(
         &self,
-        page_num: usize,
+        page: usize,
         page_size: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        path_db::list_entry_page(&self.db, page_num, page_size)
+        path_db::list_entry_page(&self.db, page, page_size)
     }
 }

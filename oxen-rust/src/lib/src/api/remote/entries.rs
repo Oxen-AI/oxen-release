@@ -67,12 +67,12 @@ pub async fn download_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: &str,
-    page_num: &usize,
+    page: &usize,
     page_size: &usize,
 ) -> Result<(), OxenError> {
     let uri = format!(
-        "/commits/{}/download_entries?page_num={}&page_size={}",
-        commit_id, page_num, page_size
+        "/commits/{}/download_entries?page={}&page_size={}",
+        commit_id, page, page_size
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;

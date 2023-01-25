@@ -177,9 +177,9 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("page_num")
-                .long("page_num")
-                .help("Paginated through the data frame. Default page_num = 1")
+            Arg::new("page")
+                .long("page")
+                .help("Page number when paginating through the data frame. Default page = 1")
                 .takes_value(true),
         )
         .arg(

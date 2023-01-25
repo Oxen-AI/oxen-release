@@ -8,12 +8,12 @@ pub async fn list_dir(
     remote_repo: &RemoteRepository,
     commit_or_branch: &str,
     path: &str,
-    page_num: usize,
+    page: usize,
     page_size: usize,
 ) -> Result<PaginatedDirEntries, OxenError> {
     let uri = format!(
-        "/dir/{}/{}?page_num={}&page_size={}",
-        commit_or_branch, path, page_num, page_size
+        "/dir/{}/{}?page={}&page_size={}",
+        commit_or_branch, path, page, page_size
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
