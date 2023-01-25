@@ -1,3 +1,8 @@
+# v0.4.6
+
+* Features
+  * GET requests for downloading data
+
 # v0.4.5
 
 * Features
