@@ -8,13 +8,10 @@ pub async fn list_dir(
     remote_repo: &RemoteRepository,
     commit_or_branch: &str,
     path: &str,
-    page_num: usize,
+    page: usize,
     page_size: usize,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    let uri = format!(
-        "/dir/{}/{}?page_num={}&page_size={}",
-        commit_or_branch, path, page_num, page_size
-    );
+    let uri = format!("/dir/{commit_or_branch}/{path}?page={page}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -25,12 +22,11 @@ pub async fn list_dir(
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(format!(
-                "api::dir::list_dir {} Err \n\n{}",
-                url, body
+                "api::dir::list_dir {url} Err \n\n{body}"
             ))),
         }
     } else {
-        let err = format!("api::dir::list_dir Err request failed: {}", url);
+        let err = format!("api::dir::list_dir Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
 }

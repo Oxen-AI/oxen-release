@@ -36,7 +36,7 @@ where
     }
 
     log::debug!("Hashing commit data {:?}", commit_data);
-    let commit_str = format!("{:?}", commit_data);
+    let commit_str = format!("{commit_data:?}");
     commit_hasher.update(commit_str.as_bytes());
 
     let val = commit_hasher.digest();
@@ -54,16 +54,13 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
                     Ok(result)
                 }
                 Err(_) => {
-                    eprintln!("Could not read file to end {:?}", path);
+                    eprintln!("Could not read file to end {path:?}");
                     Err(OxenError::basic_str("Could not read file to end"))
                 }
             }
         }
         Err(_) => {
-            let err = format!(
-                "util::hasher::hash_file_contents Could not open file {:?}",
-                path
-            );
+            let err = format!("util::hasher::hash_file_contents Could not open file {path:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -80,16 +77,13 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
                     Ok(result)
                 }
                 Err(_) => {
-                    eprintln!("Could not read file to end {:?}", path);
+                    eprintln!("Could not read file to end {path:?}");
                     Err(OxenError::basic_str("Could not read file to end"))
                 }
             }
         }
         Err(_) => {
-            let err = format!(
-                "util::hasher::hash_file_contents Could not open file {:?}",
-                path
-            );
+            let err = format!("util::hasher::hash_file_contents Could not open file {path:?}");
             Err(OxenError::basic_str(err))
         }
     }

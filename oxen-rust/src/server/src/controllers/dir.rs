@@ -20,14 +20,14 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     // default to first page with first ten values
-    let page_num: usize = query.page_num.unwrap_or(1);
+    let page: usize = query.page.unwrap_or(1);
     let page_size: usize = query.page_size.unwrap_or(10);
 
     log::debug!(
-        "dir::get repo name [{}] resource [{:?}] page_num {} page_size {}",
+        "dir::get repo name [{}] resource [{:?}] page {} page_size {}",
         name,
         resource,
-        page_num,
+        page,
         page_size,
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
@@ -45,7 +45,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
                     &commit_id,
                     &branch_or_commit_id,
                     &filepath,
-                    page_num,
+                    page,
                     page_size,
                 ) {
                     Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
@@ -72,7 +72,7 @@ fn list_directory_for_commit(
     commit_id: &str,
     branch_or_commit_id: &str,
     directory: &Path,
-    page_num: usize,
+    page: usize,
     page_size: usize,
 ) -> Result<(PaginatedDirEntries, Commit), StatusMessage> {
     match api::local::commits::get_by_id(repo, commit_id) {
@@ -87,7 +87,7 @@ fn list_directory_for_commit(
                 &commit,
                 branch_or_commit_id,
                 directory,
-                &page_num,
+                &page,
                 &page_size,
             ) {
                 Ok((entries, total_entries)) => {
@@ -102,7 +102,7 @@ fn list_directory_for_commit(
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),
                         page_size,
-                        page_number: page_num,
+                        page_number: page,
                         total_pages: total_pages as usize,
                         total_entries,
                         resource: ResourceVersion {
@@ -191,7 +191,7 @@ mod tests {
         println!("GOT RESP STATUS: {}", resp.response().status());
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("GOT BODY: {}", body);
+        println!("GOT BODY: {body}");
         let entries_resp: PaginatedDirEntries = serde_json::from_str(body)?;
 
         // Make sure we can fetch all the entries

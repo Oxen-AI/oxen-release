@@ -23,7 +23,7 @@ impl RefDBReader {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("{}", err);
+                let err = format!("{err}");
                 Err(OxenError::basic_str(err))
             }
         }

@@ -70,7 +70,7 @@ async fn main() {
         Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),
         // TODO: Get these in the help command instead of just falling back
         Some((ext, _sub_matches)) => {
-            println!("Unknown command {}", ext);
+            println!("Unknown command {ext}");
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable!()
     }

@@ -113,7 +113,7 @@ impl StagedData {
         let outputs = self.__collect_outputs(skip, limit, print_all);
 
         for output in outputs {
-            print!("{}", output)
+            print!("{output}")
         }
     }
 
@@ -121,7 +121,7 @@ impl StagedData {
         let outputs = self.__collect_outputs(skip, limit, print_all);
 
         for output in outputs {
-            print!("{}", output)
+            print!("{output}")
         }
     }
 
@@ -137,7 +137,7 @@ impl StagedData {
         }
 
         outputs.push("Merge conflicts:".to_string().normal());
-        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT).normal());
+        outputs.push(format!("  {MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT}").normal());
 
         self.__collapse_outputs(
             &self.merge_conflicts,
@@ -314,7 +314,7 @@ impl StagedData {
         }
 
         outputs.push("Modified files:".to_string().normal());
-        outputs.push(format!("  {}", MSG_OXEN_ADD_FILE_EXAMPLE).normal());
+        outputs.push(format!("  {MSG_OXEN_ADD_FILE_EXAMPLE}").normal());
 
         let mut files = self.modified_files.clone();
         files.sort();
@@ -463,7 +463,7 @@ impl StagedData {
 
         if inputs.len() > limit && !print_all {
             let remaining = inputs.len() - limit;
-            outputs.push(format!("  ... and {} others\n", remaining).normal());
+            outputs.push(format!("  ... and {remaining} others\n").normal());
         }
 
         outputs.push("\n".normal());

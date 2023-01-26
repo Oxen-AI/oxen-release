@@ -609,11 +609,10 @@ mod tests {
                 // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
                 let file_prefixes = vec!["a", "b", "c", "d", "e"];
                 for prefix in file_prefixes.iter() {
-                    let filename = format!("{}.txt", prefix);
+                    let filename = format!("{prefix}.txt");
                     let filepath = repo.path.join(filename);
                     println!(
-                        "test_merge_no_conflict_three_way_merge checking file exists {:?}",
-                        filepath
+                        "test_merge_no_conflict_three_way_merge checking file exists {filepath:?}"
                     );
                     assert!(filepath.exists());
                 }

@@ -38,7 +38,7 @@ pub fn get_indices<S: AsRef<str>>(
         }
         Err(err) => {
             // error from the DB
-            let err = format!("Err could not fetch value {:?} from db: {:?}", key, err,);
+            let err = format!("Err could not fetch value {key:?} from db: {err:?}",);
             Err(OxenError::basic_str(err))
         }
     }

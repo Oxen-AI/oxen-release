@@ -55,8 +55,7 @@ fn _diff_commit(repo: &LocalRepository, commit: &Commit, path: &Path) -> Result<
                 return diff_utf8(repo, &entry);
             }
             Err(OxenError::basic_str(format!(
-                "Diff not supported for file: {:?}",
-                path
+                "Diff not supported for file: {path:?}"
             )))
         } else {
             Err(OxenError::file_does_not_exist_in_commit(path, &commit.id))
@@ -79,17 +78,17 @@ pub fn diff_utf8(repo: &LocalRepository, entry: &CommitEntry) -> Result<String, 
         match diff {
             Difference::Same(ref x) => {
                 for split in x.split('\n') {
-                    outputs.push(format!(" {}\n", split).normal().to_string());
+                    outputs.push(format!(" {split}\n").normal().to_string());
                 }
             }
             Difference::Add(ref x) => {
                 for split in x.split('\n') {
-                    outputs.push(format!("+{}\n", split).green().to_string());
+                    outputs.push(format!("+{split}\n").green().to_string());
                 }
             }
             Difference::Rem(ref x) => {
                 for split in x.split('\n') {
-                    outputs.push(format!("-{}\n", split).red().to_string());
+                    outputs.push(format!("-{split}\n").red().to_string());
                 }
             }
         }
@@ -109,19 +108,19 @@ pub fn diff_tabular(
 
         let mut results: Vec<String> = vec![];
         if let Some(rows) = diff.added_rows {
-            results.push(format!("Added Rows\n\n{}\n\n", rows));
+            results.push(format!("Added Rows\n\n{rows}\n\n"));
         }
 
         if let Some(rows) = diff.removed_rows {
-            results.push(format!("Removed Rows\n\n{}\n\n", rows));
+            results.push(format!("Removed Rows\n\n{rows}\n\n"));
         }
 
         if let Some(cols) = diff.added_cols {
-            results.push(format!("Added Columns\n\n{}\n\n", cols));
+            results.push(format!("Added Columns\n\n{cols}\n\n"));
         }
 
         if let Some(cols) = diff.removed_cols {
-            results.push(format!("Removed Columns\n\n{}\n\n", cols));
+            results.push(format!("Removed Columns\n\n{cols}\n\n"));
         }
 
         Ok(results.join("\n"))
@@ -154,7 +153,7 @@ fn compute_dataframe_diff(
                 versioned_schema,
             )
         } else {
-            println!("Computing diff for {:?}", path);
+            println!("Computing diff for {path:?}");
             // Schemas match, find added and removed rows
             // Read versioned df
             let versioned_df = tabular::read_df(&versioned_path, DFOpts::empty())?;

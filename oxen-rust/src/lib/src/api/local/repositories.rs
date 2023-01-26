@@ -119,7 +119,7 @@ pub fn create_empty(
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
     if repo_dir.exists() {
-        let err = format!("Repository already exists {:?}", repo_dir);
+        let err = format!("Repository already exists {repo_dir:?}");
         return Err(OxenError::basic_str(err));
     }
 

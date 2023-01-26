@@ -166,7 +166,7 @@ pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
 
 pub fn list_entry_page<T>(
     db: &DBWithThreadMode<MultiThreaded>,
-    page_num: usize,
+    page: usize,
     page_size: usize,
 ) -> Result<Vec<T>, OxenError>
 where
@@ -177,7 +177,7 @@ where
     let mut paths: Vec<T> = vec![];
     let iter = db.iterator(IteratorMode::Start);
     // Do not go negative, and start from 0
-    let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+    let start_page = if page == 0 { 0 } else { page - 1 };
     let start_idx = start_page * page_size;
     for (entry_i, (_key, value)) in iter.enumerate() {
         // limit to page_size
@@ -185,7 +185,7 @@ where
             break;
         }
 
-        // only grab values after start_idx based on page_num and page_size
+        // only grab values after start_idx based on page and page_size
         if entry_i >= start_idx {
             let entry: T = serde_json::from_str(str::from_utf8(&value)?)?;
             paths.push(entry);

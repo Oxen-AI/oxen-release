@@ -25,17 +25,17 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
                 let local_version: &str = env!("CARGO_PKG_VERSION");
 
                 if remote_version != local_version {
-                    println!("There is a newer Oxen version 🐂 {}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n\n", remote_version);
+                    println!("There is a newer Oxen version 🐂 {remote_version}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n\n");
                 }
             }
             Err(err) => {
-                eprintln!("Err checking remote version: {}", err)
+                eprintln!("Err checking remote version: {err}")
             }
         }
     }
 
     command::init(&directory)?;
-    println!("🐂 repository initialized at: {:?}", directory);
+    println!("🐂 repository initialized at: {directory:?}");
     Ok(())
 }
 
@@ -102,7 +102,7 @@ pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
     let mut config = UserConfig::get_or_create()?;
     config.add_host_auth_token(host, token);
     config.save_default()?;
-    println!("Authentication token set for host: {}", host);
+    println!("Authentication token set for host: {host}");
     Ok(())
 }
 
@@ -212,12 +212,12 @@ pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
     match flag.to_str().unwrap() {
         "-m" => {
             let message = value.to_str().unwrap_or_default();
-            println!("Committing with message: {}", message);
+            println!("Committing with message: {message}");
             command::commit(&repo, message)?;
             Ok(())
         }
         _ => {
-            eprintln!("{}", err_str);
+            eprintln!("{err_str}");
             Err(OxenError::basic_str(err_str))
         }
     }
@@ -234,7 +234,7 @@ pub fn log_commits() -> Result<(), OxenError> {
 
     for commit in command::log(&repository)? {
         let commit_id_str = format!("commit {}", commit.id).yellow();
-        println!("{}\n", commit_id_str);
+        println!("{commit_id_str}\n");
         println!("Author: {}", commit.author);
         println!("Date:   {}\n", commit.timestamp.format(&format).unwrap());
         println!("    {}\n", commit.message);
@@ -276,7 +276,7 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
 
 pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<(), OxenError> {
     let result = command::df_schema(input, flatten)?;
-    println!("{}", result);
+    println!("{result}");
     Ok(())
 }
 
@@ -292,7 +292,7 @@ pub fn schema_show(val: &str, staged: bool) -> Result<Option<schema::Schema>, Ox
 
     if let Some(schema) = schema {
         if let Some(name) = &schema.name {
-            println!("{}\n{}", name, schema);
+            println!("{name}\n{schema}");
             Ok(Some(schema))
         } else {
             println!(
@@ -312,7 +312,7 @@ pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
 
     command::schema_name(&repository, schema_ref, val)?;
     if let Some(schema) = schema_show(schema_ref, true)? {
-        println!("{}", schema);
+        println!("{schema}");
     }
 
     Ok(())
@@ -331,7 +331,7 @@ pub fn schema_list_indices(schema_ref: &str) -> Result<(), OxenError> {
 }
 
 pub fn schema_list(staged: bool) -> Result<(), OxenError> {
-    println!("schema_list staged? {}", staged);
+    println!("schema_list staged? {staged}");
 
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -345,7 +345,7 @@ pub fn schema_list(staged: bool) -> Result<(), OxenError> {
         eprintln!("{}", OxenError::no_schemas_found());
     } else {
         let result = schema::Schema::schemas_to_string(&schemas);
-        println!("{}", result);
+        println!("{result}");
     }
 
     Ok(())
@@ -359,7 +359,7 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
         eprintln!("{}", OxenError::no_schemas_found());
     } else {
         let result = schema::Schema::schemas_to_string(&schemas);
-        println!("{}", result);
+        println!("{result}");
     }
     Ok(())
 }
@@ -421,7 +421,7 @@ pub fn list_branches() -> Result<(), OxenError> {
     for branch in branches.iter() {
         if branch.is_head {
             let branch_str = format!("* {}", branch.name).green();
-            println!("{}", branch_str)
+            println!("{branch_str}")
         } else {
             println!("  {}", branch.name)
         }
