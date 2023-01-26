@@ -252,7 +252,10 @@ pub async fn update(req: HttpRequest, body: String) -> HttpResponse {
                     HttpResponse::NotFound().json(StatusMessage::internal_server_error())
                 }
             },
-            Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),
+            Err(err) => {
+                log::debug!("Could not parse body: {}", err);
+                HttpResponse::BadRequest().json(StatusMessage::error("Invalid body."))
+            }
         }
     } else {
         let msg = "Must supply `namespace`, `repo_name` and `branch_name` params";
