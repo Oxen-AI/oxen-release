@@ -330,7 +330,7 @@ mod tests {
             let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) = reader.list_directory(Path::new("./"), &commit.id, 1, 10)?;
             for entry in dir_entries.iter() {
-                println!("{:?}", entry);
+                println!("{entry:?}");
             }
 
             assert_eq!(size, 7);
@@ -393,7 +393,7 @@ mod tests {
             let (dir_entries, size) =
                 reader.list_directory(Path::new("train"), &commit.id, 2, 3)?;
             for entry in dir_entries.iter() {
-                println!("{:?}", entry);
+                println!("{entry:?}");
             }
 
             assert_eq!(size, 5);

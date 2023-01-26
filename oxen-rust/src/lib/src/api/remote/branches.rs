@@ -10,7 +10,7 @@ pub async fn get_by_name(
     repository: &RemoteRepository,
     branch_name: &str,
 ) -> Result<Option<Branch>, OxenError> {
-    let uri = format!("/branches/{}", branch_name);
+    let uri = format!("/branches/{branch_name}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -61,7 +61,7 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
             }
         }
     } else {
-        let msg = format!("Could not create branch {}", name);
+        let msg = format!("Could not create branch {name}");
         log::error!("remote::branches::create_or_get() {}", msg);
         Err(OxenError::basic_str(&msg))
     }
@@ -97,7 +97,7 @@ pub async fn update(
     branch_name: &str,
     commit: &Commit,
 ) -> Result<Branch, OxenError> {
-    let uri = format!("/branches/{}", branch_name);
+    let uri = format!("/branches/{branch_name}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::branches::update url: {}", url);
 
@@ -118,7 +118,7 @@ pub async fn update(
             }
         }
     } else {
-        let msg = format!("Could not update branch {}", branch_name);
+        let msg = format!("Could not update branch {branch_name}");
         log::error!("remote::branches::update() {}", msg);
         Err(OxenError::basic_str(&msg))
     }
@@ -127,7 +127,7 @@ pub async fn delete(
     repository: &RemoteRepository,
     branch_name: &str,
 ) -> Result<StatusMessage, OxenError> {
-    let uri = format!("/branches/{}", branch_name);
+    let uri = format!("/branches/{branch_name}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("Deleting branch: {}", url);
 
@@ -138,8 +138,7 @@ pub async fn delete(
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(format!(
-                "could not delete branch \n\n{}",
-                body
+                "could not delete branch \n\n{body}"
             ))),
         }
     } else {

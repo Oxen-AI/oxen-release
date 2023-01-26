@@ -31,10 +31,8 @@ impl MergeConflictDBReader {
             },
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!(
-                    "MergeConflictDBReader::get_conflict Error reading db\nErr: {}",
-                    err
-                );
+                let err =
+                    format!("MergeConflictDBReader::get_conflict Error reading db\nErr: {err}");
                 Err(OxenError::basic_str(err))
             }
         }

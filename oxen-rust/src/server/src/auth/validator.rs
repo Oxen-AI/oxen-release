@@ -19,8 +19,7 @@ pub async fn validate(
             }
         }
         Err(err) => Err(actix_web::error::ErrorInternalServerError(format!(
-            "Err could not get keygen: {}",
-            err
+            "Err could not get keygen: {err}"
         ))),
     }
 }

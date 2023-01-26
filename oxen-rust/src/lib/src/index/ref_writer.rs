@@ -34,7 +34,7 @@ impl RefWriter {
         // Only create branch if it does not exist already
         log::debug!("create_branch {} -> {}", name, commit_id);
         if self.has_branch(name) {
-            let err = format!("Branch already exists: {}", name);
+            let err = format!("Branch already exists: {name}");
             Err(OxenError::basic_str(err))
         } else {
             self.set_branch_commit_id(name, commit_id)?;
@@ -48,7 +48,7 @@ impl RefWriter {
 
     pub fn delete_branch(&self, name: &str) -> Result<(), OxenError> {
         if !self.has_branch(name) {
-            let err = format!("Branch does not exist: {}", name);
+            let err = format!("Branch does not exist: {name}");
             Err(OxenError::basic_str(err))
         } else {
             self.refs_db.delete(name)?;
@@ -138,7 +138,7 @@ impl RefWriter {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("{}", err);
+                let err = format!("{err}");
                 Err(OxenError::basic_str(err))
             }
         }

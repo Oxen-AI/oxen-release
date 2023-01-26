@@ -79,7 +79,7 @@ impl RefReader {
                     "get_commit_id_for_branch error finding commit id for branch {}",
                     name
                 );
-                let err = format!("{}", err);
+                let err = format!("{err}");
                 Err(OxenError::basic_str(err))
             }
         }

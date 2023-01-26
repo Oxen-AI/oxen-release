@@ -49,7 +49,7 @@ pub async fn create(
             Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
         }
         Err(err) => {
-            let msg = format!("Could not find repo at path\nErr: {}", err);
+            let msg = format!("Could not find repo at path\nErr: {err}");
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
         }
     }
@@ -574,7 +574,7 @@ mod tests {
             "/oxen/{}/{}/commits/{}/download_page",
             namespace, name, commit.id
         );
-        println!("Hit uri {}", uri);
+        println!("Hit uri {uri}");
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData {

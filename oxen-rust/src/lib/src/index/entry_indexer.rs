@@ -246,7 +246,7 @@ impl EntryIndexer {
                 }
             }
             Err(err) => {
-                let err = format!("Could not push missing commit err: {}", err);
+                let err = format!("Could not push missing commit err: {err}");
                 return Err(OxenError::basic_str(err));
             }
         }
@@ -403,11 +403,11 @@ impl EntryIndexer {
                 api::remote::commits::post_push_complete(remote_repo, &commit.id).await
             }
             (Err(err), Ok(_)) => {
-                let err = format!("Error syncing large entries: {}", err);
+                let err = format!("Error syncing large entries: {err}");
                 Err(OxenError::basic_str(err))
             }
             (Ok(_), Err(err)) => {
-                let err = format!("Error syncing small entries: {}", err);
+                let err = format!("Error syncing small entries: {err}");
                 Err(OxenError::basic_str(err))
             }
             _ => Err(OxenError::basic_str("Unknown error syncing entries")),
@@ -940,11 +940,11 @@ impl EntryIndexer {
                     self.unpack_version_files(commit, entries)?;
                 }
                 (Err(err), Ok(_)) => {
-                    let err = format!("Error syncing large entries: {}", err);
+                    let err = format!("Error syncing large entries: {err}");
                     return Err(OxenError::basic_str(err));
                 }
                 (Ok(_), Err(err)) => {
-                    let err = format!("Error syncing small entries: {}", err);
+                    let err = format!("Error syncing small entries: {err}");
                     return Err(OxenError::basic_str(err));
                 }
                 _ => return Err(OxenError::basic_str("Unknown error syncing entries")),

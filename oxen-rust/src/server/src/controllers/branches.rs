@@ -93,7 +93,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
-    println!("controllers::branches::create_or_get() got body: {}", body);
+    println!("controllers::branches::create_or_get() got body: {body}");
     let data: Result<BranchNew, serde_json::Error> = serde_json::from_str(&body);
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -283,7 +283,7 @@ mod tests {
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
         test::create_local_repo(&sync_dir, namespace, name)?;
-        let uri = format!("/oxen/{}/{}/branches", namespace, name);
+        let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::index(req).await;
@@ -312,7 +312,7 @@ mod tests {
         api::local::branches::create(&repo, "branch-1")?;
         api::local::branches::create(&repo, "branch-2")?;
 
-        let uri = format!("/oxen/{}/{}/branches", namespace, name);
+        let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::index(req).await;
@@ -339,7 +339,7 @@ mod tests {
         let branch_name = "branch-1";
         api::local::branches::create(&repo, branch_name)?;
 
-        let uri = format!("/oxen/{}/{}/branches", namespace, repo_name);
+        let uri = format!("/oxen/{namespace}/{repo_name}/branches");
         let req = test::repo_request_with_param(
             &sync_dir,
             &uri,
@@ -374,7 +374,7 @@ mod tests {
         {
             "name": "My-Branch-Name"
         }"#;
-        let uri = format!("/oxen/{}/{}/branches", namespace, name);
+        let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::branches::create_or_get(req, String::from(data)).await;
