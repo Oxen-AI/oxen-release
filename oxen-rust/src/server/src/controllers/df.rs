@@ -23,7 +23,7 @@ pub struct DFOptsQuery {
     pub sort_by: Option<String>,
     pub randomize: Option<bool>,
     pub reverse: Option<bool>,
-    pub page_num: Option<usize>,
+    pub page: Option<usize>,
     pub page_size: Option<usize>,
 }
 
@@ -61,7 +61,7 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                             let mut df = tabular::transform_df(lazy_cp, filter).unwrap();
                             let full_df = lazy_df.collect().unwrap();
                             let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-                            let page_num = query.page_num.unwrap_or(constants::DEFAULT_PAGE_NUM);
+                            let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
                             let total_pages = (full_df.height() / page_size) + 1;
 
@@ -73,7 +73,7 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                                     width: full_df.width(),
                                     height: full_df.height(),
                                 },
-                                page_number: page_num,
+                                page_number: page,
                                 page_size,
                                 total_pages,
                                 total_entries: full_df.height(),
@@ -131,7 +131,7 @@ fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> DFOpt
         filter_ops.columns = Some(columns);
     }
 
-    filter_ops.page_num = query.page_num;
+    filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.take = query.take.clone();
     filter_ops.filter = query.filter.clone();

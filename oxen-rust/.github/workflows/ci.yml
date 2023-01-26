@@ -1,11 +1,11 @@
-on: [push, pull_request]
+on: [push]
 
 name: 🐂 Continuous integration
 
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Cache Rust dependencies
@@ -26,7 +26,7 @@ jobs:
 
   fmt:
     name: Rustfmt
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Cache Rust dependencies
@@ -49,7 +49,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Cache Rust dependencies
@@ -72,7 +72,7 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
       - name: Cache Rust dependencies

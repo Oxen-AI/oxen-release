@@ -174,12 +174,12 @@ mod tests {
             let branch_name = "my-branch";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
 
-            let path_str = format!("{}/annotations/train/one_shot.csv", branch_name);
+            let path_str = format!("{branch_name}/annotations/train/one_shot.csv");
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
                 Ok(Some((commit_id, _branch_name, path))) => {
-                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
                 }
@@ -198,12 +198,12 @@ mod tests {
             let branch_name = "my/crazy/branch/name";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
 
-            let path_str = format!("{}/annotations/train/one_shot.csv", branch_name);
+            let path_str = format!("{branch_name}/annotations/train/one_shot.csv");
             let path = Path::new(&path_str);
 
             match resource::parse_resource(&repo, path) {
                 Ok(Some((commit_id, _branch_name, path))) => {
-                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
                 }
@@ -227,7 +227,7 @@ mod tests {
 
             match resource::parse_resource(&repo, path) {
                 Ok(Some((commit_id, _branch_name, path))) => {
-                    println!("Got branch: {:?} -> {:?}", branch, path);
+                    println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, commit_id);
                     assert_eq!(path, Path::new("./"));
                 }

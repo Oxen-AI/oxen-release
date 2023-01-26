@@ -32,7 +32,7 @@ pub async fn get_by_id(
     repository: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Option<Commit>, OxenError> {
-    let uri = format!("/commits/{}", commit_id);
+    let uri = format!("/commits/{commit_id}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::commits::get_by_id {}", url);
 
@@ -48,8 +48,7 @@ pub async fn get_by_id(
         match response {
             Ok(j_res) => Ok(Some(j_res.commit)),
             Err(err) => Err(OxenError::basic_str(format!(
-                "get_commit_by_id() Could not deserialize response [{}]\n{}",
-                err, body
+                "get_commit_by_id() Could not deserialize response [{err}]\n{body}"
             ))),
         }
     } else {
@@ -61,7 +60,7 @@ pub async fn commit_is_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Option<IsValidStatusMessage>, OxenError> {
-    let uri = format!("/commits/{}/is_synced", commit_id);
+    let uri = format!("/commits/{commit_id}/is_synced");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("commit_is_synced checking URL: {}", url);
 
@@ -94,7 +93,7 @@ pub async fn download_commit_db_by_id(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<(), OxenError> {
-    let uri = format!("/commits/{}/commit_db", commit_id);
+    let uri = format!("/commits/{commit_id}/commit_db");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -122,7 +121,7 @@ pub async fn get_remote_parent(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    let uri = format!("/commits/{}/parents", commit_id);
+    let uri = format!("/commits/{commit_id}/parents");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -133,8 +132,7 @@ pub async fn get_remote_parent(
         match response {
             Ok(j_res) => Ok(j_res.parents),
             Err(err) => Err(OxenError::basic_str(format!(
-                "get_remote_parent() Could not deserialize response [{}]\n{}",
-                err, body
+                "get_remote_parent() Could not deserialize response [{err}]\n{body}"
             ))),
         }
     } else {
@@ -146,7 +144,7 @@ pub async fn post_push_complete(
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<(), OxenError> {
-    let uri = format!("/commits/{}/complete", commit_id);
+    let uri = format!("/commits/{commit_id}/complete");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("post_push_complete: {}", url);
 
@@ -157,8 +155,7 @@ pub async fn post_push_complete(
         match response {
             Ok(_) => Ok(()),
             Err(err) => Err(OxenError::basic_str(format!(
-                "post_push_complete() Could not deserialize response [{}]\n{}",
-                err, body
+                "post_push_complete() Could not deserialize response [{err}]\n{body}"
             ))),
         }
     } else {
@@ -233,8 +230,7 @@ async fn create_commit_obj_on_server(
         match response {
             Ok(response) => Ok(response),
             Err(_) => Err(OxenError::basic_str(format!(
-                "create_commit_obj_on_server Err deserializing \n\n{}",
-                body
+                "create_commit_obj_on_server Err deserializing \n\n{body}"
             ))),
         }
     } else {
@@ -325,13 +321,12 @@ async fn upload_single_tarball_to_server(
                     Ok(response)
                 }
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_single_tarball_to_server Err deserializing \n\n{}",
-                    body
+                    "upload_single_tarball_to_server Err deserializing \n\n{body}"
                 ))),
             }
         }
         Err(e) => {
-            let err_str = format!("Err upload_single_tarball_to_server: {:?}", e);
+            let err_str = format!("Err upload_single_tarball_to_server: {e:?}");
             Err(OxenError::basic_str(err_str))
         }
     }
@@ -483,13 +478,12 @@ async fn upload_data_chunk_to_server(
             match response {
                 Ok(response) => Ok(response),
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_data_chunk_to_server Err deserializing\n\n{}",
-                    body
+                    "upload_data_chunk_to_server Err deserializing\n\n{body}"
                 ))),
             }
         }
         Err(e) => {
-            let err_str = format!("Err upload_data_chunk_to_server: {:?}", e);
+            let err_str = format!("Err upload_data_chunk_to_server: {e:?}");
             Err(OxenError::basic_str(err_str))
         }
     }

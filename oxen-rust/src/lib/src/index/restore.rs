@@ -28,7 +28,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
         if let Some(entry) = reader.get_entry(&path)? {
             restore_file(repo, &path, &commit.id, &entry)
         } else {
-            let error = format!("Could not restore file: {:?} does not exist", path);
+            let error = format!("Could not restore file: {path:?} does not exist");
             Err(OxenError::basic_str(error))
         }
     }
@@ -44,7 +44,7 @@ fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenE
     } else if stager.has_staged_dir(&path) {
         stager.remove_staged_dir(&path)
     } else {
-        let error = format!("Could not restore staged file: {:?} does not exist", path);
+        let error = format!("Could not restore staged file: {path:?} does not exist");
         Err(OxenError::basic_str(error))
     }
 }

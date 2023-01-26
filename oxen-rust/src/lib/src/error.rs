@@ -89,10 +89,8 @@ impl OxenError {
     }
 
     pub fn schema_has_changed(old_schema: Schema, current_schema: Schema) -> OxenError {
-        let err = format!(
-            "\nSchema has changed\n\nOld\n{}\n\nCurrent\n{}\n",
-            old_schema, current_schema
-        );
+        let err =
+            format!("\nSchema has changed\n\nOld\n{old_schema}\n\nCurrent\n{current_schema}\n");
         OxenError::basic_str(err)
     }
 
@@ -191,9 +189,9 @@ impl OxenError {
 impl fmt::Display for OxenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let OxenError::Basic(err) = self {
-            write!(f, "{}", err)
+            write!(f, "{err}")
         } else {
-            write!(f, "{:?}", self)
+            write!(f, "{self:?}")
         }
     }
 }

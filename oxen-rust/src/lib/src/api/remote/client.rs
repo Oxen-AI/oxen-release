@@ -12,7 +12,7 @@ fn get_host_from_url<U: IntoUrl>(url: U) -> Result<String, OxenError> {
     let parsed_url = url.into_url()?;
     let mut host_str = parsed_url.host_str().unwrap_or_default().to_string();
     if let Some(port) = parsed_url.port() {
-        host_str = format!("{}:{}", host_str, port);
+        host_str = format!("{host_str}:{port}");
     }
     Ok(host_str)
 }
@@ -41,7 +41,7 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
 
     let config = UserConfig::get()?;
     if let Some(auth_token) = config.auth_token_for_host(host.as_ref()) {
-        let auth_header = format!("Bearer {}", auth_token);
+        let auth_header = format!("Bearer {auth_token}");
         let mut auth_value = match header::HeaderValue::from_str(auth_header.as_str()) {
             Ok(header) => header,
             Err(err) => {
@@ -61,7 +61,7 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
 }
 
 fn builder() -> ClientBuilder {
-    Client::builder().user_agent(format!("{}/{}", USER_AGENT, VERSION))
+    Client::builder().user_agent(format!("{USER_AGENT}/{VERSION}"))
 }
 
 /// Performs an extra parse to validate that the response is success
@@ -75,8 +75,7 @@ pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String
         Err(err) => {
             log::debug!("Err: {}", err);
             Err(OxenError::basic_str(format!(
-                "Could not deserialize response from [{}]\n{}",
-                url, body
+                "Could not deserialize response from [{url}]\n{body}"
             )))
         }
     }
@@ -109,6 +108,6 @@ fn parse_status_and_message(
             "Remote Err: {}",
             response.desc_or_msg()
         ))),
-        status => Err(OxenError::basic_str(format!("Unknown status [{}]", status))),
+        status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),
     }
 }

@@ -115,13 +115,13 @@ impl fmt::Display for Schema {
 
         for (i, field) in self.fields.iter().enumerate() {
             let mut cells: Vec<comfy_table::Cell> = vec![];
-            cells.push(comfy_table::Cell::from(format!("{}", i)));
+            cells.push(comfy_table::Cell::from(format!("{i}")));
             cells.push(comfy_table::Cell::from(field.name.to_owned()));
             cells.push(comfy_table::Cell::from(field.dtype.to_owned()));
             table.add_row(cells);
         }
 
-        write!(f, "{}", table)
+        write!(f, "{table}")
     }
 }
 

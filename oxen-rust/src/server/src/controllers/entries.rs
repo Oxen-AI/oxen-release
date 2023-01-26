@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 #[derive(Deserialize, Debug)]
 pub struct PageNumQuery {
-    pub page_num: Option<usize>,
+    pub page: Option<usize>,
     pub page_size: Option<usize>,
 }
 
@@ -49,7 +49,7 @@ pub async fn create(
             Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
         }
         Err(err) => {
-            let msg = format!("Could not find repo at path\nErr: {}", err);
+            let msg = format!("Could not find repo at path\nErr: {err}");
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
         }
     }
@@ -182,20 +182,20 @@ pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) ->
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
     // default to first page with first ten values
-    let page_num: usize = query.page_num.unwrap_or(1);
+    let page: usize = query.page.unwrap_or(1);
     let page_size: usize = query.page_size.unwrap_or(10);
 
     log::debug!(
-        "download_entries repo name [{}] commit_id [{}] page_num {} page_size {}",
+        "download_entries repo name [{}] commit_id [{}] page {} page_size {}",
         name,
         commit_id,
-        page_num,
+        page,
         page_size,
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             log::debug!("download_entries got repo [{}]", name);
-            match get_entries_for_page(&repo, commit_id, page_num, page_size) {
+            match get_entries_for_page(&repo, commit_id, page, page_size) {
                 Ok((entries, commit)) => match compress_entries(&repo, &commit, &entries.entries) {
                     Ok(buffer) => HttpResponse::Ok().body(buffer),
                     Err(err) => {
@@ -260,14 +260,14 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     // default to first page with first ten values
-    let page_num: usize = query.page_num.unwrap_or(1);
+    let page: usize = query.page.unwrap_or(1);
     let page_size: usize = query.page_size.unwrap_or(10);
 
     log::debug!(
-        "list_entries repo name [{}] resource [{:?}] page_num {} page_size {}",
+        "list_entries repo name [{}] resource [{:?}] page {} page_size {}",
         name,
         resource,
-        page_num,
+        page,
         page_size,
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
@@ -280,7 +280,7 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
                     commit_id,
                     filepath
                 );
-                match get_entries_for_page(&repo, &commit_id, page_num, page_size) {
+                match get_entries_for_page(&repo, &commit_id, page, page_size) {
                     Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
                     Err(status_message) => HttpResponse::InternalServerError().json(status_message),
                 }
@@ -311,14 +311,14 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
     let name: &str = req.match_info().get("repo_name").unwrap();
 
     // default to first page with first ten values
-    let page_num: usize = query.page_num.unwrap_or(1);
+    let page: usize = query.page.unwrap_or(1);
     let page_size: usize = query.page_size.unwrap_or(10);
 
     log::debug!(
-        "list_entries repo name [{}] resource [{:?}] page_num {} page_size {}",
+        "list_entries repo name [{}] resource [{:?}] page {} page_size {}",
         name,
         resource,
-        page_num,
+        page,
         page_size,
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
@@ -334,7 +334,7 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
                 );
                 match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
                     Ok(version_path) => {
-                        let start = page_num * page_size;
+                        let start = page * page_size;
                         let (lines, total_entries) =
                             liboxen::util::fs::read_lines_paginated_ret_size(
                                 &version_path,
@@ -347,7 +347,7 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
                             status_message: String::from(MSG_RESOURCE_FOUND),
                             lines,
                             page_size,
-                            page_number: page_num,
+                            page_number: page,
                             total_pages: total_pages as usize,
                             total_entries,
                         })
@@ -574,7 +574,7 @@ mod tests {
             "/oxen/{}/{}/commits/{}/download_page",
             namespace, name, commit.id
         );
-        println!("Hit uri {}", uri);
+        println!("Hit uri {uri}");
         let app = actix_web::test::init_service(
             App::new()
                 .app_data(OxenAppData {

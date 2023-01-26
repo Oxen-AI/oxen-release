@@ -307,7 +307,7 @@ impl CommitWriter {
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
         let commit_entries = commit_entry_reader.list_entries()?;
-        println!("Setting working directory to {}", commit_id);
+        println!("Setting working directory to {commit_id}");
         let size: u64 = unsafe { std::mem::transmute(commit_entries.len()) };
         let bar = ProgressBar::new(size);
         for entry in commit_entries.iter() {
@@ -399,7 +399,7 @@ impl CommitWriter {
         if let Some(commit_id) = ref_reader.get_commit_id_for_branch(name)? {
             self.set_working_repo_to_commit_id(&commit_id)
         } else {
-            let err = format!("Could not get commit id for branch: {}", name);
+            let err = format!("Could not get commit id for branch: {name}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -414,10 +414,7 @@ impl CommitWriter {
             }
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!(
-                    "Error commits_db to find commit_id {:?}\nErr: {}",
-                    commit_id, err
-                );
+                let err = format!("Error commits_db to find commit_id {commit_id:?}\nErr: {err}");
                 Err(OxenError::basic_str(err))
             }
         }

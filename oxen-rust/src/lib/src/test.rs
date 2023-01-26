@@ -118,7 +118,7 @@ where
             true
         }
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -140,7 +140,7 @@ where
     let result = match test(repo) {
         Ok(_) => true,
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -165,7 +165,7 @@ where
     let result = match test(repo).await {
         Ok(_) => true,
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -202,7 +202,7 @@ where
             true
         }
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -232,13 +232,13 @@ where
     let name = local_repo.dirname();
     let remote_repo =
         api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
-    println!("Got remote repo: {:?}", remote_repo);
+    println!("Got remote repo: {remote_repo:?}");
 
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
         Ok(_remote_repo) => true,
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -263,7 +263,7 @@ where
     let name = local_repo.dirname();
     let repo =
         api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
-    println!("REMOTE REPO: {:?}", repo);
+    println!("REMOTE REPO: {repo:?}");
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -273,7 +273,7 @@ where
             true
         }
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -303,7 +303,7 @@ where
     let result = match test(repo).await {
         Ok(_) => true,
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -380,7 +380,7 @@ where
     let result = match test(repo).await {
         Ok(_) => true,
         Err(err) => {
-            eprintln!("Error running test. Err: {}", err);
+            eprintln!("Error running test. Err: {err}");
             false
         }
     };
@@ -749,11 +749,8 @@ pub fn append_line_txt_file<P: AsRef<Path>>(path: P, line: &str) -> Result<PathB
 
     let mut file = OpenOptions::new().write(true).append(true).open(path)?;
 
-    if let Err(e) = writeln!(file, "{}", line) {
-        return Err(OxenError::basic_str(format!(
-            "Couldn't write to file: {}",
-            e
-        )));
+    if let Err(e) = writeln!(file, "{line}") {
+        return Err(OxenError::basic_str(format!("Couldn't write to file: {e}")));
     }
 
     Ok(path.to_path_buf())
@@ -778,7 +775,7 @@ pub fn add_random_bbox_to_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, OxenE
     let y: f64 = rng.gen_range(0.0..1000.0);
     let w: i64 = rng.gen_range(0..1000);
     let h: i64 = rng.gen_range(0..1000);
-    let line = format!("{},{:2},{:2},{},{}", file_name, x, y, w, h);
+    let line = format!("{file_name},{x:2},{y:2},{w},{h}");
     append_line_txt_file(path, &line)
 }
 
@@ -796,7 +793,7 @@ pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, Oxen
         std::fs::copy(file_path, &full_new_path)?;
         Ok(full_new_path)
     } else {
-        let err = format!("Unknown extension file: {:?}", file_path);
+        let err = format!("Unknown extension file: {file_path:?}");
         Err(OxenError::basic_str(err))
     }
 }

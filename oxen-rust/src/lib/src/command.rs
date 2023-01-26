@@ -49,7 +49,7 @@ use std::str;
 pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(path);
     if hidden_dir.exists() {
-        let err = format!("Oxen repository already exists: {:?}", path);
+        let err = format!("Oxen repository already exists: {path:?}");
         return Err(OxenError::basic_str(err));
     }
 
@@ -210,7 +210,7 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
 
     if let Some(output) = opts.output {
-        println!("Writing {:?}", output);
+        println!("Writing {output:?}");
         tabular::write_df(&mut df, output)?;
     }
 
@@ -504,21 +504,21 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
     log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
-            println!("Already on branch {}", value);
+            println!("Already on branch {value}");
             return Ok(());
         }
 
-        println!("Checkout branch: {}", value);
+        println!("Checkout branch: {value}");
         set_working_branch(repo, value)?;
         set_head(repo, value)?;
     } else {
         // If we are already on the commit, do nothing
         if already_on_commit(repo, value) {
-            eprintln!("Commit already checked out {}", value);
+            eprintln!("Commit already checked out {value}");
             return Ok(());
         }
 
-        println!("Checkout commit: {}", value);
+        println!("Checkout commit: {value}");
         set_working_commit_id(repo, value)?;
         set_head(repo, value)?;
     }
@@ -666,7 +666,7 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
 /// This creates a branch with name,
 /// then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
-    println!("Create and checkout branch: {}", name);
+    println!("Create and checkout branch: {name}");
     let head_commit = head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
 
@@ -921,9 +921,9 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
     for (key, value) in iter {
         // try to decode u32 first (hacky but only two types we inspect right now)
         if let (Ok(key), Ok(value)) = (str::from_utf8(&key), u32::decode::<u8>(&value)) {
-            println!("{}\t{}", key, value)
+            println!("{key}\t{value}")
         } else if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
-            println!("{}\t{}", key, value)
+            println!("{key}\t{value}")
         }
     }
     Ok(())

@@ -1500,7 +1500,7 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
             assert_eq!(og_df.height(), cloned_df.height());
             assert_eq!(og_df.width(), cloned_df.width());
             assert_eq!(cloned_contents, og_sentiment_contents);
-            println!("Cloned {:?} {}", filename, cloned_df);
+            println!("Cloned {filename:?} {cloned_df}");
 
             // Status should be empty too
             let status = command::status(&cloned_repo)?;
@@ -2470,7 +2470,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         let status = command::status(&repo)?;
         assert_eq!(status.added_schemas.len(), 1);
         for (path, schema) in status.added_schemas.iter() {
-            println!("GOT SCHEMA {:?} -> {:?}", path, schema);
+            println!("GOT SCHEMA {path:?} -> {schema:?}");
         }
 
         // name the schema when staged
@@ -2525,7 +2525,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
             test::append_line_txt_file(bbox_file, "train/cat_3.jpg,cat,41.0,31.5,410,427")?;
         let their_branch_contents = util::fs::read_from_path(&bbox_file)?;
         let their_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
-        println!("their df {}", their_df);
+        println!("their df {their_df}");
 
         command::add(&repo, &bbox_file)?;
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
@@ -2549,7 +2549,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         // Run command::checkout_theirs() and make sure their changes get kept
         command::checkout_theirs(&repo, &bbox_filename)?;
         let restored_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
-        println!("restored df {}", restored_df);
+        println!("restored df {restored_df}");
 
         let file_contents = util::fs::read_from_path(&bbox_file)?;
 
@@ -2627,7 +2627,7 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
         opts.add_col = Some(String::from("random_col:unknown:str"));
         let df = tabular::scan_df(&bbox_file)?;
         let mut df = tabular::transform_df(df, opts)?;
-        println!("WRITE DF IN BRANCH {:?}", df);
+        println!("WRITE DF IN BRANCH {df:?}");
         tabular::write_df(&mut df, &bbox_file)?;
 
         // Add the changes
@@ -2652,7 +2652,7 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
 
         // Run command::checkout_theirs() and make sure we cannot
         let result = command::checkout_combine(&repo, bbox_filename);
-        println!("{:?}", result);
+        println!("{result:?}");
         assert!(result.is_err());
 
         Ok(())
@@ -2726,7 +2726,7 @@ fn test_diff_tabular_add_row() -> Result<(), OxenError> {
 
         match command::diff(&repo, None, &bbox_filename) {
             Ok(diff) => {
-                println!("{}", diff);
+                println!("{diff}");
 
                 assert_eq!(
                     diff,
@@ -2774,7 +2774,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
         match command::diff(&repo, None, &bbox_filename) {
             Ok(diff) => {
-                println!("{}", diff);
+                println!("{diff}");
 
                 assert_eq!(
                     diff,

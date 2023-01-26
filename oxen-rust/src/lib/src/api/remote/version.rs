@@ -3,7 +3,7 @@ use crate::error::OxenError;
 use crate::view::VersionResponse;
 
 pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
-    let url = format!("http://{}/api/version", host);
+    let url = format!("http://{host}/api/version");
     log::debug!("Checking version at url {}", url);
 
     let client = client::new_for_url(&url)?;
@@ -15,15 +15,11 @@ pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
         match response {
             Ok(val) => Ok(val.oxen_version),
             Err(_) => Err(OxenError::basic_str(format!(
-                "api::version::get_remote_version {} Err parsing response \n\n{}",
-                url, body
+                "api::version::get_remote_version {url} Err parsing response \n\n{body}"
             ))),
         }
     } else {
-        let err = format!(
-            "api::version::get_remote_version Err request failed: {}",
-            url
-        );
+        let err = format!("api::version::get_remote_version Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
 }

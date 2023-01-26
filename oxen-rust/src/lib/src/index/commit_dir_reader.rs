@@ -104,12 +104,12 @@ impl CommitDirReader {
 
     pub fn list_entry_page(
         &self,
-        page_num: usize,
+        page: usize,
         page_size: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
         let entries = self.list_entries()?;
 
-        let start_page = if page_num == 0 { 0 } else { page_num - 1 };
+        let start_page = if page == 0 { 0 } else { page - 1 };
         let start_idx = start_page * page_size;
 
         if (start_idx + page_size) < entries.len() {
@@ -127,7 +127,7 @@ impl CommitDirReader {
         &self,
         search_dir: &Path,
         branch_or_commit_id: &str,
-        page_num: usize,
+        page: usize,
         page_size: usize,
     ) -> Result<(Vec<DirEntry>, usize), OxenError> {
         let commit_reader = CommitReader::new(&self.repository)?;
@@ -152,7 +152,7 @@ impl CommitDirReader {
         let commit_dir_reader =
             CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
-        for file in commit_dir_reader.list_entry_page(page_num, page_size)? {
+        for file in commit_dir_reader.list_entry_page(page, page_size)? {
             file_paths.push(self.dir_entry_from_commit_entry(
                 &file,
                 &commit_reader,
@@ -164,8 +164,8 @@ impl CommitDirReader {
         dir_paths.append(&mut file_paths);
 
         log::debug!(
-            "list_directory page_num {} page_size {} total {}",
-            page_num,
+            "list_directory page {} page_size {} total {}",
+            page,
             page_size,
             total
         );
@@ -330,7 +330,7 @@ mod tests {
             let reader = CommitDirReader::new(&repo, commit)?;
             let (dir_entries, size) = reader.list_directory(Path::new("./"), &commit.id, 1, 10)?;
             for entry in dir_entries.iter() {
-                println!("{:?}", entry);
+                println!("{entry:?}");
             }
 
             assert_eq!(size, 7);
@@ -393,7 +393,7 @@ mod tests {
             let (dir_entries, size) =
                 reader.list_directory(Path::new("train"), &commit.id, 2, 3)?;
             for entry in dir_entries.iter() {
-                println!("{:?}", entry);
+                println!("{entry:?}");
             }
 
             assert_eq!(size, 5);

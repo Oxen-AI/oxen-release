@@ -128,13 +128,11 @@ pub fn write_to_path(path: &Path, value: &str) -> Result<(), OxenError> {
         Ok(mut file) => match file.write(value.as_bytes()) {
             Ok(_) => Ok(()),
             Err(err) => Err(OxenError::basic_str(format!(
-                "Could not write file {:?}\n{}",
-                path, err
+                "Could not write file {path:?}\n{err}"
             ))),
         },
         Err(err) => Err(OxenError::basic_str(format!(
-            "Could not create file to write {:?}\n{}",
-            path, err
+            "Could not create file to write {path:?}\n{err}"
         ))),
     }
 }
@@ -162,8 +160,7 @@ pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
         Ok(line)
     } else {
         Err(OxenError::basic_str(format!(
-            "Could not read line from file: {:?}",
-            file
+            "Could not read line from file: {file:?}"
         )))
     }
 }
@@ -263,7 +260,7 @@ pub fn rlist_paths_in_dir(dir: &Path) -> Vec<PathBuf> {
                 let path = val.path();
                 files.push(path);
             }
-            Err(err) => eprintln!("rlist_paths_in_dir Could not iterate over dir... {}", err),
+            Err(err) => eprintln!("rlist_paths_in_dir Could not iterate over dir... {err}"),
         }
     }
     files
@@ -283,7 +280,7 @@ pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
                     files.push(path);
                 }
             }
-            Err(err) => eprintln!("rlist_files_in_dir Could not iterate over dir... {}", err),
+            Err(err) => eprintln!("rlist_files_in_dir Could not iterate over dir... {err}"),
         }
     }
     files
@@ -403,10 +400,9 @@ pub fn rcount_files_with_extension(dir: &Path, exts: &HashSet<String>) -> usize 
                     count += 1
                 }
             }
-            Err(err) => eprintln!(
-                "recursive_files_with_extensions Could not iterate over dir... {}",
-                err
-            ),
+            Err(err) => {
+                eprintln!("recursive_files_with_extensions Could not iterate over dir... {err}")
+            }
         }
     }
     count
@@ -426,10 +422,9 @@ pub fn recursive_files_with_extensions(dir: &Path, exts: &HashSet<String>) -> Ve
                     files.push(path);
                 }
             }
-            Err(err) => eprintln!(
-                "recursive_files_with_extensions Could not iterate over dir... {}",
-                err
-            ),
+            Err(err) => {
+                eprintln!("recursive_files_with_extensions Could not iterate over dir... {err}")
+            }
         }
     }
     files
@@ -457,10 +452,9 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
                     }
                 }
             }
-            Err(err) => eprintln!(
-                "recursive_files_with_extensions Could not iterate over dir... {}",
-                err
-            ),
+            Err(err) => {
+                eprintln!("recursive_files_with_extensions Could not iterate over dir... {err}")
+            }
         }
     }
     files
@@ -527,7 +521,7 @@ pub fn rcount_files_in_dir(dir: &Path) -> usize {
                     count += 1;
                 }
             }
-            Err(err) => eprintln!("rcount_files_in_dir Could not iterate over dir... {}", err),
+            Err(err) => eprintln!("rcount_files_in_dir Could not iterate over dir... {err}"),
         }
     }
     count

@@ -38,9 +38,9 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
         Err(err) => {
             let warning = "Consider specifying a schema for the dtypes.".yellow();
             let suggestion = "You can set a schema for a file with: \n\n  oxen schemas set <file> \"col_name_1:dtype,col_name_2:dtype\" \n";
-            eprintln!("Warn: {}\n\n{}", warning, suggestion);
+            eprintln!("Warn: {warning}\n\n{suggestion}");
 
-            let err = format!("{}: {:?}", CSV_READ_ERROR, err);
+            let err = format!("{CSV_READ_ERROR}: {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -50,7 +50,7 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
     match CsvReader::from_path(path.as_ref()) {
         Ok(reader) => Ok(try_infer_schema_csv(reader, delimiter)?),
         Err(err) => {
-            let err = format!("{}: {:?}", CSV_READ_ERROR, err);
+            let err = format!("{CSV_READ_ERROR}: {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -64,7 +64,7 @@ pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, 
 
 pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let error_str = format!("Could not read json data from path {:?}", path);
+    let error_str = format!("Could not read json data from path {path:?}");
     let file = File::open(path)?;
     let df = JsonReader::new(file)
         .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
@@ -75,7 +75,7 @@ pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
 
 pub fn read_df_jsonl<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let error_str = format!("Could not read line delimited data from path {:?}", path);
+    let error_str = format!("Could not read line delimited data from path {path:?}");
     let file = File::open(path)?;
     let df = JsonLineReader::new(file)
         .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
@@ -98,7 +98,7 @@ pub fn scan_df_jsonl<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 
 pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let error_str = format!("Could not read tabular data from path {:?}", path);
+    let error_str = format!("Could not read tabular data from path {path:?}");
     let file = File::open(path)?;
     let df = ParquetReader::new(file).finish().expect(&error_str);
     Ok(df)
@@ -259,37 +259,31 @@ fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError
 fn agg_fn_to_expr(agg: &DFAggFn) -> Result<Expr, OxenError> {
     let col_name = &agg.args[0];
     match DFAggFnType::from_fn_name(&agg.name) {
-        DFAggFnType::List => Ok(col(col_name).alias(&format!("list('{}')", col_name))),
-        DFAggFnType::Count => Ok(col(col_name)
-            .count()
-            .alias(&format!("count('{}')", col_name))),
+        DFAggFnType::List => Ok(col(col_name).alias(&format!("list('{col_name}')"))),
+        DFAggFnType::Count => Ok(col(col_name).count().alias(&format!("count('{col_name}')"))),
         DFAggFnType::NUnique => Ok(col(col_name)
             .n_unique()
-            .alias(&format!("n_unique('{}')", col_name))),
-        DFAggFnType::Min => Ok(col(col_name).min().alias(&format!("min('{}')", col_name))),
-        DFAggFnType::Max => Ok(col(col_name).max().alias(&format!("max('{}')", col_name))),
+            .alias(&format!("n_unique('{col_name}')"))),
+        DFAggFnType::Min => Ok(col(col_name).min().alias(&format!("min('{col_name}')"))),
+        DFAggFnType::Max => Ok(col(col_name).max().alias(&format!("max('{col_name}')"))),
         DFAggFnType::ArgMin => Ok(col(col_name)
             .arg_min()
-            .alias(&format!("arg_min('{}')", col_name))),
-        DFAggFnType::ArgMax => Ok(col(col_name)
-            .arg_max()
-            .alias(&format!("max('{}')", col_name))),
-        DFAggFnType::Mean => Ok(col(col_name).mean().alias(&format!("mean('{}')", col_name))),
+            .alias(&format!("arg_min('{col_name}')"))),
+        DFAggFnType::ArgMax => Ok(col(col_name).arg_max().alias(&format!("max('{col_name}')"))),
+        DFAggFnType::Mean => Ok(col(col_name).mean().alias(&format!("mean('{col_name}')"))),
         DFAggFnType::Median => Ok(col(col_name)
             .median()
-            .alias(&format!("median('{}')", col_name))),
-        DFAggFnType::Std => Ok(col(col_name).std(0).alias(&format!("std('{}')", col_name))),
-        DFAggFnType::Var => Ok(col(col_name).var(0).alias(&format!("var('{}')", col_name))),
-        DFAggFnType::First => Ok(col(col_name)
-            .first()
-            .alias(&format!("first('{}')", col_name))),
-        DFAggFnType::Last => Ok(col(col_name).last().alias(&format!("last('{}')", col_name))),
+            .alias(&format!("median('{col_name}')"))),
+        DFAggFnType::Std => Ok(col(col_name).std(0).alias(&format!("std('{col_name}')"))),
+        DFAggFnType::Var => Ok(col(col_name).var(0).alias(&format!("var('{col_name}')"))),
+        DFAggFnType::First => Ok(col(col_name).first().alias(&format!("first('{col_name}')"))),
+        DFAggFnType::Last => Ok(col(col_name).last().alias(&format!("last('{col_name}')"))),
         DFAggFnType::Head => Ok(col(col_name)
             .head(Some(5))
-            .alias(&format!("head('{}', 5)", col_name))),
+            .alias(&format!("head('{col_name}', 5)"))),
         DFAggFnType::Tail => Ok(col(col_name)
             .tail(Some(5))
-            .alias(&format!("tail('{}', 5)", col_name))),
+            .alias(&format!("tail('{col_name}', 5)"))),
         DFAggFnType::Unknown => Err(OxenError::unknown_agg_fn(&agg.name)),
     }
 }
@@ -401,10 +395,10 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts);
-    if opts.page_num.is_some() || opts.page_size.is_some() {
-        let page_num = opts.page_num.unwrap_or(1);
+    if opts.page.is_some() || opts.page_size.is_some() {
+        let page = opts.page.unwrap_or(1);
         let page_size = opts.page_size.unwrap_or(10);
-        let start = (page_num - 1) * page_size;
+        let start = (page - 1) * page_size;
         df.slice(start as i64, page_size as u32)
     } else if let Some((start, end)) = opts.slice_indices() {
         log::debug!("SLICE with indices {:?}..{:?}", start, end);
@@ -518,7 +512,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {:?}", extension);
+    let err = format!("Unknown file type {extension:?}");
 
     if opts.has_transform() {
         let df = scan_df(path)?;
@@ -544,7 +538,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
 pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {:?}", extension);
+    let err = format!("Unknown file type {extension:?}");
 
     match extension {
         Some(extension) => match extension {
@@ -562,7 +556,7 @@ pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
 
 pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(), OxenError> {
     let output = output.as_ref();
-    let error_str = format!("Could not save tabular data to path: {:?}", output);
+    let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     JsonWriter::new(f)
@@ -574,7 +568,7 @@ pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<()
 
 pub fn write_df_jsonl<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(), OxenError> {
     let output = output.as_ref();
-    let error_str = format!("Could not save tabular data to path: {:?}", output);
+    let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     JsonWriter::new(f)
@@ -590,7 +584,7 @@ pub fn write_df_csv<P: AsRef<Path>>(
     delimiter: u8,
 ) -> Result<(), OxenError> {
     let output = output.as_ref();
-    let error_str = format!("Could not save tabular data to path: {:?}", output);
+    let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     CsvWriter::new(f)
@@ -603,7 +597,7 @@ pub fn write_df_csv<P: AsRef<Path>>(
 
 pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(), OxenError> {
     let output = output.as_ref();
-    let error_str = format!("Could not save tabular data to path: {:?}", output);
+    let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     ParquetWriter::new(f).finish(df).expect(&error_str);
@@ -612,7 +606,7 @@ pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result
 
 pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(), OxenError> {
     let output = output.as_ref();
-    let error_str = format!("Could not save tabular data to path: {:?}", output);
+    let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     IpcWriter::new(f).finish(df).expect(&error_str);
@@ -622,7 +616,7 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
 pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {:?}", extension);
+    let err = format!("Unknown file type {extension:?}");
 
     match extension {
         Some(extension) => match extension {
@@ -663,16 +657,16 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
             match val {
                 polars::prelude::AnyValue::List(vals) => {
                     for val in vals.iter() {
-                        println!("{}", val)
+                        println!("{val}")
                     }
                 }
                 _ => {
-                    println!("{}", val)
+                    println!("{val}")
                 }
             }
         }
     } else {
-        println!("{}", df);
+        println!("{df}");
     }
 
     Ok(df)
@@ -686,13 +680,13 @@ pub fn schema_to_string<P: AsRef<Path>>(input: P, flatten: bool) -> Result<Strin
         let mut result = String::new();
         for (i, field) in schema.iter_fields().enumerate() {
             if i != 0 {
-                result = format!("{},", result);
+                result = format!("{result},");
             }
 
             let dtype = DataType::from_polars(field.data_type());
             let field_str = String::from(field.name());
             let dtype_str = String::from(DataType::as_str(&dtype));
-            result = format!("{}{}:{}", result, field_str, dtype_str);
+            result = format!("{result}{field_str}:{dtype_str}");
         }
 
         Ok(result)
@@ -707,7 +701,7 @@ pub fn schema_to_string<P: AsRef<Path>>(input: P, flatten: bool) -> Result<Strin
             table.add_row(vec![field_str, dtype_str]);
         }
 
-        Ok(format!("{}", table))
+        Ok(format!("{table}"))
     }
 }
 
@@ -742,7 +736,7 @@ mod tests {
 ╞══════════╪═══════╪═══════╪═══════╡
 │ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
 └──────────┴───────┴───────┴───────┘",
-            format!("{}", filtered_df)
+            format!("{filtered_df}")
         );
 
         Ok(())
@@ -762,7 +756,7 @@ mod tests {
         let filter = filter::parse(query)?.unwrap();
         let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
 
-        println!("{}", filtered_df);
+        println!("{filtered_df}");
 
         assert_eq!(
             r"shape: (2, 4)
@@ -775,7 +769,7 @@ mod tests {
 ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
 │ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
 └──────────┴───────┴───────┴───────┘",
-            format!("{}", filtered_df)
+            format!("{filtered_df}")
         );
 
         Ok(())
@@ -796,7 +790,7 @@ mod tests {
         let filter = filter::parse(query)?.unwrap();
         let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
 
-        println!("{}", filtered_df);
+        println!("{filtered_df}");
 
         assert_eq!(
             r"shape: (1, 5)
@@ -807,7 +801,7 @@ mod tests {
 ╞══════════╪═══════╪═══════╪═══════╪════════════╡
 │ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
 └──────────┴───────┴───────┴───────┴────────────┘",
-            format!("{}", filtered_df)
+            format!("{filtered_df}")
         );
 
         Ok(())
@@ -830,7 +824,7 @@ mod tests {
         opts.sort_by = Some(String::from("image"));
         let filtered_df = tabular::transform_df(df.lazy(), opts)?;
 
-        println!("{}", filtered_df);
+        println!("{filtered_df}");
 
         assert_eq!(
             r"shape: (2, 5)
@@ -843,7 +837,7 @@ mod tests {
 ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
 │ 0002.jpg ┆ unknown ┆ 2.0   ┆ 5.0   ┆ false      │
 └──────────┴─────────┴───────┴───────┴────────────┘",
-            format!("{}", filtered_df)
+            format!("{filtered_df}")
         );
 
         Ok(())
@@ -866,7 +860,7 @@ mod tests {
         opts.sort_by = Some(String::from("image"));
         let filtered_df = tabular::transform_df(df.lazy(), opts)?;
 
-        println!("{}", filtered_df);
+        println!("{filtered_df}");
 
         assert_eq!(
             r"shape: (2, 5)
@@ -879,7 +873,7 @@ mod tests {
 ├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
 │ 0002.jpg ┆ dog   ┆ 2.0   ┆ 5.0   ┆ false      │
 └──────────┴───────┴───────┴───────┴────────────┘",
-            format!("{}", filtered_df)
+            format!("{filtered_df}")
         );
 
         Ok(())
@@ -889,7 +883,7 @@ mod tests {
     fn test_read_json() -> Result<(), OxenError> {
         let df = tabular::read_df_json("data/test/text/test.json")?;
 
-        println!("{}", df);
+        println!("{df}");
 
         assert_eq!(
             r"shape: (2, 3)
@@ -902,7 +896,7 @@ mod tests {
 ├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
 │ 1   ┆ I hate it ┆ negative │
 └─────┴───────────┴──────────┘",
-            format!("{}", df)
+            format!("{df}")
         );
 
         Ok(())
@@ -912,7 +906,7 @@ mod tests {
     fn test_read_jsonl() -> Result<(), OxenError> {
         let df = tabular::read_df_jsonl("data/test/text/test.jsonl")?;
 
-        println!("{}", df);
+        println!("{df}");
 
         assert_eq!(
             r"shape: (2, 3)
@@ -925,7 +919,7 @@ mod tests {
 ├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
 │ 1   ┆ I hate it ┆ negative │
 └─────┴───────────┴──────────┘",
-            format!("{}", df)
+            format!("{df}")
         );
 
         Ok(())

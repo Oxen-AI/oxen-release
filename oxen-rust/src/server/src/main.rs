@@ -110,9 +110,9 @@ async fn main() -> std::io::Result<()> {
             match (sub_matches.value_of("ip"), sub_matches.value_of("port")) {
                 (Some(host), Some(port)) => {
                     let port: u16 = port.parse::<u16>().expect(INVALID_PORT_MSG);
-                    println!("🐂 v{}", VERSION);
-                    println!("Running on {}:{}", host, port);
-                    println!("Syncing to directory: {}", sync_dir);
+                    println!("🐂 v{VERSION}");
+                    println!("Running on {host}:{port}");
+                    println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.is_present("auth");
 
                     let data = app_data::OxenAppData::from(&sync_dir);
@@ -141,7 +141,7 @@ async fn main() -> std::io::Result<()> {
                     .await
                 }
                 _ => {
-                    eprintln!("{}", START_SERVER_USAGE);
+                    eprintln!("{START_SERVER_USAGE}");
                     Ok(())
                 }
             }
@@ -165,21 +165,21 @@ async fn main() -> std::io::Result<()> {
                                 let cfg = UserConfig::from_user(&user);
                                 match cfg.save(Path::new(output)) {
                                     Ok(_) => {
-                                        println!("User access token created:\n\n{}\n\nTo give user access have them run the command `oxen config --auth <HOST> <TOKEN>`", token)
+                                        println!("User access token created:\n\n{token}\n\nTo give user access have them run the command `oxen config --auth <HOST> <TOKEN>`")
                                     }
                                     Err(error) => {
-                                        eprintln!("Err: {:?}", error);
+                                        eprintln!("Err: {error:?}");
                                     }
                                 }
                             }
                             Err(err) => {
-                                eprintln!("Err: {}", err)
+                                eprintln!("Err: {err}")
                             }
                         }
                     }
                 }
                 _ => {
-                    eprintln!("{}", ADD_USER_USAGE)
+                    eprintln!("{ADD_USER_USAGE}")
                 }
             }
 

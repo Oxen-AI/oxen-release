@@ -17,13 +17,13 @@ impl Field {
             let name_3 = fields[fields.len() - 1].name.to_owned();
 
             let combined_names = [name_0, name_1, String::from("..."), name_2, name_3].join(", ");
-            format!("[{}]", combined_names)
+            format!("[{combined_names}]")
         } else {
             let names: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
 
             let combined_names = names.join(", ");
 
-            format!("[{}]", combined_names)
+            format!("[{combined_names}]")
         }
     }
 }
