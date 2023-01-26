@@ -5,11 +5,11 @@ use url::Url;
 const API_NAMESPACE: &str = "/api/repos";
 
 pub fn url_from_host(host: &str, uri: &str) -> String {
-    format!("http://{}{}{}", host, API_NAMESPACE, uri)
+    format!("http://{host}{API_NAMESPACE}{uri}")
 }
 
 pub fn remote_url_from_host(host: &str, namespace: &str, name: &str) -> String {
-    format!("http://{}/{}/{}", host, namespace, name)
+    format!("http://{host}/{namespace}/{name}")
 }
 
 pub fn url_from_remote_url(url: &str) -> Result<String, OxenError> {
@@ -28,7 +28,7 @@ pub fn url_from_remote(remote: &Remote, uri: &str) -> Result<String, OxenError> 
     parsed_url.set_path("");
     let mut remote_url = parsed_url.to_string();
     remote_url.pop(); // to_string adds a trailing slash we don't want
-    Ok(format!("{}{}", remote_url, new_path))
+    Ok(format!("{remote_url}{new_path}"))
 }
 
 pub fn url_from_repo(repo: &RemoteRepository, uri: &str) -> Result<String, OxenError> {

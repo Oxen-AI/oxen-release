@@ -13,7 +13,7 @@ pub async fn init(sub_matches: &ArgMatches) {
     match dispatch::init(path).await {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -24,7 +24,7 @@ pub fn config(sub_matches: &ArgMatches) {
             match dispatch::set_auth_token(host, token) {
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!("{}", err)
+                    eprintln!("{err}")
                 }
             }
         } else {
@@ -36,7 +36,7 @@ pub fn config(sub_matches: &ArgMatches) {
         match dispatch::set_user_name(name) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -45,7 +45,7 @@ pub fn config(sub_matches: &ArgMatches) {
         match dispatch::set_user_email(email) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -54,7 +54,7 @@ pub fn config(sub_matches: &ArgMatches) {
         match dispatch::set_default_host(email) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -68,7 +68,7 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
     match dispatch::create_remote(namespace, name, host).await {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -83,7 +83,7 @@ pub fn remote(sub_matches: &ArgMatches) {
                 match dispatch::add_remote(name, url) {
                     Ok(_) => {}
                     Err(err) => {
-                        eprintln!("{}", err)
+                        eprintln!("{err}")
                     }
                 }
             }
@@ -93,12 +93,12 @@ pub fn remote(sub_matches: &ArgMatches) {
                 match dispatch::remove_remote(name) {
                     Ok(_) => {}
                     Err(err) => {
-                        eprintln!("{}", err)
+                        eprintln!("{err}")
                     }
                 }
             }
             (command, _) => {
-                eprintln!("Invalid subcommand: {}", command)
+                eprintln!("Invalid subcommand: {command}")
             }
         }
     } else if sub_matches.is_present("verbose") {
@@ -124,7 +124,7 @@ pub fn status(sub_matches: &ArgMatches) {
     match dispatch::status(skip, limit, print_all) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err);
+            eprintln!("{err}");
         }
     }
 }
@@ -133,7 +133,7 @@ pub fn log() {
     match dispatch::log_commits() {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -182,7 +182,7 @@ pub fn df(sub_matches: &ArgMatches) {
         match dispatch::df_schema(path, sub_matches.is_present("schema_flat")) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     } else {
@@ -191,7 +191,7 @@ pub fn df(sub_matches: &ArgMatches) {
         match dispatch::df(path, opts) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -204,7 +204,7 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 match dispatch::schema_list(sub_matches.is_present("staged")) {
                     Ok(_) => {}
                     Err(err) => {
-                        eprintln!("{}", err)
+                        eprintln!("{err}")
                     }
                 }
             }
@@ -214,7 +214,7 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 match dispatch::schema_show(val, sub_matches.is_present("staged")) {
                     Ok(_) => {}
                     Err(err) => {
-                        eprintln!("{}", err)
+                        eprintln!("{err}")
                     }
                 }
             }
@@ -224,19 +224,19 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 match dispatch::schema_name(hash, val) {
                     Ok(_) => {}
                     Err(err) => {
-                        eprintln!("{}", err)
+                        eprintln!("{err}")
                     }
                 }
             }
             (cmd, _) => {
-                eprintln!("Unknown subcommand {}", cmd)
+                eprintln!("Unknown subcommand {cmd}")
             }
         }
     } else {
         match dispatch::schema_list(false) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -252,7 +252,7 @@ pub fn add(sub_matches: &ArgMatches) {
     match dispatch::add(paths) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -267,7 +267,7 @@ pub fn rm(sub_matches: &ArgMatches) {
     match dispatch::rm(paths) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -292,7 +292,7 @@ pub fn restore(sub_matches: &ArgMatches) {
     match dispatch::restore(opts) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -300,34 +300,34 @@ pub fn restore(sub_matches: &ArgMatches) {
 pub async fn branch(sub_matches: &ArgMatches) {
     if sub_matches.is_present("all") {
         if let Err(err) = dispatch::list_all_branches().await {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if let Some(remote_name) = sub_matches.value_of("remote") {
         if let Some(branch_name) = sub_matches.value_of("delete") {
             if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name).await {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         } else if let Err(err) = dispatch::list_remote_branches(remote_name).await {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if let Some(name) = sub_matches.value_of("name") {
         if let Err(err) = dispatch::create_branch(name) {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if let Some(name) = sub_matches.value_of("delete") {
         if let Err(err) = dispatch::delete_branch(name) {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if let Some(name) = sub_matches.value_of("force-delete") {
         if let Err(err) = dispatch::force_delete_branch(name) {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if sub_matches.is_present("show-current") {
         if let Err(err) = dispatch::show_current_branch() {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if let Err(err) = dispatch::list_branches() {
-        eprintln!("{}", err)
+        eprintln!("{err}")
     }
 }
 
@@ -335,17 +335,17 @@ pub fn checkout(sub_matches: &ArgMatches) {
     if sub_matches.is_present("create") {
         let name = sub_matches.value_of("create").expect("required");
         if let Err(err) = dispatch::create_checkout_branch(name) {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if sub_matches.is_present("theirs") {
         let name = sub_matches.value_of("name").expect("required");
         if let Err(err) = dispatch::checkout_theirs(name) {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else if sub_matches.is_present("name") {
         let name = sub_matches.value_of("name").expect("required");
         if let Err(err) = dispatch::checkout(name) {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     } else {
         eprintln!("Err: Usage `oxen checkout <name>`");
@@ -359,7 +359,7 @@ pub fn merge(sub_matches: &ArgMatches) {
     match dispatch::merge(branch) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -373,12 +373,12 @@ pub async fn push(sub_matches: &ArgMatches) {
         .unwrap_or(DEFAULT_BRANCH_NAME);
 
     if sub_matches.is_present("delete") {
-        println!("Delete remote branch {}/{}", remote, branch);
+        println!("Delete remote branch {remote}/{branch}");
     } else {
         match dispatch::push(remote, branch).await {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -394,7 +394,7 @@ pub async fn pull(sub_matches: &ArgMatches) {
     match dispatch::pull(remote, branch).await {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -407,14 +407,14 @@ pub fn diff(sub_matches: &ArgMatches) {
         match dispatch::diff(Some(file_or_commit_id), path) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     } else {
         match dispatch::diff(None, file_or_commit_id) {
             Ok(_) => {}
             Err(err) => {
-                eprintln!("{}", err)
+                eprintln!("{err}")
             }
         }
     }
@@ -425,7 +425,7 @@ pub async fn clone(sub_matches: &ArgMatches) {
     match dispatch::clone(url).await {
         Ok(_) => {}
         Err(err) => {
-            println!("Err: {}", err)
+            println!("Err: {err}")
         }
     }
 }
@@ -439,7 +439,7 @@ pub fn commit(sub_matches: &ArgMatches) {
     match dispatch::commit(args) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err)
+            eprintln!("{err}")
         }
     }
 }
@@ -452,7 +452,7 @@ pub fn migrate(sub_matches: &ArgMatches) {
         match command::migrate_all_repos(path) {
             Ok(_) => {}
             Err(err) => {
-                println!("Err: {}", err)
+                println!("Err: {err}")
             }
         }
     } else {
@@ -460,11 +460,11 @@ pub fn migrate(sub_matches: &ArgMatches) {
             Ok(repo) => match command::migrate_repo(&repo) {
                 Ok(_) => {}
                 Err(err) => {
-                    println!("Err: {}", err)
+                    println!("Err: {err}")
                 }
             },
             Err(err) => {
-                println!("Err: {}", err)
+                println!("Err: {err}")
             }
         }
     }
@@ -476,7 +476,7 @@ pub fn kvdb_inspect(sub_matches: &ArgMatches) {
     match dispatch::inspect(path) {
         Ok(_) => {}
         Err(err) => {
-            println!("Err: {}", err)
+            println!("Err: {err}")
         }
     }
 }
@@ -497,7 +497,7 @@ pub fn read_lines(sub_matches: &ArgMatches) {
     let path = Path::new(path_str);
     let (lines, size) = util::fs::read_lines_paginated_ret_size(path, start, length);
     for line in lines.iter() {
-        println!("{}", line);
+        println!("{line}");
     }
-    println!("Total: {}", size);
+    println!("Total: {size}");
 }

@@ -522,7 +522,7 @@ impl Stager {
                     }
                 }
                 Err(error) => {
-                    println!("Read dir_entry error: {}", error);
+                    println!("Read dir_entry error: {error}");
                 }
             }
         }
@@ -531,7 +531,7 @@ impl Stager {
 
     pub fn add_dir(&self, dir: &Path, entry_reader: &CommitDirReader) -> Result<(), OxenError> {
         if !dir.exists() || !dir.is_dir() {
-            let err = format!("Cannot stage non-existant dir: {:?}", dir);
+            let err = format!("Cannot stage non-existant dir: {dir:?}");
             return Err(OxenError::basic_str(err));
         }
 
@@ -544,7 +544,7 @@ impl Stager {
         let (dir_paths, total) = self.list_unadded_files_in_dir(dir);
         log::debug!("Stager.add_dir {:?} -> {}", dir, total);
 
-        println!("Adding files in directory: {:?}", short_path);
+        println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
         dir_paths.par_iter().for_each(|(parent, paths)| {
@@ -912,7 +912,7 @@ impl Stager {
         }
 
         if !full_path.is_dir() {
-            let err = format!("Path must be a directory {:?}", short_path);
+            let err = format!("Path must be a directory {short_path:?}");
             return Err(OxenError::basic_str(err));
         }
 

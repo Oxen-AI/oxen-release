@@ -79,7 +79,7 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
         match p_index_commit_or_branch_history(&repo_dir, commit_or_branch) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
-                let msg = format!("api err: {}", err);
+                let msg = format!("api err: {err}");
                 HttpResponse::NotFound().json(StatusMessage::error(&msg))
             }
         }
@@ -152,7 +152,7 @@ pub async fn is_synced(req: HttpRequest) -> HttpResponse {
                                 err => HttpResponse::Ok().json(IsValidStatusMessage {
                                     status: String::from(STATUS_ERROR),
                                     status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                                    status_description: format!("Err: {:?}", err),
+                                    status_description: format!("Err: {err:?}"),
                                     is_processing: false,
                                     is_valid: false,
                                 }),
@@ -178,7 +178,7 @@ pub async fn is_synced(req: HttpRequest) -> HttpResponse {
                             HttpResponse::Ok().json(IsValidStatusMessage {
                                 status: String::from(STATUS_ERROR),
                                 status_message: String::from(MSG_FAILED_PROCESS),
-                                status_description: format!("Err: {}", error_str),
+                                status_description: format!("Err: {error_str}"),
                                 is_processing: false,
                                 is_valid: false,
                             })
@@ -197,7 +197,7 @@ pub async fn is_synced(req: HttpRequest) -> HttpResponse {
                             HttpResponse::Ok().json(IsValidStatusMessage {
                                 status: String::from(STATUS_ERROR),
                                 status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                                status_description: format!("Err: {:?}", err),
+                                status_description: format!("Err: {err:?}"),
                                 is_processing: false,
                                 is_valid: false,
                             })
@@ -438,7 +438,7 @@ pub async fn upload_chunk(
 
                     // Create a tmp dir for this upload
                     let tmp_dir = hidden_dir.join("tmp").join("chunked").join(id);
-                    let chunk_file = tmp_dir.join(format!("chunk_{:016}", chunk_num));
+                    let chunk_file = tmp_dir.join(format!("chunk_{chunk_num:016}"));
 
                     // mkdir if !exists
                     if !tmp_dir.exists() {
@@ -825,14 +825,14 @@ mod tests {
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
 
-        let uri = format!("/oxen/{}/{}/commits", namespace, name);
+        let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await;
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
-        println!("Got response: {}", text);
+        println!("Got response: {text}");
         let list: ListCommitResponse = serde_json::from_str(text)?;
         // Plus the initial commit
         assert_eq!(list.commits.len(), 1);
@@ -858,7 +858,7 @@ mod tests {
         command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
-        let uri = format!("/oxen/{}/{}/commits", namespace, name);
+        let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await;
@@ -893,10 +893,7 @@ mod tests {
         command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
-        let uri = format!(
-            "/oxen/{}/{}/commits/{}/history",
-            namespace, repo_name, branch_name
-        );
+        let uri = format!("/oxen/{namespace}/{repo_name}/commits/{branch_name}/history");
         let req = test::repo_request_with_param(
             &sync_dir,
             &uri,
@@ -1037,7 +1034,7 @@ mod tests {
             .join(OXEN_HIDDEN_DIR)
             .join(path_to_compress)
             .join(zipped_filename);
-        println!("Looking for file: {:?}", uploaded_file);
+        println!("Looking for file: {uploaded_file:?}");
         assert!(uploaded_file.exists());
         assert_eq!(
             util::fs::read_from_path(&uploaded_file)?,

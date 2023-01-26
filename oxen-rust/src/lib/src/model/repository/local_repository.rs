@@ -112,7 +112,7 @@ impl LocalRepository {
             Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst).await?)),
             Ok(None) => Ok(None),
             Err(_) => {
-                let err = format!("Could not clone remote {} not found", url);
+                let err = format!("Could not clone remote {url} not found");
                 Err(OxenError::basic_str(err))
             }
         }

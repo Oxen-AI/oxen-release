@@ -103,7 +103,7 @@ impl AccessKeyManager {
                 ))
             }
             Err(_) => {
-                let err = format!("Could not create access key for: {:?}", user_claims);
+                let err = format!("Could not create access key for: {user_claims:?}");
                 Err(OxenError::basic_str(err))
             }
         }
@@ -119,7 +119,7 @@ impl AccessKeyManager {
             }
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!("Err could not red from commit db: {}", err);
+                let err = format!("Err could not red from commit db: {err}");
                 Err(OxenError::basic_str(err))
             }
         }

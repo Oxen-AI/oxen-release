@@ -34,7 +34,7 @@ pub fn create(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
 pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     if let Ok(Some(branch)) = command::current_branch(repo) {
         if branch.name == name {
-            let err = format!("Err: Cannot delete current checked out branch '{}'", name);
+            let err = format!("Err: Cannot delete current checked out branch '{name}'");
             return Err(OxenError::basic_str(err));
         }
     }
@@ -43,7 +43,7 @@ pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
         let ref_writer = RefWriter::new(repo)?;
         ref_writer.delete_branch(name)
     } else {
-        let err = format!("Err: The branch '{}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {}'.", name, name);
+        let err = format!("Err: The branch '{name}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {name}'.");
         Err(OxenError::basic_str(err))
     }
 }
@@ -67,7 +67,7 @@ fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, Ox
             Ok(false)
         }
     } else {
-        let err = format!("Err: The branch '{}' does not exist.", name);
+        let err = format!("Err: The branch '{name}' does not exist.");
         Err(OxenError::basic_str(err))
     }
 }
@@ -75,7 +75,7 @@ fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, Ox
 pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     if let Ok(Some(branch)) = command::current_branch(repo) {
         if branch.name == name {
-            let err = format!("Err: Cannot delete current checked out branch '{}'", name);
+            let err = format!("Err: Cannot delete current checked out branch '{name}'");
             return Err(OxenError::basic_str(err));
         }
     }

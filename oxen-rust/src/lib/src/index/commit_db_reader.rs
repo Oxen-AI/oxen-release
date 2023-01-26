@@ -78,10 +78,7 @@ impl CommitDBReader {
             }
             Ok(None) => Ok(None),
             Err(err) => {
-                let err = format!(
-                    "Error commits_db to find commit_id {:?}\nErr: {}",
-                    commit_id, err
-                );
+                let err = format!("Error commits_db to find commit_id {commit_id:?}\nErr: {err}");
                 Err(OxenError::basic_str(err))
             }
         }

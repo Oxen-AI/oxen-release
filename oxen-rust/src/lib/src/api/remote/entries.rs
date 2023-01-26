@@ -51,13 +51,12 @@ pub async fn create(
             match response {
                 Ok(result) => Ok(result.entry),
                 Err(_) => Err(OxenError::basic_str(format!(
-                    "Error deserializing EntryResponse: \n\n{}",
-                    body
+                    "Error deserializing EntryResponse: \n\n{body}"
                 ))),
             }
         }
         Err(err) => {
-            let err = format!("api::entries::create err: {}", err);
+            let err = format!("api::entries::create err: {err}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -70,10 +69,7 @@ pub async fn download_entries(
     page: &usize,
     page_size: &usize,
 ) -> Result<(), OxenError> {
-    let uri = format!(
-        "/commits/{}/download_entries?page={}&page_size={}",
-        commit_id, page, page_size
-    );
+    let uri = format!("/commits/{commit_id}/download_entries?page={page}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
@@ -89,14 +85,11 @@ pub async fn download_entries(
 
             Ok(())
         } else {
-            let err = format!(
-                "api::entries::download_entries Err request failed [{}] {}",
-                status, url
-            );
+            let err = format!("api::entries::download_entries Err request failed [{status}] {url}");
             Err(OxenError::basic_str(err))
         }
     } else {
-        let err = format!("api::entries::download_entries Err request failed: {}", url);
+        let err = format!("api::entries::download_entries Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
 }
@@ -125,7 +118,7 @@ pub async fn download_large_entry(
             chunk_size = total_size % chunk_size;
         }
 
-        let filename = format!("chunk_{}", i);
+        let filename = format!("chunk_{i}");
         let tmp_file = tmp_dir.join(filename);
 
         try_download_entry_chunk(remote_repo, entry, &tmp_file, total_read, chunk_size).await?;
@@ -147,7 +140,7 @@ pub async fn download_large_entry(
     match std::fs::File::create(&full_path) {
         Ok(mut combined_file) => {
             for i in 0..num_chunks {
-                let filename = format!("chunk_{}", i);
+                let filename = format!("chunk_{i}");
                 let tmp_file = tmp_dir.join(filename);
 
                 log::debug!("Reading file bytes {:?}", tmp_file);
@@ -169,14 +162,14 @@ pub async fn download_large_entry(
                         }
                     }
                     Err(err) => {
-                        let err = format!("Could not read chunk file {:?}: {}", tmp_file, err);
+                        let err = format!("Could not read chunk file {tmp_file:?}: {err}");
                         return Err(OxenError::basic_str(err));
                     }
                 }
             }
         }
         Err(err) => {
-            let err = format!("Could not write combined file {:?}: {}", full_path, err);
+            let err = format!("Could not write combined file {full_path:?}: {err}");
             return Err(OxenError::basic_str(err));
         }
     }
@@ -187,17 +180,14 @@ pub async fn download_large_entry(
     if let Some(parent) = version_path.parent() {
         if !parent.exists() {
             log::debug!("Creating parent {:?}", parent);
-            let err = format!("Could not create version dir path {:?}", parent);
+            let err = format!("Could not create version dir path {parent:?}");
             std::fs::create_dir_all(parent).expect(&err);
         }
     }
     match std::fs::copy(&full_path, &version_path) {
         Ok(_) => {}
         Err(err) => {
-            let err = format!(
-                "Could not copy file {:?} to {:?}: {}",
-                full_path, version_path, err
-            );
+            let err = format!("Could not copy file {full_path:?} to {version_path:?}: {err}");
             return Err(OxenError::basic_str(err));
         }
     }
@@ -268,7 +258,7 @@ async fn download_entry_chunk(
         std::io::copy(&mut content, &mut dest)?;
         Ok(())
     } else {
-        let err = format!("Could not download entry status: {}", status);
+        let err = format!("Could not download entry status: {status}");
         Err(OxenError::basic_str(err))
     }
 }
@@ -314,7 +304,7 @@ pub async fn try_download_data_from_version_paths(
 ) -> Result<u64, OxenError> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     for content_id in content_ids.iter() {
-        let line = format!("{}\n", content_id);
+        let line = format!("{content_id}\n");
         encoder.write_all(line.as_bytes())?;
     }
     let body = encoder.finish()?;
@@ -359,10 +349,8 @@ pub async fn try_download_data_from_version_paths(
 
         Ok(size)
     } else {
-        let err = format!(
-            "api::entries::download_data_from_version_paths Err request failed: {}",
-            url
-        );
+        let err =
+            format!("api::entries::download_data_from_version_paths Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
 }
@@ -412,7 +400,7 @@ pub async fn download_entry(
 
         std::fs::copy(fpath, version_path)?;
     } else {
-        let err = format!("Could not download entry status: {}", status);
+        let err = format!("Could not download entry status: {status}");
         return Err(OxenError::basic_str(err));
     }
 
@@ -445,7 +433,7 @@ mod tests {
 
             let entry = entries.last().unwrap();
             let result = api::remote::entries::create(&local_repo, &remote_repo, entry).await;
-            println!("{:?}", result);
+            println!("{result:?}");
             assert!(result.is_ok());
 
             Ok(remote_repo)

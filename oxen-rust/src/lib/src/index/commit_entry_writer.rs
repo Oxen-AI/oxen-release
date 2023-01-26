@@ -311,7 +311,7 @@ impl CommitEntryWriter {
             StagedEntryStatus::Removed => match writer.remove_path_from_db(path) {
                 Ok(_) => {}
                 Err(err) => {
-                    let err = format!("Failed to remove file: {}", err);
+                    let err = format!("Failed to remove file: {err}");
                     panic!("{}", err)
                 }
             },
@@ -319,7 +319,7 @@ impl CommitEntryWriter {
                 match self.add_staged_entry_to_db(writer, commit, entry, path) {
                     Ok(_) => {}
                     Err(err) => {
-                        let err = format!("Failed to commit MODIFIED file: {}", err);
+                        let err = format!("Failed to commit MODIFIED file: {err}");
                         panic!("{}", err)
                     }
                 }
@@ -328,7 +328,7 @@ impl CommitEntryWriter {
                 match self.add_staged_entry_to_db(writer, commit, entry, path) {
                     Ok(_) => {}
                     Err(err) => {
-                        let err = format!("Failed to ADD file: {}", err);
+                        let err = format!("Failed to ADD file: {err}");
                         panic!("{}", err)
                     }
                 }

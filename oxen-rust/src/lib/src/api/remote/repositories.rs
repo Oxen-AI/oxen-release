@@ -31,8 +31,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(format!(
-                    "api::repositories::get_by_remote() Could not deserialize repository [{}]",
-                    url
+                    "api::repositories::get_by_remote() Could not deserialize repository [{url}]"
                 )))
             }
         }
@@ -69,15 +68,12 @@ pub async fn create<S: AsRef<str>>(
                 },
             )),
             Err(err) => {
-                let err = format!(
-                    "Could not create or find repository [{}]: {}\n{}",
-                    name, err, body
-                );
+                let err = format!("Could not create or find repository [{name}]: {err}\n{body}");
                 Err(OxenError::basic_str(err))
             }
         }
     } else {
-        let err = format!("Create repository could not connect to {}. Make sure you have the correct server and that it is running.", url);
+        let err = format!("Create repository could not connect to {url}. Make sure you have the correct server and that it is running.");
         Err(OxenError::basic_str(err))
     }
 }
@@ -93,8 +89,7 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(format!(
-                "Could not delete repository \n\n{}",
-                body
+                "Could not delete repository \n\n{body}"
             ))),
         }
     } else {
@@ -123,8 +118,7 @@ pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
             Err(err) => {
                 log::debug!("Err: {}", err);
                 Err(OxenError::basic_str(format!(
-                    "api::repositories::resolve_api_url() Could not deserialize repository [{}]",
-                    url
+                    "api::repositories::resolve_api_url() Could not deserialize repository [{url}]"
                 )))
             }
         }
@@ -150,7 +144,7 @@ mod tests {
             let repository =
                 api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
                     .await?;
-            println!("got repository: {:?}", repository);
+            println!("got repository: {repository:?}");
             assert_eq!(repository.name, name);
 
             // cleanup

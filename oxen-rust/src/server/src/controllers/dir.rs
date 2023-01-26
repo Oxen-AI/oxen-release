@@ -191,7 +191,7 @@ mod tests {
         println!("GOT RESP STATUS: {}", resp.response().status());
         let bytes = actix_http::body::to_bytes(resp.into_body()).await.unwrap();
         let body = std::str::from_utf8(&bytes).unwrap();
-        println!("GOT BODY: {}", body);
+        println!("GOT BODY: {body}");
         let entries_resp: PaginatedDirEntries = serde_json::from_str(body)?;
 
         // Make sure we can fetch all the entries
