@@ -5,6 +5,9 @@ use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
 };
+use liboxen::view::repository::DataTypeView;
+use liboxen::view::repository::RepositoryStatsResponse;
+use liboxen::view::repository::RepositoryStatsView;
 use liboxen::view::{ListRepositoryResponse, RepositoryResponse, RepositoryView, StatusMessage};
 
 use liboxen::model::{LocalRepository, RepositoryNew};
@@ -56,6 +59,46 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
                 },
             }),
 
+            Ok(None) => {
+                log::debug!("404 Could not find repo: {}", name);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::debug!("Err finding repo: {} => {:?}", name, err);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        }
+    } else {
+        let msg = "Could not find `name` or `namespace` param...";
+        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+    }
+}
+
+pub async fn stats(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let name: Option<&str> = req.match_info().get("repo_name");
+    if let (Some(name), Some(namespace)) = (name, namespace) {
+        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+            Ok(Some(repo)) => {
+                let stats = api::local::repositories::get_repo_stats(&repo);
+                let data_types: Vec<DataTypeView> = stats
+                    .data_types.values().map(|s| DataTypeView {
+                        data_type: s.data_type.to_owned(),
+                        file_count: s.file_count,
+                        data_size: s.data_size,
+                    })
+                    .collect();
+                HttpResponse::Ok().json(RepositoryStatsResponse {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    repository: RepositoryStatsView {
+                        data_size: stats.data_size,
+                        data_types,
+                    },
+                })
+            }
             Ok(None) => {
                 log::debug!("404 Could not find repo: {}", name);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())

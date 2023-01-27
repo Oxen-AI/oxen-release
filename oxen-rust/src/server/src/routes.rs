@@ -79,6 +79,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/branches/{branch_name:.*}",
         web::put().to(controllers::branches::update),
     )
+    // ----- Stats ----- //
+    .route(
+        "/{namespace}/{repo_name}/stats",
+        web::get().to(controllers::repositories::stats),
+    )
     // ----- Dir ----- //
     .route(
         "/{namespace}/{repo_name}/dir/{resource:.*}",

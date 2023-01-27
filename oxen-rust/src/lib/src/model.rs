@@ -16,6 +16,7 @@ pub mod user;
 // Repository
 pub use crate::model::repository::local_repository::{LocalRepository, RepositoryNew};
 pub use crate::model::repository::remote_repository::RemoteRepository;
+pub use crate::model::repository::repo_stats::{DataTypeStat, RepoStats};
 
 // Commit
 pub use crate::model::commit::{Commit, CommitStats, NewCommit};
