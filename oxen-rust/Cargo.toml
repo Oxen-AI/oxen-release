@@ -80,6 +80,7 @@ codegen-units = 1
 [lib]
 name = "liboxen"
 path = "src/lib/src/lib.rs"
+doctest = false
 
 [[bin]]
 name = "oxen"
