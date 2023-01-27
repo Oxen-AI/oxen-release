@@ -15,6 +15,26 @@ pub struct RepositoryResponse {
     pub repository: RepositoryView,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataTypeView {
+    pub data_type: String,
+    pub data_size: u64,
+    pub file_count: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RepositoryStatsView {
+    pub data_size: u64,
+    pub data_types: Vec<DataTypeView>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RepositoryStatsResponse {
+    pub status: String,
+    pub status_message: String,
+    pub repository: RepositoryStatsView,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListRepositoryResponse {
     pub status: String,
