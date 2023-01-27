@@ -1,3 +1,12 @@
+
+# v0.4.7
+
+* Features
+  * Stats endpoint on repo
+  * Consistent pagination params, page_num -> page
+  * Better logging
+  * Upgrade cargo 1.67.0
+
 # v0.4.6
 
 * Features
