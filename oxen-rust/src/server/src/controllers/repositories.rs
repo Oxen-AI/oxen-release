@@ -84,7 +84,9 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
             Ok(Some(repo)) => {
                 let stats = api::local::repositories::get_repo_stats(&repo);
                 let data_types: Vec<DataTypeView> = stats
-                    .data_types.values().map(|s| DataTypeView {
+                    .data_types
+                    .values()
+                    .map(|s| DataTypeView {
                         data_type: s.data_type.to_owned(),
                         file_count: s.file_count,
                         data_size: s.data_size,
