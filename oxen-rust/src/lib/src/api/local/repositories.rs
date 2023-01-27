@@ -3,10 +3,13 @@ use crate::command;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{CommitDirReader, CommitWriter, RefWriter};
+use crate::model::DataTypeStat;
+use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
 
 use jwalk::WalkDir;
+use std::collections::HashMap;
 use std::path::Path;
 
 pub fn get_by_namespace_and_name(
@@ -53,6 +56,42 @@ pub fn get_commit_stats_from_id(
             log::error!("unable to get commit by id: {}", commit_id);
             Err(err)
         }
+    }
+}
+
+pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
+    let mut data_size: u64 = 0;
+    let mut data_types: HashMap<String, DataTypeStat> = HashMap::new();
+
+    match api::local::commits::get_head_commit(repo) {
+        Ok(commit) => match api::local::entries::list_all(repo, &commit) {
+            Ok(entries) => {
+                for entry in entries {
+                    data_size += entry.num_bytes;
+                    let full_path = repo.path.join(&entry.path);
+                    let data_type = util::fs::file_datatype(&full_path);
+                    let data_type_stat = DataTypeStat {
+                        data_size: entry.num_bytes,
+                        data_type: data_type.to_owned(),
+                        file_count: 1,
+                    };
+                    let mut stat = data_types.entry(data_type).or_insert(data_type_stat);
+                    stat.file_count += 1;
+                    stat.data_size += entry.num_bytes;
+                }
+            }
+            Err(err) => {
+                log::error!("Err: could not list entries for repo stats {err}");
+            }
+        },
+        Err(err) => {
+            log::error!("Err: could not get repo stats {err}");
+        }
+    }
+
+    RepoStats {
+        data_size,
+        data_types,
     }
 }
 
