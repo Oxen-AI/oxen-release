@@ -350,7 +350,6 @@ pub fn is_utf8(path: &Path) -> bool {
 }
 
 pub fn file_datatype(path: &Path) -> String {
-    log::debug!("Checking data type for path: {:?}", path);
     if is_markdown(path) {
         String::from("markdown")
     } else if is_image(path) {
