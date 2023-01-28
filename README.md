@@ -29,7 +29,7 @@ The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c3
 With the Hub, enable your team to discover, view, collaborate, and manage your datasets.
 
 <p align="center">
-    <img src="images/CatsVsDogsRepo.png" alt="oxen cats vs dogs repo" height="400" />
+    <img src="images/CatsVsDogsRepo.png" alt="oxen cats vs dogs repo" style="max-height: 350px;" />
 </p>
 
 Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
