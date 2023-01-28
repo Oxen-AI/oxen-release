@@ -6,6 +6,19 @@ Oxen helps you version your machine learning datasets like you version your code
 $ oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
 ```
 
+# Features
+
+Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](Performance.md) on images, video, audio, text, and more.
+
+* 🔥 Fast (10-100x faster than existing tools)
+* 🧠 Easy to learn (same commands as git)
+* 🗄️ Index lots of files (millions of images? no problem)
+* 🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
+* 📊 Native DataFrame processing ([oxen df](DataFrames.md) command for data exploration)
+* 📈 Tracks changes over time (never worry about losing the state of your data)
+* 🤝 Collaborate with your team (sync to an oxen-server)
+* 👀 Better data visualization on [OxenHub](https://oxen.ai)
+
 
 # OxenHub
 
@@ -18,18 +31,6 @@ With the Hub, enable your team to discover, view, collaborate, and manage your d
 </p>
 
 Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
-
-
-# Features
-
-* 🔥 Fast (10-100x faster than existing tools)
-* 🧠 Easy to learn (same commands as git)
-* 🗄️ Index lots of files (millions of images? no problem)
-* 🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
-* 📊 Native DataFrame processing ([oxen df](DataFrames.md) command for data exploration)
-* 📈 Tracks changes over time (never worry about losing the state of your data)
-* 🤝 Collaborate with your team (sync to an oxen-server)
-* 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
 # Why the name Oxen?
 
