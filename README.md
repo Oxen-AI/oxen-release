@@ -1,14 +1,21 @@
 # 🐂 Oxen
 
-Oxen helps you version your machine learning datasets like you version your code. 
+Oxen helps you version your machine learning datasets like you version your code. The first step in any machine learning project should be `oxen clone`.
 
-Versioning datasets can be [slow and painful 😩](Performance.md). Not anymore! Classic version control tools are optimized for code repositories, whereas Oxen is optimized for large datasets.
+```
+$ oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
+```
 
-Built from the ground up for speed, Oxen is 10-100x faster than using git or other tooling built on top of git.
+
+# OxenHub
 
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
-# OxenHub
+With the Hub, enable your team to discover, view, collaborate, and manage your datasets.
+
+<p align="center">
+    <img src="images/CatsVsDogsRepo.png" alt="oxen cats vs dogs repo" height="400" />
+</p>
 
 Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
 
