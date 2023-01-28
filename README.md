@@ -439,3 +439,8 @@ If you use the `--combine` flag, oxen will concatenate the data frames and uniqu
 ## Support
 
 If you have any questions, comments, suggestions, or just want to get in contact with the team, feel free to email us at `hello@oxen.ai`
+
+## Contributing
+
+This repository contains the documentation and release builds. To contribute to the core code base visit [https://github.com/Oxen-AI/Oxen](https://github.com/Oxen-AI/Oxen)
+
