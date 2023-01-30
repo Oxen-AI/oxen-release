@@ -54,6 +54,7 @@ impl StagedDirEntryDB {
         let entry = StagedEntry {
             hash: entry.hash.clone(),
             status: StagedEntryStatus::Removed,
+            tmp_file: None
         };
 
         path_db::put(&self.db, path, &entry)?;
