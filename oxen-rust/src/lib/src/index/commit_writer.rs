@@ -40,7 +40,7 @@ impl CommitWriter {
         })
     }
 
-    fn create_commit_data(&self, message: &str) -> Result<NewCommit, OxenError> {
+    fn create_new_commit_data(&self, message: &str) -> Result<NewCommit, OxenError> {
         let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
         let ref_reader = RefReader::new(&self.repository)?;
@@ -122,38 +122,26 @@ impl CommitWriter {
     //       image_2.png -> b"{entry_json}"
     //       image_2.png -> b"{entry_json}"
     pub fn commit(&self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
-        // Generate uniq id for this commit
-        // This is a hash of all the entries hashes to create a merkle tree
-        // merkle trees are inherently resistent to tampering, and are verifyable
-        // meaning we can check the validity of each commit+entries in the tree if we need
-
-        /*
-        Good Explanation: https://medium.com/geekculture/understanding-merkle-trees-f48732772199
-            When you take a pull from remote or push your changes,
-            git will check if the hash of the root are the same or not.
-            If it’s different, it will check for the left and right child nodes and will repeat
-            it until it finds exactly which leaf nodes changed and then only transfer that delta over the network.
-
-        This would make sense why hashes are computed at the "add" stage, before the commit stage
-        */
-        log::debug!("---COMMIT START---"); // for debug logging / timing purposes
-
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
-        let new_commit = self.create_commit_data(message)?;
+        log::debug!("---COMMIT START---"); // for debug logging / timing purposes
+        let new_commit = self.create_new_commit_data(message)?;
         log::debug!("Created commit obj {:?}", new_commit);
-
-        let commit = self.gen_commit(&new_commit, status);
-        log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message,);
-
-        // Write entries
-        self.add_commit_from_status(&commit, status)?;
-
+        let commit = self.commit_from_new(&new_commit, status)?;
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         // User output
         println!("Commit {} done.", commit.id);
         log::debug!("---COMMIT END---"); // for debug logging / timing purposes
+        Ok(commit)
+    }
+
+    pub fn commit_from_new(&self, new_commit: &NewCommit, status: &StagedData) -> Result<Commit, OxenError> {
+        let commit = self.gen_commit(&new_commit, status);
+        log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
+
+        // Write entries
+        self.add_commit_from_status(&commit, status)?;
 
         Ok(commit)
     }
