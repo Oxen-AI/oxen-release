@@ -141,7 +141,7 @@ impl CommitEntryWriter {
     ) -> Result<(), OxenError> {
         // log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
 
-        // then hash the actual file contents
+        // then meta data from the full file path
         let full_path = self.repository.path.join(path);
 
         // Get last modified time
@@ -159,6 +159,17 @@ impl CommitEntryWriter {
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
         };
+
+        // NOTE FOR FUTURE GREG
+        // -- If we have the APIs to diff, and merge
+        // -- Then we can create a workflow where
+        //     -- Periodically check sub branches
+        //     -- Sequentially merge the ones that are good to merge (straight additions)
+        //     -- Flag any that change the schema or do anything funky
+
+        // TODO: Need to also pass through staged entry to see if we need
+        //       to copy the tmp file or the full staged file...
+        //       Best solution I can think of right now...
 
         // Write to db & backup
         self.add_commit_entry(writer, entry)?;

@@ -1166,8 +1166,8 @@ impl EntryIndexer {
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                     let version_path = util::fs::version_path(&self.repository, entry);
                     // We will unpack tabular later into CADF
-                    if std::fs::copy(&version_path, &filepath).is_err() {
-                        log::error!("Could not unpack file {:?} -> {:?}", version_path, filepath);
+                    if let Err(err) = std::fs::copy(&version_path, &filepath) {
+                        log::error!("Err Could not unpack file {:?} -> {:?}\nErr: {err}", version_path, filepath);
                     }
 
                     log::debug!(
@@ -1247,12 +1247,6 @@ impl EntryIndexer {
 
     fn path_hash_is_different(&self, entry: &CommitEntry, path: &Path) -> bool {
         if let Ok(hash) = util::hasher::hash_file_contents(path) {
-            log::debug!(
-                "path_hash_is_different({:?})? {} == {}",
-                entry.path,
-                hash,
-                entry.hash
-            );
             return hash != entry.hash;
         }
         false

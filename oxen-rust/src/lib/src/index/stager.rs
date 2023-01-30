@@ -713,6 +713,7 @@ impl Stager {
         let mut staged_entry = StagedEntry {
             hash: hash.to_owned(),
             status: StagedEntryStatus::Added,
+            tmp_file: None
         };
 
         // Check if it is a merge conflict, then we can add it
