@@ -23,7 +23,7 @@ use crate::index::{
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 
-struct UnsyncedCommitEntries {
+pub struct UnsyncedCommitEntries {
     commit: Commit,
     entries: Vec<CommitEntry>,
 }
@@ -97,14 +97,14 @@ impl EntryIndexer {
             // This is an async process on the server so good to stall the user here so they don't push again
             // If they did push again before this is finished they would get a still syncing error
             self.poll_until_synced(&remote_repo, &head_commit).await?;
-
-            // Update the remote branch name last
-            api::remote::branches::update(&remote_repo, &rb.branch, &head_commit).await?;
-            println!(
-                "Updated remote branch {} -> {}",
-                &rb.branch, &head_commit.id
-            );
         }
+
+        // Update the remote branch name last
+        api::remote::branches::update(&remote_repo, &rb.branch, &head_commit).await?;
+        println!(
+            "Updated remote branch {} -> {}",
+            &rb.branch, &head_commit.id
+        );
 
         Ok(remote_repo)
     }
@@ -158,6 +158,7 @@ impl EntryIndexer {
         match api::remote::commits::commit_is_synced(remote_repo, &local_commit.id).await {
             Ok(Some(sync_status)) => {
                 if sync_status.is_valid {
+                    // Commit has been synced
                     let commit_reader = CommitReader::new(&self.repository)?;
                     let head_commit = commit_reader.head_commit()?;
 
@@ -169,13 +170,6 @@ impl EntryIndexer {
                         head_commit.id,
                         head_commit.message
                     );
-
-                    // Have to add the last one to push the entries
-                    let entries = self.read_unsynced_entries(local_commit, &head_commit)?;
-                    unsynced_commits.push_back(UnsyncedCommitEntries {
-                        commit: local_commit.to_owned(),
-                        entries,
-                    });
                 } else if sync_status.is_processing {
                     // Print that last commit is still processing (or we may be in a migration on the server)
                     println!("Commit is still processing on server {}", local_commit.id);
@@ -1261,13 +1255,82 @@ impl EntryIndexer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
+    use crate::index::entry_indexer::UnsyncedCommitEntries;
     use crate::index::EntryIndexer;
     use crate::model::RemoteBranch;
     use crate::test;
     use crate::util;
+
+    #[tokio::test]
+    async fn test_rpush_missing_commit_objects() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+            // Set the proper remote
+            let name = repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            let remote_repo = command::create_remote(
+                &repo,
+                constants::DEFAULT_NAMESPACE,
+                &name,
+                test::test_host(),
+            )
+            .await?;
+
+            // Make a few more commits, and then make sure the total count is correct to push
+            let entry_indexer = EntryIndexer::new(&repo).unwrap();
+
+            let head_commit = command::head_commit(&repo)?;
+            let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
+            entry_indexer
+                .rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
+                .await?;
+
+            // The initial commit and the one after
+            assert_eq!(unsynced_commits.len(), 2);
+
+            // Push to the remote
+            command::push(&repo).await?;
+
+            // There should be none unsynced
+            let head_commit = command::head_commit(&repo)?;
+            let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
+            entry_indexer
+                .rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
+                .await?;
+
+            // The initial commit and the one after
+            assert_eq!(unsynced_commits.len(), 0);
+
+            // Modify README
+            let readme_path = repo.path.join("README.md");
+            let readme_path = test::modify_txt_file(readme_path, "I am the readme now.")?;
+            command::add(&repo, readme_path)?;
+
+            // Commit again
+            let head_commit = command::commit(&repo, "Changed the readme")?.unwrap();
+            let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
+            entry_indexer
+                .rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
+                .await?;
+
+            println!("Num unsynced {}", unsynced_commits.len());
+            for commit in unsynced_commits.iter() {
+                println!("FOUND UNSYNCED: {:?}", commit.commit);
+            }
+
+            // Should be one more
+            assert_eq!(unsynced_commits.len(), 1);
+
+            Ok(())
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_indexer_partial_pull_then_full() -> Result<(), OxenError> {
