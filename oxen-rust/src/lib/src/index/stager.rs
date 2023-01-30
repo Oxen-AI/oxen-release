@@ -906,18 +906,8 @@ impl Stager {
 
     pub fn remove_staged_dir<P: AsRef<Path>>(&self, short_path: P) -> Result<(), OxenError> {
         let short_path = short_path.as_ref();
-        let full_path = self.repository.path.join(short_path);
-        if !full_path.exists() {
-            return Err(OxenError::file_does_not_exist(short_path));
-        }
-
-        if !full_path.is_dir() {
-            let err = format!("Path must be a directory {short_path:?}");
-            return Err(OxenError::basic_str(err));
-        }
 
         log::debug!("Remove staged dir short_path: {:?}", short_path);
-        log::debug!("Remove staged dir full_path: {:?}", full_path);
 
         // Not most efficient to linearly scan, but we don't have pointers to parents or children
         let added_dirs = self.list_added_dirs()?;
