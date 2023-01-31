@@ -1,4 +1,13 @@
 
+# v0.4.8
+
+* Features
+  * Default to pulling `main` on clone and add `--shallow` flag
+* Bug Fixes
+  * Prevent accidental double push
+  * Support can unstaging a staged directory
+
+
 # v0.4.7
 
 * Features

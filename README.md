@@ -226,10 +226,12 @@ $ oxen push origin main
 
 Now you can set up your training job or another collaborator on your team to use your data by cloning it and pulling the branch you want.
 
+There is a `--shallow` flag on `oxen clone` to make sure you don't pull all the data on clone. The default is cloning `main` and all the associated data
+
 ```bash
-$ oxen clone https://hub.oxen.ai/<username>/<repo_name>
+$ oxen clone https://hub.oxen.ai/<username>/<repo_name> --shallow
 $ cd <repo_name>
-$ oxen pull origin main
+$ oxen pull origin my-branch
 ```
 
 ## Self Hosting
