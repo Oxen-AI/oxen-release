@@ -840,8 +840,8 @@ pub async fn push_remote_branch(
 }
 
 /// Clone a repo from a url to a directory
-pub async fn clone(url: &str, dst: &Path) -> Result<LocalRepository, OxenError> {
-    match LocalRepository::clone_remote(url, dst).await {
+pub async fn clone(url: &str, dst: &Path, shallow: bool) -> Result<LocalRepository, OxenError> {
+    match LocalRepository::clone_remote(url, dst, shallow).await {
         Ok(Some(repo)) => Ok(repo),
         Ok(None) => Err(OxenError::remote_repo_not_found(url)),
         Err(err) => Err(err),

@@ -422,7 +422,8 @@ pub fn diff(sub_matches: &ArgMatches) {
 
 pub async fn clone(sub_matches: &ArgMatches) {
     let url = sub_matches.value_of("URL").expect("required");
-    match dispatch::clone(url).await {
+    let shallow = sub_matches.is_present("shallow");
+    match dispatch::clone(url, shallow).await {
         Ok(_) => {}
         Err(err) => {
             println!("Err: {err}")
