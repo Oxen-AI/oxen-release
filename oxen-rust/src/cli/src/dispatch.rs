@@ -39,9 +39,9 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn clone(url: &str) -> Result<(), OxenError> {
+pub async fn clone(url: &str, shallow: bool) -> Result<(), OxenError> {
     let dst = std::env::current_dir()?;
-    command::clone(url, &dst).await?;
+    command::clone(url, &dst, shallow).await?;
     Ok(())
 }
 

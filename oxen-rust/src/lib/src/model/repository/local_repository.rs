@@ -102,14 +102,20 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub async fn clone_remote(url: &str, dst: &Path) -> Result<Option<LocalRepository>, OxenError> {
-        log::debug!("clone_remote {} -> {:?}", url, dst);
+    pub async fn clone_remote(
+        url: &str,
+        dst: &Path,
+        shallow: bool,
+    ) -> Result<Option<LocalRepository>, OxenError> {
+        log::debug!("clone_remote {} -> {:?} -> shallow? {shallow}", url, dst);
         let remote = Remote {
             name: String::from("origin"),
             url: String::from(url),
         };
         match api::remote::repositories::get_by_remote(&remote).await {
-            Ok(Some(remote_repo)) => Ok(Some(LocalRepository::clone_repo(remote_repo, dst).await?)),
+            Ok(Some(remote_repo)) => Ok(Some(
+                LocalRepository::clone_repo(remote_repo, dst, shallow).await?,
+            )),
             Ok(None) => Ok(None),
             Err(_) => {
                 let err = format!("Could not clone remote {url} not found");
@@ -173,7 +179,11 @@ impl LocalRepository {
         }
     }
 
-    async fn clone_repo(repo: RemoteRepository, dst: &Path) -> Result<LocalRepository, OxenError> {
+    async fn clone_repo(
+        repo: RemoteRepository,
+        dst: &Path,
+        shallow: bool,
+    ) -> Result<LocalRepository, OxenError> {
         // let url = String::from(&repo.url);
         // let repo_new = RepositoryNew::from_url(&repo.url)?;
         // if directory already exists -> return Err
@@ -205,10 +215,21 @@ impl LocalRepository {
             .pull_all_commit_objects(&repo, &RemoteBranch::default())
             .await?;
 
-        println!(
-            "🐂 cloned {} to {}\n\ncd {}\noxen pull origin main",
-            repo.remote.url, repo.name, repo.name
-        );
+        // Shallow means we will not pull the actual data until a user tells us to
+        if !shallow {
+            // Pull all entries
+            let rb = RemoteBranch::default();
+            indexer.pull(&rb).await?;
+            println!(
+                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
+                repo.remote.url, repo.name, repo.name
+            );
+        } else {
+            println!(
+                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin main",
+                repo.remote.url, repo.name, repo.name
+            );
+        }
 
         Ok(local_repo)
     }
@@ -278,9 +299,11 @@ mod tests {
                     .await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let local_repo = LocalRepository::clone_remote(&remote_repo.remote.url, &dir)
-                    .await?
-                    .unwrap();
+                let shallow = true;
+                let local_repo =
+                    LocalRepository::clone_remote(&remote_repo.remote.url, &dir, shallow)
+                        .await?
+                        .unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);

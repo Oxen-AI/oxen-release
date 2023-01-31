@@ -1353,7 +1353,9 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+                let shallow = true;
+                let cloned_repo =
+                    command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -1413,7 +1415,9 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+                let _shallow = true;
+                let cloned_repo =
+                    command::clone(&remote_repo.remote.url, &new_repo_dir, true).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
