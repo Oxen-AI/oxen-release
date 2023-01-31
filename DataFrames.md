@@ -8,7 +8,6 @@ To follow along with the examples below feel free to grab to grab the example da
 ```bash
 $ oxen clone http://hub.oxen.ai/ox/CatDogBoundingBox
 $ cd CatDogBoundingBox
-$ oxen pull origin main
 ```
 
 ## oxen df
