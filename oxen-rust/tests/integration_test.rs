@@ -1214,7 +1214,9 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             let oxen_dir = cloned_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&cloned_repo).await?;
@@ -1330,7 +1332,9 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
 
             // Modify the file in the cloned dir
@@ -1399,8 +1403,55 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            // 2 test, 5 train, 1 labels
+            assert_eq!(8, cloned_num_files);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_clone_full() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+        // Track a file
+        let filename = "labels.txt";
+        let file_path = repo.path.join(filename);
+        command::add(&repo, &file_path)?;
+        command::commit(&repo, "Adding labels file")?.unwrap();
+
+        let train_path = repo.path.join("train");
+        command::add(&repo, &train_path)?;
+        command::commit(&repo, "Adding train dir")?.unwrap();
+
+        let test_path = repo.path.join("test");
+        command::add(&repo, &test_path)?;
+        command::commit(&repo, "Adding test dir")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let shallow = false; // full pull
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
@@ -1438,7 +1489,9 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let file_path = cloned_repo.path.join(filename);
 
@@ -1490,7 +1543,9 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
 
             let filename = "nlp/classification/annotations/train.tsv";
@@ -1546,7 +1601,9 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             assert_eq!(6, cloned_num_files);
@@ -1622,7 +1679,9 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 5 training files
@@ -1807,7 +1866,9 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
 
             // Get cloned history
@@ -2156,7 +2217,9 @@ async fn test_add_commit_push_pull_file_without_extension() -> Result<(), OxenEr
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone(&remote_repo.remote.url, &new_repo_dir).await?;
+            let shallow = true;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let filepath = cloned_repo.path.join(filename);
             let content = util::fs::read_from_path(&filepath)?;
@@ -2807,6 +2870,33 @@ shape: (3, 6)
 
 #[test]
 fn test_status_rm_regular_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Move the file to a new name
+        let og_basename = PathBuf::from("README.md");
+        let og_file = repo.path.join(&og_basename);
+        std::fs::remove_file(&og_file)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        assert_eq!(status.removed_files.len(), 1);
+
+        command::rm(&repo, &og_file)?;
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        assert_eq!(status.added_files.len(), 1);
+        assert_eq!(
+            status.added_files[&og_basename].status,
+            StagedEntryStatus::Removed
+        );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_status_rm_directory_file() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");

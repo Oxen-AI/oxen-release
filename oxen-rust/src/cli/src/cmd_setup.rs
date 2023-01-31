@@ -374,6 +374,12 @@ pub fn clone() -> Command<'static> {
         .about("Clone a repository by its URL")
         .arg_required_else_help(true)
         .arg(arg!(<URL> "URL of the repository you want to clone"))
+        .arg(
+            Arg::new("shallow")
+                .long("shallow")
+                .help("A shallow clone doesn't actually clone the data files, useful if you want to pull a specific branch instead.")
+                .takes_value(false),
+        )
 }
 
 pub fn inspect_kv_db() -> Command<'static> {
