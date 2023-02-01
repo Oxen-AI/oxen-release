@@ -136,7 +136,11 @@ impl CommitWriter {
         Ok(commit)
     }
 
-    pub fn commit_from_new(&self, new_commit: &NewCommit, status: &StagedData) -> Result<Commit, OxenError> {
+    pub fn commit_from_new(
+        &self,
+        new_commit: &NewCommit,
+        status: &StagedData,
+    ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(&new_commit, status);
         log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
 

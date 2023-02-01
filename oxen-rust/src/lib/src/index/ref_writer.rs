@@ -18,6 +18,11 @@ impl RefWriter {
     pub fn new(repository: &LocalRepository) -> Result<RefWriter, OxenError> {
         let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(REFS_DIR));
         let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(HEAD_FILE));
+        log::debug!("RefWriter::new() refs_dir: {}", refs_dir.display());
+        log::debug!(
+            "RefWriter::new() head_filename: {}",
+            head_filename.display()
+        );
 
         let opts = db::opts::default();
         Ok(RefWriter {

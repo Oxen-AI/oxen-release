@@ -79,6 +79,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/branches/{branch_name:.*}",
         web::put().to(controllers::branches::update),
     )
+    // ----- Stage Remote Data ----- //
+    .route(
+        "/{namespace}/{repo_name}/branches/{branch_name:.*}/staged/{resource:.*}",
+        web::post().to(controllers::stager::stage),
+    )
     // ----- Stats ----- //
     .route(
         "/{namespace}/{repo_name}/stats",
@@ -100,7 +105,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::get().to(controllers::file::meta_data),
     )
     .route(
-        "/{namespace}/{repo_name}/meta/{resource:.*}",
+        "/{namespace}/{repo_name}/meta/{resource:.*}", // DEPRECIATED
         web::get().to(controllers::file::meta_data_legacy),
     )
     .route(

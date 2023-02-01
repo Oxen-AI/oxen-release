@@ -7,4 +7,5 @@ pub mod file;
 pub mod namespaces;
 pub mod repositories;
 pub mod schemas;
+pub mod stager;
 pub mod version;
