@@ -150,10 +150,6 @@ impl CommitEntryWriter {
             last_modified_nanoseconds: mtime.nanoseconds(),
         };
 
-        // TODO: Need to also pass through staged entry to see if we need
-        //       to copy the tmp file or the full staged file...
-        //       Best solution I can think of right now...
-
         // Write to db & backup
         self.add_commit_entry(writer, staged_entry, entry)?;
         Ok(())
