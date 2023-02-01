@@ -6,7 +6,8 @@ use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{EntryMetaDataResponse, StatusMessage};
+use liboxen::view::{EntryMetaDataResponse, FileMetaData, FileMetaDataResponse, StatusMessage};
+
 use std::path::{Path, PathBuf};
 
 use liboxen::model::{DirEntry, LocalRepository};
@@ -26,7 +27,7 @@ pub async fn get(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
                 util::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
-                    "dir::get commit_id [{}] and filepath {:?}",
+                    "file::get commit_id [{}] and filepath {:?}",
                     commit_id,
                     filepath
                 );
@@ -45,22 +46,6 @@ pub async fn get(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
             Ok(NamedFile::open("")?)
         }
     }
-}
-
-use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct FileMetaData {
-    pub size: u64,
-    pub data_type: String,
-    pub resource: ResourceVersion,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct FileMetaDataResponse {
-    pub status: String,
-    pub status_message: String,
-    pub meta: FileMetaData,
 }
 
 pub async fn meta_data_legacy(req: HttpRequest) -> HttpResponse {

@@ -2,6 +2,7 @@ pub mod branch;
 pub mod commit;
 pub mod entry;
 pub mod entry_meta_data;
+pub mod file_meta_data;
 pub mod http;
 pub mod json_data_frame;
 pub mod namespace;
@@ -11,6 +12,7 @@ pub mod schema;
 pub mod status_message;
 pub mod version;
 
+pub use crate::view::file_meta_data::{FileMetaData, FileMetaDataResponse, FilePathResponse};
 pub use crate::view::status_message::{IsValidStatusMessage, StatusMessage};
 
 pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameSliceResponse};

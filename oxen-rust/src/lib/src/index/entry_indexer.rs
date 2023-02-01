@@ -1161,7 +1161,11 @@ impl EntryIndexer {
                     let version_path = util::fs::version_path(&self.repository, entry);
                     // We will unpack tabular later into CADF
                     if let Err(err) = std::fs::copy(&version_path, &filepath) {
-                        log::error!("Err Could not unpack file {:?} -> {:?}\nErr: {err}", version_path, filepath);
+                        log::error!(
+                            "Err Could not unpack file {:?} -> {:?}\nErr: {err}",
+                            version_path,
+                            filepath
+                        );
                     }
 
                     log::debug!(

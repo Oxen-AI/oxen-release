@@ -14,6 +14,7 @@ pub mod merger;
 pub mod ref_db_reader;
 pub mod ref_reader;
 pub mod ref_writer;
+pub mod remote_stager;
 pub mod restore;
 pub mod schema_field_val_index;
 pub mod schema_index_reader;

@@ -129,16 +129,6 @@ impl CommitEntryWriter {
         staged_entry: &StagedEntry,
         path: &Path,
     ) -> Result<(), OxenError> {
-        self.add_regular_staged_entry_to_db(writer, new_commit, staged_entry, path)
-    }
-
-    fn add_regular_staged_entry_to_db(
-        &self,
-        writer: &CommitDirEntryWriter,
-        new_commit: &Commit,
-        staged_entry: &StagedEntry,
-        path: &Path,
-    ) -> Result<(), OxenError> {
         // log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
 
         // then meta data from the full file path
@@ -160,28 +150,22 @@ impl CommitEntryWriter {
             last_modified_nanoseconds: mtime.nanoseconds(),
         };
 
-        // NOTE FOR FUTURE GREG
-        // -- If we have the APIs to diff, and merge
-        // -- Then we can create a workflow where
-        //     -- Periodically check sub branches
-        //     -- Sequentially merge the ones that are good to merge (straight additions)
-        //     -- Flag any that change the schema or do anything funky
-
         // TODO: Need to also pass through staged entry to see if we need
         //       to copy the tmp file or the full staged file...
         //       Best solution I can think of right now...
 
         // Write to db & backup
-        self.add_commit_entry(writer, entry)?;
+        self.add_commit_entry(writer, staged_entry, entry)?;
         Ok(())
     }
 
     fn add_commit_entry(
         &self,
         writer: &CommitDirEntryWriter,
-        entry: CommitEntry,
+        staged_entry: &StagedEntry,
+        commit_entry: CommitEntry,
     ) -> Result<(), OxenError> {
-        let entry = self.backup_file_to_versions_dir(entry)?;
+        let entry = self.backup_file_to_versions_dir(staged_entry, commit_entry)?;
         log::debug!(
             "add_commit_entry with hash {:?} -> {}",
             entry.path,
@@ -191,23 +175,28 @@ impl CommitEntryWriter {
         writer.add_commit_entry(&entry)
     }
 
-    fn backup_file_to_versions_dir(&self, entry: CommitEntry) -> Result<CommitEntry, OxenError> {
-        let full_path = self.repository.path.join(&entry.path);
-        log::debug!("backup_file_to_versions_dir {:?}", entry.path);
+    fn backup_file_to_versions_dir(
+        &self,
+        staged_entry: &StagedEntry,
+        mut commit_entry: CommitEntry,
+    ) -> Result<CommitEntry, OxenError> {
+        let full_path = self.repository.path.join(&commit_entry.path);
 
-        // if util::fs::is_tabular(&entry.path) {
-        //     // We save off an .arrow file for tabular data for faster access and optimized DF commands
-        //     entry = self.backup_arrow_file(commit, entry, &full_path)?;
-        // } else {
+        log::debug!(
+            "backup_file_to_versions_dir {:?} -> {:?}",
+            commit_entry.path,
+            full_path
+        );
+
         // create a copy to our versions directory
         // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext
         // where ENTRY_HASH is something like subdirs: 59/E029D4812AEBF0
-        let versions_entry_path = util::fs::version_path(&self.repository, &entry);
+        let versions_entry_path = util::fs::version_path(&self.repository, &commit_entry);
         let versions_entry_dir = versions_entry_path.parent().unwrap();
 
         log::debug!(
             "Copying commit entry for file: {:?} -> {:?}",
-            entry.path,
+            commit_entry.path,
             versions_entry_path
         );
 
@@ -217,9 +206,8 @@ impl CommitEntryWriter {
         }
 
         std::fs::copy(full_path, versions_entry_path)?;
-        // }
 
-        Ok(entry)
+        Ok(commit_entry)
     }
 
     pub fn commit_staged_entries(

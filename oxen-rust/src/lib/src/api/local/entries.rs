@@ -1,10 +1,12 @@
 use time::OffsetDateTime;
 
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, RefWriter, CommitWriter};
-use crate::model::{Commit, CommitEntry, DirEntry, LocalRepository, User, Branch, StagedData, StagedEntry, StagedEntryStatus, NewCommit};
-use crate::{util, command};
-use crate::util::fs::is_tabular;
+use crate::index::{CommitDirReader, CommitWriter, RefWriter};
+use crate::model::{
+    Branch, Commit, CommitEntry, DirEntry, LocalRepository, NewCommit, StagedData, StagedEntry,
+    StagedEntryStatus, User,
+};
+use crate::util;
 
 use std::path::{Path, PathBuf};
 
@@ -49,13 +51,15 @@ pub fn list_directory(
     reader.list_directory(directory, branch_or_commit_id, *page, *page_size)
 }
 
+// TODO: rip this logic out... instead we are going to use remote_stager to do the same process we do locally
+
+/*
 pub fn append_to_and_commit_entry_on_branch(
     repo: &LocalRepository,
     base_branch: &Branch,
     entry: &CommitEntry,
     user: &User,
     message: &str,
-    branch_prefix: &str,
     data: &str,
 ) -> Result<Branch, OxenError> {
     // We generate a branch postfix so that each name is unique
@@ -63,10 +67,16 @@ pub fn append_to_and_commit_entry_on_branch(
     // So given a branch name "collect-data"
     // We generate a sub-branch name "collect-data/UUID" and return this to the user
     // This way we can later filter by the prefix, and no one's data conflicts
-    let branch_postfix = format!("{}", uuid::Uuid::new_v4());
+
+    // We will have a queue that cleans up these branches and merges them into the base branch
+    // Add the timestamp at the front so that we can sequentially apply the changes
+    let timestamp = OffsetDateTime::now_utc().unix_timestamp();
+    let branch_postfix = format!("{}_{}", timestamp, uuid::Uuid::new_v4());
+    log::debug!("Appending to entry {} on branch: {}", entry.path.display(), branch_postfix);
     match append_data(repo, entry, data, &branch_postfix) {
         Ok(tmp_file) => {
-            commit_tmp_file(repo, base_branch, entry, &tmp_file, user, message, branch_prefix)
+            let tmp_branch = format!("{}/{}", base_branch.name, branch_postfix);
+            commit_tmp_file(repo, base_branch, entry, &tmp_file, user, message, &tmp_branch)
         },
         Err(err) => {
             Err(err)
@@ -116,7 +126,7 @@ fn append_to_utf8(
         .write(true)
         .append(true)
         .open(tmp_path)?;
-    writeln!(file, "{}", data)?;
+    write!(file, "{}", data)?;
 
     // Return appended path
     Ok(tmp_path.to_path_buf())
@@ -131,12 +141,10 @@ fn commit_tmp_file(
     message: &str,
     branch_name: &str,
 ) -> Result<Branch, OxenError> {
-    // TODO: Might have to lock this DB and wait for it to unlock...if many requests come at once
-    // Create new branch off of 
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.create_branch(branch_name, &base_branch.commit_id)?;
+    // Create the new branch to add data to
+    create_new_branch(repo, base_branch, branch_name)?;
 
-    // Create a new commit based off of the base branch commit -id
+    // Create a new commit based off of the base branch commit_id
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();
     let new_commit = NewCommit {
@@ -161,7 +169,11 @@ fn commit_tmp_file(
     let commit = commit_writer.commit_from_new(&new_commit, &staged_data)?;
 
     // Update branch to new commit id
-    ref_writer.set_branch_commit_id(branch_name, &commit.id)?;
+    update_new_branch_commit_id(repo, branch_name, &commit.id)?;
+
+    // Clean up tmp file
+    log::debug!("Removing tmp file: {}", tmp_path.display());
+    std::fs::remove_file(tmp_path)?;
 
     Ok(Branch {
         name: branch_name.to_string(),
@@ -170,11 +182,37 @@ fn commit_tmp_file(
     })
 }
 
+fn create_new_branch(
+    repo: &LocalRepository,
+    base_branch: &Branch,
+    branch_name: &str,
+) -> Result<Branch, OxenError> {
+    // TODO: Might have to lock this DB and wait for it to unlock...if many requests come at once
+    // Create new branch off of
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.create_branch(branch_name, &base_branch.commit_id)
+}
+
+fn update_new_branch_commit_id(
+    repo: &LocalRepository,
+    branch_name: &str,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    // TODO: Might have to lock this DB and wait for it to unlock...if many requests come at once
+    // Create new branch off of
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_branch_commit_id(branch_name, commit_id)
+}
+*/
+
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use crate::api;
     use crate::command;
     use crate::error::OxenError;
+    use crate::model::User;
     use crate::test;
     use crate::util;
 
@@ -241,27 +279,6 @@ mod tests {
 
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_api_append_to_and_commit_utf8() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            let commits_to_start = command::log(&repo)?;
-
-            // Append data
-
-            // Make sure we have a new commit
-            let commits_after_append = command::log(&repo)?;
-            assert_eq!(commits_to_start.len()+1, commits_after_append.len());
-
-            // Make sure version file exists
-
-            // Make sure version file contents 
-
-            // Make sure tmp files are cleaned up
 
             Ok(())
         })
