@@ -6,7 +6,7 @@ use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{PaginatedDirEntries, StatusMessage};
+use liboxen::view::{PaginatedDirEntriesResponse, StatusMessage};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -74,7 +74,7 @@ fn list_directory_for_commit(
     directory: &Path,
     page: usize,
     page_size: usize,
-) -> Result<(PaginatedDirEntries, Commit), StatusMessage> {
+) -> Result<(PaginatedDirEntriesResponse, Commit), StatusMessage> {
     match api::local::commits::get_by_id(repo, commit_id) {
         Ok(Some(commit)) => {
             log::debug!(
@@ -98,7 +98,7 @@ fn list_directory_for_commit(
                     );
 
                     let total_pages = total_entries as f64 / page_size as f64;
-                    let view = PaginatedDirEntries {
+                    let view = PaginatedDirEntriesResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),
                         page_size,

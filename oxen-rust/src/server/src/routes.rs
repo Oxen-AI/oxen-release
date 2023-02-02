@@ -81,8 +81,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     )
     // ----- Stage Remote Data ----- //
     .route(
-        "/{namespace}/{repo_name}/branches/{branch_name:.*}/staged/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{resource:.*}",
+        web::get().to(controllers::stager::status),
+    )
+    .route(
+        "/{namespace}/{repo_name}/staging/{resource:.*}",
         web::post().to(controllers::stager::stage),
+    )
+    .route(
+        "/{namespace}/{repo_name}/commit_staging/{resource:.*}",
+        web::post().to(controllers::stager::commit),
     )
     // ----- Stats ----- //
     .route(

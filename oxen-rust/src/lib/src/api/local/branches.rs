@@ -12,6 +12,13 @@ pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>,
     referencer.get_branch_by_name(name)
 }
 
+pub fn branch_exists(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
+    match get_by_name(repo, name)? {
+        Some(_) => Ok(true),
+        None => Ok(false),
+    }
+}
+
 pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
     let referencer = RefReader::new(repo)?;
     match referencer.get_branch_by_name(name)? {

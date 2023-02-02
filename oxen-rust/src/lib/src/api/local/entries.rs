@@ -1,11 +1,8 @@
-
 use crate::error::OxenError;
 
 use crate::index::CommitDirReader;
-use crate::model::{
-    Commit, CommitEntry, DirEntry, LocalRepository
-};
-use std::path::{Path};
+use crate::model::{Commit, CommitEntry, DirEntry, LocalRepository};
+use std::path::Path;
 
 pub fn get_entry_for_commit(
     repo: &LocalRepository,
