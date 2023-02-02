@@ -19,8 +19,8 @@ pub struct FileMetaDataResponse {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct FilePathResponse {
+pub struct FilePathsResponse {
     pub status: String,
     pub status_message: String,
-    pub path: PathBuf,
+    pub paths: Vec<PathBuf>,
 }

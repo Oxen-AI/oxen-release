@@ -151,17 +151,16 @@ impl CommitEntryWriter {
         };
 
         // Write to db & backup
-        self.add_commit_entry(writer, staged_entry, entry)?;
+        self.add_commit_entry(writer, entry)?;
         Ok(())
     }
 
     fn add_commit_entry(
         &self,
         writer: &CommitDirEntryWriter,
-        staged_entry: &StagedEntry,
         commit_entry: CommitEntry,
     ) -> Result<(), OxenError> {
-        let entry = self.backup_file_to_versions_dir(staged_entry, commit_entry)?;
+        let entry = self.backup_file_to_versions_dir(commit_entry)?;
         log::debug!(
             "add_commit_entry with hash {:?} -> {}",
             entry.path,
@@ -173,8 +172,7 @@ impl CommitEntryWriter {
 
     fn backup_file_to_versions_dir(
         &self,
-        staged_entry: &StagedEntry,
-        mut commit_entry: CommitEntry,
+        commit_entry: CommitEntry,
     ) -> Result<CommitEntry, OxenError> {
         let full_path = self.repository.path.join(&commit_entry.path);
 

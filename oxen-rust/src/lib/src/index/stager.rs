@@ -282,9 +282,6 @@ impl Stager {
         for relative in candidate_files.iter() {
             log::debug!("process_dir checking relative path {:?}", relative);
             let fullpath = self.repository.path.join(relative);
-            if util::fs::is_in_oxen_hidden_dir(&fullpath) {
-                continue;
-            }
 
             log::debug!(
                 "process_dir checking is_dir? {} {:?}",
@@ -713,7 +710,6 @@ impl Stager {
         let mut staged_entry = StagedEntry {
             hash: hash.to_owned(),
             status: StagedEntryStatus::Added,
-            tmp_file: None
         };
 
         // Check if it is a merge conflict, then we can add it

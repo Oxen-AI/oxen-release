@@ -137,6 +137,20 @@ pub fn write_to_path(path: &Path, value: &str) -> Result<(), OxenError> {
     }
 }
 
+pub fn write_data(path: &Path, data: &[u8]) -> Result<(), OxenError> {
+    match File::create(path) {
+        Ok(mut file) => match file.write(data) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "Could not write file {path:?}\n{err}"
+            ))),
+        },
+        Err(err) => Err(OxenError::basic_str(format!(
+            "Could not create file to write {path:?}\n{err}"
+        ))),
+    }
+}
+
 pub fn read_lines_file(file: &File) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let reader = BufReader::new(file);
@@ -370,7 +384,7 @@ pub fn file_datatype(path: &Path) -> String {
 pub fn contains_ext(path: &Path, exts: &HashSet<String>) -> bool {
     match path.extension() {
         Some(extension) => match extension.to_str() {
-            Some(ext) => exts.contains(ext),
+            Some(ext) => exts.contains(ext.to_lowercase().as_str()),
             None => false,
         },
         None => false,
