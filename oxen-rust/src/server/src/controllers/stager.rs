@@ -239,7 +239,9 @@ fn get_status_for_branch(repo: &LocalRepository, branch_name: &str) -> HttpRespo
                 staged.print_stdout();
                 log::debug!("GOT {} ADDED FILES", staged.added_files.len());
                 let entries: Vec<DirEntry> = staged
-                    .added_files.keys().map(|path| {
+                    .added_files
+                    .keys()
+                    .map(|path| {
                         let full_path =
                             index::remote_stager::branch_staging_dir(repo, &branch).join(path);
                         let meta = std::fs::metadata(&full_path).unwrap();
