@@ -27,7 +27,6 @@ dependencies = [
  "derive_more",
  "difference",
  "dirs",
- "dotenv",
  "env_logger",
  "filetime",
  "flate2",
@@ -61,6 +60,7 @@ dependencies = [
  "simdutf8",
  "tar",
  "termion",
+ "thread_local",
  "threadpool",
  "time 0.3.17",
  "tokio",
@@ -190,7 +190,7 @@ dependencies = [
  "firestorm",
  "http",
  "log",
- "regex 1.6.0",
+ "regex",
  "serde",
 ]
 
@@ -292,7 +292,7 @@ dependencies = [
  "mime",
  "once_cell",
  "pin-project-lite",
- "regex 1.6.0",
+ "regex",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -357,15 +357,6 @@ dependencies = [
  "getrandom 0.2.8",
  "once_cell",
  "version_check",
-]
-
-[[package]]
-name = "aho-corasick"
-version = "0.6.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81ce3d38065e618af2d7b77e10c5ad9a069859b4be3c2250f674af3840d9c8a5"
-dependencies = [
- "memchr",
 ]
 
 [[package]]
@@ -677,7 +668,7 @@ dependencies = [
  "peeking_take_while",
  "proc-macro2",
  "quote",
- "regex 1.6.0",
+ "regex",
  "rustc-hash",
  "shlex",
 ]
@@ -925,7 +916,7 @@ dependencies = [
  "encode_unicode",
  "libc",
  "once_cell",
- "regex 1.6.0",
+ "regex",
  "terminal_size",
  "unicode-width",
  "winapi",
@@ -1258,15 +1249,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "400b347fe65ccfbd8f545c9d9a75d04b0caf23fec49aaa838a9a05398f94c019"
-dependencies = [
- "regex 0.2.11",
-]
-
-[[package]]
 name = "dyn-clone"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1314,7 +1296,7 @@ dependencies = [
  "atty",
  "humantime",
  "log",
- "regex 1.6.0",
+ "regex",
  "termcolor",
 ]
 
@@ -2030,7 +2012,6 @@ dependencies = [
  "deadqueue",
  "difference",
  "dirs",
- "dotenv",
  "env_logger",
  "filetime",
  "flate2",
@@ -2468,7 +2449,6 @@ dependencies = [
  "chrono",
  "clap",
  "derive_more",
- "dotenv",
  "env_logger",
  "flate2",
  "futures",
@@ -2667,7 +2647,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "rayon",
- "regex 1.6.0",
+ "regex",
  "smartstring",
  "thiserror",
  "xxhash-rust",
@@ -2695,7 +2675,7 @@ dependencies = [
  "polars-time",
  "polars-utils",
  "rayon",
- "regex 1.6.0",
+ "regex",
  "serde_json",
  "simd-json",
  "simdutf8",
@@ -2949,35 +2929,13 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9329abc99e39129fcceabd24cf5d85b4671ef7c29c50e972bc5afe32438ec384"
-dependencies = [
- "aho-corasick 0.6.10",
- "memchr",
- "regex-syntax 0.5.6",
- "thread_local",
- "utf8-ranges",
-]
-
-[[package]]
-name = "regex"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4c4eb3267174b8c6c2f654116623910a0fef09c4753f8dd83db29c48a0df988b"
 dependencies = [
- "aho-corasick 0.7.18",
+ "aho-corasick",
  "memchr",
- "regex-syntax 0.6.27",
-]
-
-[[package]]
-name = "regex-syntax"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d707a4fa2637f2dca2ef9fd02225ec7661fe01a53623c1e6515b6916511f7a7"
-dependencies = [
- "ucd-util",
+ "regex-syntax",
 ]
 
 [[package]]
@@ -3106,7 +3064,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08c502bdb638f1396509467cb0580ef3b29aa2a45c5d43e5d84928241280296c"
 dependencies = [
  "lazy_static",
- "regex 1.6.0",
+ "regex",
 ]
 
 [[package]]
@@ -3508,11 +3466,11 @@ dependencies = [
 
 [[package]]
 name = "thread_local"
-version = "0.3.6"
+version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6b53e329000edc2b34dbe8545fd20e55a333362d0a321909685a19bd28c3f1b"
+checksum = "5516c27b78311c50bf42c071425c560ac799b11c30b31f87e3081965fe5e0180"
 dependencies = [
- "lazy_static",
+ "once_cell",
 ]
 
 [[package]]
@@ -3717,12 +3675,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcf81ac59edc17cc8697ff311e8f5ef2d99fcbd9817b34cec66f90b6c3dfd987"
 
 [[package]]
-name = "ucd-util"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c85f514e095d348c279b1e5cd76795082cf15bd59b93207832abe0b1d8fed236"
-
-[[package]]
 name = "unicase"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3796,12 +3748,6 @@ name = "urlencoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b90931029ab9b034b300b797048cf23723400aa757e8a2bfb9d748102f9821"
-
-[[package]]
-name = "utf8-ranges"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fcfc827f90e53a02eaef5e535ee14266c1d569214c6aa70133a624d8a3164ba"
 
 [[package]]
 name = "uuid"
