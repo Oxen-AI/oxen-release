@@ -89,7 +89,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::post().to(controllers::stager::stage),
     )
     .route(
-        "/{namespace}/{repo_name}/commit_staging/{resource:.*}",
+        "/{namespace}/{repo_name}/commit_staging/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
     // ----- Stats ----- //

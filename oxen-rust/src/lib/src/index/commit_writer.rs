@@ -2,7 +2,7 @@ use crate::config::UserConfig;
 use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::error::OxenError;
 use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
+use crate::model::{Branch, Commit, NewCommit, StagedData, StagedEntry};
 use crate::opts::RestoreOpts;
 use crate::util;
 use crate::{command, db};
@@ -127,7 +127,7 @@ impl CommitWriter {
         log::debug!("---COMMIT START---"); // for debug logging / timing purposes
         let new_commit = self.create_new_commit_data(message)?;
         log::debug!("Created commit obj {:?}", new_commit);
-        let commit = self.commit_from_new(&new_commit, status)?;
+        let commit = self.commit_from_new(&new_commit, status, &self.repository.path, None)?;
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         // User output
@@ -140,12 +140,14 @@ impl CommitWriter {
         &self,
         new_commit: &NewCommit,
         status: &StagedData,
+        origin_path: &Path,
+        branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
-        let commit = self.gen_commit(&new_commit, status);
+        let commit = self.gen_commit(new_commit, status);
         log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
 
         // Write entries
-        self.add_commit_from_status(&commit, status)?;
+        self.add_commit_from_status(&commit, status, origin_path, branch)?;
 
         Ok(commit)
     }
@@ -177,32 +179,37 @@ impl CommitWriter {
         let entries: Vec<StagedEntry> = status.added_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
-        self.add_commit_from_status(&commit, status)?;
+        self.add_commit_from_status(&commit, status, &self.repository.path, None)?;
         Ok(commit)
     }
 
     pub fn add_commit_from_empty_status(&self, commit: &Commit) -> Result<(), OxenError> {
         // Empty Status
         let status = StagedData::empty();
-        self.add_commit_from_status(commit, &status)
+        self.add_commit_from_status(commit, &status, &self.repository.path, None)
     }
 
     pub fn add_commit_from_status(
         &self,
         commit: &Commit,
         status: &StagedData,
+        origin_path: &Path,
+        branch: Option<Branch>, // optional branch because usually we just want to commit off of HEAD
     ) -> Result<(), OxenError> {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         // Commit all staged files from db
-        entry_writer.commit_staged_entries(commit, status)?;
+        entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
         // Add to commits db id -> commit_json
         self.add_commit_to_db(commit)?;
 
-        // Move head to commit id
         let ref_writer = RefWriter::new(&self.repository)?;
-        ref_writer.set_head_commit_id(&commit.id)?;
+        if let Some(branch) = branch {
+            ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
+        } else {
+            ref_writer.set_head_commit_id(&commit.id)?;
+        }
 
         Ok(())
     }
