@@ -281,6 +281,10 @@ impl Stager {
 
         for relative in candidate_files.iter() {
             log::debug!("process_dir checking relative path {:?}", relative);
+            if util::fs::is_in_oxen_hidden_dir(relative) {
+                continue;
+            }
+
             let fullpath = self.repository.path.join(relative);
 
             log::debug!(
