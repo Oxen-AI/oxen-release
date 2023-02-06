@@ -8,7 +8,6 @@ pub mod routes;
 pub mod test;
 pub mod view;
 
-extern crate dotenv;
 extern crate log;
 
 // use actix_http::KeepAlive;
