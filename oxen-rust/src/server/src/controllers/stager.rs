@@ -1,5 +1,6 @@
 use crate::app_data::OxenAppData;
 
+use liboxen::compute::commit_cacher;
 use liboxen::model::{Branch, DirEntry, LocalRepository, User};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -196,10 +197,36 @@ pub async fn commit(req: HttpRequest, data: web::Json<CommitBody>) -> Result<Htt
                 {
                     Ok(commit) => {
                         log::debug!("stager::commit ✅ success! commit {:?}", commit);
+
+                        // Clone the commit so we can move it into the thread
+                        let ret_commit = commit.clone();
+
+                        // Start computing data about the commit in the background thread
+                        std::thread::spawn(move || {
+                            log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+                            match commit_cacher::run_all(&repo, &commit) {
+                                Ok(_) => {
+                                    log::debug!(
+                                        "Success processing commit {:?} on repo {:?}",
+                                        commit,
+                                        repo.path
+                                    );
+                                }
+                                Err(err) => {
+                                    log::error!(
+                                        "Could not process commit {:?} on repo {:?}: {}",
+                                        commit,
+                                        repo.path,
+                                        err
+                                    );
+                                }
+                            }
+                        });
+
                         Ok(HttpResponse::Ok().json(CommitResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_CREATED),
-                            commit,
+                            commit: ret_commit,
                         }))
                     }
                     Err(err) => {
