@@ -4,14 +4,16 @@ use liboxen::compute::commit_cacher;
 use liboxen::model::{Branch, DirEntry, LocalRepository, User};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::remote_staged_status::RemoteStagedStatus;
+use liboxen::view::remote_staged_status::{
+    ListStagedFileAppendResponse, RemoteStagedStatus, StagedFileAppendResponse,
+};
 use liboxen::view::{
     CommitResponse, FilePathsResponse, PaginatedDirEntries, RemoteStagedStatusResponse,
     StatusMessage,
 };
 use liboxen::{api, index, util};
 
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
 use std::io::Write;
 
 use actix_multipart::Multipart;
@@ -27,7 +29,7 @@ pub struct CommitBody {
     user: User,
 }
 
-pub async fn status(req: HttpRequest) -> HttpResponse {
+pub async fn status_dir(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -37,7 +39,40 @@ pub async fn status(req: HttpRequest) -> HttpResponse {
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, _))) => get_status_for_branch(&repo, &branch_name),
+            Ok(Some((_, branch_name, _))) => get_dir_status_for_branch(&repo, &branch_name),
+            Ok(None) => {
+                log::error!("unable to find resource {:?}", resource);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not parse resource  {repo_name} -> {err}");
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        },
+        Ok(None) => {
+            log::error!("unable to find repo {}", repo_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting repo by name {repo_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+pub async fn status_file(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+
+    log::debug!("stager::status repo name {repo_name}/{:?}", resource);
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+            Ok(Some((_, branch_name, file_name))) => {
+                get_file_status_for_branch(&repo, &branch_name, &file_name)
+            }
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -75,7 +110,7 @@ async fn save_parts(
             .map_or_else(|| Uuid::new_v4().to_string(), sanitize_filename::sanitize);
         let upload_extension = upload_filename.split('.').last().unwrap_or("");
 
-        let staging_dir = index::remote_stager::branch_staging_dir(repo, branch);
+        let staging_dir = index::remote_dir_stager::branch_staging_dir(repo, branch);
         let uuid = Uuid::new_v4();
         let filename = format!("{uuid}.{upload_extension}");
         let full_dir = staging_dir.join(directory);
@@ -102,7 +137,85 @@ async fn save_parts(
     Ok(files)
 }
 
-pub async fn stage(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, Error> {
+pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+
+    let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+            Ok(Some((_, branch_name, file_name))) => {
+                match api::local::branches::get_by_name(&repo, &branch_name) {
+                    Ok(Some(branch)) => {
+                        log::debug!(
+                            "stager::stage_append_to_file file branch_name [{}] file_name [{:?}]",
+                            branch_name,
+                            file_name
+                        );
+
+                        match liboxen::index::remote_file_stager::append_to_file(
+                            &repo,
+                            &branch,
+                            &file_name,
+                            data,
+                        ) {
+                            Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileAppendResponse {
+                                status: String::from(STATUS_SUCCESS),
+                                status_message: String::from(MSG_RESOURCE_CREATED),
+                                append: entry,
+                            })),
+                            Err(err) => {
+                                log::error!(
+                                    "unable to append data to file {:?}/{:?}. Err: {}",
+                                    branch_name,
+                                    file_name,
+                                    err
+                                );
+                                Ok(HttpResponse::InternalServerError()
+                                    .json(StatusMessage::internal_server_error()))
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        log::debug!("stager::stage could not find branch {:?}", branch_name);
+                        Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                    }
+                    Err(err) => {
+                        log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
+                        Ok(HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error()))
+                    }
+                }
+            }
+            Ok(None) => {
+                log::debug!("stager::stage could not find parse resource {:?}", resource);
+                Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+            }
+            Err(err) => {
+                log::error!("unable to parse resource {:?}. Err: {}", resource, err);
+                Ok(
+                    HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()),
+                )
+            }
+        },
+        Ok(None) => {
+            log::debug!("stager::stage could not find repo with name {}", repo_name);
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+        }
+        Err(err) => {
+            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
+}
+
+pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -126,7 +239,7 @@ pub async fn stage(req: HttpRequest, payload: Multipart) -> Result<HttpResponse,
 
                         for file in files.iter() {
                             log::debug!("stager::stage file {:?}", file);
-                            match index::remote_stager::stage_file(&repo, &branch, file) {
+                            match index::remote_dir_stager::stage_file(&repo, &branch, file) {
                                 Ok(file_path) => {
                                     log::debug!(
                                         "stager::stage ✅ success! staged file {:?}",
@@ -193,8 +306,12 @@ pub async fn commit(req: HttpRequest, data: web::Json<CommitBody>) -> Result<Htt
     {
         Ok(Some(repo)) => match api::local::branches::get_by_name(&repo, branch_name) {
             Ok(Some(branch)) => {
-                match index::remote_stager::commit_staged(&repo, &branch, &data.user, &data.message)
-                {
+                match index::remote_dir_stager::commit_staged(
+                    &repo,
+                    &branch,
+                    &data.user,
+                    &data.message,
+                ) {
                     Ok(commit) => {
                         log::debug!("stager::commit ✅ success! commit {:?}", commit);
 
@@ -259,9 +376,71 @@ pub async fn commit(req: HttpRequest, data: web::Json<CommitBody>) -> Result<Htt
     }
 }
 
-fn get_status_for_branch(repo: &LocalRepository, branch_name: &str) -> HttpResponse {
+fn get_file_status_for_branch(
+    repo: &LocalRepository,
+    branch_name: &str,
+    path: &Path,
+) -> HttpResponse {
     match api::local::branches::get_by_name(repo, branch_name) {
-        Ok(Some(branch)) => match index::remote_stager::list_staged_data(repo, &branch) {
+        Ok(Some(branch)) => match api::local::commits::get_by_id(repo, &branch.commit_id) {
+            Ok(Some(commit)) => {
+                match api::local::entries::get_entry_for_commit(repo, &commit, path) {
+                    Ok(Some(entry)) => {
+                        match index::remote_file_stager::list_staged_appends(repo, &branch, &entry)
+                        {
+                            Ok(staged) => {
+                                let response = ListStagedFileAppendResponse {
+                                    status: String::from(STATUS_SUCCESS),
+                                    status_message: String::from(MSG_RESOURCE_FOUND),
+                                    appends: staged,
+                                };
+                                HttpResponse::Ok().json(response)
+                            }
+                            Err(err) => {
+                                log::error!(
+                                    "unable to get list staged data {:?}. Err: {}",
+                                    branch_name,
+                                    err
+                                );
+                                HttpResponse::InternalServerError()
+                                    .json(StatusMessage::internal_server_error())
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        log::error!("unable to find entry {:?}", path);
+                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                    }
+                    Err(err) => {
+                        log::error!("Error getting entry by path {:?} -> {err}", path);
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
+                    }
+                }
+            }
+            Ok(None) => {
+                log::error!("unable to find commit {}", branch.commit_id);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Error getting commit by id {} -> {err}", branch.commit_id);
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        },
+        Ok(None) => {
+            log::error!("unable to find branch {}", branch_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting branch by name {branch_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+fn get_dir_status_for_branch(repo: &LocalRepository, branch_name: &str) -> HttpResponse {
+    match api::local::branches::get_by_name(repo, branch_name) {
+        Ok(Some(branch)) => match index::remote_dir_stager::list_staged_data(repo, &branch) {
             Ok(staged) => {
                 staged.print_stdout();
                 log::debug!("GOT {} ADDED FILES", staged.added_files.len());
@@ -270,7 +449,7 @@ fn get_status_for_branch(repo: &LocalRepository, branch_name: &str) -> HttpRespo
                     .keys()
                     .map(|path| {
                         let full_path =
-                            index::remote_stager::branch_staging_dir(repo, &branch).join(path);
+                            index::remote_dir_stager::branch_staging_dir(repo, &branch).join(path);
                         let meta = std::fs::metadata(&full_path).unwrap();
                         let path_str = path.to_string_lossy().to_string();
 

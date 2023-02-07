@@ -146,7 +146,7 @@ mod tests {
             let branch = command::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
-            let branch_dir = index::remote_stager::branch_staging_dir(&repo, &branch);
+            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
             let relative_path = directory.join(filename);
@@ -154,10 +154,10 @@ mod tests {
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
 
-            index::remote_stager::stage_file(&repo, &branch, &relative_path)?;
+            index::remote_dir_stager::stage_file(&repo, &branch, &relative_path)?;
 
             // Verify staged data
-            let staged_data = index::remote_stager::list_staged_data(&repo, &branch)?;
+            let staged_data = index::remote_dir_stager::list_staged_data(&repo, &branch)?;
             staged_data.print_stdout();
             assert_eq!(staged_data.added_files.len(), 1);
 
@@ -172,14 +172,14 @@ mod tests {
             let branch = command::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
-            let branch_dir = index::remote_stager::branch_staging_dir(&repo, &branch);
+            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
             let relative_path = directory.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
-            index::remote_stager::stage_file(&repo, &branch, &relative_path)?;
+            index::remote_dir_stager::stage_file(&repo, &branch, &relative_path)?;
 
             let og_commits = command::log(&repo)?;
             let user = User {
@@ -187,7 +187,7 @@ mod tests {
                 email: String::from("test@oxen.ai"),
             };
             let message: &str = "I am committing this remote staged data";
-            index::remote_stager::commit_staged(&repo, &branch, &user, message)?;
+            index::remote_dir_stager::commit_staged(&repo, &branch, &user, message)?;
 
             let new_commits = command::log(&repo)?;
             assert_eq!(og_commits.len() + 1, new_commits.len());

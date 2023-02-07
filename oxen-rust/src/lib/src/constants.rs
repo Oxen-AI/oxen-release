@@ -29,6 +29,8 @@ pub const FIELDS_DIR: &str = "fields";
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
+/// appends/ is where we can stage appends to files to be merged later
+pub const APPENDS_DIR: &str = "appends";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 
