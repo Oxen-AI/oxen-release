@@ -356,26 +356,26 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
-    let status = status(repo)?;
+    let mut status = status(repo)?;
     if !status.has_added_entries() {
         println!(
             "No files are staged, not committing. Stage a file or directory with `oxen add <file>`"
         );
         return Ok(None);
     }
-    let commit = p_commit(repo, &status, message)?;
+    let commit = p_commit(repo, &mut status, message)?;
     Ok(Some(commit))
 }
 
 fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = StagedData::empty();
-    let commit = p_commit(repo, &status, message)?;
+    let mut status = StagedData::empty();
+    let commit = p_commit(repo, &mut status, message)?;
     Ok(commit)
 }
 
 fn p_commit(
     repo: &LocalRepository,
-    status: &StagedData,
+    status: &mut StagedData,
     message: &str,
 ) -> Result<Commit, OxenError> {
     let stager = Stager::new(repo)?;

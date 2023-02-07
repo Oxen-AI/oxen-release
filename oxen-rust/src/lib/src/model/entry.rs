@@ -1,6 +1,6 @@
-pub mod append_entry;
 pub mod commit_entry;
 pub mod dir_entry;
+pub mod mod_entry;
 pub mod remote_entry;
 pub mod staged_entry;
 

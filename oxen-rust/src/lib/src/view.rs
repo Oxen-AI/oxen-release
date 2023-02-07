@@ -41,4 +41,6 @@ pub use crate::view::entry_meta_data::EntryMetaDataResponse;
 pub use crate::view::oxen_response::OxenResponse;
 pub use crate::view::version::VersionResponse;
 
-pub use crate::view::remote_staged_status::{RemoteStagedStatusResponse, StagedFileAppendResponse};
+pub use crate::view::remote_staged_status::{
+    ListStagedFileModResponse, RemoteStagedStatusResponse, StagedFileModResponse,
+};
