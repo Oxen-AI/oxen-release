@@ -166,9 +166,9 @@ impl Stager {
     }
 
     pub fn status(&self, entry_reader: &CommitDirReader) -> Result<StagedData, OxenError> {
-        log::debug!("-----STATUS START-----");
+        log::debug!("-----status START-----");
         let result = self.compute_staged_data(&self.repository.path, entry_reader);
-        log::debug!("-----STATUS END-----");
+        log::debug!("-----status END-----");
         result
     }
 
@@ -177,9 +177,9 @@ impl Stager {
         entry_reader: &CommitDirReader,
         dir: &Path,
     ) -> Result<StagedData, OxenError> {
-        log::debug!("-----STATUS START-----");
+        log::debug!("-----status_from_dir START-----");
         let result = self.compute_staged_data(dir, entry_reader);
-        log::debug!("-----STATUS END-----");
+        log::debug!("-----status_from_dir END-----");
         result
     }
 
@@ -1029,8 +1029,8 @@ mod tests {
 
             // Commit it
             let commit_writer = CommitWriter::new(&repo)?;
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, "Add Hello World")?;
+            let mut status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&mut status, "Add Hello World")?;
             stager.unstage()?;
 
             // try to add it again
@@ -1303,9 +1303,9 @@ mod tests {
             stager.add_file(&hello_file, &entry_reader)?;
 
             // commit the file
-            let status = stager.status(&entry_reader)?;
+            let mut status = stager.status(&entry_reader)?;
             let commit_writer = CommitWriter::new(&repo)?;
-            let commit = commit_writer.commit(&status, "added hello 1")?;
+            let commit = commit_writer.commit(&mut status, "added hello 1")?;
             stager.unstage()?;
 
             let mod_files = stager.status(&entry_reader)?.modified_files;

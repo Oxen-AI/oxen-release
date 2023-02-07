@@ -1,8 +1,10 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::error::OxenError;
-use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{Branch, Commit, NewCommit, StagedData, StagedEntry};
+use crate::index::{
+    mod_stager, CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter,
+};
+use crate::model::{Branch, Commit, NewCommit, StagedData, StagedEntry, StagedEntryStatus};
 use crate::opts::RestoreOpts;
 use crate::util;
 use crate::{command, db};
@@ -10,11 +12,14 @@ use crate::{command, db};
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 use time::OffsetDateTime;
 
 use crate::model::LocalRepository;
+
+use super::remote_dir_stager;
 
 pub struct CommitWriter {
     pub commits_db: DBWithThreadMode<MultiThreaded>,
@@ -121,7 +126,7 @@ impl CommitWriter {
     //       image_1.png -> b"{entry_json}"
     //       image_2.png -> b"{entry_json}"
     //       image_2.png -> b"{entry_json}"
-    pub fn commit(&self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
+    pub fn commit(&self, status: &mut StagedData, message: &str) -> Result<Commit, OxenError> {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         log::debug!("---COMMIT START---"); // for debug logging / timing purposes
@@ -139,17 +144,62 @@ impl CommitWriter {
     pub fn commit_from_new(
         &self,
         new_commit: &NewCommit,
-        status: &StagedData,
+        status: &mut StagedData,
         origin_path: &Path,
         branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(new_commit, status);
         log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
 
+        // TODO: Add in any "appends" that are staged.
+        // rename remote_file_stager to append_stager or something
+        if let Some(branch) = &branch {
+            self.apply_mods(branch, status)?;
+        }
+
         // Write entries
         self.add_commit_from_status(&commit, status, origin_path, branch)?;
 
         Ok(commit)
+    }
+
+    pub fn apply_mods(&self, branch: &Branch, status: &mut StagedData) -> Result<(), OxenError> {
+        let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
+        log::debug!("CommitWriter Apply {} mods", entries.len());
+        for entry in entries.iter() {
+            let branch_staging_dir =
+                remote_dir_stager::branch_staging_dir(&self.repository, branch);
+
+            // Copy the version file to the staging dir and make the mods
+            let version_path = util::fs::version_path(&self.repository, entry);
+            let entry_path = branch_staging_dir.join(&entry.path);
+            if let Some(parent) = entry_path.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent)?;
+                }
+            }
+            std::fs::copy(&version_path, &entry_path)?;
+
+            let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
+            for modification in mods.iter() {
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .open(&entry_path)?;
+                log::debug!("append to file {:?} -> '{}'", entry_path, modification.data);
+                file.write_all(modification.data.as_bytes())?;
+            }
+
+            let new_hash = util::hasher::hash_file_contents(&entry_path)?;
+            status.added_files.insert(
+                entry.path.to_owned(),
+                StagedEntry {
+                    hash: new_hash.to_owned(),
+                    status: StagedEntryStatus::Modified,
+                },
+            );
+        }
+        Ok(())
     }
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
@@ -278,7 +328,7 @@ impl CommitWriter {
                 // TODO: Why are we doing...parent.parent here?
                 // Keep track of parents to see if we clear them
                 if let Some(parent) = path.parent() {
-                    log::debug!("adding candidiate dir {:?}", parent);
+                    log::debug!("adding candidate dir {:?}", parent);
 
                     if parent.parent().is_some() {
                         // only add one directory below top level
@@ -301,7 +351,7 @@ impl CommitWriter {
             }
         }
         log::debug!("Setting working directory to {}", commit_id);
-        log::debug!("got {} candidiate dirs", candidate_dirs_to_rm.len());
+        log::debug!("got {} candidate dirs", candidate_dirs_to_rm.len());
 
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
@@ -422,19 +472,24 @@ impl CommitWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use crate::error::OxenError;
-    use crate::index::{CommitDBReader, CommitDirReader, CommitWriter};
-    use crate::model::StagedData;
-    use crate::test;
+    use crate::index::{
+        self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter,
+    };
+    use crate::model::entry::mod_entry::ModType;
+    use crate::model::{StagedData, User};
+    use crate::{api, command, test, util};
 
     // This is how we initialize
     #[test]
     fn test_commit_no_files() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, repo| {
-            let status = StagedData::empty();
+            let mut status = StagedData::empty();
             log::debug!("run_empty_stager_test before CommitWriter::new...");
             let commit_writer = CommitWriter::new(&repo)?;
-            commit_writer.commit(&status, "Init")?;
+            commit_writer.commit(&mut status, "Init")?;
             stager.unstage()?;
 
             Ok(())
@@ -466,8 +521,8 @@ mod tests {
             stager.add_dir(&train_dir, &entry_reader)?;
 
             let message = "Adding training data to 🐂";
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, message)?;
+            let mut status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&mut status, message)?;
             stager.unstage()?;
 
             let commit_history =
@@ -482,6 +537,53 @@ mod tests {
             assert_eq!(files.len(), 0);
             let dirs = stager.list_added_dirs()?;
             assert_eq!(dirs.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_text_appends_staged() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Create committer with no commits
+            let repo_path = &repo.path;
+
+            let readme_file = Path::new("README.md");
+            let full_path = repo_path.join(readme_file);
+            let og_contents = util::fs::read_from_path(&full_path)?;
+
+            // Stage an append
+            let branch = command::current_branch(&repo)?.unwrap();
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+
+            let append_contents = "\n## New Section".to_string();
+            println!("BEFORE CREATE MOD");
+            index::mod_stager::create_mod(
+                &repo,
+                &branch,
+                readme_file,
+                ModType::Append,
+                append_contents.clone(),
+            )?;
+            println!("AFTER CREATE MOD");
+
+            let commit = remote_dir_stager::commit_staged(
+                &repo,
+                &branch_repo,
+                &branch,
+                &User {
+                    name: "Test User".to_string(),
+                    email: "test@oxen.ai".to_string(),
+                },
+                "Appending data",
+            )?;
+
+            // Make sure version file is updated
+            let entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, readme_file)?.unwrap();
+            let version_file = util::fs::version_path(&repo, &entry);
+            let new_contents = util::fs::read_from_path(&version_file)?;
+            assert_eq!(new_contents, format!("{og_contents}{append_contents}"));
 
             Ok(())
         })

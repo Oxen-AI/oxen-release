@@ -1,21 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::AppendEntry;
+use crate::model::ModEntry;
 
 use super::PaginatedDirEntries;
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct StagedFileAppendResponse {
+pub struct StagedFileModResponse {
     pub status: String,
     pub status_message: String,
-    pub append: AppendEntry,
+    pub modification: ModEntry,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct ListStagedFileAppendResponse {
+pub struct ListStagedFileModResponse {
     pub status: String,
     pub status_message: String,
-    pub appends: Vec<AppendEntry>,
+    pub modifications: Vec<ModEntry>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
