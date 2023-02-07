@@ -6,6 +6,7 @@ pub const MSG_RESOURCE_UPDATED: &str = "resource_updated";
 pub const MSG_RESOURCE_DELETED: &str = "resource_deleted";
 pub const MSG_RESOURCE_FOUND: &str = "resource_found";
 pub const MSG_RESOURCE_NOT_FOUND: &str = "resource_not_found";
+pub const MSG_BAD_REQUEST: &str = "bad_request";
 pub const MSG_RESOURCE_ALREADY_EXISTS: &str = "resource_already_exists";
 pub const MSG_RESOURCE_IS_PROCESSING: &str = "resource_is_processing";
 pub const MSG_FAILED_PROCESS: &str = "failed_process";

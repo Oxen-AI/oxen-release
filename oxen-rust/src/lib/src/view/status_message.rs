@@ -31,6 +31,13 @@ impl StatusMessage {
         }
     }
 
+    pub fn bad_request() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_ERROR),
+            status_message: String::from(view::http::MSG_BAD_REQUEST),
+        }
+    }
+
     pub fn resource_not_found() -> StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
