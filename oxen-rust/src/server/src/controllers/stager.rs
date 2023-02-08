@@ -178,8 +178,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                                         file_name,
                                         err
                                     );
-                                    Ok(HttpResponse::BadRequest()
-                                        .json(StatusMessage::error(&err)))
+                                    Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err)))
                                 }
                                 Err(err) => {
                                     log::error!(
