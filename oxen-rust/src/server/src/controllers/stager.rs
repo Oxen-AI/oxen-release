@@ -1,6 +1,7 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::compute::commit_cacher;
+use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
 use liboxen::model::{Branch, DirEntry, LocalRepository, User};
 use liboxen::view::entry::ResourceVersion;
@@ -170,6 +171,16 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                                     status_message: String::from(MSG_RESOURCE_CREATED),
                                     modification: entry,
                                 })),
+                                Err(OxenError::Basic(err)) => {
+                                    log::error!(
+                                        "unable to append data to file {:?}/{:?}. Err: {}",
+                                        branch_name,
+                                        file_name,
+                                        err
+                                    );
+                                    Ok(HttpResponse::BadRequest()
+                                        .json(StatusMessage::error(&err)))
+                                }
                                 Err(err) => {
                                     log::error!(
                                         "unable to append data to file {:?}/{:?}. Err: {}",
@@ -178,7 +189,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                                         err
                                     );
                                     Ok(HttpResponse::BadRequest()
-                                        .json(StatusMessage::error(&format!("{:?}", err))))
+                                        .json(StatusMessage::error(&format!("{err:?}"))))
                                 }
                             }
                         }

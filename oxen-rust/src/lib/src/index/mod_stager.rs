@@ -1,15 +1,18 @@
+use polars::prelude::*;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
 use time::OffsetDateTime;
 
-use crate::{api, util};
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::{Branch, CommitEntry, LocalRepository, ModEntry};
+use crate::{api, util};
 
 use super::stager::STAGED_DIR;
+use super::SchemaReader;
 
 fn mods_db_path(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> PathBuf {
     repo.path
@@ -57,7 +60,7 @@ pub fn create_mod(
                     track_mod_commit_entry(repo, branch, &commit_entry)?;
 
                     Ok(mod_entry)
-                },
+                }
                 Err(e) => {
                     log::error!("Error staging mod: {}", e);
                     Err(e)
@@ -118,7 +121,9 @@ fn stage_mod(
     } else if util::fs::is_tabular(&version_path) {
         stage_raw_mod_content(repo, branch, entry, mod_type, content)
     } else {
-        Err(OxenError::basic_str(format!("{:?} not supported for file type", mod_type)))
+        Err(OxenError::basic_str(format!(
+            "{mod_type:?} not supported for file type"
+        )))
     }
 }
 
@@ -130,14 +135,33 @@ fn stage_tabular_mod(
     mod_type: ModType,
     content: String,
 ) -> Result<ModEntry, OxenError> {
-
     // Read the schema of the data frame
-
-    // Parse the json
-
-    // Make sure it contains each field
-
-    stage_raw_mod_content(repo, branch, entry, mod_type, content)
+    let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
+    if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
+        // Parse the json
+        let cursor = Cursor::new(content.as_bytes());
+        match JsonLineReader::new(cursor).finish() {
+            Ok(df) => {
+                log::debug!("Successfully parsed df {:?}", df);
+                // Make sure it contains each field
+                let df_schema = df.schema();
+                log::debug!("Compare schemas {:?}\n\n{:?}\n\n", df_schema, schema);
+                if schema.matches_polars(&df_schema) {
+                    stage_raw_mod_content(repo, branch, entry, mod_type, content)
+                } else {
+                    let err = "Json schema does not match DataFrame schema.".to_string();
+                    Err(OxenError::basic_str(err))
+                }
+            }
+            Err(err) => {
+                let err = format!("Error parsing json: {err}");
+                Err(OxenError::basic_str(err))
+            }
+        }
+    } else {
+        let err = format!("Schema not found for file {:?}", entry.path);
+        Err(OxenError::basic_str(err))
+    }
 }
 
 fn stage_raw_mod_content(
