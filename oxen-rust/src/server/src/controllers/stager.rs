@@ -146,7 +146,6 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
-
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
@@ -159,12 +158,11 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                             branch_name,
                             file_name
                         );
-
                             match liboxen::index::mod_stager::create_mod(
                                 &repo,
                                 &branch,
                                 &file_name,
-                                ModType::Append, // TODO: support other types
+                                ModType::Append, // TODO: support modify, delete
                                 data,
                             ) {
                                 Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
@@ -179,8 +177,8 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                                         file_name,
                                         err
                                     );
-                                    Ok(HttpResponse::InternalServerError()
-                                        .json(StatusMessage::internal_server_error()))
+                                    Ok(HttpResponse::BadRequest()
+                                        .json(StatusMessage::error(&format!("{:?}", err))))
                                 }
                             }
                         }
