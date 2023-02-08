@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use time::OffsetDateTime;
 
-use crate::api;
+use crate::{api, util};
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::db::{self, str_json_db};
 use crate::error::OxenError;
@@ -49,11 +49,20 @@ pub fn create_mod(
     // should be safe to unwrap if we have a branch
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
     match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
-        Some(entry) => {
-            // We track the files that are modified
-            track_mod_commit_entry(repo, branch, &entry)?;
-            // Then the mod itself
-            stage_mod(repo, branch, &entry, mod_type, content)
+        Some(commit_entry) => {
+            // Try to track the mod
+            match stage_mod(repo, branch, &commit_entry, mod_type, content) {
+                Ok(mod_entry) => {
+                    // If successful track the file it is modifying
+                    track_mod_commit_entry(repo, branch, &commit_entry)?;
+
+                    Ok(mod_entry)
+                },
+                Err(e) => {
+                    log::error!("Error staging mod: {}", e);
+                    Err(e)
+                }
+            }
         }
         None => Err(OxenError::file_does_not_exist_in_commit(
             file_path, &commit.id,
@@ -97,6 +106,41 @@ fn track_mod_commit_entry(
 }
 
 fn stage_mod(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+    mod_type: ModType,
+    content: String,
+) -> Result<ModEntry, OxenError> {
+    let version_path = util::fs::version_path(repo, entry);
+    if util::fs::is_tabular(&version_path) {
+        stage_tabular_mod(repo, branch, entry, mod_type, content)
+    } else if util::fs::is_tabular(&version_path) {
+        stage_raw_mod_content(repo, branch, entry, mod_type, content)
+    } else {
+        Err(OxenError::basic_str(format!("{:?} not supported for file type", mod_type)))
+    }
+}
+
+/// Throws an error if the content cannot be parsed into the proper tabular schema
+fn stage_tabular_mod(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+    mod_type: ModType,
+    content: String,
+) -> Result<ModEntry, OxenError> {
+
+    // Read the schema of the data frame
+
+    // Parse the json
+
+    // Make sure it contains each field
+
+    stage_raw_mod_content(repo, branch, entry, mod_type, content)
+}
+
+fn stage_raw_mod_content(
     repo: &LocalRepository,
     branch: &Branch,
     entry: &CommitEntry,
