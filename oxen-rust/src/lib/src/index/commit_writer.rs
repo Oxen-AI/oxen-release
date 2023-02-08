@@ -475,9 +475,7 @@ mod tests {
     use std::path::Path;
 
     use crate::error::OxenError;
-    use crate::index::{
-        self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter,
-    };
+    use crate::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::entry::mod_entry::ModType;
     use crate::model::{StagedData, User};
     use crate::{api, command, test, util};

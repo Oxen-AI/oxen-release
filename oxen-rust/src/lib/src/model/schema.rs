@@ -41,6 +41,31 @@ impl Schema {
         }
     }
 
+    pub fn matches_polars(&self, schema: &polars::prelude::Schema) -> bool {
+        let mut matches = true;
+        log::debug!(
+            "matches_polars checking size {} == {}",
+            self.fields.len(),
+            schema.len()
+        );
+        if self.fields.len() != schema.len() {
+            return false;
+        }
+
+        for field in schema.iter_fields() {
+            let f = Field {
+                name: field.name().trim().to_string(),
+                dtype: field.data_type().to_string(),
+            };
+            if !self.has_field(&f) {
+                matches = false;
+                break;
+            }
+        }
+
+        matches
+    }
+
     pub fn has_field(&self, field: &Field) -> bool {
         self.fields
             .iter()
