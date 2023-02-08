@@ -151,8 +151,6 @@ impl CommitWriter {
         let commit = self.gen_commit(new_commit, status);
         log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
 
-        // TODO: Add in any "appends" that are staged.
-        // rename remote_file_stager to append_stager or something
         if let Some(branch) = &branch {
             self.apply_mods(branch, status)?;
         }
