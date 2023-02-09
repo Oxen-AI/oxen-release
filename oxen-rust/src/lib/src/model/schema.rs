@@ -52,12 +52,10 @@ impl Schema {
             return false;
         }
 
-        for field in schema.iter_fields() {
-            let f = Field {
-                name: field.name().trim().to_string(),
-                dtype: field.data_type().to_string(),
-            };
-            if !self.has_field(&f) {
+        for (i, field) in schema.iter_fields().enumerate() {
+            if self.fields[i].name != field.name
+                || self.fields[i].dtype != DataType::from_polars(&field.dtype).as_str()
+            {
                 matches = false;
                 break;
             }

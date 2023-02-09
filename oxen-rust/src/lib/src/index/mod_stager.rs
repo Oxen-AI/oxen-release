@@ -118,7 +118,7 @@ fn stage_mod(
     let version_path = util::fs::version_path(repo, entry);
     if util::fs::is_tabular(&version_path) {
         stage_tabular_mod(repo, branch, entry, mod_type, content)
-    } else if util::fs::is_tabular(&version_path) {
+    } else if util::fs::is_utf8(&version_path) {
         stage_raw_mod_content(repo, branch, entry, mod_type, content)
     } else {
         Err(OxenError::basic_str(format!(
