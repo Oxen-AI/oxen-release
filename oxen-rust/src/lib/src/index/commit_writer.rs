@@ -3,11 +3,10 @@ use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::index::{
-    mod_stager, CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter,
+    mod_stager, remote_dir_stager, CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader,
+    RefWriter,
 };
-use crate::model::{
-    Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, StagedEntryStatus,
-};
+use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry};
 use crate::opts::RestoreOpts;
 use crate::{command, db};
 use crate::{df, util};
@@ -22,8 +21,6 @@ use std::str;
 use time::OffsetDateTime;
 
 use crate::model::LocalRepository;
-
-use super::remote_dir_stager;
 
 pub struct CommitWriter {
     pub commits_db: DBWithThreadMode<MultiThreaded>,
@@ -156,17 +153,31 @@ impl CommitWriter {
         log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
 
         if let Some(branch) = &branch {
-            self.apply_mods(branch, status)?;
+            let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
+            if !entries.is_empty() {
+                let staged = self.apply_mods(branch, &entries)?;
+                // Write entries
+                self.add_commit_from_status(
+                    &commit,
+                    &staged,
+                    origin_path,
+                    Some(branch.to_owned()),
+                )?;
+            }
+        } else {
+            self.add_commit_from_status(&commit, status, origin_path, branch)?;
         }
-
-        // Write entries
-        self.add_commit_from_status(&commit, status, origin_path, branch)?;
 
         Ok(commit)
     }
 
-    pub fn apply_mods(&self, branch: &Branch, status: &mut StagedData) -> Result<(), OxenError> {
-        let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
+    pub fn apply_mods(
+        &self,
+        branch: &Branch,
+        entries: &Vec<CommitEntry>,
+    ) -> Result<StagedData, OxenError> {
+        let branch_repo = remote_dir_stager::init_or_get(&self.repository, branch).unwrap();
+
         log::debug!("CommitWriter Apply {} mods", entries.len());
         for entry in entries.iter() {
             let branch_staging_dir =
@@ -182,16 +193,16 @@ impl CommitWriter {
             }
             std::fs::copy(&version_path, &entry_path)?;
 
-            let new_hash = self.apply_mods_to_file(branch, entry, &entry_path)?;
-            status.added_files.insert(
-                entry.path.to_owned(),
-                StagedEntry {
-                    hash: new_hash.to_owned(),
-                    status: StagedEntryStatus::Modified,
-                },
-            );
+            self.apply_mods_to_file(branch, entry, &entry_path)?;
+            remote_dir_stager::stage_file(&self.repository, &branch_repo, branch, &entry_path)?;
         }
-        Ok(())
+
+        // Have to recompute staged data
+        let staged_data = command::status(&branch_repo)?;
+        log::debug!("APPLY MODS got new staged_data");
+        staged_data.print_stdout();
+
+        Ok(staged_data)
     }
 
     fn apply_mods_to_file(

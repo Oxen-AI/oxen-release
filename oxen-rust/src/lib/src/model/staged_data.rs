@@ -22,6 +22,7 @@ pub const MSG_OXEN_RESTORE_STAGED_FILE: &str =
 pub const MSG_OXEN_SHOW_SCHEMA_STAGED: &str =
     "  (use \"oxen schemas show <HASH> --staged\" to view staged schema)\n";
 
+#[derive(Debug, Clone)]
 pub struct StagedData {
     pub added_dirs: SummarizedStagedDirStats,
     pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here

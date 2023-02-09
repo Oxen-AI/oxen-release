@@ -155,42 +155,12 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
                             log::debug!(
-                            "stager::stage_append_to_file file branch_name [{}] file_name [{:?}]",
-                            branch_name,
-                            file_name
-                        );
-                            match liboxen::index::mod_stager::create_mod(
-                                &repo,
-                                &branch,
-                                &file_name,
-                                ModType::Append, // TODO: support modify, delete
-                                data,
-                            ) {
-                                Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
-                                    status: String::from(STATUS_SUCCESS),
-                                    status_message: String::from(MSG_RESOURCE_CREATED),
-                                    modification: entry,
-                                })),
-                                Err(OxenError::Basic(err)) => {
-                                    log::error!(
-                                        "unable to append data to file {:?}/{:?}. Err: {}",
-                                        branch_name,
-                                        file_name,
-                                        err
-                                    );
-                                    Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err)))
-                                }
-                                Err(err) => {
-                                    log::error!(
-                                        "unable to append data to file {:?}/{:?}. Err: {}",
-                                        branch_name,
-                                        file_name,
-                                        err
-                                    );
-                                    Ok(HttpResponse::BadRequest()
-                                        .json(StatusMessage::error(&format!("{err:?}"))))
-                                }
-                            }
+                                "stager::stage_append_to_file file branch_name [{}] file_name [{:?}]",
+                                branch_name,
+                                file_name
+                            );
+                            index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+                            create_mod(&repo, &branch, &file_name, data)
                         }
                         Ok(None) => {
                             log::debug!("stager::stage could not find branch {:?}", branch_name);
@@ -221,6 +191,45 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
         Err(err) => {
             log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
+}
+
+fn create_mod(
+    repo: &LocalRepository,
+    branch: &Branch,
+    file: &Path,
+    data: String,
+) -> Result<HttpResponse, Error> {
+    match liboxen::index::mod_stager::create_mod(
+        repo,
+        branch,
+        file,
+        ModType::Append, // TODO: support modify, delete
+        data,
+    ) {
+        Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_CREATED),
+            modification: entry,
+        })),
+        Err(OxenError::Basic(err)) => {
+            log::error!(
+                "unable to append data to file {:?}/{:?}. Err: {}",
+                branch.name,
+                file,
+                err
+            );
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err)))
+        }
+        Err(err) => {
+            log::error!(
+                "unable to append data to file {:?}/{:?}. Err: {}",
+                branch.name,
+                file,
+                err
+            );
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&format!("{err:?}"))))
         }
     }
 }

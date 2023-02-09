@@ -1,4 +1,4 @@
-use crate::constants::HISTORY_DIR;
+use crate::constants::{FILES_DIR, HISTORY_DIR};
 use crate::db;
 use crate::db::path_db;
 use crate::error::OxenError;
@@ -23,7 +23,7 @@ impl CommitDirEntryWriter {
         util::fs::oxen_hidden_dir(&repo.path)
             .join(Path::new(HISTORY_DIR))
             .join(commit_id)
-            .join("files")
+            .join(FILES_DIR)
             .join(dir)
     }
 
