@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 ///     
 /// Rolled up to:
 ///     annotations/ -> num_staged: 3, total: 4
+
+#[derive(Debug, Clone)]
 pub struct SummarizedStagedDirStats {
     pub num_files_staged: usize,
     pub total_files: usize,

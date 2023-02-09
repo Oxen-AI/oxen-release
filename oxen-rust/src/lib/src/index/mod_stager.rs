@@ -136,16 +136,24 @@ fn stage_tabular_mod(
     content: String,
 ) -> Result<ModEntry, OxenError> {
     // Read the schema of the data frame
+    log::debug!(
+        "Looking for schema on commit [{}] for entry {:?}",
+        entry.commit_id,
+        entry.path
+    );
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
         // Parse the json
         let cursor = Cursor::new(content.as_bytes());
-        match JsonLineReader::new(cursor).finish() {
+        let polars_schema = schema.to_polars();
+        match JsonLineReader::new(cursor)
+            .with_schema(&polars_schema)
+            .finish()
+        {
             Ok(df) => {
                 log::debug!("Successfully parsed df {:?}", df);
                 // Make sure it contains each field
                 let df_schema = df.schema();
-                log::debug!("Compare schemas {:?}\n\n{:?}\n\n", df_schema, schema);
                 if schema.matches_polars(&df_schema) {
                     stage_raw_mod_content(repo, branch, entry, mod_type, content)
                 } else {

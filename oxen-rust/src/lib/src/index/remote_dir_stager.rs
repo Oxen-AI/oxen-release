@@ -34,17 +34,19 @@ pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch) -> PathBuf {
 pub fn init_or_get(repo: &LocalRepository, branch: &Branch) -> Result<LocalRepository, OxenError> {
     let staging_dir = branch_staging_dir(repo, branch);
     let oxen_dir = staging_dir.join(OXEN_HIDDEN_DIR);
-    if oxen_dir.exists() {
+    let branch_repo = if oxen_dir.exists() {
         log::debug!("stage_file Already have oxen repo 🐂");
-        LocalRepository::new(&staging_dir)
+        LocalRepository::new(&staging_dir)?
     } else {
         log::debug!("stage_file Initializing oxen repo! 🐂");
-        let branch_repo = command::init(&staging_dir)?;
-        if !api::local::branches::branch_exists(&branch_repo, &branch.name)? {
-            command::create_checkout_branch(&branch_repo, &branch.name)?;
-        }
-        Ok(branch_repo)
+        command::init(&staging_dir)?
+    };
+
+    if !api::local::branches::branch_exists(&branch_repo, &branch.name)? {
+        command::create_checkout_branch(&branch_repo, &branch.name)?;
     }
+
+    Ok(branch_repo)
 }
 
 // Stages a file in a specified directory
@@ -81,19 +83,8 @@ pub fn commit_staged(
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_staged started on branch: {}", branch.name);
 
-    // Stager will be in the branch repo
     let staging_dir = branch_staging_dir(repo, branch);
-    log::debug!("commit_staged staging_dir: {:?}", staging_dir);
-
-    let stager = Stager::new(branch_repo)?;
-    // But we will read from the commit in the main repo
-    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-    let reader = CommitDirReader::new(repo, &commit)?;
-    log::debug!("commit_staged before status...");
-
-    let mut status = stager.status(&reader)?;
-    log::debug!("commit_staged after status...");
-    status.print_stdout();
+    let mut status = status_for_branch(repo, branch_repo, branch)?;
 
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();
@@ -116,11 +107,32 @@ pub fn commit_staged(
     )?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
-    stager.unstage()?;
-
     // TODO: cleanup all files in staging dir
 
     Ok(commit)
+}
+
+fn status_for_branch(
+    repo: &LocalRepository,
+    branch_repo: &LocalRepository,
+    branch: &Branch,
+) -> Result<StagedData, OxenError> {
+    // Stager will be in the branch repo
+    let staging_dir = branch_staging_dir(repo, branch);
+    log::debug!("commit_staged staging_dir: {:?}", staging_dir);
+
+    let stager = Stager::new(branch_repo)?;
+    // But we will read from the commit in the main repo
+    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+    let reader = CommitDirReader::new(repo, &commit)?;
+    log::debug!("commit_staged before status...");
+
+    let status = stager.status(&reader)?;
+    log::debug!("commit_staged after status...");
+    status.print_stdout();
+    stager.unstage()?;
+
+    Ok(status)
 }
 
 pub fn list_staged_data(repo: &LocalRepository, branch: &Branch) -> Result<StagedData, OxenError> {

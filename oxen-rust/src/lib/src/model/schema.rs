@@ -24,6 +24,16 @@ impl Schema {
         }
     }
 
+    pub fn to_polars(&self) -> polars::prelude::Schema {
+        let mut schema = polars::prelude::Schema::new();
+        for field in self.fields.iter() {
+            let data_type = DataType::from_string(&field.dtype);
+            schema.with_column(field.name.to_owned(), DataType::to_polars(&data_type))
+        }
+
+        schema
+    }
+
     pub fn from_polars(schema: &polars::prelude::Schema) -> Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
