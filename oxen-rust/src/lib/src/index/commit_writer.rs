@@ -1,18 +1,22 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::index::{
     mod_stager, CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter,
 };
-use crate::model::{Branch, Commit, NewCommit, StagedData, StagedEntry, StagedEntryStatus};
+use crate::model::{
+    Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, StagedEntryStatus,
+};
 use crate::opts::RestoreOpts;
-use crate::util;
 use crate::{command, db};
+use crate::{df, util};
+use polars::prelude::*;
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
-use std::io::Write;
+use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::str;
 use time::OffsetDateTime;
@@ -178,17 +182,7 @@ impl CommitWriter {
             }
             std::fs::copy(&version_path, &entry_path)?;
 
-            let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
-            for modification in mods.iter() {
-                let mut file = std::fs::OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .open(&entry_path)?;
-                log::debug!("append to file {:?} -> '{}'", entry_path, modification.data);
-                file.write_all(modification.data.as_bytes())?;
-            }
-
-            let new_hash = util::hasher::hash_file_contents(&entry_path)?;
+            let new_hash = self.apply_mods_to_file(branch, entry, &entry_path)?;
             status.added_files.insert(
                 entry.path.to_owned(),
                 StagedEntry {
@@ -198,6 +192,61 @@ impl CommitWriter {
             );
         }
         Ok(())
+    }
+
+    fn apply_mods_to_file(
+        &self,
+        branch: &Branch,
+        entry: &CommitEntry,
+        path: &Path,
+    ) -> Result<String, OxenError> {
+        if util::fs::is_tabular(path) {
+            self.apply_tabular_mods(branch, entry, path)
+        } else if util::fs::is_utf8(path) {
+            self.apply_utf8_mods(branch, entry, path)
+        } else {
+            Err(OxenError::basic_str(
+                "File type not supported for modifications",
+            ))
+        }
+    }
+
+    fn apply_tabular_mods(
+        &self,
+        branch: &Branch,
+        entry: &CommitEntry,
+        path: &Path,
+    ) -> Result<String, OxenError> {
+        let mut df = df::tabular::read_df(path, DFOpts::empty())?;
+        let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
+        for modification in mods.iter() {
+            let cursor = Cursor::new(modification.data.as_bytes());
+            let mod_df = JsonLineReader::new(cursor).finish().unwrap();
+            df = df.vstack(&mod_df).unwrap();
+        }
+        df::tabular::write_df(&mut df, path)?;
+        let new_hash = util::hasher::hash_file_contents(path)?;
+        Ok(new_hash)
+    }
+
+    fn apply_utf8_mods(
+        &self,
+        branch: &Branch,
+        entry: &CommitEntry,
+        path: &Path,
+    ) -> Result<String, OxenError> {
+        let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
+        for modification in mods.iter() {
+            let mut file = std::fs::OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(path)?;
+            log::debug!("append to file {:?} -> '{}'", path, modification.data);
+            file.write_all(modification.data.as_bytes())?;
+        }
+
+        let new_hash = util::hasher::hash_file_contents(path)?;
+        Ok(new_hash)
     }
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
@@ -472,11 +521,12 @@ impl CommitWriter {
 mod tests {
     use std::path::Path;
 
+    use crate::df::DFOpts;
     use crate::error::OxenError;
     use crate::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::entry::mod_entry::ModType;
     use crate::model::{StagedData, User};
-    use crate::{api, command, test, util};
+    use crate::{api, command, df, test, util};
 
     // This is how we initialize
     #[test]
@@ -541,7 +591,6 @@ mod tests {
     #[test]
     fn test_commit_text_appends_staged() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            // Create committer with no commits
             let repo_path = &repo.path;
 
             let readme_file = Path::new("README.md");
@@ -553,7 +602,6 @@ mod tests {
             let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
 
             let append_contents = "\n## New Section".to_string();
-            println!("BEFORE CREATE MOD");
             index::mod_stager::create_mod(
                 &repo,
                 &branch,
@@ -561,7 +609,6 @@ mod tests {
                 ModType::Append,
                 append_contents.clone(),
             )?;
-            println!("AFTER CREATE MOD");
 
             let commit = remote_dir_stager::commit_staged(
                 &repo,
@@ -580,6 +627,97 @@ mod tests {
             let version_file = util::fs::version_path(&repo, &entry);
             let new_contents = util::fs::read_from_path(&version_file)?;
             assert_eq!(new_contents, format!("{og_contents}{append_contents}"));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_append_invalid_schema() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Try stage an append
+            let readme_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let branch = command::current_branch(&repo)?.unwrap();
+
+            let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
+            let result = index::mod_stager::create_mod(
+                &repo,
+                &branch,
+                &readme_file,
+                ModType::Append,
+                append_contents,
+            );
+            // Should be an error
+            assert!(result.is_err());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_tabular_appends_staged() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let annotations_file = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            // Stage an append
+            let branch = command::current_branch(&repo)?.unwrap();
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+
+            let append_contents = "{\"file\": \"images/test.jpg\", \"label\": \"dog\", \"min_x\": 2.0, \"min_y\": 3.0, \"width\": 100, \"height\": 120}".to_string();
+            index::mod_stager::create_mod(
+                &repo,
+                &branch,
+                &annotations_file,
+                ModType::Append,
+                append_contents,
+            )?;
+
+            let commit = remote_dir_stager::commit_staged(
+                &repo,
+                &branch_repo,
+                &branch,
+                &User {
+                    name: "Test User".to_string(),
+                    email: "test@oxen.ai".to_string(),
+                },
+                "Appending tabular data",
+            )?;
+
+            // Make sure version file is updated
+            let entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, &annotations_file)?
+                    .unwrap();
+            let version_file = util::fs::version_path(&repo, &entry);
+
+            let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;
+            println!("{data_frame}");
+            assert_eq!(
+                format!("{data_frame}"),
+                r"shape: (7, 6)
+┌─────────────────┬───────┬───────┬───────┬───────┬────────┐
+│ file            ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+│ ---             ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
+│ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
+╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
+│ train/dog_1.jpg ┆ dog   ┆ 101.5 ┆ 32.0  ┆ 385   ┆ 330    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/dog_2.jpg ┆ dog   ┆ 7.0   ┆ 29.5  ┆ 246   ┆ 247    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ train/cat_2.jpg ┆ cat   ┆ 30.5  ┆ 44.0  ┆ 333   ┆ 396    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/test.jpg ┆ dog   ┆ 2.0   ┆ 3.0   ┆ 100   ┆ 120    │
+└─────────────────┴───────┴───────┴───────┴───────┴────────┘"
+            );
 
             Ok(())
         })
