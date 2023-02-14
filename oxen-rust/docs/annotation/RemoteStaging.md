@@ -30,7 +30,7 @@ You can specify a branch and a directory you would like to upload the data to in
 curl -X POST -H "Content-Type: multipart/form-data" -F file=@/path/to/image.jpg 'http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images/annotations'
 ```
 
-This will create a uniq ID for each file that is uploaded to avoid conflicts. It will return the file path that was created remotely.
+This will create a uniq file name for each file that is uploaded to avoid conflicts. It will return the file path that was created remotely.
 
 To view the files that are staged you can simply GET the staged data on the branch `/staging/dir/add-images`
 
@@ -38,7 +38,7 @@ To view the files that are staged you can simply GET the staged data on the bran
 curl -X GET 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images'
 ```
 
-When you are ready to commit the staged data
+When you are ready to commit the staged data you can call the `/commit` API with the branch postfix.
 
 ```
 curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing committing moreeee data", "user": {"name": "Ox", "email": "ox@oxen.ai"}}' 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/commit/add-images'
@@ -46,12 +46,17 @@ curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing commit
 
 # Staging Structured Data
 
-Now that you know how to upload and stage images to a remote staging area, you can also stage structured data. This is useful for collecting tabular data and labeling it.
+Now that you know how to upload and stage any file to a remote staging area, you can also stage structured annotations. This is useful for collecting/extending tabular DataFrames without cloning all of the data.
+
+Often you will have structured DataFrames that reference your unstructured data files in your repository. For example, you might have a DataFrame with a column that contains the path to the image file. You can use the `append` API to append annotations to a DataFrame.
 
 ## Example Workflow
 
-Imagine you have a DataFrame and you want to append annotations to it. You can specify a branch, and use the `append` api to append json to a DataFrame. Internally Oxen takes care of converting the json to the proper csv, parquet, jsonl format.
+To append to a DataFrame you must specify a branch, a file name, and a json body that represents the column values. Internally Oxen uses the DataFrame schema to convert the json to the proper csv, parquet, arrow, or jsonl format.
+
+TODO: check the schema to make sure we send all the proper columns.
 
 ```
-curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"id": 5, "text": "line 5"}' 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.tsv'
+curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.csv'
 ```
+
