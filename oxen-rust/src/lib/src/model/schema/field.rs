@@ -7,7 +7,15 @@ pub struct Field {
 }
 
 impl Field {
-    pub fn fields_to_string<V: AsRef<Vec<Field>>>(fields: V) -> String {
+    pub fn all_fields_to_string<V: AsRef<Vec<Field>>>(fields: V) -> String {
+        let names: Vec<String> = fields.as_ref().iter().map(|f| f.name.to_owned()).collect();
+
+        let combined_names = names.join(", ");
+
+        format!("[{combined_names}]")
+    }
+
+    pub fn fields_to_string_with_limit<V: AsRef<Vec<Field>>>(fields: V) -> String {
         let fields = fields.as_ref();
         let max_num = 4;
         if fields.len() > max_num {

@@ -22,6 +22,8 @@ use time::OffsetDateTime;
 
 use crate::model::LocalRepository;
 
+use super::SchemaReader;
+
 pub struct CommitWriter {
     pub commits_db: DBWithThreadMode<MultiThreaded>,
     repository: LocalRepository,
@@ -228,16 +230,27 @@ impl CommitWriter {
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
-        let mut df = df::tabular::read_df(path, DFOpts::empty())?;
-        let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
-        for modification in mods.iter() {
-            let cursor = Cursor::new(modification.data.as_bytes());
-            let mod_df = JsonLineReader::new(cursor).finish().unwrap();
-            df = df.vstack(&mod_df).unwrap();
+        let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
+        if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
+            let schema = schema.to_polars();
+            let mut df = df::tabular::read_df(path, DFOpts::empty())?;
+            let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
+            for modification in mods.iter() {
+                let cursor = Cursor::new(modification.data.as_bytes());
+                let mod_df = JsonLineReader::new(cursor)
+                    .with_schema(&schema)
+                    .finish()
+                    .unwrap();
+                df = df.vstack(&mod_df).unwrap();
+            }
+            df::tabular::write_df(&mut df, path)?;
+            let new_hash = util::hasher::hash_file_contents(path)?;
+            Ok(new_hash)
+        } else {
+            Err(OxenError::basic_str(
+                "No schema found for file, cannot apply modifications",
+            ))
         }
-        df::tabular::write_df(&mut df, path)?;
-        let new_hash = util::hasher::hash_file_contents(path)?;
-        Ok(new_hash)
     }
 
     fn apply_utf8_mods(
