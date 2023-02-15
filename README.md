@@ -234,6 +234,20 @@ $ cd <repo_name>
 $ oxen pull origin my-branch
 ```
 
+## Oxen Badges
+
+![example oxen badge](images/ExampleBadge.svg)
+
+You can add a badge to your README to show the status of your repository. Badges show a summary of the data in your repository. The badge is generated as a .svg so you can embed badges on other sites like GitHub if your code lives elsewhere.
+
+Example Markdown:
+
+```
+[![Oxen Badge](https://img.shields.io/endpoint?url=https://hub.oxen.ai/api/repos/$USERNAME/$REPO_NAME/badge 'Oxen Badge')](https://oxen.ai/$USERNAME/$REPO_NAME)
+```
+
+Simply replace $USERNAME and $REPO_NAME above with your username and repository name.
+
 ## Self Hosting
 
 Oxen enables self-hosting with the `oxen-server` binary. You do not get any of the UI features of the hub, but this is a nice option to kick the tires or set up internal infrastructure. Some teams set up a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
