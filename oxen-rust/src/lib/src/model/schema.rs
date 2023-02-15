@@ -51,8 +51,7 @@ impl Schema {
         }
     }
 
-    pub fn matches_polars(&self, schema: &polars::prelude::Schema) -> bool {
-        let mut matches = true;
+    pub fn has_all_field_names(&self, schema: &polars::prelude::Schema) -> bool {
         log::debug!(
             "matches_polars checking size {} == {}",
             self.fields.len(),
@@ -62,22 +61,25 @@ impl Schema {
             return false;
         }
 
-        for (i, field) in schema.iter_fields().enumerate() {
-            if self.fields[i].name != field.name
-                || self.fields[i].dtype != DataType::from_polars(&field.dtype).as_str()
-            {
-                matches = false;
+        let mut has_all_fields = true;
+        for field in schema.iter_fields() {
+            if !self.has_field_name(&field.name) {
+                has_all_fields = false;
                 break;
             }
         }
 
-        matches
+        has_all_fields
     }
 
     pub fn has_field(&self, field: &Field) -> bool {
         self.fields
             .iter()
             .any(|f| f.name == field.name && f.dtype == field.dtype)
+    }
+
+    pub fn has_field_name(&self, name: &str) -> bool {
+        self.fields.iter().any(|f| f.name == name)
     }
 
     pub fn get_field<S: AsRef<str>>(&self, name: S) -> Option<&Field> {
@@ -130,7 +132,7 @@ impl Schema {
         table.set_header(vec!["name", "hash", "fields"]);
 
         for schema in schemas.iter() {
-            let fields_str = Field::fields_to_string(&schema.fields);
+            let fields_str = Field::fields_to_string_with_limit(&schema.fields);
             if let Some(name) = &schema.name {
                 table.add_row(vec![name.to_string(), schema.hash.to_string(), fields_str]);
             } else {

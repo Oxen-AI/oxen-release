@@ -8,6 +8,7 @@ use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
+use crate::model::schema::Field;
 use crate::model::{Branch, CommitEntry, LocalRepository, ModEntry};
 use crate::{api, util};
 
@@ -145,19 +146,16 @@ fn stage_tabular_mod(
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
         // Parse the json
         let cursor = Cursor::new(content.as_bytes());
-        let polars_schema = schema.to_polars();
-        match JsonLineReader::new(cursor)
-            .with_schema(&polars_schema)
-            .finish()
-        {
+        match JsonLineReader::new(cursor).finish() {
             Ok(df) => {
                 log::debug!("Successfully parsed df {:?}", df);
                 // Make sure it contains each field
                 let df_schema = df.schema();
-                if schema.matches_polars(&df_schema) {
+                if schema.has_all_field_names(&df_schema) {
                     stage_raw_mod_content(repo, branch, entry, mod_type, content)
                 } else {
-                    let err = "Json schema does not match DataFrame schema.".to_string();
+                    let schema_fields_str = Field::all_fields_to_string(&schema.fields);
+                    let err = format!("Json schema does not contain same fields as DataFrame schema. {schema_fields_str}");
                     Err(OxenError::basic_str(err))
                 }
             }
