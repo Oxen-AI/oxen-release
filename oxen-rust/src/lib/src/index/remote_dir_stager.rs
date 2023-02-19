@@ -64,9 +64,7 @@ pub fn stage_file(
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
     let reader = CommitDirReader::new(repo, &commit)?;
-
-    let full_path = staging_dir.join(filepath);
-    stager.add_file(full_path.as_ref(), &reader)?;
+    stager.add_file(filepath.as_ref(), &reader)?;
 
     log::debug!("remote stager after add...");
 
@@ -98,7 +96,6 @@ pub fn commit_staged(
     };
     log::debug!("commit_staged: new_commit: {:#?}", &new_commit);
 
-    // TODO: check for appends, and apply them to their files.
     let commit = commit_writer.commit_from_new(
         &new_commit,
         &mut status,
@@ -170,13 +167,12 @@ mod tests {
             let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
-            let relative_path = directory.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
 
             let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch)?;
-            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &relative_path)?;
+            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &full_path)?;
 
             // Verify staged data
             let staged_data = index::remote_dir_stager::list_staged_data(&repo, &branch)?;
@@ -197,12 +193,11 @@ mod tests {
             let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
-            let relative_path = directory.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
             let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch)?;
-            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &relative_path)?;
+            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &full_path)?;
 
             let og_commits = command::log(&repo)?;
             let user = User {
@@ -211,6 +206,10 @@ mod tests {
             };
             let message: &str = "I am committing this remote staged data";
             index::remote_dir_stager::commit_staged(&repo, &branch_repo, &branch, &user, message)?;
+
+            for commit in og_commits.iter() {
+                println!("OG commit: {commit:#?}");
+            }
 
             let new_commits = command::log(&repo)?;
             assert_eq!(og_commits.len() + 1, new_commits.len());

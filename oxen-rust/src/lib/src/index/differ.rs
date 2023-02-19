@@ -1,7 +1,8 @@
 use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
 use crate::index::{CommitDirEntryReader, CommitReader};
-use crate::model::{Commit, CommitEntry, DataFrameDiff, LocalRepository, Schema};
+use crate::model::entry::diff_entry::DiffEntryStatus;
+use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::{constants, util};
 
 use colored::Colorize;
@@ -9,9 +10,10 @@ use difference::{Changeset, Difference};
 use polars::export::ahash::HashMap;
 use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
+use std::collections::HashSet;
 use std::path::Path;
 
-use super::SchemaReader;
+use super::{CommitDirReader, SchemaReader};
 
 pub fn diff(
     repo: &LocalRepository,
@@ -282,4 +284,216 @@ fn compute_new_columns(
         added_cols,
         removed_cols,
     })
+}
+
+pub fn list_diff_entries(
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    head_commit: &Commit,
+) -> Result<Vec<DiffEntry>, OxenError> {
+    log::debug!(
+        "list_diff_entries base_commit: '{}', head_commit: '{}'",
+        base_commit.message,
+        head_commit.message
+    );
+    // BASE is what we are merging into, HEAD is where it is coming from
+    // We want to find all the entries that are added, modified, removed HEAD but not in BASE
+
+    // Read the entries from the base commit and the head commit
+    let head_entries = read_entries_from_commit(repo, head_commit)?;
+    let base_entries = read_entries_from_commit(repo, base_commit)?;
+
+    let mut diff_entries: Vec<DiffEntry> = vec![];
+    collect_added_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
+    collect_removed_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
+    collect_modified_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
+
+    Ok(diff_entries)
+}
+
+// Find the entries that are in HEAD but not in BASE
+fn collect_added_entries(
+    repo: &LocalRepository,
+    base_entries: &HashSet<CommitEntry>,
+    head_entries: &HashSet<CommitEntry>,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for head_entry in head_entries {
+        // HEAD entry is *not* in BASE
+        if !base_entries.contains(head_entry) {
+            diff_entries.push(DiffEntry::from_commit_entry(
+                repo,
+                None,
+                Some(head_entry),
+                DiffEntryStatus::Added,
+            ));
+        }
+    }
+    Ok(())
+}
+
+// Find the entries that are in BASE but not in HEAD
+fn collect_removed_entries(
+    repo: &LocalRepository,
+    base_entries: &HashSet<CommitEntry>,
+    head_entries: &HashSet<CommitEntry>,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for base_entry in base_entries {
+        // BASE entry is *not* in HEAD
+        if !head_entries.contains(base_entry) {
+            diff_entries.push(DiffEntry::from_commit_entry(
+                repo,
+                Some(base_entry),
+                None,
+                DiffEntryStatus::Removed,
+            ));
+        }
+    }
+    Ok(())
+}
+
+// Find the entries that are in both base and head, but have different hashes
+fn collect_modified_entries(
+    repo: &LocalRepository,
+    base_entries: &HashSet<CommitEntry>,
+    head_entries: &HashSet<CommitEntry>,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    log::debug!(
+        "collect_modified_entries {} modified entries",
+        head_entries.len()
+    );
+    for head_entry in head_entries {
+        log::debug!("collect_modified_entries considering {:?}", head_entry.path);
+
+        // HEAD entry *is* in BASE
+        if let Some(base_entry) = base_entries.get(head_entry) {
+            log::debug!(
+                "collect_modified_entries found in base! {} != {}",
+                head_entry.hash,
+                base_entry.hash
+            );
+            // HEAD entry has a different hash than BASE entry
+            if head_entry.hash != base_entry.hash {
+                diff_entries.push(DiffEntry::from_commit_entry(
+                    repo,
+                    Some(base_entry),
+                    Some(head_entry),
+                    DiffEntryStatus::Modified,
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn read_entries_from_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<HashSet<CommitEntry>, OxenError> {
+    let reader = CommitDirReader::new(repo, commit)?;
+    let entries = reader.list_entries_set()?;
+    Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::command;
+    use crate::error::OxenError;
+    use crate::index::differ;
+    use crate::test;
+
+    #[test]
+    fn test_list_diff_entries_add_multiple() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // get og commit
+            let base_commit = command::head_commit(&repo)?;
+
+            // add a new file
+            let hello_file = repo.path.join("Hello.txt");
+            let world_file = repo.path.join("World.txt");
+            test::write_txt_file_to_path(&hello_file, "Hello")?;
+            test::write_txt_file_to_path(&world_file, "World")?;
+
+            command::add(&repo, &hello_file)?;
+            command::add(&repo, &world_file)?;
+            let head_commit =
+                command::commit(&repo, "Removing a row from train bbox data")?.unwrap();
+
+            let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            assert_eq!(2, entries.len());
+            assert_eq!(entries[0].status, differ::DiffEntryStatus::Added);
+            assert_eq!(entries[1].status, differ::DiffEntryStatus::Added);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_diff_entries_modify_one_tabular() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(bbox_filename);
+
+            // get og commit
+            let base_commit = command::head_commit(&repo)?;
+
+            // Remove a row
+            let bbox_file = test::modify_txt_file(
+                bbox_file,
+                r"
+file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/cat_2.jpg,cat,30.5,44.0,333,396
+",
+            )?;
+
+            command::add(&repo, bbox_file)?;
+            let head_commit =
+                command::commit(&repo, "Removing a row from train bbox data")?.unwrap();
+
+            let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            assert_eq!(1, entries.len());
+            assert_eq!(
+                entries.first().unwrap().status,
+                differ::DiffEntryStatus::Modified
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(&bbox_filename);
+
+            // get og commit
+            let base_commit = command::head_commit(&repo)?;
+
+            // Remove the file
+            std::fs::remove_file(bbox_file)?;
+
+            command::rm(&repo, &bbox_filename)?;
+            let head_commit = command::commit(&repo, "Removing a the training data file")?.unwrap();
+
+            let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            assert_eq!(1, entries.len());
+            assert_eq!(
+                entries.first().unwrap().status,
+                differ::DiffEntryStatus::Removed
+            );
+
+            Ok(())
+        })
+    }
 }

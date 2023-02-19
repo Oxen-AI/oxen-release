@@ -30,6 +30,7 @@ pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry
 pub use crate::model::entry::commit_entry::CommitEntry;
+pub use crate::model::entry::diff_entry::DiffEntry;
 pub use crate::model::entry::dir_entry::DirEntry;
 pub use crate::model::entry::mod_entry::ModEntry;
 pub use crate::model::entry::remote_entry::RemoteEntry;
