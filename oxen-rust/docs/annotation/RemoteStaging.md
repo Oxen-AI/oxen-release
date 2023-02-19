@@ -27,7 +27,7 @@ Now that you have created a remote branch, you can use the HTTP APIs on oxen-ser
 You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.
 
 ```
-curl -X POST -H "Content-Type: multipart/form-data" -F file=@/path/to/image.jpg 'http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images/annotations'
+curl -X POST -H "Content-Type: multipart/form-data" -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images/annotations"
 ```
 
 This will create a uniq file name for each file that is uploaded to avoid conflicts. It will return the file path that was created remotely.
@@ -35,13 +35,13 @@ This will create a uniq file name for each file that is uploaded to avoid confli
 To view the files that are staged you can simply GET the staged data on the branch `/staging/dir/add-images`
 
 ```
-curl -X GET 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images'
+curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images"
 ```
 
 When you are ready to commit the staged data you can call the `/commit` API with the branch postfix.
 
 ```
-curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing committing moreeee data", "user": {"name": "Ox", "email": "ox@oxen.ai"}}' 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/commit/add-images'
+curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing committing moreeee data", "user": {"name": "Ox", "email": "ox@oxen.ai"}}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/commit/add-images"
 ```
 
 # Staging Structured Data
@@ -54,9 +54,7 @@ Often you will have structured DataFrames that reference your unstructured data 
 
 To append to a DataFrame you must specify a branch, a file name, and a json body that represents the column values. Internally Oxen uses the DataFrame schema to convert the json to the proper csv, parquet, arrow, or jsonl format.
 
-TODO: check the schema to make sure we send all the proper columns.
-
 ```
-curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' 'http://0.0.0.0:3000/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.csv'
+curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.csv"
 ```
 

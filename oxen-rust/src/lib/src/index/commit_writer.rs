@@ -152,20 +152,22 @@ impl CommitWriter {
         branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(new_commit, status);
-        log::debug!("Commit Id computed {} -> [{}]", commit.id, commit.message);
+        log::debug!(
+            "commit_from_new commit Id computed {} -> [{}]",
+            commit.id,
+            commit.message
+        );
 
         if let Some(branch) = &branch {
             let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
-            if !entries.is_empty() {
-                let staged = self.apply_mods(branch, &entries)?;
-                // Write entries
-                self.add_commit_from_status(
-                    &commit,
-                    &staged,
-                    origin_path,
-                    Some(branch.to_owned()),
-                )?;
-            }
+            log::debug!(
+                "commit_from_new listing entries {} -> {}",
+                commit.id,
+                entries.len()
+            );
+            let staged = self.apply_mods(branch, &entries)?;
+            // Write entries
+            self.add_commit_from_status(&commit, &staged, origin_path, Some(branch.to_owned()))?;
         } else {
             self.add_commit_from_status(&commit, status, origin_path, branch)?;
         }
@@ -180,7 +182,7 @@ impl CommitWriter {
     ) -> Result<StagedData, OxenError> {
         let branch_repo = remote_dir_stager::init_or_get(&self.repository, branch).unwrap();
 
-        log::debug!("CommitWriter Apply {} mods", entries.len());
+        log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
         for entry in entries.iter() {
             let branch_staging_dir =
                 remote_dir_stager::branch_staging_dir(&self.repository, branch);
@@ -193,6 +195,12 @@ impl CommitWriter {
                     std::fs::create_dir_all(parent)?;
                 }
             }
+
+            log::debug!(
+                "apply_mods Copy file to mod {:?} -> {:?}",
+                version_path,
+                entry_path
+            );
             std::fs::copy(&version_path, &entry_path)?;
 
             self.apply_mods_to_file(branch, entry, &entry_path)?;
@@ -213,6 +221,12 @@ impl CommitWriter {
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
+        log::debug!(
+            "apply_mods_to_file [{}] {:?} -> {:?}",
+            branch.name,
+            entry.path,
+            path
+        );
         if util::fs::is_tabular(path) {
             self.apply_tabular_mods(branch, entry, path)
         } else if util::fs::is_utf8(path) {
@@ -243,6 +257,8 @@ impl CommitWriter {
                     .unwrap();
                 df = df.vstack(&mod_df).unwrap();
             }
+            log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
+            log::debug!("{}", df);
             df::tabular::write_df(&mut df, path)?;
             let new_hash = util::hasher::hash_file_contents(path)?;
             Ok(new_hash)
@@ -319,18 +335,25 @@ impl CommitWriter {
     ) -> Result<(), OxenError> {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
+
+        log::debug!("add_commit_from_status about to commit staged entries...");
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
         // Add to commits db id -> commit_json
+        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
         self.add_commit_to_db(commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         if let Some(branch) = branch {
+            log::debug!(
+                "add_commit_from_status got branch {} updating branch commit id {}",
+                branch.name,
+                commit.id
+            );
             ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
-        } else {
-            ref_writer.set_head_commit_id(&commit.id)?;
         }
+        ref_writer.set_head_commit_id(&commit.id)?;
 
         Ok(())
     }
@@ -742,7 +765,6 @@ mod tests {
 │ images/test.jpg ┆ dog   ┆ 2.0   ┆ 3.0   ┆ 100   ┆ 120    │
 └─────────────────┴───────┴───────┴───────┴───────┴────────┘"
             );
-
             Ok(())
         })
     }
