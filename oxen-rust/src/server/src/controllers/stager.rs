@@ -122,7 +122,7 @@ async fn save_parts(
         }
 
         let filepath = full_dir.join(&filename);
-        let relative_path = util::fs::path_relative_to_dir(&filepath, &staging_dir).unwrap();
+        let filepath_cpy = full_dir.join(&filename);
         log::debug!("stager::save_file writing file to {:?}", filepath);
 
         // File::create is blocking operation, use threadpool
@@ -133,7 +133,7 @@ async fn save_parts(
             // filesystem operations are blocking, we have to use threadpool
             f = web::block(move || f.write_all(&chunk).map(|_| f)).await??;
         }
-        files.push(relative_path);
+        files.push(filepath_cpy);
     }
 
     Ok(files)
