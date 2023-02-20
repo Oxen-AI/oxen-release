@@ -27,7 +27,7 @@ Now that you have created a remote branch, you can use the HTTP APIs on oxen-ser
 You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.
 
 ```
-curl -X POST -H "Content-Type: multipart/form-data" -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images/annotations"
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: multipart/form-data" -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images/annotations"
 ```
 
 This will create a uniq file name for each file that is uploaded to avoid conflicts. It will return the file path that was created remotely.
@@ -35,7 +35,7 @@ This will create a uniq file name for each file that is uploaded to avoid confli
 To view the files that are staged you can simply GET the staged data on the branch `/staging/dir/add-images`
 
 ```
-curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images"
+curl -X GET -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images"
 ```
 
 When you are ready to commit the staged data you can call the `/commit` API with the branch postfix.
