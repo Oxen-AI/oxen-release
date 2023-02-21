@@ -37,7 +37,10 @@ pub async fn status_dir(req: HttpRequest) -> HttpResponse {
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
-    log::debug!("stager::status repo name {repo_name}/{:?}", resource);
+    log::debug!(
+        "stager::status repo name {repo_name}/{}",
+        resource.to_string_lossy()
+    );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
@@ -68,7 +71,10 @@ pub async fn status_file(req: HttpRequest) -> HttpResponse {
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
-    log::debug!("stager::status repo name {repo_name}/{:?}", resource);
+    log::debug!(
+        "stager::status repo name {repo_name}/{}",
+        resource.to_string_lossy()
+    );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {

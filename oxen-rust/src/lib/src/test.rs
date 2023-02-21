@@ -286,6 +286,53 @@ where
     Ok(())
 }
 
+/// Test interacting with a remote repo that has has the initial commit pushed
+pub async fn run_remote_repo_test_all_data_pushed<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let path = empty_dir.join(name);
+    let mut local_repo = command::init(&path)?;
+
+    // Write all the files
+    populate_dir_with_training_data(&local_repo.path)?;
+    add_all_data_to_repo(&local_repo)?;
+    command::commit(&local_repo, "Adding all data")?;
+
+    // Set the proper remote
+    let remote = repo_remote_url_from(&local_repo.dirname());
+    command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+    // Create remote repo
+    let repo = create_remote_repo(&local_repo).await?;
+
+    command::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(repo) => {
+            // Cleanup remote repo
+            api::remote::repositories::delete(&repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Cleanup Local
+    std::fs::remove_dir_all(path)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Run a test on a repo with a bunch of filees
 pub async fn run_training_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -358,13 +405,7 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
-    command::add(&repo, repo_dir.join("train"))?;
-    command::add(&repo, repo_dir.join("test"))?;
-    command::add(&repo, repo_dir.join("annotations"))?;
-    command::add(&repo, repo_dir.join("large_files"))?;
-    command::add(&repo, repo_dir.join("nlp"))?;
-    command::add(&repo, repo_dir.join("labels.txt"))?;
-    command::add(&repo, repo_dir.join("README.md"))?;
+    add_all_data_to_repo(&repo)?;
 
     // Make it easy to find these schemas during testing
     command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
@@ -404,21 +445,7 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
-    command::add(&repo, repo_dir.join("train"))?;
-    command::add(&repo, repo_dir.join("test"))?;
-    command::add(&repo, repo_dir.join("annotations"))?;
-    command::add(&repo, repo_dir.join("large_files"))?;
-    command::add(&repo, repo_dir.join("nlp"))?;
-    command::add(&repo, repo_dir.join("labels.txt"))?;
-    command::add(&repo, repo_dir.join("README.md"))?;
-
-    // Make it easy to find these schemas during testing
-    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schema_name(
-        &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
-        "text_classification",
-    )?;
+    add_all_data_to_repo(&repo)?;
 
     command::commit(&repo, "adding all data baby")?;
 
@@ -435,6 +462,26 @@ where
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
+    Ok(())
+}
+
+fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
+    command::add(repo, repo.path.join("train"))?;
+    command::add(repo, repo.path.join("test"))?;
+    command::add(repo, repo.path.join("annotations"))?;
+    command::add(repo, repo.path.join("large_files"))?;
+    command::add(repo, repo.path.join("nlp"))?;
+    command::add(repo, repo.path.join("labels.txt"))?;
+    command::add(repo, repo.path.join("README.md"))?;
+
+    // Make it easy to find these schemas during testing
+    command::schema_name(repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schema_name(
+        repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
+
     Ok(())
 }
 
