@@ -41,7 +41,7 @@ impl Merger {
         let opts = db::opts::default();
         Ok(Merger {
             repository: repo.to_owned(),
-            merge_db: DB::open(&opts, &db_path)?,
+            merge_db: DB::open(&opts, dunce::simplified(&db_path))?,
         })
     }
 

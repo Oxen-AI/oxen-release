@@ -37,7 +37,7 @@ impl StagedDirEntryDB {
         }
         let opts = db::opts::default();
         Ok(StagedDirEntryDB {
-            db: DBWithThreadMode::open(&opts, &db_path)?,
+            db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
             dir: dir.to_owned(),
             repository: repository.clone(),
         })

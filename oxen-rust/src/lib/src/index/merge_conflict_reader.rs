@@ -21,11 +21,11 @@ impl MergeConflictReader {
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it
-            let _db = DB::open(&opts, &db_path)?;
+            let _db = DB::open(&opts, dunce::simplified(&db_path))?;
         }
 
         Ok(MergeConflictReader {
-            merge_db: DB::open_for_read_only(&opts, &db_path, false)?,
+            merge_db: DB::open_for_read_only(&opts, dunce::simplified(&db_path), false)?,
         })
     }
 

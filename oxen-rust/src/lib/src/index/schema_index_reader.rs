@@ -43,7 +43,7 @@ impl SchemaIndexReader {
             std::fs::create_dir_all(&field_indices_db_path)?;
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, &field_indices_db_path)?;
+                DBWithThreadMode::open(&opts, dunce::simplified(&field_indices_db_path))?;
         }
 
         Ok(SchemaIndexReader {
