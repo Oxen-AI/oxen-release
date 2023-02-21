@@ -25,7 +25,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const ADD_USER_USAGE: &str =
     "Usage: `oxen-server add-user -e <email> -n <name> -o user_config.toml`";
 
-const START_SERVER_USAGE: &str = "Usage: `oxen-server start -h 0.0.0.0 -p 3000`";
+const START_SERVER_USAGE: &str = "Usage: `oxen-server start -i 0.0.0.0 -p 3000`";
 
 const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
