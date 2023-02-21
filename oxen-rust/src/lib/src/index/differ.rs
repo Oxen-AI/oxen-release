@@ -361,19 +361,20 @@ fn collect_modified_entries(
     diff_entries: &mut Vec<DiffEntry>,
 ) -> Result<(), OxenError> {
     log::debug!(
-        "collect_modified_entries {} modified entries",
+        "collect_modified_entries modified entries base.len() {} head.len() {}",
+        base_entries.len(),
         head_entries.len()
     );
     for head_entry in head_entries {
-        log::debug!("collect_modified_entries considering {:?}", head_entry.path);
+        // log::debug!("collect_modified_entries considering {:?}", head_entry.path);
 
         // HEAD entry *is* in BASE
         if let Some(base_entry) = base_entries.get(head_entry) {
-            log::debug!(
-                "collect_modified_entries found in base! {} != {}",
-                head_entry.hash,
-                base_entry.hash
-            );
+            // log::debug!(
+            //     "collect_modified_entries found in base! {} != {}",
+            //     head_entry.hash,
+            //     base_entry.hash
+            // );
             // HEAD entry has a different hash than BASE entry
             if head_entry.hash != base_entry.hash {
                 diff_entries.push(DiffEntry::from_commit_entry(
