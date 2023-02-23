@@ -8,6 +8,7 @@ use crate::compute;
 use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
+use crate::index::oxenignore;
 use crate::index::SchemaIndexReader;
 use crate::index::{self, differ};
 use crate::index::{
@@ -185,7 +186,8 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add(path.as_ref(), &reader)?;
+    let ignore = oxenignore::create(repo);
+    stager.add(path.as_ref(), &reader, &ignore)?;
     Ok(())
 }
 
