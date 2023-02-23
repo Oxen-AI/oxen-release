@@ -34,7 +34,8 @@ impl CommitDirReader {
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts,dunce::simplified(&db_path))?;
+            let _db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
         }
 
         Ok(CommitDirReader {
