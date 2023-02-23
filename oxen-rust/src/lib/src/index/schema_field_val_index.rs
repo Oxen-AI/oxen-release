@@ -46,7 +46,7 @@ impl SchemaFieldValIndex {
         }
 
         Ok(SchemaFieldValIndex {
-            field_indices_db: DBWithThreadMode::open(&opts, &db_path)?,
+            field_indices_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
         })
     }
 

@@ -21,7 +21,7 @@ impl RefWriter {
 
         let opts = db::opts::default();
         Ok(RefWriter {
-            refs_db: DB::open(&opts, refs_dir)?,
+            refs_db: DB::open(&opts, dunce::simplified(&refs_dir))?,
             head_file: head_filename,
         })
     }

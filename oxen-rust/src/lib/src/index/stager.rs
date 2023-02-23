@@ -77,8 +77,8 @@ impl Stager {
 
         let opts = db::opts::default();
         Ok(Stager {
-            dir_db: DBWithThreadMode::open(&opts, dir_db_path)?,
-            schemas_db: DBWithThreadMode::open(&opts, schemas_db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_db_path))?,
+            schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
             repository: repository.clone(),
             merger: None,
         })
@@ -90,8 +90,8 @@ impl Stager {
 
         let opts = db::opts::default();
         Ok(Stager {
-            dir_db: DBWithThreadMode::open(&opts, dir_db_path)?,
-            schemas_db: DBWithThreadMode::open(&opts, schemas_db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_db_path))?,
+            schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
             repository: repository.clone(),
             merger: Some(Merger::new(&repository.clone())?),
         })

@@ -62,9 +62,9 @@ impl AccessKeyManager {
         }
 
         let db = if read_only {
-            DBWithThreadMode::open_for_read_only(&opts, &db_dir, false)?
+            DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_dir), false)?
         } else {
-            DBWithThreadMode::open(&opts, &db_dir)?
+            DBWithThreadMode::open(&opts, dunce::simplified(&db_dir))?
         };
 
         Ok(AccessKeyManager {

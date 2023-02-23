@@ -45,14 +45,14 @@ impl SchemaReader {
             std::fs::create_dir_all(&schema_db_path)?;
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, &schema_db_path)?;
+                DBWithThreadMode::open(&opts, dunce::simplified(&schema_db_path))?;
         }
 
         if !schema_files_db_path.exists() {
             std::fs::create_dir_all(&schema_files_db_path)?;
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, &schema_files_db_path)?;
+                DBWithThreadMode::open(&opts, dunce::simplified(&schema_files_db_path))?;
         }
 
         Ok(SchemaReader {
