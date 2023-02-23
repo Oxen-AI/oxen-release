@@ -27,6 +27,7 @@ dependencies = [
  "difference",
  "dirs",
  "dotenv",
+ "dunce",
  "env_logger",
  "filetime",
  "flate2",
