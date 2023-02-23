@@ -11,6 +11,7 @@ pub mod entry_indexer;
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;
 pub mod merger;
+pub mod oxenignore;
 pub mod ref_db_reader;
 pub mod ref_reader;
 pub mod ref_writer;
