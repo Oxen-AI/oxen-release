@@ -1,6 +1,8 @@
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
+/// .oxenignore is the name of the file that contains the ignore patterns
+pub const OXEN_IGNORE_FILE: &str = ".oxenignore";
 /// Config file for the repository
 pub const REPO_CONFIG_FILENAME: &str = "config.toml";
 /// HEAD file holds onto where the head commit is (commit_id or branch name)
