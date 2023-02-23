@@ -918,7 +918,7 @@ pub fn migrate_repo(repo: &LocalRepository) -> Result<(), OxenError> {
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
     let mut opts = Options::default();
     opts.set_log_level(LogLevel::Fatal);
-    let db = DB::open_for_read_only(&opts, path, false)?;
+    let db = DB::open_for_read_only(&opts, dunce::simplified(path), false)?;
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
         // try to decode u32 first (hacky but only two types we inspect right now)

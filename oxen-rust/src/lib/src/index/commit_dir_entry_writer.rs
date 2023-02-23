@@ -39,7 +39,7 @@ impl CommitDirEntryWriter {
         }
         let opts = db::opts::default();
         Ok(CommitDirEntryWriter {
-            db: DBWithThreadMode::open(&opts, &dbpath)?,
+            db: DBWithThreadMode::open(&opts, dunce::simplified(&dbpath))?,
             repository: repository.clone(),
         })
     }

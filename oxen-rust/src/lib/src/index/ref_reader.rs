@@ -26,11 +26,11 @@ impl RefReader {
             std::fs::create_dir_all(&refs_dir)?;
             // open it then lose scope to close it
             // so that we can read an empty one if it doesn't exist
-            let _db = DB::open(&opts, &refs_dir)?;
+            let _db = DB::open(&opts, dunce::simplified(&refs_dir))?;
         }
 
         Ok(RefReader {
-            refs_db: DB::open_for_read_only(&opts, &refs_dir, error_if_log_file_exist)?,
+            refs_db: DB::open_for_read_only(&opts, dunce::simplified(&refs_dir), error_if_log_file_exist)?,
             head_file: head_filename,
             repository: repository.clone(),
         })
