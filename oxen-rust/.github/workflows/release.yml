@@ -189,7 +189,7 @@ jobs:
           override: true
 
       - name: Build
-        run: cargo build --all --release
+        run: cargo build --release --bins
 
       - name: Upload oxen.exe windows to release
         uses: svenstaro/upload-release-action@v1-release
