@@ -97,7 +97,8 @@ pub fn get_failures(
 ) -> Result<Vec<CacherStatus>, OxenError> {
     let db_path = cached_status_db_path(repo, commit);
     let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     let vals = str_json_db::list_vals::<CacherStatus>(&db)?
         .into_iter()
@@ -136,7 +137,8 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     // Create kvdb of NAME -> STATUS
     let db_path = cached_status_db_path(repo, commit);
     let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for (name, cacher) in CACHERS.iter() {
         // Skip ones that are already cached successfully

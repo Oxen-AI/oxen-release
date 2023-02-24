@@ -49,7 +49,8 @@ impl CommitDirEntryReader {
                 log::error!("CommitDirEntryReader could not create dir {:?}", db_path);
             }
             // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+            let _db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
         }
 
         Ok(CommitDirEntryReader {

@@ -174,6 +174,39 @@ jobs:
           asset_name: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
           tag: ${{ github.ref }}
 
+  release_windows_latest:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Build
+        run: cargo build --release --bins
+
+      - name: Upload oxen.exe windows to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen.exe
+          asset_name: oxen.exe
+          tag: ${{ github.ref }}
+
+      - name: Upload oxen-server.exe windows to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/release/oxen-server.exe
+          asset_name: oxen-server.exe
+          tag: ${{ github.ref }}
+
   release_docker:
     runs-on: ubuntu-latest
 
