@@ -2,7 +2,9 @@
 
 ## Oxen CLI
 
-The Oxen client mirrors the git command line interface can be installed via [homebrew](https://brew.sh/) or by downloading the debian package on linux.
+The Oxen client can be installed via [homebrew](https://brew.sh/) or by downloading the relevant binaries for Linux or Windows.
+
+You can find the source code for the client [here](https://github.com/Oxen-AI/Oxen) and can also build for source for your platform. The continuous integration pipeline will build binaries for each release in [this repository]((https://github.com/Oxen-AI/Oxen)).
 
 ### Mac
 
@@ -14,15 +16,21 @@ $ brew install oxen
 ### Ubuntu Latest
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.8/oxen-ubuntu-latest-0.4.8.deb
-$ sudo dpkg -i oxen-ubuntu-latest-0.4.8.deb
+$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen-ubuntu-latest-0.4.9+1.deb
+$ sudo dpkg -i oxen-ubuntu-latest-0.4.9+1.deb
 ```
 
 ### Ubuntu 20.04
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.8/oxen-ubuntu-20.04-0.4.8.deb
-$ sudo dpkg -i oxen-ubuntu-20.04-0.4.8.deb
+$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen-ubuntu-20.04-0.4.9+1.deb
+$ sudo dpkg -i oxen-ubuntu-20.04-0.4.9+1.deb
+```
+
+### Windows
+
+```bash
+$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen.exe
 ```
 
 ## Oxen Server
@@ -39,16 +47,29 @@ $ brew install oxen-server
 ### Docker
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.8/oxen-server-docker-0.4.8.tar
-$ docker load < oxen-server-docker-0.4.8.tar
+$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen-server-docker-0.4.9+1.tar
+$ docker load < oxen-server-docker-0.4.9+1.tar
 $ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/oxen-server:latest
 ```
 
 ### Ubuntu Latest
 
 ```bash
-$ wget https://github.com/Oxen-AI/oxen-release/releases/download/v0.4.8/oxen-server-ubuntu-latest-0.4.8.deb
-$ sudo dpkg -i oxen-server-ubuntu-latest-0.4.8.deb
+$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen-server-ubuntu-latest-0.4.9+1.deb
+$ sudo dpkg -i oxen-server-ubuntu-latest-0.4.9+1.deb
+```
+
+### Ubuntu 20.04
+
+```bash
+$ https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen-server-ubuntu-20.04-0.4.9+1.deb
+$ sudo dpkg -i oxen-server-ubuntu-20.04-0.4.9+1.deb
+```
+
+### Windows
+
+```bash
+$ https://github.com/Oxen-AI/Oxen/releases/download/v0.4.9%2B1/oxen-server.exe
 ```
 
 To get up and running using the client and server, you can follow the [getting started docs](README.md).
