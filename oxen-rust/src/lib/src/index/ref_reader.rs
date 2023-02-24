@@ -30,7 +30,11 @@ impl RefReader {
         }
 
         Ok(RefReader {
-            refs_db: DB::open_for_read_only(&opts, dunce::simplified(&refs_dir), error_if_log_file_exist)?,
+            refs_db: DB::open_for_read_only(
+                &opts,
+                dunce::simplified(&refs_dir),
+                error_if_log_file_exist,
+            )?,
             head_file: head_filename,
             repository: repository.clone(),
         })

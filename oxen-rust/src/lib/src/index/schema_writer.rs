@@ -22,7 +22,8 @@ impl SchemaWriter {
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+            let _db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
         }
 
         let schema_files_db_path = SchemaReader::schema_files_db_dir(repository, commit_id);
