@@ -269,7 +269,6 @@ pub fn rm(sub_matches: &ArgMatches) {
         // The path will get overwritten for each file that is removed
         path: paths.first().unwrap().to_path_buf(),
         staged: sub_matches.is_present("staged"),
-        force: sub_matches.is_present("force"),
         recursive: sub_matches.is_present("recursive"),
     };
 

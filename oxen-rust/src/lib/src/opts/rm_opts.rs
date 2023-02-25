@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 pub struct RmOpts {
     pub path: PathBuf,
     pub staged: bool,
-    pub force: bool,
     pub recursive: bool,
+    // TODO: add `force` flag
 }
 
 impl RmOpts {
@@ -14,7 +14,6 @@ impl RmOpts {
         RmOpts {
             path: path.as_ref().to_owned(),
             staged: false,
-            force: false,
             recursive: false,
         }
     }
@@ -24,7 +23,6 @@ impl RmOpts {
         RmOpts {
             path: path.as_ref().to_owned(),
             staged: true,
-            force: false,
             recursive: false,
         }
     }
@@ -34,7 +32,6 @@ impl RmOpts {
         RmOpts {
             path: path.as_ref().to_owned(),
             staged: opts.staged,
-            force: opts.force,
             recursive: opts.recursive,
         }
     }
