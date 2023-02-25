@@ -280,11 +280,22 @@ pub fn rm() -> Command<'static> {
     Command::new(RM)
         .about("Removes the specified files from the index")
         .arg(Arg::new("files").required(true).min_values(1))
+        .arg(
+            Arg::new("staged")
+                .long("staged")
+                .help("Removes the file from the staging area."),
+        )
+        .arg(
+            Arg::new("recursive")
+                .long("recursive")
+                .short('r')
+                .help("Recursively removes directory."),
+        )
 }
 
 pub fn restore() -> Command<'static> {
     Command::new(RESTORE)
-        .about("Unstage or discard uncommitted local changes.")
+        .about("Restore specified paths in the working tree with some contents from a restore source.")
         .arg(arg!(<PATH> ... "The files or directory to restore"))
         .arg_required_else_help(true)
         .arg(
@@ -296,7 +307,7 @@ pub fn restore() -> Command<'static> {
         .arg(
             Arg::new("staged")
                 .long("staged")
-                .help("Removes the file from the staging area, but leaves its actual modifications untouched.")
+                .help("Restore content in staging area. By default, if --staged is given, the contents are restored from HEAD. Use --source to restore from a different commit.")
         )
 }
 

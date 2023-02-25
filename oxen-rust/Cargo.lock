@@ -45,6 +45,7 @@ dependencies = [
  "log",
  "nom",
  "num_cpus",
+ "pluralizer",
  "polars",
  "rand",
  "rand_core 0.5.1",
@@ -2092,6 +2093,7 @@ dependencies = [
  "log",
  "nom",
  "num_cpus",
+ "pluralizer",
  "polars",
  "rand",
  "rayon",
@@ -2656,6 +2658,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc1691dd09e82f428ce8d6310bd6d5da2557c82ff17694d2a32cad7242aea89f"
 dependencies = [
  "array-init-cursor",
+]
+
+[[package]]
+name = "pluralizer"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48b9f792eceda75e0b4febff66105639933dd775007ed1f3a13ae4911c5d97e1"
+dependencies = [
+ "lazy_static",
+ "regex 1.6.0",
 ]
 
 [[package]]

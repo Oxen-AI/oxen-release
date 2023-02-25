@@ -185,6 +185,10 @@ impl Stager {
         result
     }
 
+    // TODO: allow status for just certain type of files (add, mod, removed, etc) for performance gains
+
+    // TODO: allow status for a certain directory for performance gains
+
     pub fn status_from_dir(
         &self,
         entry_reader: &CommitDirReader,

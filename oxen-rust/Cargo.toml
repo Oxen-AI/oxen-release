@@ -45,6 +45,7 @@ lazy_static = "1.4.0"
 log = "0.4.17"
 nom = "7.1.1"
 num_cpus = "1.13.1"
+pluralizer = "0.3.1"
 polars = { version = "0.26.1", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
 rand = "0.8.5"
 rand_core = "0.5"

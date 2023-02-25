@@ -5,19 +5,18 @@ use crate::error::OxenError;
 /// Remove files matching pathspec from the index, or from the working tree and the index.
 /// `oxen rm` will not remove a file from just your working directory.
 /// (There is no option to remove a file only from the working tree and yet keep it in the index; use /bin/rm if you want to do that.)
-/// The files being removed have to be identical to the tip of the branch,
-/// and no updates to their contents can be staged in the index,
-/// though that default behavior can be overridden with the -f option.
-/// When --cached is given, the staged content has to match either the tip of the branch or the file on disk,
+/// When --staged is given, the staged content has to match either the tip of the branch or the file on disk,
 /// allowing the file to be removed from just the index.
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::util;
-
-use std::path::Path;
 
 use super::CommitDirReader;
 use super::Stager;
+
+use pluralizer::pluralize;
+use std::convert::TryInto;
+use std::path::Path;
+use std::path::PathBuf;
 
 pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     // RmOpts supports --cached, --force, and --recursive
@@ -43,7 +42,72 @@ fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
         return remove_staged_dir(repo, path);
     }
 
+    // We can only use `oxen rm` on directories that are committed
+    if !dir_is_committed(repo, path)? {
+        let error = format!("Directory {path:?} does not match any committed directories.");
+        return Err(OxenError::basic_str(error));
+    }
+
+    // Make sure there are no modified files in directory
+    let modifications = list_modified_files_in_dir(repo, path)?;
+    if !modifications.is_empty() {
+        let num_mods: isize = modifications.len().try_into().unwrap(); // should always be safe to go from usize -> isize
+        let error = format!("There are {} with modifications within {path:?}\n\tUse `oxen status` to see the modified files.", pluralize("file", num_mods, true));
+        return Err(OxenError::basic_str(error));
+    }
+
+    // Remove the directory from disk
+    let full_path = repo.path.join(path);
+    log::debug!("REMOVING DIRECTORY: {full_path:?}");
+    if full_path.exists() {
+        // user might have removed dir manually before using `oxen rm`
+        std::fs::remove_dir_all(full_path)?;
+    }
+
+    // Stage all the removed files
+    for r in list_removed_files_in_dir(repo, path)?.iter() {
+        command::add(repo, r)?;
+    }
+
     Ok(())
+}
+
+fn list_modified_files_in_dir(
+    repo: &LocalRepository,
+    path: &Path,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let status = command::status(repo)?;
+    let modified: Vec<PathBuf> = status
+        .modified_files
+        .into_iter()
+        .filter(|p| p.starts_with(path))
+        .collect();
+    Ok(modified)
+}
+
+fn list_removed_files_in_dir(
+    repo: &LocalRepository,
+    path: &Path,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let status = command::status(repo)?;
+    let removed: Vec<PathBuf> = status
+        .removed_files
+        .into_iter()
+        .filter(|p| p.starts_with(path))
+        .collect();
+    Ok(removed)
+}
+
+fn dir_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
+    let commit = command::head_commit(repo)?;
+    let commit_reader = CommitDirReader::new(repo, &commit)?;
+    Ok(commit_reader.has_dir(path))
+}
+
+fn file_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
+    let commit = command::head_commit(repo)?;
+    let commit_reader = CommitDirReader::new(repo, &commit)?;
+    Ok(commit_reader.has_file(path))
 }
 
 fn rm_file(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
@@ -52,14 +116,21 @@ fn rm_file(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
         return remove_staged_file(repo, path);
     }
 
-    if !file_contents_matches_head(repo, path)? {
-        let error = format!("File {path:?} does not match HEAD commit");
+    if !file_is_committed(repo, path)? {
+        let error = format!("File {path:?} must be committed to use `oxen rm`");
         return Err(OxenError::basic_str(error));
     }
 
+    // Remove file from disk
     let full_path = repo.path.join(path);
     log::debug!("REMOVING FILE: {full_path:?}");
-    std::fs::remove_file(full_path)?;
+    if full_path.exists() {
+        // user might have removed file manually before using `oxen rm`
+        std::fs::remove_file(&full_path)?;
+    }
+
+    // Stage the removed file
+    command::add(repo, &full_path)?;
 
     Ok(())
 }
@@ -74,27 +145,6 @@ fn remove_staged_dir(repo: &LocalRepository, path: &Path) -> Result<(), OxenErro
     stager.remove_staged_dir(path)
 }
 
-fn file_contents_matches_head(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
-    let commit = command::head_commit(repo)?;
-    let commit_reader = CommitDirReader::new(repo, &commit)?;
-    match commit_reader.get_entry(path) {
-        Ok(Some(entry)) => {
-            let full_path = repo.path.join(path);
-            let hash = util::hasher::hash_file_contents(&full_path)?;
-            log::debug!(
-                "file_contents_matches_head File {path:?} {hash:?} == {:?}",
-                entry.hash
-            );
-            Ok(entry.hash == hash)
-        }
-        Ok(None) => {
-            log::warn!("File {path:?} does not exist in HEAD commit");
-            Ok(false)
-        }
-        Err(err) => Err(err),
-    }
-}
-
 // unit tests
 #[cfg(test)]
 mod tests {
@@ -103,8 +153,10 @@ mod tests {
     use crate::command;
     use crate::error::OxenError;
     use crate::index::rm;
+    use crate::model::StagedEntryStatus;
     use crate::opts::RmOpts;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_rm_staged_file() -> Result<(), OxenError> {
@@ -141,7 +193,6 @@ mod tests {
             let opts = RmOpts {
                 path: path.to_path_buf(),
                 staged: true,
-                force: false,
                 recursive: false, // This should be an error
             };
             let result = rm::rm(&repo, &opts);
@@ -165,7 +216,6 @@ mod tests {
             let opts = RmOpts {
                 path: path.to_path_buf(),
                 staged: true,
-                force: false,
                 recursive: true, // make sure to pass in recursive
             };
             rm::rm(&repo, &opts)?;
@@ -191,8 +241,79 @@ mod tests {
             let status = command::status(&repo)?;
             status.print_stdout();
 
-            assert_eq!(status.removed_files.len(), 1);
-            assert_eq!(status.removed_files.first().unwrap(), path);
+            assert_eq!(status.added_files.len(), 1);
+            assert_eq!(
+                status.added_files.get(path).unwrap().status,
+                StagedEntryStatus::Removed
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_rm_dir_without_recursive_flag_should_be_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // Remove the train dir
+            let path = Path::new("train");
+
+            let opts = RmOpts {
+                path: path.to_path_buf(),
+                staged: false,
+                recursive: false, // This should be an error
+            };
+
+            let result = rm::rm(&repo, &opts);
+            assert!(result.is_err());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_rm_dir_that_is_not_committed_should_throw_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits(|repo| {
+            // The train dir is not committed, so should get an error trying to remove
+            let train_dir = Path::new("train");
+
+            let opts = RmOpts {
+                path: train_dir.to_path_buf(),
+                staged: false,
+                recursive: true, // Need to specify recursive
+            };
+
+            let result = rm::rm(&repo, &opts);
+            assert!(result.is_err());
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_rm_dir_with_modifications_should_throw_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            // Remove the train dir
+            let train_dir = Path::new("train");
+
+            let opts = RmOpts {
+                path: train_dir.to_path_buf(),
+                staged: false,
+                recursive: true, // Need to specify recursive
+            };
+
+            // copy a cat into the dog image
+            std::fs::copy(
+                Path::new("data/test/images/cat_1.jpg"),
+                repo.path.join(train_dir.join("dog_1.jpg")),
+            )?;
+
+            // There should be one modified file
+            let status = command::status(&repo)?;
+            status.print_stdout();
+            assert_eq!(status.modified_files.len(), 1);
+
+            let result = rm::rm(&repo, &opts);
+            assert!(result.is_err());
 
             Ok(())
         })
@@ -201,17 +322,25 @@ mod tests {
     #[test]
     fn test_rm_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            // Remove the readme
+            // Remove the train dir
             let path = Path::new("train");
 
-            let opts = RmOpts::from_path(path);
+            let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(path));
+
+            let opts = RmOpts {
+                path: path.to_path_buf(),
+                staged: false,
+                recursive: true, // Must pass in recursive = true
+            };
             rm::rm(&repo, &opts)?;
 
             let status = command::status(&repo)?;
             status.print_stdout();
 
-            assert_eq!(status.removed_files.len(), 1);
-            assert_eq!(status.removed_files.first().unwrap(), path);
+            assert_eq!(status.added_files.len(), og_num_files);
+            for (_, staged_entry) in status.added_files.iter() {
+                assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
+            }
 
             Ok(())
         })
@@ -220,13 +349,24 @@ mod tests {
     #[test]
     fn test_rm_subdir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            // Remove the readme
+            // Remove the annotations/train subdir
             let path = Path::new("annotations").join("train");
+            let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(&path));
 
-            let opts = RmOpts::from_path(path);
+            let opts = RmOpts {
+                path,
+                staged: false,
+                recursive: true, // Must pass in recursive = true
+            };
             rm::rm(&repo, &opts)?;
 
-            // TODO
+            let status = command::status(&repo)?;
+            status.print_stdout();
+
+            assert_eq!(status.added_files.len(), og_num_files);
+            for (_, staged_entry) in status.added_files.iter() {
+                assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
+            }
 
             Ok(())
         })
