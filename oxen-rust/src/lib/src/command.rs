@@ -20,6 +20,7 @@ use crate::model::Schema;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::RestoreOpts;
+use crate::opts::RmOpts;
 use crate::util;
 use crate::util::resource;
 
@@ -191,20 +192,9 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     Ok(())
 }
 
-/// Removes the path from disk then adds it to the removed index
-pub fn rm<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let path = path.as_ref();
-    if path.is_dir() {
-        return Err(OxenError::basic_str(
-            "oxen rm not supported for directories.",
-        ));
-    }
-
-    if path.exists() {
-        std::fs::remove_file(path)?;
-    }
-
-    add(repo, path)
+/// Removes the path from the index
+pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    index::rm(repo, opts)
 }
 
 /// Interact with DataFrames from CLI

@@ -7,6 +7,7 @@ use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
+use liboxen::opts::RmOpts;
 use liboxen::test;
 use liboxen::util;
 
@@ -2881,7 +2882,8 @@ fn test_status_rm_regular_file() -> Result<(), OxenError> {
 
         assert_eq!(status.removed_files.len(), 1);
 
-        command::rm(&repo, &og_file)?;
+        let opts = RmOpts::from_path(&og_file);
+        command::rm(&repo, &opts)?;
         let status = command::status(&repo)?;
         status.print_stdout();
 
@@ -2908,7 +2910,8 @@ fn test_status_rm_directory_file() -> Result<(), OxenError> {
 
         assert_eq!(status.removed_files.len(), 1);
 
-        command::rm(&repo, &og_file)?;
+        let opts = RmOpts::from_path(&og_file);
+        command::rm(&repo, &opts)?;
         let status = command::status(&repo)?;
         status.print_stdout();
 
