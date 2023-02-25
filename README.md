@@ -3,7 +3,7 @@
 Oxen helps you version your datasets like you version your code.
 
 ```
-# The first step in any dataset project should be `oxen init`
+# The first step for creating any dataset should be `oxen init`
 
 $ oxen init
 $ oxen add images/
