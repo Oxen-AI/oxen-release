@@ -1,11 +1,19 @@
 # 🐂 Oxen
 
-Oxen helps you version your machine learning datasets like you version your code.
+Oxen helps you version your datasets like you version your code.
 
 ```
-# The first step in any machine learning project should be `oxen clone`
+# The first step in any dataset project should be `oxen init`
 
-oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
+$ oxen init
+$ oxen add images/
+$ oxen commit -m "Adding my data"
+$ oxen remote add origin https://hub.oxen.ai/ox/CatDogBoundingBox
+$ oxen push
+
+# The first step in collaborating on a dataset should be `oxen clone`
+
+$ oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
 ```
 
 # ✅ Features
