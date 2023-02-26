@@ -1,20 +1,24 @@
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
+use super::StagedEntryStatus;
+
 // Used for a quick summary of directory
 #[derive(Debug, Clone)]
 pub struct StagedDirStats {
     pub path: PathBuf,
     pub num_files_staged: usize,
     pub total_files: usize,
+    pub status: StagedEntryStatus,
 }
 
 impl StagedDirStats {
-    pub fn from_path<T: AsRef<Path>>(path: T) -> StagedDirStats {
+    pub fn from<T: AsRef<Path>>(path: T, status: StagedEntryStatus) -> StagedDirStats {
         StagedDirStats {
             path: path.as_ref().to_path_buf(),
             num_files_staged: 0,
             total_files: 0,
+            status,
         }
     }
 }

@@ -63,6 +63,7 @@ impl SummarizedStagedDirStats {
             path: path.to_path_buf(),
             num_files_staged: num_staged,
             total_files: total,
+            status: super::StagedEntryStatus::Added, // don't use this for anything right now
         }
     }
 
@@ -89,7 +90,7 @@ impl SummarizedStagedDirStats {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::{StagedDirStats, SummarizedStagedDirStats};
+    use crate::model::{StagedDirStats, StagedEntryStatus, SummarizedStagedDirStats};
 
     use std::path::PathBuf;
 
@@ -100,18 +101,21 @@ mod tests {
             path: PathBuf::from("annotations"),
             total_files: 0,
             num_files_staged: 0,
+            status: StagedEntryStatus::Added,
         };
 
         let stats_train = StagedDirStats {
             path: PathBuf::from("annotations").join("train"),
             total_files: 3,
             num_files_staged: 2,
+            status: StagedEntryStatus::Added,
         };
 
         let stats_test = StagedDirStats {
             path: PathBuf::from("annotations").join("test"),
             total_files: 1,
             num_files_staged: 1,
+            status: StagedEntryStatus::Added,
         };
 
         summarized.add_stats(&stats_annotations);

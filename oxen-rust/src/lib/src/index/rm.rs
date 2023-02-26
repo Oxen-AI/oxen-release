@@ -22,14 +22,16 @@ pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     // RmOpts supports --cached, --force, and --recursive
 
     // Check if it is a directory and -r was provided
-    let full_path = repo.path.join(&opts.path);
-    if full_path.is_dir() && opts.recursive {
+    let path = &opts.path;
+    let dir_exists = dir_is_staged_or_committed(repo, path)?;
+
+    if dir_exists && opts.recursive {
         return rm_dir(repo, opts);
     }
 
     // Error if is a directory and -r was not provided
-    if full_path.is_dir() && !opts.recursive {
-        let error = format!("Not removing {full_path:?} recursively without -r");
+    if dir_exists && !opts.recursive {
+        let error = format!("`oxen rm` on directory {path:?} requires -r");
         return Err(OxenError::basic_str(error));
     }
 
@@ -61,13 +63,11 @@ fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("REMOVING DIRECTORY: {full_path:?}");
     if full_path.exists() {
         // user might have removed dir manually before using `oxen rm`
-        std::fs::remove_dir_all(full_path)?;
+        std::fs::remove_dir_all(&full_path)?;
     }
 
     // Stage all the removed files
-    for r in list_removed_files_in_dir(repo, path)?.iter() {
-        command::add(repo, r)?;
-    }
+    command::add(repo, &full_path)?;
 
     Ok(())
 }
@@ -85,17 +85,13 @@ fn list_modified_files_in_dir(
     Ok(modified)
 }
 
-fn list_removed_files_in_dir(
-    repo: &LocalRepository,
-    path: &Path,
-) -> Result<Vec<PathBuf>, OxenError> {
-    let status = command::status(repo)?;
-    let removed: Vec<PathBuf> = status
-        .removed_files
-        .into_iter()
-        .filter(|p| p.starts_with(path))
-        .collect();
-    Ok(removed)
+fn dir_is_staged_or_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
+    Ok(dir_is_staged(repo, path)? || dir_is_committed(repo, path)?)
+}
+
+fn dir_is_staged(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
+    let stager = Stager::new(repo)?;
+    Ok(stager.has_staged_dir(path))
 }
 
 fn dir_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
