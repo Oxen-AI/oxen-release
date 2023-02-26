@@ -1,12 +1,12 @@
+//! Based on: https://git-scm.com/docs/git-rm
+//! Remove files matching pathspec from the index, or from the working tree and the index.
+//! `oxen rm` will not remove a file from just your working directory.
+//! (There is no option to remove a file only from the working tree and yet keep it in the index; use /bin/rm if you want to do that.)
+//! When --staged is given, the staged content has to match either the tip of the branch or the file on disk,
+//! allowing the file to be removed from just the index.
+
 use crate::command;
 use crate::error::OxenError;
-/// Based on: https://git-scm.com/docs/git-rm
-///
-/// Remove files matching pathspec from the index, or from the working tree and the index.
-/// `oxen rm` will not remove a file from just your working directory.
-/// (There is no option to remove a file only from the working tree and yet keep it in the index; use /bin/rm if you want to do that.)
-/// When --staged is given, the staged content has to match either the tip of the branch or the file on disk,
-/// allowing the file to be removed from just the index.
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 
