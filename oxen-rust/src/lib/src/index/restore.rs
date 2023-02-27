@@ -96,6 +96,11 @@ fn restore_regular(
 ) -> Result<(), OxenError> {
     let version_path = util::fs::version_path(repo, entry);
     let working_path = repo.path.join(path);
+    let parent = working_path.parent().unwrap();
+    if !parent.exists() {
+        std::fs::create_dir_all(parent)?;
+    }
+
     std::fs::copy(version_path, working_path)?;
     Ok(())
 }

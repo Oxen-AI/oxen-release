@@ -185,6 +185,10 @@ impl Stager {
         result
     }
 
+    // TODO: allow status for just certain type of files (add, mod, removed, etc) for performance gains
+
+    // TODO: allow status for a certain directory for performance gains
+
     pub fn status_from_dir(
         &self,
         entry_reader: &CommitDirReader,
@@ -212,12 +216,12 @@ impl Stager {
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
         // Start with candidate dirs from committed and added, not all the dirs
-        let added_dirs = self.list_added_dirs()?;
+        let added_dirs = self.list_staged_dirs()?;
         log::debug!("compute_staged_data Got <added> dirs: {}", added_dirs.len());
-        for dir in added_dirs {
+        for (dir, status) in added_dirs {
             log::debug!("compute_staged_data considering added dir {:?}", dir);
-            let fullpath = self.repository.path.join(&dir);
-            let stats = self.compute_staged_dir_stats(&fullpath)?;
+            let full_path = self.repository.path.join(&dir);
+            let stats = self.compute_staged_dir_stats(&full_path, &status)?;
             staged_data.added_dirs.add_stats(&stats);
             log::debug!("compute_staged_data got stats {:?}", stats);
 
@@ -470,6 +474,11 @@ impl Stager {
                 filename,
                 parent
             );
+
+            // add parent to staged dir db
+            let short_path = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
+            path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Removed)?;
+
             let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
@@ -563,7 +572,7 @@ impl Stager {
         // add the the directory to list of dirs we are tracking so that when we find untracked files
         // they are added to the list
         let short_path = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        path_db::put(&self.dir_db, &short_path, &0)?;
+        path_db::put(&self.dir_db, &short_path, &StagedEntryStatus::Added)?;
 
         // Add all untracked files and modified files
         let (dir_paths, total) = self.list_unadded_files_in_dir(dir);
@@ -654,7 +663,7 @@ impl Stager {
             log::debug!("add_file got parent {:?}", relative_parent);
             if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
                 log::debug!("add_file({:?}) adding parent {:?}", path, relative_parent);
-                path_db::put(&self.dir_db, relative_parent, &0)?;
+                path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Added)?;
             }
         }
 
@@ -798,7 +807,7 @@ impl Stager {
                     let parent: PathBuf = components.iter().collect();
                     log::debug!("add_staged_entry_to_db got parent {:?}", parent);
                     log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
-                    path_db::put(&self.dir_db, parent, &0)?;
+                    path_db::put(&self.dir_db, parent, &StagedEntryStatus::Added)?;
                 }
             }
 
@@ -839,17 +848,22 @@ impl Stager {
         staged_dir.list_added_paths()
     }
 
-    pub fn list_added_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
-        path_db::list_paths(&self.dir_db, Path::new(""))
+    pub fn list_staged_dirs(&self) -> Result<Vec<(PathBuf, StagedEntryStatus)>, OxenError> {
+        path_db::list_path_entries(&self.dir_db, Path::new(""))
     }
 
-    pub fn compute_staged_dir_stats(&self, path: &Path) -> Result<StagedDirStats, OxenError> {
+    pub fn compute_staged_dir_stats(
+        &self,
+        path: &Path,
+        status: &StagedEntryStatus,
+    ) -> Result<StagedDirStats, OxenError> {
         let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         log::debug!("compute_staged_dir_stats {:?} -> {:?}", relative_path, path);
         let mut stats = StagedDirStats {
             path: relative_path.to_owned(),
             num_files_staged: 0,
             total_files: 0,
+            status: status.to_owned(),
         };
 
         // Only consider directories
@@ -935,8 +949,8 @@ impl Stager {
         log::debug!("Remove staged dir short_path: {:?}", short_path);
 
         // Not most efficient to linearly scan, but we don't have pointers to parents or children
-        let added_dirs = self.list_added_dirs()?;
-        for added_dir in added_dirs.iter() {
+        let added_dirs = self.list_staged_dirs()?;
+        for (added_dir, _) in added_dirs.iter() {
             if added_dir.starts_with(short_path) {
                 log::debug!("Removing files from added_dir: {:?}", added_dir);
 
@@ -953,9 +967,9 @@ impl Stager {
     }
 
     pub fn unstage(&self) -> Result<(), OxenError> {
-        let added_dirs = self.list_added_dirs()?;
+        let added_dirs = self.list_staged_dirs()?;
         log::debug!("Unstage dirs: {}", added_dirs.len());
-        for dir in added_dirs {
+        for (dir, _) in added_dirs {
             log::debug!("Unstaging dir: {:?}", dir);
             let staged_dir = StagedDirEntryDB::new(&self.repository, &dir)?;
             staged_dir.unstage()?;
