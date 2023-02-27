@@ -179,6 +179,32 @@ $ oxen restore path/to/file.txt
 
 Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the [restore documentation](commands/Restore.md).
 
+## Removing Data
+
+Once data has been committed, a version of it always lives in the .oxen/versions directory. As of right now there is no way to completely remove it from the repository history, this functionality is in our backlog for sensitive data that was accidentally committed.
+
+Removing data from a commit can be useful if you want to create a smaller subset of data on a separate branch for debugging or testing.
+
+To stage a file to be removed from the next commit, use the `oxen rm` command.
+
+```bash
+$ oxen rm path/to/file.txt
+```
+
+Note: the file must be committed in the history for this to work. If you want to remove a file that has not been committed yet, simple use your /bin/rm command.
+
+To recursively remove a directory use the `-r` flag.
+
+```bash
+$ oxen rm -r path/to/dir
+```
+
+If you accidentally staged a file that you do not want to commit, you can also use `oxen rm` with the `--staged` flag to unstage the file or directory.
+
+```bash
+$ oxen rm --staged -r path/to/dir
+```
+
 ## Advanced Features
 
 Oxen has many more advanced features such as [computing diffs](#diff) between tabular data as well as convenient DataFrame manipulation through the [oxen df](DataFrames.md) command.
