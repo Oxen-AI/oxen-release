@@ -181,11 +181,7 @@ Restore defaults to restoring the files to the current HEAD. For more detailed o
 
 ## Removing Data
 
-Once data has been committed, a version of it always lives in the .oxen/versions directory. As of right now there is no way to completely remove it from the repository history, this functionality is in our backlog for sensitive data that was accidentally committed.
-
-Removing data from a commit can be useful if you want to create a smaller subset of data on a separate branch for debugging or testing.
-
-To stage a file to be removed from the next commit, use the `oxen rm` command.
+To stage a file to be removed from the next commit, use the `oxen rm` command. Removing data from a commit can be useful if you find errors or simply want to create a smaller subset of data on a separate branch for debugging or testing.
 
 ```bash
 $ oxen rm path/to/file.txt
@@ -204,6 +200,8 @@ If you accidentally staged a file that you do not want to commit, you can also u
 ```bash
 $ oxen rm --staged -r path/to/dir
 ```
+
+Once data has been committed, a version of it always lives in the .oxen/versions directory. As of right now there is no way to completely remove it from the repository history, this functionality is in our backlog for sensitive data that was accidentally committed.
 
 ## Advanced Features
 
