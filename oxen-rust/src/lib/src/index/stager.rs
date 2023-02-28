@@ -4,6 +4,7 @@ use crate::db::path_db;
 use crate::df::tabular;
 use crate::df::DFOpts;
 use crate::error::OxenError;
+use crate::index::oxenignore;
 use crate::index::{
     CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
@@ -17,6 +18,7 @@ use crate::model::{
 use crate::util;
 
 use filetime::FileTime;
+use ignore::gitignore::Gitignore;
 use indicatif::ProgressBar;
 use itertools::Itertools;
 use jwalk::WalkDirGeneric;
@@ -75,8 +77,8 @@ impl Stager {
 
         let opts = db::opts::default();
         Ok(Stager {
-            dir_db: DBWithThreadMode::open(&opts, dir_db_path)?,
-            schemas_db: DBWithThreadMode::open(&opts, schemas_db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_db_path))?,
+            schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
             repository: repository.clone(),
             merger: None,
         })
@@ -88,20 +90,31 @@ impl Stager {
 
         let opts = db::opts::default();
         Ok(Stager {
-            dir_db: DBWithThreadMode::open(&opts, dir_db_path)?,
-            schemas_db: DBWithThreadMode::open(&opts, schemas_db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_db_path))?,
+            schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
             repository: repository.clone(),
             merger: Some(Merger::new(&repository.clone())?),
         })
     }
 
-    pub fn add(&self, path: &Path, commit_reader: &CommitDirReader) -> Result<(), OxenError> {
-        if path
-            .to_str()
-            .unwrap()
-            .to_string()
-            .contains(constants::OXEN_HIDDEN_DIR)
-        {
+    fn should_ignore_path(&self, ignore: &Option<Gitignore>, path: &Path) -> bool {
+        // If the path is the .oxen dir or is in the ignore file, ignore it
+        let should_ignore = if let Some(ignore) = ignore {
+            ignore.matched(path, path.is_dir()).is_ignore()
+        } else {
+            false
+        };
+
+        should_ignore || util::fs::is_in_oxen_hidden_dir(path)
+    }
+
+    pub fn add(
+        &self,
+        path: &Path,
+        commit_reader: &CommitDirReader,
+        ignore: &Option<Gitignore>,
+    ) -> Result<(), OxenError> {
+        if self.should_ignore_path(ignore, path) {
             return Ok(());
         }
 
@@ -112,7 +125,7 @@ impl Stager {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
                 let entry_path = self.repository.path.join(path);
-                self.add(&entry_path, commit_reader)?;
+                self.add(&entry_path, commit_reader, ignore)?;
             }
             log::debug!("ADD CURRENT DIR: {:?}", path);
             return Ok(());
@@ -172,6 +185,10 @@ impl Stager {
         result
     }
 
+    // TODO: allow status for just certain type of files (add, mod, removed, etc) for performance gains
+
+    // TODO: allow status for a certain directory for performance gains
+
     pub fn status_from_dir(
         &self,
         entry_reader: &CommitDirReader,
@@ -195,15 +212,16 @@ impl Stager {
     ) -> Result<StagedData, OxenError> {
         log::debug!("compute_staged_data listing eligable {:?}", dir);
         let mut staged_data = StagedData::empty();
+        let ignore = oxenignore::create(&self.repository);
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
         // Start with candidate dirs from committed and added, not all the dirs
-        let added_dirs = self.list_added_dirs()?;
+        let added_dirs = self.list_staged_dirs()?;
         log::debug!("compute_staged_data Got <added> dirs: {}", added_dirs.len());
-        for dir in added_dirs {
+        for (dir, status) in added_dirs {
             log::debug!("compute_staged_data considering added dir {:?}", dir);
-            let fullpath = self.repository.path.join(&dir);
-            let stats = self.compute_staged_dir_stats(&fullpath)?;
+            let full_path = self.repository.path.join(&dir);
+            let stats = self.compute_staged_dir_stats(&full_path, &status)?;
             staged_data.added_dirs.add_stats(&stats);
             log::debug!("compute_staged_data got stats {:?}", stats);
 
@@ -218,7 +236,9 @@ impl Stager {
         );
         for dir in committed_dirs.iter() {
             log::debug!("compute_staged_data adding <committed> dir {:?}", dir);
-            candidate_dirs.insert(self.repository.path.join(dir));
+            if !self.should_ignore_path(&ignore, dir) {
+                candidate_dirs.insert(self.repository.path.join(dir));
+            }
         }
 
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
@@ -226,7 +246,7 @@ impl Stager {
 
         for dir in candidate_dirs.iter() {
             log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
-            self.process_dir(dir, &mut staged_data)?;
+            self.process_dir(dir, &mut staged_data, &ignore)?;
         }
 
         // Find merge conflicts
@@ -242,7 +262,12 @@ impl Stager {
         Ok(staged_data)
     }
 
-    fn process_dir(&self, full_dir: &Path, staged_data: &mut StagedData) -> Result<(), OxenError> {
+    fn process_dir(
+        &self,
+        full_dir: &Path,
+        staged_data: &mut StagedData,
+        ignore: &Option<Gitignore>,
+    ) -> Result<(), OxenError> {
         log::debug!("process_dir {:?}", full_dir);
         // Only check at level of this dir, no need to deep dive recursively
         let committer = CommitReader::new(&self.repository)?;
@@ -263,15 +288,19 @@ impl Stager {
             for path in read_dir? {
                 let path = path?.path();
                 let path = util::fs::path_relative_to_dir(&path, &self.repository.path)?;
-                // log::debug!("adding candidate from dir {:?}", path);
-                candidate_files.insert(path);
+                if !self.should_ignore_path(ignore, &path) {
+                    // log::debug!("adding candidate from dir {:?}", path);
+                    candidate_files.insert(path);
+                }
             }
         }
 
         // and files that were in commit as candidates
         for entry in root_commit_entry_reader.list_entries()? {
             // log::debug!("adding candidate from commit {:?}", entry.path);
-            candidate_files.insert(entry.path);
+            if !self.should_ignore_path(ignore, &entry.path) {
+                candidate_files.insert(entry.path);
+            }
         }
         log::debug!(
             "Got {} candidates in directory {:?}",
@@ -446,6 +475,11 @@ impl Stager {
                 filename,
                 parent
             );
+
+            // add parent to staged dir db
+            let short_path = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
+            path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Removed)?;
+
             let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
@@ -539,7 +573,7 @@ impl Stager {
         // add the the directory to list of dirs we are tracking so that when we find untracked files
         // they are added to the list
         let short_path = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        path_db::put(&self.dir_db, &short_path, &0)?;
+        path_db::put(&self.dir_db, &short_path, &StagedEntryStatus::Added)?;
 
         // Add all untracked files and modified files
         let (dir_paths, total) = self.list_unadded_files_in_dir(dir);
@@ -630,7 +664,7 @@ impl Stager {
             log::debug!("add_file got parent {:?}", relative_parent);
             if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
                 log::debug!("add_file({:?}) adding parent {:?}", path, relative_parent);
-                path_db::put(&self.dir_db, relative_parent, &0)?;
+                path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Added)?;
             }
         }
 
@@ -774,7 +808,7 @@ impl Stager {
                     let parent: PathBuf = components.iter().collect();
                     log::debug!("add_staged_entry_to_db got parent {:?}", parent);
                     log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
-                    path_db::put(&self.dir_db, parent, &0)?;
+                    path_db::put(&self.dir_db, parent, &StagedEntryStatus::Added)?;
                 }
             }
 
@@ -815,17 +849,22 @@ impl Stager {
         staged_dir.list_added_paths()
     }
 
-    pub fn list_added_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
-        path_db::list_paths(&self.dir_db, Path::new(""))
+    pub fn list_staged_dirs(&self) -> Result<Vec<(PathBuf, StagedEntryStatus)>, OxenError> {
+        path_db::list_path_entries(&self.dir_db, Path::new(""))
     }
 
-    pub fn compute_staged_dir_stats(&self, path: &Path) -> Result<StagedDirStats, OxenError> {
+    pub fn compute_staged_dir_stats(
+        &self,
+        path: &Path,
+        status: &StagedEntryStatus,
+    ) -> Result<StagedDirStats, OxenError> {
         let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         log::debug!("compute_staged_dir_stats {:?} -> {:?}", relative_path, path);
         let mut stats = StagedDirStats {
             path: relative_path.to_owned(),
             num_files_staged: 0,
             total_files: 0,
+            status: status.to_owned(),
         };
 
         // Only consider directories
@@ -911,8 +950,8 @@ impl Stager {
         log::debug!("Remove staged dir short_path: {:?}", short_path);
 
         // Not most efficient to linearly scan, but we don't have pointers to parents or children
-        let added_dirs = self.list_added_dirs()?;
-        for added_dir in added_dirs.iter() {
+        let added_dirs = self.list_staged_dirs()?;
+        for (added_dir, _) in added_dirs.iter() {
             if added_dir.starts_with(short_path) {
                 log::debug!("Removing files from added_dir: {:?}", added_dir);
 
@@ -929,9 +968,9 @@ impl Stager {
     }
 
     pub fn unstage(&self) -> Result<(), OxenError> {
-        let added_dirs = self.list_added_dirs()?;
+        let added_dirs = self.list_staged_dirs()?;
         log::debug!("Unstage dirs: {}", added_dirs.len());
-        for dir in added_dirs {
+        for (dir, _) in added_dirs {
             log::debug!("Unstaging dir: {:?}", dir);
             let staged_dir = StagedDirEntryDB::new(&self.repository, &dir)?;
             staged_dir.unstage()?;
@@ -947,7 +986,7 @@ impl Stager {
 #[cfg(test)]
 mod tests {
     use crate::error::OxenError;
-    use crate::index::{CommitDirReader, CommitReader, CommitWriter, Stager};
+    use crate::index::{oxenignore, CommitDirReader, CommitReader, CommitWriter, Stager};
     use crate::model::StagedEntryStatus;
     use crate::test;
     use crate::util;
@@ -1402,7 +1441,8 @@ mod tests {
             //     one_shot.csv
             //   test/
             //     annotations.txt
-            stager.add(&full_annotations_dir, &entry_reader)?;
+            let ignore = oxenignore::create(&repo);
+            stager.add(&full_annotations_dir, &entry_reader, &ignore)?;
 
             // List dirs
             let status = stager.status(&entry_reader)?;

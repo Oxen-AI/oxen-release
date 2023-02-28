@@ -27,7 +27,7 @@ impl SchemaIndexWriter {
         }
 
         Ok(SchemaIndexWriter {
-            field_indices_db: DBWithThreadMode::open(&opts, &db_path)?,
+            field_indices_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
         })
     }
 

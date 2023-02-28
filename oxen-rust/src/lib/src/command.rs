@@ -8,6 +8,7 @@ use crate::compute;
 use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
+use crate::index::oxenignore;
 use crate::index::SchemaIndexReader;
 use crate::index::{self, differ};
 use crate::index::{
@@ -19,6 +20,7 @@ use crate::model::Schema;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::RestoreOpts;
+use crate::opts::RmOpts;
 use crate::util;
 use crate::util::resource;
 
@@ -185,24 +187,14 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let stager = Stager::new_with_merge(repo)?;
     let commit = head_commit(repo)?;
     let reader = CommitDirReader::new(repo, &commit)?;
-    stager.add(path.as_ref(), &reader)?;
+    let ignore = oxenignore::create(repo);
+    stager.add(path.as_ref(), &reader, &ignore)?;
     Ok(())
 }
 
-/// Removes the path from disk then adds it to the removed index
-pub fn rm<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let path = path.as_ref();
-    if path.is_dir() {
-        return Err(OxenError::basic_str(
-            "oxen rm not supported for directories.",
-        ));
-    }
-
-    if path.exists() {
-        std::fs::remove_file(path)?;
-    }
-
-    add(repo, path)
+/// Removes the path from the index
+pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    index::rm(repo, opts)
 }
 
 /// Interact with DataFrames from CLI
@@ -916,7 +908,7 @@ pub fn migrate_repo(repo: &LocalRepository) -> Result<(), OxenError> {
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
     let mut opts = Options::default();
     opts.set_log_level(LogLevel::Fatal);
-    let db = DB::open_for_read_only(&opts, path, false)?;
+    let db = DB::open_for_read_only(&opts, dunce::simplified(path), false)?;
     let iter = db.iterator(IteratorMode::Start);
     for (key, value) in iter {
         // try to decode u32 first (hacky but only two types we inspect right now)

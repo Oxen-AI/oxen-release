@@ -38,7 +38,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
         Err(err) => {
             let warning = "Consider specifying a schema for the dtypes.".yellow();
             let suggestion = "You can set a schema for a file with: \n\n  oxen schemas set <file> \"col_name_1:dtype,col_name_2:dtype\" \n";
-            eprintln!("Warn: {warning}\n\n{suggestion}");
+            log::warn!("Warn: {warning}\n\n{suggestion}");
 
             let err = format!("{CSV_READ_ERROR}: {err:?}");
             Err(OxenError::basic_str(err))

@@ -7,6 +7,7 @@ use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
+use liboxen::opts::RmOpts;
 use liboxen::test;
 use liboxen::util;
 
@@ -2874,14 +2875,15 @@ fn test_status_rm_regular_file() -> Result<(), OxenError> {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
-        std::fs::remove_file(&og_file)?;
+        std::fs::remove_file(og_file)?;
 
         let status = command::status(&repo)?;
         status.print_stdout();
 
         assert_eq!(status.removed_files.len(), 1);
 
-        command::rm(&repo, &og_file)?;
+        let opts = RmOpts::from_path(&og_basename);
+        command::rm(&repo, &opts)?;
         let status = command::status(&repo)?;
         status.print_stdout();
 
@@ -2901,14 +2903,15 @@ fn test_status_rm_directory_file() -> Result<(), OxenError> {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
-        std::fs::remove_file(&og_file)?;
+        std::fs::remove_file(og_file)?;
 
         let status = command::status(&repo)?;
         status.print_stdout();
 
         assert_eq!(status.removed_files.len(), 1);
 
-        command::rm(&repo, &og_file)?;
+        let opts = RmOpts::from_path(&og_basename);
+        command::rm(&repo, &opts)?;
         let status = command::status(&repo)?;
         status.print_stdout();
 
@@ -2916,6 +2919,108 @@ fn test_status_rm_directory_file() -> Result<(), OxenError> {
         assert_eq!(
             status.added_files[&og_basename].status,
             StagedEntryStatus::Removed
+        );
+
+        Ok(())
+    })
+}
+
+/// Should be able to use `oxen rm -r` then restore to get files back
+///
+/// $ oxen rm -r train/
+/// $ oxen restore --staged train/
+/// $ oxen restore train/
+#[test]
+fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        let rm_dir = PathBuf::from("train");
+        let full_path = repo.path.join(&rm_dir);
+        let num_files = util::fs::rcount_files_in_dir(&full_path);
+
+        // Remove directory
+        let opts = RmOpts {
+            path: rm_dir.to_owned(),
+            recursive: true,
+            staged: false,
+        };
+        command::rm(&repo, &opts)?;
+
+        // Make sure we staged these removals
+        let status = command::status(&repo)?;
+        status.print_stdout();
+        assert_eq!(num_files, status.added_files.len());
+        for (_path, entry) in status.added_files.iter() {
+            assert_eq!(entry.status, StagedEntryStatus::Removed);
+        }
+        // Make sure directory is no longer on disk
+        assert!(!full_path.exists());
+
+        // Restore the content from staging area
+        let opts = RestoreOpts::from_staged_path(&rm_dir);
+        command::restore(&repo, opts)?;
+
+        // This should have removed all the staged files, but not restored from disk yet.
+        let status = command::status(&repo)?;
+        status.print_stdout();
+        assert_eq!(0, status.added_files.len());
+        assert_eq!(num_files, status.removed_files.len());
+
+        // This should restore all the files from the HEAD commit
+        let opts = RestoreOpts::from_path(&rm_dir);
+        command::restore(&repo, opts)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        let num_restored = util::fs::rcount_files_in_dir(&full_path);
+        assert_eq!(num_restored, num_files);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_oxen_ignore_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Add a file that we are going to ignore
+        let ignore_filename = "ignoreme.txt";
+        let ignore_path = repo.path.join(ignore_filename);
+        test::write_txt_file_to_path(ignore_path, "I should be ignored")?;
+
+        let oxenignore_file = repo.path.join(".oxenignore");
+        test::write_txt_file_to_path(oxenignore_file, ignore_filename)?;
+
+        let status = command::status(&repo)?;
+        // Only untracked file should be .oxenignore
+        assert_eq!(status.untracked_files.len(), 1);
+        assert_eq!(
+            status.untracked_files.first().unwrap(),
+            Path::new(".oxenignore")
+        );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_oxen_ignore_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Add a file that we are going to ignore
+        let ignore_dir = "ignoreme/";
+        let ignore_path = repo.path.join(ignore_dir);
+        std::fs::create_dir(&ignore_path)?;
+        test::write_txt_file_to_path(ignore_path.join("0.txt"), "I should be ignored")?;
+        test::write_txt_file_to_path(ignore_path.join("1.txt"), "I should also be ignored")?;
+
+        let oxenignore_file = repo.path.join(".oxenignore");
+        test::write_txt_file_to_path(oxenignore_file, "ignoreme.txt")?;
+
+        let status = command::status(&repo)?;
+        // Only untracked file should be .oxenignore
+        assert_eq!(status.untracked_files.len(), 1);
+        assert_eq!(
+            status.untracked_files.first().unwrap(),
+            Path::new(".oxenignore")
         );
 
         Ok(())
