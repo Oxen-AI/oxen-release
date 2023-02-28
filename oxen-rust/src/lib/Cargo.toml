@@ -20,11 +20,8 @@ comfy-table = "6.1.0"
 deadqueue = "0.2.4"
 difference = "2.0.0"
 dirs = "4.0.0"
-<<<<<<< HEAD
-=======
 dunce = "1"
 dotenv = "0.9.0"
->>>>>>> main
 env_logger = "0.9.0"
 filetime = "0.2.16"
 flate2 = "1.0.23"
