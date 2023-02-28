@@ -12,7 +12,7 @@ pub const REFS_DIR: &str = "refs";
 /// history/ dir is a list of directories named after commit ids
 pub const HISTORY_DIR: &str = "history";
 /// commits/ is a key-value database of commit ids to commit objects
-pub const COMMITS_DB: &str = "commits";
+pub const COMMITS_DIR: &str = "commits";
 /// name of the schema db
 pub const SCHEMAS_DIR: &str = "schemas";
 /// prefix for the commit rows

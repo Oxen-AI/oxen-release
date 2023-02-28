@@ -44,5 +44,5 @@ pub use crate::view::oxen_response::OxenResponse;
 pub use crate::view::version::VersionResponse;
 
 pub use crate::view::remote_staged_status::{
-    ListStagedFileModResponse, RemoteStagedStatusResponse, StagedFileModResponse,
+    ListStagedFileModResponse, RemoteStagedStatusResponse, StagedFileModResponse, RemoteStagedStatus
 };

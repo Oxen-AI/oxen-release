@@ -41,6 +41,7 @@ pub async fn status_dir(req: HttpRequest) -> HttpResponse {
         "stager::status repo name {repo_name}/{}",
         resource.to_string_lossy()
     );
+
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
@@ -470,58 +471,62 @@ fn get_file_status_for_branch(
 
 fn get_dir_status_for_branch(repo: &LocalRepository, branch_name: &str) -> HttpResponse {
     match api::local::branches::get_by_name(repo, branch_name) {
-        Ok(Some(branch)) => match index::remote_dir_stager::list_staged_data(repo, &branch) {
-            Ok(staged) => {
-                staged.print_stdout();
-                log::debug!("GOT {} ADDED FILES", staged.added_files.len());
-                let entries: Vec<DirEntry> = staged
-                    .added_files
-                    .keys()
-                    .map(|path| {
-                        let full_path =
-                            index::remote_dir_stager::branch_staging_dir(repo, &branch).join(path);
-                        let meta = std::fs::metadata(&full_path).unwrap();
-                        let path_str = path.to_string_lossy().to_string();
-
-                        DirEntry {
-                            filename: path_str.to_owned(),
-                            is_dir: false,
-                            size: meta.len(),
-                            latest_commit: None,
-                            datatype: util::fs::file_datatype(&full_path),
-                            resource: ResourceVersion {
-                                path: path_str,
-                                version: branch_name.to_owned(),
-                            },
-                        }
-                    })
-                    .collect();
-                let response = RemoteStagedStatusResponse {
-                    status: STATUS_SUCCESS.to_string(),
-                    status_message: MSG_RESOURCE_FOUND.to_string(),
-                    staged: RemoteStagedStatus {
-                        added_files: PaginatedDirEntries {
-                            entries,
-                            page_number: 1,
-                            page_size: 10,
-                            total_pages: 0,
-                            total_entries: 0,
-                            resource: ResourceVersion {
-                                path: "".to_string(),
-                                version: "".to_string(),
+        Ok(Some(branch)) => {
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+            log::debug!("GOT BRANCH REPO {:?}", branch_repo.path);
+            match index::remote_dir_stager::list_staged_data(repo, &branch_repo, &branch) {
+                Ok(staged) => {
+                    staged.print_stdout();
+                    log::debug!("GOT {} ADDED FILES", staged.added_files.len());
+                    let entries: Vec<DirEntry> = staged
+                        .added_files
+                        .keys()
+                        .map(|path| {
+                            let full_path =
+                                index::remote_dir_stager::branch_staging_dir(repo, &branch).join(path);
+                            let meta = std::fs::metadata(&full_path).unwrap();
+                            let path_str = path.to_string_lossy().to_string();
+    
+                            DirEntry {
+                                filename: path_str.to_owned(),
+                                is_dir: false,
+                                size: meta.len(),
+                                latest_commit: None,
+                                datatype: util::fs::file_datatype(&full_path),
+                                resource: ResourceVersion {
+                                    path: path_str,
+                                    version: branch_name.to_owned(),
+                                },
+                            }
+                        })
+                        .collect();
+                    let response = RemoteStagedStatusResponse {
+                        status: STATUS_SUCCESS.to_string(),
+                        status_message: MSG_RESOURCE_FOUND.to_string(),
+                        staged: RemoteStagedStatus {
+                            added_files: PaginatedDirEntries {
+                                entries,
+                                page_number: 1,
+                                page_size: 10,
+                                total_pages: 0,
+                                total_entries: 0,
+                                resource: ResourceVersion {
+                                    path: "".to_string(),
+                                    version: "".to_string(),
+                                },
                             },
                         },
-                    },
-                };
-                HttpResponse::Ok().json(response)
-            }
-            Err(err) => {
-                log::error!(
-                    "Error getting staged data for branch {} {}",
-                    branch_name,
-                    err
-                );
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                    };
+                    HttpResponse::Ok().json(response)
+                }
+                Err(err) => {
+                    log::error!(
+                        "Error getting staged data for branch {} {}",
+                        branch_name,
+                        err
+                    );
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                }
             }
         },
         Ok(None) => {
