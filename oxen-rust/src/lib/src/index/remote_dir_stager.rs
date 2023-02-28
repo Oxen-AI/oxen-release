@@ -50,18 +50,26 @@ pub fn init_or_get(repo: &LocalRepository, branch: &Branch) -> Result<LocalRepos
     Ok(branch_repo)
 }
 
-pub fn init_local_repo_staging_dir(repo: &LocalRepository, staging_dir: &Path) -> Result<LocalRepository, OxenError> {
+pub fn init_local_repo_staging_dir(
+    repo: &LocalRepository,
+    staging_dir: &Path,
+) -> Result<LocalRepository, OxenError> {
     let oxen_hidden_dir = repo.path.join(constants::OXEN_HIDDEN_DIR);
     let staging_oxen_dir = staging_dir.join(constants::OXEN_HIDDEN_DIR);
     log::debug!("Creating staging_oxen_dir: {staging_oxen_dir:?}");
     std::fs::create_dir_all(&staging_oxen_dir)?;
 
-    let dirs_to_copy = vec![constants::COMMITS_DIR, constants::HISTORY_DIR, constants::REFS_DIR, constants::HEAD_FILE];
-    
+    let dirs_to_copy = vec![
+        constants::COMMITS_DIR,
+        constants::HISTORY_DIR,
+        constants::REFS_DIR,
+        constants::HEAD_FILE,
+    ];
+
     for dir in dirs_to_copy {
-        let oxen_dir = oxen_hidden_dir.join(&dir);
-        let staging_dir = staging_oxen_dir.join(&dir);
-    
+        let oxen_dir = oxen_hidden_dir.join(dir);
+        let staging_dir = staging_oxen_dir.join(dir);
+
         log::debug!("Copying {dir} dir {oxen_dir:?} -> {staging_dir:?}");
         if oxen_dir.is_dir() {
             util::fs::copy_dir_all(oxen_dir, staging_dir)?;
@@ -70,7 +78,7 @@ pub fn init_local_repo_staging_dir(repo: &LocalRepository, staging_dir: &Path) -
         }
     }
 
-    LocalRepository::new(&staging_dir)
+    LocalRepository::new(staging_dir)
 }
 
 // Stages a file in a specified directory
@@ -156,21 +164,29 @@ fn status_for_branch(
     Ok(status)
 }
 
-pub fn list_staged_data(repo: &LocalRepository, branch_repo: &LocalRepository, branch: &Branch) -> Result<StagedData, OxenError> {
+pub fn list_staged_data(
+    repo: &LocalRepository,
+    branch_repo: &LocalRepository,
+    branch: &Branch,
+) -> Result<StagedData, OxenError> {
     // Stager will be in the branch repo
-    let stager = Stager::new(&branch_repo)?;
+    let stager = Stager::new(branch_repo)?;
     // But we will read from the commit in the main repo
-    log::debug!("list_staged_data get commit by id {} -> {}", branch.name, branch.commit_id);
+    log::debug!(
+        "list_staged_data get commit by id {} -> {}",
+        branch.name,
+        branch.commit_id
+    );
     match api::local::commits::get_by_id(repo, &branch.commit_id)? {
         Some(commit) => {
             let reader = CommitDirReader::new(repo, &commit)?;
             let status = stager.status(&reader)?;
 
             Ok(status)
-        },
-        None => {
-            Err(OxenError::commit_id_does_not_exist(branch.commit_id.to_owned()))
         }
+        None => Err(OxenError::commit_id_does_not_exist(
+            &branch.commit_id,
+        )),
     }
 }
 
@@ -203,7 +219,8 @@ mod tests {
             index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &full_path)?;
 
             // Verify staged data
-            let staged_data = index::remote_dir_stager::list_staged_data(&repo, &branch_repo, &branch)?;
+            let staged_data =
+                index::remote_dir_stager::list_staged_data(&repo, &branch_repo, &branch)?;
             staged_data.print_stdout();
             assert_eq!(staged_data.added_files.len(), 1);
 

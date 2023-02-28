@@ -1,12 +1,12 @@
 use crate::app_data::OxenAppData;
 use crate::controllers::entries::PageNumQuery;
 
-use liboxen::api;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedDirEntriesResponse, StatusMessage};
+use liboxen::{api, constants};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -19,9 +19,8 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
     let name: &str = req.match_info().get("repo_name").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
-    // default to first page with first ten values
-    let page: usize = query.page.unwrap_or(1);
-    let page_size: usize = query.page_size.unwrap_or(10);
+    let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     log::debug!(
         "dir::get repo name [{}] resource [{:?}] page {} page_size {}",
@@ -105,10 +104,10 @@ fn list_directory_for_commit(
                         page_number: page,
                         total_pages: total_pages as usize,
                         total_entries,
-                        resource: ResourceVersion {
+                        resource: Some(ResourceVersion {
                             path: directory.to_str().unwrap().to_string(),
                             version: branch_or_commit_id.to_string(),
-                        },
+                        }),
                         entries,
                     };
                     Ok((view, commit))

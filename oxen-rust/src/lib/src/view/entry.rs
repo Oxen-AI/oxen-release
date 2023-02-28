@@ -35,7 +35,7 @@ pub struct PaginatedEntries {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntries {
     pub entries: Vec<DirEntry>,
-    pub resource: ResourceVersion,
+    pub resource: Option<ResourceVersion>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,
@@ -47,7 +47,7 @@ pub struct PaginatedDirEntriesResponse {
     pub status: String,
     pub status_message: String,
     pub entries: Vec<DirEntry>,
-    pub resource: ResourceVersion,
+    pub resource: Option<ResourceVersion>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,
