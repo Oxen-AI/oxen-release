@@ -53,7 +53,7 @@ impl CommitEntryWriter {
         let opts = db::opts::default();
         Ok(CommitEntryWriter {
             repository: repository.clone(),
-            dir_db: DBWithThreadMode::open(&opts, &db_path)?,
+            dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
             commit: commit.to_owned(),
         })
     }

@@ -43,7 +43,7 @@ impl CommitWriter {
 
         let opts = db::opts::default();
         Ok(CommitWriter {
-            commits_db: DBWithThreadMode::open(&opts, &db_path)?,
+            commits_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
             repository: repository.clone(),
         })
     }
@@ -628,7 +628,7 @@ mod tests {
             let status = stager.status(&entry_reader)?;
             let files = status.added_files;
             assert_eq!(files.len(), 0);
-            let dirs = stager.list_added_dirs()?;
+            let dirs = stager.list_staged_dirs()?;
             assert_eq!(dirs.len(), 0);
 
             Ok(())

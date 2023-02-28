@@ -1,6 +1,6 @@
 [package]
 name = "oxen-server"
-version = "0.4.8"
+version = "0.4.10"
 edition = "2018"
 
 [dependencies]
@@ -8,12 +8,14 @@ actix-files = "0.6.0"
 actix-http = "3.0.4"
 actix-service = "2.0.2"
 actix-multipart = "0.5.0"
-actix-web = { version = "4", features = ["openssl"] }
+actix-web = { version = "4", features = ["rustls"] }
 actix-web-httpauth = "0.6.0"
 bytesize = "1.1.0"
 chrono = "0.4.19"
 clap = { version = "3.1.0", features = ["cargo"] }
 derive_more = "0.99.17"
+dotenv = "0.9.0"
+dunce = "1"
 env_logger = "0.9.0"
 flate2 = "1.0.23"
 futures = "0.3.21"

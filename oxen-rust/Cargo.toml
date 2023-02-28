@@ -1,6 +1,6 @@
 [package]
 name = "Oxen"
-version = "0.4.8"
+version = "0.4.10"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -10,11 +10,11 @@ actix-files = "0.6.0"
 actix-http = "3.0.4"
 actix-multipart = "0.5.0"
 actix-service = "2.0.2"
-actix-web = { version = "4", features = ["openssl"] }
+actix-web = { version = "4", features = ["rustls"] }
 actix-web-httpauth = "0.6.0"
 async-compression = { version = "0.3.14", features = ["futures-io", "gzip"] }
 async-recursion = "1.0.0"
-async-std = "1.12.0"
+async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.4.2"
 bytes = "1.2.1"
 bytesize = "1.1.0"
@@ -27,6 +27,8 @@ deadqueue = "0.2.4"
 derive_more = "0.99.17"
 difference = "2.0.0"
 dirs = "4.0.0"
+dotenv = "0.9.0"
+dunce = "1"
 env_logger = "0.9.0"
 filetime = "0.2.16"
 flate2 = "1.0.23"
@@ -36,6 +38,7 @@ futures-util = "0.3.21"
 hex = "0.4.3"
 http = "0.2.6"
 indicatif = "0.17.1"
+ignore = "0.4"
 itertools = "0.10.5"
 jsonwebtoken = "8"
 jwalk = "0.6.0"
@@ -43,7 +46,7 @@ lazy_static = "1.4.0"
 log = "0.4.17"
 nom = "7.1.1"
 num_cpus = "1.13.1"
-openssl = { version = "0.10" }
+pluralizer = "0.3.1"
 polars = { version = "0.26.1", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
 rand = "0.8.5"
 rand_core = "0.5"
@@ -59,7 +62,6 @@ serde_url_params = "0.2.1"
 signal-hook = "0.3.13"
 simdutf8 = "0.1.4"
 tar = "0.4.38"
-termion = "1.5.6"
 threadpool = "1.8.1"
 thread_local = "1.1.4"
 time = { version = "0.3.17", features = ["serde"] }
