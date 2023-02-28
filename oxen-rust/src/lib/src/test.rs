@@ -251,7 +251,7 @@ where
 /// Test interacting with a remote repo that has nothing synced
 pub async fn run_empty_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(RemoteRepository) -> Fut,
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
@@ -261,12 +261,12 @@ where
     let local_repo = command::init(&path)?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let repo =
+    let remote_repo =
         api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
-    println!("REMOTE REPO: {repo:?}");
+    println!("REMOTE REPO: {remote_repo:?}");
 
     // Run test to see if it panic'd
-    let result = match test(repo).await {
+    let result = match test(local_repo, remote_repo).await {
         Ok(repo) => {
             // Cleanup remote repo
             api::remote::repositories::delete(&repo).await?;

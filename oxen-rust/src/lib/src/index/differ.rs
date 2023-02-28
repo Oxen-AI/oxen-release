@@ -405,6 +405,7 @@ mod tests {
     use crate::command;
     use crate::error::OxenError;
     use crate::index::differ;
+    use crate::opts::RmOpts;
     use crate::test;
 
     #[test]
@@ -484,7 +485,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // Remove the file
             std::fs::remove_file(bbox_file)?;
 
-            command::rm(&repo, &bbox_filename)?;
+            let opts = RmOpts::from_path(&bbox_filename);
+            command::rm(&repo, &opts)?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?.unwrap();
 
             let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;

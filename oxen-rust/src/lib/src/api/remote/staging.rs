@@ -2,7 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{DirEntry, RemoteRepository};
-use crate::view::PaginatedDirEntries;
+use crate::view::{RemoteStagedStatus, RemoteStagedStatusResponse};
 
 use std::path::Path;
 
@@ -12,7 +12,7 @@ pub async fn list_staging_dir(
     path: &Path,
     page: usize,
     page_size: usize,
-) -> Result<PaginatedDirEntries, OxenError> {
+) -> Result<RemoteStagedStatus, OxenError> {
     let path_str = path.to_str().unwrap();
     let uri = format!("/staging/dir/{branch_name}/{path_str}?page={page}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -20,16 +20,16 @@ pub async fn list_staging_dir(
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
         let body = client::parse_json_body(&url, res).await?;
-        // log::debug!("list_page got body: {}", body);
-        let response: Result<PaginatedDirEntries, serde_json::Error> = serde_json::from_str(&body);
+        log::debug!("list_staging_dir got body: {}", body);
+        let response: Result<RemoteStagedStatusResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(format!(
-                "api::dir::list_dir {url} Err \n\n{body}"
+            Ok(val) => Ok(val.staged),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "api::dir::list_staging_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
             ))),
         }
     } else {
-        let err = format!("api::dir::list_dir Err request failed: {url}");
+        let err = format!("api::dir::list_staging_dir Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
 }
@@ -41,7 +41,7 @@ pub fn stage_file(_path: &Path) -> Result<Vec<DirEntry>, OxenError> {
 #[cfg(test)]
 mod tests {
 
-    use crate::api;
+    use crate::{api, command, constants};
     use crate::error::OxenError;
     use crate::test;
 
@@ -49,8 +49,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_empty_staging_dir_empty_remote() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|remote_repo| async move {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
             let branch_name = "add-images";
+            command::create_checkout_branch(&local_repo, branch_name)?;
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::push_remote_branch(&local_repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
@@ -65,8 +70,8 @@ mod tests {
                 page_size,
             )
             .await?;
-            assert_eq!(entries.entries.len(), 0);
-            assert_eq!(entries.total_entries, 0);
+            assert_eq!(entries.added_files.entries.len(), 0);
+            assert_eq!(entries.added_files.total_entries, 0);
 
             Ok(remote_repo)
         })
@@ -91,8 +96,8 @@ mod tests {
                 page_size,
             )
             .await?;
-            assert_eq!(entries.entries.len(), 0);
-            assert_eq!(entries.total_entries, 0);
+            assert_eq!(entries.added_files.entries.len(), 0);
+            assert_eq!(entries.added_files.total_entries, 0);
 
             Ok(remote_repo)
         })

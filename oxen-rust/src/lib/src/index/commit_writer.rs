@@ -1,5 +1,5 @@
 use crate::config::UserConfig;
-use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::index::{
@@ -31,7 +31,7 @@ pub struct CommitWriter {
 
 impl CommitWriter {
     pub fn commit_db_dir(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
+        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DIR))
     }
 
     pub fn new(repository: &LocalRepository) -> Result<CommitWriter, OxenError> {

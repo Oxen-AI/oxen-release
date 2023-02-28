@@ -264,9 +264,7 @@ impl EntryIndexer {
                 commit.message
             );
 
-            if !entries.is_empty() {
-                self.push_entries(remote_repo, entries, commit).await?;
-            }
+            self.push_entries(remote_repo, entries, commit).await?;
         }
         Ok(())
     }

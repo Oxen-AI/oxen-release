@@ -157,7 +157,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_remote_branch() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|remote_repo| async move {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let name = "my-branch";
             let branch = api::remote::branches::create_or_get(&remote_repo, name).await?;
             assert_eq!(branch.name, name);
@@ -169,7 +169,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_branch_by_name() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|remote_repo| async move {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "my-branch";
             api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
 
@@ -184,7 +184,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_remote_branches() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|remote_repo| async move {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             api::remote::branches::create_or_get(&remote_repo, "branch-1").await?;
             api::remote::branches::create_or_get(&remote_repo, "branch-2").await?;
 
@@ -202,7 +202,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_branch() -> Result<(), OxenError> {
-        test::run_empty_remote_repo_test(|remote_repo| async move {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "my-branch";
             api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
 
