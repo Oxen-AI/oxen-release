@@ -396,8 +396,8 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts);
     if opts.page.is_some() || opts.page_size.is_some() {
-        let page = opts.page.unwrap_or(1);
-        let page_size = opts.page_size.unwrap_or(10);
+        let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
         let start = (page - 1) * page_size;
         df.slice(start as i64, page_size as u32)
     } else if let Some((start, end)) = opts.slice_indices() {

@@ -1,12 +1,12 @@
 use crate::app_data::OxenAppData;
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::index::differ;
-use liboxen::model::{Commit, DiffEntry, LocalRepository};
+use liboxen::model::{Commit, LocalRepository};
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{CompareResponse, StatusMessage};
+use liboxen::{api, constants, util};
 
 use super::entries::PageNumQuery;
 
@@ -16,8 +16,8 @@ pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResp
     let name: &str = req.match_info().get("repo_name").unwrap();
     let base_head: &str = req.match_info().get("base_head").unwrap();
 
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(10);
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repository)) => match parse_base_head(base_head) {
@@ -28,7 +28,7 @@ pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResp
                             let total_entries = entries.len();
                             let total_pages =
                                 (total_entries as f64 / page_size as f64).ceil() as usize;
-                            let paginated = paginate_entries(entries, page, page_size);
+                            let paginated = util::paginate(entries, page, page_size);
                             let view = CompareResponse {
                                 status: String::from(STATUS_SUCCESS),
                                 status_message: String::from(MSG_RESOURCE_FOUND),
@@ -111,22 +111,4 @@ fn resolve_committish(
 ) -> Result<Option<Commit>, OxenError> {
     // Lookup commit by id or branch name
     api::local::commits::get_by_id_or_branch(repo, committish)
-}
-
-fn paginate_entries(entries: Vec<DiffEntry>, page: usize, page_size: usize) -> Vec<DiffEntry> {
-    let start = (page - 1) * page_size;
-    let end = start + page_size;
-
-    log::debug!(
-        "paginate entries start: {} end: {} total: {}",
-        start,
-        end,
-        entries.len()
-    );
-
-    if start > entries.len() || end > entries.len() {
-        entries[start..].to_vec()
-    } else {
-        entries[start..end].to_vec()
-    }
 }

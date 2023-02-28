@@ -19,14 +19,15 @@ pub async fn list_dir(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             // log::debug!("list_page got body: {}", body);
-            let response: Result<PaginatedDirEntries, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<PaginatedDirEntries, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
                 Ok(val) => Ok(val),
                 Err(err) => Err(OxenError::basic_str(format!(
                     "api::dir::list_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
             }
-        },
+        }
         Err(err) => {
             let err = format!("api::dir::list_dir Err {err:?} request failed: {url}");
             Err(OxenError::basic_str(err))
