@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 use crate::api;
 use crate::command;
 use crate::constants;
-use crate::constants::OXEN_HIDDEN_DIR;
+use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::error::OxenError;
 use crate::index::CommitDirReader;
 use crate::index::Stager;
@@ -19,7 +19,6 @@ use crate::model::StagedData;
 use crate::model::User;
 use crate::util;
 
-use super::stager::STAGED_DIR;
 use super::CommitWriter;
 
 // These methods create a directory within .oxen/staging/branch-name/ that is basically a local oxen repo
@@ -184,9 +183,7 @@ pub fn list_staged_data(
 
             Ok(status)
         }
-        None => Err(OxenError::commit_id_does_not_exist(
-            &branch.commit_id,
-        )),
+        None => Err(OxenError::commit_id_does_not_exist(&branch.commit_id)),
     }
 }
 

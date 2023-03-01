@@ -214,16 +214,10 @@ async fn create_commit_obj_on_server(
     commit: &CommitWithSize,
 ) -> Result<CommitResponse, OxenError> {
     let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
-    let body = serde_json::to_string(&commit).unwrap();
-    log::debug!("create_commit_obj_on_server {}\n{}", url, body);
+    log::debug!("create_commit_obj_on_server {}\n{:?}", url, commit);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client
-        .post(&url)
-        .body(reqwest::Body::from(body))
-        .send()
-        .await
-    {
+    if let Ok(res) = client.post(&url).json(commit).send().await {
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("create_commit_obj_on_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);

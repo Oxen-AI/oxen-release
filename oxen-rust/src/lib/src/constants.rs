@@ -23,6 +23,8 @@ pub const FILES_DIR: &str = "files";
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for the commit entry dirs
 pub const CACHE_DIR: &str = "cache";
+/// prefix for the staged dirs
+pub const STAGED_DIR: &str = "staged";
 /// prefix for the commit indices
 pub const INDICES_DIR: &str = "indices";
 /// prefix for the schema fields that are indexed
