@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use time::OffsetDateTime;
 
-use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR};
+use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
@@ -12,7 +12,6 @@ use crate::model::schema::Field;
 use crate::model::{Branch, CommitEntry, LocalRepository, ModEntry};
 use crate::{api, util};
 
-use super::stager::STAGED_DIR;
 use super::SchemaReader;
 
 fn mods_db_path(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> PathBuf {

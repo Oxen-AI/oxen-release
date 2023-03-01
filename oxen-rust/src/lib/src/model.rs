@@ -19,7 +19,7 @@ pub use crate::model::repository::remote_repository::RemoteRepository;
 pub use crate::model::repository::repo_stats::{DataTypeStat, RepoStats};
 
 // Commit
-pub use crate::model::commit::{Commit, CommitStats, NewCommit};
+pub use crate::model::commit::{Commit, CommitBody, CommitStats, NewCommit};
 
 // Merge
 pub use crate::model::merge_conflict::MergeConflict;

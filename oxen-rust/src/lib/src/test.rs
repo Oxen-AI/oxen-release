@@ -550,7 +550,11 @@ pub fn test_jpeg_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
 }
 
-pub fn test_large_file() -> &'static Path {
+pub fn test_jpeg_file_with_name(name: &str) -> PathBuf {
+    PathBuf::from(&format!("data/test/images/{name}"))
+}
+
+pub fn test_200k_csv() -> &'static Path {
     Path::new("data/test/text/celeb_a_200k.csv")
 }
 
@@ -618,7 +622,7 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     let large_dir = repo_dir.join("large_files");
     std::fs::create_dir_all(&large_dir)?;
     let large_file_1 = large_dir.join("test.csv");
-    let from_file = test_large_file();
+    let from_file = test_200k_csv();
     std::fs::copy(from_file, large_file_1)?;
 
     // train/

@@ -29,8 +29,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 
-pub const STAGED_DIR: &str = "staged";
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FileStatus {
     Added,
@@ -49,7 +47,7 @@ pub struct Stager {
 impl Stager {
     pub fn dirs_db_path(path: &Path) -> Result<PathBuf, OxenError> {
         let path = util::fs::oxen_hidden_dir(path)
-            .join(Path::new(STAGED_DIR))
+            .join(Path::new(constants::STAGED_DIR))
             .join(constants::DIRS_DIR);
 
         log::debug!("Stager new dir dir_db_path {:?}", path);
@@ -62,7 +60,7 @@ impl Stager {
 
     pub fn schemas_db_path(path: &Path) -> Result<PathBuf, OxenError> {
         let path = util::fs::oxen_hidden_dir(path)
-            .join(Path::new(STAGED_DIR))
+            .join(Path::new(constants::STAGED_DIR))
             .join(constants::SCHEMAS_DIR);
         log::debug!("Stager new dir schemas_db_path {:?}", path);
         if !path.exists() {

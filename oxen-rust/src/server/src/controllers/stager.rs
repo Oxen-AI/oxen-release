@@ -3,7 +3,7 @@ use crate::app_data::OxenAppData;
 use liboxen::compute::commit_cacher;
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::{Branch, DirEntry, LocalRepository, User};
+use liboxen::model::{Branch, CommitBody, DirEntry, LocalRepository};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::remote_staged_status::{
@@ -21,17 +21,10 @@ use std::io::Write;
 use actix_multipart::Multipart;
 use actix_web::Error;
 use futures_util::TryStreamExt as _;
-use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use super::entries::PageNumQuery;
-
-#[derive(Deserialize)]
-pub struct CommitBody {
-    message: String,
-    user: User,
-}
 
 pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -332,12 +325,24 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
     }
 }
 
-pub async fn commit(req: HttpRequest, data: web::Json<CommitBody>) -> Result<HttpResponse, Error> {
+pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let branch_name: &str = req.match_info().query("branch");
+
+    log::debug!("stager::commit got body: {body}");
+
+    let data: Result<CommitBody, serde_json::Error> = serde_json::from_str(&body);
+
+    let data = match data {
+        Ok(data) => data,
+        Err(err) => {
+            log::error!("unable to parse commit data. Err: {}\n{}", err, body);
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err.to_string())));
+        }
+    };
 
     log::debug!("stager::commit repo name {repo_name} -> {branch_name}");
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
