@@ -250,7 +250,7 @@ Once you have created a repository, you will see a URL you can push your data to
 From the data repository that you [created above](#create-repository) you can simply add the remote and push.
 
 ```bash
-$ oxen set-remote origin https://hub.oxen.ai/<username>/<repo_name>
+$ oxen remote add origin https://hub.oxen.ai/<username>/<repo_name>
 $ oxen push origin main
 ```
 
