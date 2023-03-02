@@ -50,6 +50,7 @@ serde_json = "1.0.78"
 serde_url_params = "0.2.1"
 signal-hook = "0.3.13"
 simdutf8 = "0.1.4"
+sysinfo = "0.28.1"
 tar = "0.4.38"
 threadpool = "1.8.1"
 time = { version = "0.3.17", features = ["serde"] }

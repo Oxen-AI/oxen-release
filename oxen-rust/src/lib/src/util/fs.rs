@@ -8,6 +8,7 @@ use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 use std::{fs, io};
+use sysinfo::{DiskExt, System, SystemExt};
 
 use crate::api;
 use crate::constants;
@@ -562,6 +563,37 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
 
     // println!("{:?}", components);
     Ok(result)
+}
+
+pub fn disk_usage_for_path(path: &Path) -> Result<f64, OxenError> {
+    log::debug!("disk_usage_for_path: {:?}", path);
+    let mut sys = System::new();
+    sys.refresh_disks_list();
+
+    if sys.disks().is_empty() {
+        return Err(OxenError::basic_str("No disks found"));
+    }
+
+    // try to choose the disk that the path is on
+    let mut selected_disk = sys.disks().first().unwrap();
+    for disk in sys.disks() {
+        let disk_mount_len = disk.mount_point().to_str().unwrap_or_default().len();
+        let selected_disk_mount_len = selected_disk
+            .mount_point()
+            .to_str()
+            .unwrap_or_default()
+            .len();
+
+        // pick the disk with the longest mount point that is a prefix of the path
+        if path.starts_with(disk.mount_point()) && disk_mount_len > selected_disk_mount_len {
+            selected_disk = disk;
+            break;
+        }
+    }
+
+    log::debug!("disk_usage_for_path selected disk: {:?}", selected_disk);
+    let used_space = (selected_disk.total_space() - selected_disk.available_space()) as f64;
+    Ok(used_space / selected_disk.total_space() as f64)
 }
 
 #[cfg(test)]
