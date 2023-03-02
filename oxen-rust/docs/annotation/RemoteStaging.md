@@ -9,7 +9,7 @@ Oxen has the concept of a remote staging area to enable easy data collection and
 
 To enable collecting data without cloning an entire repository, Oxen server has the concept of a remote staging area.
 
-You can think of this area similar to your local `oxen stage` command, but the data is staged remotely.
+You can think of this area similar to your local `oxen add` command, but the data is staged remotely.
 
 ## Example Workflow
 
@@ -55,6 +55,48 @@ Often you will have structured DataFrames that reference your unstructured data 
 To append to a DataFrame you must specify a branch, a file name, and a json body that represents the column values. Internally Oxen uses the DataFrame schema to convert the json to the proper csv, parquet, arrow, or jsonl format.
 
 ```
-curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.csv"
+$ curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.csv" | jq
+
+{
+  "status": "success",
+  "status_message": "resource_created",
+  "modification": {
+    "uuid": "a5770864-b895-4f53-8093-623f76b27296",
+    "modification_type": "Append",
+    "data": "{\"file\": \"images/img_1234.jpg\", \"label\": \"dog\", \"min_x\": 100, \"min_y\": 50, \"width\": 128, \"height\": 112}",
+    "path": "annotations.csv",
+    "timestamp": "2023-03-02T18:01:06.850765Z"
+  }
+}
 ```
 
+To list the raw staged modifications to a file you can use the `/staging/file` API.
+
+```
+$ curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/file/add-images/annotations.csv" | jq
+
+{
+  "status": "success",
+  "status_message": "resource_found",
+  "modifications": [
+    {
+      "uuid": "a4bcd7e9-b43a-47ef-99a8-24a8bde77efa",
+      "modification_type": "Append",
+      "data": "{\"id\": 3, \"name\": \"adam\"}",
+      "path": "annotations.csv",
+      "timestamp": "2023-03-02T18:00:32.8009Z"
+    },
+    {
+      "uuid": "a5770864-b895-4f53-8093-623f76b27296",
+      "modification_type": "Append",
+      "data": "{\"id\": 4, \"name\": \"Finn\"}",
+      "path": "annotations.csv",
+      "timestamp": "2023-03-02T18:01:06.850765Z"
+    }
+  ]
+}
+```
+
+To view these changes in DataFrame format you can use the `/staging/df` API.
+
+TODO: add example
