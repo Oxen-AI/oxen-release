@@ -1,9 +1,11 @@
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::{Commit, CommitBody, RemoteRepository};
+use crate::model::entry::mod_entry::ModType;
+use crate::model::{Commit, CommitBody, ModEntry, RemoteRepository};
 use crate::view::{
     CommitResponse, FilePathsResponse, RemoteStagedStatus, RemoteStagedStatusResponse,
+    StagedFileModResponse,
 };
 
 use std::path::{Path, PathBuf};
@@ -127,6 +129,42 @@ pub async fn stage_files(
     }
 }
 
+pub async fn stage_modification(
+    remote_repo: &RemoteRepository,
+    branch_name: &str,
+    path: &Path,
+    data: String,
+    mod_type: ModType,
+) -> Result<ModEntry, OxenError> {
+    if mod_type != ModType::Append {
+        return Err(OxenError::basic_str("api::dir::stage_modification only supports ModType::Append"));
+    }
+
+    let file_path_str = path.to_str().unwrap();
+    let uri = format!("/staging/append/{branch_name}/{file_path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = reqwest::Client::new();
+    match client.post(&url).body(data).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            let response: Result<StagedFileModResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val.modification),
+                Err(err) => {
+                    let err = format!("api::dir::stage_modification error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    Err(OxenError::basic_str(err))
+                }
+            }
+        }
+        Err(err) => {
+            let err = format!("api::dir::stage_modification Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 pub async fn commit_staged(
     remote_repo: &RemoteRepository,
     branch_name: &str,
@@ -166,6 +204,7 @@ pub async fn commit_staged(
 mod tests {
 
     use crate::error::OxenError;
+    use crate::model::entry::mod_entry::ModType;
     use crate::model::{CommitBody, User};
     use crate::test;
     use crate::{api, command, constants};
@@ -329,6 +368,61 @@ mod tests {
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());
             assert_eq!(commit.id, remote_commit.unwrap().id);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_should_not_stage_invalid_schema_for_dataframe() -> Result<(), OxenError> {
+        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            assert_eq!(branch.name, branch_name);
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let data = "{\"id\": 1, \"name\": \"greg\"}";
+            let result = api::remote::staging::stage_modification(
+                &remote_repo,
+                branch_name,
+                &path,
+                data.to_string(),
+                ModType::Append,
+            )
+            .await;
+
+            assert!(result.is_err());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_stage_row_on_dataframe() -> Result<(), OxenError> {
+        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            assert_eq!(branch.name, branch_name);
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let path = Path::new("annotations").join("train").join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            let result =
+                api::remote::staging::stage_modification(
+                    &remote_repo,
+                    branch_name,
+                    &path,
+                    data.to_string(),
+                    ModType::Append
+                ).await;
+
+            assert!(result.is_ok());
+            println!("{:?}", result.unwrap());
 
             Ok(remote_repo)
         })

@@ -105,6 +105,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/staging/commit/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
+
+    // TODO: delete from staging
+    // TODO: Add a field to the staging entry to indicate if it is staged or not
+
     // ----- Stats ----- //
     .route(
         "/{namespace}/{repo_name}/stats",
