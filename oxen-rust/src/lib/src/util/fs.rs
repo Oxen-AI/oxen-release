@@ -1,5 +1,6 @@
 use jwalk::WalkDir;
 
+use bytesize;
 use simdutf8::compat::from_utf8;
 use std::collections::HashSet;
 use std::fs::File;
@@ -18,6 +19,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, LocalRepository};
+use crate::view::health::DiskUsage;
 
 pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
     PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
@@ -565,7 +567,7 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
     Ok(result)
 }
 
-pub fn disk_usage_for_path(path: &Path) -> Result<f64, OxenError> {
+pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
     log::debug!("disk_usage_for_path: {:?}", path);
     let mut sys = System::new();
     sys.refresh_disks_list();
@@ -592,8 +594,17 @@ pub fn disk_usage_for_path(path: &Path) -> Result<f64, OxenError> {
     }
 
     log::debug!("disk_usage_for_path selected disk: {:?}", selected_disk);
-    let used_space = (selected_disk.total_space() - selected_disk.available_space()) as f64;
-    Ok(used_space / selected_disk.total_space() as f64)
+    let total_gb = selected_disk.total_space() as f64 / bytesize::GB as f64;
+    let free_gb = selected_disk.available_space() as f64 / bytesize::GB as f64;
+    let used_gb = total_gb - free_gb;
+    let percent_used = used_gb / total_gb;
+
+    Ok(DiskUsage {
+        total_gb,
+        used_gb,
+        free_gb,
+        percent_used,
+    })
 }
 
 #[cfg(test)]
