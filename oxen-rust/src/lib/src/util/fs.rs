@@ -1,5 +1,6 @@
 use jwalk::WalkDir;
 
+use bytesize;
 use simdutf8::compat::from_utf8;
 use std::collections::HashSet;
 use std::fs::File;
@@ -8,6 +9,7 @@ use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 use std::{fs, io};
+use sysinfo::{DiskExt, System, SystemExt};
 
 use crate::api;
 use crate::constants;
@@ -17,6 +19,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, LocalRepository};
+use crate::view::health::DiskUsage;
 
 pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
     PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
@@ -562,6 +565,46 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
 
     // println!("{:?}", components);
     Ok(result)
+}
+
+pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
+    log::debug!("disk_usage_for_path: {:?}", path);
+    let mut sys = System::new();
+    sys.refresh_disks_list();
+
+    if sys.disks().is_empty() {
+        return Err(OxenError::basic_str("No disks found"));
+    }
+
+    // try to choose the disk that the path is on
+    let mut selected_disk = sys.disks().first().unwrap();
+    for disk in sys.disks() {
+        let disk_mount_len = disk.mount_point().to_str().unwrap_or_default().len();
+        let selected_disk_mount_len = selected_disk
+            .mount_point()
+            .to_str()
+            .unwrap_or_default()
+            .len();
+
+        // pick the disk with the longest mount point that is a prefix of the path
+        if path.starts_with(disk.mount_point()) && disk_mount_len > selected_disk_mount_len {
+            selected_disk = disk;
+            break;
+        }
+    }
+
+    log::debug!("disk_usage_for_path selected disk: {:?}", selected_disk);
+    let total_gb = selected_disk.total_space() as f64 / bytesize::GB as f64;
+    let free_gb = selected_disk.available_space() as f64 / bytesize::GB as f64;
+    let used_gb = total_gb - free_gb;
+    let percent_used = used_gb / total_gb;
+
+    Ok(DiskUsage {
+        total_gb,
+        used_gb,
+        free_gb,
+        percent_used,
+    })
 }
 
 #[cfg(test)]
