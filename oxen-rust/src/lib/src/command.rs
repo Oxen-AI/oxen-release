@@ -73,8 +73,7 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
 
-    let commit = commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
-    println!("Initial commit {}", commit.id);
+    api::local::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
 
     // TODO: cleanup .oxen on failure
 
@@ -355,26 +354,8 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
         );
         return Ok(None);
     }
-    let commit = p_commit(repo, &status, message)?;
+    let commit = api::local::commits::commit(repo, &status, message)?;
     Ok(Some(commit))
-}
-
-fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = StagedData::empty();
-    let commit = p_commit(repo, &status, message)?;
-    Ok(commit)
-}
-
-fn p_commit(
-    repo: &LocalRepository,
-    status: &StagedData,
-    message: &str,
-) -> Result<Commit, OxenError> {
-    let stager = Stager::new(repo)?;
-    let commit_writer = CommitWriter::new(repo)?;
-    let commit = commit_writer.commit(status, message)?;
-    stager.unstage()?;
-    Ok(commit)
 }
 
 /// # Get a log of all the commits
