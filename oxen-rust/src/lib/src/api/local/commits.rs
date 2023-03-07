@@ -1,6 +1,6 @@
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, CommitReader, RefReader};
-use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::index::{CommitDirReader, CommitReader, CommitWriter, RefReader, Stager};
+use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 
 pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let reader = CommitReader::new(repo)?;
@@ -80,4 +80,23 @@ pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
     }
 
     Ok(None)
+}
+
+pub fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
+    let status = StagedData::empty();
+    let commit = commit(repo, &status, message)?;
+    println!("Initial commit {}", commit.id);
+    Ok(commit)
+}
+
+pub fn commit(
+    repo: &LocalRepository,
+    status: &StagedData,
+    message: &str,
+) -> Result<Commit, OxenError> {
+    let stager = Stager::new(repo)?;
+    let commit_writer = CommitWriter::new(repo)?;
+    let commit = commit_writer.commit(status, message)?;
+    stager.unstage()?;
+    Ok(commit)
 }
