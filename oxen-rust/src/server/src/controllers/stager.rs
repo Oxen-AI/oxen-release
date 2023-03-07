@@ -3,15 +3,16 @@ use crate::app_data::OxenAppData;
 use liboxen::compute::commit_cacher;
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::{Branch, CommitBody, DirEntry, LocalRepository};
+use liboxen::model::{Branch, CommitBody, CommitEntry, DirEntry, LocalRepository};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::remote_staged_status::{
-    ListStagedFileModResponse, RemoteStagedStatus, StagedFileModResponse,
+    ListStagedFileModResponseDF, ListStagedFileModResponseRaw, RemoteStagedStatus,
+    StagedDFModifications, StagedFileModResponse,
 };
 use liboxen::view::{
-    CommitResponse, FilePathsResponse, PaginatedDirEntries, RemoteStagedStatusResponse,
-    StatusMessage,
+    CommitResponse, FilePathsResponse, JsonDataFrame, PaginatedDirEntries,
+    RemoteStagedStatusResponse, StatusMessage,
 };
 use liboxen::{api, constants, index, util};
 
@@ -25,6 +26,11 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use super::entries::PageNumQuery;
+
+enum ModResponseFormat {
+    Raw,
+    DataFrame,
+}
 
 pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -79,8 +85,47 @@ pub async fn status_file(req: HttpRequest) -> HttpResponse {
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
-                get_file_status_for_branch(&repo, &branch_name, &file_name)
+                get_file_status_for_branch(&repo, &branch_name, &file_name, ModResponseFormat::Raw)
             }
+            Ok(None) => {
+                log::error!("unable to find resource {:?}", resource);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not parse resource  {repo_name} -> {err}");
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        },
+        Ok(None) => {
+            log::error!("unable to find repo {}", repo_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting repo by name {repo_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+pub async fn df_file(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+
+    log::debug!(
+        "stager::status repo name {repo_name}/{}",
+        resource.to_string_lossy()
+    );
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+            Ok(Some((_, branch_name, file_name))) => get_file_status_for_branch(
+                &repo,
+                &branch_name,
+                &file_name,
+                ModResponseFormat::DataFrame,
+            ),
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -425,29 +470,15 @@ fn get_file_status_for_branch(
     repo: &LocalRepository,
     branch_name: &str,
     path: &Path,
+    format: ModResponseFormat,
 ) -> HttpResponse {
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => match api::local::commits::get_by_id(repo, &branch.commit_id) {
             Ok(Some(commit)) => {
                 match api::local::entries::get_entry_for_commit(repo, &commit, path) {
-                    Ok(Some(entry)) => match index::mod_stager::list_mods(repo, &branch, &entry) {
-                        Ok(staged) => {
-                            let response = ListStagedFileModResponse {
-                                status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_FOUND),
-                                modifications: staged,
-                            };
-                            HttpResponse::Ok().json(response)
-                        }
-                        Err(err) => {
-                            log::error!(
-                                "unable to get list staged data {:?}. Err: {}",
-                                branch_name,
-                                err
-                            );
-                            HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error())
-                        }
+                    Ok(Some(entry)) => match format {
+                        ModResponseFormat::Raw => raw_mods_response(repo, &branch, &entry),
+                        ModResponseFormat::DataFrame => df_mods_response(repo, &branch, &entry),
                     },
                     Ok(None) => {
                         log::error!("unable to find entry {:?}", path);
@@ -475,6 +506,58 @@ fn get_file_status_for_branch(
         }
         Err(err) => {
             log::error!("Error getting branch by name {branch_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+fn df_mods_response(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> HttpResponse {
+    match index::mod_stager::list_mods_df(repo, branch, entry) {
+        Ok(diff) => {
+            let df = if let Some(mut added) = diff.added_rows {
+                log::debug!("added rows: {:?}", added);
+                let df = JsonDataFrame::from_df(&mut added);
+                Some(df)
+            } else {
+                log::debug!("No added rows for entry {entry:?}");
+                None
+            };
+
+            let response = ListStagedFileModResponseDF {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_FOUND),
+                modifications: StagedDFModifications { added: df },
+            };
+
+            HttpResponse::Ok().json(response)
+        }
+        Err(err) => {
+            log::error!(
+                "unable to get list staged data {:?}. Err: {}",
+                branch.name,
+                err
+            );
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+fn raw_mods_response(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> HttpResponse {
+    match index::mod_stager::list_mods_raw(repo, branch, entry) {
+        Ok(staged) => {
+            let response = ListStagedFileModResponseRaw {
+                status: String::from(STATUS_SUCCESS),
+                status_message: String::from(MSG_RESOURCE_FOUND),
+                modifications: staged,
+            };
+            HttpResponse::Ok().json(response)
+        }
+        Err(err) => {
+            log::error!(
+                "unable to get list staged data {:?}. Err: {}",
+                branch.name,
+                err
+            );
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }

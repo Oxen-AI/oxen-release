@@ -10,19 +10,16 @@ use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEnt
 use crate::opts::RestoreOpts;
 use crate::{command, db};
 use crate::{df, util};
-use polars::prelude::*;
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
-use std::io::{Cursor, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 use time::OffsetDateTime;
 
 use crate::model::LocalRepository;
-
-use super::SchemaReader;
 
 pub struct CommitWriter {
     pub commits_db: DBWithThreadMode<MultiThreaded>,
@@ -244,29 +241,17 @@ impl CommitWriter {
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
-        let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
-        if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-            let schema = schema.to_polars();
-            let mut df = df::tabular::read_df(path, DFOpts::empty())?;
-            let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
-            for modification in mods.iter() {
-                let cursor = Cursor::new(modification.data.as_bytes());
-                let mod_df = JsonLineReader::new(cursor)
-                    .with_schema(&schema)
-                    .finish()
-                    .unwrap();
-                df = df.vstack(&mod_df).unwrap();
-            }
-            log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
-            log::debug!("{}", df);
-            df::tabular::write_df(&mut df, path)?;
-            let new_hash = util::hasher::hash_file_contents(path)?;
-            Ok(new_hash)
-        } else {
-            Err(OxenError::basic_str(
-                "No schema found for file, cannot apply modifications",
-            ))
+        let mut df = df::tabular::read_df(path, DFOpts::empty())?;
+        let mods_df = mod_stager::list_mods_df(&self.repository, branch, entry)?;
+        log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
+        if let Some(rows) = mods_df.added_rows {
+            log::debug!("Add Rows {}", rows);
+            df = df.vstack(&rows).unwrap();
         }
+        log::debug!("Full DF {}", df);
+        df::tabular::write_df(&mut df, path)?;
+        let new_hash = util::hasher::hash_file_contents(path)?;
+        Ok(new_hash)
     }
 
     fn apply_utf8_mods(
@@ -275,7 +260,7 @@ impl CommitWriter {
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
-        let mods = mod_stager::list_mods(&self.repository, branch, entry)?;
+        let mods = mod_stager::list_mods_raw(&self.repository, branch, entry)?;
         for modification in mods.iter() {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)

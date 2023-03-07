@@ -9,7 +9,7 @@ use crate::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::schema::Field;
-use crate::model::{Branch, CommitEntry, LocalRepository, ModEntry};
+use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry};
 use crate::{api, util};
 
 use super::SchemaReader;
@@ -73,7 +73,7 @@ pub fn create_mod(
     }
 }
 
-pub fn list_mods(
+pub fn list_mods_raw(
     repo: &LocalRepository,
     branch: &Branch,
     entry: &CommitEntry,
@@ -84,6 +84,37 @@ pub fn list_mods(
     let mut results: Vec<ModEntry> = str_json_db::list_vals(&db)?;
     results.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
     Ok(results)
+}
+
+pub fn list_mods_df(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+) -> Result<DataFrameDiff, OxenError> {
+    let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
+    if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
+        let schema = schema.to_polars();
+
+        let mods = list_mods_raw(repo, branch, entry)?;
+        let mut df = polars::frame::DataFrame::default();
+        for modification in mods.iter() {
+            let cursor = Cursor::new(modification.data.as_bytes());
+            let mod_df = JsonLineReader::new(cursor)
+                .with_schema(&schema)
+                .finish()
+                .unwrap();
+            df = df.vstack(&mod_df).unwrap();
+        }
+
+        Ok(DataFrameDiff {
+            added_rows: Some(df),
+            removed_rows: None,
+            added_cols: None,
+            removed_cols: None,
+        })
+    } else {
+        Err(OxenError::schema_does_not_exist_for_file(&entry.path))
+    }
 }
 
 pub fn list_mod_entries(
@@ -226,7 +257,7 @@ mod tests {
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods(&repo, &branch, &commit_entry)?;
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &commit_entry)?;
             assert_eq!(mods.len(), 1);
             assert_eq!(mods.first().unwrap().uuid, append_entry.uuid);
             assert_eq!(mods.first().unwrap().path, commit_entry.path);

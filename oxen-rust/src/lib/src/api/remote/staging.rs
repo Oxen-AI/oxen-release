@@ -137,7 +137,9 @@ pub async fn stage_modification(
     mod_type: ModType,
 ) -> Result<ModEntry, OxenError> {
     if mod_type != ModType::Append {
-        return Err(OxenError::basic_str("api::dir::stage_modification only supports ModType::Append"));
+        return Err(OxenError::basic_str(
+            "api::dir::stage_modification only supports ModType::Append",
+        ));
     }
 
     let file_path_str = path.to_str().unwrap();
