@@ -45,6 +45,7 @@ pub const CONTENT_IS_VALID: &str = "CONTENT_IS_VALID";
 // Default Remotes and Origins
 pub const DEFAULT_BRANCH_NAME: &str = "main";
 pub const DEFAULT_REMOTE_NAME: &str = "origin";
+pub const DEFAULT_HOST: &str = "hub.oxen.ai";
 
 // Namespace
 pub const DEFAULT_NAMESPACE: &str = "ox";
