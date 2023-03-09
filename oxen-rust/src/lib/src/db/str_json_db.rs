@@ -94,17 +94,27 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut values: Vec<T> = vec![];
-    for (_key, value) in iter {
-        match str::from_utf8(&value) {
-            Ok(value) => {
-                // Full path given the dir it is in
-                let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
-                if let Ok(entry) = entry {
-                    values.push(entry);
+    for item in iter {
+        match item {
+            Ok((_, value)) => {
+                match str::from_utf8(&value) {
+                    Ok(value) => {
+                        // Full path given the dir it is in
+                        let entry: Result<T, serde_json::error::Error> =
+                            serde_json::from_str(value);
+                        if let Ok(entry) = entry {
+                            values.push(entry);
+                        }
+                    }
+                    _ => {
+                        log::error!("list_added_path_entries() Could not decoded keys and values.")
+                    }
                 }
             }
             _ => {
-                log::error!("list_added_path_entries() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -118,23 +128,30 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: Vec<(String, T)> = vec![];
-    for (key, value) in iter {
-        match (str::from_utf8(&key), str::from_utf8(&value)) {
-            (Ok(key), Ok(value)) => {
-                let key = String::from(key);
-                let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
-                if let Ok(entry) = entry {
-                    results.push((key, entry));
+    for item in iter {
+        match item {
+            Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
+                (Ok(key), Ok(value)) => {
+                    let key = String::from(key);
+                    let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
+                    if let Ok(entry) = entry {
+                        results.push((key, entry));
+                    }
                 }
-            }
-            (Ok(key), _) => {
-                log::error!("kv_json_db::list() Could not values for key {}.", key)
-            }
-            (_, Ok(val)) => {
-                log::error!("kv_json_db::list() Could not key for value {}.", val)
-            }
+                (Ok(key), _) => {
+                    log::error!("kv_json_db::list() Could not values for key {}.", key)
+                }
+                (_, Ok(val)) => {
+                    log::error!("kv_json_db::list() Could not key for value {}.", val)
+                }
+                _ => {
+                    log::error!("kv_json_db::list() Could not decoded keys and values.")
+                }
+            },
             _ => {
-                log::error!("kv_json_db::list() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }

@@ -33,14 +33,23 @@ pub fn delete<S: AsRef<str>>(
 pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut keys: Vec<String> = vec![];
-    for (key, _value) in iter {
-        match str::from_utf8(&key) {
-            Ok(key) => {
-                // return full path
-                keys.push(String::from(key));
+    for item in iter {
+        match item {
+            Ok((key, _value)) => {
+                match str::from_utf8(&key) {
+                    Ok(key) => {
+                        // return full path
+                        keys.push(String::from(key));
+                    }
+                    _ => {
+                        log::error!("list_keys() Could not decode key {:?}", key)
+                    }
+                }
             }
             _ => {
-                log::error!("list_keys() Could not decode key {:?}", key)
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -50,8 +59,17 @@ pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, Ox
 /// Remove all values from the db
 pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
     let iter = db.iterator(IteratorMode::Start);
-    for (key, _) in iter {
-        db.delete(key)?;
+    for item in iter {
+        match item {
+            Ok((key, _)) => {
+                db.delete(key)?;
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
     }
     Ok(())
 }

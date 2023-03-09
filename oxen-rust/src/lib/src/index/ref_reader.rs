@@ -136,21 +136,27 @@ impl RefReader {
         let mut branch_names: Vec<Branch> = vec![];
         let maybe_head_ref = self.read_head_ref()?;
         let iter = self.refs_db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            match (str::from_utf8(&key), str::from_utf8(&value)) {
-                (Ok(key_str), Ok(value)) => {
-                    if let Some(head_ref) = &maybe_head_ref {
-                        let ref_name = String::from(key_str);
-                        let id = String::from(value);
-                        branch_names.push(Branch {
-                            name: ref_name.clone(),
-                            commit_id: id.clone(),
-                            is_head: (ref_name == head_ref.clone()),
-                        });
+        for item in iter {
+            match item {
+                Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
+                    (Ok(key_str), Ok(value)) => {
+                        if let Some(head_ref) = &maybe_head_ref {
+                            let ref_name = String::from(key_str);
+                            let id = String::from(value);
+                            branch_names.push(Branch {
+                                name: ref_name.clone(),
+                                commit_id: id.clone(),
+                                is_head: (ref_name == head_ref.clone()),
+                            });
+                        }
                     }
-                }
-                _ => {
-                    eprintln!("Could not read utf8 val...")
+                    _ => {
+                        return Err(OxenError::basic_str("Could not read utf8 val..."));
+                    }
+                },
+                Err(err) => {
+                    let err = format!("Error reading db\nErr: {err}");
+                    return Err(OxenError::basic_str(err));
                 }
             }
         }
