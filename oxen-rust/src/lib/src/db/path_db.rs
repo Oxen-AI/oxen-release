@@ -76,14 +76,23 @@ pub fn list_paths(
     log::debug!("path_db::list_paths({:?})", base_dir);
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<PathBuf> = vec![];
-    for (key, _value) in iter {
-        match str::from_utf8(&key) {
-            Ok(key) => {
-                // return full path
-                paths.push(base_dir.join(String::from(key)));
+    for item in iter {
+        match item {
+            Ok((key, _value)) => {
+                match str::from_utf8(&key) {
+                    Ok(key) => {
+                        // return full path
+                        paths.push(base_dir.join(String::from(key)));
+                    }
+                    _ => {
+                        log::error!("list_added_paths() Could not decode key {:?}", key)
+                    }
+                }
             }
             _ => {
-                log::error!("list_added_paths() Could not decode key {:?}", key)
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -100,27 +109,37 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<(PathBuf, T)> = vec![];
-    for (key, value) in iter {
-        match (str::from_utf8(&key), str::from_utf8(&value)) {
-            (Ok(key), Ok(value)) => {
-                // Full path given the dir it is in
-                let path = base_dir.join(String::from(key));
-                let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
-                if let Ok(entry) = entry {
-                    paths.push((path, entry));
+    for item in iter {
+        match item {
+            Ok((key, value)) => {
+                match (str::from_utf8(&key), str::from_utf8(&value)) {
+                    (Ok(key), Ok(value)) => {
+                        // Full path given the dir it is in
+                        let path = base_dir.join(String::from(key));
+                        let entry: Result<T, serde_json::error::Error> =
+                            serde_json::from_str(value);
+                        if let Ok(entry) = entry {
+                            paths.push((path, entry));
+                        }
+                    }
+                    (Ok(key), _) => {
+                        log::error!(
+                            "list_added_path_entries() Could not values for key {}.",
+                            key
+                        )
+                    }
+                    (_, Ok(val)) => {
+                        log::error!("list_added_path_entries() Could not key for value {}.", val)
+                    }
+                    _ => {
+                        log::error!("list_added_path_entries() Could not decoded keys and values.")
+                    }
                 }
             }
-            (Ok(key), _) => {
-                log::error!(
-                    "list_added_path_entries() Could not values for key {}.",
-                    key
-                )
-            }
-            (_, Ok(val)) => {
-                log::error!("list_added_path_entries() Could not key for value {}.", val)
-            }
             _ => {
-                log::error!("list_added_path_entries() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -143,17 +162,27 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: HashSet<T> = HashSet::new();
-    for (_key, value) in iter {
-        match str::from_utf8(&value) {
-            Ok(value) => {
-                // Full path given the dir it is in
-                let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
-                if let Ok(entry) = entry {
-                    paths.insert(entry);
+    for item in iter {
+        match item {
+            Ok((_, value)) => {
+                match str::from_utf8(&value) {
+                    Ok(value) => {
+                        // Full path given the dir it is in
+                        let entry: Result<T, serde_json::error::Error> =
+                            serde_json::from_str(value);
+                        if let Ok(entry) = entry {
+                            paths.insert(entry);
+                        }
+                    }
+                    _ => {
+                        log::error!("list_added_path_entries() Could not decoded keys and values.")
+                    }
                 }
             }
             _ => {
-                log::error!("list_added_path_entries() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -179,16 +208,25 @@ where
     // Do not go negative, and start from 0
     let start_page = if page == 0 { 0 } else { page - 1 };
     let start_idx = start_page * page_size;
-    for (entry_i, (_key, value)) in iter.enumerate() {
-        // limit to page_size
-        if paths.len() >= page_size {
-            break;
-        }
+    for (entry_i, item) in iter.enumerate() {
+        match item {
+            Ok((_, value)) => {
+                // limit to page_size
+                if paths.len() >= page_size {
+                    break;
+                }
 
-        // only grab values after start_idx based on page and page_size
-        if entry_i >= start_idx {
-            let entry: T = serde_json::from_str(str::from_utf8(&value)?)?;
-            paths.push(entry);
+                // only grab values after start_idx based on page and page_size
+                if entry_i >= start_idx {
+                    let entry: T = serde_json::from_str(str::from_utf8(&value)?)?;
+                    paths.push(entry);
+                }
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
         }
     }
     Ok(paths)
