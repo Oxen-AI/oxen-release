@@ -108,9 +108,6 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
     // Instantiate repo from dir
     let repo = LocalRepository::from_dir(repo_dir)?;
 
-    log::debug!("CREATE COMMIT OBJ {commit:?}");
-    log::debug!("WITH {} PARENTS", commit.parent_ids.len());
-
     // If we have a root, and we are trying to push a new one, don't allow it
     if let Ok(root) = command::root_commit(&repo) {
         if commit.parent_ids.is_empty() && root.id != commit.id {
@@ -120,7 +117,6 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
 
     // Check parent ids to make sure they are synced, otherwise we should not add to tree
     for id in commit.parent_ids.iter() {
-        log::debug!("CHECKING PARENT {} -> '{}'", commit.id, commit.message);
         if get_by_id_or_branch(&repo, id)?.is_none() {
             return Err(OxenError::basic_str("Parent commit not found"));
         }
