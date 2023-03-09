@@ -1,6 +1,9 @@
+use crate::command;
 use crate::error::OxenError;
 use crate::index::{CommitDirReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
+
+use std::path::Path;
 
 pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let reader = CommitReader::new(repo)?;
@@ -99,4 +102,43 @@ pub fn commit(
     let commit = commit_writer.commit(status, message)?;
     stager.unstage()?;
     Ok(commit)
+}
+
+pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
+    // Instantiate repo from dir
+    let repo = LocalRepository::from_dir(repo_dir)?;
+
+    log::debug!("CREATE COMMIT OBJ {commit:?}");
+    log::debug!("WITH {} PARENTS", commit.parent_ids.len());
+
+    // If we have a root, and we are trying to push a new one, don't allow it
+    if let Ok(root) = command::root_commit(&repo) {
+        if commit.parent_ids.is_empty() && root.id != commit.id {
+            return Err(OxenError::basic_str("Root commit id does not match"));
+        }
+    }
+
+    // Check parent ids to make sure they are synced, otherwise we should not add to tree
+    for id in commit.parent_ids.iter() {
+        log::debug!("CHECKING PARENT {} -> '{}'", commit.id, commit.message);
+        if get_by_id_or_branch(&repo, id)?.is_none() {
+            return Err(OxenError::basic_str("Parent commit not found"));
+        }
+    }
+
+    let result = CommitWriter::new(&repo);
+    match result {
+        Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
+            Ok(_) => {
+                log::debug!("Successfully added commit [{}] to db", commit.id);
+            }
+            Err(err) => {
+                log::error!("Error adding commit to db: {:?}", err);
+            }
+        },
+        Err(err) => {
+            log::error!("Error creating commit writer: {:?}", err);
+        }
+    };
+    Ok(())
 }
