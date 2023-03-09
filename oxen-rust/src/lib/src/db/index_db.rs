@@ -49,19 +49,26 @@ pub fn list_indices(
 ) -> Result<Vec<(String, Vec<u32>)>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: Vec<(String, Vec<u32>)> = vec![];
-    for (key, value) in iter {
-        match str::from_utf8(&key) {
-            Ok(key) => {
-                let key = String::from(key);
-                let mut buffer: Vec<u8> = vec![];
-                for v in &*value {
-                    buffer.push(*v);
+    for item in iter {
+        match item {
+            Ok((key, value)) => match str::from_utf8(&key) {
+                Ok(key) => {
+                    let key = String::from(key);
+                    let mut buffer: Vec<u8> = vec![];
+                    for v in &*value {
+                        buffer.push(*v);
+                    }
+                    let value = u32_from_u8(buffer);
+                    results.push((key, value));
                 }
-                let value = u32_from_u8(buffer);
-                results.push((key, value));
-            }
+                _ => {
+                    return Err(OxenError::basic_str("Could not read utf8 val..."));
+                }
+            },
             _ => {
-                log::error!("str_val_db::list() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -73,19 +80,26 @@ pub fn hash_map_indices(
 ) -> Result<HashMap<String, Vec<u32>>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: HashMap<String, Vec<u32>> = HashMap::new();
-    for (key, value) in iter {
-        match str::from_utf8(&key) {
-            Ok(key) => {
-                let key = String::from(key);
-                let mut buffer: Vec<u8> = vec![];
-                for v in &*value {
-                    buffer.push(*v);
+    for item in iter {
+        match item {
+            Ok((key, value)) => match str::from_utf8(&key) {
+                Ok(key) => {
+                    let key = String::from(key);
+                    let mut buffer: Vec<u8> = vec![];
+                    for v in &*value {
+                        buffer.push(*v);
+                    }
+                    let value = u32_from_u8(buffer);
+                    results.insert(key, value);
                 }
-                let value = u32_from_u8(buffer);
-                results.insert(key, value);
-            }
+                _ => {
+                    log::error!("str_val_db::list() Could not decoded keys and values.")
+                }
+            },
             _ => {
-                log::error!("str_val_db::list() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }

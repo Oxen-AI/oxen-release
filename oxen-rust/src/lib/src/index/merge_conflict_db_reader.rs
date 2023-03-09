@@ -45,9 +45,19 @@ impl MergeConflictDBReader {
     pub fn list_conflicts(db: &DB) -> Result<Vec<MergeConflict>, OxenError> {
         let mut conflicts: Vec<MergeConflict> = vec![];
         let iter = db.iterator(IteratorMode::Start);
-        for (_key, value) in iter {
-            let entry: MergeConflict = serde_json::from_str(str::from_utf8(&value)?)?;
-            conflicts.push(entry);
+        for item in iter {
+            match item {
+                Ok((_, value)) => {
+                    let entry: MergeConflict = serde_json::from_str(str::from_utf8(&value)?)?;
+                    conflicts.push(entry);
+                }
+                Err(err) => {
+                    let err = format!(
+                        "MergeConflictDBReader::list_conflicts Error reading db\nErr: {err}"
+                    );
+                    return Err(OxenError::basic_str(err));
+                }
+            }
         }
         Ok(conflicts)
     }

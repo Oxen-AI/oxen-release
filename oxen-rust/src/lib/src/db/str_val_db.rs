@@ -98,13 +98,22 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut values: Vec<T> = vec![];
-    for (key, value) in iter {
-        // Full path given the dir it is in
-        if let Ok(entry) = T::decode::<u8>(&value) {
-            values.push(entry);
-        } else {
-            let key = str::from_utf8(&key).unwrap();
-            return Err(OxenError::could_not_decode_value_for_key_error(key));
+    for item in iter {
+        match item {
+            Ok((key, value)) => {
+                // Full path given the dir it is in
+                if let Ok(entry) = T::decode::<u8>(&value) {
+                    values.push(entry);
+                } else {
+                    let key = str::from_utf8(&key).unwrap();
+                    return Err(OxenError::could_not_decode_value_for_key_error(key));
+                }
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
         }
     }
     Ok(values)
@@ -117,20 +126,27 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: Vec<(String, T)> = vec![];
-    for (key, value) in iter {
-        match (str::from_utf8(&key), T::decode::<u8>(&value)) {
-            (Ok(key), Ok(value)) => {
-                let key = String::from(key);
-                results.push((key, value));
-            }
-            (Ok(key), _) => {
-                log::error!("str_val_db::list() Could not values for key {}.", key)
-            }
-            (_, Ok(val)) => {
-                log::error!("str_val_db::list() Could not key for value {:?}.", val)
-            }
+    for item in iter {
+        match item {
+            Ok((key, value)) => match (str::from_utf8(&key), T::decode::<u8>(&value)) {
+                (Ok(key), Ok(value)) => {
+                    let key = String::from(key);
+                    results.push((key, value));
+                }
+                (Ok(key), _) => {
+                    log::error!("str_val_db::list() Could not values for key {}.", key)
+                }
+                (_, Ok(val)) => {
+                    log::error!("str_val_db::list() Could not key for value {:?}.", val)
+                }
+                _ => {
+                    log::error!("str_val_db::list() Could not decoded keys and values.")
+                }
+            },
             _ => {
-                log::error!("str_val_db::list() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
@@ -144,20 +160,27 @@ where
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut results: HashMap<String, T> = HashMap::new();
-    for (key, value) in iter {
-        match (str::from_utf8(&key), T::decode::<u8>(&value)) {
-            (Ok(key), Ok(value)) => {
-                let key = String::from(key);
-                results.insert(key, value);
-            }
-            (Ok(key), _) => {
-                log::error!("str_val_db::list() Could not values for key {}.", key)
-            }
-            (_, Ok(val)) => {
-                log::error!("str_val_db::list() Could not key for value {:?}.", val)
-            }
+    for item in iter {
+        match item {
+            Ok((key, value)) => match (str::from_utf8(&key), T::decode::<u8>(&value)) {
+                (Ok(key), Ok(value)) => {
+                    let key = String::from(key);
+                    results.insert(key, value);
+                }
+                (Ok(key), _) => {
+                    log::error!("str_val_db::list() Could not values for key {}.", key)
+                }
+                (_, Ok(val)) => {
+                    log::error!("str_val_db::list() Could not key for value {:?}.", val)
+                }
+                _ => {
+                    log::error!("str_val_db::list() Could not decoded keys and values.")
+                }
+            },
             _ => {
-                log::error!("str_val_db::list() Could not decoded keys and values.")
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
             }
         }
     }
