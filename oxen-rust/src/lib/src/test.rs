@@ -248,6 +248,35 @@ where
     Ok(())
 }
 
+/// Test interacting with a remote repo that was created via API, not local repo
+pub async fn run_no_commit_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let repo = api::remote::repositories::create_no_root(namespace, &name, test_host()).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(repo) => {
+            // Cleanup remote repo
+            api::remote::repositories::delete(&repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Test interacting with a remote repo that has nothing synced
 pub async fn run_empty_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -263,7 +292,6 @@ where
     let name = local_repo.dirname();
     let repo =
         api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
-    println!("REMOTE REPO: {repo:?}");
 
     // Run test to see if it panic'd
     let result = match test(repo).await {

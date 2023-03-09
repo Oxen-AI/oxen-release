@@ -3026,3 +3026,121 @@ fn test_oxen_ignore_dir() -> Result<(), OxenError> {
         Ok(())
     })
 }
+
+#[tokio::test]
+async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Create a new repo to clone to, then clean it up
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let shallow = false;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+
+            let status = command::status(&cloned_repo);
+            assert!(status.is_ok());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Create a new repo to clone to, then clean it up
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let shallow = false;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+
+            let status = command::status(&cloned_repo);
+            assert!(status.is_ok());
+
+            // Add a file to the cloned repo
+            let new_file = "new_file.txt";
+            let new_file_path = cloned_repo.path.join(new_file);
+            let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+            command::add(&cloned_repo, &new_file_path)?;
+            command::commit(&cloned_repo, "Adding new file path.")?;
+
+            command::push(&cloned_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_cannot_push_separate_histories() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Clone the first repo
+        test::run_empty_dir_test_async(|first_repo_dir| async move {
+            let shallow = false;
+            let first_cloned_repo =
+                command::clone(&remote_repo.remote.url, &first_repo_dir, shallow).await?;
+
+            // Clone the second repo
+            test::run_empty_dir_test_async(|second_repo_dir| async move {
+                let shallow = false;
+                let second_cloned_repo =
+                    command::clone(&remote_repo.remote.url, &second_repo_dir, shallow).await?;
+
+                // Add to the first repo, after we have the second repo cloned
+                let new_file = "new_file.txt";
+                let new_file_path = first_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+                command::add(&first_cloned_repo, &new_file_path)?;
+                command::commit(&first_cloned_repo, "Adding first file path.")?;
+                command::push(&first_cloned_repo).await?;
+
+                // The push to the second version of the same repo should fail
+                // Adding two commits to have a longer history that also should fail
+                let new_file = "new_file_2.txt";
+                let new_file_path = second_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 2")?;
+                command::add(&second_cloned_repo, &new_file_path)?;
+                command::commit(&second_cloned_repo, "Adding second file path.")?;
+
+                let new_file = "new_file_3.txt";
+                let new_file_path = second_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 3")?;
+                command::add(&second_cloned_repo, &new_file_path)?;
+                command::commit(&second_cloned_repo, "Adding third file path.")?;
+
+                let result = command::push(&second_cloned_repo).await;
+                assert!(result.is_err());
+
+                Ok(second_repo_dir)
+            })
+            .await?;
+
+            Ok(first_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+// TODO: Test that we cannot push two completely separate repos to the same history
+// 1) Create remote repo A with data
+// 2) Create remote repo B with data
+// 3) Clone repo A
+// 4) Clone repo B
+// 5) Add & commit file to repo B
+// 6) Push repo B to repo A and fail
