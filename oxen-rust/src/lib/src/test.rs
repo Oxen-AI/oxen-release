@@ -248,6 +248,78 @@ where
     Ok(())
 }
 
+/// Test where we synced training data to the remote
+pub async fn run_training_data_fully_sync_remote<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let mut local_repo = command::init(&repo_dir)?;
+
+    // Write all the training data files
+    populate_dir_with_training_data(&repo_dir)?;
+    // Add all the files
+    command::add(&local_repo, &local_repo.path)?;
+    // Commit all the data locally
+    command::commit(&local_repo, "Adding all data")?;
+
+    // Create remote
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+
+    // Add remote
+    let remote_url = repo_remote_url_from(&local_repo.dirname());
+    command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
+    // Push data
+    command::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(local_repo, remote_repo).await {
+        Ok(_remote_repo) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+/// Test interacting with a remote repo that was created via API, not local repo
+pub async fn run_no_commit_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let repo = api::remote::repositories::create_no_root(namespace, &name, test_host()).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(repo) => {
+            // Cleanup remote repo
+            api::remote::repositories::delete(&repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Test interacting with a remote repo that has nothing synced
 pub async fn run_empty_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -263,7 +335,6 @@ where
     let name = local_repo.dirname();
     let repo =
         api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
-    println!("REMOTE REPO: {repo:?}");
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -316,7 +387,7 @@ where
     Ok(())
 }
 
-/// Run a test on a repo with a bunch of filees
+/// Run a test on a repo with a bunch of files
 pub fn run_training_data_repo_test_no_commits<T>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
@@ -358,13 +429,8 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
-    command::add(&repo, repo_dir.join("train"))?;
-    command::add(&repo, repo_dir.join("test"))?;
-    command::add(&repo, repo_dir.join("annotations"))?;
-    command::add(&repo, repo_dir.join("large_files"))?;
-    command::add(&repo, repo_dir.join("nlp"))?;
-    command::add(&repo, repo_dir.join("labels.txt"))?;
-    command::add(&repo, repo_dir.join("README.md"))?;
+    // Add all the files
+    command::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
     command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
@@ -404,13 +470,8 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
-    command::add(&repo, repo_dir.join("train"))?;
-    command::add(&repo, repo_dir.join("test"))?;
-    command::add(&repo, repo_dir.join("annotations"))?;
-    command::add(&repo, repo_dir.join("large_files"))?;
-    command::add(&repo, repo_dir.join("nlp"))?;
-    command::add(&repo, repo_dir.join("labels.txt"))?;
-    command::add(&repo, repo_dir.join("README.md"))?;
+    // Add all the files
+    command::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
     command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;

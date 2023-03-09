@@ -211,10 +211,34 @@ impl LocalRepository {
 
         // Pull all commit objects, but not entries
         let indexer = EntryIndexer::new(&local_repo)?;
-        indexer
+        match indexer
             .pull_all_commit_objects(&repo, &RemoteBranch::default())
-            .await?;
+            .await
+        {
+            Ok(_) => {
+                local_repo
+                    .maybe_pull_entries(&repo, &indexer, shallow)
+                    .await?;
+            }
+            Err(_err) => {
+                // if failed to pull commit objects, means repo is empty, so instantiate the local repo
+                eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
+                api::local::commits::commit_with_no_files(
+                    &local_repo,
+                    constants::INITIAL_COMMIT_MSG,
+                )?;
+            }
+        }
 
+        Ok(local_repo)
+    }
+
+    async fn maybe_pull_entries(
+        &self,
+        repo: &RemoteRepository,
+        indexer: &EntryIndexer,
+        shallow: bool,
+    ) -> Result<(), OxenError> {
         // Shallow means we will not pull the actual data until a user tells us to
         if !shallow {
             // Pull all entries
@@ -231,7 +255,7 @@ impl LocalRepository {
             );
         }
 
-        Ok(local_repo)
+        Ok(())
     }
 }
 

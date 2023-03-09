@@ -42,6 +42,40 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
     }
 }
 
+pub async fn create_no_root<S: AsRef<str>>(
+    namespace: &str,
+    name: &str,
+    host: S,
+) -> Result<RemoteRepository, OxenError> {
+    let url = api::endpoint::url_from_host(host.as_ref(), "");
+    let params = json!({ "name": name, "namespace": namespace });
+    log::debug!("Create remote: {} {} {}", url, namespace, name);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).json(&params).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+
+        log::debug!("repositories::create response {}", body);
+        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(response) => Ok(RemoteRepository::from_view(
+                &response.repository,
+                &Remote {
+                    url: api::endpoint::remote_url_from_host(host.as_ref(), namespace, name),
+                    name: String::from("origin"),
+                },
+            )),
+            Err(err) => {
+                let err = format!("Could not create or find repository [{name}]: {err}\n{body}");
+                Err(OxenError::basic_str(err))
+            }
+        }
+    } else {
+        let err = format!("Create repository could not connect to {url}. Make sure you have the correct server and that it is running.");
+        Err(OxenError::basic_str(err))
+    }
+}
+
 pub async fn create<S: AsRef<str>>(
     repository: &LocalRepository,
     namespace: &str,

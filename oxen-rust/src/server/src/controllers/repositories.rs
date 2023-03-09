@@ -118,7 +118,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
 
 pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
-    // println!("controllers::repositories::create body:\n{}", body);
+    println!("controllers::repositories::create body:\n{}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::create_empty(&app_data.path, &data) {
