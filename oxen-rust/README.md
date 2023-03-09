@@ -22,6 +22,13 @@ Build the binaries
 
 `cargo build`
 
+If on intel mac, you may need to build with the following
+
+```
+$ rustup target install x86_64-apple-darwin
+$ cargo build --target x86_64-apple-darwin
+```
+
 Generate a config file and token to give user access to the server
 
 `./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml`
