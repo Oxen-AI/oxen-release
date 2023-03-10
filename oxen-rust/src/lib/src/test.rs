@@ -7,6 +7,7 @@ use crate::constants;
 use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
+use crate::opts::RmOpts;
 
 use env_logger::Env;
 use rand::Rng;
@@ -260,10 +261,29 @@ where
 
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
+    // Make a few commits before we sync
+    command::add(&local_repo, local_repo.path.join("train"))?;
+    command::commit(&local_repo, "Adding train/")?;
+
+    command::add(&local_repo, local_repo.path.join("test"))?;
+    command::commit(&local_repo, "Adding test/")?;
+
+    command::add(&local_repo, local_repo.path.join("annotations"))?;
+    command::commit(&local_repo, "Adding annotations/")?;
+
+    // Remove the test dir to make a more complex history
+    let rm_opts = RmOpts {
+        path: PathBuf::from("test"),
+        recursive: true,
+        staged: false,
+    };
+    command::rm(&local_repo, &rm_opts)?;
+    command::commit(&local_repo, "Removing test/")?;
+
     // Add all the files
     command::add(&local_repo, &local_repo.path)?;
     // Commit all the data locally
-    command::commit(&local_repo, "Adding all data")?;
+    command::commit(&local_repo, "Adding rest of data")?;
 
     // Create remote
     let namespace = constants::DEFAULT_NAMESPACE;

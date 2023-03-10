@@ -101,6 +101,7 @@ fn restore_regular(
         std::fs::create_dir_all(parent)?;
     }
 
+    log::debug!("Restore file: {:?}", entry.path);
     std::fs::copy(version_path, working_path)?;
     Ok(())
 }

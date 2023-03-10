@@ -12,7 +12,7 @@ pub const REFS_DIR: &str = "refs";
 /// history/ dir is a list of directories named after commit ids
 pub const HISTORY_DIR: &str = "history";
 /// commits/ is a key-value database of commit ids to commit objects
-pub const COMMITS_DB: &str = "commits";
+pub const COMMITS_DIR: &str = "commits";
 /// name of the schema db
 pub const SCHEMAS_DIR: &str = "schemas";
 /// prefix for the commit rows
@@ -21,8 +21,10 @@ pub const ROWS_DIR: &str = "rows";
 pub const FILES_DIR: &str = "files";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
-/// prefix for the commit entry dirs
+/// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
+/// prefix for the sync status dirs to tell if commits are synced locally
+pub const SYNC_STATUS_DIR: &str = "sync_status";
 /// prefix for the commit indices
 pub const INDICES_DIR: &str = "indices";
 /// prefix for the schema fields that are indexed
@@ -41,6 +43,7 @@ pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
 // Precomputed vals
 pub const HASH_FILE: &str = "HASH";
 pub const CONTENT_IS_VALID: &str = "CONTENT_IS_VALID";
+pub const IS_SYNCED: &str = "IS_SYNCED";
 
 // Default Remotes and Origins
 pub const DEFAULT_BRANCH_NAME: &str = "main";
