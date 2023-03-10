@@ -1,11 +1,13 @@
 use crate::config::UserConfig;
-use crate::constants::{COMMITS_DB, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::error::OxenError;
-use crate::index::{CommitDBReader, CommitDirReader, CommitEntryWriter, RefReader, RefWriter};
-use crate::model::{Commit, NewCommit, StagedData, StagedEntry};
+use crate::index::{
+    self, CommitDBReader, CommitDirReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
+};
+use crate::model::{Commit, NewCommit, RemoteBranch, StagedData, StagedEntry};
 use crate::opts::RestoreOpts;
 use crate::util;
-use crate::{command, db};
+use crate::{api, command, db};
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -23,7 +25,7 @@ pub struct CommitWriter {
 
 impl CommitWriter {
     pub fn commit_db_dir(path: &Path) -> PathBuf {
-        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DB))
+        util::fs::oxen_hidden_dir(path).join(Path::new(COMMITS_DIR))
     }
 
     pub fn new(repository: &LocalRepository) -> Result<CommitWriter, OxenError> {
@@ -151,6 +153,9 @@ impl CommitWriter {
 
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
+        // Mark as synced so we know we don't need to pull versions files again
+        index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
+
         // User output
         println!("Commit {} done.", commit.id);
         log::debug!("---COMMIT END---"); // for debug logging / timing purposes
@@ -223,7 +228,38 @@ impl CommitWriter {
         Ok(())
     }
 
-    pub fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
+    async fn maybe_pull_missing_entries(&self, commit: &Commit) -> Result<(), OxenError> {
+        // If we don't have a remote, there are not missing entries, so return
+        let rb = RemoteBranch::default();
+        let remote = self.repository.get_remote(&rb.remote);
+        if remote.is_none() {
+            log::debug!("No remote, no missing entries to fetch");
+            return Ok(());
+        }
+
+        // Safe to unwrap now.
+        let remote = remote.unwrap();
+
+        match api::remote::repositories::get_by_remote(&remote).await {
+            Ok(Some(remote_repo)) => {
+                let indexer = EntryIndexer::new(&self.repository)?;
+                indexer
+                    .pull_all_entries_for_commit(&remote_repo, commit)
+                    .await?;
+            }
+            Ok(None) => {
+                log::debug!("No remote repo found, no entries to fetch");
+            }
+            Err(err) => {
+                log::error!("Error getting remote repo: {}", err);
+            }
+        };
+
+        Ok(())
+    }
+
+    // TODO: rethink this logic and make it cleaner
+    pub async fn set_working_repo_to_commit_id(&self, commit_id: &str) -> Result<(), OxenError> {
         if !CommitDBReader::commit_id_exists(&self.commits_db, commit_id) {
             return Err(OxenError::commit_id_does_not_exist(commit_id));
         }
@@ -253,6 +289,9 @@ impl CommitWriter {
             commit_id,
             commit.message
         );
+
+        // Pull entries if they are not pulled
+        self.maybe_pull_missing_entries(&commit).await?;
 
         // Two readers, one for HEAD and one for this current commit
         let head_entry_reader = CommitDirReader::new_from_head(&self.repository)?;
@@ -302,7 +341,7 @@ impl CommitWriter {
             }
         }
         log::debug!("Setting working directory to {}", commit_id);
-        log::debug!("got {} candidiate dirs", candidate_dirs_to_rm.len());
+        log::debug!("got {} candidate dirs", candidate_dirs_to_rm.len());
 
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
@@ -329,7 +368,8 @@ impl CommitWriter {
             // If we do not have the file, restore it from our versioned history
             if !dst_path.exists() {
                 log::debug!(
-                    "set_working_repo_to_commit_id restore file, she new 🙏 {:?} -> {:?}",
+                    "set_working_repo_to_commit_id restore file [{:?}] she new 🙏 {:?} -> {:?}",
+                    entry.path,
                     version_path,
                     dst_path
                 );
@@ -388,16 +428,21 @@ impl CommitWriter {
         for dir in candidate_dirs_to_rm.iter() {
             let full_dir = self.repository.path.join(dir);
             // println!("set_working_repo_to_commit_id remove dis dir {:?}", full_dir);
-            std::fs::remove_dir_all(full_dir)?;
+            match std::fs::remove_dir_all(full_dir) {
+                Ok(_) => {}
+                Err(e) => {
+                    log::debug!("set_working_repo_to_commit_id remove dir error {:?}", e);
+                }
+            }
         }
 
         Ok(())
     }
 
-    pub fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
+    pub async fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
         let ref_reader = RefReader::new(&self.repository)?;
         if let Some(commit_id) = ref_reader.get_commit_id_for_branch(name)? {
-            self.set_working_repo_to_commit_id(&commit_id)
+            self.set_working_repo_to_commit_id(&commit_id).await
         } else {
             let err = format!("Could not get commit id for branch: {name}");
             Err(OxenError::basic_str(err))

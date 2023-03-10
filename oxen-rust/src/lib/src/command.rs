@@ -472,7 +472,7 @@ pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), Oxe
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
+pub async fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
     let value = value.as_ref();
     log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
@@ -482,7 +482,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
         }
 
         println!("Checkout branch: {value}");
-        set_working_branch(repo, value)?;
+        set_working_branch(repo, value).await?;
         set_head(repo, value)?;
     } else {
         // If we are already on the commit, do nothing
@@ -492,7 +492,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
         }
 
         println!("Checkout commit: {value}");
-        set_working_commit_id(repo, value)?;
+        set_working_commit_id(repo, value).await?;
         set_head(repo, value)?;
     }
     log::debug!("--- CHECKOUT END {} ----", value);
@@ -575,14 +575,14 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
     }
 }
 
-fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_branch(name)
+    commit_writer.set_working_repo_to_branch(name).await
 }
 
-fn set_working_commit_id(repo: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
+async fn set_working_commit_id(repo: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_commit_id(commit_id)
+    commit_writer.set_working_repo_to_commit_id(commit_id).await
 }
 
 fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
