@@ -75,12 +75,24 @@ pub fn restore_file(
     commit_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
+    // Update the local modified timestamps
+    let dir = path.parent().unwrap();
+    let committer = CommitDirEntryWriter::new(repo, commit_id, dir)?;
+    restore_file_with_commit_writer(repo, path, entry, &committer)?;
+
+    Ok(())
+}
+
+pub fn restore_file_with_commit_writer(
+    repo: &LocalRepository,
+    path: &Path,
+    entry: &CommitEntry,
+    committer: &CommitDirEntryWriter,
+) -> Result<(), OxenError> {
     // copy data back over
     restore_regular(repo, path, entry)?;
 
     // Update the local modified timestamps
-    let dir = path.parent().unwrap();
-    let committer = CommitDirEntryWriter::new(repo, commit_id, dir).unwrap();
     let working_path = repo.path.join(path);
     let metadata = std::fs::metadata(working_path).unwrap();
     let mtime = FileTime::from_last_modification_time(&metadata);

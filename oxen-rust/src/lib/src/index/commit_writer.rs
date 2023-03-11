@@ -2,16 +2,16 @@ use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::error::OxenError;
 use crate::index::{
-    self, CommitDBReader, CommitDirReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
+    self, CommitDBReader, CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader,
+    CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
 };
-use crate::model::{Commit, NewCommit, RemoteBranch, StagedData, StagedEntry};
-use crate::opts::RestoreOpts;
+use crate::model::{Commit, CommitEntry, NewCommit, RemoteBranch, StagedData, StagedEntry};
 use crate::util;
-use crate::{api, command, db};
+use crate::{api, db};
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str;
 use time::OffsetDateTime;
@@ -276,10 +276,6 @@ impl CommitWriter {
             return Ok(());
         }
 
-        // Keep track of directories, since we do not explicitly store which ones are tracked...
-        // we will remove them later if no files exist in them.
-        let mut candidate_dirs_to_rm: HashSet<PathBuf> = HashSet::new();
-
         // Iterate over files in that are in *current head* and make sure they should all be there
         // if they aren't in commit db we are switching to, remove them
         // Safe to unwrap because we check if it exists above
@@ -296,128 +292,24 @@ impl CommitWriter {
         // Two readers, one for HEAD and one for this current commit
         let head_entry_reader = CommitDirReader::new_from_head(&self.repository)?;
         let commit_entry_reader = CommitDirReader::new(&self.repository, &commit)?;
-        let commit_entries = head_entry_reader.list_files()?;
+        let head_entries = head_entry_reader.list_files()?;
         log::debug!(
             "set_working_repo_to_commit_id got {} entries in commit",
-            commit_entries.len()
+            head_entries.len()
         );
 
-        for path in commit_entries.iter() {
-            let repo_path = self.repository.path.join(path);
-            log::debug!(
-                "set_working_repo_to_commit_id commit_entries[{:?}]",
-                repo_path
-            );
-            if repo_path.is_file() {
-                log::debug!(
-                    "set_working_repo_to_commit_id commit_id {} path {:?}",
-                    commit_id,
-                    path
-                );
+        // Keep track of directories, since we do not explicitly store which ones are tracked...
+        // we will remove them later if no files exist in them.
+        let mut candidate_dirs_to_rm = self.cleanup_removed_files(commit_id, &head_entries)?;
 
-                // TODO: Why are we doing...parent.parent here?
-                // Keep track of parents to see if we clear them
-                if let Some(parent) = path.parent() {
-                    log::debug!("adding candidiate dir {:?}", parent);
-
-                    if parent.parent().is_some() {
-                        // only add one directory below top level
-                        // println!("set_working_repo_to_commit_id candidate dir {:?}", parent);
-                        candidate_dirs_to_rm.insert(parent.to_path_buf());
-                    }
-                }
-
-                if commit_entry_reader.has_file(path) {
-                    // We already have file ✅
-                    log::debug!(
-                        "set_working_repo_to_commit_id we already have file ✅ {:?}",
-                        repo_path
-                    );
-                } else {
-                    // sorry, we don't know you, bye
-                    log::debug!("set_working_repo_to_commit_id see ya 💀 {:?}", repo_path);
-                    std::fs::remove_file(repo_path)?;
-                }
-            }
-        }
         log::debug!("Setting working directory to {}", commit_id);
         log::debug!("got {} candidate dirs", candidate_dirs_to_rm.len());
 
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
         let commit_entries = commit_entry_reader.list_entries()?;
-        println!("Setting working directory to {commit_id}");
-        let size: u64 = unsafe { std::mem::transmute(commit_entries.len()) };
-        let bar = ProgressBar::new(size);
-        for entry in commit_entries.iter() {
-            bar.inc(1);
-            let path = &entry.path;
-            log::debug!("Checking committed entry: {:?} => {:?}", path, entry);
-            if let Some(parent) = path.parent() {
-                // Check if parent directory exists, if it does, we no longer have
-                // it as a candidate to remove
-                log::debug!("We aren't going to delete candidate {:?}", parent);
-                if candidate_dirs_to_rm.contains(parent) {
-                    candidate_dirs_to_rm.remove(&parent.to_path_buf());
-                }
-            }
 
-            let dst_path = self.repository.path.join(path);
-            let version_path = util::fs::version_path(&self.repository, entry);
-
-            // If we do not have the file, restore it from our versioned history
-            if !dst_path.exists() {
-                log::debug!(
-                    "set_working_repo_to_commit_id restore file [{:?}] she new 🙏 {:?} -> {:?}",
-                    entry.path,
-                    version_path,
-                    dst_path
-                );
-
-                // mkdir if not exists for the parent
-                if let Some(parent) = dst_path.parent() {
-                    if !parent.exists() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                }
-
-                command::restore(
-                    &self.repository,
-                    RestoreOpts::from_path_ref(&entry.path, commit_id),
-                )?;
-            } else {
-                // we do have it, check if we need to update it
-                let dst_hash = util::hasher::hash_file_contents(&dst_path)?;
-
-                // let old_contents = util::fs::read_from_path(&version_path)?;
-                // let current_contents = util::fs::read_from_path(&dst_path)?;
-                // log::debug!("old_contents {:?}\n{}", version_path, old_contents);
-                // log::debug!("current_contents {:?}\n{}", dst_path, current_contents);
-
-                // If the hash of the file from the commit is different than the one on disk, update it
-                if entry.hash != dst_hash {
-                    // we need to update working dir
-                    log::debug!(
-                        "set_working_repo_to_commit_id restore file diff hash 🙏 {:?} -> {:?}",
-                        version_path,
-                        dst_path
-                    );
-
-                    command::restore(
-                        &self.repository,
-                        RestoreOpts::from_path_ref(&entry.path, commit_id),
-                    )?;
-                } else {
-                    log::debug!(
-                        "set_working_repo_to_commit_id hashes match! {:?} -> {:?}",
-                        version_path,
-                        dst_path
-                    );
-                }
-            }
-        }
-
-        bar.finish();
+        self.restore_missing_files(commit_id, &commit_entries, &mut candidate_dirs_to_rm)?;
 
         log::debug!("candidate_dirs_to_rm {}", candidate_dirs_to_rm.len());
         if !candidate_dirs_to_rm.is_empty() {
@@ -437,6 +329,199 @@ impl CommitWriter {
         }
 
         Ok(())
+    }
+
+    fn restore_missing_files(
+        &self,
+        commit_id: &str,
+        entries: &[CommitEntry],
+        candidate_dirs_to_rm: &mut HashSet<PathBuf>,
+    ) -> Result<(), OxenError> {
+        println!("Setting working directory to {commit_id}");
+        let size: u64 = unsafe { std::mem::transmute(entries.len()) };
+        let bar = ProgressBar::new(size);
+
+        let dir_entries = self.group_entries_to_dirs(entries);
+
+        for (dir, entries) in dir_entries.iter() {
+            let committer = CommitDirEntryWriter::new(&self.repository, commit_id, dir)?;
+            for entry in entries.iter() {
+                bar.inc(1);
+                let path = &entry.path;
+                log::debug!("Checking committed entry: {:?} => {:?}", path, entry);
+
+                let dst_path = self.repository.path.join(path);
+                let version_path = util::fs::version_path(&self.repository, entry);
+
+                // If we do not have the file, restore it from our versioned history
+                if !dst_path.exists() {
+                    log::debug!(
+                        "set_working_repo_to_commit_id restore file [{:?}] she new 🙏 {:?} -> {:?}",
+                        entry.path,
+                        version_path,
+                        dst_path
+                    );
+
+                    // mkdir if not exists for the parent
+                    if let Some(parent) = dst_path.parent() {
+                        if !parent.exists() {
+                            match std::fs::create_dir_all(parent) {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    log::error!("Error creating directory: {}", err);
+                                }
+                            }
+                        }
+                    }
+
+                    match index::restore::restore_file_with_commit_writer(
+                        &self.repository,
+                        &entry.path,
+                        entry,
+                        &committer,
+                    ) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!("Error restoring file: {}", err);
+                        }
+                    }
+                } else {
+                    // we do have it, check if we need to update it
+                    let dst_hash =
+                        util::hasher::hash_file_contents(&dst_path).expect("Could not hash file");
+
+                    // let old_contents = util::fs::read_from_path(&version_path)?;
+                    // let current_contents = util::fs::read_from_path(&dst_path)?;
+                    // log::debug!("old_contents {:?}\n{}", version_path, old_contents);
+                    // log::debug!("current_contents {:?}\n{}", dst_path, current_contents);
+
+                    // If the hash of the file from the commit is different than the one on disk, update it
+                    if entry.hash != dst_hash {
+                        // we need to update working dir
+                        log::debug!(
+                            "set_working_repo_to_commit_id restore file diff hash 🙏 {:?} -> {:?}",
+                            version_path,
+                            dst_path
+                        );
+
+                        match index::restore::restore_file_with_commit_writer(
+                            &self.repository,
+                            &entry.path,
+                            entry,
+                            &committer,
+                        ) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::error!("Error restoring file: {}", err);
+                            }
+                        }
+                    } else {
+                        log::debug!(
+                            "set_working_repo_to_commit_id hashes match! {:?} -> {:?}",
+                            version_path,
+                            dst_path
+                        );
+                    }
+                }
+
+                if let Some(parent) = path.parent() {
+                    // Check if parent directory exists, if it does, we no longer have
+                    // it as a candidate to remove
+                    if candidate_dirs_to_rm.contains(parent) {
+                        log::debug!("We aren't going to delete candidate {:?}", parent);
+                        candidate_dirs_to_rm.remove(parent);
+                    }
+                }
+            }
+        }
+        bar.finish();
+        Ok(())
+    }
+
+    fn cleanup_removed_files(
+        &self,
+        commit_id: &str,
+        paths: &[PathBuf],
+    ) -> Result<HashSet<PathBuf>, OxenError> {
+        println!("Checking index...");
+        let size: u64 = unsafe { std::mem::transmute(paths.len()) };
+        let bar = ProgressBar::new(size);
+
+        let mut candidate_dirs_to_rm: HashSet<PathBuf> = HashSet::new();
+
+        let dirs_to_paths = self.group_paths_to_dirs(paths);
+
+        for (dir, paths) in dirs_to_paths.iter() {
+            let entry_reader = CommitDirEntryReader::new(&self.repository, commit_id, dir)?;
+            for path in paths.iter() {
+                let full_path = self.repository.path.join(path);
+                log::debug!(
+                    "set_working_repo_to_commit_id commit_entries[{:?}]",
+                    full_path
+                );
+                if full_path.is_file() {
+                    log::debug!("set_working_repo_to_commit_id path {:?}", path);
+
+                    // TODO: Why are we doing...parent.parent here?
+                    // Keep track of parents to see if we clear them
+                    if let Some(parent) = path.parent() {
+                        log::debug!("adding candidate dir {:?}", parent);
+
+                        if parent.parent().is_some() {
+                            // only add one directory below top level
+                            // println!("set_working_repo_to_commit_id candidate dir {:?}", parent);
+                            candidate_dirs_to_rm.insert(parent.to_path_buf());
+                        }
+                    }
+
+                    if entry_reader.has_file(path) {
+                        // We already have file ✅
+                        log::debug!(
+                            "set_working_repo_to_commit_id we already have file ✅ {:?}",
+                            full_path
+                        );
+                    } else {
+                        // sorry, we don't know you, bye
+                        log::debug!("set_working_repo_to_commit_id see ya 💀 {:?}", full_path);
+                        std::fs::remove_file(full_path)?;
+                    }
+                }
+                bar.inc(1);
+            }
+        }
+        bar.finish();
+
+        Ok(candidate_dirs_to_rm)
+    }
+
+    fn group_entries_to_dirs(&self, entries: &[CommitEntry]) -> HashMap<PathBuf, Vec<CommitEntry>> {
+        let mut results: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
+
+        for entry in entries.iter() {
+            if let Some(parent) = entry.path.parent() {
+                results
+                    .entry(parent.to_path_buf())
+                    .or_default()
+                    .push(entry.to_owned());
+            }
+        }
+
+        results
+    }
+
+    fn group_paths_to_dirs(&self, files: &[PathBuf]) -> HashMap<PathBuf, Vec<PathBuf>> {
+        let mut results: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+
+        for path in files.iter() {
+            if let Some(parent) = path.parent() {
+                results
+                    .entry(parent.to_path_buf())
+                    .or_default()
+                    .push(path.to_owned());
+            }
+        }
+
+        results
     }
 
     pub async fn set_working_repo_to_branch(&self, name: &str) -> Result<(), OxenError> {
