@@ -1,4 +1,4 @@
-use crate::constants::COMMITS_DB;
+use crate::constants::COMMITS_DIR;
 use crate::db;
 use crate::error::OxenError;
 use crate::index::CommitDBReader;
@@ -19,7 +19,7 @@ pub struct CommitReader {
 impl CommitReader {
     /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository) -> Result<CommitReader, OxenError> {
-        let db_path = util::fs::oxen_hidden_dir(&repository.path).join(COMMITS_DB);
+        let db_path = util::fs::oxen_hidden_dir(&repository.path).join(COMMITS_DIR);
         let opts = db::opts::default();
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
