@@ -1,4 +1,33 @@
 
+# v0.4.11
+
+* Fix cloning an empty remote repo
+* Server confirms on push that you are synced to the correct tree
+* Speed up restoring commit on checkout
+* Fix bug with checking out version files that have not been synced
+* Fix bug with adding new api key for host (replaces now instead of append)
+* Add instructions / build for x86_64
+* Bump dependencies flagged in dependabot
+    * rocksdb, dotenv, reqwest, time
+
+# v0.4.10+2
+
+* Add health endpoint with disk usage info
+
+# v0.4.10
+
+* Update `oxen rm` to be more consistent with `git rm` functionality
+  * Add `-r` flag to recursively remove directories that have been committed
+  * Add `--staged` flag to remove staged changes that you do not want to commit.
+
+# v0.4.9
+
+* Added Windows Support and builds to CI
+* Added Mac builds for OSX 11 and OSX 12
+* Add support for .oxenignore file
+* Fix start server usage message
+* Get rid of unnecessary warnings on adding empty csvs
+
 # v0.4.8
 
 * Features
