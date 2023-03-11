@@ -58,7 +58,7 @@ async fn main() {
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches),
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches),
         Some((cmd_setup::BRANCH, sub_matches)) => parse_and_run::branch(sub_matches).await,
-        Some((cmd_setup::CHECKOUT, sub_matches)) => parse_and_run::checkout(sub_matches),
+        Some((cmd_setup::CHECKOUT, sub_matches)) => parse_and_run::checkout(sub_matches).await,
         Some((cmd_setup::MERGE, sub_matches)) => parse_and_run::merge(sub_matches),
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,

@@ -378,7 +378,7 @@ mod tests {
     use crate::test;
     use crate::util;
 
-    fn populate_threeway_merge_repo(
+    async fn populate_threeway_merge_repo(
         repo: &LocalRepository,
         merge_branch_name: &str,
     ) -> Result<Commit, OxenError> {
@@ -404,7 +404,7 @@ mod tests {
         command::commit(repo, "Committing b.txt file")?;
 
         // Checkout A again to make another change
-        command::checkout(repo, &a_branch.name)?;
+        command::checkout(repo, &a_branch.name).await?;
         let c_path = repo.path.join("c.txt");
         util::fs::write_to_path(&c_path, "c")?;
         command::add(repo, c_path)?;
@@ -416,21 +416,21 @@ mod tests {
         command::commit(repo, "Committing d.txt file")?;
 
         // Checkout merge branch (B) to make another change
-        command::checkout(repo, merge_branch_name)?;
+        command::checkout(repo, merge_branch_name).await?;
         let e_path = repo.path.join("e.txt");
         util::fs::write_to_path(&e_path, "e")?;
         command::add(repo, e_path)?;
         command::commit(repo, "Committing e.txt file")?;
 
         // Checkout the OG branch again so that we can merge into it
-        command::checkout(repo, &a_branch.name)?;
+        command::checkout(repo, &a_branch.name).await?;
 
         Ok(lca.unwrap())
     }
 
-    #[test]
-    fn test_merge_one_commit_add_fast_forward() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_one_commit_add_fast_forward() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Write and commit hello file to main branch
             let og_branch = command::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
@@ -448,7 +448,7 @@ mod tests {
             command::commit(&repo, "Adding world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, og_branch.name)?;
+            command::checkout(&repo, og_branch.name).await?;
 
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
@@ -466,11 +466,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_one_commit_remove_fast_forward() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_one_commit_remove_fast_forward() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Write and add hello file
             let og_branch = command::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
@@ -498,7 +499,7 @@ mod tests {
             command::commit(&repo, "Removing world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, og_branch.name)?;
+            command::checkout(&repo, og_branch.name).await?;
 
             // Make sure world file exists until we merge the removal in
             assert!(world_file.exists());
@@ -511,11 +512,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // Write and add hello file
             let og_branch = command::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
@@ -544,7 +546,7 @@ mod tests {
             command::commit(&repo, "Modifying world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, og_branch.name)?;
+            command::checkout(&repo, og_branch.name).await?;
 
             // Make sure world file exists in it's original form
             let contents = util::fs::read_from_path(&world_file)?;
@@ -559,13 +561,14 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             let merge_branch_name = "B"; // see populate function
-            populate_threeway_merge_repo(&repo, merge_branch_name)?;
+            populate_threeway_merge_repo(&repo, merge_branch_name).await?;
 
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo)?;
@@ -575,13 +578,14 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_get_lowest_common_ancestor() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_get_lowest_common_ancestor() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             let merge_branch_name = "B"; // see populate function
-            let lca = populate_threeway_merge_repo(&repo, merge_branch_name)?;
+            let lca = populate_threeway_merge_repo(&repo, merge_branch_name).await?;
 
             // Make sure the merger can detect the three way merge
             let merger = Merger::new(&repo)?;
@@ -590,14 +594,15 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_no_conflict_three_way_merge() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_no_conflict_three_way_merge() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             let merge_branch_name = "B";
             // this will checkout main again so we can try to merge
-            populate_threeway_merge_repo(&repo, merge_branch_name)?;
+            populate_threeway_merge_repo(&repo, merge_branch_name).await?;
 
             {
                 // Make sure the merger can detect the three way merge
@@ -628,11 +633,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_conflict_three_way_merge() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_conflict_three_way_merge() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // This test has a conflict where user on the main line, and user on the branch, both modify a.txt
 
             // Ex) We want to merge E into D to create F
@@ -664,7 +670,7 @@ mod tests {
             command::commit(&repo, "Committing b.txt file")?;
 
             // Checkout main branch again to make another change
-            command::checkout(&repo, &a_branch.name)?;
+            command::checkout(&repo, &a_branch.name).await?;
 
             // Add new file c.txt on main branch
             let c_path = repo.path.join("c.txt");
@@ -685,7 +691,7 @@ mod tests {
             command::commit(&repo, "Committing d.txt file")?;
 
             // Checkout merge branch (B) to make another change
-            command::checkout(&repo, merge_branch_name)?;
+            command::checkout(&repo, merge_branch_name).await?;
 
             // Add another branch
             let e_path = repo.path.join("e.txt");
@@ -694,7 +700,7 @@ mod tests {
             command::commit(&repo, "Committing e.txt file")?;
 
             // Checkout the OG branch again so that we can merge into it
-            command::checkout(&repo, &a_branch.name)?;
+            command::checkout(&repo, &a_branch.name).await?;
 
             // Make sure the merger can detect the three way merge
             {
@@ -714,11 +720,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_merge_conflict_three_way_merge_post_merge_branch() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
+    #[tokio::test]
+    async fn test_merge_conflict_three_way_merge_post_merge_branch() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
@@ -737,7 +744,7 @@ mod tests {
             command::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
-            command::checkout(&repo, &og_branch.name)?;
+            command::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
             command::create_checkout_branch(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
@@ -745,7 +752,7 @@ mod tests {
             command::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
-            command::checkout(&repo, &og_branch.name)?;
+            command::checkout(&repo, &og_branch.name).await?;
 
             // Merge in a scope so that it closes the db
             {
@@ -754,7 +761,7 @@ mod tests {
             }
 
             // Checkout main again, merge again
-            command::checkout(&repo, &og_branch.name)?;
+            command::checkout(&repo, &og_branch.name).await?;
             {
                 let merger = Merger::new(&repo)?;
                 merger.merge(human_branch_name)?;
@@ -769,5 +776,6 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 }
