@@ -6,7 +6,6 @@ use liboxen::compute::commit_cacher::CacherStatusType;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
-use liboxen::index::CommitWriter;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::http::MSG_FAILED_PROCESS;
@@ -388,7 +387,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     ) {
         (Ok(Some(repo)), Ok(commit)) => {
             // Create Commit from uri params
-            match create_commit(&repo.path, &commit) {
+            match api::local::commits::create_commit_object(&repo.path, &commit) {
                 Ok(_) => HttpResponse::Ok().json(CommitResponse {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_CREATED),
@@ -775,25 +774,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
         }
     }
     log::debug!("Done decompressing.");
-}
-
-fn create_commit(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
-    let repo = LocalRepository::from_dir(repo_dir)?;
-    let result = CommitWriter::new(&repo);
-    match result {
-        Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
-            Ok(_) => {
-                log::debug!("Successfully added commit [{}] to db", commit.id);
-            }
-            Err(err) => {
-                log::error!("Error adding commit to db: {:?}", err);
-            }
-        },
-        Err(err) => {
-            log::error!("Error creating commit writer: {:?}", err);
-        }
-    };
-    Ok(())
 }
 
 #[cfg(test)]

@@ -290,20 +290,21 @@ fn test_command_restore_file_from_commit_id() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
-    test::run_empty_local_repo_test(|repo| {
+#[tokio::test]
+async fn test_command_checkout_non_existant_commit_id() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
         // This shouldn't work
-        let checkout_result = command::checkout(&repo, "non-existant");
+        let checkout_result = command::checkout(&repo, "non-existant").await;
         assert!(checkout_result.is_err());
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_checkout_commit_id() -> Result<(), OxenError> {
-    test::run_empty_local_repo_test(|repo| {
+#[tokio::test]
+async fn test_command_checkout_commit_id() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
         // Write a hello file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
@@ -329,7 +330,7 @@ fn test_command_checkout_commit_id() -> Result<(), OxenError> {
         assert!(world_file.exists());
 
         // We checkout the previous commit
-        command::checkout(&repo, first_commit.unwrap().id)?;
+        command::checkout(&repo, first_commit.unwrap().id).await?;
 
         // // Then we do not have the world file anymore
         assert!(!world_file.exists());
@@ -340,6 +341,7 @@ fn test_command_checkout_commit_id() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -388,9 +390,9 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
-    test::run_empty_local_repo_test(|repo| {
+#[tokio::test]
+async fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
@@ -402,15 +404,16 @@ fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), OxenEr
         // Create and checkout branch
         let branch_name = "feature/world-explorer";
         command::create_checkout_branch(&repo, branch_name)?;
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_checkout_added_file() -> Result<(), OxenError> {
-    test::run_empty_local_repo_test(|repo| {
+#[tokio::test]
+async fn test_command_checkout_added_file() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
@@ -446,24 +449,25 @@ fn test_command_checkout_added_file() -> Result<(), OxenError> {
         assert!(world_file.exists());
 
         // Go back to the main branch
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
 
         // The world file should no longer be there
         assert!(hello_file.exists());
         assert!(!world_file.exists());
 
         // Go back to the world branch
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         assert!(hello_file.exists());
         assert!(world_file.exists());
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
-    test::run_empty_local_repo_test(|repo| {
+#[tokio::test]
+async fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
@@ -504,7 +508,7 @@ fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
         assert!(keep_file.exists());
 
         // Go back to the main branch
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
 
         // The world file should no longer be there
         assert!(hello_file.exists());
@@ -512,18 +516,19 @@ fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenError> {
         assert!(keep_file.exists());
 
         // Go back to the world branch
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         assert!(hello_file.exists());
         assert!(world_file.exists());
         assert!(keep_file.exists());
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_checkout_modified_file() -> Result<(), OxenError> {
-    test::run_empty_local_repo_test(|repo| {
+#[tokio::test]
+async fn test_command_checkout_modified_file() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
         // Write the first file
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
@@ -550,7 +555,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
         assert_eq!(util::fs::read_from_path(&hello_file)?, "World");
 
         // Go back to the main branch
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
 
         // The file contents should be Hello, not World
         log::debug!("HELLO FILE NAME: {:?}", hello_file);
@@ -561,6 +566,7 @@ fn test_command_checkout_modified_file() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -586,9 +592,9 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
@@ -614,22 +620,23 @@ fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
 
         // checkout branch again and make sure it reverts
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(file_contents, updated_content);
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
@@ -658,22 +665,23 @@ fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(),
         command::commit(&repo, "Changing one shot")?;
 
         // checkout OG and make sure it reverts
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(og_content, updated_content);
 
         // checkout branch again and make sure it reverts
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         let updated_content = util::fs::read_from_path(&one_shot_path)?;
         assert_eq!(file_contents, updated_content);
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
@@ -698,21 +706,22 @@ fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
         assert_eq!(status.added_dirs.len(), 0);
 
         // checkout OG and make sure it removes the train dir
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
         assert!(!train_path.exists());
 
         // checkout branch again and make sure it reverts
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         assert!(train_path.exists());
         assert_eq!(util::fs::rcount_files_in_dir(&train_path), og_num_files);
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
@@ -728,16 +737,17 @@ fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train dir")?;
 
         // checkout OG and make sure it removes the train dir
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
         assert!(!new_dir_path.exists());
 
         // checkout branch again and make sure it reverts
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         assert!(new_dir_path.exists());
         assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -761,9 +771,10 @@ fn test_command_add_removed_file() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_restore_removed_file_from_branch_with_commits_between() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_restore_removed_file_from_branch_with_commits_between(
+) -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // (file already created in helper)
         let file_to_remove = repo.path.join("labels.txt");
 
@@ -795,12 +806,13 @@ fn test_command_restore_removed_file_from_branch_with_commits_between() -> Resul
         assert!(!file_to_remove.exists());
 
         // Switch back to main branch
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
         // Make sure we restore file
         assert!(file_to_remove.exists());
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -834,9 +846,9 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
         let orig_branch = command::current_branch(&repo)?.unwrap();
 
@@ -860,16 +872,17 @@ fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         command::commit(&repo, "Removing train dir")?;
 
         // checkout OG and make sure it restores the train dir
-        command::checkout(&repo, orig_branch.name)?;
+        command::checkout(&repo, orig_branch.name).await?;
         assert!(dir_to_remove.exists());
         assert_eq!(util::fs::rcount_files_in_dir(&dir_to_remove), og_num_files);
 
         // checkout branch again and make sure it reverts
-        command::checkout(&repo, branch_name)?;
+        command::checkout(&repo, branch_name).await?;
         assert!(!dir_to_remove.exists());
 
         Ok(())
     })
+    .await
 }
 
 #[tokio::test]
@@ -1660,10 +1673,22 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 // Make sure we can push again after pulling on the other side, then pull again
 #[tokio::test]
 async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+    test::run_empty_local_repo_test_async(|mut repo| async move {
         // Track a dir
-        let train_path = repo.path.join("train");
-        command::add(&repo, &train_path)?;
+        let train_dir = repo.path.join("train");
+        let train_paths = vec![
+            Path::new("data/test/images/cat_1.jpg"),
+            Path::new("data/test/images/cat_2.jpg"),
+            Path::new("data/test/images/cat_3.jpg"),
+            Path::new("data/test/images/dog_1.jpg"),
+            Path::new("data/test/images/dog_2.jpg"),
+        ];
+        std::fs::create_dir_all(&train_dir)?;
+        for path in train_paths.iter() {
+            std::fs::copy(path, train_dir.join(path.file_name().unwrap()))?;
+        }
+
+        command::add(&repo, &train_dir)?;
         command::commit(&repo, "Adding train dir")?.unwrap();
 
         let og_branch = command::current_branch(&repo)?.unwrap();
@@ -1685,10 +1710,10 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
                 command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
-            // 5 training files
-            assert_eq!(5, cloned_num_files);
+            // the original training files
+            assert_eq!(train_paths.len(), cloned_num_files);
 
-            // Create a branch to collab on
+            // Create a branch to collaborate on
             let branch_name = "adding-training-data";
             command::create_checkout_branch(&cloned_repo, branch_name)?;
 
@@ -1707,8 +1732,8 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
             command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, &og_branch.name)
                 .await?;
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
-            // Now there should be still be 5 train files
-            assert_eq!(5, og_num_files);
+            // Now there should be still be the original train files, not the new file
+            assert_eq!(train_paths.len(), og_num_files);
 
             api::remote::repositories::delete(&remote_repo).await?;
 
@@ -1916,9 +1941,9 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_delete_branch() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_delete_branch() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branches
         let og_branches = command::list_branches(&repo)?;
         let og_branch = command::current_branch(&repo)?.unwrap();
@@ -1927,7 +1952,7 @@ fn test_delete_branch() -> Result<(), OxenError> {
         command::create_checkout_branch(&repo, branch_name)?;
 
         // Must checkout main again before deleting
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         // Now we can delete
         command::delete_branch(&repo, branch_name)?;
@@ -1938,11 +1963,12 @@ fn test_delete_branch() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let branch_name = "my-branch";
         command::create_checkout_branch(&repo, branch_name)?;
 
@@ -1953,6 +1979,7 @@ fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -1970,9 +1997,9 @@ fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let og_branches = command::list_branches(&repo)?;
         let og_branch = command::current_branch(&repo)?.unwrap();
 
@@ -1985,7 +2012,7 @@ fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError>
         command::commit(&repo, "adding initial labels file")?;
 
         // Checkout main again
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         // Should not be able to delete `my-branch` because it is ahead of `main`
         if command::delete_branch(&repo, branch_name).is_ok() {
@@ -1998,11 +2025,12 @@ fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError>
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let og_branches = command::list_branches(&repo)?;
         let og_branch = command::current_branch(&repo)?.unwrap();
 
@@ -2015,7 +2043,7 @@ fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> 
         command::commit(&repo, "adding initial labels file")?;
 
         // Checkout main again
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         // Force delete
         command::force_delete_branch(&repo, branch_name)?;
@@ -2026,11 +2054,12 @@ fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> 
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let labels_path = repo.path.join("labels.txt");
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
@@ -2046,7 +2075,7 @@ fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
         command::commit(&repo, "adding none category")?;
 
         // Add a "person" category on a the main branch
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
         command::add(&repo, &labels_path)?;
@@ -2064,11 +2093,12 @@ fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_can_add_merge_conflict() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let labels_path = repo.path.join("labels.txt");
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
@@ -2084,7 +2114,7 @@ fn test_can_add_merge_conflict() -> Result<(), OxenError> {
         command::commit(&repo, "adding none category")?;
 
         // Add a "person" category on a the main branch
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
         command::add(&repo, &labels_path)?;
@@ -2111,11 +2141,12 @@ fn test_can_add_merge_conflict() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits(|repo| {
+#[tokio::test]
+async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let labels_path = repo.path.join("labels.txt");
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
@@ -2131,7 +2162,7 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         command::commit(&repo, "adding none category")?;
 
         // Add a "person" category on a the main branch
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
         command::add(&repo, &labels_path)?;
@@ -2163,6 +2194,7 @@ fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -2571,10 +2603,10 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
     })
 }
 
-#[test]
-fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Result<(), OxenError>
-{
-    test::run_training_data_repo_test_fully_committed(|repo| {
+#[tokio::test]
+async fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs(
+) -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         // Add a more rows on this branch
@@ -2595,7 +2627,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         let bbox_file =
             test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
@@ -2621,11 +2653,13 @@ fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs() -> Re
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|repo| {
+#[tokio::test]
+async fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq(
+) -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         let bbox_filename = Path::new("annotations")
@@ -2646,7 +2680,7 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
         command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
@@ -2670,11 +2704,12 @@ fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq() -> Resul
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|repo| {
+#[tokio::test]
+async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         let og_branch = command::current_branch(&repo)?.unwrap();
 
         let bbox_filename = Path::new("annotations")
@@ -2699,7 +2734,7 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
         command::commit(&repo, "Adding new column as an Ox on a branch.")?;
 
         // Add a more rows on the main branch
-        command::checkout(&repo, og_branch.name)?;
+        command::checkout(&repo, og_branch.name).await?;
 
         let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
         let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
@@ -2721,6 +2756,7 @@ fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenErr
 
         Ok(())
     })
+    .await
 }
 
 #[test]
@@ -3025,4 +3061,282 @@ fn test_oxen_ignore_dir() -> Result<(), OxenError> {
 
         Ok(())
     })
+}
+
+#[tokio::test]
+async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Create a new repo to clone to, then clean it up
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let shallow = false;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+
+            let status = command::status(&cloned_repo);
+            assert!(status.is_ok());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Create a new repo to clone to, then clean it up
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let shallow = false;
+            let cloned_repo =
+                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+
+            let status = command::status(&cloned_repo);
+            assert!(status.is_ok());
+
+            // Add a file to the cloned repo
+            let new_file = "new_file.txt";
+            let new_file_path = cloned_repo.path.join(new_file);
+            let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+            command::add(&cloned_repo, &new_file_path)?;
+            command::commit(&cloned_repo, "Adding new file path.")?;
+
+            command::push(&cloned_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_cannot_push_two_separate_empty_roots() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Clone the first repo
+        test::run_empty_dir_test_async(|first_repo_dir| async move {
+            let shallow = false;
+            let first_cloned_repo =
+                command::clone(&remote_repo.remote.url, &first_repo_dir, shallow).await?;
+
+            // Clone the second repo
+            test::run_empty_dir_test_async(|second_repo_dir| async move {
+                let shallow = false;
+                let second_cloned_repo =
+                    command::clone(&remote_repo.remote.url, &second_repo_dir, shallow).await?;
+
+                // Add to the first repo, after we have the second repo cloned
+                let new_file = "new_file.txt";
+                let new_file_path = first_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+                command::add(&first_cloned_repo, &new_file_path)?;
+                command::commit(&first_cloned_repo, "Adding first file path.")?;
+                command::push(&first_cloned_repo).await?;
+
+                // The push to the second version of the same repo should fail
+                // Adding two commits to have a longer history that also should fail
+                let new_file = "new_file_2.txt";
+                let new_file_path = second_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 2")?;
+                command::add(&second_cloned_repo, &new_file_path)?;
+                command::commit(&second_cloned_repo, "Adding second file path.")?;
+
+                let new_file = "new_file_3.txt";
+                let new_file_path = second_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 3")?;
+                command::add(&second_cloned_repo, &new_file_path)?;
+                command::commit(&second_cloned_repo, "Adding third file path.")?;
+
+                // Push should FAIL
+                let result = command::push(&second_cloned_repo).await;
+                assert!(result.is_err());
+
+                Ok(second_repo_dir)
+            })
+            .await?;
+
+            Ok(first_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+// Test that we cannot push two completely separate local repos to the same history
+// 1) Create repo A with data
+// 2) Create repo B with data
+// 3) Push Repo A
+// 4) Push repo B to repo A and fail
+#[tokio::test]
+async fn test_cannot_push_two_separate_repos() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo_1| async move {
+        test::run_training_data_repo_test_fully_committed_async(|mut repo_2| async move {
+            // Add to the first repo
+            let new_file = "new_file.txt";
+            let new_file_path = repo_1.path.join(new_file);
+            let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+            command::add(&repo_1, &new_file_path)?;
+            command::commit(&repo_1, "Adding first file path.")?;
+            // Set/create the proper remote
+            let remote = test::repo_remote_url_from(&repo_1.dirname());
+            command::add_remote(&mut repo_1, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            test::create_remote_repo(&repo_1).await?;
+            command::push(&repo_1).await?;
+
+            // Adding two commits to have a longer history that also should fail
+            let new_file = "new_file_2.txt";
+            let new_file_path = repo_2.path.join(new_file);
+            let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 2")?;
+            command::add(&repo_2, &new_file_path)?;
+            command::commit(&repo_2, "Adding second file path.")?;
+
+            let new_file = "new_file_3.txt";
+            let new_file_path = repo_2.path.join(new_file);
+            let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 3")?;
+            command::add(&repo_2, &new_file_path)?;
+            command::commit(&repo_2, "Adding third file path.")?;
+
+            // Set remote to the same as the first repo
+            command::add_remote(&mut repo_2, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push should FAIL
+            let result = command::push(&repo_2).await;
+            assert!(result.is_err());
+
+            Ok(())
+        })
+        .await?;
+
+        Ok(())
+    })
+    .await
+}
+
+// Test that we cannot clone separate repos with separate histories, then push to the same history
+// 1) Clone repo A with data
+// 2) Clone repo B with data
+// 3) Push Repo A
+// 4) Push repo B to repo A and fail
+#[tokio::test]
+async fn test_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
+    // Push the first repo with data
+    test::run_training_data_fully_sync_remote(|_, remote_repo_1| async move {
+        let remote_repo_1_copy = remote_repo_1.clone();
+
+        // Push the second repo with data
+        test::run_training_data_fully_sync_remote(|_, remote_repo_2| async move {
+            let remote_repo_2_copy = remote_repo_2.clone();
+            // Clone the first repo
+            test::run_empty_dir_test_async(|first_repo_dir| async move {
+                let shallow = false;
+                let first_cloned_repo =
+                    command::clone(&remote_repo_1.remote.url, &first_repo_dir, shallow).await?;
+
+                // Clone the second repo
+                test::run_empty_dir_test_async(|second_repo_dir| async move {
+                    let shallow = false;
+                    let mut second_cloned_repo =
+                        command::clone(&remote_repo_2.remote.url, &second_repo_dir, shallow)
+                            .await?;
+
+                    // Add to the first repo, after we have the second repo cloned
+                    let new_file = "new_file.txt";
+                    let new_file_path = first_cloned_repo.path.join(new_file);
+                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+                    command::add(&first_cloned_repo, &new_file_path)?;
+                    command::commit(&first_cloned_repo, "Adding first file path.")?;
+                    command::push(&first_cloned_repo).await?;
+
+                    // Reset the remote on the second repo to the first repo
+                    let first_remote = test::repo_remote_url_from(&first_cloned_repo.dirname());
+                    command::add_remote(
+                        &mut second_cloned_repo,
+                        constants::DEFAULT_REMOTE_NAME,
+                        &first_remote,
+                    )?;
+
+                    // Adding two commits to have a longer history that also should fail
+                    let new_file = "new_file_2.txt";
+                    let new_file_path = second_cloned_repo.path.join(new_file);
+                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 2")?;
+                    command::add(&second_cloned_repo, &new_file_path)?;
+                    command::commit(&second_cloned_repo, "Adding second file path.")?;
+
+                    let new_file = "new_file_3.txt";
+                    let new_file_path = second_cloned_repo.path.join(new_file);
+                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 3")?;
+                    command::add(&second_cloned_repo, &new_file_path)?;
+                    command::commit(&second_cloned_repo, "Adding third file path.")?;
+
+                    // Push should FAIL
+                    let result = command::push(&second_cloned_repo).await;
+                    assert!(result.is_err());
+
+                    Ok(second_repo_dir)
+                })
+                .await?;
+
+                Ok(first_repo_dir)
+            })
+            .await?;
+            Ok(remote_repo_2_copy)
+        })
+        .await?;
+
+        Ok(remote_repo_1_copy)
+    })
+    .await
+}
+
+/*
+Checks workflow:
+
+$ oxen clone <URL>
+
+$ oxen checkout f412d166be1bead8 # earlier commit
+$ oxen checkout 55a4df7cd5d00eee # later commit
+
+Checkout commit: 55a4df7cd5d00eee
+Setting working directory to 55a4df7cd5d00eee
+IO(Os { code: 2, kind: NotFound, message: "No such file or directory" })
+
+*/
+#[tokio::test]
+async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            let shallow = false;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &repo_dir, shallow).await?;
+
+            let commits = command::log(&cloned_repo)?;
+            // iterate over commits in reverse order and checkout each one
+            for commit in commits.iter().rev() {
+                println!(
+                    "TEST checking out commit: {} -> '{}'",
+                    commit.id, commit.message
+                );
+                command::checkout(&cloned_repo, &commit.id).await?;
+            }
+
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
 }

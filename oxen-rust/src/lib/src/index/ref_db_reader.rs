@@ -32,15 +32,21 @@ impl RefDBReader {
     pub fn list_values(db: &DB) -> Result<Vec<(String, String)>, OxenError> {
         let mut values: Vec<(String, String)> = vec![];
         let iter = db.iterator(IteratorMode::Start);
-        for (key, value) in iter {
-            match (str::from_utf8(&key), str::from_utf8(&value)) {
-                (Ok(key_str), Ok(value)) => {
-                    let ref_name = String::from(key_str);
-                    let id = String::from(value);
-                    values.push((ref_name.clone(), id.clone()));
-                }
-                _ => {
-                    eprintln!("Could not read utf8 val...")
+        for item in iter {
+            match item {
+                Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
+                    (Ok(key_str), Ok(value)) => {
+                        let ref_name = String::from(key_str);
+                        let id = String::from(value);
+                        values.push((ref_name.clone(), id.clone()));
+                    }
+                    _ => {
+                        return Err(OxenError::basic_str("Error decoding utf8"));
+                    }
+                },
+                Err(err) => {
+                    let err = format!("Error reading db\nErr: {err}");
+                    return Err(OxenError::basic_str(err));
                 }
             }
         }

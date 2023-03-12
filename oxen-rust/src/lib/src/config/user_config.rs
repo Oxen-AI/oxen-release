@@ -1,8 +1,10 @@
 use crate::error::OxenError;
 use crate::model::User;
-use crate::util;
+use crate::{constants, util};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 pub const USER_CONFIG_FILENAME: &str = "user_config.toml";
@@ -13,12 +15,34 @@ pub struct HostConfig {
     pub auth_token: Option<String>,
 }
 
+impl HostConfig {
+    pub fn from_host(host: &str) -> HostConfig {
+        HostConfig {
+            host: String::from(host),
+            auth_token: None,
+        }
+    }
+}
+
+// Hash on the id field so we can quickly look up
+impl PartialEq for HostConfig {
+    fn eq(&self, other: &HostConfig) -> bool {
+        self.host == other.host
+    }
+}
+impl Eq for HostConfig {}
+impl Hash for HostConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.host.hash(state);
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserConfig {
     pub name: String,
     pub email: String,
     pub default_host: Option<String>,
-    host_configs: Vec<HostConfig>,
+    pub host_configs: HashSet<HostConfig>,
 }
 
 impl UserConfig {
@@ -31,8 +55,8 @@ impl UserConfig {
         UserConfig {
             name: user.name.to_owned(),
             email: user.email.to_owned(),
-            default_host: Some(String::from("hub.oxen.ai")),
-            host_configs: Vec::new(),
+            default_host: Some(String::from(constants::DEFAULT_HOST)),
+            host_configs: HashSet::new(),
         }
     }
 
@@ -40,8 +64,8 @@ impl UserConfig {
         UserConfig {
             name: String::from(""),
             email: String::from(""),
-            default_host: Some(String::from("hub.oxen.ai")),
-            host_configs: Vec::new(),
+            default_host: Some(String::from(constants::DEFAULT_HOST)),
+            host_configs: HashSet::new(),
         }
     }
 
@@ -101,24 +125,24 @@ impl UserConfig {
     }
 
     pub fn add_host_auth_token<S: AsRef<str>>(&mut self, host: S, token: S) {
-        self.host_configs.push(HostConfig {
-            host: String::from(host.as_ref()),
+        let host = host.as_ref();
+        self.host_configs.replace(HostConfig {
+            host: String::from(host),
             auth_token: Some(String::from(token.as_ref())),
         });
     }
 
     pub fn auth_token_for_host<S: AsRef<str>>(&self, host: S) -> Option<String> {
         let host = host.as_ref();
-        for config in self.host_configs.iter() {
-            if config.host == host {
-                if config.auth_token.is_none() {
-                    log::debug!("no auth_token found for host \"{}\"", config.host);
-                }
-                return config.auth_token.clone();
+        if let Some(token) = self.host_configs.get(&HostConfig::from_host(host)) {
+            if token.auth_token.is_none() {
+                log::debug!("no auth_token found for host \"{}\"", token.host);
             }
+            token.auth_token.clone()
+        } else {
+            log::debug!("no host configuration found for {}", host);
+            None
         }
-        log::debug!("no host configuration found for {}", host);
-        None
     }
 }
 
@@ -145,6 +169,23 @@ mod tests {
 
         let config = UserConfig::new(final_path);
         assert!(!config.name.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn test_second_auth_should_overwrite_first() -> Result<(), OxenError> {
+        let mut config = UserConfig::new(test::user_cfg_file());
+        let og_num_configs = config.host_configs.len();
+
+        let host = "hub.oxen.ai";
+        let token_1 = "1234";
+        let token_2 = "5678";
+        config.add_host_auth_token(host, token_1);
+        config.add_host_auth_token(host, token_2);
+
+        assert_eq!(config.host_configs.len(), og_num_configs + 1);
+        assert_eq!(config.auth_token_for_host(host), Some(token_2.to_string()));
+
         Ok(())
     }
 }

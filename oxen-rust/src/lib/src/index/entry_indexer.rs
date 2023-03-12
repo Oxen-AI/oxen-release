@@ -12,7 +12,6 @@ use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::api;
 use crate::api::remote::commits::ChunkParams;
 use crate::constants::{AVG_CHUNK_SIZE, HISTORY_DIR};
 use crate::error::OxenError;
@@ -22,6 +21,7 @@ use crate::index::{
 };
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
+use crate::{api, index};
 
 pub struct UnsyncedCommitEntries {
     commit: Commit,
@@ -684,11 +684,20 @@ impl EntryIndexer {
         };
 
         if let Some(commit) = self.pull_all_commit_objects(&remote_repo, rb).await? {
-            let limit: usize = 0; // zero means pull all
-            self.pull_entries_for_commit(&remote_repo, &commit, limit)
+            self.pull_all_entries_for_commit(&remote_repo, &commit)
                 .await?;
         }
         Ok(())
+    }
+
+    pub async fn pull_all_entries_for_commit(
+        &self,
+        remote_repo: &RemoteRepository,
+        commit: &Commit,
+    ) -> Result<(), OxenError> {
+        let limit: usize = 0; // zero means pull all
+        self.pull_entries_for_commit(remote_repo, commit, limit)
+            .await
     }
 
     pub async fn pull_all_commit_objects(
@@ -715,6 +724,11 @@ impl EntryIndexer {
                 // Sync the commit objects
                 self.rpull_missing_commit_objects(remote_repo, &commit)
                     .await?;
+                log::debug!(
+                    "pull_all_commit_objects DONE {} -> '{}'",
+                    commit.id,
+                    commit.message
+                );
                 return Ok(Some(commit));
             }
             Ok(None) => {
@@ -882,12 +896,27 @@ impl EntryIndexer {
         results
     }
 
-    async fn pull_entries_for_commit(
+    pub async fn pull_entries_for_commit(
         &self,
         remote_repo: &RemoteRepository,
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
+        log::debug!(
+            "🐂 pull_entries_for_commit_id commit {} -> '{}'",
+            commit.id,
+            commit.message
+        );
+
+        if index::commit_sync_status::commit_is_synced(&self.repository, commit) {
+            log::debug!(
+                "🐂 commit {} -> '{}' is already synced",
+                commit.id,
+                commit.message
+            );
+            return Ok(());
+        }
+
         let entries = self.read_pulled_commit_entries(commit, limit)?;
         log::debug!(
             "🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}",
@@ -930,6 +959,12 @@ impl EntryIndexer {
                 (Ok(_), Ok(_)) => {
                     log::debug!("Successfully synced entries!");
                     self.unpack_version_files(commit, entries)?;
+
+                    if limit == 0 {
+                        // limit == 0 means we pulled everything
+                        // Mark as synced so we know we don't need to pull versions files again
+                        index::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;
+                    }
                 }
                 (Err(err), Ok(_)) => {
                     let err = format!("Error syncing large entries: {err}");
@@ -1183,6 +1218,7 @@ impl EntryIndexer {
         });
 
         bar.finish();
+
         Ok(())
     }
 
