@@ -119,6 +119,7 @@ async fn main() -> std::io::Result<()> {
                         App::new()
                             .app_data(data.clone())
                             .route("/api/version", web::get().to(controllers::version::index))
+                            .route("/api/health", web::get().to(controllers::health::index))
                             .route(
                                 "/api/namespaces",
                                 web::get().to(controllers::namespaces::index),

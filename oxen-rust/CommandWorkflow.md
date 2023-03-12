@@ -125,7 +125,7 @@ Revert back
 
 `oxen checkout main`
 
-## Colaboration
+## Collaboration
 
 Push the changes
 

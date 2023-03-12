@@ -73,8 +73,7 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
 
-    let commit = commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
-    println!("Initial commit {}", commit.id);
+    api::local::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
 
     // TODO: cleanup .oxen on failure
 
@@ -355,26 +354,8 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
         );
         return Ok(None);
     }
-    let commit = p_commit(repo, &mut status, message)?;
+    let commit = api::local::commits::commit(repo, &status, message)?;
     Ok(Some(commit))
-}
-
-fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let mut status = StagedData::empty();
-    let commit = p_commit(repo, &mut status, message)?;
-    Ok(commit)
-}
-
-fn p_commit(
-    repo: &LocalRepository,
-    status: &mut StagedData,
-    message: &str,
-) -> Result<Commit, OxenError> {
-    let stager = Stager::new(repo)?;
-    let commit_writer = CommitWriter::new(repo)?;
-    let commit = commit_writer.commit(status, message)?;
-    stager.unstage()?;
-    Ok(commit)
 }
 
 /// # Get a log of all the commits
@@ -491,7 +472,7 @@ pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), Oxe
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
+pub async fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
     let value = value.as_ref();
     log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
@@ -501,7 +482,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
         }
 
         println!("Checkout branch: {value}");
-        set_working_branch(repo, value)?;
+        set_working_branch(repo, value).await?;
         set_head(repo, value)?;
     } else {
         // If we are already on the commit, do nothing
@@ -511,7 +492,7 @@ pub fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), O
         }
 
         println!("Checkout commit: {value}");
-        set_working_commit_id(repo, value)?;
+        set_working_commit_id(repo, value).await?;
         set_head(repo, value)?;
     }
     log::debug!("--- CHECKOUT END {} ----", value);
@@ -594,14 +575,14 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
     }
 }
 
-fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_branch(name)
+    commit_writer.set_working_repo_to_branch(name).await
 }
 
-fn set_working_commit_id(repo: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
+async fn set_working_commit_id(repo: &LocalRepository, commit_id: &str) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_commit_id(commit_id)
+    commit_writer.set_working_repo_to_commit_id(commit_id).await
 }
 
 fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
@@ -910,12 +891,22 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
     opts.set_log_level(LogLevel::Fatal);
     let db = DB::open_for_read_only(&opts, dunce::simplified(path), false)?;
     let iter = db.iterator(IteratorMode::Start);
-    for (key, value) in iter {
-        // try to decode u32 first (hacky but only two types we inspect right now)
-        if let (Ok(key), Ok(value)) = (str::from_utf8(&key), u32::decode::<u8>(&value)) {
-            println!("{key}\t{value}")
-        } else if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value)) {
-            println!("{key}\t{value}")
+    for item in iter {
+        match item {
+            Ok((key, value)) => {
+                // try to decode u32 first (hacky but only two types we inspect right now)
+                if let (Ok(key), Ok(value)) = (str::from_utf8(&key), u32::decode::<u8>(&value)) {
+                    println!("{key}\t{value}")
+                } else if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value))
+                {
+                    println!("{key}\t{value}")
+                }
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
         }
     }
     Ok(())

@@ -339,7 +339,7 @@ pub async fn branch(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn checkout(sub_matches: &ArgMatches) {
+pub async fn checkout(sub_matches: &ArgMatches) {
     if sub_matches.is_present("create") {
         let name = sub_matches.value_of("create").expect("required");
         if let Err(err) = dispatch::create_checkout_branch(name) {
@@ -352,7 +352,7 @@ pub fn checkout(sub_matches: &ArgMatches) {
         }
     } else if sub_matches.is_present("name") {
         let name = sub_matches.value_of("name").expect("required");
-        if let Err(err) = dispatch::checkout(name) {
+        if let Err(err) = dispatch::checkout(name).await {
             eprintln!("{err}")
         }
     } else {
