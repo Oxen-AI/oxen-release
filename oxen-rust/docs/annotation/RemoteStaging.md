@@ -93,10 +93,61 @@ $ curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/file/add-i
       "path": "annotations.csv",
       "timestamp": "2023-03-02T18:01:06.850765Z"
     }
-  ]
+  ],
+  "page_number": 1,
+  "page_size": 5,
+  "total_pages": 3,
+  "total_entries": 13
 }
 ```
 
 To view these changes in DataFrame format you can use the `/staging/df` API.
 
-TODO: add example
+curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/df/add-images/annotations.csv?page=3&page_size=5" | jq
+
+```
+{
+  "status": "success",
+  "status_message": "resource_found",
+  "modifications": {
+    "added": {
+      "schema": {
+        "name": null,
+        "hash": "cb2f178d4c5aa0b12b8e262589ae6df3",
+        "fields": [
+          {
+            "name": "id",
+            "dtype": "i64"
+          },
+          {
+            "name": "name",
+            "dtype": "str"
+          }
+        ]
+      },
+      "slice_size": {
+        "height": 3,
+        "width": 2
+      },
+      "full_size": {
+        "height": 13,
+        "width": 2
+      },
+      "data": [
+        {
+          "id": 18,
+          "name": "Finn"
+        },
+        {
+          "id": 19,
+          "name": "Finn"
+        },
+        {
+          "id": 20,
+          "name": "Finn"
+        }
+      ]
+    }
+  }
+}
+```

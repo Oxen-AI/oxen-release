@@ -1,11 +1,14 @@
 use crate::app_data::OxenAppData;
+use crate::params::df_opts_query::{self, DFOptsQuery};
 
 use liboxen::compute::commit_cacher;
+use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::{Branch, CommitBody, CommitEntry, DirEntry, LocalRepository};
+use liboxen::model::{Branch, CommitBody, CommitEntry, DirEntry, LocalRepository, Schema};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
     ListStagedFileModResponseDF, ListStagedFileModResponseRaw, RemoteStagedStatus,
     StagedDFModifications, StagedFileModResponse,
@@ -71,7 +74,7 @@ pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> Ht
     }
 }
 
-pub async fn status_file(req: HttpRequest) -> HttpResponse {
+pub async fn status_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -84,9 +87,13 @@ pub async fn status_file(req: HttpRequest) -> HttpResponse {
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, file_name))) => {
-                get_file_status_for_branch(&repo, &branch_name, &file_name, ModResponseFormat::Raw)
-            }
+            Ok(Some((_, branch_name, file_name))) => get_file_status_for_branch(
+                &repo,
+                &branch_name,
+                &file_name,
+                ModResponseFormat::Raw,
+                query,
+            ),
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -107,7 +114,7 @@ pub async fn status_file(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn df_file(req: HttpRequest) -> HttpResponse {
+pub async fn df_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -125,6 +132,7 @@ pub async fn df_file(req: HttpRequest) -> HttpResponse {
                 &branch_name,
                 &file_name,
                 ModResponseFormat::DataFrame,
+                query,
             ),
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
@@ -471,14 +479,21 @@ fn get_file_status_for_branch(
     branch_name: &str,
     path: &Path,
     format: ModResponseFormat,
+    query: web::Query<DFOptsQuery>,
 ) -> HttpResponse {
+    let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => match api::local::commits::get_by_id(repo, &branch.commit_id) {
             Ok(Some(commit)) => {
                 match api::local::entries::get_entry_for_commit(repo, &commit, path) {
                     Ok(Some(entry)) => match format {
-                        ModResponseFormat::Raw => raw_mods_response(repo, &branch, &entry),
-                        ModResponseFormat::DataFrame => df_mods_response(repo, &branch, &entry),
+                        ModResponseFormat::Raw => {
+                            raw_mods_response(repo, &branch, &entry, page_num, page_size)
+                        }
+                        ModResponseFormat::DataFrame => {
+                            df_mods_response(repo, &branch, &entry, query)
+                        }
                     },
                     Ok(None) => {
                         log::error!("unable to find entry {:?}", path);
@@ -511,12 +526,30 @@ fn get_file_status_for_branch(
     }
 }
 
-fn df_mods_response(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> HttpResponse {
+fn df_mods_response(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+    query: web::Query<DFOptsQuery>,
+) -> HttpResponse {
     match index::mod_stager::list_mods_df(repo, branch, entry) {
         Ok(diff) => {
-            let df = if let Some(mut added) = diff.added_rows {
+            let df = if let Some(added) = diff.added_rows {
+                let og_size = JsonDataSize {
+                    width: added.width(),
+                    height: added.height(),
+                };
                 log::debug!("added rows: {:?}", added);
-                let df = JsonDataFrame::from_df(&mut added);
+
+                let polars_schema = added.schema();
+                let schema = Schema::from_polars(&polars_schema);
+
+                let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
+                log::debug!("Initial filter {:?}", filter);
+                filter = df_opts_query::parse_opts(&query, &mut filter);
+                let mut df = tabular::transform(added, filter).unwrap();
+
+                let df = JsonDataFrame::from_slice(&mut df, og_size);
                 Some(df)
             } else {
                 log::debug!("No added rows for entry {entry:?}");
@@ -542,13 +575,26 @@ fn df_mods_response(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry
     }
 }
 
-fn raw_mods_response(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> HttpResponse {
+fn raw_mods_response(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+    page_num: usize,
+    page_size: usize,
+) -> HttpResponse {
     match index::mod_stager::list_mods_raw(repo, branch, entry) {
         Ok(staged) => {
+            let total_entries = staged.len();
+            let total_pages = (total_entries / page_size) + 1;
+            let paginated = util::paginate(staged, page_num, page_size);
             let response = ListStagedFileModResponseRaw {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
-                modifications: staged,
+                modifications: paginated,
+                page_size,
+                page_number: page_num,
+                total_pages,
+                total_entries,
             };
             HttpResponse::Ok().json(response)
         }

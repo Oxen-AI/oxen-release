@@ -16,6 +16,10 @@ pub struct ListStagedFileModResponseRaw {
     pub status: String,
     pub status_message: String,
     pub modifications: Vec<ModEntry>,
+    pub page_number: usize,
+    pub page_size: usize,
+    pub total_pages: usize,
+    pub total_entries: usize,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
