@@ -219,12 +219,12 @@ fn compute_new_rows(
 
     // Take added from the current df
     let opts = DFOpts::from_schema_columns(versioned_schema);
-    let current_df = tabular::transform_df(current_df.lazy(), opts)?;
+    let current_df = tabular::transform(current_df, opts)?;
     let added_rows = tabular::take(current_df.lazy(), added_indices)?;
 
     // Take removed from versioned df
     let opts = DFOpts::from_schema_columns(versioned_schema);
-    let versioned_df = tabular::transform_df(versioned_df.lazy(), opts)?;
+    let versioned_df = tabular::transform(versioned_df, opts)?;
     let removed_rows = tabular::take(versioned_df.lazy(), removed_indices)?;
 
     Ok(DataFrameDiff {

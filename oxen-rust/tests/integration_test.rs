@@ -2725,7 +2725,7 @@ async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), O
         let mut opts = DFOpts::empty();
         opts.add_col = Some(String::from("random_col:unknown:str"));
         let df = tabular::scan_df(&bbox_file)?;
-        let mut df = tabular::transform_df(df, opts)?;
+        let mut df = tabular::transform_lazy(df, opts)?;
         println!("WRITE DF IN BRANCH {df:?}");
         tabular::write_df(&mut df, &bbox_file)?;
 

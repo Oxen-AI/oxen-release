@@ -15,7 +15,8 @@ pub struct JsonDataSize {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataFrame {
     pub schema: Schema,
-    pub size: JsonDataSize,
+    pub slice_size: JsonDataSize,
+    pub full_size: JsonDataSize,
     pub data: serde_json::Value,
 }
 
@@ -35,10 +36,26 @@ impl JsonDataFrame {
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
         JsonDataFrame {
             schema: Schema::from_polars(&df.schema()),
-            size: JsonDataSize {
+            slice_size: JsonDataSize {
                 height: df.height(),
                 width: df.width(),
             },
+            full_size: JsonDataSize {
+                height: df.height(),
+                width: df.width(),
+            },
+            data: JsonDataFrame::json_data(df),
+        }
+    }
+
+    pub fn from_slice(df: &mut DataFrame, full_size: JsonDataSize) -> JsonDataFrame {
+        JsonDataFrame {
+            schema: Schema::from_polars(&df.schema()),
+            slice_size: JsonDataSize {
+                height: df.height(),
+                width: df.width(),
+            },
+            full_size,
             data: JsonDataFrame::json_data(df),
         }
     }

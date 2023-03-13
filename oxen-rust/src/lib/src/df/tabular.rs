@@ -306,7 +306,11 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
     Ok(df.unique(Some(columns), UniqueKeepStrategy::First))
 }
 
-pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    transform_lazy(df.lazy(), opts)
+}
+
+pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
     if let Some(vstack) = &opts.vstack {
@@ -516,7 +520,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
 
     if opts.has_transform() {
         let df = scan_df(path)?;
-        let df = transform_df(df, opts)?;
+        let df = transform_lazy(df, opts)?;
         Ok(df)
     } else {
         match extension {
@@ -822,7 +826,7 @@ mod tests {
         let mut opts = DFOpts::from_unique(fields);
         // sort for tests because it comes back random
         opts.sort_by = Some(String::from("image"));
-        let filtered_df = tabular::transform_df(df.lazy(), opts)?;
+        let filtered_df = tabular::transform(df, opts)?;
 
         println!("{filtered_df}");
 
@@ -858,7 +862,7 @@ mod tests {
         let mut opts = DFOpts::from_unique(fields);
         // sort for tests because it comes back random
         opts.sort_by = Some(String::from("image"));
-        let filtered_df = tabular::transform_df(df.lazy(), opts)?;
+        let filtered_df = tabular::transform(df, opts)?;
 
         println!("{filtered_df}");
 
