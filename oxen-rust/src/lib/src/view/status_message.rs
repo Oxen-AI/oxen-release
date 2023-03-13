@@ -45,6 +45,13 @@ impl StatusMessage {
         }
     }
 
+    pub fn resource_deleted() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_SUCCESS),
+            status_message: String::from(view::http::MSG_RESOURCE_DELETED),
+        }
+    }
+
     pub fn internal_server_error() -> StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
