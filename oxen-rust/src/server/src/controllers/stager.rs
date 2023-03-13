@@ -474,6 +474,83 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
     }
 }
 
+pub async fn delete_file(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+
+    log::debug!(
+        "stager::delete_file repo name {repo_name}/{}",
+        resource.to_string_lossy()
+    );
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+            Ok(Some((_, branch_name, file_name))) => {
+                delete_staged_file_on_branch(&repo, &branch_name, &file_name)
+            }
+            Ok(None) => {
+                log::error!("unable to find resource {:?}", resource);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not parse resource  {repo_name} -> {err}");
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        },
+        Ok(None) => {
+            log::error!("unable to find repo {}", repo_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting repo by name {repo_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+fn delete_staged_file_on_branch(
+    repo: &LocalRepository,
+    branch_name: &str,
+    path: &Path,
+) -> HttpResponse {
+    match api::local::branches::get_by_name(repo, branch_name) {
+        Ok(Some(branch)) => {
+            let branch_repo = index::remote_dir_stager::init_or_get(repo, &branch).unwrap();
+            match index::remote_dir_stager::has_file(&branch_repo, path) {
+                Ok(true) => match index::remote_dir_stager::delete_file(&branch_repo, path) {
+                    Ok(_) => {
+                        log::debug!("stager::delete_file success!");
+                        HttpResponse::Ok().json(StatusMessage::resource_deleted())
+                    }
+                    Err(err) => {
+                        log::error!("unable to delete file {:?}. Err: {}", path, err);
+                        HttpResponse::InternalServerError()
+                            .json(StatusMessage::internal_server_error())
+                    }
+                },
+                Ok(false) => {
+                    log::error!("unable to find file {:?}", path);
+                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+                }
+                Err(err) => {
+                    log::error!("Error getting file by path {path:?} -> {err}");
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                }
+            }
+        }
+        Ok(None) => {
+            log::error!("unable to find branch {}", branch_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting branch by name {branch_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
 fn get_file_status_for_branch(
     repo: &LocalRepository,
     branch_name: &str,

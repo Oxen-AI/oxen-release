@@ -73,6 +73,30 @@ pub fn create_mod(
     }
 }
 
+pub fn delete_mod(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+    uuid: &str,
+) -> Result<ModEntry, OxenError> {
+    // TODO: lock db
+    let db_path = mods_db_path(repo, branch, entry);
+    let opts = db::opts::default();
+    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+
+    match str_json_db::get(&db, uuid) {
+        Ok(Some(mod_entry)) => {
+            str_json_db::put(&db, uuid, &entry)?;
+            Ok(mod_entry)
+        }
+        Ok(None) => Err(OxenError::basic_str(format!(
+            "Mod with uuid {} does not exist",
+            uuid
+        ))),
+        Err(e) => Err(e),
+    }
+}
+
 pub fn list_mods_raw(
     repo: &LocalRepository,
     branch: &Branch,
@@ -261,6 +285,49 @@ mod tests {
             assert_eq!(mods.len(), 1);
             assert_eq!(mods.first().unwrap().uuid, append_entry.uuid);
             assert_eq!(mods.first().unwrap().path, commit_entry.path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stage_delete_appended_mod() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "test-append";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let file_path = Path::new("README.md");
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, file_path)?.unwrap();
+
+            // Append the data to staging area
+            let data = "First Append".to_string();
+            let append_entry_1 =
+                mod_stager::create_mod(&repo, &branch, file_path, ModType::Append, data)?;
+
+            let data = "Second Append".to_string();
+            let _append_entry_2 =
+                mod_stager::create_mod(&repo, &branch, file_path, ModType::Append, data)?;
+
+            // List the files that are changed
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            assert_eq!(commit_entries.len(), 1);
+
+            // List the staged mods
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &commit_entry)?;
+            assert_eq!(mods.len(), 2);
+
+            // Delete the first append
+            mod_stager::delete_mod(
+                &repo,
+                &branch,
+                commit_entries.first().unwrap(),
+                &append_entry_1.uuid,
+            )?;
+
+            // Should only be one mod now
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &commit_entry)?;
+            assert_eq!(mods.len(), 1);
 
             Ok(())
         })

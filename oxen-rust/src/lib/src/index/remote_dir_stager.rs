@@ -103,6 +103,26 @@ pub fn stage_file(
     Ok(relative_path)
 }
 
+pub fn has_file(branch_repo: &LocalRepository, filepath: &Path) -> Result<bool, OxenError> {
+    // Stager will be in the branch repo
+    let stager = Stager::new(branch_repo)?;
+    stager.has_staged_file(filepath)
+}
+
+pub fn delete_file(branch_repo: &LocalRepository, filepath: &Path) -> Result<(), OxenError> {
+    // Stager will be in the branch repo
+    let stager = Stager::new(branch_repo)?;
+    stager.remove_staged_file(filepath)?;
+    let full_path = branch_repo.path.join(filepath);
+    match std::fs::remove_file(&full_path) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            log::error!("Error deleting file {full_path:?} -> {e:?}");
+            Err(OxenError::file_does_not_exist(full_path))
+        }
+    }
+}
+
 pub fn commit_staged(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
@@ -135,7 +155,10 @@ pub fn commit_staged(
     )?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
-    // TODO: cleanup all files in staging dir
+    match std::fs::remove_dir_all(&staging_dir) {
+        Ok(_) => log::debug!("commit_staged: removed staging dir: {:?}", staging_dir),
+        Err(e) => log::error!("commit_staged: error removing staging dir: {:?}", e),
+    }
 
     Ok(commit)
 }

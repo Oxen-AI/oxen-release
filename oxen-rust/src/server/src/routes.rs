@@ -98,6 +98,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::get().to(controllers::stager::status_file),
     )
     .route(
+        "/{namespace}/{repo_name}/staging/file/{resource:.*}",
+        web::delete().to(controllers::stager::delete_file),
+    )
+    .route(
         "/{namespace}/{repo_name}/staging/df/{resource:.*}",
         web::get().to(controllers::stager::df_file),
     )
@@ -111,7 +115,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     )
 
     // TODO: delete from staging
-    // TODO: Add a field to the staging entry to indicate if it is staged or not
 
     // ----- Stats ----- //
     .route(
