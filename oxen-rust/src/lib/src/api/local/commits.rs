@@ -86,15 +86,15 @@ pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
 }
 
 pub fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = StagedData::empty();
-    let commit = commit(repo, &status, message)?;
+    let mut status = StagedData::empty();
+    let commit = commit(repo, &mut status, message)?;
     println!("Initial commit {}", commit.id);
     Ok(commit)
 }
 
 pub fn commit(
     repo: &LocalRepository,
-    status: &StagedData,
+    status: &mut StagedData,
     message: &str,
 ) -> Result<Commit, OxenError> {
     let stager = Stager::new(repo)?;

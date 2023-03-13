@@ -3,11 +3,8 @@ pub mod commit;
 pub mod compare;
 pub mod entry;
 pub mod entry_meta_data;
-<<<<<<< HEAD
 pub mod file_meta_data;
-=======
 pub mod health;
->>>>>>> main
 pub mod http;
 pub mod json_data_frame;
 pub mod namespace;

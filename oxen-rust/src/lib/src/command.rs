@@ -354,7 +354,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
         );
         return Ok(None);
     }
-    let commit = api::local::commits::commit(repo, &status, message)?;
+    let commit = api::local::commits::commit(repo, &mut status, message)?;
     Ok(Some(commit))
 }
 
