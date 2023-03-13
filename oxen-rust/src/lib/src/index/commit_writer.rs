@@ -1,12 +1,13 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::index::{
     self, CommitDBReader, CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader,
-    CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
+    CommitEntryWriter, EntryIndexer, RefReader, RefWriter, mod_stager, remote_dir_stager
 };
 use crate::model::{Branch, Commit, CommitEntry, NewCommit, RemoteBranch, StagedData, StagedEntry};
-use crate::util;
+use crate::{util, df, command};
 use crate::{api, db};
 
 use std::io::Write;
