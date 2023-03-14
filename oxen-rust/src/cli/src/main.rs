@@ -50,7 +50,7 @@ async fn main() {
             parse_and_run::create_remote(sub_matches).await
         }
         Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches),
-        Some((cmd_setup::STATUS, sub_matches)) => parse_and_run::status(sub_matches),
+        Some((cmd_setup::STATUS, sub_matches)) => parse_and_run::status(sub_matches).await,
         Some((cmd_setup::LOG, _sub_matches)) => parse_and_run::log(),
         Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
         Some((cmd_setup::SCHEMAS, sub_matches)) => parse_and_run::schemas(sub_matches),

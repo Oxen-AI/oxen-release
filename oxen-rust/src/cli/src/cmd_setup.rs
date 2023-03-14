@@ -118,6 +118,12 @@ pub fn status() -> Command<'static> {
                 .help("If present, does not truncate the output of status at all.")
                 .takes_value(false),
         )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("If present, will query the remote status of the current branch you are on.")
+                .takes_value(false),
+        )
 }
 
 pub fn log() -> Command<'static> {

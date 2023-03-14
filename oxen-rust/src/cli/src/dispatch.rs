@@ -271,6 +271,31 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
     Ok(())
 }
 
+pub async fn remote_status(skip: usize, limit: usize) -> Result<(), OxenError> {
+    // Should we let user call this from any directory and look up for parent?
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let repo_status = command::remote_status(&repository, skip, limit).await?;
+
+    if let Some(current_branch) = command::current_branch(&repository)? {
+        println!(
+            "Checking remote branch {} -> {}\n",
+            current_branch.name, current_branch.commit_id
+        );
+        repo_status.print_stdout();
+    } else {
+        let head = command::head_commit(&repository)?;
+        println!(
+            "You are in 'detached HEAD' state.\nHEAD is now at {} {}\nYou cannot query remote status unless you are on a branch.",
+            head.id, head.message
+        );
+    }
+
+    Ok(())
+}
+
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     command::df(input, opts)?;
     Ok(())

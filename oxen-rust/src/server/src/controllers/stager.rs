@@ -694,7 +694,14 @@ fn get_dir_status_for_branch(
 ) -> HttpResponse {
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
-            let branch_repo = index::remote_dir_stager::init_or_get(repo, &branch).unwrap();
+            let branch_repo = match index::remote_dir_stager::init_or_get(repo, &branch) {
+                Ok(repo) => repo,
+                Err(err) => {
+                    log::error!("Error getting branch repo for branch {:?} -> {err}", branch);
+                    return HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error());
+                }
+            };
             log::debug!("GOT BRANCH REPO {:?}", branch_repo.path);
             match index::remote_dir_stager::list_staged_data(repo, &branch_repo, &branch) {
                 Ok(staged) => {
