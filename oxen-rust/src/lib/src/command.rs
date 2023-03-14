@@ -9,6 +9,7 @@ use crate::constants;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::oxenignore;
+use crate::index::remote_stager;
 use crate::index::SchemaIndexReader;
 use crate::index::{self, differ};
 use crate::index::{
@@ -155,7 +156,15 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
     Ok(status)
 }
 
-/// # Get status of files in repository
+pub async fn remote_status(
+    repository: &LocalRepository,
+    skip: usize,
+    limit: usize,
+) -> Result<StagedData, OxenError> {
+    remote_stager::status(repository, skip, limit).await
+}
+
+/// # Stage files into repository
 ///
 /// ```
 /// use liboxen::command;

@@ -109,7 +109,7 @@ pub fn remote(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn status(sub_matches: &ArgMatches) {
+pub async fn status(sub_matches: &ArgMatches) {
     let skip: usize = sub_matches
         .value_of("skip")
         .unwrap_or("0")
@@ -122,10 +122,19 @@ pub fn status(sub_matches: &ArgMatches) {
         .expect("Limit must be a valid integer.");
     let print_all = sub_matches.is_present("print_all");
 
-    match dispatch::status(skip, limit, print_all) {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}");
+    if sub_matches.is_present("remote") {
+        match dispatch::remote_status(skip, limit).await {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}");
+            }
+        }
+    } else {
+        match dispatch::status(skip, limit, print_all) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}");
+            }
         }
     }
 }
