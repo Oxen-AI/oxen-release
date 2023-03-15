@@ -202,6 +202,29 @@ pub async fn commit_staged(
     }
 }
 
+pub async fn rm_staged_file(
+    remote_repo: &RemoteRepository,
+    branch_name: &str,
+    path: PathBuf,
+) -> Result<(), OxenError> {
+    let file_name = path.to_string_lossy();
+    let uri = format!("/staging/file/{branch_name}/{file_name}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("rm_staged_file {}", url);
+    let client = reqwest::Client::new();
+    match client.delete(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("rm_staged_file got body: {}", body);
+            Ok(())
+        }
+        Err(err) => {
+            let err = format!("rm_staged_file Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -298,6 +321,46 @@ mod tests {
             .await?;
             assert_eq!(entries.added_files.entries.len(), 1);
             assert_eq!(entries.added_files.total_entries, 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_rm_staged_file() -> Result<(), OxenError> {
+        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            assert_eq!(branch.name, branch_name);
+
+            let directory_name = "images";
+            let path = test::test_jpeg_file().to_path_buf();
+            let result =
+                api::remote::staging::stage_file(&remote_repo, branch_name, directory_name, path)
+                    .await;
+            assert!(result.is_ok());
+
+            // Remove the file
+            let result =
+                api::remote::staging::rm_staged_file(&remote_repo, branch_name, result.unwrap())
+                    .await;
+            assert!(result.is_ok());
+
+            // Make sure we have 0 files staged
+            let page_num = constants::DEFAULT_PAGE_NUM;
+            let page_size = constants::DEFAULT_PAGE_SIZE;
+            let path = Path::new(directory_name);
+            let entries = api::remote::staging::list_staging_dir(
+                &remote_repo,
+                branch_name,
+                path,
+                page_num,
+                page_size,
+            )
+            .await?;
+            assert_eq!(entries.added_files.entries.len(), 0);
+            assert_eq!(entries.added_files.total_entries, 0);
 
             Ok(remote_repo)
         })
