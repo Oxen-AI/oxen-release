@@ -147,6 +147,7 @@ pub fn commit_staged(
     };
     log::debug!("commit_staged: new_commit: {:#?}", &new_commit);
 
+    // This should copy all the files over from the staging dir to the versions dir
     let commit = commit_writer.commit_from_new(
         &new_commit,
         &mut status,
@@ -181,7 +182,6 @@ fn status_for_branch(
     let status = stager.status(&reader)?;
     log::debug!("commit_staged after status...");
     status.print_stdout();
-    stager.unstage()?;
 
     Ok(status)
 }

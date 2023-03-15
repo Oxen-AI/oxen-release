@@ -202,31 +202,19 @@ pub fn merge(branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
+pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
-    if args.len() != 2 {
-        let err = err_str.to_string();
-        return Err(OxenError::Basic(err));
+    if is_remote {
+        println!("Committing to remote with message: {message}");
+        command::remote_commit(&repo, message).await?;
+    } else {
+        println!("Committing with message: {message}");
+        command::commit(&repo, message)?;
     }
 
-    let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
-    let flag = args[0];
-    let value = args[1];
-    match flag.to_str().unwrap() {
-        "-m" => {
-            let message = value.to_str().unwrap_or_default();
-            println!("Committing with message: {message}");
-            command::commit(&repo, message)?;
-            Ok(())
-        }
-        _ => {
-            eprintln!("{err_str}");
-            Err(OxenError::basic_str(err_str))
-        }
-    }
+    Ok(())
 }
 
 pub fn log_commits() -> Result<(), OxenError> {
