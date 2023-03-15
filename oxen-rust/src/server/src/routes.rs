@@ -101,6 +101,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/staging/file/{resource:.*}",
         web::delete().to(controllers::stager::delete_file),
     )
+    // TODO: delete "dir" from staging to recursively unstage a dir
+    // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
     .route(
         "/{namespace}/{repo_name}/staging/df/{resource:.*}",
         web::get().to(controllers::stager::df_file),
@@ -113,9 +115,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/staging/commit/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
-
-    // TODO: delete from staging
-
     // ----- Stats ----- //
     .route(
         "/{namespace}/{repo_name}/stats",
