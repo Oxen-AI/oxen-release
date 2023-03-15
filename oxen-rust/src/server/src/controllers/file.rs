@@ -162,7 +162,7 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
                                 size: meta.len(),
                                 latest_commit: Some(latest_commit),
                                 datatype: util::fs::file_datatype(&version_path),
-                                resource,
+                                resource: Some(resource),
                             },
                         };
                         HttpResponse::Ok().json(meta)

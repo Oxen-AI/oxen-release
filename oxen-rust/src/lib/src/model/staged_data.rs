@@ -23,6 +23,25 @@ pub const MSG_OXEN_SHOW_SCHEMA_STAGED: &str =
     "  (use \"oxen schemas show <HASH> --staged\" to view staged schema)\n";
 
 #[derive(Debug, Clone)]
+pub struct StagedDataOpts {
+    pub skip: usize,
+    pub limit: usize,
+    pub print_all: bool,
+    pub is_remote: bool,
+}
+
+impl Default for StagedDataOpts {
+    fn default() -> StagedDataOpts {
+        StagedDataOpts {
+            skip: 0,
+            limit: 10,
+            print_all: false,
+            is_remote: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct StagedData {
     pub added_dirs: SummarizedStagedDirStats,
     pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
@@ -87,7 +106,7 @@ impl StagedData {
     /// * `limit` - Max number of files to show
     /// * `print_all` - If true, ignores skip and limit and prints everything
     ///
-    fn __collect_outputs(&self, skip: usize, limit: usize, print_all: bool) -> Vec<ColoredString> {
+    fn __collect_outputs(&self, opts: &StagedDataOpts) -> Vec<ColoredString> {
         let mut outputs: Vec<ColoredString> = vec![];
 
         if self.is_clean() {
@@ -95,31 +114,29 @@ impl StagedData {
             return outputs;
         }
 
-        self.__collect_added_dirs(&mut outputs, skip, limit, print_all);
-        self.__collect_added_files(&mut outputs, skip, limit, print_all);
-        self.__collect_added_schemas(&mut outputs, skip, limit, print_all);
-        self.__collect_modified_files(&mut outputs, skip, limit, print_all);
-        self.__collect_merge_conflicts(&mut outputs, skip, limit, print_all);
-        self.__collect_untracked_dirs(&mut outputs, skip, limit, print_all);
-        self.__collect_untracked_files(&mut outputs, skip, limit, print_all);
-        self.__collect_removed_files(&mut outputs, skip, limit, print_all);
+        self.__collect_added_dirs(&mut outputs, opts);
+        self.__collect_added_files(&mut outputs, opts);
+        self.__collect_added_schemas(&mut outputs, opts);
+        self.__collect_modified_files(&mut outputs, opts);
+        self.__collect_merge_conflicts(&mut outputs, opts);
+        self.__collect_untracked_dirs(&mut outputs, opts);
+        self.__collect_untracked_files(&mut outputs, opts);
+        self.__collect_removed_files(&mut outputs, opts);
 
         outputs
     }
 
     pub fn print_stdout(&self) {
-        let skip: usize = 0;
-        let limit: usize = 10;
-        let print_all = false;
-        let outputs = self.__collect_outputs(skip, limit, print_all);
+        let opts = StagedDataOpts::default();
+        let outputs = self.__collect_outputs(&opts);
 
         for output in outputs {
             print!("{output}")
         }
     }
 
-    pub fn print_stdout_with_params(&self, skip: usize, limit: usize, print_all: bool) {
-        let outputs = self.__collect_outputs(skip, limit, print_all);
+    pub fn print_stdout_with_params(&self, opts: &StagedDataOpts) {
+        let outputs = self.__collect_outputs(opts);
 
         for output in outputs {
             print!("{output}")
@@ -129,9 +146,7 @@ impl StagedData {
     pub fn __collect_merge_conflicts(
         &self,
         outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
+        opts: &StagedDataOpts,
     ) {
         if self.merge_conflicts.is_empty() {
             return;
@@ -167,19 +182,12 @@ impl StagedData {
                 ]
             },
             outputs,
-            skip,
-            limit,
-            print_all,
+            opts,
         );
+        outputs.push("\n".normal());
     }
 
-    fn __collect_added_dirs(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_added_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         let mut dirs: Vec<Vec<ColoredString>> = vec![];
         for (path, staged_dirs) in self.added_dirs.paths.iter() {
             let mut dir_row: Vec<ColoredString> = vec![];
@@ -221,16 +229,11 @@ impl StagedData {
         }
 
         outputs.push("Directories to be committed\n".normal());
-        self.__collapse_outputs(&dirs, |dir| dir.to_vec(), outputs, skip, limit, print_all);
+        self.__collapse_outputs(&dirs, |dir| dir.to_vec(), outputs, opts);
+        outputs.push("\n".normal());
     }
 
-    fn __collect_added_files(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_added_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         if self.added_files.is_empty() {
             return;
         }
@@ -265,19 +268,19 @@ impl StagedData {
                 }
             },
             outputs,
-            skip,
-            limit,
-            print_all,
+            opts,
         );
+
+        // TODO: Can this be more generic?
+        let total = self.added_dirs.num_files_staged;
+        if opts.is_remote && total > opts.limit {
+            let remaining = total - opts.limit;
+            outputs.push(format!("  ... and {remaining} others\n").normal());
+        }
+        outputs.push("\n".normal());
     }
 
-    fn __collect_added_schemas(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_added_schemas(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         if self.added_schemas.is_empty() {
             return;
         }
@@ -303,19 +306,11 @@ impl StagedData {
                 ]
             },
             outputs,
-            skip,
-            limit,
-            print_all,
+            opts,
         );
     }
 
-    fn __collect_modified_files(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_modified_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         if self.modified_files.is_empty() {
             // nothing to print
             return;
@@ -336,19 +331,12 @@ impl StagedData {
                 ]
             },
             outputs,
-            skip,
-            limit,
-            print_all,
+            opts,
         );
+        outputs.push("\n".normal());
     }
 
-    fn __collect_removed_files(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_removed_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         if self.removed_files.is_empty() {
             // nothing to print
             return;
@@ -369,19 +357,12 @@ impl StagedData {
                 ]
             },
             outputs,
-            skip,
-            limit,
-            print_all,
+            opts,
         );
+        outputs.push("\n".normal());
     }
 
-    fn __collect_untracked_dirs(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_untracked_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         // List untracked files
         if !self.untracked_dirs.is_empty() {
             outputs.push("Untracked Directories\n".normal());
@@ -409,20 +390,13 @@ impl StagedData {
                     ]
                 },
                 outputs,
-                skip,
-                limit,
-                print_all,
-            )
+                opts,
+            );
+            outputs.push("\n".normal());
         }
     }
 
-    fn __collect_untracked_files(
-        &self,
-        outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
-    ) {
+    fn __collect_untracked_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         // List untracked files
         if !self.untracked_files.is_empty() {
             outputs.push("Untracked Files\n".normal());
@@ -435,10 +409,9 @@ impl StagedData {
                 &files,
                 |f| vec![format!("  {}\n", f.to_str().unwrap()).red().bold()],
                 outputs,
-                skip,
-                limit,
-                print_all,
-            )
+                opts,
+            );
+            outputs.push("\n".normal());
         }
     }
 
@@ -447,9 +420,7 @@ impl StagedData {
         inputs: &Vec<T>,
         to_components: F,
         outputs: &mut Vec<ColoredString>,
-        skip: usize,
-        limit: usize,
-        print_all: bool,
+        opts: &StagedDataOpts,
     ) where
         F: Fn(&T) -> Vec<ColoredString>,
     {
@@ -457,24 +428,22 @@ impl StagedData {
             return;
         }
 
-        let total = skip + limit;
+        let total = opts.skip + opts.limit;
         for (i, input) in inputs.iter().enumerate() {
-            if i < skip && !print_all {
+            if i < opts.skip && !opts.print_all {
                 continue;
             }
-            if i >= total && !print_all {
+            if i >= total && !opts.print_all {
                 break;
             }
             let mut components = to_components(input);
             outputs.append(&mut components);
         }
 
-        if inputs.len() > limit && !print_all {
-            let remaining = inputs.len() - limit;
+        if inputs.len() > opts.limit && !opts.print_all {
+            let remaining = inputs.len() - opts.limit;
             outputs.push(format!("  ... and {remaining} others\n").normal());
         }
-
-        outputs.push("\n".normal());
     }
 
     pub fn item_str_plural(n: usize) -> String {
@@ -501,7 +470,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::model::staged_data::{
-        MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE,
+        StagedDataOpts, MSG_CLEAN_REPO, MSG_OXEN_ADD_DIR_EXAMPLE, MSG_OXEN_ADD_FILE_EXAMPLE,
         MSG_OXEN_RESTORE_STAGED_FILE, MSG_OXEN_RM_FILE_EXAMPLE,
     };
     use crate::model::StagedEntryStatus;
@@ -510,8 +479,8 @@ mod tests {
     #[test]
     fn test_staged_data_collect_clean_repo() {
         let staged_data = StagedData::empty();
-
-        let outputs = staged_data.__collect_outputs(0, 10, false);
+        let opts = StagedDataOpts::default();
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs.len(), 1);
         assert_eq!(outputs[0].to_string(), MSG_CLEAN_REPO);
     }
@@ -540,8 +509,8 @@ mod tests {
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
 
-        let num_to_print = 3;
-        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        let opts = StagedDataOpts { limit: 3, ..StagedDataOpts::default() };
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Files to be committed\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
         assert_eq!(outputs[2], "  new file: ".green());
@@ -577,8 +546,8 @@ mod tests {
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
 
-        let num_to_print = 3;
-        let outputs = staged_data.__collect_outputs(2, num_to_print, false);
+        let opts = StagedDataOpts { limit: 3, skip: 2, ..StagedDataOpts::default() };
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Files to be committed\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
         assert_eq!(outputs[2], "  new file: ".green());
@@ -609,8 +578,8 @@ mod tests {
             .untracked_files
             .push(PathBuf::from("file_5.jpg"));
 
-        let num_to_print = 3;
-        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        let opts = StagedDataOpts { limit: 3, ..StagedDataOpts::default() };
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Files\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_FILE_EXAMPLE.normal());
         assert_eq!(outputs[2], "  file_1.jpg\n".red().bold());
@@ -638,7 +607,8 @@ mod tests {
             .untracked_files
             .push(PathBuf::from("file_5.jpg"));
 
-        let outputs = staged_data.__collect_outputs(0, 0, true);
+        let opts = StagedDataOpts { print_all: true, ..StagedDataOpts::default() };
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Files\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_FILE_EXAMPLE.normal());
         assert_eq!(outputs[2], "  file_1.jpg\n".red().bold());
@@ -659,8 +629,8 @@ mod tests {
             .untracked_dirs
             .push((PathBuf::from("annotations"), 1));
 
-        let num_to_print = 3;
-        let outputs = staged_data.__collect_outputs(0, num_to_print, false);
+        let opts = StagedDataOpts { limit: 3, ..StagedDataOpts::default() };
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Directories\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_DIR_EXAMPLE.normal());
         assert_eq!(outputs[2], "  annotations/ ".red().bold());
@@ -676,7 +646,8 @@ mod tests {
         let mut staged_data = StagedData::empty();
         staged_data.removed_files.push(PathBuf::from("README.md"));
 
-        let outputs = staged_data.__collect_outputs(0, 0, true);
+        let opts = StagedDataOpts::default();
+        let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Removed Files\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RM_FILE_EXAMPLE.normal());
         assert_eq!(outputs[2], "  removed: ".red());

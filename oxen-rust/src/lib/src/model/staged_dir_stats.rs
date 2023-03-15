@@ -1,10 +1,12 @@
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use super::StagedEntryStatus;
 
 // Used for a quick summary of directory
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StagedDirStats {
     pub path: PathBuf,
     pub num_files_staged: usize,

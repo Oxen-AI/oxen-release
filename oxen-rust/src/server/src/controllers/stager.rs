@@ -5,8 +5,7 @@ use liboxen::compute::commit_cacher;
 use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::{Branch, CommitBody, CommitEntry, DirEntry, LocalRepository, Schema};
-use liboxen::view::entry::ResourceVersion;
+use liboxen::model::{Branch, CommitBody, CommitEntry, LocalRepository, Schema};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
@@ -14,8 +13,7 @@ use liboxen::view::remote_staged_status::{
     StagedDFModifications, StagedFileModResponse,
 };
 use liboxen::view::{
-    CommitResponse, FilePathsResponse, JsonDataFrame, PaginatedDirEntries,
-    RemoteStagedStatusResponse, StatusMessage,
+    CommitResponse, FilePathsResponse, JsonDataFrame, RemoteStagedStatusResponse, StatusMessage,
 };
 use liboxen::{api, constants, index, util};
 
@@ -51,8 +49,8 @@ pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> Ht
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, _))) => {
-                get_dir_status_for_branch(&repo, &branch_name, page_num, page_size)
+            Ok(Some((_, branch_name, directory))) => {
+                get_dir_status_for_branch(&repo, &branch_name, &directory, page_num, page_size)
             }
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
@@ -689,6 +687,7 @@ fn raw_mods_response(
 fn get_dir_status_for_branch(
     repo: &LocalRepository,
     branch_name: &str,
+    directory: &Path,
     page_num: usize,
     page_size: usize,
 ) -> HttpResponse {
@@ -702,42 +701,27 @@ fn get_dir_status_for_branch(
                         .json(StatusMessage::internal_server_error());
                 }
             };
-            log::debug!("GOT BRANCH REPO {:?}", branch_repo.path);
-            match index::remote_dir_stager::list_staged_data(repo, &branch_repo, &branch) {
+            log::debug!(
+                "GOT BRANCH REPO {:?} and DIR {:?}",
+                branch_repo.path,
+                directory
+            );
+            match index::remote_dir_stager::list_staged_data(repo, &branch_repo, &branch, directory)
+            {
                 Ok(staged) => {
                     staged.print_stdout();
-                    let entries: Vec<DirEntry> = staged
-                        .added_files
-                        .keys()
-                        .map(|path| {
-                            let full_path =
-                                index::remote_dir_stager::branch_staging_dir(repo, &branch)
-                                    .join(path);
-                            let meta = std::fs::metadata(&full_path).unwrap();
-                            let path_str = path.to_string_lossy().to_string();
-
-                            DirEntry {
-                                filename: path_str.to_owned(),
-                                is_dir: false,
-                                size: meta.len(),
-                                latest_commit: None,
-                                datatype: util::fs::file_datatype(&full_path),
-                                resource: ResourceVersion {
-                                    path: path_str,
-                                    version: branch_name.to_owned(),
-                                },
-                            }
-                        })
-                        .collect();
-
-                    let added_paginated = paginate_entries(entries, page_num, page_size);
+                    let full_path = index::remote_dir_stager::branch_staging_dir(repo, &branch);
+                    let branch_repo = LocalRepository::new(&full_path).unwrap();
 
                     let response = RemoteStagedStatusResponse {
                         status: STATUS_SUCCESS.to_string(),
                         status_message: MSG_RESOURCE_FOUND.to_string(),
-                        staged: RemoteStagedStatus {
-                            added_files: added_paginated,
-                        },
+                        staged: RemoteStagedStatus::from_staged(
+                            &branch_repo,
+                            &staged,
+                            page_num,
+                            page_size,
+                        ),
                     };
                     HttpResponse::Ok().json(response)
                 }
@@ -759,24 +743,5 @@ fn get_dir_status_for_branch(
             log::error!("Error getting branch by name {branch_name} -> {err}");
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
-    }
-}
-
-fn paginate_entries(
-    entries: Vec<DirEntry>,
-    page_number: usize,
-    page_size: usize,
-) -> PaginatedDirEntries {
-    let total_entries = entries.len();
-    let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
-    let paginated = util::paginate(entries, page_number, page_size);
-
-    PaginatedDirEntries {
-        entries: paginated,
-        page_number,
-        page_size,
-        total_pages,
-        total_entries,
-        resource: None,
     }
 }
