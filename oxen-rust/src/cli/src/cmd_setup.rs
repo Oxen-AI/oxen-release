@@ -289,6 +289,25 @@ pub fn add() -> Command<'static> {
         )
 }
 
+pub fn commit() -> Command<'static> {
+    Command::new(COMMIT)
+        .about("Commit the staged files to the repository")
+        .arg(
+            Arg::new("message")
+                .help("Use the given <message> as the commit message.")
+                .long("message")
+                .short('m')
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("If present, will commit the remotely staged data to current branch you are on.")
+                .takes_value(false),
+        )
+}
+
 pub fn rm() -> Command<'static> {
     Command::new(RM)
         .about("Removes the specified files from the index")

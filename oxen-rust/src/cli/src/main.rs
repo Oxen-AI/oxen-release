@@ -32,7 +32,7 @@ async fn main() {
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::branch())
         .subcommand(cmd_setup::merge())
-        .subcommand(cmd_setup::merge())
+        .subcommand(cmd_setup::commit())
         .subcommand(cmd_setup::clone())
         .subcommand(cmd_setup::inspect_kv_db())
         .subcommand(cmd_setup::push())
@@ -64,7 +64,7 @@ async fn main() {
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches),
         Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
-        Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches),
+        Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches).await,
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
         Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),

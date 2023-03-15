@@ -228,6 +228,7 @@ pub async fn rm_staged_file(
 #[cfg(test)]
 mod tests {
 
+    use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::{CommitBody, User};
@@ -399,6 +400,72 @@ mod tests {
             assert_eq!(entries.added_files.total_entries, 2);
 
             Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_staged_single_file_and_pull() -> Result<(), OxenError> {
+        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            let branch_name = "add-data";
+            let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            assert_eq!(branch.name, branch_name);
+
+            let file_to_post = test::test_jpeg_file().to_path_buf();
+            let directory_name = "data";
+            let result = api::remote::staging::stage_file(
+                &remote_repo,
+                branch_name,
+                directory_name,
+                file_to_post,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            let body = CommitBody {
+                message: "Add one image".to_string(),
+                user: User {
+                    name: "Test User".to_string(),
+                    email: "test@oxen.ai".to_string(),
+                },
+            };
+            let commit =
+                api::remote::staging::commit_staged(&remote_repo, branch_name, &body).await?;
+
+            let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
+            assert!(remote_commit.is_some());
+            assert_eq!(commit.id, remote_commit.unwrap().id);
+
+            let remote_repo_cloned = remote_repo.clone();
+            test::run_empty_dir_test_async(|cloned_repo_dir| async move {
+                // Clone repo
+                let shallow = false;
+                let cloned_repo =
+                    command::clone(&remote_repo.remote.url, &cloned_repo_dir, shallow).await?;
+
+                // Make sure that image is not on main branch
+                let path = cloned_repo
+                    .path
+                    .join(directory_name)
+                    .join(test::test_jpeg_file().file_name().unwrap());
+                assert!(!path.exists());
+
+                // Pull the branch with new data
+                command::pull_remote_branch(&cloned_repo, DEFAULT_REMOTE_NAME, "add-data").await?;
+
+                // We should have the commit locally
+                let log = command::log(&cloned_repo)?;
+                assert_eq!(log.first().unwrap().id, commit.id);
+
+                // The file should exist locally
+                println!("Looking for file at path: {:?}", path);
+                assert!(path.exists());
+
+                Ok(cloned_repo_dir)
+            })
+            .await?;
+
+            Ok(remote_repo_cloned)
         })
         .await
     }

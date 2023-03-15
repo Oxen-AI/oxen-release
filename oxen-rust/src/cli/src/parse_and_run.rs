@@ -450,13 +450,11 @@ pub async fn clone(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn commit(sub_matches: &ArgMatches) {
-    let args = sub_matches
-        .values_of_os("")
-        .unwrap_or_default()
-        .collect::<Vec<_>>();
+pub async fn commit(sub_matches: &ArgMatches) {
+    let message = sub_matches.value_of("message").expect("required");
+    let is_remote = sub_matches.is_present("remote");
 
-    match dispatch::commit(args) {
+    match dispatch::commit(message, is_remote).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

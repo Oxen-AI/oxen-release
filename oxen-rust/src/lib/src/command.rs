@@ -5,6 +5,7 @@
 
 use crate::api;
 use crate::compute;
+use crate::config::UserConfig;
 use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::df::{df_opts::DFOpts, tabular};
@@ -19,7 +20,9 @@ use crate::index::{
 };
 use crate::model::schema;
 use crate::model::staged_data::StagedDataOpts;
+use crate::model::CommitBody;
 use crate::model::Schema;
+use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::RestoreOpts;
@@ -430,6 +433,30 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
         return Ok(None);
     }
     let commit = api::local::commits::commit(repo, &mut status, message)?;
+    Ok(Some(commit))
+}
+
+/// # Commit changes that are staged on the remote repository
+pub async fn remote_commit(
+    repo: &LocalRepository,
+    message: &str,
+) -> Result<Option<Commit>, OxenError> {
+    let branch = current_branch(repo)?;
+    if branch.is_none() {
+        return Err(OxenError::basic_str("Must be on branch."));
+    }
+    let branch = branch.unwrap();
+
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let cfg = UserConfig::get()?;
+    let body = CommitBody {
+        message: message.to_string(),
+        user: User {
+            name: cfg.name,
+            email: cfg.email,
+        },
+    };
+    let commit = api::remote::staging::commit_staged(&remote_repo, &branch.name, &body).await?;
     Ok(Some(commit))
 }
 

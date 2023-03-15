@@ -157,7 +157,9 @@ impl CommitWriter {
             commit.message
         );
 
+        // TODO this is hacky....branch is not what we should rely on to determine if we should apply mods
         if let Some(branch) = &branch {
+            // Also we should copy over entries from branch here...? Where do we actually save the versions?
             let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
             log::debug!(
                 "commit_from_new listing entries {} -> {}",
@@ -318,6 +320,7 @@ impl CommitWriter {
         commit: &Commit,
         status: &StagedData,
         origin_path: &Path,
+        // TODO: better way to handle remote vs local commits...this optional branch is not clear
         branch: Option<Branch>, // optional branch because usually we just want to commit off of HEAD
     ) -> Result<(), OxenError> {
         // Write entries
@@ -332,6 +335,7 @@ impl CommitWriter {
         self.add_commit_to_db(commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
+        // TODO: make this clearer why having a branch matters, it has to do with our remote commit workflow
         if let Some(branch) = branch {
             log::debug!(
                 "add_commit_from_status got branch {} updating branch commit id {}",
@@ -339,8 +343,9 @@ impl CommitWriter {
                 commit.id
             );
             ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
+        } else {
+            ref_writer.set_head_commit_id(&commit.id)?;
         }
-        ref_writer.set_head_commit_id(&commit.id)?;
 
         Ok(())
     }
