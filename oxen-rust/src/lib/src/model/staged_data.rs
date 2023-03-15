@@ -509,7 +509,10 @@ mod tests {
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
 
-        let opts = StagedDataOpts { limit: 3, ..StagedDataOpts::default() };
+        let opts = StagedDataOpts {
+            limit: 3,
+            ..StagedDataOpts::default()
+        };
         let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Files to be committed\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
@@ -546,7 +549,11 @@ mod tests {
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
 
-        let opts = StagedDataOpts { limit: 3, skip: 2, ..StagedDataOpts::default() };
+        let opts = StagedDataOpts {
+            limit: 3,
+            skip: 2,
+            ..StagedDataOpts::default()
+        };
         let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Files to be committed\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
@@ -578,7 +585,10 @@ mod tests {
             .untracked_files
             .push(PathBuf::from("file_5.jpg"));
 
-        let opts = StagedDataOpts { limit: 3, ..StagedDataOpts::default() };
+        let opts = StagedDataOpts {
+            limit: 3,
+            ..StagedDataOpts::default()
+        };
         let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Files\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_FILE_EXAMPLE.normal());
@@ -607,7 +617,10 @@ mod tests {
             .untracked_files
             .push(PathBuf::from("file_5.jpg"));
 
-        let opts = StagedDataOpts { print_all: true, ..StagedDataOpts::default() };
+        let opts = StagedDataOpts {
+            print_all: true,
+            ..StagedDataOpts::default()
+        };
         let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Files\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_FILE_EXAMPLE.normal());
@@ -629,7 +642,10 @@ mod tests {
             .untracked_dirs
             .push((PathBuf::from("annotations"), 1));
 
-        let opts = StagedDataOpts { limit: 3, ..StagedDataOpts::default() };
+        let opts = StagedDataOpts {
+            limit: 3,
+            ..StagedDataOpts::default()
+        };
         let outputs = staged_data.__collect_outputs(&opts);
         assert_eq!(outputs[0], "Untracked Directories\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_ADD_DIR_EXAMPLE.normal());

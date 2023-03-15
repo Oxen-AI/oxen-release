@@ -167,19 +167,18 @@ async fn save_parts(
         let upload_filename = content_disposition
             .get_filename()
             .map_or_else(|| Uuid::new_v4().to_string(), sanitize_filename::sanitize);
-        let upload_extension = upload_filename.split('.').last().unwrap_or("");
+
+        log::debug!("Got uploaded file name: {upload_filename:?}");
 
         let staging_dir = index::remote_dir_stager::branch_staging_dir(repo, branch);
-        let uuid = Uuid::new_v4();
-        let filename = format!("{uuid}.{upload_extension}");
         let full_dir = staging_dir.join(directory);
 
         if !full_dir.exists() {
             std::fs::create_dir_all(&full_dir)?;
         }
 
-        let filepath = full_dir.join(&filename);
-        let filepath_cpy = full_dir.join(&filename);
+        let filepath = full_dir.join(&upload_filename);
+        let filepath_cpy = full_dir.join(&upload_filename);
         log::debug!("stager::save_file writing file to {:?}", filepath);
 
         // File::create is blocking operation, use threadpool
@@ -314,6 +313,7 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
                         let branch_repo =
                             index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
                         let files = save_parts(&repo, &branch, &directory, payload).await?;
+                        let mut ret_files = vec![];
                         for file in files.iter() {
                             log::debug!("stager::stage file {:?}", file);
                             match index::remote_dir_stager::stage_file(
@@ -327,6 +327,7 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
                                         "stager::stage ✅ success! staged file {:?}",
                                         file_path
                                     );
+                                    ret_files.push(file_path);
                                 }
                                 Err(err) => {
                                     log::error!("unable to stage file {:?}. Err: {}", file, err);
@@ -339,7 +340,7 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
                         Ok(HttpResponse::Ok().json(FilePathsResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_CREATED),
-                            paths: files,
+                            paths: ret_files,
                         }))
                     }
                     Ok(None) => {

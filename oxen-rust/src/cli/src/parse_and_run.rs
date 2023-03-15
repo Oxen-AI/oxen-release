@@ -252,14 +252,15 @@ pub fn schemas(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn add(sub_matches: &ArgMatches) {
+pub async fn add(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
         .values_of("files")
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
 
-    match dispatch::add(paths) {
+    let remote = sub_matches.is_present("remote");
+    match dispatch::add(paths, remote).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
