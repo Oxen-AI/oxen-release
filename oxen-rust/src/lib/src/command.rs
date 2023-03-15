@@ -6,6 +6,7 @@
 use crate::api;
 use crate::compute;
 use crate::constants;
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::oxenignore;
@@ -198,6 +199,70 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let reader = CommitDirReader::new(repo, &commit)?;
     let ignore = oxenignore::create(repo);
     stager.add(path.as_ref(), &reader, &ignore)?;
+    Ok(())
+}
+
+pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    // * make sure we are on a branch
+    let branch = current_branch(repo)?;
+    if branch.is_none() {
+        return Err(OxenError::basic_str(
+            "Must be on branch to stage remote changes.",
+        ));
+    }
+
+    // * make sure file is not in .oxenignore
+    let ignore = oxenignore::create(repo);
+    if let Some(ignore) = ignore {
+        if ignore.matched(path, path.is_dir()).is_ignore() {
+            return Ok(());
+        }
+    }
+
+    // * read in file and post it to remote
+    let branch = branch.unwrap();
+    let rb = RemoteBranch {
+        remote: DEFAULT_REMOTE_NAME.to_string(),
+        branch: branch.name.to_owned(),
+    };
+    let remote = repo
+        .get_remote(&rb.remote)
+        .ok_or_else(OxenError::remote_not_set)?;
+
+    log::debug!("Pushing to remote {:?}", remote);
+    // Repo should be created before this step
+    let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
+        Ok(Some(repo)) => repo,
+        Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+        Err(err) => return Err(err),
+    };
+
+    // Post into directory that is also local
+    let directory = path
+        .parent()
+        .ok_or_else(|| OxenError::basic_str("Could not get parent directory"))?;
+
+    let relative = if directory.is_relative() {
+        directory.to_path_buf()
+    } else {
+        util::fs::path_relative_to_dir(directory, &repo.path)?
+    };
+    let directory_name = relative
+        .to_str()
+        .ok_or_else(|| OxenError::basic_str("Could not convert path to string"))?
+        .to_string();
+
+    let result = api::remote::staging::stage_file(
+        &remote_repo,
+        &branch.name,
+        &directory_name,
+        path.to_path_buf(),
+    )
+    .await?;
+
+    println!("{}", result.to_string_lossy());
+
     Ok(())
 }
 

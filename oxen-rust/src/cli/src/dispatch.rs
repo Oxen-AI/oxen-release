@@ -132,12 +132,16 @@ pub fn set_default_host(host: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn add(paths: Vec<PathBuf>) -> Result<(), OxenError> {
+pub async fn add(paths: Vec<PathBuf>, remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     for path in paths {
-        command::add(&repository, path)?;
+        if remote {
+            command::remote_add(&repository, path).await?;
+        } else {
+            command::add(&repository, path)?;
+        }
     }
 
     Ok(())

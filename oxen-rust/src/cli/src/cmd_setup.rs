@@ -281,6 +281,12 @@ pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
         .arg(Arg::new("files").required(true).min_values(1))
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("If present, will add the file to the remote staging area of the current branch you are on.")
+                .takes_value(false),
+        )
 }
 
 pub fn rm() -> Command<'static> {
