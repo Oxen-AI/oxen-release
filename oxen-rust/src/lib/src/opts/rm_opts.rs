@@ -5,6 +5,7 @@ pub struct RmOpts {
     pub path: PathBuf,
     pub staged: bool,
     pub recursive: bool,
+    pub remote: bool,
     // TODO: add `force` flag
 }
 
@@ -15,6 +16,7 @@ impl RmOpts {
             path: path.as_ref().to_owned(),
             staged: false,
             recursive: false,
+            remote: false,
         }
     }
 
@@ -24,6 +26,7 @@ impl RmOpts {
             path: path.as_ref().to_owned(),
             staged: true,
             recursive: false,
+            remote: false,
         }
     }
 
@@ -33,6 +36,7 @@ impl RmOpts {
             path: path.as_ref().to_owned(),
             staged: opts.staged,
             recursive: opts.recursive,
+            remote: opts.remote,
         }
     }
 }

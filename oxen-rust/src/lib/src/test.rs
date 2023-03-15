@@ -276,8 +276,9 @@ where
         path: PathBuf::from("test"),
         recursive: true,
         staged: false,
+        remote: false,
     };
-    command::rm(&local_repo, &rm_opts)?;
+    command::rm(&local_repo, &rm_opts).await?;
     command::commit(&local_repo, "Removing test/")?;
 
     // Add all the files

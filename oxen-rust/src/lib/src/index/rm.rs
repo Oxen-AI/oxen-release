@@ -5,6 +5,7 @@
 //! When --staged is given, the staged content has to match either the tip of the branch or the file on disk,
 //! allowing the file to be removed from just the index.
 
+use crate::api;
 use crate::command;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
@@ -18,15 +19,17 @@ use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    // RmOpts supports --cached, --force, and --recursive
+pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    if opts.remote {
+        return remove_remote(repo, opts).await;
+    }
 
     // Check if it is a directory and -r was provided
     let path = &opts.path;
     let dir_exists = dir_is_staged_or_committed(repo, path)?;
 
     if dir_exists && opts.recursive {
-        return rm_dir(repo, opts);
+        return rm_dir(repo, opts).await;
     }
 
     // Error if is a directory and -r was not provided
@@ -38,10 +41,10 @@ pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     rm_file(repo, opts)
 }
 
-fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     let path = opts.path.as_ref();
     if opts.staged {
-        return remove_staged_dir(repo, path);
+        return remove_staged(repo, opts);
     }
 
     // We can only use `oxen rm` on directories that are committed
@@ -131,6 +134,33 @@ fn rm_file(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
+async fn remove_remote(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    let path = opts.path.as_ref();
+
+    if opts.recursive {
+        panic!("`oxen rm --remote` does not support removing directories yet");
+    } else {
+        remove_remote_staged_file(repo, path).await
+    }
+}
+
+async fn remove_remote_staged_file(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
+    let branch = command::current_branch(repo)?.expect("Must be on branch.");
+    let branch_name = branch.name;
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    api::remote::staging::rm_staged_file(&remote_repo, &branch_name, path.to_path_buf()).await
+}
+
+fn remove_staged(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    let path = opts.path.as_ref();
+
+    if opts.recursive {
+        remove_staged_dir(repo, path)
+    } else {
+        remove_staged_file(repo, path)
+    }
+}
+
 fn remove_staged_file(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
     let stager = Stager::new(repo)?;
     stager.remove_staged_file(path)
@@ -154,9 +184,9 @@ mod tests {
     use crate::test;
     use crate::util;
 
-    #[test]
-    fn test_rm_staged_file() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_rm_staged_file() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Stage the README.md file
             let path = Path::new("README.md");
             command::add(&repo, repo.path.join(path))?;
@@ -166,18 +196,19 @@ mod tests {
             assert!(status.added_files.contains_key(path));
 
             let opts = RmOpts::from_staged_path(path);
-            rm::rm(&repo, &opts)?;
+            rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
             assert_eq!(status.added_files.len(), 0);
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_staged_dir_without_recursive_flag_should_be_error() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_rm_staged_dir_without_recursive_flag_should_be_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Stage the README.md file
             let path = Path::new("train");
             command::add(&repo, repo.path.join(path))?;
@@ -190,17 +221,19 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: false, // This should be an error
+                remote: false,
             };
-            let result = rm::rm(&repo, &opts);
+            let result = rm::rm(&repo, &opts).await;
             assert!(result.is_err());
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_staged_dir() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_rm_staged_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Stage the README.md file
             let path = Path::new("train");
             command::add(&repo, repo.path.join(path))?;
@@ -213,8 +246,9 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: true,
                 recursive: true, // make sure to pass in recursive
+                remote: false,
             };
-            rm::rm(&repo, &opts)?;
+            rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
             status.print_stdout();
@@ -223,16 +257,17 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_file() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+    #[tokio::test]
+    async fn test_rm_file() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Remove the readme
             let path = Path::new("README.md");
 
             let opts = RmOpts::from_path(path);
-            rm::rm(&repo, &opts)?;
+            rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
             status.print_stdout();
@@ -245,11 +280,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_dir_without_recursive_flag_should_be_error() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_rm_dir_without_recursive_flag_should_be_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // Remove the train dir
             let path = Path::new("train");
 
@@ -257,18 +293,20 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: false, // This should be an error
+                remote: false,
             };
 
-            let result = rm::rm(&repo, &opts);
+            let result = rm::rm(&repo, &opts).await;
             assert!(result.is_err());
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_dir_that_is_not_committed_should_throw_error() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+    #[tokio::test]
+    async fn test_rm_dir_that_is_not_committed_should_throw_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
             // The train dir is not committed, so should get an error trying to remove
             let train_dir = Path::new("train");
 
@@ -276,18 +314,20 @@ mod tests {
                 path: train_dir.to_path_buf(),
                 staged: false,
                 recursive: true, // Need to specify recursive
+                remote: false,
             };
 
-            let result = rm::rm(&repo, &opts);
+            let result = rm::rm(&repo, &opts).await;
             assert!(result.is_err());
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_dir_with_modifications_should_throw_error() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+    #[tokio::test]
+    async fn test_rm_dir_with_modifications_should_throw_error() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Remove the train dir
             let train_dir = Path::new("train");
 
@@ -295,6 +335,7 @@ mod tests {
                 path: train_dir.to_path_buf(),
                 staged: false,
                 recursive: true, // Need to specify recursive
+                remote: false,
             };
 
             // copy a cat into the dog image
@@ -308,16 +349,17 @@ mod tests {
             status.print_stdout();
             assert_eq!(status.modified_files.len(), 1);
 
-            let result = rm::rm(&repo, &opts);
+            let result = rm::rm(&repo, &opts).await;
             assert!(result.is_err());
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_dir() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+    #[tokio::test]
+    async fn test_rm_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Remove the train dir
             let path = Path::new("train");
 
@@ -327,8 +369,9 @@ mod tests {
                 path: path.to_path_buf(),
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                remote: false,
             };
-            rm::rm(&repo, &opts)?;
+            rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
             status.print_stdout();
@@ -340,11 +383,12 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 
-    #[test]
-    fn test_rm_subdir() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+    #[tokio::test]
+    async fn test_rm_subdir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Remove the annotations/train subdir
             let path = Path::new("annotations").join("train");
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(&path));
@@ -353,8 +397,9 @@ mod tests {
                 path,
                 staged: false,
                 recursive: true, // Must pass in recursive = true
+                remote: false,
             };
-            rm::rm(&repo, &opts)?;
+            rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
             status.print_stdout();
@@ -366,5 +411,6 @@ mod tests {
 
             Ok(())
         })
+        .await
     }
 }

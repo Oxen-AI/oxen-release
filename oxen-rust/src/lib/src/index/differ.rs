@@ -471,9 +471,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
         })
     }
 
-    #[test]
-    fn test_list_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+    #[tokio::test]
+    async fn test_list_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             let bbox_filename = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -486,7 +486,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             std::fs::remove_file(bbox_file)?;
 
             let opts = RmOpts::from_path(&bbox_filename);
-            command::rm(&repo, &opts)?;
+            command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?.unwrap();
 
             let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
@@ -498,5 +498,6 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             Ok(())
         })
+        .await
     }
 }
