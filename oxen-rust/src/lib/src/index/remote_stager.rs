@@ -4,13 +4,14 @@ use std::path::{Path, PathBuf};
 
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::{LocalRepository, RemoteBranch, StagedData, StagedEntry, StagedEntryStatus};
 use crate::{api, command};
 
 pub async fn status(
     repo: &LocalRepository,
-    skip: usize,
-    limit: usize,
+    directory: &Path,
+    opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
     // Repo should be created before this step
     let branch = command::current_branch(repo)?.expect("Must be on branch.");
@@ -28,19 +29,20 @@ pub async fn status(
         Err(err) => return Err(err),
     };
 
-    let page_size = limit;
-    let page_num = skip / page_size;
+    let page_size = opts.limit;
+    let page_num = opts.skip / page_size;
 
     let staged_files = api::remote::staging::list_staging_dir(
         &remote_repo,
         &branch_name,
-        Path::new("."),
+        directory,
         page_num,
         page_size,
     )
     .await?;
 
     let mut status = StagedData::empty();
+    status.added_dirs = staged_files.added_dirs;
     status.added_files =
         HashMap::from_iter(staged_files.added_files.entries.into_iter().map(|e| {
             (

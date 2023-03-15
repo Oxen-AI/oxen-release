@@ -226,10 +226,10 @@ impl CommitDirReader {
             size: total_size,
             latest_commit,
             datatype: String::from("dir"),
-            resource: ResourceVersion {
+            resource: Some(ResourceVersion {
                 version: branch_or_commit_id.to_string(),
                 path: path.to_str().unwrap().to_string(),
-            },
+            }),
         });
     }
 
@@ -249,10 +249,10 @@ impl CommitDirReader {
             size,
             latest_commit: Some(latest_commit),
             datatype: util::fs::file_datatype(&version_path),
-            resource: ResourceVersion {
+            resource: Some(ResourceVersion {
                 version: branch_or_commit_id.to_string(),
                 path: entry.path.to_str().unwrap().to_string(),
-            },
+            }),
         });
     }
 

@@ -17,6 +17,7 @@ use crate::index::{
     RefReader, RefWriter, Stager,
 };
 use crate::model::schema;
+use crate::model::staged_data::StagedDataOpts;
 use crate::model::Schema;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
@@ -158,10 +159,10 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
 
 pub async fn remote_status(
     repository: &LocalRepository,
-    skip: usize,
-    limit: usize,
+    directory: &Path,
+    opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    remote_stager::status(repository, skip, limit).await
+    remote_stager::status(repository, directory, opts).await
 }
 
 /// # Stage files into repository

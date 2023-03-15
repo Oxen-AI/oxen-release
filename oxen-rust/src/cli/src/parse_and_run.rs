@@ -1,4 +1,5 @@
 use clap::ArgMatches;
+use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RmOpts;
 use liboxen::util;
@@ -121,20 +122,19 @@ pub async fn status(sub_matches: &ArgMatches) {
         .parse::<usize>()
         .expect("Limit must be a valid integer.");
     let print_all = sub_matches.is_present("print_all");
+    let is_remote = sub_matches.is_present("remote");
+    let directory = sub_matches.value_of("directory").map(PathBuf::from);
 
-    if sub_matches.is_present("remote") {
-        match dispatch::remote_status(skip, limit).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}");
-            }
-        }
-    } else {
-        match dispatch::status(skip, limit, print_all) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}");
-            }
+    let opts = StagedDataOpts {
+        skip,
+        limit,
+        print_all,
+        is_remote,
+    };
+    match dispatch::status(directory, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}");
         }
     }
 }

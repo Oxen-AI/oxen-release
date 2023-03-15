@@ -208,13 +208,22 @@ impl Stager {
         dir: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<StagedData, OxenError> {
-        log::debug!("compute_staged_data listing eligable {:?}", dir);
+        log::debug!(
+            "compute_staged_data listing eligible repo -> {:?} dir -> {:?}",
+            self.repository.path,
+            dir
+        );
         let mut staged_data = StagedData::empty();
         let ignore = oxenignore::create(&self.repository);
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
         // Start with candidate dirs from committed and added, not all the dirs
-        let added_dirs = self.list_staged_dirs()?;
+        let mut added_dirs = self.list_staged_dirs()?;
+        // If we specified a dir, only get the added dirs that are in that dir
+        if dir.is_relative() && dir != self.repository.path {
+            added_dirs.retain(|(path, _)| path.starts_with(dir))
+        }
+
         log::debug!("compute_staged_data Got <added> dirs: {}", added_dirs.len());
         for (dir, status) in added_dirs {
             log::debug!("compute_staged_data considering added dir {:?}", dir);
@@ -227,7 +236,10 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        let committed_dirs = entry_reader.list_committed_dirs()?;
+        let mut committed_dirs = entry_reader.list_committed_dirs()?;
+        if dir.is_relative() && dir != self.repository.path {
+            committed_dirs.retain(|path| path.starts_with(dir))
+        }
         log::debug!(
             "compute_staged_data Got <committed> dirs: {}",
             committed_dirs.len()
@@ -413,12 +425,12 @@ impl Stager {
     fn file_is_modified(repo_path: &Path, commit_entry: &CommitEntry) -> bool {
         // Get last modified time
         let full_path = repo_path.join(&commit_entry.path);
-        log::debug!(
-            "CHECKING MODIFIED {:?} -> {:?}",
-            repo_path,
-            commit_entry.path
-        );
-        log::debug!("CHECKING MODIFIED {:?}", full_path);
+        // log::debug!(
+        //     "CHECKING MODIFIED {:?} -> {:?}",
+        //     repo_path,
+        //     commit_entry.path
+        // );
+        // log::debug!("CHECKING MODIFIED {:?}", full_path);
 
         if !full_path.exists() {
             // might have been removed
@@ -428,17 +440,17 @@ impl Stager {
         let metadata = fs::metadata(&full_path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
 
-        log::debug!(
-            "file_is_modified comparing timestamps: {} to {}",
-            commit_entry.last_modified_nanoseconds,
-            mtime.nanoseconds()
-        );
+        // log::debug!(
+        //     "file_is_modified comparing timestamps: {} to {}",
+        //     commit_entry.last_modified_nanoseconds,
+        //     mtime.nanoseconds()
+        // );
 
         if commit_entry.has_different_modification_time(&mtime) {
-            log::debug!(
-                "file_is_modified modification times are different! {:?}",
-                full_path
-            );
+            // log::debug!(
+            //     "file_is_modified modification times are different! {:?}",
+            //     full_path
+            // );
 
             // Then check the hashes, because the data might not be different, timestamp is just an optimization
             let hash = util::hasher::hash_file_contents(&full_path).unwrap();

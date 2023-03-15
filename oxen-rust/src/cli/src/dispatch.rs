@@ -5,7 +5,7 @@ use liboxen::df::df_opts::DFOpts;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
-use liboxen::model::LocalRepository;
+use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
@@ -245,13 +245,18 @@ pub fn log_commits() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenError> {
+pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
+    if opts.is_remote {
+        return remote_status(directory, opts).await;
+    }
+
     // Should we let user call this from any directory and look up for parent?
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
+    let directory = directory.unwrap_or(current_dir);
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let repo_status = command::status_from_dir(&repository, &current_dir)?;
+    let repo_status = command::status_from_dir(&repository, &directory)?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
         println!(
@@ -266,25 +271,26 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
         );
     }
 
-    repo_status.print_stdout_with_params(skip, limit, print_all);
+    repo_status.print_stdout_with_params(opts);
 
     Ok(())
 }
 
-pub async fn remote_status(skip: usize, limit: usize) -> Result<(), OxenError> {
+async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
     // Should we let user call this from any directory and look up for parent?
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let repo_status = command::remote_status(&repository, skip, limit).await?;
+    let directory = directory.unwrap_or(PathBuf::from("."));
+    let repo_status = command::remote_status(&repository, &directory, opts).await?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
         println!(
             "Checking remote branch {} -> {}\n",
             current_branch.name, current_branch.commit_id
         );
-        repo_status.print_stdout();
+        repo_status.print_stdout_with_params(opts);
     } else {
         let head = command::head_commit(&repository)?;
         println!(

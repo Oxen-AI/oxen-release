@@ -9,5 +9,5 @@ pub struct DirEntry {
     pub size: u64,
     pub latest_commit: Option<Commit>,
     pub datatype: String,
-    pub resource: ResourceVersion,
+    pub resource: Option<ResourceVersion>,
 }

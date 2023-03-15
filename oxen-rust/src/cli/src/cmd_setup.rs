@@ -124,6 +124,7 @@ pub fn status() -> Command<'static> {
                 .help("If present, will query the remote status of the current branch you are on.")
                 .takes_value(false),
         )
+        .arg(Arg::new("directory").required(false))
 }
 
 pub fn log() -> Command<'static> {

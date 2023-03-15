@@ -190,21 +190,28 @@ pub fn list_staged_data(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
     branch: &Branch,
+    directory: &Path,
 ) -> Result<StagedData, OxenError> {
     // Stager will be in the branch repo
     let stager = Stager::new(branch_repo)?;
     // But we will read from the commit in the main repo
     log::debug!(
-        "list_staged_data get commit by id {} -> {}",
+        "list_staged_data get commit by id {} -> {} -> {:?}",
         branch.name,
-        branch.commit_id
+        branch.commit_id,
+        directory
     );
     match api::local::commits::get_by_id(repo, &branch.commit_id)? {
         Some(commit) => {
             let reader = CommitDirReader::new(repo, &commit)?;
-            let status = stager.status(&reader)?;
-
-            Ok(status)
+            if Path::new(".") == directory {
+                log::debug!("list_staged_data: status for root");
+                let status = stager.status(&reader)?;
+                Ok(status)
+            } else {
+                let status = stager.status_from_dir(&reader, directory)?;
+                Ok(status)
+            }
         }
         None => Err(OxenError::commit_id_does_not_exist(&branch.commit_id)),
     }
@@ -239,8 +246,12 @@ mod tests {
             index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &full_path)?;
 
             // Verify staged data
-            let staged_data =
-                index::remote_dir_stager::list_staged_data(&repo, &branch_repo, &branch)?;
+            let staged_data = index::remote_dir_stager::list_staged_data(
+                &repo,
+                &branch_repo,
+                &branch,
+                directory,
+            )?;
             staged_data.print_stdout();
             assert_eq!(staged_data.added_files.len(), 1);
 
