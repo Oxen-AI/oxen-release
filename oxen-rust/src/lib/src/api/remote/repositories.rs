@@ -1,10 +1,23 @@
 use crate::api;
 use crate::api::remote::client;
 use crate::command;
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
 use serde_json::json;
+
+pub async fn get_default_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+    let remote = repo
+        .get_remote(DEFAULT_REMOTE_NAME)
+        .ok_or_else(OxenError::remote_not_set)?;
+    let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
+        Ok(Some(repo)) => repo,
+        Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+        Err(err) => return Err(err),
+    };
+    Ok(remote_repo)
+}
 
 pub async fn get_by_remote_repo(
     repo: &RemoteRepository,

@@ -147,13 +147,13 @@ pub async fn add(paths: Vec<PathBuf>, remote: bool) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
+pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     for path in paths {
         let path_opts = RmOpts::from_path_opts(&path, opts);
-        command::rm(&repository, &path_opts)?;
+        command::rm(&repository, &path_opts).await?;
     }
 
     Ok(())

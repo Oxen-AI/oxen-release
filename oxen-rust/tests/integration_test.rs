@@ -2905,9 +2905,9 @@ shape: (3, 6)
     })
 }
 
-#[test]
-fn test_status_rm_regular_file() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|repo| {
+#[tokio::test]
+async fn test_status_rm_regular_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
@@ -2919,7 +2919,7 @@ fn test_status_rm_regular_file() -> Result<(), OxenError> {
         assert_eq!(status.removed_files.len(), 1);
 
         let opts = RmOpts::from_path(&og_basename);
-        command::rm(&repo, &opts)?;
+        command::rm(&repo, &opts).await?;
         let status = command::status(&repo)?;
         status.print_stdout();
 
@@ -2931,11 +2931,12 @@ fn test_status_rm_regular_file() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
-#[test]
-fn test_status_rm_directory_file() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|repo| {
+#[tokio::test]
+async fn test_status_rm_directory_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
@@ -2947,7 +2948,7 @@ fn test_status_rm_directory_file() -> Result<(), OxenError> {
         assert_eq!(status.removed_files.len(), 1);
 
         let opts = RmOpts::from_path(&og_basename);
-        command::rm(&repo, &opts)?;
+        command::rm(&repo, &opts).await?;
         let status = command::status(&repo)?;
         status.print_stdout();
 
@@ -2959,6 +2960,7 @@ fn test_status_rm_directory_file() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
 /// Should be able to use `oxen rm -r` then restore to get files back
@@ -2966,9 +2968,9 @@ fn test_status_rm_directory_file() -> Result<(), OxenError> {
 /// $ oxen rm -r train/
 /// $ oxen restore --staged train/
 /// $ oxen restore train/
-#[test]
-fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_fully_committed(|repo| {
+#[tokio::test]
+async fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         let rm_dir = PathBuf::from("train");
         let full_path = repo.path.join(&rm_dir);
         let num_files = util::fs::rcount_files_in_dir(&full_path);
@@ -2978,8 +2980,9 @@ fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
             path: rm_dir.to_owned(),
             recursive: true,
             staged: false,
+            remote: false,
         };
-        command::rm(&repo, &opts)?;
+        command::rm(&repo, &opts).await?;
 
         // Make sure we staged these removals
         let status = command::status(&repo)?;
@@ -3013,6 +3016,7 @@ fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
 
         Ok(())
     })
+    .await
 }
 
 #[test]

@@ -268,7 +268,7 @@ pub async fn add(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn rm(sub_matches: &ArgMatches) {
+pub async fn rm(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
         .values_of("files")
         .expect("Must supply files")
@@ -280,9 +280,10 @@ pub fn rm(sub_matches: &ArgMatches) {
         path: paths.first().unwrap().to_path_buf(),
         staged: sub_matches.is_present("staged"),
         recursive: sub_matches.is_present("recursive"),
+        remote: sub_matches.is_present("remote"),
     };
 
-    match dispatch::rm(paths, &opts) {
+    match dispatch::rm(paths, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

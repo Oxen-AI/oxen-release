@@ -304,6 +304,12 @@ pub fn rm() -> Command<'static> {
                 .short('r')
                 .help("Recursively removes directory."),
         )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("If present, will remove the file on the remote staging area of the current branch you are on.")
+                .takes_value(false),
+        )
 }
 
 pub fn restore() -> Command<'static> {

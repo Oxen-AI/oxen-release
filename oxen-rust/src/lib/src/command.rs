@@ -267,8 +267,8 @@ pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
 }
 
 /// Removes the path from the index
-pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    index::rm(repo, opts)
+pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    index::rm(repo, opts).await
 }
 
 /// Interact with DataFrames from CLI
