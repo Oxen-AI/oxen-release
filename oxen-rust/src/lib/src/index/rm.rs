@@ -339,7 +339,7 @@ mod tests {
             };
 
             // copy a cat into the dog image
-            std::fs::copy(
+            util::fs::copy(
                 Path::new("data/test/images/cat_1.jpg"),
                 repo.path.join(train_dir.join("dog_1.jpg")),
             )?;

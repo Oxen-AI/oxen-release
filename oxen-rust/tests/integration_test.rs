@@ -1632,7 +1632,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             // Track some more data in the cloned repo
             let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
             let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
-            std::fs::copy(hotdog_path, &new_file_path)?;
+            util::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&cloned_repo, &new_file_path)?;
             command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
 
@@ -1649,7 +1649,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             // Add another file on the OG side, and push it back
             let hotdog_path = Path::new("data/test/images/hotdog_2.jpg");
             let new_file_path = train_path.join("hotdog_2.jpg");
-            std::fs::copy(hotdog_path, &new_file_path)?;
+            util::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&repo, &train_path)?;
             command::commit(&repo, "Adding next file to train dir")?.unwrap();
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
@@ -1685,7 +1685,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         ];
         std::fs::create_dir_all(&train_dir)?;
         for path in train_paths.iter() {
-            std::fs::copy(path, train_dir.join(path.file_name().unwrap()))?;
+            util::fs::copy(path, train_dir.join(path.file_name().unwrap()))?;
         }
 
         command::add(&repo, &train_dir)?;
@@ -1720,7 +1720,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
             // Track some more data in the cloned repo
             let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
             let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
-            std::fs::copy(hotdog_path, &new_file_path)?;
+            util::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&cloned_repo, &new_file_path)?;
             command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
 
@@ -3335,6 +3335,51 @@ async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), Oxen
                 );
                 command::checkout(&cloned_repo, &commit.id).await?;
             }
+
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            let shallow = true;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &repo_dir, shallow).await?;
+
+            let result = command::status(&cloned_repo);
+            assert!(result.is_err());
+
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            let shallow = true;
+            let cloned_repo = command::clone(&remote_repo.remote.url, &repo_dir, shallow).await?;
+
+            let path = cloned_repo.path.join("README.md");
+            util::fs::write_to_path(&path, "# Can't add this")?;
+
+            let result = command::add(&cloned_repo, path);
+            assert!(result.is_err());
 
             Ok(repo_dir)
         })

@@ -27,6 +27,8 @@ pub const CACHE_DIR: &str = "cache";
 pub const STAGED_DIR: &str = "staged";
 /// prefix for the sync status dirs to tell if commits are synced locally
 pub const SYNC_STATUS_DIR: &str = "sync_status";
+/// Flag for if the repository was cloned in a shallow fashion
+pub const SHALLOW_FLAG: &str = "SHALLOW";
 /// prefix for the commit indices
 pub const INDICES_DIR: &str = "indices";
 /// prefix for the schema fields that are indexed

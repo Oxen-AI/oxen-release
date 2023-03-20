@@ -114,6 +114,6 @@ fn restore_regular(
     }
 
     log::debug!("Restore file: {:?}", entry.path);
-    std::fs::copy(version_path, working_path)?;
+    util::fs::copy(version_path, working_path)?;
     Ok(())
 }

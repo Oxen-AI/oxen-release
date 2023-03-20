@@ -202,7 +202,7 @@ impl CommitEntryWriter {
             std::fs::create_dir_all(versions_entry_dir)?;
         }
 
-        std::fs::copy(full_path, versions_entry_path)?;
+        util::fs::copy(full_path, versions_entry_path)?;
 
         Ok(commit_entry)
     }
