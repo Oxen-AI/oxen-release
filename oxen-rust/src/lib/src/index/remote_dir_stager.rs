@@ -73,7 +73,7 @@ pub fn init_local_repo_staging_dir(
         if oxen_dir.is_dir() {
             util::fs::copy_dir_all(oxen_dir, staging_dir)?;
         } else {
-            std::fs::copy(oxen_dir, staging_dir)?;
+            util::fs::copy(oxen_dir, staging_dir)?;
         }
     }
 

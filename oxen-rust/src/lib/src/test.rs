@@ -8,6 +8,7 @@ use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::opts::RmOpts;
+use crate::util;
 
 use env_logger::Env;
 use rand::Rng;
@@ -728,28 +729,28 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     std::fs::create_dir_all(&large_dir)?;
     let large_file_1 = large_dir.join("test.csv");
     let from_file = test_200k_csv();
-    std::fs::copy(from_file, large_file_1)?;
+    util::fs::copy(from_file, large_file_1)?;
 
     // train/
     let train_dir = repo_dir.join("train");
     std::fs::create_dir_all(&train_dir)?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_1.jpg"),
         train_dir.join("dog_1.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_2.jpg"),
         train_dir.join("dog_2.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_3.jpg"),
         train_dir.join("dog_3.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/cat_1.jpg"),
         train_dir.join("cat_1.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/cat_2.jpg"),
         train_dir.join("cat_2.jpg"),
     )?;
@@ -757,11 +758,11 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     // test/
     let test_dir = repo_dir.join("test");
     std::fs::create_dir_all(&test_dir)?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_4.jpg"),
         test_dir.join("1.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/cat_3.jpg"),
         test_dir.join("2.jpg"),
     )?;
@@ -946,7 +947,7 @@ pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, Oxen
         let full_new_path = dir.join(new_path);
 
         // println!("COPY FILE FROM {:?} => {:?}", file_path, full_new_path);
-        std::fs::copy(file_path, &full_new_path)?;
+        util::fs::copy(file_path, &full_new_path)?;
         Ok(full_new_path)
     } else {
         let err = format!("Unknown extension file: {file_path:?}");

@@ -202,7 +202,7 @@ impl CommitWriter {
                 version_path,
                 entry_path
             );
-            std::fs::copy(&version_path, &entry_path)?;
+            util::fs::copy(&version_path, &entry_path)?;
 
             self.apply_mods_to_file(branch, entry, &entry_path)?;
             remote_dir_stager::stage_file(&self.repository, &branch_repo, branch, &entry_path)?;

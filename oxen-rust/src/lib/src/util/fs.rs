@@ -8,7 +8,6 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
-use std::{fs, io};
 use sysinfo::{DiskExt, System, SystemExt};
 
 use crate::api;
@@ -113,7 +112,7 @@ pub fn version_dir_from_hash(repo: &LocalRepository, hash: String) -> PathBuf {
 }
 
 pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
-    match fs::read_to_string(path) {
+    match std::fs::read_to_string(path) {
         Ok(contents) => Ok(contents),
         Err(_) => {
             let err = format!(
@@ -245,10 +244,10 @@ pub fn read_lines_paginated_ret_size(
 
 pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
-    match fs::read_dir(dir) {
+    match std::fs::read_dir(dir) {
         Ok(paths) => {
             for path in paths.flatten() {
-                if fs::metadata(path.path()).unwrap().is_file() {
+                if std::fs::metadata(path.path()).unwrap().is_file() {
                     files.push(path.path());
                 }
             }
@@ -316,18 +315,34 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
-    fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
+pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
+    std::fs::create_dir_all(&dst)?;
+    for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let ty = entry.file_type()?;
         if ty.is_dir() {
             copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
         } else {
-            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
         }
     }
     Ok(())
+}
+
+/// Wrapper around the std::fs::copy command to tell us which file failed to copy
+pub fn copy(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+    match std::fs::copy(src, dst) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            if !src.exists() {
+                Err(OxenError::file_does_not_exist(src))
+            } else {
+                Err(OxenError::file_copy_error(src, dst, err))
+            }
+        }
+    }
 }
 
 pub fn is_tabular(path: &Path) -> bool {
@@ -479,7 +494,7 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
 pub fn count_files_in_dir(dir: &Path) -> usize {
     let mut count: usize = 0;
     if dir.is_dir() {
-        match fs::read_dir(dir) {
+        match std::fs::read_dir(dir) {
             Ok(entries) => {
                 for entry in entries {
                     match entry {
@@ -502,7 +517,7 @@ pub fn count_files_in_dir(dir: &Path) -> usize {
 pub fn count_items_in_dir(dir: &Path) -> usize {
     let mut count: usize = 0;
     if dir.is_dir() {
-        match fs::read_dir(dir) {
+        match std::fs::read_dir(dir) {
             Ok(entries) => {
                 for entry in entries {
                     match entry {
@@ -749,8 +764,8 @@ mod tests {
 
             let test_id_file = repo.path.join("test_id.txt");
             let test_id_file_no_ext = repo.path.join("test_id");
-            std::fs::copy("data/test/text/test_id.txt", &test_id_file)?;
-            std::fs::copy("data/test/text/test_id.txt", &test_id_file_no_ext)?;
+            util::fs::copy("data/test/text/test_id.txt", &test_id_file)?;
+            util::fs::copy("data/test/text/test_id.txt", &test_id_file_no_ext)?;
 
             assert_eq!("text", util::fs::file_datatype(&test_id_file));
             assert_eq!("text", util::fs::file_datatype(&test_id_file_no_ext));

@@ -1,5 +1,6 @@
 use crate::api;
 use crate::constants;
+use crate::constants::SHALLOW_FLAG;
 use crate::error::OxenError;
 use crate::index::EntryIndexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
@@ -249,6 +250,8 @@ impl LocalRepository {
                 repo.remote.url, repo.name, repo.name
             );
         } else {
+            self.write_is_shallow(true)?;
+
             println!(
                 "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin main",
                 repo.remote.url, repo.name, repo.name
@@ -256,6 +259,22 @@ impl LocalRepository {
         }
 
         Ok(())
+    }
+
+    pub fn write_is_shallow(&self, shallow: bool) -> Result<(), OxenError> {
+        let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
+        log::debug!("Write is shallow to path: {shallow_flag_path:?}");
+        if shallow {
+            util::fs::write_to_path(&shallow_flag_path, "true")?;
+        } else if shallow_flag_path.exists() {
+            std::fs::remove_file(&shallow_flag_path)?;
+        }
+        Ok(())
+    }
+
+    pub fn is_shallow_clone(&self) -> bool {
+        let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
+        shallow_flag_path.exists()
     }
 }
 
@@ -323,7 +342,7 @@ mod tests {
                     .await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let shallow = true;
+                let shallow = false;
                 let local_repo =
                     LocalRepository::clone_remote(&remote_repo.remote.url, &dir, shallow)
                         .await?

@@ -112,6 +112,10 @@ impl Stager {
         commit_reader: &CommitDirReader,
         ignore: &Option<Gitignore>,
     ) -> Result<(), OxenError> {
+        if self.repository.is_shallow_clone() {
+            return Err(OxenError::repo_is_shallow());
+        }
+
         if self.should_ignore_path(ignore, path) {
             return Ok(());
         }
@@ -213,6 +217,11 @@ impl Stager {
             self.repository.path,
             dir
         );
+
+        if self.repository.is_shallow_clone() {
+            return Err(OxenError::repo_is_shallow());
+        }
+
         let mut staged_data = StagedData::empty();
         let ignore = oxenignore::create(&self.repository);
 

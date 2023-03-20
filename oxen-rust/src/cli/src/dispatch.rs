@@ -275,14 +275,22 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let directory = directory.unwrap_or(PathBuf::from("."));
-    let repo_status = command::remote_status(&repository, &directory, opts).await?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
-        println!(
-            "Checking remote branch {} -> {}\n",
-            current_branch.name, current_branch.commit_id
-        );
-        repo_status.print_stdout_with_params(opts);
+        let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+        let repo_status =
+            command::remote_status(&remote_repo, &current_branch, &directory, opts).await?;
+        if let Some(remote_branch) =
+            api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
+        {
+            println!(
+                "Checking remote branch {} -> {}\n",
+                remote_branch.name, remote_branch.commit_id
+            );
+            repo_status.print_stdout_with_params(opts);
+        } else {
+            println!("Remote branch '{}' not found", current_branch.name);
+        }
     } else {
         let head = command::head_commit(&repository)?;
         println!(

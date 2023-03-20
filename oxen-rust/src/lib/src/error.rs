@@ -1,5 +1,6 @@
 use std::error;
 use std::fmt;
+use std::fmt::Debug;
 use std::io;
 use std::path::Path;
 
@@ -127,6 +128,19 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn file_copy_error(
+        src: impl AsRef<Path>,
+        dst: impl AsRef<Path>,
+        err: impl Debug,
+    ) -> OxenError {
+        let err = format!(
+            "File copy error: {err:?}\nCould not copy from `{:?}` to `{:?}`",
+            src.as_ref(),
+            dst.as_ref()
+        );
+        OxenError::basic_str(err)
+    }
+
     pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
         path: P,
         commit_id: S,
@@ -182,6 +196,23 @@ impl OxenError {
 
     pub fn unknown_agg_fn<S: AsRef<str>>(name: S) -> OxenError {
         let err = format!("Unknown aggregation function: {:?}", name.as_ref());
+        OxenError::basic_str(err)
+    }
+
+    pub fn repo_is_shallow() -> OxenError {
+        let err = r"
+Cannot perform `oxen status` on a shallow clone.
+
+To fetch data from the remote, run:
+
+    oxen pull origin main
+
+Or you can interact with the remote directly with the --remote flag:
+
+    oxen status --remote
+    oxen add path/to/image.jpg --remote
+    oxen commit -m 'Committing data to remote without ever pulling it locally'
+";
         OxenError::basic_str(err)
     }
 }

@@ -162,11 +162,20 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
 }
 
 pub async fn remote_status(
+    remote_repo: &RemoteRepository,
+    branch: &Branch,
+    directory: &Path,
+    opts: &StagedDataOpts,
+) -> Result<StagedData, OxenError> {
+    remote_stager::status(remote_repo, branch, directory, opts).await
+}
+
+pub async fn remote_status_from_local(
     repository: &LocalRepository,
     directory: &Path,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    remote_stager::status(repository, directory, opts).await
+    remote_stager::status_from_local(repository, directory, opts).await
 }
 
 /// # Stage files into repository

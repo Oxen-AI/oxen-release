@@ -184,13 +184,8 @@ pub async fn download_large_entry(
             std::fs::create_dir_all(parent).expect(&err);
         }
     }
-    match std::fs::copy(&full_path, &version_path) {
-        Ok(_) => {}
-        Err(err) => {
-            let err = format!("Could not copy file {full_path:?} to {version_path:?}: {err}");
-            return Err(OxenError::basic_str(err));
-        }
-    }
+
+    util::fs::copy(&full_path, &version_path)?;
 
     Ok(())
 }
@@ -398,7 +393,7 @@ pub async fn download_entry(
             }
         }
 
-        std::fs::copy(fpath, version_path)?;
+        util::fs::copy(fpath, version_path)?;
     } else {
         let err = format!("Could not download entry status: {status}");
         return Err(OxenError::basic_str(err));
