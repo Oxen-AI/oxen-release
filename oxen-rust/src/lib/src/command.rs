@@ -7,6 +7,7 @@ use crate::api;
 use crate::compute;
 use crate::config::UserConfig;
 use crate::constants;
+use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
@@ -25,6 +26,7 @@ use crate::model::Schema;
 use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
+use crate::opts::CloneOpts;
 use crate::opts::RestoreOpts;
 use crate::opts::RmOpts;
 use crate::util;
@@ -924,10 +926,29 @@ pub async fn push_remote_branch(
 }
 
 /// Clone a repo from a url to a directory
-pub async fn clone(url: &str, dst: &Path, shallow: bool) -> Result<LocalRepository, OxenError> {
-    match LocalRepository::clone_remote(url, dst, shallow).await {
+pub async fn clone(opts: &CloneOpts) -> Result<LocalRepository, OxenError> {
+    match LocalRepository::clone_remote(opts).await {
         Ok(Some(repo)) => Ok(repo),
-        Ok(None) => Err(OxenError::remote_repo_not_found(url)),
+        Ok(None) => Err(OxenError::remote_repo_not_found(&opts.url)),
+        Err(err) => Err(err),
+    }
+}
+
+// To make CloneOpts refactor easier...
+pub async fn clone_remote(
+    url: &str,
+    dst: &Path,
+    shallow: bool,
+) -> Result<LocalRepository, OxenError> {
+    let opts = CloneOpts {
+        url: url.to_string(),
+        dst: dst.to_path_buf(),
+        branch: DEFAULT_BRANCH_NAME.to_string(),
+        shallow,
+    };
+    match LocalRepository::clone_remote(&opts).await {
+        Ok(Some(repo)) => Ok(repo),
+        Ok(None) => Err(OxenError::remote_repo_not_found(&opts.url)),
         Err(err) => Err(err),
     }
 }

@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
-use liboxen::opts::RmOpts;
+use liboxen::opts::{CloneOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -442,7 +442,19 @@ pub fn diff(sub_matches: &ArgMatches) {
 pub async fn clone(sub_matches: &ArgMatches) {
     let url = sub_matches.value_of("URL").expect("required");
     let shallow = sub_matches.is_present("shallow");
-    match dispatch::clone(url, shallow).await {
+    let branch = sub_matches
+        .value_of("branch")
+        .unwrap_or(DEFAULT_BRANCH_NAME);
+    let dst = std::env::current_dir().expect("Could not get current working directory");
+
+    let opts = CloneOpts {
+        url: url.to_string(),
+        dst,
+        shallow,
+        branch: branch.to_string(),
+    };
+
+    match dispatch::clone(&opts).await {
         Ok(_) => {}
         Err(err) => {
             println!("Err: {err}")

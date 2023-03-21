@@ -1230,7 +1230,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             let oxen_dir = cloned_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&cloned_repo).await?;
@@ -1348,7 +1348,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
 
             // Modify the file in the cloned dir
@@ -1419,7 +1419,7 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
@@ -1465,7 +1465,7 @@ async fn test_clone_full() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = false; // full pull
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
@@ -1505,7 +1505,7 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let file_path = cloned_repo.path.join(filename);
 
@@ -1559,7 +1559,7 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
 
             let filename = "nlp/classification/annotations/train.tsv";
@@ -1617,7 +1617,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             assert_eq!(6, cloned_num_files);
@@ -1707,7 +1707,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // the original training files
@@ -1894,7 +1894,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
 
             // Get cloned history
@@ -2252,7 +2252,7 @@ async fn test_add_commit_push_pull_file_without_extension() -> Result<(), OxenEr
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = true;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
             command::pull(&cloned_repo).await?;
             let filepath = cloned_repo.path.join(filename);
             let content = util::fs::read_from_path(&filepath)?;
@@ -3076,7 +3076,7 @@ async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = false;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());
@@ -3099,7 +3099,7 @@ async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let shallow = false;
             let cloned_repo =
-                command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());
@@ -3131,13 +3131,14 @@ async fn test_cannot_push_two_separate_empty_roots() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|first_repo_dir| async move {
             let shallow = false;
             let first_cloned_repo =
-                command::clone(&remote_repo.remote.url, &first_repo_dir, shallow).await?;
+                command::clone_remote(&remote_repo.remote.url, &first_repo_dir, shallow).await?;
 
             // Clone the second repo
             test::run_empty_dir_test_async(|second_repo_dir| async move {
                 let shallow = false;
                 let second_cloned_repo =
-                    command::clone(&remote_repo.remote.url, &second_repo_dir, shallow).await?;
+                    command::clone_remote(&remote_repo.remote.url, &second_repo_dir, shallow)
+                        .await?;
 
                 // Add to the first repo, after we have the second repo cloned
                 let new_file = "new_file.txt";
@@ -3246,13 +3247,14 @@ async fn test_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
             test::run_empty_dir_test_async(|first_repo_dir| async move {
                 let shallow = false;
                 let first_cloned_repo =
-                    command::clone(&remote_repo_1.remote.url, &first_repo_dir, shallow).await?;
+                    command::clone_remote(&remote_repo_1.remote.url, &first_repo_dir, shallow)
+                        .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
                     let shallow = false;
                     let mut second_cloned_repo =
-                        command::clone(&remote_repo_2.remote.url, &second_repo_dir, shallow)
+                        command::clone_remote(&remote_repo_2.remote.url, &second_repo_dir, shallow)
                             .await?;
 
                     // Add to the first repo, after we have the second repo cloned
@@ -3324,7 +3326,8 @@ async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), Oxen
 
         test::run_empty_dir_test_async(|repo_dir| async move {
             let shallow = false;
-            let cloned_repo = command::clone(&remote_repo.remote.url, &repo_dir, shallow).await?;
+            let cloned_repo =
+                command::clone_remote(&remote_repo.remote.url, &repo_dir, shallow).await?;
 
             let commits = command::log(&cloned_repo)?;
             // iterate over commits in reverse order and checkout each one
@@ -3352,7 +3355,8 @@ async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
 
         test::run_empty_dir_test_async(|repo_dir| async move {
             let shallow = true;
-            let cloned_repo = command::clone(&remote_repo.remote.url, &repo_dir, shallow).await?;
+            let cloned_repo =
+                command::clone_remote(&remote_repo.remote.url, &repo_dir, shallow).await?;
 
             let result = command::status(&cloned_repo);
             assert!(result.is_err());
@@ -3373,7 +3377,8 @@ async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
 
         test::run_empty_dir_test_async(|repo_dir| async move {
             let shallow = true;
-            let cloned_repo = command::clone(&remote_repo.remote.url, &repo_dir, shallow).await?;
+            let cloned_repo =
+                command::clone_remote(&remote_repo.remote.url, &repo_dir, shallow).await?;
 
             let path = cloned_repo.path.join("README.md");
             util::fs::write_to_path(&path, "# Can't add this")?;
