@@ -429,6 +429,13 @@ pub fn clone() -> Command<'static> {
                 .help("A shallow clone doesn't actually clone the data files, useful if you want to pull a specific branch instead.")
                 .takes_value(false),
         )
+        .arg(
+            Arg::new("branch")
+                .long("branch")
+                .short('b')
+                .help("The branch you want to switch to when you clone.")
+                .takes_value(true),
+        )
 }
 
 pub fn inspect_kv_db() -> Command<'static> {

@@ -6,6 +6,7 @@ use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
+use liboxen::opts::CloneOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
@@ -40,9 +41,8 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn clone(url: &str, shallow: bool) -> Result<(), OxenError> {
-    let dst = std::env::current_dir()?;
-    command::clone(url, &dst, shallow).await?;
+pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
+    command::clone(opts).await?;
     Ok(())
 }
 

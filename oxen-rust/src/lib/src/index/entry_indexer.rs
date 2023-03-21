@@ -1312,6 +1312,7 @@ mod tests {
     use crate::index::entry_indexer::UnsyncedCommitEntries;
     use crate::index::EntryIndexer;
     use crate::model::RemoteBranch;
+    use crate::opts::CloneOpts;
     use crate::test;
     use crate::util;
 
@@ -1402,9 +1403,10 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let shallow = true;
-                let cloned_repo =
-                    command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                opts.shallow = true;
+
+                let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -1464,9 +1466,9 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let _shallow = true;
-                let cloned_repo =
-                    command::clone(&remote_repo.remote.url, &new_repo_dir, true).await?;
+                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                opts.shallow = true;
+                let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit

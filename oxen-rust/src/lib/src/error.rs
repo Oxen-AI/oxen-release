@@ -201,7 +201,7 @@ impl OxenError {
 
     pub fn repo_is_shallow() -> OxenError {
         let err = r"
-Cannot perform `oxen status` on a shallow clone.
+Repo is in a shallow clone state. You can only perform options remotely.
 
 To fetch data from the remote, run:
 

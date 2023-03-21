@@ -232,6 +232,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::{CommitBody, User};
+    use crate::opts::CloneOpts;
     use crate::test;
     use crate::{api, command, constants};
 
@@ -439,9 +440,8 @@ mod tests {
             let remote_repo_cloned = remote_repo.clone();
             test::run_empty_dir_test_async(|cloned_repo_dir| async move {
                 // Clone repo
-                let shallow = false;
-                let cloned_repo =
-                    command::clone(&remote_repo.remote.url, &cloned_repo_dir, shallow).await?;
+                let opts = CloneOpts::new(remote_repo.remote.url, &cloned_repo_dir);
+                let cloned_repo = command::clone(&opts).await?;
 
                 // Make sure that image is not on main branch
                 let path = cloned_repo
