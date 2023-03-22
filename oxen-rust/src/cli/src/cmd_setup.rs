@@ -9,6 +9,7 @@ pub const LOG: &str = "log";
 pub const DF: &str = "df";
 pub const SCHEMAS: &str = "schemas";
 pub const ADD: &str = "add";
+pub const APPEND: &str = "append";
 pub const RM: &str = "rm";
 pub const COMMIT: &str = "commit";
 pub const RESTORE: &str = "restore";
@@ -213,13 +214,13 @@ pub fn df() -> Command<'static> {
         .arg(
             Arg::new("add_col")
                 .long("add_col")
-                .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
+                .help("Add a column with a default value to the data table. If used with --add_row, row is added first, then column. Format 'name:val:dtype'")
                 .takes_value(true),
         )
         .arg(
             Arg::new("add_row")
                 .long("add_row")
-                .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                .help("Add a row and cast to the values data types to match the current schema. If used with --add_col, row is added first, then column. Format 'comma,separated,vals'")
                 .takes_value(true),
         )
         .arg(
@@ -293,6 +294,27 @@ pub fn add() -> Command<'static> {
             Arg::new("remote")
                 .long("remote")
                 .help("If present, will add the file to the remote staging area of the current branch you are on.")
+                .takes_value(false),
+        )
+}
+
+pub fn append() -> Command<'static> {
+    Command::new(APPEND)
+        .about("Append to a data file. If it is a regular utf-8 file, it will append to the end of the file. If it is a tabular data file, it will append to the end of the file and cast the values to the schema data types.")
+        .arg(arg!(<PATH> "The file path you would like to append to."))
+        .arg_required_else_help(true)
+        .arg(
+            Arg::new("data")
+                .long("data")
+                .short('d')
+                .help("The data that you want to append to the end of the file.")
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("If present, will append to the file in the remote staging area of the current branch you are on.")
                 .takes_value(false),
         )
 }

@@ -58,6 +58,10 @@ impl CommitReader {
 
     /// List the commit history from the HEAD commit
     pub fn history_from_head(&self) -> Result<Vec<Commit>, OxenError> {
+        if self.repository.is_shallow_clone() {
+            return Err(OxenError::repo_is_shallow());
+        }
+
         let head_commit = self.head_commit()?;
         let mut commits: Vec<Commit> = CommitDBReader::history_from_commit(&self.db, &head_commit)?
             .into_iter()

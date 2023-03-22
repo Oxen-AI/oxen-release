@@ -9,6 +9,7 @@ use crate::command;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::error::OxenError;
+use crate::index;
 use crate::index::CommitDirReader;
 use crate::index::Stager;
 use crate::model::Branch;
@@ -206,15 +207,32 @@ pub fn list_staged_data(
             let reader = CommitDirReader::new(repo, &commit)?;
             if Path::new(".") == directory {
                 log::debug!("list_staged_data: status for root");
-                let status = stager.status(&reader)?;
+                let mut status = stager.status(&reader)?;
+                add_mod_entries(repo, branch, &mut status)?;
                 Ok(status)
             } else {
-                let status = stager.status_from_dir(&reader, directory)?;
+                let mut status = stager.status_from_dir(&reader, directory)?;
+                add_mod_entries(repo, branch, &mut status)?;
                 Ok(status)
             }
         }
         None => Err(OxenError::commit_id_does_not_exist(&branch.commit_id)),
     }
+}
+
+// Modifications to files are staged in a separate DB and applied on commit, so we fetch them from the mod_stager
+fn add_mod_entries(
+    repo: &LocalRepository,
+    branch: &Branch,
+    status: &mut StagedData,
+) -> Result<(), OxenError> {
+    let mod_entries = index::mod_stager::list_mod_entries(repo, branch)?;
+
+    for entry in mod_entries {
+        status.modified_files.push(entry.path);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

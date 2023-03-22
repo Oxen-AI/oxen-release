@@ -6,6 +6,7 @@ use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
+use liboxen::opts::AppendOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::RestoreOpts;
@@ -130,6 +131,20 @@ pub fn set_default_host(host: &str) -> Result<(), OxenError> {
         config.default_host = Some(String::from(host));
     }
     config.save_default()?;
+    Ok(())
+}
+
+pub async fn append(
+    path: impl AsRef<Path>,
+    data: &str,
+    opts: &AppendOpts,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    command::append(&repository, path, data, opts).await?;
+
     Ok(())
 }
 

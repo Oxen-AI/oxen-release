@@ -19,6 +19,7 @@ use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
     RefReader, RefWriter, Stager,
 };
+use crate::model::entry::mod_entry::ModType;
 use crate::model::schema;
 use crate::model::staged_data::StagedDataOpts;
 use crate::model::CommitBody;
@@ -26,6 +27,7 @@ use crate::model::Schema;
 use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
+use crate::opts::AppendOpts;
 use crate::opts::CloneOpts;
 use crate::opts::LogOpts;
 use crate::opts::RestoreOpts;
@@ -281,6 +283,58 @@ pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
     Ok(())
 }
 
+fn append_local(path: &Path, data: &str) -> Result<(), OxenError> {
+    if util::fs::is_tabular(path) {
+        let mut opts = DFOpts::empty();
+        opts.add_row = Some(data.to_string());
+        opts.output = Some(path.to_path_buf());
+        df(path, opts)?;
+    } else {
+        util::fs::append_to_file(path, data)?;
+    }
+
+    Ok(())
+}
+
+async fn append_remote(
+    repo: &LocalRepository,
+    path: &Path,
+    data: &str,
+    _opts: &AppendOpts,
+) -> Result<(), OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    if let Some(branch) = current_branch(repo)? {
+        api::remote::staging::stage_modification(
+            &remote_repo,
+            &branch.name,
+            path,
+            data.to_string(),
+            ModType::Append,
+        )
+        .await?;
+        Ok(())
+    } else {
+        Err(OxenError::basic_str(
+            "Must be on a branch to stage remote changes.",
+        ))
+    }
+}
+
+pub async fn append(
+    repo: &LocalRepository,
+    path: &Path,
+    data: &str,
+    opts: &AppendOpts,
+) -> Result<(), OxenError> {
+    if opts.remote {
+        append_remote(repo, path, data, opts).await?;
+    } else {
+        append_local(path, data)?;
+    }
+
+    Ok(())
+}
+
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     index::rm(repo, opts).await
@@ -486,7 +540,7 @@ pub async fn remote_commit(
 /// let base_dir = Path::new("/tmp/repo_dir_log");
 /// let repo = command::init(base_dir)?;
 ///
-/// // Print     commit history
+/// // Print commit history
 /// let history = command::log(&repo)?;
 /// for commit in history.iter() {
 ///   println!("{} {}", commit.id, commit.message);
