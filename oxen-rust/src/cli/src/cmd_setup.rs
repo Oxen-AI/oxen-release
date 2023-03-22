@@ -128,7 +128,15 @@ pub fn status() -> Command<'static> {
 }
 
 pub fn log() -> Command<'static> {
-    Command::new(LOG).about("See log of commits")
+    Command::new(LOG)
+        .about("See log of commits")
+        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("If present, will query the remote for the list of commits.")
+                .takes_value(false),
+        )
 }
 
 pub fn df() -> Command<'static> {

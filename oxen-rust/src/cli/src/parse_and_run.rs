@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{CloneOpts, RmOpts};
+use liboxen::opts::{CloneOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -139,8 +139,14 @@ pub async fn status(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn log() {
-    match dispatch::log_commits() {
+pub async fn log(sub_matches: &ArgMatches) {
+    let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+
+    let opts = LogOpts {
+        committish,
+        remote: sub_matches.is_present("remote"),
+    };
+    match dispatch::log_commits(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
