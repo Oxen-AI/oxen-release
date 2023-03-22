@@ -217,11 +217,9 @@ impl LocalRepository {
         util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
+        let rb = RemoteBranch::from_branch(branch_name);
         let indexer = EntryIndexer::new(&local_repo)?;
-        match indexer
-            .pull_all_commit_objects(&repo, &RemoteBranch::default())
-            .await
-        {
+        match indexer.pull_all_commit_objects(&repo, &rb).await {
             Ok(_) => {
                 local_repo
                     .maybe_pull_entries(&repo, branch_name, &indexer, shallow)
@@ -260,8 +258,8 @@ impl LocalRepository {
             self.write_is_shallow(true)?;
 
             println!(
-                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin main",
-                repo.remote.url, repo.name, repo.name
+                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
+                repo.remote.url, repo.name, repo.name, branch_name
             );
         }
 
