@@ -211,7 +211,7 @@ Or you can interact with the remote directly with the --remote flag:
 
     oxen status --remote
     oxen add path/to/image.jpg --remote
-    oxen commit -m 'Committing data to remote without ever pulling it locally'
+    oxen commit -m 'Committing data to remote without ever pulling it locally' --remote
 ";
         OxenError::basic_str(err)
     }
