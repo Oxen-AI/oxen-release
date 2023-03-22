@@ -104,8 +104,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     // TODO: delete "dir" from staging to recursively unstage a dir
     // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
     .route(
-        "/{namespace}/{repo_name}/staging/df/{resource:.*}",
-        web::get().to(controllers::stager::df_file),
+        "/{namespace}/{repo_name}/staging/diff/{resource:.*}",
+        web::get().to(controllers::stager::diff_file),
     )
     .route(
         "/{namespace}/{repo_name}/staging/append/{resource:.*}",

@@ -112,7 +112,7 @@ pub async fn status_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Ht
     }
 }
 
-pub async fn df_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
+pub async fn diff_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -635,6 +635,7 @@ fn df_mods_response(
             let response = ListStagedFileModResponseDF {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
+                data_type: String::from("tabular"),
                 modifications: StagedDFModifications { added: df },
             };
 
@@ -666,6 +667,7 @@ fn raw_mods_response(
             let response = ListStagedFileModResponseRaw {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
+                data_type: String::from("text"),
                 modifications: paginated,
                 page_size,
                 page_number: page_num,

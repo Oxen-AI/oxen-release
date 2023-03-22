@@ -4,6 +4,7 @@ use bytesize;
 use simdutf8::compat::from_utf8;
 use std::collections::HashSet;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
@@ -149,6 +150,20 @@ pub fn write_data(path: &Path, data: &[u8]) -> Result<(), OxenError> {
         },
         Err(err) => Err(OxenError::basic_str(format!(
             "Could not create file to write {path:?}\n{err}"
+        ))),
+    }
+}
+
+pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
+    match OpenOptions::new().append(true).open(path) {
+        Ok(mut file) => match file.write(value.as_bytes()) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "Could not append to file {path:?}\n{err}"
+            ))),
+        },
+        Err(err) => Err(OxenError::basic_str(format!(
+            "Could not open file to append {path:?}\n{err}"
         ))),
     }
 }

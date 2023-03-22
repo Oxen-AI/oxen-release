@@ -46,6 +46,13 @@ pub async fn status(
                 StagedEntry::empty_status(StagedEntryStatus::Added),
             )
         }));
+    status.modified_files = Vec::from_iter(
+        staged_files
+            .modified_files
+            .entries
+            .into_iter()
+            .map(|e| PathBuf::from(e.filename)),
+    );
 
     Ok(status)
 }

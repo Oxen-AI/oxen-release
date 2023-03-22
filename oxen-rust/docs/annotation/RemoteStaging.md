@@ -101,9 +101,9 @@ $ curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/file/add-i
 }
 ```
 
-To view these changes in DataFrame format you can use the `/staging/df` API.
+To view these changes in DataFrame format you can use the `/staging/diff` API.
 
-curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/df/add-images/annotations.csv?page=3&page_size=5" | jq
+curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/diff/add-images/annotations.csv?page=3&page_size=5" | jq
 
 ```
 {

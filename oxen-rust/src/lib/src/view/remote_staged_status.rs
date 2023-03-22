@@ -1,7 +1,11 @@
+use std::{collections::HashMap, path::PathBuf};
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    model::{DirEntry, LocalRepository, ModEntry, StagedData, SummarizedStagedDirStats},
+    model::{
+        DirEntry, LocalRepository, ModEntry, StagedData, StagedEntry, SummarizedStagedDirStats,
+    },
     util,
 };
 
@@ -18,6 +22,7 @@ pub struct StagedFileModResponse {
 pub struct ListStagedFileModResponseRaw {
     pub status: String,
     pub status_message: String,
+    pub data_type: String,
     pub modifications: Vec<ModEntry>,
     pub page_number: usize,
     pub page_size: usize,
@@ -29,6 +34,7 @@ pub struct ListStagedFileModResponseRaw {
 pub struct RemoteStagedStatus {
     pub added_dirs: SummarizedStagedDirStats,
     pub added_files: PaginatedDirEntries,
+    pub modified_files: PaginatedDirEntries,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -48,6 +54,7 @@ pub struct StagedDFModifications {
 pub struct ListStagedFileModResponseDF {
     pub status: String,
     pub status_message: String,
+    pub data_type: String,
     pub modifications: StagedDFModifications,
 }
 
@@ -58,31 +65,57 @@ impl RemoteStagedStatus {
         page_num: usize,
         page_size: usize,
     ) -> RemoteStagedStatus {
-        let entries: Vec<DirEntry> = staged
-            .added_files
-            .keys()
+        let added_entries: Vec<DirEntry> =
+            RemoteStagedStatus::added_to_dir_entry(repo, &staged.added_files);
+        let modified_entries: Vec<DirEntry> =
+            RemoteStagedStatus::modified_to_dir_entry(repo, &staged.modified_files);
+
+        let added_paginated =
+            RemoteStagedStatus::paginate_entries(added_entries, page_num, page_size);
+        let modified_paginated =
+            RemoteStagedStatus::paginate_entries(modified_entries, page_num, page_size);
+
+        RemoteStagedStatus {
+            added_dirs: staged.added_dirs.to_owned(),
+            added_files: added_paginated,
+            modified_files: modified_paginated,
+        }
+    }
+
+    fn added_to_dir_entry(
+        repo: &LocalRepository,
+        entries: &HashMap<PathBuf, StagedEntry>,
+    ) -> Vec<DirEntry> {
+        RemoteStagedStatus::iter_to_dir_entry(repo, entries.keys())
+    }
+
+    fn modified_to_dir_entry(repo: &LocalRepository, entries: &[PathBuf]) -> Vec<DirEntry> {
+        RemoteStagedStatus::iter_to_dir_entry(repo, entries.iter())
+    }
+
+    fn iter_to_dir_entry<'a, I: Iterator<Item = &'a PathBuf>>(
+        repo: &LocalRepository,
+        entries: I,
+    ) -> Vec<DirEntry> {
+        entries
             .map(|path| {
                 let full_path = repo.path.join(path);
-                let meta = std::fs::metadata(&full_path).unwrap();
+                let len = match std::fs::metadata(&full_path) {
+                    Ok(m) => m.len(),
+                    Err(_) => 0,
+                };
                 let path_str = path.to_string_lossy().to_string();
 
                 DirEntry {
                     filename: path_str,
                     is_dir: false,
-                    size: meta.len(),
+                    size: len,
                     latest_commit: None,
                     datatype: util::fs::file_datatype(&full_path),
                     resource: None, // not committed so does not have a resource
                 }
             })
-            .collect();
-
-        let added_paginated = RemoteStagedStatus::paginate_entries(entries, page_num, page_size);
-
-        RemoteStagedStatus {
-            added_dirs: staged.added_dirs.to_owned(),
-            added_files: added_paginated,
-        }
+            .collect()
     }
 
     fn paginate_entries(

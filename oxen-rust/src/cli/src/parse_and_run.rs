@@ -1,7 +1,8 @@
 use clap::ArgMatches;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{CloneOpts, LogOpts, RmOpts};
+use liboxen::opts::append_opts::AppendDataType;
+use liboxen::opts::{AppendOpts, CloneOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -267,6 +268,27 @@ pub async fn add(sub_matches: &ArgMatches) {
 
     let remote = sub_matches.is_present("remote");
     match dispatch::add(paths, remote).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+pub async fn append(sub_matches: &ArgMatches) {
+    let path = sub_matches
+        .value_of("PATH")
+        .expect("PATH param is required");
+    let data = sub_matches
+        .value_of("data")
+        .expect("data param is required");
+
+    let opts = AppendOpts {
+        data_type: AppendDataType::Json,
+        remote: sub_matches.is_present("remote"),
+    };
+
+    match dispatch::append(path, data, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
