@@ -7,6 +7,7 @@ use liboxen::error::OxenError;
 use liboxen::model::schema;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::CloneOpts;
+use liboxen::opts::LogOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
@@ -217,16 +218,18 @@ pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn log_commits() -> Result<(), OxenError> {
+pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let commits = command::log_with_opts(&repository, &opts).await?;
 
     // Fri, 21 Oct 2022 16:08:39 -0700
     let format = format_description::parse(
         "[weekday], [day] [month repr:long] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory]",
     ).unwrap();
 
-    for commit in command::log(&repository)? {
+    for commit in commits {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{commit_id_str}\n");
         println!("Author: {}", commit.author);

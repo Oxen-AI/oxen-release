@@ -27,6 +27,7 @@ use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::CloneOpts;
+use crate::opts::LogOpts;
 use crate::opts::RestoreOpts;
 use crate::opts::RmOpts;
 use crate::util;
@@ -499,6 +500,27 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commits = committer.history_from_head()?;
     Ok(commits)
+}
+
+/// Log given options
+pub async fn log_with_opts(
+    repo: &LocalRepository,
+    opts: &LogOpts,
+) -> Result<Vec<Commit>, OxenError> {
+    if opts.remote {
+        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let committish = if let Some(committish) = &opts.committish {
+            committish.to_owned()
+        } else {
+            current_branch(repo)?.unwrap().name
+        };
+        let commits = api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+        Ok(commits)
+    } else {
+        let committer = CommitReader::new(repo)?;
+        let commits = committer.history_from_head()?;
+        Ok(commits)
+    }
 }
 
 /// # Get the history for a specific branch or commit
