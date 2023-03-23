@@ -636,7 +636,7 @@ fn df_mods_response(
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_FOUND),
                 data_type: String::from("tabular"),
-                modifications: StagedDFModifications { added: df },
+                modifications: StagedDFModifications { added_rows: df },
             };
 
             HttpResponse::Ok().json(response)

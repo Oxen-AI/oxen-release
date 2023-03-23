@@ -78,11 +78,9 @@ pub async fn list_commit_history(
                 ))),
             }
         }
-        Err(err) => {
-            Err(OxenError::basic_str(format!(
-                "list_commit_history() Request failed: {err}"
-            )))
-        }
+        Err(err) => Err(OxenError::basic_str(format!(
+            "list_commit_history() Request failed: {err}"
+        ))),
     }
 }
 
