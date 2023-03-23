@@ -3,6 +3,7 @@ use std::str;
 
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 
 use crate::model::Schema;
 
@@ -46,6 +47,12 @@ impl JsonDataFrame {
             },
             data: JsonDataFrame::json_data(df),
         }
+    }
+
+    pub fn to_df(&self) -> DataFrame {
+        let data = self.data.to_string();
+        let content = Cursor::new(data.as_bytes());
+        JsonReader::new(content).finish().unwrap()
     }
 
     pub fn from_slice(df: &mut DataFrame, full_size: JsonDataSize) -> JsonDataFrame {

@@ -46,7 +46,7 @@ pub struct RemoteStagedStatusResponse {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct StagedDFModifications {
-    pub added: Option<JsonDataFrame>,
+    pub added_rows: Option<JsonDataFrame>,
     // TODO: add other types
 }
 
