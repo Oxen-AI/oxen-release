@@ -8,6 +8,8 @@ use crate::compute;
 use crate::config::UserConfig;
 use crate::constants;
 use crate::constants::DEFAULT_BRANCH_NAME;
+use crate::constants::DEFAULT_PAGE_NUM;
+use crate::constants::DEFAULT_PAGE_SIZE;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
@@ -861,9 +863,7 @@ pub fn merge<S: AsRef<str>>(
                 Ok(None)
             }
         } else {
-            Err(OxenError::basic_str(
-                "Must be on a branch to perform a merge.",
-            ))
+            Err(OxenError::must_be_on_valid_branch())
         }
     } else {
         Err(OxenError::local_branch_not_found(branch_name))
@@ -1045,6 +1045,42 @@ pub fn diff(
 ) -> Result<String, OxenError> {
     let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
     differ::diff(repo, Some(&commit.id), path)
+}
+
+pub async fn remote_diff(
+    repo: &LocalRepository,
+    branch_name: Option<&str>,
+    path: &Path,
+) -> Result<String, OxenError> {
+    let branch = get_branch_by_name_or_current(repo, branch_name)?;
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let diff = api::remote::staging::diff_staged_file(
+        &remote_repo,
+        &branch.name,
+        path,
+        DEFAULT_PAGE_NUM,
+        DEFAULT_PAGE_SIZE,
+    )
+    .await?;
+    Ok(diff.to_string())
+}
+
+/// Get branch by name
+fn get_branch_by_name_or_current(
+    repo: &LocalRepository,
+    branch_name: Option<&str>,
+) -> Result<Branch, OxenError> {
+    if let Some(branch_name) = branch_name {
+        match api::local::branches::get_by_name(repo, branch_name)? {
+            Some(branch) => Ok(branch),
+            None => Err(OxenError::local_branch_not_found(branch_name)),
+        }
+    } else {
+        match current_branch(repo)? {
+            Some(branch) => Ok(branch),
+            None => Err(OxenError::must_be_on_valid_branch()),
+        }
+    }
 }
 
 /// Pull a specific origin and branch

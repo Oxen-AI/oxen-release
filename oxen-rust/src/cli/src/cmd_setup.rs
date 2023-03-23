@@ -501,6 +501,12 @@ pub fn diff() -> Command<'static> {
         .about("Compare file from a commit history")
         .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
         .arg(Arg::new("PATH").required(false))
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("Diff the remote file that is in the staging area with a specific version.")
+                .takes_value(false),
+        )
 }
 
 pub fn migrate() -> Command<'static> {

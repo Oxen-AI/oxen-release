@@ -62,6 +62,10 @@ impl OxenError {
         OxenError::basic_str(HEAD_NOT_FOUND)
     }
 
+    pub fn must_be_on_valid_branch() -> OxenError {
+        OxenError::basic_str("Repository is in a detached HEAD state, checkout a valid branch to continue.\n\n  oxen checkout <branch>\n")
+    }
+
     pub fn remote_not_set() -> OxenError {
         OxenError::basic_str(
             "Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n",
