@@ -200,12 +200,16 @@ pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
+pub async fn diff(commit_id: Option<&str>, path: &str, remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = Path::new(path);
 
-    let result = command::diff(&repository, commit_id, path)?;
+    let result = if remote {
+        command::remote_diff(&repository, commit_id, path).await?
+    } else {
+        command::diff(&repository, commit_id, path)?
+    };
     println!("{result}");
     Ok(())
 }

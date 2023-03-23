@@ -446,19 +446,20 @@ pub async fn pull(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn diff(sub_matches: &ArgMatches) {
+pub async fn diff(sub_matches: &ArgMatches) {
     // First arg is optional
     let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
     let path = sub_matches.value_of("PATH");
+    let remote = sub_matches.is_present("remote");
     if let Some(path) = path {
-        match dispatch::diff(Some(file_or_commit_id), path) {
+        match dispatch::diff(Some(file_or_commit_id), path, remote).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
             }
         }
     } else {
-        match dispatch::diff(None, file_or_commit_id) {
+        match dispatch::diff(None, file_or_commit_id, remote).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")

@@ -64,7 +64,7 @@ async fn main() {
         Some((cmd_setup::MERGE, sub_matches)) => parse_and_run::merge(sub_matches),
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
-        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches),
+        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
         Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches).await,
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches),
