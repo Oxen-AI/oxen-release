@@ -1,5 +1,6 @@
 pub mod branch;
 pub mod commit;
+pub mod content_type;
 pub mod data_frame_diff;
 pub mod entry;
 pub mod merge_conflict;
@@ -29,6 +30,7 @@ pub use crate::model::branch::Branch;
 pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry
+pub use crate::model::content_type::ContentType;
 pub use crate::model::entry::commit_entry::CommitEntry;
 pub use crate::model::entry::diff_entry::DiffEntry;
 pub use crate::model::entry::dir_entry::DirEntry;

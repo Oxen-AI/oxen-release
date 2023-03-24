@@ -170,18 +170,11 @@ fn status_for_branch(
     branch_repo: &LocalRepository,
     branch: &Branch,
 ) -> Result<StagedData, OxenError> {
-    // Stager will be in the branch repo
-    let staging_dir = branch_staging_dir(repo, branch);
-    log::debug!("commit_staged staging_dir: {:?}", staging_dir);
-
     let stager = Stager::new(branch_repo)?;
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
     let reader = CommitDirReader::new(repo, &commit)?;
-    log::debug!("commit_staged before status...");
-
     let status = stager.status(&reader)?;
-    log::debug!("commit_staged after status...");
     status.print_stdout();
 
     Ok(status)

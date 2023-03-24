@@ -3,6 +3,7 @@ pub mod field;
 
 pub use data_type::DataType;
 pub use field::Field;
+use itertools::Itertools;
 
 use crate::util::hasher;
 use serde::{Deserialize, Serialize};
@@ -96,6 +97,10 @@ impl Schema {
         let buffer_str = hash_buffers.join("");
         let buffer = buffer_str.as_bytes();
         hasher::hash_buffer(buffer)
+    }
+
+    pub fn fields_to_csv(&self) -> String {
+        self.fields.iter().map(|f| f.name.to_owned()).join(",")
     }
 
     /// Compare the schemas, looking for added fields

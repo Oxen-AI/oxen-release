@@ -5,7 +5,7 @@ use liboxen::compute::commit_cacher;
 use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::{Branch, CommitBody, CommitEntry, LocalRepository, Schema};
+use liboxen::model::{Branch, CommitBody, CommitEntry, ContentType, LocalRepository, Schema};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
@@ -195,6 +195,10 @@ async fn save_parts(
     Ok(files)
 }
 
+fn get_content_type(req: &HttpRequest) -> Option<&str> {
+    req.headers().get("content-type")?.to_str().ok()
+}
+
 pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
@@ -202,6 +206,8 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
+    let content_type_str = get_content_type(&req).unwrap_or("text/plain");
+    let content_type = ContentType::from_http_content_type(content_type_str).unwrap();
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
@@ -216,7 +222,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                                 file_name
                             );
                             index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
-                            create_mod(&repo, &branch, &file_name, data)
+                            create_mod(&repo, &branch, &file_name, content_type, data)
                         }
                         Ok(None) => {
                             log::debug!("stager::stage could not find branch {:?}", branch_name);
@@ -255,12 +261,14 @@ fn create_mod(
     repo: &LocalRepository,
     branch: &Branch,
     file: &Path,
+    content_type: ContentType,
     data: String,
 ) -> Result<HttpResponse, Error> {
     match liboxen::index::mod_stager::create_mod(
         repo,
         branch,
         file,
+        content_type,
         ModType::Append, // TODO: support modify, delete
         data,
     ) {

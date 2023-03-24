@@ -2,6 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
+use crate::model::ContentType;
 use crate::model::{Commit, CommitBody, DataFrameDiff, ModEntry, RemoteRepository};
 use crate::view::{
     CommitResponse, FilePathsResponse, ListStagedFileModResponseDF, RemoteStagedStatus,
@@ -134,6 +135,7 @@ pub async fn stage_modification(
     branch_name: &str,
     path: &Path,
     data: String,
+    content_type: ContentType,
     mod_type: ModType,
 ) -> Result<ModEntry, OxenError> {
     if mod_type != ModType::Append {
@@ -147,7 +149,13 @@ pub async fn stage_modification(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = reqwest::Client::new();
-    match client.post(&url).body(data).send().await {
+    match client
+        .post(&url)
+        .header("Content-Type", content_type.to_http_content_type())
+        .body(data)
+        .send()
+        .await
+    {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             let response: Result<StagedFileModResponse, serde_json::Error> =
@@ -274,6 +282,7 @@ mod tests {
     use crate::constants::{DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME};
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
+    use crate::model::ContentType;
     use crate::model::{CommitBody, User};
     use crate::opts::CloneOpts;
     use crate::test;
@@ -566,6 +575,7 @@ mod tests {
                 branch_name,
                 &path,
                 data.to_string(),
+                ContentType::Json,
                 ModType::Append,
             )
             .await;
@@ -578,7 +588,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stage_row_on_dataframe() -> Result<(), OxenError> {
+    async fn test_stage_row_on_dataframe_json() -> Result<(), OxenError> {
         test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
@@ -593,8 +603,39 @@ mod tests {
                     branch_name,
                     &path,
                     data.to_string(),
+                    ContentType::Json,
                     ModType::Append
                 ).await;
+
+            assert!(result.is_ok());
+            println!("{:?}", result.unwrap());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_stage_row_on_dataframe_csv() -> Result<(), OxenError> {
+        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            assert_eq!(branch.name, branch_name);
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let data = "image1.jpg, dog, 13, 14, 100, 100";
+            let result = api::remote::staging::stage_modification(
+                &remote_repo,
+                branch_name,
+                &path,
+                data.to_string(),
+                ContentType::Csv,
+                ModType::Append,
+            )
+            .await;
 
             assert!(result.is_ok());
             println!("{:?}", result.unwrap());
@@ -620,6 +661,7 @@ mod tests {
                 branch_name,
                 &path,
                 data.to_string(),
+                ContentType::Json,
                 ModType::Append
             ).await?;
 
@@ -657,6 +699,7 @@ mod tests {
                 branch_name,
                 &path,
                 data.to_string(),
+                ContentType::Json,
                 ModType::Append
             ).await?;
 
