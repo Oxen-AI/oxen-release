@@ -692,7 +692,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::entry::mod_entry::ModType;
-    use crate::model::{StagedData, User};
+    use crate::model::{ContentType, StagedData, User};
     use crate::{api, command, df, test, util};
 
     // This is how we initialize
@@ -773,6 +773,7 @@ mod tests {
                 &repo,
                 &branch,
                 readme_file,
+                ContentType::Text,
                 ModType::Append,
                 append_contents.clone(),
             )?;
@@ -813,6 +814,7 @@ mod tests {
                 &repo,
                 &branch,
                 &readme_file,
+                ContentType::Text,
                 ModType::Append,
                 append_contents,
             );
@@ -839,6 +841,7 @@ mod tests {
                 &repo,
                 &branch,
                 &annotations_file,
+                ContentType::Text,
                 ModType::Append,
                 append_contents,
             )?;

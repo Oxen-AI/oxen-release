@@ -302,7 +302,7 @@ async fn append_remote(
     repo: &LocalRepository,
     path: &Path,
     data: &str,
-    _opts: &AppendOpts,
+    opts: &AppendOpts,
 ) -> Result<(), OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     if let Some(branch) = current_branch(repo)? {
@@ -311,6 +311,7 @@ async fn append_remote(
             &branch.name,
             path,
             data.to_string(),
+            opts.content_type.to_owned(),
             ModType::Append,
         )
         .await?;

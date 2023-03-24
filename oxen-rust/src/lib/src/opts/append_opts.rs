@@ -1,11 +1,7 @@
-#[derive(Clone, Debug)]
-pub enum AppendDataType {
-    Json,
-    Csv,
-}
+use crate::model::ContentType;
 
 #[derive(Clone, Debug)]
 pub struct AppendOpts {
-    pub data_type: AppendDataType,
+    pub content_type: ContentType,
     pub remote: bool,
 }

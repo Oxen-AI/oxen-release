@@ -1,12 +1,12 @@
 use clap::ArgMatches;
 use liboxen::model::staged_data::StagedDataOpts;
+use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::append_opts::AppendDataType;
 use liboxen::opts::{AppendOpts, CloneOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
-
+use std::str::FromStr;
 use crate::dispatch;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -282,9 +282,10 @@ pub async fn append(sub_matches: &ArgMatches) {
     let data = sub_matches
         .value_of("data")
         .expect("data param is required");
+    let content_type = sub_matches.value_of("content-type").unwrap_or("json");
 
     let opts = AppendOpts {
-        data_type: AppendDataType::Json,
+        content_type: ContentType::from_str(content_type).unwrap(),
         remote: sub_matches.is_present("remote"),
     };
 

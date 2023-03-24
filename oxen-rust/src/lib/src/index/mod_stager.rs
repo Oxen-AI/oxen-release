@@ -9,7 +9,7 @@ use crate::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::schema::Field;
-use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry};
+use crate::model::{Branch, CommitEntry, ContentType, DataFrameDiff, LocalRepository, ModEntry};
 use crate::{api, util};
 
 use super::SchemaReader;
@@ -41,6 +41,7 @@ pub fn create_mod(
     repo: &LocalRepository,
     branch: &Branch,
     file_path: &Path,
+    content_type: ContentType,
     mod_type: ModType,
     content: String,
 ) -> Result<ModEntry, OxenError> {
@@ -54,7 +55,7 @@ pub fn create_mod(
     match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
         Some(commit_entry) => {
             // Try to track the mod
-            match stage_mod(repo, branch, &commit_entry, mod_type, content) {
+            match stage_mod(repo, branch, &commit_entry, content_type, mod_type, content) {
                 Ok(mod_entry) => {
                     // If successful track the file it is modifying
                     track_mod_commit_entry(repo, branch, &commit_entry)?;
@@ -117,16 +118,15 @@ pub fn list_mods_df(
 ) -> Result<DataFrameDiff, OxenError> {
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-        let schema = schema.to_polars();
-
         let mods = list_mods_raw(repo, branch, entry)?;
         let mut df = polars::frame::DataFrame::default();
         for modification in mods.iter() {
-            let cursor = Cursor::new(modification.data.as_bytes());
-            let mod_df = JsonLineReader::new(cursor)
-                .with_schema(&schema)
-                .finish()
-                .unwrap();
+            log::debug!("Applying modification: {:?}", modification);
+            let mod_df = parse_content_into_df(
+                &modification.data,
+                &schema,
+                modification.content_type.to_owned(),
+            )?;
             df = df.vstack(&mod_df).unwrap();
         }
 
@@ -167,14 +167,15 @@ fn stage_mod(
     repo: &LocalRepository,
     branch: &Branch,
     entry: &CommitEntry,
+    content_type: ContentType,
     mod_type: ModType,
     content: String,
 ) -> Result<ModEntry, OxenError> {
     let version_path = util::fs::version_path(repo, entry);
     if util::fs::is_tabular(&version_path) {
-        stage_tabular_mod(repo, branch, entry, mod_type, content)
+        stage_tabular_mod(repo, branch, entry, content_type, mod_type, content)
     } else if util::fs::is_utf8(&version_path) {
-        stage_raw_mod_content(repo, branch, entry, mod_type, content)
+        stage_raw_mod_content(repo, branch, entry, content_type, mod_type, content)
     } else {
         Err(OxenError::basic_str(format!(
             "{mod_type:?} not supported for file type"
@@ -187,6 +188,7 @@ fn stage_tabular_mod(
     repo: &LocalRepository,
     branch: &Branch,
     entry: &CommitEntry,
+    content_type: ContentType,
     mod_type: ModType,
     content: String,
 ) -> Result<ModEntry, OxenError> {
@@ -198,15 +200,14 @@ fn stage_tabular_mod(
     );
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-        // Parse the json
-        let cursor = Cursor::new(content.as_bytes());
-        match JsonLineReader::new(cursor).finish() {
+        // Parse the data into DF
+        match parse_content_into_df(&content, &schema, content_type.to_owned()) {
             Ok(df) => {
                 log::debug!("Successfully parsed df {:?}", df);
                 // Make sure it contains each field
                 let df_schema = df.schema();
                 if schema.has_all_field_names(&df_schema) {
-                    stage_raw_mod_content(repo, branch, entry, mod_type, content)
+                    stage_raw_mod_content(repo, branch, entry, content_type, mod_type, content)
                 } else {
                     let schema_fields_str = Field::all_fields_to_string(&schema.fields);
                     let err = format!("Json schema does not contain same fields as DataFrame schema. {schema_fields_str}");
@@ -214,7 +215,7 @@ fn stage_tabular_mod(
                 }
             }
             Err(err) => {
-                let err = format!("Error parsing json: {err}");
+                let err = format!("Error parsing content: {err}");
                 Err(OxenError::basic_str(err))
             }
         }
@@ -224,10 +225,41 @@ fn stage_tabular_mod(
     }
 }
 
+fn parse_content_into_df(
+    data: &str,
+    schema: &crate::model::Schema,
+    content_type: ContentType,
+) -> Result<DataFrame, OxenError> {
+    match content_type {
+        ContentType::Json => {
+            let cursor = Cursor::new(data.as_bytes());
+            match JsonLineReader::new(cursor).finish() {
+                Ok(df) => Ok(df),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "Error parsing {content_type:?}: {err}"
+                ))),
+            }
+        }
+        ContentType::Csv => {
+            let fields = schema.fields_to_csv();
+            let data = format!("{}\n{}", fields, data);
+            let cursor = Cursor::new(data.as_bytes());
+            match CsvReader::new(cursor).finish() {
+                Ok(df) => Ok(df),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "Error parsing {content_type:?}: {err}"
+                ))),
+            }
+        }
+        _ => Err(OxenError::basic_str("Unsupported content type")),
+    }
+}
+
 fn stage_raw_mod_content(
     repo: &LocalRepository,
     branch: &Branch,
     entry: &CommitEntry,
+    content_type: ContentType,
     mod_type: ModType,
     content: String,
 ) -> Result<ModEntry, OxenError> {
@@ -241,6 +273,7 @@ fn stage_raw_mod_content(
         uuid: uuid.to_owned(),
         data: content,
         modification_type: mod_type,
+        content_type,
         path: entry.path.to_owned(),
         timestamp,
     };
@@ -259,10 +292,11 @@ mod tests {
     use crate::error::OxenError;
     use crate::index::mod_stager;
     use crate::model::entry::mod_entry::ModType;
+    use crate::model::ContentType;
     use crate::test;
 
     #[test]
-    fn test_stage_append() -> Result<(), OxenError> {
+    fn test_stage_text_append() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
@@ -273,8 +307,14 @@ mod tests {
 
             // Append the data to staging area
             let data = "Appending this text....".to_string();
-            let append_entry =
-                mod_stager::create_mod(&repo, &branch, file_path, ModType::Append, data)?;
+            let append_entry = mod_stager::create_mod(
+                &repo,
+                &branch,
+                file_path,
+                ContentType::Text,
+                ModType::Append,
+                data,
+            )?;
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
@@ -291,6 +331,74 @@ mod tests {
     }
 
     #[test]
+    fn test_stage_json_append_tabular() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "test-append";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let file_path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+
+            // Append the data to staging area
+            let data = "{\"file\":\"dawg1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            mod_stager::create_mod(
+                &repo,
+                &branch,
+                &file_path,
+                ContentType::Json,
+                ModType::Append,
+                data.to_string(),
+            )?;
+
+            // List the files that are changed
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            assert_eq!(commit_entries.len(), 1);
+
+            // List the staged mods
+            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry)?;
+            assert_eq!(mods.added_rows.unwrap().height(), 1);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stage_csv_append_tabular() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "test-append";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let file_path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+
+            // Append the data to staging area
+            let data = "dawg1.jpg,dog,13,14,100,100";
+            mod_stager::create_mod(
+                &repo,
+                &branch,
+                &file_path,
+                ContentType::Csv,
+                ModType::Append,
+                data.to_string(),
+            )?;
+
+            // List the files that are changed
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            assert_eq!(commit_entries.len(), 1);
+
+            // List the staged mods
+            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry)?;
+            assert_eq!(mods.added_rows.unwrap().height(), 1);
+            Ok(())
+        })
+    }
+
+    #[test]
     fn test_stage_delete_appended_mod() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
@@ -302,12 +410,24 @@ mod tests {
 
             // Append the data to staging area
             let data = "First Append".to_string();
-            let append_entry_1 =
-                mod_stager::create_mod(&repo, &branch, file_path, ModType::Append, data)?;
+            let append_entry_1 = mod_stager::create_mod(
+                &repo,
+                &branch,
+                file_path,
+                ContentType::Text,
+                ModType::Append,
+                data,
+            )?;
 
             let data = "Second Append".to_string();
-            let _append_entry_2 =
-                mod_stager::create_mod(&repo, &branch, file_path, ModType::Append, data)?;
+            let _append_entry_2 = mod_stager::create_mod(
+                &repo,
+                &branch,
+                file_path,
+                ContentType::Text,
+                ModType::Append,
+                data,
+            )?;
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;

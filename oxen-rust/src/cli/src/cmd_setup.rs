@@ -312,6 +312,12 @@ pub fn append() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("content-type")
+                .long("content-type")
+                .short('t')
+                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'."),
+        )
+        .arg(
             Arg::new("remote")
                 .long("remote")
                 .help("If present, will append to the file in the remote staging area of the current branch you are on.")
