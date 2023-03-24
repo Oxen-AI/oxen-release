@@ -148,6 +148,16 @@ pub async fn append(
     Ok(())
 }
 
+pub async fn delete(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    command::delete_staged_row(&repository, path, uuid).await?;
+
+    Ok(())
+}
+
 pub async fn add(paths: Vec<PathBuf>, remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

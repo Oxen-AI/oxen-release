@@ -6,6 +6,7 @@ use time::OffsetDateTime;
 
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::db::{self, str_json_db};
+use crate::df::tabular;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::schema::Field;
@@ -74,6 +75,27 @@ pub fn create_mod(
     }
 }
 
+pub fn delete_mod_from_path(
+    repo: &LocalRepository,
+    branch: &Branch,
+    file_path: &Path,
+    uuid: &str,
+) -> Result<ModEntry, OxenError> {
+    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+    match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
+        Some(commit_entry) => match delete_mod(repo, branch, &commit_entry, uuid) {
+            Ok(mod_entry) => Ok(mod_entry),
+            Err(e) => {
+                log::error!("Error deleting mod [{}]: {}", uuid, e);
+                Err(e)
+            }
+        },
+        None => Err(OxenError::file_does_not_exist_in_commit(
+            file_path, &commit.id,
+        )),
+    }
+}
+
 pub fn delete_mod(
     repo: &LocalRepository,
     branch: &Branch,
@@ -91,7 +113,7 @@ pub fn delete_mod(
             Ok(mod_entry)
         }
         Ok(None) => Err(OxenError::basic_str(format!(
-            "Mod with uuid {} does not exist",
+            "uuid {} does not exist",
             uuid
         ))),
         Err(e) => Err(e),
@@ -115,6 +137,7 @@ pub fn list_mods_df(
     repo: &LocalRepository,
     branch: &Branch,
     entry: &CommitEntry,
+    with_id: bool,
 ) -> Result<DataFrameDiff, OxenError> {
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
@@ -122,11 +145,15 @@ pub fn list_mods_df(
         let mut df = polars::frame::DataFrame::default();
         for modification in mods.iter() {
             log::debug!("Applying modification: {:?}", modification);
-            let mod_df = parse_content_into_df(
+            let mut mod_df = parse_content_into_df(
                 &modification.data,
                 &schema,
                 modification.content_type.to_owned(),
             )?;
+            // add the uuid column so that user can delete if they want
+            if with_id {
+                mod_df = tabular::add_col(mod_df, "_id", &modification.uuid, "str").unwrap();
+            }
             df = df.vstack(&mod_df).unwrap();
         }
 
@@ -266,7 +293,8 @@ fn stage_raw_mod_content(
     let db_path = mods_db_path(repo, branch, entry);
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-    let uuid = uuid::Uuid::new_v4().to_string();
+    // hash uuid to make a smaller key
+    let uuid = util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
     let timestamp = OffsetDateTime::now_utc();
 
     let entry = ModEntry {
@@ -358,7 +386,8 @@ mod tests {
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry)?;
+            let with_id = false;
+            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry, with_id)?;
             assert_eq!(mods.added_rows.unwrap().height(), 1);
             Ok(())
         })
@@ -392,7 +421,8 @@ mod tests {
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry)?;
+            let with_id = false;
+            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry, with_id)?;
             assert_eq!(mods.added_rows.unwrap().height(), 1);
             Ok(())
         })
