@@ -257,6 +257,61 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
     }
 }
 
+pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let uuid = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => {
+            match util::resource::parse_resource(&repo, &resource) {
+                Ok(Some((_, branch_name, file_name))) => {
+                    match api::local::branches::get_by_name(&repo, &branch_name) {
+                        Ok(Some(branch)) => {
+                            log::debug!(
+                                "stager::stage_delete_from_file file branch_name [{}] file_name [{:?}] uuid [{}]",
+                                branch_name,
+                                file_name,
+                                uuid
+                            );
+                            delete_mod(&repo, &branch, &file_name, uuid)
+                        }
+                        Ok(None) => {
+                            log::debug!("stager::stage could not find branch {:?}", branch_name);
+                            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                        }
+                        Err(err) => {
+                            log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
+                            Ok(HttpResponse::InternalServerError()
+                                .json(StatusMessage::internal_server_error()))
+                        }
+                    }
+                }
+                Ok(None) => {
+                    log::debug!("stager::stage could not find parse resource {:?}", resource);
+                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                }
+                Err(err) => {
+                    log::error!("unable to parse resource {:?}. Err: {}", resource, err);
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
+                }
+            }
+        }
+        Ok(None) => {
+            log::debug!("stager::stage could not find repo with name {}", repo_name);
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+        }
+        Err(err) => {
+            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
+}
+
 fn create_mod(
     repo: &LocalRepository,
     branch: &Branch,
@@ -269,7 +324,7 @@ fn create_mod(
         branch,
         file,
         content_type,
-        ModType::Append, // TODO: support modify, delete
+        ModType::Append,
         data,
     ) {
         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
@@ -291,6 +346,41 @@ fn create_mod(
                 "unable to append data to file {:?}/{:?}. Err: {}",
                 branch.name,
                 file,
+                err
+            );
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&format!("{err:?}"))))
+        }
+    }
+}
+
+fn delete_mod(
+    repo: &LocalRepository,
+    branch: &Branch,
+    file: &Path,
+    uuid: String,
+) -> Result<HttpResponse, Error> {
+    match liboxen::index::mod_stager::delete_mod_from_path(repo, branch, file, &uuid) {
+        Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_CREATED),
+            modification: entry,
+        })),
+        Err(OxenError::Basic(err)) => {
+            log::error!(
+                "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
+                branch.name,
+                file,
+                uuid,
+                err
+            );
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err)))
+        }
+        Err(err) => {
+            log::error!(
+                "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
+                branch.name,
+                file,
+                uuid,
                 err
             );
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(&format!("{err:?}"))))
@@ -616,7 +706,8 @@ fn df_mods_response(
     entry: &CommitEntry,
     query: web::Query<DFOptsQuery>,
 ) -> HttpResponse {
-    match index::mod_stager::list_mods_df(repo, branch, entry) {
+    let with_id = true; // So that user can see the _id column and delete rows
+    match index::mod_stager::list_mods_df(repo, branch, entry, with_id) {
         Ok(diff) => {
             let df = if let Some(added) = diff.added_rows {
                 let og_size = JsonDataSize {

@@ -1,4 +1,6 @@
+use crate::dispatch;
 use clap::ArgMatches;
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
@@ -7,8 +9,6 @@ use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use crate::dispatch;
-use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 pub async fn init(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("PATH").unwrap_or(".");
@@ -290,6 +290,20 @@ pub async fn append(sub_matches: &ArgMatches) {
     };
 
     match dispatch::append(path, data, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+pub async fn delete(sub_matches: &ArgMatches) {
+    let path = sub_matches
+        .value_of("PATH")
+        .expect("PATH param is required");
+    let uuid = sub_matches.value_of("ID").expect("ID param is required");
+
+    match dispatch::delete(path, uuid).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

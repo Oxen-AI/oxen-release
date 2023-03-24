@@ -338,6 +338,23 @@ pub async fn append(
     Ok(())
 }
 
+pub async fn delete_staged_row(
+    repository: &LocalRepository,
+    path: impl AsRef<Path>,
+    uuid: &str,
+) -> Result<(), OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
+    if let Some(branch) = current_branch(repository)? {
+        api::remote::staging::delete_staged_modification(&remote_repo, &branch.name, path, uuid)
+            .await?;
+        Ok(())
+    } else {
+        Err(OxenError::basic_str(
+            "Must be on a branch to stage remote changes.",
+        ))
+    }
+}
+
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     index::rm(repo, opts).await

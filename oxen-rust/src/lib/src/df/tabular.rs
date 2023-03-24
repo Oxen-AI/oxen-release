@@ -129,7 +129,12 @@ pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     Ok(collected.take(&idx).expect(TAKE_ERROR))
 }
 
-pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<LazyFrame, OxenError> {
+pub fn add_col_lazy(
+    df: LazyFrame,
+    name: &str,
+    val: &str,
+    dtype: &str,
+) -> Result<LazyFrame, OxenError> {
     let mut df = df.collect().expect(COLLECT_ERROR);
 
     let dtype = DataType::from_string(dtype).to_polars();
@@ -140,6 +145,22 @@ pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<Lazy
         .expect("Could not extend df");
     df.with_column(column).expect(COLLECT_ERROR);
     let df = df.lazy();
+    Ok(df)
+}
+
+pub fn add_col(
+    mut df: DataFrame,
+    name: &str,
+    val: &str,
+    dtype: &str,
+) -> Result<DataFrame, OxenError> {
+    let dtype = DataType::from_string(dtype).to_polars();
+
+    let column = Series::new_empty(name, &dtype);
+    let column = column
+        .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
+        .expect("Could not extend df");
+    df.with_column(column).expect(COLLECT_ERROR);
     Ok(df)
 }
 
@@ -332,7 +353,7 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, Oxen
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
-        df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+        df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
     if let Some(columns) = opts.columns_names() {

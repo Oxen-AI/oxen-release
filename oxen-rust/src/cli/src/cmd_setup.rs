@@ -10,6 +10,7 @@ pub const DF: &str = "df";
 pub const SCHEMAS: &str = "schemas";
 pub const ADD: &str = "add";
 pub const APPEND: &str = "append";
+pub const DELETE: &str = "delete";
 pub const RM: &str = "rm";
 pub const COMMIT: &str = "commit";
 pub const RESTORE: &str = "restore";
@@ -315,7 +316,8 @@ pub fn append() -> Command<'static> {
             Arg::new("content-type")
                 .long("content-type")
                 .short('t')
-                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'."),
+                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
+                .takes_value(true),
         )
         .arg(
             Arg::new("remote")
@@ -323,6 +325,15 @@ pub fn append() -> Command<'static> {
                 .help("If present, will append to the file in the remote staging area of the current branch you are on.")
                 .takes_value(false),
         )
+}
+
+pub fn delete() -> Command<'static> {
+    // TODO: call these "oxen df append --remote" and "oxen df delete --remote"....?
+    Command::new(DELETE)
+        .about("Delete row from a staged DataFrame.")
+        .arg(arg!(<PATH> "The file path you would like to delete from."))
+        .arg(arg!(<ID> "The the _id for the row you would like to delete."))
+        .arg_required_else_help(true)
 }
 
 pub fn commit() -> Command<'static> {

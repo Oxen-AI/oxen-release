@@ -233,6 +233,30 @@ pub async fn rm_staged_file(
     }
 }
 
+pub async fn delete_staged_modification(
+    remote_repo: &RemoteRepository,
+    branch_name: &str,
+    path: impl AsRef<Path>,
+    uuid: &str,
+) -> Result<(), OxenError> {
+    let file_name = path.as_ref().to_string_lossy();
+    let uri = format!("/staging/delete/{branch_name}/{file_name}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("delete_staged_modification [{}] {}", uuid, url);
+    let client = reqwest::Client::new();
+    match client.delete(&url).body(uuid.to_string()).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("delete_staged_modification got body: {}", body);
+            Ok(())
+        }
+        Err(err) => {
+            let err = format!("delete_staged_modification Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 pub async fn diff_staged_file(
     remote_repo: &RemoteRepository,
     branch_name: &str,
@@ -684,6 +708,68 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_list_delete_row_from_modified_dataframe() -> Result<(), OxenError> {
+        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            assert_eq!(branch.name, branch_name);
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let directory = Path::new("annotations").join("train");
+            let path = directory.join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            let result_1 = api::remote::staging::stage_modification(
+                    &remote_repo,
+                    branch_name,
+                    &path,
+                    data.to_string(),
+                    ContentType::Json,
+                    ModType::Append
+                ).await;
+            assert!(result_1.is_ok());
+
+            let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            let result_2 = api::remote::staging::stage_modification(
+                    &remote_repo,
+                    branch_name,
+                    &path,
+                    data.to_string(),
+                    ContentType::Json,
+                    ModType::Append
+                ).await?;
+
+            // Make sure both got staged
+            let diff = api::remote::staging::diff_staged_file(
+                &remote_repo,
+                branch_name,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+            let added_rows = diff.added_rows.unwrap();
+            assert_eq!(added_rows.height(), 2);
+
+            // Delete result_2
+            let result_delete = api::remote::staging::delete_staged_modification(&remote_repo, branch_name, &path, &result_2.uuid).await;
+            assert!(result_delete.is_ok());
+
+            // Make there is only one left
+            let diff = api::remote::staging::diff_staged_file(
+                &remote_repo,
+                branch_name,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+            let added_rows = diff.added_rows.unwrap();
+            assert_eq!(added_rows.height(), 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_diff_modified_dataframe() -> Result<(), OxenError> {
         test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
             let branch_name = "add-images";
@@ -713,7 +799,7 @@ mod tests {
 
             let added_rows = diff.added_rows.unwrap();
             assert_eq!(added_rows.height(), 1);
-            assert_eq!(added_rows.width(), 6);
+            assert_eq!(added_rows.width(), 7); // 6+1 for _id
 
             Ok(remote_repo)
         })

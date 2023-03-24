@@ -112,6 +112,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::post().to(controllers::stager::stage_append_to_file),
     )
     .route(
+        "/{namespace}/{repo_name}/staging/delete/{resource:.*}",
+        web::delete().to(controllers::stager::stage_delete_from_file),
+    )
+    .route(
         "/{namespace}/{repo_name}/staging/commit/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
