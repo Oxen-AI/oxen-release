@@ -319,7 +319,7 @@ impl StagedData {
         outputs.push("Modified files:".to_string().normal());
 
         if opts.is_remote {
-            outputs.push(format!("\n").normal());
+            outputs.push("\n".to_string().normal());
         } else {
             outputs.push(format!("  {MSG_OXEN_ADD_FILE_EXAMPLE}").normal());
         }

@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use crate::constants::{FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
+use crate::constants::{
+    DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME,
+};
 use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
@@ -238,6 +240,51 @@ impl DFOpts {
             return Some(split);
         }
         None
+    }
+
+    pub fn to_http_query_params(&self) -> String {
+        let randomize = if self.should_randomize {
+            Some(String::from("true"))
+        } else {
+            Some(String::from("false"))
+        };
+        let should_reverse = if self.should_reverse {
+            Some(String::from("true"))
+        } else {
+            Some(String::from("false"))
+        };
+        let page = if self.page.is_some() {
+            Some(format!("{}", self.page.unwrap()))
+        } else {
+            Some(format!("{}", DEFAULT_PAGE_NUM))
+        };
+        let page_size = if self.page_size.is_some() {
+            Some(format!("{}", self.page_size.unwrap()))
+        } else {
+            Some(format!("{}", DEFAULT_PAGE_SIZE))
+        };
+        let params = vec![
+            ("slice", self.slice.clone()),
+            ("take", self.take.clone()),
+            ("columns", self.columns.clone()),
+            ("filter", self.filter.clone()),
+            ("aggregate", self.aggregate.clone()),
+            ("col-at", self.col_at.clone()),
+            ("sort-by", self.sort_by.clone()),
+            ("unique", self.unique.clone()),
+            ("randomize", randomize),
+            ("reverse", should_reverse),
+            ("page", page),
+            ("page_size", page_size),
+        ];
+
+        let mut query = String::new();
+        for (name, val) in params {
+            if let Some(val) = val {
+                query.push_str(&format!("{}={}&", name, urlencoding::encode(&val)));
+            }
+        }
+        query
     }
 }
 

@@ -385,13 +385,21 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
 }
 
 /// Interact with Remote DataFrames from CLI
-pub fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
-    todo!("remote_df not implemented yet");
+pub async fn remote_df<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    input: P,
+    opts: DFOpts,
+) -> Result<(), OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let branch = current_branch(repo)?.unwrap();
+    let output = opts.output.clone();
+    let mut df = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
+    if let Some(output) = output {
+        println!("Writing {output:?}");
+        tabular::write_df(&mut df, output)?;
+    }
 
-    // if let Some(output) = opts.output {
-    //     println!("Writing {output:?}");
-    //     tabular::write_df(&mut df, output)?;
-    // }
+    println!("{df:?}");
 
     Ok(())
 }

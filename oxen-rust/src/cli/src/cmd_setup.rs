@@ -180,8 +180,8 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("col_at")
-                .long("col_at")
+            Arg::new("col-at")
+                .long("col-at")
                 .help("Select a specific row item from column to view it fully. Format: 'col_name:index' ie: 'my_col_name:3'")
                 .takes_value(true),
         )
@@ -205,9 +205,9 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("page_size")
-                .long("page_size")
-                .help("Paginated through the data frame. Default page_size = 10")
+            Arg::new("page-size")
+                .long("page-size")
+                .help("Paginated through the data frame. Default page-size = 10")
                 .takes_value(true),
         )
         .arg(
@@ -232,7 +232,6 @@ pub fn df() -> Command<'static> {
         .arg(
             Arg::new("content-type")
                 .long("content-type")
-                .short('t')
                 .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
                 .takes_value(true),
         )
