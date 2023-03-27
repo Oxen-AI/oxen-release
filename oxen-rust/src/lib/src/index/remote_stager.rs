@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
+use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::staged_data::StagedDataOpts;
 use crate::model::{
@@ -16,12 +17,14 @@ pub async fn status_from_local(
 ) -> Result<StagedData, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     let branch = command::current_branch(repo)?.expect("Must be on branch.");
-    status(&remote_repo, &branch, directory, opts).await
+    let user_id = UserConfig::identifier()?;
+    status(&remote_repo, &branch, &user_id, directory, opts).await
 }
 
 pub async fn status(
     remote_repo: &RemoteRepository,
     branch: &Branch,
+    user_id: &str,
     directory: &Path,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
@@ -31,6 +34,7 @@ pub async fn status(
     let staged_files = api::remote::staging::list_staging_dir(
         remote_repo,
         &branch.name,
+        user_id,
         directory,
         page_num,
         page_size,

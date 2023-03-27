@@ -37,6 +37,7 @@ pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> Ht
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
@@ -49,9 +50,14 @@ pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> Ht
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, directory))) => {
-                get_dir_status_for_branch(&repo, &branch_name, &directory, page_num, page_size)
-            }
+            Ok(Some((_, branch_name, directory))) => get_dir_status_for_branch(
+                &repo,
+                &branch_name,
+                user_id,
+                &directory,
+                page_num,
+                page_size,
+            ),
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
@@ -155,6 +161,7 @@ pub async fn diff_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Http
 async fn save_parts(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     directory: &Path,
     mut payload: Multipart,
 ) -> Result<Vec<PathBuf>, Error> {
@@ -170,7 +177,7 @@ async fn save_parts(
 
         log::debug!("Got uploaded file name: {upload_filename:?}");
 
-        let staging_dir = index::remote_dir_stager::branch_staging_dir(repo, branch);
+        let staging_dir = index::remote_dir_stager::branch_staging_dir(repo, branch, user_id);
         let full_dir = staging_dir.join(directory);
 
         if !full_dir.exists() {
@@ -204,6 +211,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     let content_type_str = get_content_type(&req).unwrap_or("text/plain");
@@ -217,11 +225,12 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
                             log::debug!(
-                                "stager::stage_append_to_file file branch_name [{}] file_name [{:?}]",
+                                "stager::stage_append_to_file file branch_name [{}] user_id [{}] file_name [{:?}]",
                                 branch_name,
+                                user_id,
                                 file_name
                             );
-                            index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+                            index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
                             create_mod(&repo, &branch, &file_name, content_type, data)
                         }
                         Ok(None) => {
@@ -393,6 +402,7 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
@@ -409,8 +419,9 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
                         );
 
                         let branch_repo =
-                            index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
-                        let files = save_parts(&repo, &branch, &directory, payload).await?;
+                            index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
+                        let files =
+                            save_parts(&repo, &branch, user_id, &directory, payload).await?;
                         let mut ret_files = vec![];
                         for file in files.iter() {
                             log::debug!("stager::stage file {:?}", file);
@@ -418,6 +429,7 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
                                 &repo,
                                 &branch_repo,
                                 &branch,
+                                user_id,
                                 file,
                             ) {
                                 Ok(file_path) => {
@@ -480,6 +492,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let branch_name: &str = req.match_info().query("branch");
 
     log::debug!("stager::commit got body: {body}");
@@ -499,12 +512,14 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
     {
         Ok(Some(repo)) => match api::local::branches::get_by_name(&repo, branch_name) {
             Ok(Some(branch)) => {
-                let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+                let branch_repo =
+                    index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
                 match index::remote_dir_stager::commit_staged(
                     &repo,
                     &branch_repo,
                     &branch,
                     &data.user,
+                    user_id,
                     &data.message,
                 ) {
                     Ok(commit) => {
@@ -575,6 +590,7 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
@@ -585,7 +601,7 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
-                delete_staged_file_on_branch(&repo, &branch_name, &file_name)
+                delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
             }
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
@@ -610,11 +626,13 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
 fn delete_staged_file_on_branch(
     repo: &LocalRepository,
     branch_name: &str,
+    user_id: &str,
     path: &Path,
 ) -> HttpResponse {
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
-            let branch_repo = index::remote_dir_stager::init_or_get(repo, &branch).unwrap();
+            let branch_repo =
+                index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
             match index::remote_dir_stager::has_file(&branch_repo, path) {
                 Ok(true) => match index::remote_dir_stager::delete_file(&branch_repo, path) {
                     Ok(_) => {
@@ -789,13 +807,14 @@ fn raw_mods_response(
 fn get_dir_status_for_branch(
     repo: &LocalRepository,
     branch_name: &str,
+    user_id: &str,
     directory: &Path,
     page_num: usize,
     page_size: usize,
 ) -> HttpResponse {
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
-            let branch_repo = match index::remote_dir_stager::init_or_get(repo, &branch) {
+            let branch_repo = match index::remote_dir_stager::init_or_get(repo, &branch, user_id) {
                 Ok(repo) => repo,
                 Err(err) => {
                     log::error!("Error getting branch repo for branch {:?} -> {err}", branch);
@@ -812,7 +831,8 @@ fn get_dir_status_for_branch(
             {
                 Ok(staged) => {
                     staged.print_stdout();
-                    let full_path = index::remote_dir_stager::branch_staging_dir(repo, &branch);
+                    let full_path =
+                        index::remote_dir_stager::branch_staging_dir(repo, &branch, user_id);
                     let branch_repo = LocalRepository::new(&full_path).unwrap();
 
                     let response = RemoteStagedStatusResponse {

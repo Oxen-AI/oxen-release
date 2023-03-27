@@ -339,6 +339,11 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+    command::remote_df(input, opts)?;
+    Ok(())
+}
+
 pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<(), OxenError> {
     let result = command::df_schema(input, flatten)?;
     println!("{result}");

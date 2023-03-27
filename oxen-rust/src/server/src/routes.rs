@@ -86,37 +86,37 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     )
     // ----- Stage Remote Data ----- //
     .route(
-        "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/dir/{resource:.*}",
         web::get().to(controllers::stager::status_dir),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/dir/{resource:.*}",
         web::post().to(controllers::stager::stage_into_dir),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/file/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/file/{resource:.*}",
         web::get().to(controllers::stager::status_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/file/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/file/{resource:.*}",
         web::delete().to(controllers::stager::delete_file),
     )
     // TODO: delete "dir" from staging to recursively unstage a dir
     // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
     .route(
-        "/{namespace}/{repo_name}/staging/diff/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/diff/{resource:.*}",
         web::get().to(controllers::stager::diff_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/append/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/append/{resource:.*}",
         web::post().to(controllers::stager::stage_append_to_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/delete/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/delete/{resource:.*}",
         web::delete().to(controllers::stager::stage_delete_from_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/commit/{branch:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/commit/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
     // ----- Stats ----- //

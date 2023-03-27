@@ -7,6 +7,7 @@
 
 use crate::api;
 use crate::command;
+use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
@@ -148,7 +149,9 @@ async fn remove_remote_staged_file(repo: &LocalRepository, path: &Path) -> Resul
     let branch = command::current_branch(repo)?.expect("Must be on branch.");
     let branch_name = branch.name;
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-    api::remote::staging::rm_staged_file(&remote_repo, &branch_name, path.to_path_buf()).await
+    let user_id = UserConfig::identifier()?;
+    api::remote::staging::rm_staged_file(&remote_repo, &branch_name, &user_id, path.to_path_buf())
+        .await
 }
 
 fn remove_staged(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
