@@ -27,12 +27,12 @@ use super::CommitWriter;
 
 pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
     // Just in case they pass in the email or some other random string, hash it for nice dir name
-    let user_id_hash = util::hasher::hash_str(&user_id);
+    let user_id_hash = util::hasher::hash_str(user_id);
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(&branch.name)
-        .join(&user_id_hash)
+        .join(user_id_hash)
 }
 
 pub fn init_or_get(

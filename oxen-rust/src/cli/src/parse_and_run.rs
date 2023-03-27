@@ -234,7 +234,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         output: sub_matches.value_of("output").map(std::path::PathBuf::from),
         slice: sub_matches.value_of("slice").map(String::from),
         page_size: sub_matches
-            .value_of("page_size")
+            .value_of("page-size")
             .map(String::from)
             .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
@@ -249,10 +249,10 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         columns: sub_matches.value_of("columns").map(String::from),
         filter: sub_matches.value_of("filter").map(String::from),
         aggregate: sub_matches.value_of("aggregate").map(String::from),
-        col_at: sub_matches.value_of("col_at").map(String::from),
+        col_at: sub_matches.value_of("col-at").map(String::from),
         vstack,
-        add_col: sub_matches.value_of("add_col").map(String::from),
-        add_row: sub_matches.value_of("add_row").map(String::from),
+        add_col: sub_matches.value_of("add-col").map(String::from),
+        add_row: sub_matches.value_of("add-row").map(String::from),
         sort_by: sub_matches.value_of("sort").map(String::from),
         unique: sub_matches.value_of("unique").map(String::from),
         should_randomize: sub_matches.is_present("randomize"),

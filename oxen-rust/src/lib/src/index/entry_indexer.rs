@@ -351,7 +351,7 @@ impl EntryIndexer {
         println!("🐂 push computing size...");
         let total_size = self.compute_entries_size(entries)?;
 
-        if entries.len() > 0 {
+        if !entries.is_empty() {
             println!(
                 "Pushing {} files with size {}",
                 entries.len(),

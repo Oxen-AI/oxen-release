@@ -35,12 +35,12 @@ pub async fn list_staging_dir(
             match response {
                 Ok(val) => Ok(val.staged),
                 Err(err) => Err(OxenError::basic_str(format!(
-                    "api::dir::list_staging_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                    "api::staging::list_staging_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
             }
         }
         Err(err) => {
-            let err = format!("api::dir::list_staging_dir Request failed: {url}\nErr {err:?}");
+            let err = format!("api::staging::list_staging_dir Request failed: {url}\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -78,13 +78,13 @@ pub async fn stage_file(
                     Ok(path)
                 }
                 Err(err) => {
-                    let err = format!("api::dir::stage_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("api::staging::stage_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }
         }
         Err(err) => {
-            let err = format!("api::dir::stage_file Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::stage_file Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -123,13 +123,13 @@ pub async fn stage_files(
             match response {
                 Ok(val) => Ok(val.paths),
                 Err(err) => {
-                    let err = format!("api::dir::stage_files error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("api::staging::stage_files error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }
         }
         Err(err) => {
-            let err = format!("api::dir::stage_files Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::stage_files Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -146,7 +146,7 @@ pub async fn stage_modification(
 ) -> Result<ModEntry, OxenError> {
     if mod_type != ModType::Append {
         return Err(OxenError::basic_str(
-            "api::dir::stage_modification only supports ModType::Append",
+            "api::staging::stage_modification only supports ModType::Append",
         ));
     }
 
@@ -169,13 +169,14 @@ pub async fn stage_modification(
             match response {
                 Ok(val) => Ok(val.modification),
                 Err(err) => {
-                    let err = format!("api::dir::stage_modification error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("api::staging::stage_modification error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }
         }
         Err(err) => {
-            let err = format!("api::dir::stage_modification Request failed: {url}\n\nErr {err:?}");
+            let err =
+                format!("api::staging::stage_modification Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -206,12 +207,12 @@ pub async fn commit_staged(
             match response {
                 Ok(val) => Ok(val.commit),
                 Err(err) => Err(OxenError::basic_str(format!(
-                    "api::dir::commit_staged error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                    "api::staging::commit_staged error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
             }
         }
         Err(err) => {
-            let err = format!("api::dir::commit_staged Request failed: {url}\nErr {err:?}");
+            let err = format!("api::staging::commit_staged Request failed: {url}\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -301,12 +302,12 @@ pub async fn diff_staged_file(
                     })
                 },
                 Err(err) => Err(OxenError::basic_str(format!(
-                    "api::dir::list_staging_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                    "api::staging::diff_staged_file error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
             }
         }
         Err(err) => {
-            let err = format!("api::dir::list_staging_dir Request failed: {url}\nErr {err:?}");
+            let err = format!("api::staging::diff_staged_file Request failed: {url}\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }

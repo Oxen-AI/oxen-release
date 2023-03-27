@@ -340,7 +340,10 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
 }
 
 pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
-    command::remote_df(input, opts)?;
+    let repo_dir = env::current_dir().unwrap();
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    command::remote_df(&repo, input, opts).await?;
     Ok(())
 }
 
