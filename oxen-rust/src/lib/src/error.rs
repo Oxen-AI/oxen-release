@@ -211,11 +211,11 @@ To fetch data from the remote, run:
 
     oxen pull origin main
 
-Or you can interact with the remote directly with the --remote flag:
+Or you can interact with the remote directly with the `oxen remote` subcommand:
 
-    oxen status --remote
-    oxen add path/to/image.jpg --remote
-    oxen commit -m 'Committing data to remote without ever pulling it locally' --remote
+    oxen remote status
+    oxen remote add path/to/image.jpg
+    oxen remote commit -m 'Committing data to remote without ever pulling it locally'
 ";
         OxenError::basic_str(err)
     }

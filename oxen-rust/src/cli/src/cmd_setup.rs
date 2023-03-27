@@ -48,6 +48,24 @@ pub fn config() -> Command<'static> {
                 .help("Set the email you want your commits to be saved as.")
                 .takes_value(true),
         )
+        // Note: we differ from git here because we have the concept of a remote
+        //       staging area which uses the `oxen remote add` subcommand
+        .arg(
+            Arg::new("set-remote")
+                .long("set-remote")
+                .number_of_values(2)
+                .value_names(&["NAME", "URL"])
+                .help("Set a remote for your current working repository.")
+                .takes_value(true),
+        )
+        // "delete-remote" is easier to read than "remove-remote"
+        .arg(
+            Arg::new("delete-remote")
+                .long("delete-remote")
+                .number_of_values(2)
+                .help("Delete a remote from the current working repository.")
+                .takes_value(true),
+        )
         .arg(
             Arg::new("auth-token")
                 .long("auth")
@@ -76,20 +94,19 @@ pub fn create_remote() -> Command<'static> {
 
 pub fn remote() -> Command<'static> {
     Command::new(REMOTE)
-        .about("Manage set of tracked repositories")
-        .subcommand(
-            Command::new("add")
-                .arg(arg!(<NAME> "The remote name"))
-                .arg(arg!(<URL> "The remote url")),
-        )
-        .subcommand(
-            Command::new("remove").arg(arg!(<NAME> "The name of the remote you want to remove")),
-        )
+        .about("Interact with a remote repository without cloning everything locally.")
+        // The commands that you can run locally mirrored here
+        .subcommand(add())
+        .subcommand(status())
+        .subcommand(commit())
+        .subcommand(log())
+        .subcommand(df())
+        .subcommand(diff())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
                 .short('v')
-                .help("Be a little more verbose and show remote url after name.")
+                .help("List the remotes that exist on this repository.")
                 .takes_value(false),
         )
 }
@@ -120,12 +137,6 @@ pub fn status() -> Command<'static> {
                 .help("If present, does not truncate the output of status at all.")
                 .takes_value(false),
         )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("If present, will query the remote status of the current branch you are on.")
-                .takes_value(false),
-        )
         .arg(Arg::new("directory").required(false))
 }
 
@@ -133,12 +144,6 @@ pub fn log() -> Command<'static> {
     Command::new(LOG)
         .about("See log of commits")
         .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("If present, will query the remote for the list of commits.")
-                .takes_value(false),
-        )
 }
 
 pub fn df() -> Command<'static> {
@@ -213,15 +218,22 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("add_col")
-                .long("add_col")
-                .help("Add a column with a default value to the data table. If used with --add_row, row is added first, then column. Format 'name:val:dtype'")
+            Arg::new("add-col")
+                .long("add-col")
+                .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
                 .takes_value(true),
         )
         .arg(
-            Arg::new("add_row")
-                .long("add_row")
-                .help("Add a row and cast to the values data types to match the current schema. If used with --add_col, row is added first, then column. Format 'comma,separated,vals'")
+            Arg::new("add-row")
+                .long("add-row")
+                .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("content-type")
+                .long("content-type")
+                .short('t')
+                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
                 .takes_value(true),
         )
         .arg(
@@ -291,12 +303,6 @@ pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
         .arg(Arg::new("files").required(true).min_values(1))
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("If present, will add the file to the remote staging area of the current branch you are on.")
-                .takes_value(false),
-        )
 }
 
 pub fn append() -> Command<'static> {
@@ -328,7 +334,7 @@ pub fn append() -> Command<'static> {
 }
 
 pub fn delete() -> Command<'static> {
-    // TODO: call these "oxen df append --remote" and "oxen df delete --remote"....?
+    // TODO: call these "oxen remote df --delete-row UUID"?
     Command::new(DELETE)
         .about("Delete row from a staged DataFrame.")
         .arg(arg!(<PATH> "The file path you would like to delete from."))
@@ -346,12 +352,6 @@ pub fn commit() -> Command<'static> {
                 .short('m')
                 .required(true)
                 .takes_value(true),
-        )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("If present, will commit the remotely staged data to current branch you are on.")
-                .takes_value(false),
         )
 }
 
@@ -518,12 +518,6 @@ pub fn diff() -> Command<'static> {
         .about("Compare file from a commit history")
         .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
         .arg(Arg::new("PATH").required(false))
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("Diff the remote file that is in the staging area with a specific version.")
-                .takes_value(false),
-        )
 }
 
 pub fn migrate() -> Command<'static> {

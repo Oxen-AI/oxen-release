@@ -131,7 +131,7 @@ impl CommitWriter {
         log::debug!("---COMMIT START---"); // for debug logging / timing purposes
         let new_commit = self.create_new_commit_data(message)?;
         log::debug!("Created commit obj {:?}", new_commit);
-        let commit = self.commit_from_new(&new_commit, status, &self.repository.path, None)?;
+        let commit = self.commit_from_new(&new_commit, status, &self.repository.path)?;
         log::debug!("COMMIT_COMPLETE {} -> {}", commit.id, commit.message);
 
         // Mark as synced so we know we don't need to pull versions files again
@@ -148,7 +148,6 @@ impl CommitWriter {
         new_commit: &NewCommit,
         status: &mut StagedData,
         origin_path: &Path,
-        branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(new_commit, status);
         log::debug!(
@@ -157,37 +156,47 @@ impl CommitWriter {
             commit.message
         );
 
-        // TODO this is hacky....branch is not what we should rely on to determine if we should apply mods
-        if let Some(branch) = &branch {
-            // Also we should copy over entries from branch here...? Where do we actually save the versions?
-            let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
-            log::debug!(
-                "commit_from_new listing entries {} -> {}",
-                commit.id,
-                entries.len()
-            );
-            let staged = self.apply_mods(branch, &entries)?;
-            // Write entries
-            self.add_commit_from_status(&commit, &staged, origin_path, Some(branch.to_owned()))?;
-        } else {
-            self.add_commit_from_status(&commit, status, origin_path, branch)?;
-        }
+        self.add_commit_from_status(&commit, status, origin_path)?;
 
+        Ok(commit)
+    }
+
+    pub fn commit_from_new_on_remote_branch(
+        &self,
+        new_commit: &NewCommit,
+        status: &mut StagedData,
+        origin_path: &Path,
+        branch: &Branch,
+        user_id: &str,
+    ) -> Result<Commit, OxenError> {
+        let commit = self.gen_commit(new_commit, status);
+
+        // Should copy over entries from branch here...? Where do we actually save the versions?
+        let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
+        log::debug!(
+            "commit_from_new listing entries {} -> {}",
+            commit.id,
+            entries.len()
+        );
+        let staged = self.apply_mods(branch, user_id, &entries)?;
+        // Write entries
+        self.add_commit_from_status_on_remote_branch(&commit, &staged, origin_path, branch)?;
         Ok(commit)
     }
 
     pub fn apply_mods(
         &self,
         branch: &Branch,
+        user_id: &str,
         entries: &Vec<CommitEntry>,
     ) -> Result<StagedData, OxenError> {
-        let branch_repo = remote_dir_stager::init_or_get(&self.repository, branch).unwrap();
+        let branch_staging_dir =
+            remote_dir_stager::branch_staging_dir(&self.repository, branch, user_id);
+        let branch_repo =
+            remote_dir_stager::init_or_get(&self.repository, branch, user_id).unwrap();
 
         log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
         for entry in entries.iter() {
-            let branch_staging_dir =
-                remote_dir_stager::branch_staging_dir(&self.repository, branch);
-
             // Copy the version file to the staging dir and make the mods
             let version_path = util::fs::version_path(&self.repository, entry);
             let entry_path = branch_staging_dir.join(&entry.path);
@@ -205,7 +214,13 @@ impl CommitWriter {
             util::fs::copy(&version_path, &entry_path)?;
 
             self.apply_mods_to_file(branch, entry, &entry_path)?;
-            remote_dir_stager::stage_file(&self.repository, &branch_repo, branch, &entry_path)?;
+            remote_dir_stager::stage_file(
+                &self.repository,
+                &branch_repo,
+                branch,
+                user_id,
+                &entry_path,
+            )?;
         }
 
         // Have to recompute staged data
@@ -306,14 +321,14 @@ impl CommitWriter {
         let entries: Vec<StagedEntry> = status.added_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
-        self.add_commit_from_status(&commit, status, &self.repository.path, None)?;
+        self.add_commit_from_status(&commit, status, &self.repository.path)?;
         Ok(commit)
     }
 
     pub fn add_commit_from_empty_status(&self, commit: &Commit) -> Result<(), OxenError> {
         // Empty Status
         let status = StagedData::empty();
-        self.add_commit_from_status(commit, &status, &self.repository.path, None)
+        self.add_commit_from_status(commit, &status, &self.repository.path)
     }
 
     pub fn add_commit_from_status(
@@ -321,8 +336,6 @@ impl CommitWriter {
         commit: &Commit,
         status: &StagedData,
         origin_path: &Path,
-        // TODO: better way to handle remote vs local commits...this optional branch is not clear
-        branch: Option<Branch>, // optional branch because usually we just want to commit off of HEAD
     ) -> Result<(), OxenError> {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
@@ -336,17 +349,65 @@ impl CommitWriter {
         self.add_commit_to_db(commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
-        // TODO: make this clearer why having a branch matters, it has to do with our remote commit workflow
-        if let Some(branch) = branch {
-            log::debug!(
-                "add_commit_from_status got branch {} updating branch commit id {}",
-                branch.name,
-                commit.id
-            );
-            ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
-        } else {
-            ref_writer.set_head_commit_id(&commit.id)?;
-        }
+        ref_writer.set_head_commit_id(&commit.id)?;
+
+        Ok(())
+    }
+
+    pub fn add_commit_from_status_on_remote_branch(
+        &self,
+        commit: &Commit,
+        status: &StagedData,
+        origin_path: &Path,
+        branch: &Branch,
+    ) -> Result<(), OxenError> {
+        // Write entries
+        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
+
+        log::debug!("add_commit_from_status about to commit staged entries...");
+        // Commit all staged files from db
+        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+
+        // Add to commits db id -> commit_json
+        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
+        self.add_commit_to_db(commit)?;
+
+        let ref_writer = RefWriter::new(&self.repository)?;
+        log::debug!(
+            "add_commit_from_status got branch {} updating branch commit id {}",
+            branch.name,
+            commit.id
+        );
+        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
+
+        Ok(())
+    }
+
+    pub fn add_commit_on_remote_branch(
+        &self,
+        commit: &Commit,
+        status: &StagedData,
+        origin_path: &Path,
+        branch: &Branch,
+    ) -> Result<(), OxenError> {
+        // Write entries
+        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
+
+        log::debug!("add_commit_from_status about to commit staged entries...");
+        // Commit all staged files from db
+        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+
+        // Add to commits db id -> commit_json
+        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
+        self.add_commit_to_db(commit)?;
+
+        let ref_writer = RefWriter::new(&self.repository)?;
+        log::debug!(
+            "add_commit_from_status got branch {} updating branch commit id {}",
+            branch.name,
+            commit.id
+        );
+        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
 
         Ok(())
     }
@@ -689,11 +750,12 @@ impl CommitWriter {
 mod tests {
     use std::path::Path;
 
+    use crate::config::UserConfig;
     use crate::df::DFOpts;
     use crate::error::OxenError;
     use crate::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::entry::mod_entry::ModType;
-    use crate::model::{ContentType, StagedData, User};
+    use crate::model::{ContentType, StagedData};
     use crate::{api, command, df, test, util};
 
     // This is how we initialize
@@ -767,7 +829,10 @@ mod tests {
 
             // Stage an append
             let branch = command::current_branch(&repo)?.unwrap();
-            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+            let user = UserConfig::get()?.to_user();
+            let user_id = UserConfig::identifier()?;
+            let branch_repo =
+                index::remote_dir_stager::init_or_get(&repo, &branch, &user_id).unwrap();
 
             let append_contents = "\n## New Section".to_string();
             index::mod_stager::create_mod(
@@ -783,10 +848,8 @@ mod tests {
                 &repo,
                 &branch_repo,
                 &branch,
-                &User {
-                    name: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                },
+                &user,
+                &user_id,
                 "Appending data",
             )?;
 
@@ -835,7 +898,10 @@ mod tests {
 
             // Stage an append
             let branch = command::current_branch(&repo)?.unwrap();
-            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch).unwrap();
+            let user = UserConfig::get()?.to_user();
+            let user_id = UserConfig::identifier()?;
+            let branch_repo =
+                index::remote_dir_stager::init_or_get(&repo, &branch, &user_id).unwrap();
 
             let append_contents = "{\"file\": \"images/test.jpg\", \"label\": \"dog\", \"min_x\": 2.0, \"min_y\": 3.0, \"width\": 100, \"height\": 120}".to_string();
             index::mod_stager::create_mod(
@@ -851,10 +917,8 @@ mod tests {
                 &repo,
                 &branch_repo,
                 &branch,
-                &User {
-                    name: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                },
+                &user,
+                &user_id,
                 "Appending tabular data",
             )?;
 

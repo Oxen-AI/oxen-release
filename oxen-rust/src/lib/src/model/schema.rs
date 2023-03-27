@@ -39,7 +39,7 @@ impl Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
             let f = Field {
-                name: field.name().trim().to_string(),
+                name: field.name().to_string(),
                 dtype: field.data_type().to_string(),
             };
             fields.push(f);

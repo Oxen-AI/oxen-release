@@ -1,3 +1,4 @@
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
@@ -22,6 +23,28 @@ pub async fn init(sub_matches: &ArgMatches) {
 }
 
 pub fn config(sub_matches: &ArgMatches) {
+    if let Some(remote) = sub_matches.values_of("set-remote") {
+        if let [name, url] = remote.collect::<Vec<_>>()[..] {
+            match dispatch::add_remote(name, url) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
+                }
+            }
+        } else {
+            eprintln!("invalid arguments for --set-remote");
+        }
+    }
+
+    if let Some(name) = sub_matches.value_of("delete-remote") {
+        match dispatch::remove_remote(name) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
+            }
+        }
+    }
+
     if let Some(auth) = sub_matches.values_of("auth-token") {
         if let [host, token] = auth.collect::<Vec<_>>()[..] {
             match dispatch::set_auth_token(host, token) {
@@ -76,29 +99,27 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn remote(sub_matches: &ArgMatches) {
+/// The subcommands for interacting with the remote staging area.
+pub async fn remote(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
-            ("add", sub_matches) => {
-                let name = sub_matches.value_of("NAME").expect("required");
-                let url = sub_matches.value_of("URL").expect("required");
-
-                match dispatch::add_remote(name, url) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
+            (ADD, sub_matches) => {
+                remote_add(sub_matches).await;
             }
-            ("remove", sub_matches) => {
-                let name = sub_matches.value_of("NAME").expect("required");
-
-                match dispatch::remove_remote(name) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
+            (STATUS, sub_matches) => {
+                remote_status(sub_matches).await;
+            }
+            (COMMIT, sub_matches) => {
+                remote_commit(sub_matches).await;
+            }
+            (LOG, sub_matches) => {
+                remote_log(sub_matches).await;
+            }
+            (DF, sub_matches) => {
+                remote_df(sub_matches).await;
+            }
+            (DIFF, sub_matches) => {
+                remote_diff(sub_matches).await;
             }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
@@ -111,7 +132,22 @@ pub fn remote(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn status(sub_matches: &ArgMatches) {
+async fn remote_add(sub_matches: &ArgMatches) {
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
+    let remote = true;
+    match dispatch::add(paths, remote).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpts {
     let skip: usize = sub_matches
         .value_of("skip")
         .unwrap_or("0")
@@ -123,19 +159,50 @@ pub async fn status(sub_matches: &ArgMatches) {
         .parse::<usize>()
         .expect("Limit must be a valid integer.");
     let print_all = sub_matches.is_present("print_all");
-    let is_remote = sub_matches.is_present("remote");
-    let directory = sub_matches.value_of("directory").map(PathBuf::from);
 
-    let opts = StagedDataOpts {
+    StagedDataOpts {
         skip,
         limit,
         print_all,
         is_remote,
-    };
+    }
+}
+
+async fn remote_status(sub_matches: &ArgMatches) {
+    let is_remote = true;
+    let opts = parse_status_args(sub_matches, is_remote);
+    match dispatch::status(None, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}");
+        }
+    }
+}
+
+pub async fn status(sub_matches: &ArgMatches) {
+    let directory = sub_matches.value_of("directory").map(PathBuf::from);
+
+    let is_remote = false;
+    let opts = parse_status_args(sub_matches, is_remote);
     match dispatch::status(directory, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");
+        }
+    }
+}
+
+async fn remote_log(sub_matches: &ArgMatches) {
+    let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+
+    let opts = LogOpts {
+        committish,
+        remote: true,
+    };
+    match dispatch::log_commits(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
         }
     }
 }
@@ -145,7 +212,7 @@ pub async fn log(sub_matches: &ArgMatches) {
 
     let opts = LogOpts {
         committish,
-        remote: sub_matches.is_present("remote"),
+        remote: false,
     };
     match dispatch::log_commits(opts).await {
         Ok(_) => {}
@@ -190,6 +257,18 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         unique: sub_matches.value_of("unique").map(String::from),
         should_randomize: sub_matches.is_present("randomize"),
         should_reverse: sub_matches.is_present("reverse"),
+    }
+}
+
+async fn remote_df(sub_matches: &ArgMatches) {
+    let path = sub_matches.value_of("DF_SPEC").expect("required");
+    let opts = parse_df_sub_matches(sub_matches);
+
+    match dispatch::remote_df(path, opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
     }
 }
 
@@ -266,8 +345,8 @@ pub async fn add(sub_matches: &ArgMatches) {
         .map(PathBuf::from)
         .collect();
 
-    let remote = sub_matches.is_present("remote");
-    match dispatch::add(paths, remote).await {
+    let is_remote = false;
+    match dispatch::add(paths, is_remote).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -461,20 +540,29 @@ pub async fn pull(sub_matches: &ArgMatches) {
     }
 }
 
+pub async fn remote_diff(sub_matches: &ArgMatches) {
+    let is_remote = true;
+    p_diff(sub_matches, is_remote).await
+}
+
 pub async fn diff(sub_matches: &ArgMatches) {
+    let is_remote = false;
+    p_diff(sub_matches, is_remote).await
+}
+
+async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     // First arg is optional
     let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
     let path = sub_matches.value_of("PATH");
-    let remote = sub_matches.is_present("remote");
     if let Some(path) = path {
-        match dispatch::diff(Some(file_or_commit_id), path, remote).await {
+        match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
             }
         }
     } else {
-        match dispatch::diff(None, file_or_commit_id, remote).await {
+        match dispatch::diff(None, file_or_commit_id, is_remote).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
@@ -506,10 +594,22 @@ pub async fn clone(sub_matches: &ArgMatches) {
     }
 }
 
+pub async fn remote_commit(sub_matches: &ArgMatches) {
+    let message = sub_matches.value_of("message").expect("required");
+
+    let is_remote = true;
+    match dispatch::commit(message, is_remote).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
 pub async fn commit(sub_matches: &ArgMatches) {
     let message = sub_matches.value_of("message").expect("required");
-    let is_remote = sub_matches.is_present("remote");
 
+    let is_remote = false;
     match dispatch::commit(message, is_remote).await {
         Ok(_) => {}
         Err(err) => {

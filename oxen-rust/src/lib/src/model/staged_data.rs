@@ -237,8 +237,8 @@ impl StagedData {
         if self.added_files.is_empty() {
             return;
         }
-        outputs.push("Files to be committed\n".normal());
-        if !self.added_files.is_empty() || !self.added_dirs.is_empty() {
+        outputs.push("Files to be committed:\n".normal());
+        if (!self.added_files.is_empty() || !self.added_dirs.is_empty()) && !opts.is_remote {
             outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
         }
 
@@ -317,7 +317,12 @@ impl StagedData {
         }
 
         outputs.push("Modified files:".to_string().normal());
-        outputs.push(format!("  {MSG_OXEN_ADD_FILE_EXAMPLE}").normal());
+
+        if opts.is_remote {
+            outputs.push(format!("\n").normal());
+        } else {
+            outputs.push(format!("  {MSG_OXEN_ADD_FILE_EXAMPLE}").normal());
+        }
 
         let mut files = self.modified_files.clone();
         files.sort();
@@ -514,7 +519,7 @@ mod tests {
             ..StagedDataOpts::default()
         };
         let outputs = staged_data.__collect_outputs(&opts);
-        assert_eq!(outputs[0], "Files to be committed\n".normal());
+        assert_eq!(outputs[0], "Files to be committed:\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
         assert_eq!(outputs[2], "  new file: ".green());
         assert_eq!(outputs[3], "file_1.jpg\n".green().bold());
@@ -555,7 +560,7 @@ mod tests {
             ..StagedDataOpts::default()
         };
         let outputs = staged_data.__collect_outputs(&opts);
-        assert_eq!(outputs[0], "Files to be committed\n".normal());
+        assert_eq!(outputs[0], "Files to be committed:\n".normal());
         assert_eq!(outputs[1], MSG_OXEN_RESTORE_STAGED_FILE.normal());
         assert_eq!(outputs[2], "  new file: ".green());
         assert_eq!(outputs[3], "file_3.jpg\n".green().bold());

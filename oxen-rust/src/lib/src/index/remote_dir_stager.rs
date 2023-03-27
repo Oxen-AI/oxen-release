@@ -22,18 +22,25 @@ use crate::util;
 
 use super::CommitWriter;
 
-// These methods create a directory within .oxen/staging/branch-name/ that is basically a local oxen repo
-// Then we can stage data right into here using the same stager
+// These methods create a directory within .oxen/staging/branch-name/user-email-hash/ that is a local oxen repo
+// Then we can stage data right into here using the same stager, but on a per user basis
 
-pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch) -> PathBuf {
+pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
+    // Just in case they pass in the email or some other random string, hash it for nice dir name
+    let user_id_hash = util::hasher::hash_str(&user_id);
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(&branch.name)
+        .join(&user_id_hash)
 }
 
-pub fn init_or_get(repo: &LocalRepository, branch: &Branch) -> Result<LocalRepository, OxenError> {
-    let staging_dir = branch_staging_dir(repo, branch);
+pub fn init_or_get(
+    repo: &LocalRepository,
+    branch: &Branch,
+    user_id: &str,
+) -> Result<LocalRepository, OxenError> {
+    let staging_dir = branch_staging_dir(repo, branch, user_id);
     let oxen_dir = staging_dir.join(OXEN_HIDDEN_DIR);
     let branch_repo = if oxen_dir.exists() {
         log::debug!("stage_file Already have oxen repo 🐂");
@@ -86,9 +93,10 @@ pub fn stage_file(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     filepath: &Path,
 ) -> Result<PathBuf, OxenError> {
-    let staging_dir = branch_staging_dir(repo, branch);
+    let staging_dir = branch_staging_dir(repo, branch, user_id);
     log::debug!("remote stager before add... staging_dir {:?}", staging_dir);
 
     // Stager will be in the branch repo
@@ -129,11 +137,12 @@ pub fn commit_staged(
     branch_repo: &LocalRepository,
     branch: &Branch,
     user: &User,
+    user_id: &str,
     message: &str,
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_staged started on branch: {}", branch.name);
 
-    let staging_dir = branch_staging_dir(repo, branch);
+    let staging_dir = branch_staging_dir(repo, branch, user_id);
     let mut status = status_for_branch(repo, branch_repo, branch)?;
 
     let commit_writer = CommitWriter::new(repo)?;
@@ -149,11 +158,12 @@ pub fn commit_staged(
     log::debug!("commit_staged: new_commit: {:#?}", &new_commit);
 
     // This should copy all the files over from the staging dir to the versions dir
-    let commit = commit_writer.commit_from_new(
+    let commit = commit_writer.commit_from_new_on_remote_branch(
         &new_commit,
         &mut status,
         &staging_dir,
-        Some(branch.to_owned()),
+        branch,
+        user_id,
     )?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
@@ -233,6 +243,7 @@ mod tests {
     use std::path::Path;
 
     use crate::command;
+    use crate::config::UserConfig;
     use crate::error::OxenError;
     use crate::index;
     use crate::model::User;
@@ -246,15 +257,22 @@ mod tests {
             let branch = command::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
-            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch);
+            let user_id = UserConfig::identifier()?;
+            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch, &user_id);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
 
-            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch)?;
-            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &full_path)?;
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+            index::remote_dir_stager::stage_file(
+                &repo,
+                &branch_repo,
+                &branch,
+                &user_id,
+                &full_path,
+            )?;
 
             // Verify staged data
             let staged_data = index::remote_dir_stager::list_staged_data(
@@ -277,14 +295,22 @@ mod tests {
             let branch = command::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
-            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch);
+            let user_id = UserConfig::identifier()?;
+
+            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch, &user_id);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
-            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch)?;
-            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &full_path)?;
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+            index::remote_dir_stager::stage_file(
+                &repo,
+                &branch_repo,
+                &branch,
+                &user_id,
+                &full_path,
+            )?;
 
             let og_commits = command::log(&repo)?;
             let user = User {
@@ -292,7 +318,14 @@ mod tests {
                 email: String::from("test@oxen.ai"),
             };
             let message: &str = "I am committing this remote staged data";
-            index::remote_dir_stager::commit_staged(&repo, &branch_repo, &branch, &user, message)?;
+            index::remote_dir_stager::commit_staged(
+                &repo,
+                &branch_repo,
+                &branch,
+                &user,
+                &user_id,
+                message,
+            )?;
 
             for commit in og_commits.iter() {
                 println!("OG commit: {commit:#?}");

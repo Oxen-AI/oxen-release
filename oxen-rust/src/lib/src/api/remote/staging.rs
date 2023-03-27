@@ -14,12 +14,15 @@ use std::path::{Path, PathBuf};
 pub async fn list_staging_dir(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     path: &Path,
     page: usize,
     page_size: usize,
 ) -> Result<RemoteStagedStatus, OxenError> {
     let path_str = path.to_str().unwrap();
-    let uri = format!("/staging/dir/{branch_name}/{path_str}?page={page}&page_size={page_size}");
+    let uri = format!(
+        "/staging/{user_id}/dir/{branch_name}/{path_str}?page={page}&page_size={page_size}"
+    );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -46,10 +49,11 @@ pub async fn list_staging_dir(
 pub async fn stage_file(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/staging/dir/{branch_name}/{directory_name}");
+    let uri = format!("/staging/{user_id}/dir/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -89,10 +93,11 @@ pub async fn stage_file(
 pub async fn stage_files(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     directory_name: &str,
     paths: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, OxenError> {
-    let uri = format!("/staging/dir/{branch_name}/{directory_name}");
+    let uri = format!("/staging/{user_id}/dir/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -133,6 +138,7 @@ pub async fn stage_files(
 pub async fn stage_modification(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     path: &Path,
     data: String,
     content_type: ContentType,
@@ -145,7 +151,7 @@ pub async fn stage_modification(
     }
 
     let file_path_str = path.to_str().unwrap();
-    let uri = format!("/staging/append/{branch_name}/{file_path_str}");
+    let uri = format!("/staging/{user_id}/append/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = reqwest::Client::new();
@@ -178,9 +184,10 @@ pub async fn stage_modification(
 pub async fn commit_staged(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     commit: &CommitBody,
 ) -> Result<Commit, OxenError> {
-    let uri = format!("/staging/commit/{branch_name}");
+    let uri = format!("/staging/{user_id}/commit/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("commit_staged {}\n{}", url, body);
@@ -213,10 +220,11 @@ pub async fn commit_staged(
 pub async fn rm_staged_file(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     path: PathBuf,
 ) -> Result<(), OxenError> {
     let file_name = path.to_string_lossy();
-    let uri = format!("/staging/file/{branch_name}/{file_name}");
+    let uri = format!("/staging/{user_id}/file/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_staged_file {}", url);
     let client = reqwest::Client::new();
@@ -236,11 +244,12 @@ pub async fn rm_staged_file(
 pub async fn delete_staged_modification(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     path: impl AsRef<Path>,
     uuid: &str,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/delete/{branch_name}/{file_name}");
+    let uri = format!("/staging/{user_id}/delete/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("delete_staged_modification [{}] {}", uuid, url);
     let client = reqwest::Client::new();
@@ -260,12 +269,15 @@ pub async fn delete_staged_modification(
 pub async fn diff_staged_file(
     remote_repo: &RemoteRepository,
     branch_name: &str,
+    user_id: &str,
     path: impl AsRef<Path>,
     page: usize,
     page_size: usize,
 ) -> Result<DataFrameDiff, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
-    let uri = format!("/staging/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}");
+    let uri = format!(
+        "/staging/{user_id}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
+    );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -303,6 +315,7 @@ pub async fn diff_staged_file(
 #[cfg(test)]
 mod tests {
 
+    use crate::config::UserConfig;
     use crate::constants::{DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME};
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
@@ -324,6 +337,8 @@ mod tests {
             command::push_remote_branch(&local_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
                 .await?;
 
+            // client can decide what to use for id
+            let user_id = UserConfig::identifier()?;
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
@@ -333,6 +348,7 @@ mod tests {
             let entries = api::remote::staging::list_staging_dir(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 path,
                 page_num,
                 page_size,
@@ -353,12 +369,14 @@ mod tests {
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
+            let user_id = UserConfig::identifier()?;
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
             let entries = api::remote::staging::list_staging_dir(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 path,
                 page_num,
                 page_size,
@@ -380,10 +398,16 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let directory_name = "images";
+            let user_id = UserConfig::identifier()?;
             let path = test::test_jpeg_file().to_path_buf();
-            let result =
-                api::remote::staging::stage_file(&remote_repo, branch_name, directory_name, path)
-                    .await;
+            let result = api::remote::staging::stage_file(
+                &remote_repo,
+                branch_name,
+                &user_id,
+                directory_name,
+                path,
+            )
+            .await;
             assert!(result.is_ok());
 
             let page_num = constants::DEFAULT_PAGE_NUM;
@@ -392,6 +416,7 @@ mod tests {
             let entries = api::remote::staging::list_staging_dir(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 path,
                 page_num,
                 page_size,
@@ -412,17 +437,27 @@ mod tests {
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
+            let user_id = UserConfig::identifier()?;
             let directory_name = "images";
             let path = test::test_jpeg_file().to_path_buf();
-            let result =
-                api::remote::staging::stage_file(&remote_repo, branch_name, directory_name, path)
-                    .await;
+            let result = api::remote::staging::stage_file(
+                &remote_repo,
+                branch_name,
+                &user_id,
+                directory_name,
+                path,
+            )
+            .await;
             assert!(result.is_ok());
 
             // Remove the file
-            let result =
-                api::remote::staging::rm_staged_file(&remote_repo, branch_name, result.unwrap())
-                    .await;
+            let result = api::remote::staging::rm_staged_file(
+                &remote_repo,
+                branch_name,
+                &user_id,
+                result.unwrap(),
+            )
+            .await;
             assert!(result.is_ok());
 
             // Make sure we have 0 files staged
@@ -432,6 +467,7 @@ mod tests {
             let entries = api::remote::staging::list_staging_dir(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 path,
                 page_num,
                 page_size,
@@ -452,14 +488,20 @@ mod tests {
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
+            let user_id = UserConfig::identifier()?;
             let directory_name = "data";
             let paths = vec![
                 test::test_jpeg_file().to_path_buf(),
                 test::test_jpeg_file_with_name("cole_anthony.jpeg"),
             ];
-            let result =
-                api::remote::staging::stage_files(&remote_repo, branch_name, directory_name, paths)
-                    .await;
+            let result = api::remote::staging::stage_files(
+                &remote_repo,
+                branch_name,
+                &user_id,
+                directory_name,
+                paths,
+            )
+            .await;
             assert!(result.is_ok());
 
             let page_num = constants::DEFAULT_PAGE_NUM;
@@ -468,6 +510,7 @@ mod tests {
             let entries = api::remote::staging::list_staging_dir(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 path,
                 page_num,
                 page_size,
@@ -488,11 +531,13 @@ mod tests {
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
+            let user_id = UserConfig::identifier()?;
             let file_to_post = test::test_jpeg_file().to_path_buf();
             let directory_name = "data";
             let result = api::remote::staging::stage_file(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 directory_name,
                 file_to_post,
             )
@@ -507,7 +552,8 @@ mod tests {
                 },
             };
             let commit =
-                api::remote::staging::commit_staged(&remote_repo, branch_name, &body).await?;
+                api::remote::staging::commit_staged(&remote_repo, branch_name, &user_id, &body)
+                    .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());
@@ -553,14 +599,20 @@ mod tests {
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
 
+            let user_id = UserConfig::identifier()?;
             let directory_name = "data";
             let paths = vec![
                 test::test_jpeg_file().to_path_buf(),
                 test::test_jpeg_file_with_name("cole_anthony.jpeg"),
             ];
-            let result =
-                api::remote::staging::stage_files(&remote_repo, branch_name, directory_name, paths)
-                    .await;
+            let result = api::remote::staging::stage_files(
+                &remote_repo,
+                branch_name,
+                &user_id,
+                directory_name,
+                paths,
+            )
+            .await;
             assert!(result.is_ok());
 
             let body = CommitBody {
@@ -571,7 +623,8 @@ mod tests {
                 },
             };
             let commit =
-                api::remote::staging::commit_staged(&remote_repo, branch_name, &body).await?;
+                api::remote::staging::commit_staged(&remote_repo, branch_name, &user_id, &body)
+                    .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());
@@ -588,6 +641,7 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
+            let user_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations")
@@ -597,6 +651,7 @@ mod tests {
             let result = api::remote::staging::stage_modification(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 data.to_string(),
                 ContentType::Json,
@@ -617,6 +672,7 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
+            let user_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
@@ -625,6 +681,7 @@ mod tests {
                 api::remote::staging::stage_modification(
                     &remote_repo,
                     branch_name,
+                    &user_id,
                     &path,
                     data.to_string(),
                     ContentType::Json,
@@ -645,6 +702,7 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
+            let user_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations")
@@ -654,6 +712,7 @@ mod tests {
             let result = api::remote::staging::stage_modification(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 data.to_string(),
                 ContentType::Csv,
@@ -675,6 +734,7 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
+            let user_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
@@ -683,6 +743,7 @@ mod tests {
             api::remote::staging::stage_modification(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 data.to_string(),
                 ContentType::Json,
@@ -694,6 +755,7 @@ mod tests {
             let entries = api::remote::staging::list_staging_dir(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &directory,
                 page_num,
                 page_size,
@@ -713,6 +775,7 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
+            let user_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
@@ -721,6 +784,7 @@ mod tests {
             let result_1 = api::remote::staging::stage_modification(
                     &remote_repo,
                     branch_name,
+                    &user_id,
                     &path,
                     data.to_string(),
                     ContentType::Json,
@@ -732,6 +796,7 @@ mod tests {
             let result_2 = api::remote::staging::stage_modification(
                     &remote_repo,
                     branch_name,
+                    &user_id,
                     &path,
                     data.to_string(),
                     ContentType::Json,
@@ -742,6 +807,7 @@ mod tests {
             let diff = api::remote::staging::diff_staged_file(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
@@ -750,13 +816,20 @@ mod tests {
             assert_eq!(added_rows.height(), 2);
 
             // Delete result_2
-            let result_delete = api::remote::staging::delete_staged_modification(&remote_repo, branch_name, &path, &result_2.uuid).await;
+            let result_delete = api::remote::staging::delete_staged_modification(
+                &remote_repo,
+                branch_name,
+                &user_id,
+                &path,
+                &result_2.uuid
+            ).await;
             assert!(result_delete.is_ok());
 
             // Make there is only one left
             let diff = api::remote::staging::diff_staged_file(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
@@ -775,6 +848,7 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
             assert_eq!(branch.name, branch_name);
+            let user_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
@@ -783,6 +857,7 @@ mod tests {
             api::remote::staging::stage_modification(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 data.to_string(),
                 ContentType::Json,
@@ -792,6 +867,7 @@ mod tests {
             let diff = api::remote::staging::diff_staged_file(
                 &remote_repo,
                 branch_name,
+                &user_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE

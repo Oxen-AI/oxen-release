@@ -257,6 +257,7 @@ impl EntryIndexer {
         for unsynced in unsynced_commits.iter() {
             let commit = &unsynced.commit;
             let entries = &unsynced.entries;
+
             println!(
                 "Pushing commit {} entries: {} -> '{}'",
                 entries.len(),
@@ -350,11 +351,13 @@ impl EntryIndexer {
         println!("🐂 push computing size...");
         let total_size = self.compute_entries_size(entries)?;
 
-        println!(
-            "Pushing {} files with size {}",
-            entries.len(),
-            ByteSize::b(total_size)
-        );
+        if entries.len() > 0 {
+            println!(
+                "Pushing {} files with size {}",
+                entries.len(),
+                ByteSize::b(total_size)
+            );
+        }
 
         let bar = Arc::new(ProgressBar::new(total_size));
 

@@ -174,7 +174,8 @@ pub async fn remote_status(
     directory: &Path,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    remote_stager::status(remote_repo, branch, directory, opts).await
+    let user_id = UserConfig::identifier()?;
+    remote_stager::status(remote_repo, branch, &user_id, directory, opts).await
 }
 
 pub async fn remote_status_from_local(
@@ -272,9 +273,11 @@ pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         .ok_or_else(|| OxenError::basic_str("Could not convert path to string"))?
         .to_string();
 
+    let user_id = UserConfig::identifier()?;
     let result = api::remote::staging::stage_file(
         &remote_repo,
         &branch.name,
+        &user_id,
         &directory_name,
         path.to_path_buf(),
     )
@@ -306,9 +309,11 @@ async fn append_remote(
 ) -> Result<(), OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     if let Some(branch) = current_branch(repo)? {
+        let user_id = UserConfig::identifier()?;
         api::remote::staging::stage_modification(
             &remote_repo,
             &branch.name,
+            &user_id,
             path,
             data.to_string(),
             opts.content_type.to_owned(),
@@ -345,8 +350,15 @@ pub async fn delete_staged_row(
 ) -> Result<(), OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = current_branch(repository)? {
-        api::remote::staging::delete_staged_modification(&remote_repo, &branch.name, path, uuid)
-            .await?;
+        let user_id = UserConfig::identifier()?;
+        api::remote::staging::delete_staged_modification(
+            &remote_repo,
+            &branch.name,
+            &user_id,
+            path,
+            uuid,
+        )
+        .await?;
         Ok(())
     } else {
         Err(OxenError::basic_str(
@@ -368,6 +380,18 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
         println!("Writing {output:?}");
         tabular::write_df(&mut df, output)?;
     }
+
+    Ok(())
+}
+
+/// Interact with Remote DataFrames from CLI
+pub fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+    todo!("remote_df not implemented yet");
+
+    // if let Some(output) = opts.output {
+    //     println!("Writing {output:?}");
+    //     tabular::write_df(&mut df, output)?;
+    // }
 
     Ok(())
 }
@@ -542,7 +566,9 @@ pub async fn remote_commit(
             email: cfg.email,
         },
     };
-    let commit = api::remote::staging::commit_staged(&remote_repo, &branch.name, &body).await?;
+    let user_id = UserConfig::identifier()?;
+    let commit =
+        api::remote::staging::commit_staged(&remote_repo, &branch.name, &user_id, &body).await?;
     Ok(Some(commit))
 }
 
@@ -1072,9 +1098,11 @@ pub async fn remote_diff(
 ) -> Result<String, OxenError> {
     let branch = get_branch_by_name_or_current(repo, branch_name)?;
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let user_id = UserConfig::identifier()?;
     let diff = api::remote::staging::diff_staged_file(
         &remote_repo,
         &branch.name,
+        &user_id,
         path,
         DEFAULT_PAGE_NUM,
         DEFAULT_PAGE_SIZE,

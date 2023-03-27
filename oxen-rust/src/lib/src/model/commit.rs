@@ -94,6 +94,13 @@ impl Commit {
     pub fn to_uri_encoded(&self) -> String {
         serde_url_params::to_string(&self).unwrap()
     }
+
+    pub fn get_user(&self) -> User {
+        User {
+            name: self.author.to_owned(),
+            email: self.email.to_owned(),
+        }
+    }
 }
 
 impl CommitWithSize {
