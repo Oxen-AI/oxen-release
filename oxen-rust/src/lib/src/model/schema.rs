@@ -29,7 +29,7 @@ impl Schema {
         let mut schema = polars::prelude::Schema::new();
         for field in self.fields.iter() {
             let data_type = DataType::from_string(&field.dtype);
-            schema.with_column(field.name.to_owned(), DataType::to_polars(&data_type))
+            schema.with_column(field.name.to_owned(), DataType::to_polars(&data_type));
         }
 
         schema

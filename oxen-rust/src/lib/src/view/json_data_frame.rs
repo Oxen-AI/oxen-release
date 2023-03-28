@@ -13,6 +13,12 @@ pub struct JsonDataSize {
     pub width: usize,
 }
 
+impl JsonDataSize {
+    pub fn is_empty(&self) -> bool {
+        self.height == 0 && self.width == 0
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataFrame {
     pub schema: Schema,
@@ -34,6 +40,15 @@ pub struct JsonDataFrameSliceResponse {
 }
 
 impl JsonDataFrame {
+    pub fn empty(schema: &Schema) -> JsonDataFrame {
+        JsonDataFrame {
+            schema: schema.to_owned(),
+            slice_size: JsonDataSize { height: 0, width: 0 },
+            full_size: JsonDataSize { height: 0, width: 0 },
+            data: serde_json::Value::Null,
+        }
+    }
+
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
         JsonDataFrame {
             schema: Schema::from_polars(&df.schema()),
@@ -50,9 +65,13 @@ impl JsonDataFrame {
     }
 
     pub fn to_df(&self) -> DataFrame {
-        let data = self.data.to_string();
-        let content = Cursor::new(data.as_bytes());
-        JsonReader::new(content).finish().unwrap()
+        if self.data == serde_json::Value::Null {
+            return DataFrame::empty();
+        } else {
+            let data = self.data.to_string();
+            let content = Cursor::new(data.as_bytes());
+            JsonReader::new(content).finish().unwrap()
+        }
     }
 
     pub fn from_slice(df: &mut DataFrame, full_size: JsonDataSize) -> JsonDataFrame {
