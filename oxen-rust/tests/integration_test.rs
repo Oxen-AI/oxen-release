@@ -2345,12 +2345,10 @@ fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
 
         let og_contents = util::fs::read_from_path(&bbox_path)?;
 
+        let mut opts = DFOpts::empty();
+        opts.add_row = Some("train/dog_99.jpg,dog,101.5,32.0,385,330".to_string());
         let og_df = tabular::scan_df(&bbox_path)?;
-        let vals: Vec<String> = ["train/dog_99.jpg", "dog", "101.5", "32.0", "385", "330"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        let mut new_df = tabular::add_row(og_df, vals)?.collect().unwrap();
+        let mut new_df = tabular::transform_lazy(og_df, opts)?;
         tabular::write_df(&mut new_df, &bbox_path)?;
 
         command::restore(

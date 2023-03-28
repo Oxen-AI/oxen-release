@@ -9,8 +9,6 @@ pub const LOG: &str = "log";
 pub const DF: &str = "df";
 pub const SCHEMAS: &str = "schemas";
 pub const ADD: &str = "add";
-pub const APPEND: &str = "append";
-pub const DELETE: &str = "delete";
 pub const RM: &str = "rm";
 pub const COMMIT: &str = "commit";
 pub const RESTORE: &str = "restore";
@@ -230,6 +228,12 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("delete-row")
+                .long("delete-row")
+                .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
+                .takes_value(true),
+        )
+        .arg(
             Arg::new("content-type")
                 .long("content-type")
                 .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
@@ -302,15 +306,6 @@ pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
         .arg(Arg::new("files").required(true).min_values(1))
-}
-
-pub fn delete() -> Command<'static> {
-    // TODO: call these "oxen remote df --delete-row UUID"?
-    Command::new(DELETE)
-        .about("Delete row from a staged DataFrame.")
-        .arg(arg!(<PATH> "The file path you would like to delete from."))
-        .arg(arg!(<ID> "The the _id for the row you would like to delete."))
-        .arg_required_else_help(true)
 }
 
 pub fn commit() -> Command<'static> {

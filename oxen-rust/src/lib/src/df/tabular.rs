@@ -2,8 +2,8 @@ use polars::{lazy::dsl::Expr, prelude::*};
 
 use crate::df::df_opts::DFOpts;
 use crate::error::OxenError;
-use crate::model::ContentType;
 use crate::model::schema::DataType;
+use crate::model::ContentType;
 use crate::util::hasher;
 use crate::{constants, df::filter::DFLogicalOp};
 

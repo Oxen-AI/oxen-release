@@ -43,8 +43,14 @@ impl JsonDataFrame {
     pub fn empty(schema: &Schema) -> JsonDataFrame {
         JsonDataFrame {
             schema: schema.to_owned(),
-            slice_size: JsonDataSize { height: 0, width: 0 },
-            full_size: JsonDataSize { height: 0, width: 0 },
+            slice_size: JsonDataSize {
+                height: 0,
+                width: 0,
+            },
+            full_size: JsonDataSize {
+                height: 0,
+                width: 0,
+            },
             data: serde_json::Value::Null,
         }
     }
@@ -66,7 +72,7 @@ impl JsonDataFrame {
 
     pub fn to_df(&self) -> DataFrame {
         if self.data == serde_json::Value::Null {
-            return DataFrame::empty();
+            DataFrame::empty()
         } else {
             let data = self.data.to_string();
             let content = Cursor::new(data.as_bytes());

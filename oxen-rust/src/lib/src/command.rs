@@ -388,7 +388,9 @@ pub async fn remote_df<P: AsRef<Path>>(
 ) -> Result<(), OxenError> {
     // Special case where we are writing data
     if let Some(row) = &opts.add_row {
-        add_row(repo, input.as_ref(), &row, &opts).await?;
+        add_row(repo, input.as_ref(), row, &opts).await?;
+    } else if let Some(uuid) = &opts.delete_row {
+        delete_staged_row(repo, input, uuid).await?;
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = current_branch(repo)?.unwrap();
