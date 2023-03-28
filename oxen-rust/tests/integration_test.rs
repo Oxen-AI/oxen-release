@@ -5,6 +5,7 @@ use liboxen::df::tabular;
 use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
+use liboxen::model::ContentType;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
@@ -2347,6 +2348,7 @@ fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
 
         let mut opts = DFOpts::empty();
         opts.add_row = Some("train/dog_99.jpg,dog,101.5,32.0,385,330".to_string());
+        opts.content_type = ContentType::Csv;
         let og_df = tabular::scan_df(&bbox_path)?;
         let mut new_df = tabular::transform_lazy(og_df, opts)?;
         tabular::write_df(&mut new_df, &bbox_path)?;
@@ -2787,15 +2789,10 @@ shape: (6, 1)
 │ str     │
 ╞═════════╡
 │ unknown │
-├╌╌╌╌╌╌╌╌╌┤
 │ unknown │
-├╌╌╌╌╌╌╌╌╌┤
 │ unknown │
-├╌╌╌╌╌╌╌╌╌┤
 │ unknown │
-├╌╌╌╌╌╌╌╌╌┤
 │ unknown │
-├╌╌╌╌╌╌╌╌╌┤
 │ unknown │
 └─────────┘
 
@@ -2817,6 +2814,7 @@ fn test_diff_tabular_add_row() -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         // Add Row
         opts.add_row = Some(String::from("train/cat_100.jpg,cat,100.0,100.0,100,100"));
+        opts.content_type = ContentType::Csv;
         // Save to Output
         opts.output = Some(bbox_file.clone());
         // Perform df transform
@@ -2885,9 +2883,7 @@ shape: (3, 6)
 │ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
 ╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
 │ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
 │ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
-├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
 │ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
 └─────────────────┴───────┴───────┴───────┴───────┴────────┘
 
