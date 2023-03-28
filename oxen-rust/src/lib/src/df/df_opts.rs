@@ -6,7 +6,7 @@ use crate::constants::{
 use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
-use crate::model::Schema;
+use crate::model::{Schema, ContentType};
 
 use super::filter::{self, DFFilterExp};
 
@@ -39,6 +39,8 @@ pub struct DFOpts {
     pub unique: Option<String>,
     pub should_randomize: bool,
     pub should_reverse: bool,
+    pub content_type: ContentType,
+    pub is_remote: bool,
     pub page: Option<usize>,
     pub page_size: Option<usize>,
 }
@@ -60,6 +62,8 @@ impl DFOpts {
             unique: None,
             should_randomize: false,
             should_reverse: false,
+            is_remote: false,
+            content_type: ContentType::Json,
             page: None,
             page_size: None,
         }
@@ -227,17 +231,6 @@ impl DFOpts {
                 value: split[1].to_owned(),
                 dtype: split[2].to_owned(),
             });
-        }
-        None
-    }
-
-    pub fn add_row_vals(&self) -> Option<Vec<String>> {
-        if let Some(add_row) = self.add_row.clone() {
-            let split = add_row
-                .split(',')
-                .map(String::from)
-                .collect::<Vec<String>>();
-            return Some(split);
         }
         None
     }

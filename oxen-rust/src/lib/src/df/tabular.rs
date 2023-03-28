@@ -2,6 +2,7 @@ use polars::{lazy::dsl::Expr, prelude::*};
 
 use crate::df::df_opts::DFOpts;
 use crate::error::OxenError;
+use crate::model::ContentType;
 use crate::model::schema::DataType;
 use crate::util::hasher;
 use crate::{constants, df::filter::DFLogicalOp};
@@ -13,6 +14,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
+use std::io::Cursor;
 use std::path::Path;
 
 use super::{
@@ -164,31 +166,52 @@ pub fn add_col(
     Ok(df)
 }
 
-pub fn add_row(df: LazyFrame, vals: Vec<String>) -> Result<LazyFrame, OxenError> {
+pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
 
-    if df.width() != vals.len() {
-        let err = format!(
-            "Cannot add row of len {} to data frame of width {}",
-            vals.len(),
-            df.width()
-        );
-        return Err(OxenError::basic_str(err));
-    }
-
-    let mut series: Vec<Series> = vec![];
-    for (i, field) in df.fields().iter().enumerate() {
-        let s: Series = Series::from_any_values(
-            &field.name,
-            &[val_from_str_and_dtype(&vals[i], field.data_type())],
-        )
-        .expect("Could not create col from row val");
-        series.push(s);
-    }
-
-    let new_row = DataFrame::new(series).unwrap();
+    let schema = crate::model::Schema::from_polars(&df.schema());
+    let new_row = parse_data_into_df(&data, &schema, opts.content_type.to_owned())?;
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
+}
+
+pub fn parse_data_into_df(
+    data: &str,
+    schema: &crate::model::Schema,
+    content_type: ContentType,
+) -> Result<DataFrame, OxenError> {
+    log::debug!("Parsing content into df: {content_type:?}\n{data}");
+    match content_type {
+        ContentType::Json => {
+            // getting an internal error if not jsonl, so do a quick check that it starts with a '{'
+            if !data.trim().starts_with('{') {
+                return Err(OxenError::basic_str(format!(
+                    "Invalid json content: {data}"
+                )));
+            }
+
+            let cursor = Cursor::new(data.as_bytes());
+            match JsonLineReader::new(cursor).finish() {
+                Ok(df) => Ok(df),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "Error parsing {content_type:?}: {err}"
+                ))),
+            }
+        }
+        ContentType::Csv => {
+            let fields = schema.fields_to_csv();
+            let data = format!("{}\n{}", fields, data);
+            let cursor = Cursor::new(data.as_bytes());
+            let schema = schema.to_polars();
+            match CsvReader::new(cursor).with_schema(&schema).finish() {
+                Ok(df) => Ok(df),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "Error parsing {content_type:?}: {err}"
+                ))),
+            }
+        }
+        _ => Err(OxenError::basic_str("Unsupported content type")),
+    }
 }
 
 fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {
@@ -348,8 +371,8 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, Oxen
         }
     }
 
-    if let Some(row_vals) = opts.add_row_vals() {
-        df = add_row(df, row_vals)?;
+    if let Some(data) = &opts.add_row {
+        df = add_row(df, data.to_owned(), &opts)?;
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
@@ -518,7 +541,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                             })
                             .collect();
 
-                        Ok(out.into_series())
+                        Ok(Some(out.into_series()))
                     },
                     GetOutput::from_type(polars::prelude::DataType::Utf8),
                 )

@@ -2,7 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
-use crate::model::ContentType;
+use crate::model::{ContentType, Schema};
 use crate::model::{Commit, CommitBody, DataFrameDiff, ModEntry, RemoteRepository};
 use crate::view::{
     CommitResponse, FilePathsResponse, ListStagedFileModResponseDF, RemoteStagedStatus,
@@ -293,8 +293,10 @@ pub async fn diff_staged_file(
                     let mods = val.modifications;
 
                     let added_rows = mods.added_rows.map(|added| added.to_df());
+                    let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
 
                     Ok(DataFrameDiff {
+                        base_schema: schema,
                         added_rows,
                         removed_rows: None,
                         added_cols: None,

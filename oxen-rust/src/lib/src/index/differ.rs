@@ -210,6 +210,7 @@ fn compute_new_rows(
     let removed_rows = tabular::take(versioned_df.lazy(), removed_indices)?;
 
     Ok(DataFrameDiff {
+        base_schema: versioned_schema.to_owned(),
         added_rows: if added_rows.height() > 0 {
             Some(added_rows)
         } else {
@@ -261,6 +262,7 @@ fn compute_new_columns(
     };
 
     Ok(DataFrameDiff {
+        base_schema: versioned_schema.to_owned(),
         added_rows: None,
         removed_rows: None,
         added_cols,

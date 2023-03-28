@@ -5,7 +5,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AppendOpts, CloneOpts, LogOpts, RmOpts};
+use liboxen::opts::{CloneOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -222,13 +222,16 @@ pub async fn log(sub_matches: &ArgMatches) {
     }
 }
 
-fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
+fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::df::DFOpts {
     let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack") {
         let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
         Some(values)
     } else {
         None
     };
+
+    // CSV is easier from the CLI, but JSON is easier from API, so default to CSV here.
+    let content_type = sub_matches.value_of("content-type").unwrap_or("csv");
 
     liboxen::df::DFOpts {
         output: sub_matches.value_of("output").map(std::path::PathBuf::from),
@@ -255,6 +258,8 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         add_row: sub_matches.value_of("add-row").map(String::from),
         sort_by: sub_matches.value_of("sort").map(String::from),
         unique: sub_matches.value_of("unique").map(String::from),
+        content_type: ContentType::from_str(content_type).unwrap(),
+        is_remote: is_remote,
         should_randomize: sub_matches.is_present("randomize"),
         should_reverse: sub_matches.is_present("reverse"),
     }
@@ -262,7 +267,8 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
 
 async fn remote_df(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("DF_SPEC").expect("required");
-    let opts = parse_df_sub_matches(sub_matches);
+    let is_remote = true;
+    let opts = parse_df_sub_matches(sub_matches, is_remote);
 
     match dispatch::remote_df(path, opts).await {
         Ok(_) => {}
@@ -282,7 +288,8 @@ pub fn df(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        let opts = parse_df_sub_matches(sub_matches);
+        let is_remote = false;
+        let opts = parse_df_sub_matches(sub_matches, is_remote);
 
         match dispatch::df(path, opts) {
             Ok(_) => {}
@@ -347,28 +354,6 @@ pub async fn add(sub_matches: &ArgMatches) {
 
     let is_remote = false;
     match dispatch::add(paths, is_remote).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn append(sub_matches: &ArgMatches) {
-    let path = sub_matches
-        .value_of("PATH")
-        .expect("PATH param is required");
-    let data = sub_matches
-        .value_of("data")
-        .expect("data param is required");
-    let content_type = sub_matches.value_of("content-type").unwrap_or("json");
-
-    let opts = AppendOpts {
-        content_type: ContentType::from_str(content_type).unwrap(),
-        remote: sub_matches.is_present("remote"),
-    };
-
-    match dispatch::append(path, data, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

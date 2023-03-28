@@ -304,34 +304,6 @@ pub fn add() -> Command<'static> {
         .arg(Arg::new("files").required(true).min_values(1))
 }
 
-pub fn append() -> Command<'static> {
-    Command::new(APPEND)
-        .about("Append to a data file. If it is a regular utf-8 file, it will append to the end of the file. If it is a tabular data file, it will append to the end of the file and cast the values to the schema data types.")
-        .arg(arg!(<PATH> "The file path you would like to append to."))
-        .arg_required_else_help(true)
-        .arg(
-            Arg::new("data")
-                .long("data")
-                .short('d')
-                .help("The data that you want to append to the end of the file.")
-                .required(true)
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("content-type")
-                .long("content-type")
-                .short('t')
-                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("If present, will append to the file in the remote staging area of the current branch you are on.")
-                .takes_value(false),
-        )
-}
-
 pub fn delete() -> Command<'static> {
     // TODO: call these "oxen remote df --delete-row UUID"?
     Command::new(DELETE)

@@ -737,13 +737,17 @@ fn df_mods_response(
                 let polars_schema = added.schema();
                 let schema = Schema::from_polars(&polars_schema);
 
-                let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
-                log::debug!("Initial filter {:?}", filter);
-                filter = df_opts_query::parse_opts(&query, &mut filter);
-                let mut df = tabular::transform(added, filter).unwrap();
+                if og_size.is_empty() {
+                    Some(JsonDataFrame::empty(&schema))
+                } else {
+                    let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
+                    log::debug!("Initial filter {:?}", filter);
+                    filter = df_opts_query::parse_opts(&query, &mut filter);
+                    let mut df = tabular::transform(added, filter).unwrap();
 
-                let df = JsonDataFrame::from_slice(&mut df, og_size);
-                Some(df)
+                    let df = JsonDataFrame::from_slice(&mut df, og_size);
+                    Some(df)
+                }
             } else {
                 log::debug!("No added rows for entry {entry:?}");
                 None

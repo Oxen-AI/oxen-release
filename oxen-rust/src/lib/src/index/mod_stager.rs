@@ -1,5 +1,4 @@
-use polars::prelude::*;
-use std::io::Cursor;
+
 use std::path::{Path, PathBuf};
 
 use time::OffsetDateTime;
@@ -104,6 +103,8 @@ pub fn delete_mod(
 ) -> Result<ModEntry, OxenError> {
     // TODO: lock db
     let db_path = mods_db_path(repo, branch, entry);
+    log::debug!("Opening db at: {:?}", db_path);
+
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
 
@@ -126,6 +127,8 @@ pub fn list_mods_raw(
     entry: &CommitEntry,
 ) -> Result<Vec<ModEntry>, OxenError> {
     let db_path = mods_db_path(repo, branch, entry);
+    log::debug!("Opening db at: {:?}", db_path);
+
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     let mut results: Vec<ModEntry> = str_json_db::list_vals(&db)?;
@@ -145,7 +148,7 @@ pub fn list_mods_df(
         let mut df = polars::frame::DataFrame::default();
         for modification in mods.iter() {
             log::debug!("Applying modification: {:?}", modification);
-            let mut mod_df = parse_content_into_df(
+            let mut mod_df = tabular::parse_data_into_df(
                 &modification.data,
                 &schema,
                 modification.content_type.to_owned(),
@@ -158,6 +161,7 @@ pub fn list_mods_df(
         }
 
         Ok(DataFrameDiff {
+            base_schema: schema.to_owned(),
             added_rows: Some(df),
             removed_rows: None,
             added_cols: None,
@@ -173,6 +177,7 @@ pub fn list_mod_entries(
     branch: &Branch,
 ) -> Result<Vec<CommitEntry>, OxenError> {
     let db_path = files_db_path(repo, branch);
+    log::debug!("list_mod_entries from {db_path:?}");
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     str_json_db::list_vals(&db)
@@ -184,6 +189,7 @@ fn track_mod_commit_entry(
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
     let db_path = files_db_path(repo, branch);
+    log::debug!("track_mod_commit_entry from {db_path:?}");
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     let key = entry.path.to_string_lossy();
@@ -228,7 +234,7 @@ fn stage_tabular_mod(
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
         // Parse the data into DF
-        match parse_content_into_df(&content, &schema, content_type.to_owned()) {
+        match tabular::parse_data_into_df(&content, &schema, content_type.to_owned()) {
             Ok(df) => {
                 log::debug!("Successfully parsed df {:?}", df);
                 // Make sure it contains each field
@@ -249,36 +255,6 @@ fn stage_tabular_mod(
     } else {
         let err = format!("Schema not found for file {:?}", entry.path);
         Err(OxenError::basic_str(err))
-    }
-}
-
-fn parse_content_into_df(
-    data: &str,
-    schema: &crate::model::Schema,
-    content_type: ContentType,
-) -> Result<DataFrame, OxenError> {
-    match content_type {
-        ContentType::Json => {
-            let cursor = Cursor::new(data.as_bytes());
-            match JsonLineReader::new(cursor).finish() {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
-        ContentType::Csv => {
-            let fields = schema.fields_to_csv();
-            let data = format!("{}\n{}", fields, data);
-            let cursor = Cursor::new(data.as_bytes());
-            match CsvReader::new(cursor).finish() {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
-        _ => Err(OxenError::basic_str("Unsupported content type")),
     }
 }
 

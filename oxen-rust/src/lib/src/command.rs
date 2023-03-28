@@ -29,11 +29,7 @@ use crate::model::Schema;
 use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
-use crate::opts::AppendOpts;
-use crate::opts::CloneOpts;
-use crate::opts::LogOpts;
-use crate::opts::RestoreOpts;
-use crate::opts::RmOpts;
+use crate::opts::{CloneOpts, LogOpts, RestoreOpts, RmOpts};
 use crate::util;
 use crate::util::resource;
 
@@ -288,7 +284,7 @@ pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
     Ok(())
 }
 
-fn append_local(path: &Path, data: &str) -> Result<(), OxenError> {
+fn add_row_local(path: &Path, data: &str) -> Result<(), OxenError> {
     if util::fs::is_tabular(path) {
         let mut opts = DFOpts::empty();
         opts.add_row = Some(data.to_string());
@@ -301,11 +297,11 @@ fn append_local(path: &Path, data: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-async fn append_remote(
+async fn add_row_remote(
     repo: &LocalRepository,
     path: &Path,
     data: &str,
-    opts: &AppendOpts,
+    opts: &DFOpts,
 ) -> Result<(), OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     if let Some(branch) = current_branch(repo)? {
@@ -328,16 +324,16 @@ async fn append_remote(
     }
 }
 
-pub async fn append(
+pub async fn add_row(
     repo: &LocalRepository,
     path: &Path,
     data: &str,
-    opts: &AppendOpts,
+    opts: &DFOpts,
 ) -> Result<(), OxenError> {
-    if opts.remote {
-        append_remote(repo, path, data, opts).await?;
+    if opts.is_remote {
+        add_row_remote(repo, path, data, opts).await?;
     } else {
-        append_local(path, data)?;
+        add_row_local(path, data)?;
     }
 
     Ok(())
@@ -390,16 +386,21 @@ pub async fn remote_df<P: AsRef<Path>>(
     input: P,
     opts: DFOpts,
 ) -> Result<(), OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-    let branch = current_branch(repo)?.unwrap();
-    let output = opts.output.clone();
-    let mut df = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
-    if let Some(output) = output {
-        println!("Writing {output:?}");
-        tabular::write_df(&mut df, output)?;
-    }
+    // Special case where we are writing data
+    if let Some(row) = &opts.add_row {
+        add_row(repo, input.as_ref(), &row, &opts).await?;
+    } else {
+        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let branch = current_branch(repo)?.unwrap();
+        let output = opts.output.clone();
+        let mut df = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
+        if let Some(output) = output {
+            println!("Writing {output:?}");
+            tabular::write_df(&mut df, output)?;
+        }
 
-    println!("{df:?}");
+        println!("{df:?}");
+    }
 
     Ok(())
 }
