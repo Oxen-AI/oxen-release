@@ -2,8 +2,8 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
-use crate::model::{ContentType, Schema};
 use crate::model::{Commit, CommitBody, DataFrameDiff, ModEntry, RemoteRepository};
+use crate::model::{ContentType, Schema};
 use crate::view::{
     CommitResponse, FilePathsResponse, ListStagedFileModResponseDF, RemoteStagedStatus,
     RemoteStagedStatusResponse, StagedFileModResponse,

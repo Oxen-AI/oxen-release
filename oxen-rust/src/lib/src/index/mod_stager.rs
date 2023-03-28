@@ -1,4 +1,3 @@
-
 use std::path::{Path, PathBuf};
 
 use time::OffsetDateTime;
@@ -161,7 +160,7 @@ pub fn list_mods_df(
         }
 
         Ok(DataFrameDiff {
-            base_schema: schema.to_owned(),
+            base_schema: schema,
             added_rows: Some(df),
             removed_rows: None,
             added_cols: None,

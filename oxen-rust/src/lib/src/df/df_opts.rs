@@ -6,7 +6,7 @@ use crate::constants::{
 use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
-use crate::model::{Schema, ContentType};
+use crate::model::{ContentType, Schema};
 
 use super::filter::{self, DFFilterExp};
 
@@ -35,6 +35,7 @@ pub struct DFOpts {
     pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub delete_row: Option<String>,
     pub sort_by: Option<String>,
     pub unique: Option<String>,
     pub should_randomize: bool,
@@ -58,6 +59,7 @@ impl DFOpts {
             vstack: None,
             add_col: None,
             add_row: None,
+            delete_row: None,
             sort_by: None,
             unique: None,
             should_randomize: false,

@@ -256,10 +256,11 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
         vstack,
         add_col: sub_matches.value_of("add-col").map(String::from),
         add_row: sub_matches.value_of("add-row").map(String::from),
+        delete_row: sub_matches.value_of("delete-row").map(String::from),
         sort_by: sub_matches.value_of("sort").map(String::from),
         unique: sub_matches.value_of("unique").map(String::from),
         content_type: ContentType::from_str(content_type).unwrap(),
-        is_remote: is_remote,
+        is_remote,
         should_randomize: sub_matches.is_present("randomize"),
         should_reverse: sub_matches.is_present("reverse"),
     }
@@ -354,20 +355,6 @@ pub async fn add(sub_matches: &ArgMatches) {
 
     let is_remote = false;
     match dispatch::add(paths, is_remote).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn delete(sub_matches: &ArgMatches) {
-    let path = sub_matches
-        .value_of("PATH")
-        .expect("PATH param is required");
-    let uuid = sub_matches.value_of("ID").expect("ID param is required");
-
-    match dispatch::delete(path, uuid).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

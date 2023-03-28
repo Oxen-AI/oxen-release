@@ -133,7 +133,7 @@ pub fn set_default_host(host: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn delete(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
+pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
@@ -320,11 +320,6 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
 }
 
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
-    if opts.is_remote {
-
-    } else {
-        
-    }
     command::df(input, opts)?;
     Ok(())
 }
