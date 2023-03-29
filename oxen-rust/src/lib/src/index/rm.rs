@@ -139,9 +139,9 @@ async fn remove_remote(repo: &LocalRepository, opts: &RmOpts) -> Result<(), Oxen
     let path = opts.path.as_ref();
 
     if opts.recursive {
-        return Err(OxenError::basic_str(
+        Err(OxenError::basic_str(
             "`oxen remote rm` does not support removing directories yet",
-        ));
+        ))
     } else {
         remove_remote_staged_file(repo, path).await
     }

@@ -1,12 +1,14 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::df::{DFOpts, tabular};
+use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
 use crate::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
     CommitDirEntryWriter, CommitDirReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
 };
-use crate::model::{Branch, Commit, CommitEntry, NewCommit, RemoteBranch, StagedData, StagedEntry, Schema};
+use crate::model::{
+    Branch, Commit, CommitEntry, NewCommit, RemoteBranch, Schema, StagedData, StagedEntry,
+};
 use crate::{api, db};
 use crate::{command, df, util};
 
