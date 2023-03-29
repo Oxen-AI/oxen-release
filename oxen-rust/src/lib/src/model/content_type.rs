@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 pub enum ContentType {
     Json,
     Csv,
-    Text,
 }
 
 impl std::str::FromStr for ContentType {
@@ -14,7 +13,6 @@ impl std::str::FromStr for ContentType {
         match s {
             "json" => Ok(ContentType::Json),
             "csv" => Ok(ContentType::Csv),
-            "text" => Ok(ContentType::Text),
             _ => Err(format!("Invalid data type: {}", s)),
         }
     }
@@ -25,7 +23,6 @@ impl ContentType {
         match self {
             ContentType::Json => "application/json".to_string(),
             ContentType::Csv => "text/csv".to_string(),
-            ContentType::Text => "text/plain".to_string(),
         }
     }
 
@@ -33,7 +30,6 @@ impl ContentType {
         match s {
             "application/json" => Ok(ContentType::Json),
             "text/csv" => Ok(ContentType::Csv),
-            "text/plain" => Ok(ContentType::Text),
             _ => Err(format!("Invalid data type: {}", s)),
         }
     }

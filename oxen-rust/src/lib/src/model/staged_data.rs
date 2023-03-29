@@ -192,6 +192,10 @@ impl StagedData {
         for (path, staged_dirs) in self.added_dirs.paths.iter() {
             let mut dir_row: Vec<ColoredString> = vec![];
             for staged_dir in staged_dirs.iter() {
+                if staged_dir.num_files_staged == 0 {
+                    continue;
+                }
+
                 match staged_dir.status {
                     StagedEntryStatus::Added => {
                         dir_row.push("  added: ".green());
@@ -221,7 +225,9 @@ impl StagedData {
                     dir_row.push("\n".normal());
                 }
             }
-            dirs.push(dir_row);
+            if !dir_row.is_empty() {
+                dirs.push(dir_row);
+            }
         }
 
         if dirs.is_empty() {

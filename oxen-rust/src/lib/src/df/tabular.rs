@@ -210,7 +210,6 @@ pub fn parse_data_into_df(
                 ))),
             }
         }
-        _ => Err(OxenError::basic_str("Unsupported content type")),
     }
 }
 

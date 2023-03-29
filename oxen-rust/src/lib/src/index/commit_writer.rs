@@ -1,12 +1,12 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::df::DFOpts;
+use crate::df::{DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
     CommitDirEntryWriter, CommitDirReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
 };
-use crate::model::{Branch, Commit, CommitEntry, NewCommit, RemoteBranch, StagedData, StagedEntry};
+use crate::model::{Branch, Commit, CommitEntry, NewCommit, RemoteBranch, StagedData, StagedEntry, Schema};
 use crate::{api, db};
 use crate::{command, df, util};
 
@@ -263,11 +263,15 @@ impl CommitWriter {
         path: &Path,
     ) -> Result<String, OxenError> {
         let mut df = df::tabular::read_df(path, DFOpts::empty())?;
+        let schema_fields = Schema::from_polars(&df.schema()).fields_names().join(",");
         let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry)?;
         log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
         if let Some(rows) = mods_df.added_rows {
-            log::debug!("Add Rows {}", rows);
-            df = df.vstack(&rows).unwrap();
+            let mut df_opts = DFOpts::empty();
+            df_opts.columns = Some(schema_fields);
+            let filtered = tabular::transform(rows, df_opts)?;
+            log::debug!("Add filtered {}", filtered);
+            df = df.vstack(&filtered).unwrap();
         }
         log::debug!("Full DF {}", df);
         df::tabular::write_df(&mut df, path)?;
@@ -821,53 +825,6 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_text_appends_staged() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let repo_path = &repo.path;
-
-            let readme_file = Path::new("README.md");
-            let full_path = repo_path.join(readme_file);
-            let og_contents = util::fs::read_from_path(&full_path)?;
-
-            // Stage an append
-            let branch = command::current_branch(&repo)?.unwrap();
-            let user = UserConfig::get()?.to_user();
-            let user_id = UserConfig::identifier()?;
-            let branch_repo =
-                index::remote_dir_stager::init_or_get(&repo, &branch, &user_id).unwrap();
-
-            let append_contents = "\n## New Section".to_string();
-            index::mod_stager::create_mod(
-                &repo,
-                &branch,
-                &user_id,
-                readme_file,
-                ContentType::Text,
-                ModType::Append,
-                append_contents.clone(),
-            )?;
-
-            let commit = remote_dir_stager::commit_staged(
-                &repo,
-                &branch_repo,
-                &branch,
-                &user,
-                &user_id,
-                "Appending data",
-            )?;
-
-            // Make sure version file is updated
-            let entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, readme_file)?.unwrap();
-            let version_file = util::fs::version_path(&repo, &entry);
-            let new_contents = util::fs::read_from_path(&version_file)?;
-            assert_eq!(new_contents, format!("{og_contents}{append_contents}"));
-
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_commit_tabular_append_invalid_schema() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             // Try stage an append
@@ -883,7 +840,7 @@ mod tests {
                 &branch,
                 &user_id,
                 &readme_file,
-                ContentType::Text,
+                ContentType::Json,
                 ModType::Append,
                 append_contents,
             );
