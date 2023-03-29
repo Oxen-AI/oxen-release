@@ -172,7 +172,7 @@ impl CommitWriter {
         let commit = self.gen_commit(new_commit, status);
 
         // Should copy over entries from branch here...? Where do we actually save the versions?
-        let entries = mod_stager::list_mod_entries(&self.repository, branch)?;
+        let entries = mod_stager::list_mod_entries(&self.repository, branch, user_id)?;
         log::debug!(
             "commit_from_new listing entries {} -> {}",
             commit.id,
@@ -213,7 +213,7 @@ impl CommitWriter {
             );
             util::fs::copy(&version_path, &entry_path)?;
 
-            self.apply_mods_to_file(branch, entry, &entry_path)?;
+            self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
             remote_dir_stager::stage_file(
                 &self.repository,
                 &branch_repo,
@@ -234,6 +234,7 @@ impl CommitWriter {
     fn apply_mods_to_file(
         &self,
         branch: &Branch,
+        user_id: &str,
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
@@ -244,9 +245,9 @@ impl CommitWriter {
             path
         );
         if util::fs::is_tabular(path) {
-            self.apply_tabular_mods(branch, entry, path)
+            self.apply_tabular_mods(branch, user_id, entry, path)
         } else if util::fs::is_utf8(path) {
-            self.apply_utf8_mods(branch, entry, path)
+            self.apply_utf8_mods(branch, user_id, entry, path)
         } else {
             Err(OxenError::basic_str(
                 "File type not supported for modifications",
@@ -257,12 +258,13 @@ impl CommitWriter {
     fn apply_tabular_mods(
         &self,
         branch: &Branch,
+        user_id: &str,
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
         let mut df = df::tabular::read_df(path, DFOpts::empty())?;
         let with_id = false;
-        let mods_df = mod_stager::list_mods_df(&self.repository, branch, entry, with_id)?;
+        let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry, with_id)?;
         log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
         if let Some(rows) = mods_df.added_rows {
             log::debug!("Add Rows {}", rows);
@@ -277,10 +279,11 @@ impl CommitWriter {
     fn apply_utf8_mods(
         &self,
         branch: &Branch,
+        user_id: &str,
         entry: &CommitEntry,
         path: &Path,
     ) -> Result<String, OxenError> {
-        let mods = mod_stager::list_mods_raw(&self.repository, branch, entry)?;
+        let mods = mod_stager::list_mods_raw(&self.repository, branch, user_id, entry)?;
         for modification in mods.iter() {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
@@ -838,6 +841,7 @@ mod tests {
             index::mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 readme_file,
                 ContentType::Text,
                 ModType::Append,
@@ -872,11 +876,13 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let branch = command::current_branch(&repo)?.unwrap();
+            let user_id = UserConfig::identifier()?;
 
             let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
             let result = index::mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 &readme_file,
                 ContentType::Text,
                 ModType::Append,
@@ -907,6 +913,7 @@ mod tests {
             index::mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 &annotations_file,
                 ContentType::Json,
                 ModType::Append,

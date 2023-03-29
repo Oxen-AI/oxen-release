@@ -22,7 +22,7 @@ use crate::util;
 
 use super::CommitWriter;
 
-// These methods create a directory within .oxen/staging/branch-name/user-email-hash/ that is a local oxen repo
+// These methods create a directory within .oxen/staging/branch-name/user-id-hash/ that is a local oxen repo
 // Then we can stage data right into here using the same stager, but on a per user basis
 
 pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
@@ -167,6 +167,7 @@ pub fn commit_staged(
     )?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
+    log::debug!("commit_staged cleaning up staging dir: {:?}", staging_dir);
     match std::fs::remove_dir_all(&staging_dir) {
         Ok(_) => log::debug!("commit_staged: removed staging dir: {:?}", staging_dir),
         Err(e) => log::error!("commit_staged: error removing staging dir: {:?}", e),
@@ -194,6 +195,7 @@ pub fn list_staged_data(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
     branch: &Branch,
+    uuid: &str,
     directory: &Path,
 ) -> Result<StagedData, OxenError> {
     // Stager will be in the branch repo
@@ -211,11 +213,11 @@ pub fn list_staged_data(
             if Path::new(".") == directory {
                 log::debug!("list_staged_data: status for root");
                 let mut status = stager.status(&reader)?;
-                add_mod_entries(repo, branch, &mut status)?;
+                add_mod_entries(repo, branch, uuid, &mut status)?;
                 Ok(status)
             } else {
                 let mut status = stager.status_from_dir(&reader, directory)?;
-                add_mod_entries(repo, branch, &mut status)?;
+                add_mod_entries(repo, branch, uuid, &mut status)?;
                 Ok(status)
             }
         }
@@ -227,9 +229,10 @@ pub fn list_staged_data(
 fn add_mod_entries(
     repo: &LocalRepository,
     branch: &Branch,
+    uuid: &str,
     status: &mut StagedData,
 ) -> Result<(), OxenError> {
-    let mod_entries = index::mod_stager::list_mod_entries(repo, branch)?;
+    let mod_entries = index::mod_stager::list_mod_entries(repo, branch, uuid)?;
 
     for entry in mod_entries {
         status.modified_files.push(entry.path);
@@ -279,6 +282,7 @@ mod tests {
                 &repo,
                 &branch_repo,
                 &branch,
+                &user_id,
                 directory,
             )?;
             staged_data.print_stdout();

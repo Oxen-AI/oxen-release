@@ -272,6 +272,9 @@ where
     command::add(&local_repo, local_repo.path.join("annotations"))?;
     command::commit(&local_repo, "Adding annotations/")?;
 
+    command::add(&local_repo, local_repo.path.join("nlp"))?;
+    command::commit(&local_repo, "Adding nlp/")?;
+
     // Remove the test dir to make a more complex history
     let rm_opts = RmOpts {
         path: PathBuf::from("test"),
@@ -662,6 +665,10 @@ pub fn test_jpeg_file_with_name(name: &str) -> PathBuf {
 
 pub fn test_200k_csv() -> &'static Path {
     Path::new("data/test/text/celeb_a_200k.csv")
+}
+
+pub fn test_nlp_classification_csv() -> &'static Path {
+    Path::new("nlp/classification/annotations/test.tsv")
 }
 
 pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {

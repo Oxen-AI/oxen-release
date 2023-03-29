@@ -5,6 +5,7 @@ use liboxen::df::tabular;
 use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
+use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
@@ -3379,6 +3380,50 @@ async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
 
             let result = command::add(&cloned_repo, path);
             assert!(result.is_err());
+
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_remote_stage_add_row_commit_clears_remote_status() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            let shallow = true;
+            let cloned_repo =
+                command::clone_remote(&remote_repo.remote.url, &repo_dir, shallow).await?;
+
+            // Remote add row
+            let path = test::test_nlp_classification_csv();
+            let mut opts = DFOpts::empty();
+            opts.is_remote = true;
+            opts.add_row = Some("I am a new row,neutral".to_string());
+            opts.content_type = ContentType::Csv;
+            command::remote_df(&cloned_repo, path, opts).await?;
+
+            // Make sure it is listed as modified
+            let branch = command::current_branch(&cloned_repo)?.unwrap();
+            let directory = Path::new("");
+            let opts = StagedDataOpts {
+                is_remote: true,
+                ..Default::default()
+            };
+            let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            assert_eq!(status.modified_files.len(), 1);
+
+            // Commit it
+            command::remote_commit(&cloned_repo, "Remotely committing").await?;
+
+            // Now status should be empty
+            let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            assert_eq!(status.modified_files.len(), 0);
 
             Ok(repo_dir)
         })
