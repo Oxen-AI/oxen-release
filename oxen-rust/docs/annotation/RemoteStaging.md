@@ -62,7 +62,7 @@ You can now use the `oxen remote status` command to see the files that are stage
 $ oxen remote status
 ```
 
-To remove a accidentally added file from the remote staging area you can use. If you do not pass the `--staged` flag, it will remove the actual file from the remote branch (TODO: unimplemented).
+To remove a accidentally added file from the remote staging area you can use. If you do not pass the `--staged` flag, it will remove the actual file from the remote branch (TODO: right now the functionality only operates on staging area regardless of the  --staged flag).
 
 ```bash
 $ oxen remote rm --staged my-images/image.jpg
@@ -156,15 +156,13 @@ oxen remote df annotations/train.csv --delete-row 822ac1facbd79444f1f33a2a0b2f90
 
 # HTTP APIS
 
-use the HTTP APIs on oxen-server to upload data to a staging area on the branch. The data will not be committed until you review it and verify that you want it in the commit.
+You can also use the HTTP APIs on oxen-server to upload data to a staging area on the branch. This can be helpful to build directly into labeling workflows instead of interfacing with the CLI.
 
 You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.
 
 ```
 curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: multipart/form-data"  -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/dir/add-images/images"
 ```
-
-This will create a uniq file name for each file that is uploaded to avoid conflicts. It will return the file path that was created remotely.
 
 To view the files that are staged you can simply GET the staged data on the branch `/staging/dir/add-images`
 
@@ -188,29 +186,8 @@ Often you will have structured DataFrames that reference your unstructured data 
 
 To append to a DataFrame you must specify a branch, a file name, and a json body that represents the column values. Internally Oxen uses the DataFrame schema to convert the json to the proper csv, parquet, arrow, or jsonl format.
 
-
-# TODO
-
-- Change the --remote flag to be `oxen remote status`
-- Change the `remote add` to be `oxen config remote add`
-- move create repo to oxen-server
-- add a optional argument for a remote "origin"
-- let's look if there is a default remote
-- Flag on the `remote commit` command to collapse and commit all the remote staging areas
-- Apply a default column value on the `schema` 
-
-oxen remote status
-oxen remote add categories.csv
-oxen remote df --add-row '{"id": 0, "label": "dog"}' annotations.csv --content-type json
-oxen remote df --add-col 'id:int:12' annotations.csv
-oxen remote diff categories.csv
-oxen remote commit -m "my message"
-oxen remote rm categories.csv
-oxen remote rm categories.csv --staged
-oxen remote restore categories.csv --staged
-
 ```
-$ curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/append/add-annotations/annotations.csv" | jq
+$ curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.jpg", "label": "dog", "min_x": 100, "min_y": 50, "width": 128, "height": 112}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/df/add-row/add-annotations/annotations.csv" | jq
 
 {
   "status": "success",
