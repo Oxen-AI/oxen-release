@@ -734,8 +734,7 @@ fn df_mods_response(
     entry: &CommitEntry,
     query: web::Query<DFOptsQuery>,
 ) -> HttpResponse {
-    let with_id = true; // So that user can see the _id column and delete rows
-    match index::mod_stager::list_mods_df(repo, branch, user_id, entry, with_id) {
+    match index::mod_stager::list_mods_df(repo, branch, user_id, entry) {
         Ok(diff) => {
             let df = if let Some(added) = diff.added_rows {
                 let og_size = JsonDataSize {

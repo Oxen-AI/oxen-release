@@ -151,7 +151,7 @@ pub async fn stage_modification(
     }
 
     let file_path_str = path.to_str().unwrap();
-    let uri = format!("/staging/{user_id}/append/{branch_name}/{file_path_str}");
+    let uri = format!("/staging/{user_id}/df/add-row/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = reqwest::Client::new();
@@ -250,7 +250,7 @@ pub async fn delete_staged_modification(
     uuid: &str,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/{user_id}/delete/{branch_name}/{file_name}");
+    let uri = format!("/staging/{user_id}/df/delete-row/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("delete_staged_modification [{}] {}", uuid, url);
     let client = reqwest::Client::new();
@@ -291,7 +291,6 @@ pub async fn diff_staged_file(
             match response {
                 Ok(val) => {
                     let mods = val.modifications;
-
                     let added_rows = mods.added_rows.map(|added| added.to_df());
                     let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
 

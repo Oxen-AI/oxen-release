@@ -107,8 +107,12 @@ impl DFOpts {
 
     pub fn from_columns(fields: Vec<Field>) -> Self {
         let str_fields: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
+        DFOpts::from_column_names(str_fields)
+    }
+
+    pub fn from_column_names(names: Vec<String>) -> Self {
         let mut opts = DFOpts::empty();
-        opts.columns = Some(str_fields.join(","));
+        opts.columns = Some(names.join(","));
         opts
     }
 

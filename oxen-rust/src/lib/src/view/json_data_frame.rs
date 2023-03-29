@@ -5,7 +5,10 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
-use crate::model::Schema;
+use crate::{
+    df::{tabular, DFOpts},
+    model::Schema,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataSize {
@@ -76,7 +79,11 @@ impl JsonDataFrame {
         } else {
             let data = self.data.to_string();
             let content = Cursor::new(data.as_bytes());
-            JsonReader::new(content).finish().unwrap()
+            let df = JsonReader::new(content).finish().unwrap();
+            // The fields were coming out of order, so we need to reorder them
+            let columns = self.schema.fields_names();
+            let opts = DFOpts::from_column_names(columns);
+            tabular::transform(df, opts).unwrap()
         }
     }
 

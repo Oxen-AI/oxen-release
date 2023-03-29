@@ -314,7 +314,7 @@ async fn add_row_remote(
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     if let Some(branch) = current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
-        api::remote::staging::stage_modification(
+        let modification = api::remote::staging::stage_modification(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -324,6 +324,7 @@ async fn add_row_remote(
             ModType::Append,
         )
         .await?;
+        println!("{:?}", modification.to_df()?);
         Ok(())
     } else {
         Err(OxenError::basic_str(

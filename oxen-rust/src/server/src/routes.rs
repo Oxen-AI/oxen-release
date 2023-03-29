@@ -108,11 +108,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::get().to(controllers::stager::diff_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/append/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/df/add-row/{resource:.*}",
         web::post().to(controllers::stager::stage_append_to_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/delete/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{user_id}/df/delete-row/{resource:.*}",
         web::delete().to(controllers::stager::stage_delete_from_file),
     )
     .route(
