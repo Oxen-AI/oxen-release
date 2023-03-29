@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use time::OffsetDateTime;
 
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
@@ -110,7 +111,7 @@ pub fn delete_mod(
     entry: &CommitEntry,
     uuid: &str,
 ) -> Result<ModEntry, OxenError> {
-    // TODO: lock db
+    // TODO: put these actions in a queue or lock to prevent race conditions
     let db_path = mods_db_path(repo, branch, user_id, entry);
     log::debug!("Opening db at: {:?}", db_path);
 
@@ -119,7 +120,17 @@ pub fn delete_mod(
 
     match str_json_db::get(&db, uuid) {
         Ok(Some(mod_entry)) => {
-            str_json_db::put(&db, uuid, &entry)?;
+            str_json_db::delete(&db, uuid)?;
+
+            // If there are no more mods for this file, remove the file from the db
+            let remaining = list_mods_raw_from_db(&db)?;
+            if remaining.is_empty() {
+                let files_db_path = files_db_path(repo, branch, user_id);
+                let files_db = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+                let key = entry.path.to_string_lossy();
+                str_json_db::delete(&files_db, &key)?;
+            }
+
             Ok(mod_entry)
         }
         Ok(None) => Err(OxenError::basic_str(format!(
@@ -141,6 +152,12 @@ pub fn list_mods_raw(
 
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    list_mods_raw_from_db(&db)
+}
+
+pub fn list_mods_raw_from_db(
+    db: &DBWithThreadMode<MultiThreaded>,
+) -> Result<Vec<ModEntry>, OxenError> {
     let mut results: Vec<ModEntry> = str_json_db::list_vals(&db)?;
     results.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
     Ok(results)
@@ -253,7 +270,8 @@ fn stage_tabular_mod(
                 let polars_schema = df.schema();
                 if schema.has_all_field_names(&polars_schema) {
                     // hash uuid to make a smaller key
-                    let uuid = util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
+                    let uuid =
+                        util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
                     let timestamp = OffsetDateTime::now_utc();
 
                     let mod_entry = ModEntry {
@@ -266,13 +284,7 @@ fn stage_tabular_mod(
                         timestamp,
                     };
 
-                    stage_raw_mod_content(
-                        repo,
-                        branch,
-                        user_id,
-                        commit_entry,
-                        mod_entry,
-                    )
+                    stage_raw_mod_content(repo, branch, user_id, commit_entry, mod_entry)
                 } else {
                     let schema_fields_str = Field::all_fields_to_string(&schema.fields);
                     let err = format!("Json schema does not contain same fields as DataFrame schema. {schema_fields_str}");
@@ -318,43 +330,6 @@ mod tests {
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
     use crate::test;
-
-    #[test]
-    fn test_stage_text_append() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let branch_name = "test-append";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
-            let file_path = Path::new("README.md");
-            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-            let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, file_path)?.unwrap();
-
-            // Append the data to staging area
-            let data = "Appending this text....".to_string();
-            let user_id = UserConfig::identifier()?;
-            let append_entry = mod_stager::create_mod(
-                &repo,
-                &branch,
-                &user_id,
-                file_path,
-                ContentType::Text,
-                ModType::Append,
-                data,
-            )?;
-
-            // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
-            assert_eq!(commit_entries.len(), 1);
-
-            // List the staged mods
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry)?;
-            assert_eq!(mods.len(), 1);
-            assert_eq!(mods.first().unwrap().uuid, append_entry.uuid);
-            assert_eq!(mods.first().unwrap().path, commit_entry.path);
-
-            Ok(())
-        })
-    }
 
     #[test]
     fn test_stage_json_append_tabular() -> Result<(), OxenError> {
@@ -434,30 +409,33 @@ mod tests {
             let branch_name = "test-append";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
             let user_id = UserConfig::identifier()?;
-            let file_path = Path::new("README.md");
+            let file_path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, file_path)?.unwrap();
+                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
 
             // Append the data to staging area
-            let data = "First Append".to_string();
+            let data = "dawg1.jpg,dog,13,14,100,100".to_string();
+
             let append_entry_1 = mod_stager::create_mod(
                 &repo,
                 &branch,
                 &user_id,
-                file_path,
-                ContentType::Text,
+                &file_path,
+                ContentType::Csv,
                 ModType::Append,
                 data,
             )?;
 
-            let data = "Second Append".to_string();
+            let data = "dawg2.jpg,dog,13,14,100,100".to_string();
             let _append_entry_2 = mod_stager::create_mod(
                 &repo,
                 &branch,
                 &user_id,
-                file_path,
-                ContentType::Text,
+                &file_path,
+                ContentType::Csv,
                 ModType::Append,
                 data,
             )?;

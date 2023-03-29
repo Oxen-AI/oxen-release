@@ -1,4 +1,4 @@
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, STATUS};
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
@@ -103,11 +103,14 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
 pub async fn remote(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
+            (STATUS, sub_matches) => {
+                remote_status(sub_matches).await;
+            }
             (ADD, sub_matches) => {
                 remote_add(sub_matches).await;
             }
-            (STATUS, sub_matches) => {
-                remote_status(sub_matches).await;
+            (RM, sub_matches) => {
+                remote_rm(sub_matches).await;
             }
             (COMMIT, sub_matches) => {
                 remote_commit(sub_matches).await;
@@ -371,6 +374,29 @@ pub async fn add(sub_matches: &ArgMatches) {
     }
 }
 
+pub async fn remote_rm(sub_matches: &ArgMatches) {
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
+
+    let opts = RmOpts {
+        // The path will get overwritten for each file that is removed
+        path: paths.first().unwrap().to_path_buf(),
+        staged: sub_matches.is_present("staged"),
+        recursive: sub_matches.is_present("recursive"),
+        remote: true,
+    };
+
+    match dispatch::rm(paths, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
 pub async fn rm(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
         .values_of("files")
@@ -383,7 +409,7 @@ pub async fn rm(sub_matches: &ArgMatches) {
         path: paths.first().unwrap().to_path_buf(),
         staged: sub_matches.is_present("staged"),
         recursive: sub_matches.is_present("recursive"),
-        remote: sub_matches.is_present("remote"),
+        remote: false,
     };
 
     match dispatch::rm(paths, &opts).await {

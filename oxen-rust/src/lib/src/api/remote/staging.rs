@@ -248,7 +248,7 @@ pub async fn delete_staged_modification(
     user_id: &str,
     path: impl AsRef<Path>,
     uuid: &str,
-) -> Result<(), OxenError> {
+) -> Result<ModEntry, OxenError> {
     let file_name = path.as_ref().to_string_lossy();
     let uri = format!("/staging/{user_id}/df/delete-row/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -258,7 +258,15 @@ pub async fn delete_staged_modification(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("delete_staged_modification got body: {}", body);
-            Ok(())
+            let response: Result<StagedFileModResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val.modification),
+                Err(err) => {
+                    let err = format!("api::staging::delete_staged_modification error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    Err(OxenError::basic_str(err))
+                }
+            }
         }
         Err(err) => {
             let err = format!("delete_staged_modification Request failed: {url}\n\nErr {err:?}");

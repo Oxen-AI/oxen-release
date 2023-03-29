@@ -40,7 +40,7 @@ Now that you have created a remote branch, you can interact with the remote stag
 $ oxen remote status
 ```
 
-The commands you are used to working with in your local workspace (`status`, `add`, `commit`, `log`) now work with the remote staging area. Each user's changes are sand-boxed to their own identity, so when you add and to a remote staging workspace, it will not overlap with other users.
+The commands you are used to working with in your local workspace (`status`, `add`, `commit`, etc...) now work with the remote staging area. Each user's changes are sand-boxed to their own identity, so when you add and to a remote staging workspace, it will not overlap with other users.
 
 To add a file to the remote staging area simply use `oxen remote add`. If you use a relative path to a file, oxen will add the file to the remote staging area that mirrors the directory locally.
 
@@ -60,6 +60,12 @@ You can now use the `oxen remote status` command to see the files that are stage
 
 ```bash
 $ oxen remote status
+```
+
+To remove a accidentally added file from the remote staging area you can use. If you do not pass the `--staged` flag, it will remove the actual file from the remote branch (TODO: unimplemented).
+
+```bash
+$ oxen remote rm --staged my-images/image.jpg
 ```
 
 When you are ready to commit the staged data you can call the `oxen remote commit` command.

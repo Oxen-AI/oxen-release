@@ -35,6 +35,7 @@ use crate::util;
 use crate::util::resource;
 
 use bytevec::ByteDecodable;
+use polars::prelude::DataFrame;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -310,7 +311,7 @@ async fn add_row_remote(
     path: &Path,
     data: &str,
     opts: &DFOpts,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     if let Some(branch) = current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
@@ -325,7 +326,7 @@ async fn add_row_remote(
         )
         .await?;
         println!("{:?}", modification.to_df()?);
-        Ok(())
+        modification.to_df()
     } else {
         Err(OxenError::basic_str(
             "Must be on a branch to stage remote changes.",
@@ -352,11 +353,11 @@ pub async fn delete_staged_row(
     repository: &LocalRepository,
     path: impl AsRef<Path>,
     uuid: &str,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        api::remote::staging::delete_staged_modification(
+        let modification = api::remote::staging::delete_staged_modification(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -364,7 +365,7 @@ pub async fn delete_staged_row(
             uuid,
         )
         .await?;
-        Ok(())
+        modification.to_df()
     } else {
         Err(OxenError::basic_str(
             "Must be on a branch to stage remote changes.",
@@ -394,12 +395,12 @@ pub async fn remote_df<P: AsRef<Path>>(
     repo: &LocalRepository,
     input: P,
     opts: DFOpts,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
     if let Some(row) = &opts.add_row {
-        add_row(repo, input.as_ref(), row, &opts).await?;
+        add_row_remote(repo, input.as_ref(), row, &opts).await
     } else if let Some(uuid) = &opts.delete_row {
-        delete_staged_row(repo, input, uuid).await?;
+        delete_staged_row(repo, input, uuid).await
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = current_branch(repo)?.unwrap();
@@ -412,9 +413,8 @@ pub async fn remote_df<P: AsRef<Path>>(
 
         println!("Full shape: ({}, {})\n", size.height, size.width);
         println!("Slice {df:?}");
+        Ok(df)
     }
-
-    Ok(())
 }
 
 pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
