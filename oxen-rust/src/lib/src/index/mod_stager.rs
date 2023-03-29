@@ -128,7 +128,7 @@ pub fn delete_mod(
                 let files_db_path = files_db_path(repo, branch, user_id);
                 let files_db = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
                 let key = entry.path.to_string_lossy();
-                str_json_db::delete(&files_db, &key)?;
+                str_json_db::delete(&files_db, key)?;
             }
 
             Ok(mod_entry)
@@ -158,7 +158,7 @@ pub fn list_mods_raw(
 pub fn list_mods_raw_from_db(
     db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<Vec<ModEntry>, OxenError> {
-    let mut results: Vec<ModEntry> = str_json_db::list_vals(&db)?;
+    let mut results: Vec<ModEntry> = str_json_db::list_vals(db)?;
     results.sort_by(|a, b| a.timestamp.partial_cmp(&b.timestamp).unwrap());
     Ok(results)
 }
