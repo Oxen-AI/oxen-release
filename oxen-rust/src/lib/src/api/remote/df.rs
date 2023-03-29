@@ -6,6 +6,7 @@ use crate::api;
 use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
+use crate::view::json_data_frame::JsonDataSize;
 use crate::view::JsonDataFrameSliceResponse;
 
 use super::client;
@@ -15,7 +16,7 @@ pub async fn show(
     commit_or_branch: &str,
     path: impl AsRef<Path>,
     opts: DFOpts,
-) -> Result<DataFrame, OxenError> {
+) -> Result<(DataFrame, JsonDataSize), OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
     let query_str = opts.to_http_query_params();
     let uri = format!("/df/{commit_or_branch}/{path_str}?{query_str}");
@@ -31,7 +32,7 @@ pub async fn show(
             match response {
                 Ok(val) => {
                     let df = val.df.to_df();
-                    Ok(df)
+                    Ok((df, val.full_size))
                 }
                 Err(err) => Err(OxenError::basic_str(format!(
                     "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
