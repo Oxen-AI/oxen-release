@@ -82,6 +82,7 @@ pub async fn status_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Ht
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
@@ -94,6 +95,7 @@ pub async fn status_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Ht
             Ok(Some((_, branch_name, file_name))) => get_file_status_for_branch(
                 &repo,
                 &branch_name,
+                user_id,
                 &file_name,
                 ModResponseFormat::Raw,
                 query,
@@ -122,6 +124,7 @@ pub async fn diff_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Http
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
@@ -134,6 +137,7 @@ pub async fn diff_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Http
             Ok(Some((_, branch_name, file_name))) => get_file_status_for_branch(
                 &repo,
                 &branch_name,
+                user_id,
                 &file_name,
                 ModResponseFormat::DataFrame,
                 query,
@@ -231,7 +235,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                                 file_name
                             );
                             index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
-                            create_mod(&repo, &branch, &file_name, content_type, data)
+                            create_mod(&repo, &branch, user_id, &file_name, content_type, data)
                         }
                         Ok(None) => {
                             log::debug!("stager::stage could not find branch {:?}", branch_name);
@@ -271,6 +275,7 @@ pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<Ht
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let uuid = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
@@ -286,7 +291,7 @@ pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<Ht
                                 file_name,
                                 uuid
                             );
-                            delete_mod(&repo, &branch, &file_name, uuid)
+                            delete_mod(&repo, &branch, user_id, &file_name, uuid)
                         }
                         Ok(None) => {
                             log::debug!("stager::stage could not find branch {:?}", branch_name);
@@ -324,6 +329,7 @@ pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<Ht
 fn create_mod(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     file: &Path,
     content_type: ContentType,
     data: String,
@@ -331,6 +337,7 @@ fn create_mod(
     match liboxen::index::mod_stager::create_mod(
         repo,
         branch,
+        user_id,
         file,
         content_type,
         ModType::Append,
@@ -365,10 +372,11 @@ fn create_mod(
 fn delete_mod(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     file: &Path,
     uuid: String,
 ) -> Result<HttpResponse, Error> {
-    match liboxen::index::mod_stager::delete_mod_from_path(repo, branch, file, &uuid) {
+    match liboxen::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid) {
         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),
@@ -669,6 +677,7 @@ fn delete_staged_file_on_branch(
 fn get_file_status_for_branch(
     repo: &LocalRepository,
     branch_name: &str,
+    user_id: &str,
     path: &Path,
     format: ModResponseFormat,
     query: web::Query<DFOptsQuery>,
@@ -681,10 +690,10 @@ fn get_file_status_for_branch(
                 match api::local::entries::get_entry_for_commit(repo, &commit, path) {
                     Ok(Some(entry)) => match format {
                         ModResponseFormat::Raw => {
-                            raw_mods_response(repo, &branch, &entry, page_num, page_size)
+                            raw_mods_response(repo, &branch, user_id, &entry, page_num, page_size)
                         }
                         ModResponseFormat::DataFrame => {
-                            df_mods_response(repo, &branch, &entry, query)
+                            df_mods_response(repo, &branch, user_id, &entry, query)
                         }
                     },
                     Ok(None) => {
@@ -721,11 +730,12 @@ fn get_file_status_for_branch(
 fn df_mods_response(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     query: web::Query<DFOptsQuery>,
 ) -> HttpResponse {
     let with_id = true; // So that user can see the _id column and delete rows
-    match index::mod_stager::list_mods_df(repo, branch, entry, with_id) {
+    match index::mod_stager::list_mods_df(repo, branch, user_id, entry, with_id) {
         Ok(diff) => {
             let df = if let Some(added) = diff.added_rows {
                 let og_size = JsonDataSize {
@@ -776,11 +786,12 @@ fn df_mods_response(
 fn raw_mods_response(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     page_num: usize,
     page_size: usize,
 ) -> HttpResponse {
-    match index::mod_stager::list_mods_raw(repo, branch, entry) {
+    match index::mod_stager::list_mods_raw(repo, branch, user_id, entry) {
         Ok(staged) => {
             let total_entries = staged.len();
             let total_pages = (total_entries / page_size) + 1;
@@ -831,8 +842,13 @@ fn get_dir_status_for_branch(
                 branch_repo.path,
                 directory
             );
-            match index::remote_dir_stager::list_staged_data(repo, &branch_repo, &branch, directory)
-            {
+            match index::remote_dir_stager::list_staged_data(
+                repo,
+                &branch_repo,
+                &branch,
+                user_id,
+                directory,
+            ) {
                 Ok(staged) => {
                     staged.print_stdout();
                     let full_path =

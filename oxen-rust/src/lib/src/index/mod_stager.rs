@@ -11,13 +11,15 @@ use crate::model::schema::Field;
 use crate::model::{Branch, CommitEntry, ContentType, DataFrameDiff, LocalRepository, ModEntry};
 use crate::{api, util};
 
-use super::SchemaReader;
+use super::{remote_dir_stager, SchemaReader};
 
-fn mods_db_path(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) -> PathBuf {
-    repo.path
-        .join(OXEN_HIDDEN_DIR)
-        .join(STAGED_DIR)
-        .join(&branch.name)
+fn mods_db_path(
+    repo: &LocalRepository,
+    branch: &Branch,
+    user_id: &str,
+    entry: &CommitEntry,
+) -> PathBuf {
+    remote_dir_stager::branch_staging_dir(repo, branch, user_id)
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(MODS_DIR)
@@ -25,11 +27,8 @@ fn mods_db_path(repo: &LocalRepository, branch: &Branch, entry: &CommitEntry) ->
         .join(&entry.hash)
 }
 
-fn files_db_path(repo: &LocalRepository, branch: &Branch) -> PathBuf {
-    repo.path
-        .join(OXEN_HIDDEN_DIR)
-        .join(STAGED_DIR)
-        .join(&branch.name)
+fn files_db_path(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
+    remote_dir_stager::branch_staging_dir(repo, branch, user_id)
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(MODS_DIR)
@@ -39,6 +38,7 @@ fn files_db_path(repo: &LocalRepository, branch: &Branch) -> PathBuf {
 pub fn create_mod(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     file_path: &Path,
     content_type: ContentType,
     mod_type: ModType,
@@ -54,10 +54,18 @@ pub fn create_mod(
     match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
         Some(commit_entry) => {
             // Try to track the mod
-            match stage_mod(repo, branch, &commit_entry, content_type, mod_type, content) {
+            match stage_mod(
+                repo,
+                branch,
+                user_id,
+                &commit_entry,
+                content_type,
+                mod_type,
+                content,
+            ) {
                 Ok(mod_entry) => {
                     // If successful track the file it is modifying
-                    track_mod_commit_entry(repo, branch, &commit_entry)?;
+                    track_mod_commit_entry(repo, branch, user_id, &commit_entry)?;
 
                     Ok(mod_entry)
                 }
@@ -76,12 +84,13 @@ pub fn create_mod(
 pub fn delete_mod_from_path(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     file_path: &Path,
     uuid: &str,
 ) -> Result<ModEntry, OxenError> {
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
     match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
-        Some(commit_entry) => match delete_mod(repo, branch, &commit_entry, uuid) {
+        Some(commit_entry) => match delete_mod(repo, branch, user_id, &commit_entry, uuid) {
             Ok(mod_entry) => Ok(mod_entry),
             Err(e) => {
                 log::error!("Error deleting mod [{}]: {}", uuid, e);
@@ -97,11 +106,12 @@ pub fn delete_mod_from_path(
 pub fn delete_mod(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     uuid: &str,
 ) -> Result<ModEntry, OxenError> {
     // TODO: lock db
-    let db_path = mods_db_path(repo, branch, entry);
+    let db_path = mods_db_path(repo, branch, user_id, entry);
     log::debug!("Opening db at: {:?}", db_path);
 
     let opts = db::opts::default();
@@ -123,9 +133,10 @@ pub fn delete_mod(
 pub fn list_mods_raw(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
 ) -> Result<Vec<ModEntry>, OxenError> {
-    let db_path = mods_db_path(repo, branch, entry);
+    let db_path = mods_db_path(repo, branch, user_id, entry);
     log::debug!("Opening db at: {:?}", db_path);
 
     let opts = db::opts::default();
@@ -138,12 +149,13 @@ pub fn list_mods_raw(
 pub fn list_mods_df(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     with_id: bool,
 ) -> Result<DataFrameDiff, OxenError> {
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-        let mods = list_mods_raw(repo, branch, entry)?;
+        let mods = list_mods_raw(repo, branch, user_id, entry)?;
         let mut df = polars::frame::DataFrame::default();
         for modification in mods.iter() {
             log::debug!("Applying modification: {:?}", modification);
@@ -174,8 +186,9 @@ pub fn list_mods_df(
 pub fn list_mod_entries(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
 ) -> Result<Vec<CommitEntry>, OxenError> {
-    let db_path = files_db_path(repo, branch);
+    let db_path = files_db_path(repo, branch, user_id);
     log::debug!("list_mod_entries from {db_path:?}");
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
@@ -185,9 +198,10 @@ pub fn list_mod_entries(
 fn track_mod_commit_entry(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
 ) -> Result<(), OxenError> {
-    let db_path = files_db_path(repo, branch);
+    let db_path = files_db_path(repo, branch, user_id);
     log::debug!("track_mod_commit_entry from {db_path:?}");
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
@@ -198,6 +212,7 @@ fn track_mod_commit_entry(
 fn stage_mod(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     content_type: ContentType,
     mod_type: ModType,
@@ -205,9 +220,25 @@ fn stage_mod(
 ) -> Result<ModEntry, OxenError> {
     let version_path = util::fs::version_path(repo, entry);
     if util::fs::is_tabular(&version_path) {
-        stage_tabular_mod(repo, branch, entry, content_type, mod_type, content)
+        stage_tabular_mod(
+            repo,
+            branch,
+            user_id,
+            entry,
+            content_type,
+            mod_type,
+            content,
+        )
     } else if util::fs::is_utf8(&version_path) {
-        stage_raw_mod_content(repo, branch, entry, content_type, mod_type, content)
+        stage_raw_mod_content(
+            repo,
+            branch,
+            user_id,
+            entry,
+            content_type,
+            mod_type,
+            content,
+        )
     } else {
         Err(OxenError::basic_str(format!(
             "{mod_type:?} not supported for file type"
@@ -219,6 +250,7 @@ fn stage_mod(
 fn stage_tabular_mod(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     content_type: ContentType,
     mod_type: ModType,
@@ -239,7 +271,15 @@ fn stage_tabular_mod(
                 // Make sure it contains each field
                 let df_schema = df.schema();
                 if schema.has_all_field_names(&df_schema) {
-                    stage_raw_mod_content(repo, branch, entry, content_type, mod_type, content)
+                    stage_raw_mod_content(
+                        repo,
+                        branch,
+                        user_id,
+                        entry,
+                        content_type,
+                        mod_type,
+                        content,
+                    )
                 } else {
                     let schema_fields_str = Field::all_fields_to_string(&schema.fields);
                     let err = format!("Json schema does not contain same fields as DataFrame schema. {schema_fields_str}");
@@ -260,12 +300,13 @@ fn stage_tabular_mod(
 fn stage_raw_mod_content(
     repo: &LocalRepository,
     branch: &Branch,
+    user_id: &str,
     entry: &CommitEntry,
     content_type: ContentType,
     mod_type: ModType,
     content: String,
 ) -> Result<ModEntry, OxenError> {
-    let db_path = mods_db_path(repo, branch, entry);
+    let db_path = mods_db_path(repo, branch, user_id, entry);
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     // hash uuid to make a smaller key
@@ -292,6 +333,7 @@ mod tests {
 
     use crate::api;
     use crate::command;
+    use crate::config::UserConfig;
     use crate::error::OxenError;
     use crate::index::mod_stager;
     use crate::model::entry::mod_entry::ModType;
@@ -310,9 +352,11 @@ mod tests {
 
             // Append the data to staging area
             let data = "Appending this text....".to_string();
+            let user_id = UserConfig::identifier()?;
             let append_entry = mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 file_path,
                 ContentType::Text,
                 ModType::Append,
@@ -320,11 +364,11 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &commit_entry)?;
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry)?;
             assert_eq!(mods.len(), 1);
             assert_eq!(mods.first().unwrap().uuid, append_entry.uuid);
             assert_eq!(mods.first().unwrap().path, commit_entry.path);
@@ -338,6 +382,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let user_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -350,6 +395,7 @@ mod tests {
             mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 &file_path,
                 ContentType::Json,
                 ModType::Append,
@@ -357,12 +403,12 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
             let with_id = false;
-            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry, with_id)?;
+            let mods = mod_stager::list_mods_df(&repo, &branch, &user_id, &commit_entry, with_id)?;
             assert_eq!(mods.added_rows.unwrap().height(), 1);
             Ok(())
         })
@@ -373,6 +419,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let user_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -385,6 +432,7 @@ mod tests {
             mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 &file_path,
                 ContentType::Csv,
                 ModType::Append,
@@ -392,12 +440,12 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
             let with_id = false;
-            let mods = mod_stager::list_mods_df(&repo, &branch, &commit_entry, with_id)?;
+            let mods = mod_stager::list_mods_df(&repo, &branch, &user_id, &commit_entry, with_id)?;
             assert_eq!(mods.added_rows.unwrap().height(), 1);
             Ok(())
         })
@@ -408,6 +456,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let user_id = UserConfig::identifier()?;
             let file_path = Path::new("README.md");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
@@ -418,6 +467,7 @@ mod tests {
             let append_entry_1 = mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 file_path,
                 ContentType::Text,
                 ModType::Append,
@@ -428,6 +478,7 @@ mod tests {
             let _append_entry_2 = mod_stager::create_mod(
                 &repo,
                 &branch,
+                &user_id,
                 file_path,
                 ContentType::Text,
                 ModType::Append,
@@ -435,23 +486,24 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch)?;
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &commit_entry)?;
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry)?;
             assert_eq!(mods.len(), 2);
 
             // Delete the first append
             mod_stager::delete_mod(
                 &repo,
                 &branch,
+                &user_id,
                 commit_entries.first().unwrap(),
                 &append_entry_1.uuid,
             )?;
 
             // Should only be one mod now
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &commit_entry)?;
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry)?;
             assert_eq!(mods.len(), 1);
 
             Ok(())
