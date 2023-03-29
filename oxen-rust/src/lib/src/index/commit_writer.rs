@@ -263,8 +263,7 @@ impl CommitWriter {
         path: &Path,
     ) -> Result<String, OxenError> {
         let mut df = df::tabular::read_df(path, DFOpts::empty())?;
-        let with_id = false;
-        let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry, with_id)?;
+        let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry)?;
         log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
         if let Some(rows) = mods_df.added_rows {
             log::debug!("Add Rows {}", rows);

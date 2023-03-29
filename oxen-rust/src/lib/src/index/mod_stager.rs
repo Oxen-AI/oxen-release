@@ -151,7 +151,6 @@ pub fn list_mods_df(
     branch: &Branch,
     user_id: &str,
     entry: &CommitEntry,
-    with_id: bool,
 ) -> Result<DataFrameDiff, OxenError> {
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
@@ -159,15 +158,7 @@ pub fn list_mods_df(
         let mut df = polars::frame::DataFrame::default();
         for modification in mods.iter() {
             log::debug!("Applying modification: {:?}", modification);
-            let mut mod_df = tabular::parse_data_into_df(
-                &modification.data,
-                &schema,
-                modification.content_type.to_owned(),
-            )?;
-            // add the uuid column so that user can delete if they want
-            if with_id {
-                mod_df = tabular::add_col(mod_df, "_id", &modification.uuid, "str").unwrap();
-            }
+            let mod_df = modification.to_df()?;
             df = df.vstack(&mod_df).unwrap();
         }
 
@@ -229,16 +220,6 @@ fn stage_mod(
             mod_type,
             content,
         )
-    } else if util::fs::is_utf8(&version_path) {
-        stage_raw_mod_content(
-            repo,
-            branch,
-            user_id,
-            entry,
-            content_type,
-            mod_type,
-            content,
-        )
     } else {
         Err(OxenError::basic_str(format!(
             "{mod_type:?} not supported for file type"
@@ -251,7 +232,7 @@ fn stage_tabular_mod(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    entry: &CommitEntry,
+    commit_entry: &CommitEntry,
     content_type: ContentType,
     mod_type: ModType,
     content: String,
@@ -259,26 +240,38 @@ fn stage_tabular_mod(
     // Read the schema of the data frame
     log::debug!(
         "Looking for schema on commit [{}] for entry {:?}",
-        entry.commit_id,
-        entry.path
+        commit_entry.commit_id,
+        commit_entry.path
     );
-    let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
+    let schema_reader = SchemaReader::new(repo, &commit_entry.commit_id)?;
+    if let Some(schema) = schema_reader.get_schema_for_file(&commit_entry.path)? {
         // Parse the data into DF
         match tabular::parse_data_into_df(&content, &schema, content_type.to_owned()) {
             Ok(df) => {
                 log::debug!("Successfully parsed df {:?}", df);
                 // Make sure it contains each field
-                let df_schema = df.schema();
-                if schema.has_all_field_names(&df_schema) {
+                let polars_schema = df.schema();
+                if schema.has_all_field_names(&polars_schema) {
+                    // hash uuid to make a smaller key
+                    let uuid = util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
+                    let timestamp = OffsetDateTime::now_utc();
+
+                    let mod_entry = ModEntry {
+                        uuid,
+                        data: content,
+                        schema: Some(schema),
+                        modification_type: mod_type,
+                        content_type,
+                        path: commit_entry.path.to_owned(),
+                        timestamp,
+                    };
+
                     stage_raw_mod_content(
                         repo,
                         branch,
                         user_id,
-                        entry,
-                        content_type,
-                        mod_type,
-                        content,
+                        commit_entry,
+                        mod_entry,
                     )
                 } else {
                     let schema_fields_str = Field::all_fields_to_string(&schema.fields);
@@ -292,7 +285,7 @@ fn stage_tabular_mod(
             }
         }
     } else {
-        let err = format!("Schema not found for file {:?}", entry.path);
+        let err = format!("Schema not found for file {:?}", commit_entry.path);
         Err(OxenError::basic_str(err))
     }
 }
@@ -301,28 +294,14 @@ fn stage_raw_mod_content(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    entry: &CommitEntry,
-    content_type: ContentType,
-    mod_type: ModType,
-    content: String,
+    commit_entry: &CommitEntry,
+    entry: ModEntry,
 ) -> Result<ModEntry, OxenError> {
-    let db_path = mods_db_path(repo, branch, user_id, entry);
+    let db_path = mods_db_path(repo, branch, user_id, commit_entry);
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-    // hash uuid to make a smaller key
-    let uuid = util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
-    let timestamp = OffsetDateTime::now_utc();
 
-    let entry = ModEntry {
-        uuid: uuid.to_owned(),
-        data: content,
-        modification_type: mod_type,
-        content_type,
-        path: entry.path.to_owned(),
-        timestamp,
-    };
-
-    str_json_db::put(&db, &uuid, &entry)?;
+    str_json_db::put(&db, &entry.uuid, &entry)?;
 
     Ok(entry)
 }
@@ -407,8 +386,7 @@ mod tests {
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let with_id = false;
-            let mods = mod_stager::list_mods_df(&repo, &branch, &user_id, &commit_entry, with_id)?;
+            let mods = mod_stager::list_mods_df(&repo, &branch, &user_id, &commit_entry)?;
             assert_eq!(mods.added_rows.unwrap().height(), 1);
             Ok(())
         })
@@ -444,8 +422,7 @@ mod tests {
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let with_id = false;
-            let mods = mod_stager::list_mods_df(&repo, &branch, &user_id, &commit_entry, with_id)?;
+            let mods = mod_stager::list_mods_df(&repo, &branch, &user_id, &commit_entry)?;
             assert_eq!(mods.added_rows.unwrap().height(), 1);
             Ok(())
         })

@@ -103,6 +103,10 @@ impl Schema {
         self.fields.iter().map(|f| f.name.to_owned()).join(",")
     }
 
+    pub fn fields_names(&self) -> Vec<String> {
+        self.fields.iter().map(|f| f.name.to_owned()).collect()
+    }
+
     /// Compare the schemas, looking for added fields
     pub fn added_fields(&self, other: &Schema) -> Vec<Field> {
         let mut fields: Vec<Field> = vec![];
