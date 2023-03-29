@@ -56,6 +56,21 @@ If you give the a full path to an image you will also need to specify the data d
 $ oxen remote add /path/to/image.jpg -d my-images # upload image to remote staging area
 ```
 
+You can now use the `oxen remote status` command to see the files that are staged on the remote branch.
+
+```bash
+$ oxen remote status
+```
+
+When you are ready to commit the staged data you can call the `oxen remote commit` command.
+
+```bash
+$ oxen remote commit -m "adding my image without pulling the whole repo"
+```
+
+
+# HTTP APIS
+
 use the HTTP APIs on oxen-server to upload data to a staging area on the branch. The data will not be committed until you review it and verify that you want it in the commit.
 
 You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.

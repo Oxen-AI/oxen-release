@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 
-use crate::constants::{
-    DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME,
-};
+use crate::constants::{FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
 use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
@@ -251,12 +249,12 @@ impl DFOpts {
         let page = if self.page.is_some() {
             Some(format!("{}", self.page.unwrap()))
         } else {
-            Some(format!("{}", DEFAULT_PAGE_NUM))
+            None
         };
         let page_size = if self.page_size.is_some() {
             Some(format!("{}", self.page_size.unwrap()))
         } else {
-            Some(format!("{}", DEFAULT_PAGE_SIZE))
+            None
         };
         let params = vec![
             ("slice", self.slice.clone()),
@@ -274,9 +272,12 @@ impl DFOpts {
         ];
 
         let mut query = String::new();
-        for (name, val) in params {
+        for (i, (name, val)) in params.iter().enumerate() {
             if let Some(val) = val {
-                query.push_str(&format!("{}={}&", name, urlencoding::encode(&val)));
+                query.push_str(&format!("{}={}", name, urlencoding::encode(val)));
+                if i != params.len() - 1 {
+                    query.push('&');
+                }
             }
         }
         query

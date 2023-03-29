@@ -442,7 +442,7 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, Oxen
 }
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
-    log::debug!("SLICE {:?}", opts);
+    log::debug!("SLICE {:?}", opts.slice);
     if opts.page.is_some() || opts.page_size.is_some() {
         let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
         let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
