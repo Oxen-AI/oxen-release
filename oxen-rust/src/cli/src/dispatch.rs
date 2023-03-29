@@ -6,6 +6,7 @@ use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
+use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::RestoreOpts;
@@ -143,13 +144,13 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     Ok(())
 }
 
-pub async fn add(paths: Vec<PathBuf>, remote: bool) -> Result<(), OxenError> {
+pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    for path in paths {
-        if remote {
-            command::remote_add(&repository, path).await?;
+    for path in &opts.paths {
+        if opts.is_remote {
+            command::remote_add(&repository, path, &opts).await?;
         } else {
             command::add(&repository, path)?;
         }

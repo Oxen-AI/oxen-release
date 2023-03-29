@@ -5,7 +5,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{CloneOpts, LogOpts, RmOpts};
+use liboxen::opts::{AddOpts, CloneOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -138,8 +138,13 @@ async fn remote_add(sub_matches: &ArgMatches) {
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
-    let remote = true;
-    match dispatch::add(paths, remote).await {
+
+    let opts = AddOpts {
+        paths,
+        is_remote: true,
+        directory: sub_matches.value_of("directory").map(PathBuf::from),
+    };
+    match dispatch::add(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -353,8 +358,12 @@ pub async fn add(sub_matches: &ArgMatches) {
         .map(PathBuf::from)
         .collect();
 
-    let is_remote = false;
-    match dispatch::add(paths, is_remote).await {
+    let opts = AddOpts {
+        paths,
+        is_remote: false,
+        directory: None,
+    };
+    match dispatch::add(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

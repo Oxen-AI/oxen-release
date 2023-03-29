@@ -94,7 +94,14 @@ pub fn remote() -> Command<'static> {
     Command::new(REMOTE)
         .about("Interact with a remote repository without cloning everything locally.")
         // The commands that you can run locally mirrored here
-        .subcommand(add())
+        .subcommand(
+            add()
+                .arg(Arg::new("directory") // can specify a directory on the remote add command
+                .long("directory")
+                .short('d')
+                .help("Specify a directory in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
+                .takes_value(true))
+        )
         .subcommand(status())
         .subcommand(commit())
         .subcommand(log())

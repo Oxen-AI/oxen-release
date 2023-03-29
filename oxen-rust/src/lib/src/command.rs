@@ -29,6 +29,7 @@ use crate::model::Schema;
 use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
+use crate::opts::AddOpts;
 use crate::opts::{CloneOpts, LogOpts, RestoreOpts, RmOpts};
 use crate::util;
 use crate::util::resource;
@@ -218,14 +219,16 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     Ok(())
 }
 
-pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+pub async fn remote_add<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    path: P,
+    opts: &AddOpts,
+) -> Result<(), OxenError> {
     let path = path.as_ref();
     // * make sure we are on a branch
     let branch = current_branch(repo)?;
     if branch.is_none() {
-        return Err(OxenError::basic_str(
-            "Must be on branch to stage remote changes.",
-        ));
+        return Err(OxenError::must_be_on_valid_branch());
     }
 
     // * make sure file is not in .oxenignore
@@ -254,20 +257,25 @@ pub async fn remote_add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         Err(err) => return Err(err),
     };
 
-    // Post into directory that is also local
-    let directory = path
-        .parent()
-        .ok_or_else(|| OxenError::basic_str("Could not get parent directory"))?;
-
-    let relative = if directory.is_relative() {
-        directory.to_path_buf()
+    let directory_name = if path.is_absolute() {
+        // if path is absolute, require that they specified a directory name to put the file in
+        if let Some(dir) = &opts.directory {
+            dir.to_string_lossy().to_string()
+        } else {
+            return Err(OxenError::basic_str(
+                "If the path is absolute, you must specify a directory name to put the file in",
+            ));
+        }
     } else {
-        util::fs::path_relative_to_dir(directory, &repo.path)?
+        // if the path is relative, take the parent directory name and use that as the directory name
+        let directory = path
+            .parent()
+            .ok_or_else(|| OxenError::basic_str("Could not get parent directory"))?;
+        directory
+            .to_str()
+            .ok_or_else(|| OxenError::basic_str("Could not convert path to string"))?
+            .to_string()
     };
-    let directory_name = relative
-        .to_str()
-        .ok_or_else(|| OxenError::basic_str("Could not convert path to string"))?
-        .to_string();
 
     let user_id = UserConfig::identifier()?;
     let result = api::remote::staging::stage_file(

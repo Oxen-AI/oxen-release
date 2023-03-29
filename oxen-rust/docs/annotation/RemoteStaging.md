@@ -13,16 +13,50 @@ You can think of this area similar to your local `oxen add` command, but the dat
 
 ## Example Workflow
 
-Imagine you want an integration to collect images, review them, then add them to a commit when you are ready. One way to do this would be cloning an Oxen repo locally, downloading the images, then re-uploading them in a commit when you are ready. To avoid this extra workflow, you can POST images directly into a remote branch staging area.
+One problem with extending a dataset today is that you have to download the whole data repository locally to add a single data point. This is not ideal for large datasets.
 
-Create a remote branch with the CLI
+To avoid this extra workflow, oxen has tools to upload files directly into a "remote staging area" that is tied to a specific branch.
+
+To start, you can clone a repository with the `--shallow` flag. This flag downloads the metadata about the remote files, but not the files themselves.
+
+```bash
+$ oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox --shallow
+$ cd CatDogBoundingBox
+$ ls # note that no files have been pulled, leaving your repo in a shallow state
+```
+
+Note: When you do a shallow clone, your local commands will not work until you pull the data. You can do this with the `oxen pull` command if you want to get back to a fully synced state.
+
+After you have a shallow then you can create a local branch, and push it to the remote. Every remote branch has a remote staging area that is tied to the branch.
 
 ```bash 
 $ oxen checkout -b add-images
 $ oxen push origin add-images
 ```
 
-Now that you have created a remote branch, you can use the HTTP APIs on oxen-server to upload data to a staging area on the branch. The data will not be committed until you review it and verify that you want it in the commit.
+Now that you have created a remote branch, you can interact with the remote staging area with the `oxen remote` sub command. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.
+
+```bash
+$ oxen remote status
+```
+
+The commands you are used to working with in your local workspace (`status`, `add`, `commit`, `log`) now work with the remote staging area. Each user's changes are sand-boxed to their own identity, so when you add and to a remote staging workspace, it will not overlap with other users.
+
+To add a file to the remote staging area simply use `oxen remote add`. If you use a relative path to a file, oxen will add the file to the remote staging area that mirrors the directory locally.
+
+```bash
+$ mkdir my-images/ # create local dir
+$ cp /path/to/image.jpg my-images/ # add image to local dir
+$ oxen remote add my-images/image.jpg # upload image to remote staging area
+```
+
+If you give the a full path to an image you will also need to specify the data directory you would like to put it in with the `-d` flag.
+
+```bash
+$ oxen remote add /path/to/image.jpg -d my-images # upload image to remote staging area
+```
+
+use the HTTP APIs on oxen-server to upload data to a staging area on the branch. The data will not be committed until you review it and verify that you want it in the commit.
 
 You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.
 
