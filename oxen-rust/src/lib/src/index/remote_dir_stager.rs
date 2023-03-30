@@ -44,10 +44,17 @@ pub fn init_or_get(
     let oxen_dir = staging_dir.join(OXEN_HIDDEN_DIR);
     let branch_repo = if oxen_dir.exists() {
         log::debug!("stage_file Already have oxen repo 🐂");
-        LocalRepository::new(&staging_dir)?
+        if local_staging_dir_is_up_to_date(repo, &staging_dir, branch)? {
+            LocalRepository::new(&staging_dir)?
+        } else {
+            // need to re-copy over data
+            let should_clear = true;
+            init_local_repo_staging_dir(repo, &staging_dir, should_clear)?
+        }
     } else {
         log::debug!("stage_file Initializing oxen repo! 🐂");
-        init_local_repo_staging_dir(repo, &staging_dir)?
+        let should_clear = false;
+        init_local_repo_staging_dir(repo, &staging_dir, should_clear)?
     };
 
     if !api::local::branches::branch_exists(&branch_repo, &branch.name)? {
@@ -57,9 +64,24 @@ pub fn init_or_get(
     Ok(branch_repo)
 }
 
+fn local_staging_dir_is_up_to_date(
+    repo: &LocalRepository,
+    staging_dir: &Path,
+    branch: &Branch,
+) -> Result<bool, OxenError> {
+    let staging_repo = LocalRepository::new(staging_dir)?;
+
+    let oxen_commits = command::log_commit_or_branch_history(repo, &branch.commit_id)?;
+    let staging_commits = command::log(&staging_repo)?;
+
+    // If the number of commits is different, then we know we need to update
+    Ok(oxen_commits.len() == staging_commits.len())
+}
+
 pub fn init_local_repo_staging_dir(
     repo: &LocalRepository,
     staging_dir: &Path,
+    should_clear: bool,
 ) -> Result<LocalRepository, OxenError> {
     let oxen_hidden_dir = repo.path.join(constants::OXEN_HIDDEN_DIR);
     let staging_oxen_dir = staging_dir.join(constants::OXEN_HIDDEN_DIR);
@@ -79,8 +101,14 @@ pub fn init_local_repo_staging_dir(
 
         log::debug!("Copying {dir} dir {oxen_dir:?} -> {staging_dir:?}");
         if oxen_dir.is_dir() {
+            if should_clear {
+                std::fs::remove_dir_all(&staging_dir)?;
+            }
             util::fs::copy_dir_all(oxen_dir, staging_dir)?;
         } else {
+            if should_clear {
+                std::fs::remove_file(&staging_dir)?;
+            }
             util::fs::copy(oxen_dir, staging_dir)?;
         }
     }
@@ -234,8 +262,8 @@ fn add_mod_entries(
 ) -> Result<(), OxenError> {
     let mod_entries = index::mod_stager::list_mod_entries(repo, branch, uuid)?;
 
-    for entry in mod_entries {
-        status.modified_files.push(entry.path);
+    for path in mod_entries {
+        status.modified_files.push(path.to_owned());
     }
 
     Ok(())

@@ -3486,3 +3486,57 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
     })
     .await
 }
+
+#[tokio::test]
+async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            let shallow = false;
+            let cloned_repo =
+                command::clone_remote(&remote_repo.remote.url, &repo_dir, shallow).await?;
+
+            // Remote stage row
+            let path = test::test_nlp_classification_csv();
+            let mut opts = DFOpts::empty();
+            opts.is_remote = true;
+            opts.add_row = Some("I am a new row,neutral".to_string());
+            opts.content_type = ContentType::Csv;
+            command::remote_df(&cloned_repo, path, opts).await?;
+
+            // Local add col
+            let full_path = cloned_repo.path.join(path);
+            let mut opts = DFOpts::empty();
+            opts.add_col = Some("is_something:n/a:str".to_string());
+            opts.output = Some(full_path.to_path_buf()); // write back to same path
+            command::df(&full_path, opts)?;
+            command::add(&cloned_repo, &full_path)?;
+
+            // Commit and push the changed schema
+            command::commit(&cloned_repo, "Changed the schema 😇")?;
+            command::push(&cloned_repo).await?;
+
+            // Try to commit the remote changes, should fail
+            let result = command::remote_commit(&cloned_repo, "Remotely committing").await;
+            println!("{:?}", result);
+            assert!(result.is_err());
+
+            // Now status should be empty
+            // let branch = command::current_branch(&cloned_repo)?.unwrap();
+            // let directory = Path::new("");
+            // let opts = StagedDataOpts {
+            //     is_remote: true,
+            //     ..Default::default()
+            // };
+            // let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            // assert_eq!(status.modified_files.len(), 1);
+
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}

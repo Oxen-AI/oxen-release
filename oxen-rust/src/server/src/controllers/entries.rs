@@ -50,7 +50,7 @@ pub async fn create(
         }
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {err}");
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(msg)))
         }
     }
 }

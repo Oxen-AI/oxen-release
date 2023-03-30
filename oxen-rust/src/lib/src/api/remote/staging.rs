@@ -153,6 +153,7 @@ pub async fn stage_modification(
     let file_path_str = path.to_str().unwrap();
     let uri = format!("/staging/{user_id}/df/add-row/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("stage_modification {url}\n{data}");
 
     let client = reqwest::Client::new();
     match client
