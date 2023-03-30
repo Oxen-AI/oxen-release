@@ -9,7 +9,7 @@ Oxen has the concept of a remote staging area to enable easy data collection and
 
 To enable collecting data without cloning an entire repository, Oxen server has the concept of a remote staging area.
 
-You can think of this area similar to your local `oxen add` command, but the data is staged remotely.
+You can think of this area as similar to your local `oxen add` command, but the data is staged remotely.
 
 ## Example Workflow
 
@@ -34,13 +34,13 @@ $ oxen checkout -b add-images
 $ oxen push origin add-images
 ```
 
-Now that you have created a remote branch, you can interact with the remote staging area with the `oxen remote` sub command. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.
+Now that you have created a remote branch, you can interact with the remote staging area with the `oxen remote` subcommand. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.
 
 ```bash
 $ oxen remote status
 ```
 
-The commands you are used to working with in your local workspace (`status`, `add`, `commit`, etc...) now work with the remote staging area. Each user's changes are sand-boxed to their own identity, so when you add and to a remote staging workspace, it will not overlap with other users.
+The commands you are used to using in your local workspace (`status`, `add`, `commit`, etc...) now work with the remote staging area. Each user's changes are sand-boxed to their own identity, so when you add to a remote staging workspace, it will not overlap with other users.
 
 To add a file to the remote staging area simply use `oxen remote add`. If you use a relative path to a file, oxen will add the file to the remote staging area that mirrors the directory locally.
 
@@ -50,7 +50,7 @@ $ cp /path/to/image.jpg my-images/ # add image to local dir
 $ oxen remote add my-images/image.jpg # upload image to remote staging area
 ```
 
-If you give the a full path to an image you will also need to specify the data directory you would like to put it in with the `-d` flag.
+If you give the full path to an image you will also need to specify the data directory you would like to put it in with the `-d` flag.
 
 ```bash
 $ oxen remote add /path/to/image.jpg -d my-images # upload image to remote staging area
@@ -62,11 +62,13 @@ You can now use the `oxen remote status` command to see the files that are stage
 $ oxen remote status
 ```
 
-To remove a accidentally added file from the remote staging area you can use. If you do not pass the `--staged` flag, it will remove the actual file from the remote branch (TODO: right now the functionality only operates on staging area regardless of the  --staged flag).
+To remove an accidentally added file from the remote staging area you can use:
 
 ```bash
 $ oxen remote rm --staged my-images/image.jpg
 ```
+
+If you do not pass the `--staged` flag, it will remove the actual file from the remote branch (TODO: right now the functionality only operates on the staging area regardless of the --staged flag).
 
 When you are ready to commit the staged data you can call the `oxen remote commit` command.
 
@@ -76,7 +78,7 @@ $ oxen remote commit -m "adding my file without pulling the whole repo"
 
 You have now committed data to the remote branch without cloning the full repo 🎉.
 
-Note: If the remote branch cannot do a clean merge, remote commit will fail, and you will have to resolve the merge conflicts with some more advanced commands which we will cover later.
+Note: If the remote branch cannot be merged cleanly, the remote commit will fail, and you will have to resolve the merge conflicts with some more advanced commands which we will cover later.
 
 To see a list of remote commits on the branch you can use `remote log`. Your latest commit will be at the top of this list.
 
@@ -86,7 +88,7 @@ $ oxen remote log
 
 ## Staging Structured Data
 
-It is common that you will want to tie some sort of annotation to your unstructured data. For example, you might want to label an image with a bounding box, or a video with a bounding box and a class label.
+Commonly, you will want to tie some sort of annotation to your unstructured data. For example, you might want to label an image with a bounding box, or a video with a bounding box and a class label.
 
 Oxen has native support for extending and managing structured DataFrames in the form of csv, jsonl, or parquet files. To interact with these files remotely you can use the `oxen remote df` command.
 
@@ -130,7 +132,7 @@ shape: (1, 7)
 └──────────────────────────────────┴──────────────────────┴───────┴───────┴───────┴───────┴────────┘
 ```
 
-This returns a UUID for the row that we can use as a handle to interact with the specific row in the remote staging area. To list add the added rows on the dataframe you can use the `oxen remote diff` command.
+This returns a unique ID for the row that we can use as a handle to interact with the specific row in the remote staging area. To list the added rows on the dataframe you can use the `oxen remote diff` command.
 
 ```bash
 $ oxen remote diff annotations/train.csv
@@ -148,7 +150,7 @@ shape: (2, 7)
 └──────────────────────────────────┴──────────────────────┴───────┴───────┴───────┴───────┴────────┘
 ```
 
-If you want to delete a staged row, you can delete with the `--delete-row` flag and the value in the `_id` column.
+If you want to delete a staged row, you can delete it with the `--delete-row` flag and the value in the `_id` column.
 
 ```bash
 oxen remote df annotations/train.csv --delete-row 822ac1facbd79444f1f33a2a0b2f909d
