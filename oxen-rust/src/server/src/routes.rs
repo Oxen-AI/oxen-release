@@ -86,41 +86,41 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     )
     // ----- Stage Remote Data ----- //
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/dir/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/dir/{resource:.*}",
         web::get().to(controllers::stager::status_dir),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/dir/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/dir/{resource:.*}",
         web::post().to(controllers::stager::stage_into_dir),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/file/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
         web::get().to(controllers::stager::status_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/file/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
         web::delete().to(controllers::stager::delete_file),
     )
     // TODO: delete "dir" from staging to recursively unstage a dir
     // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/diff/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
         web::get().to(controllers::stager::diff_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/df/add-row/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/df/add-row/{resource:.*}",
         web::post().to(controllers::stager::stage_append_to_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/df/delete-row/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/df/delete-row/{resource:.*}",
         web::delete().to(controllers::stager::stage_delete_from_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/df/restore/{resource:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/df/restore/{resource:.*}",
         web::delete().to(controllers::stager::restore_file),
     )
     .route(
-        "/{namespace}/{repo_name}/staging/{user_id}/commit/{branch:.*}",
+        "/{namespace}/{repo_name}/staging/{identifier}/commit/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
     // ----- Stats ----- //

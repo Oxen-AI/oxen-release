@@ -38,7 +38,7 @@ pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> Ht
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
@@ -83,7 +83,7 @@ pub async fn status_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Ht
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
@@ -125,7 +125,7 @@ pub async fn diff_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> Http
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
@@ -216,7 +216,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     let content_type_str = get_content_type(&req).unwrap_or("text/plain");
@@ -276,7 +276,7 @@ pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<Ht
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let uuid = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
@@ -411,7 +411,7 @@ pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<Http
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
@@ -501,7 +501,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let branch_name: &str = req.match_info().query("branch");
 
     log::debug!("stager::commit got body: {body}");
@@ -599,7 +599,7 @@ pub async fn restore_file(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
@@ -636,7 +636,7 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
