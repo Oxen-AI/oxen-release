@@ -15,7 +15,6 @@ use crate::{command, df, util};
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
 use time::OffsetDateTime;
@@ -173,8 +172,16 @@ impl CommitWriter {
     ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(new_commit, status);
 
-        // Should copy over entries from branch here...? Where do we actually save the versions?
         let entries = mod_stager::list_mod_entries(&self.repository, branch, user_id)?;
+        let commit_entry_reader =
+            CommitDirReader::new_from_commit_id(&self.repository, &branch.commit_id)?;
+        // TODO: this is not the most efficient, but easiest way right now
+        //       might want to make helper for dir entry reader
+        let entries: Vec<CommitEntry> = entries
+            .iter()
+            .map(|path| commit_entry_reader.get_entry(path).unwrap().unwrap())
+            .collect();
+
         log::debug!(
             "commit_from_new listing entries {} -> {}",
             commit.id,
@@ -248,8 +255,6 @@ impl CommitWriter {
         );
         if util::fs::is_tabular(path) {
             self.apply_tabular_mods(branch, user_id, entry, path)
-        } else if util::fs::is_utf8(path) {
-            self.apply_utf8_mods(branch, user_id, entry, path)
         } else {
             Err(OxenError::basic_str(
                 "File type not supported for modifications",
@@ -268,7 +273,15 @@ impl CommitWriter {
         let schema_fields = Schema::from_polars(&df.schema()).fields_names().join(",");
         let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry)?;
         log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
+        log::debug!("og df {:?}", df);
         if let Some(rows) = mods_df.added_rows {
+            if rows.width() != df.width() + 1 {
+                return Err(OxenError::basic_str(format!(
+                    "Could not commit, schema has changed on file {}",
+                    entry.path.to_string_lossy()
+                )));
+            }
+
             let mut df_opts = DFOpts::empty();
             df_opts.columns = Some(schema_fields);
             let filtered = tabular::transform(rows, df_opts)?;
@@ -277,27 +290,6 @@ impl CommitWriter {
         }
         log::debug!("Full DF {}", df);
         df::tabular::write_df(&mut df, path)?;
-        let new_hash = util::hasher::hash_file_contents(path)?;
-        Ok(new_hash)
-    }
-
-    fn apply_utf8_mods(
-        &self,
-        branch: &Branch,
-        user_id: &str,
-        entry: &CommitEntry,
-        path: &Path,
-    ) -> Result<String, OxenError> {
-        let mods = mod_stager::list_mods_raw(&self.repository, branch, user_id, entry)?;
-        for modification in mods.iter() {
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .append(true)
-                .open(path)?;
-            log::debug!("append to file {:?} -> '{}'", path, modification.data);
-            file.write_all(modification.data.as_bytes())?;
-        }
-
         let new_hash = util::hasher::hash_file_contents(path)?;
         Ok(new_hash)
     }

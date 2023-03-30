@@ -559,7 +559,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {extension:?}");
+    let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
 
     if opts.has_transform() {
         let df = scan_df(path)?;
@@ -585,7 +585,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
 pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {extension:?}");
+    let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
 
     match extension {
         Some(extension) => match extension {
@@ -605,6 +605,7 @@ pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<()
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
+    log::debug!("{:?}", df);
     let f = std::fs::File::create(output).unwrap();
     JsonWriter::new(f)
         .with_json_format(JsonFormat::Json)
@@ -663,7 +664,7 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
 pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {extension:?}");
+    let err = format!("Unknown file type write_df {path:?} {extension:?}");
 
     match extension {
         Some(extension) => match extension {

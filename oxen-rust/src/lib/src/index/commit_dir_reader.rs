@@ -25,9 +25,20 @@ impl CommitDirReader {
         commit: &Commit,
     ) -> Result<CommitDirReader, OxenError> {
         log::debug!("CommitDirReader::new() commit_id: {}", commit.id);
+        CommitDirReader::new_from_commit_id(repository, &commit.id)
+    }
+
+    pub fn new_from_commit_id(
+        repository: &LocalRepository,
+        commit_id: &str,
+    ) -> Result<CommitDirReader, OxenError> {
+        log::debug!(
+            "CommitDirReader::new_from_commit_id() commit_id: {}",
+            commit_id
+        );
         let db_path = util::fs::oxen_hidden_dir(&repository.path)
             .join(HISTORY_DIR)
-            .join(&commit.id)
+            .join(commit_id)
             .join(DIRS_DIR);
         let opts = db::opts::default();
 
@@ -41,7 +52,7 @@ impl CommitDirReader {
         Ok(CommitDirReader {
             dir_db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
             repository: repository.to_owned(),
-            commit_id: commit.id.to_owned(),
+            commit_id: commit_id.to_owned(),
         })
     }
 

@@ -364,7 +364,7 @@ fn create_mod(
                 file,
                 err
             );
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&format!("{err:?}"))))
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("{err:?}"))))
         }
     }
 }
@@ -400,7 +400,7 @@ fn delete_mod(
                 uuid,
                 err
             );
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&format!("{err:?}"))))
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("{err:?}"))))
         }
     }
 }
@@ -511,7 +511,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
         Ok(data) => data,
         Err(err) => {
             log::error!("unable to parse commit data. Err: {}\n{}", err, body);
-            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err.to_string())));
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())));
         }
     };
 
@@ -566,8 +566,8 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
                     }
                     Err(err) => {
                         log::error!("unable to commit branch {:?}. Err: {}", branch_name, err);
-                        Ok(HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error()))
+                        Ok(HttpResponse::UnprocessableEntity()
+                            .json(StatusMessage::error(format!("{err:?}"))))
                     }
                 }
             }
@@ -790,7 +790,7 @@ fn raw_mods_response(
     page_num: usize,
     page_size: usize,
 ) -> HttpResponse {
-    match index::mod_stager::list_mods_raw(repo, branch, user_id, entry) {
+    match index::mod_stager::list_mods_raw(repo, branch, user_id, &entry.path) {
         Ok(staged) => {
             let total_entries = staged.len();
             let total_pages = (total_entries / page_size) + 1;

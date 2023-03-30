@@ -18,14 +18,15 @@ fn mods_db_path(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    entry: &CommitEntry,
+    path: impl AsRef<Path>,
 ) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     remote_dir_stager::branch_staging_dir(repo, branch, user_id)
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(MODS_DIR)
         .join(MODS_DIR)
-        .join(&entry.hash)
+        .join(path_hash)
 }
 
 fn files_db_path(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
@@ -91,7 +92,7 @@ pub fn delete_mod_from_path(
 ) -> Result<ModEntry, OxenError> {
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
     match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
-        Some(commit_entry) => match delete_mod(repo, branch, user_id, &commit_entry, uuid) {
+        Some(_) => match delete_mod(repo, branch, user_id, file_path, uuid) {
             Ok(mod_entry) => Ok(mod_entry),
             Err(e) => {
                 log::error!("Error deleting mod [{}]: {}", uuid, e);
@@ -108,11 +109,11 @@ pub fn delete_mod(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    entry: &CommitEntry,
+    path: &Path,
     uuid: &str,
 ) -> Result<ModEntry, OxenError> {
     // TODO: put these actions in a queue or lock to prevent race conditions
-    let db_path = mods_db_path(repo, branch, user_id, entry);
+    let db_path = mods_db_path(repo, branch, user_id, path);
     log::debug!("Opening db at: {:?}", db_path);
 
     let opts = db::opts::default();
@@ -127,7 +128,7 @@ pub fn delete_mod(
             if remaining.is_empty() {
                 let files_db_path = files_db_path(repo, branch, user_id);
                 let files_db = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-                let key = entry.path.to_string_lossy();
+                let key = path.to_string_lossy();
                 str_json_db::delete(&files_db, key)?;
             }
 
@@ -145,9 +146,9 @@ pub fn list_mods_raw(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    entry: &CommitEntry,
+    path: &Path,
 ) -> Result<Vec<ModEntry>, OxenError> {
-    let db_path = mods_db_path(repo, branch, user_id, entry);
+    let db_path = mods_db_path(repo, branch, user_id, path);
     log::debug!("Opening db at: {:?}", db_path);
 
     let opts = db::opts::default();
@@ -171,7 +172,7 @@ pub fn list_mods_df(
 ) -> Result<DataFrameDiff, OxenError> {
     let schema_reader = SchemaReader::new(repo, &entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&entry.path)? {
-        let mods = list_mods_raw(repo, branch, user_id, entry)?;
+        let mods = list_mods_raw(repo, branch, user_id, &entry.path)?;
         let mut df = polars::frame::DataFrame::default();
         for modification in mods.iter() {
             log::debug!("Applying modification: {:?}", modification);
@@ -195,7 +196,7 @@ pub fn list_mod_entries(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-) -> Result<Vec<CommitEntry>, OxenError> {
+) -> Result<Vec<PathBuf>, OxenError> {
     let db_path = files_db_path(repo, branch, user_id);
     log::debug!("list_mod_entries from {db_path:?}");
     let opts = db::opts::default();
@@ -214,7 +215,7 @@ fn track_mod_commit_entry(
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     let key = entry.path.to_string_lossy();
-    str_json_db::put(&db, key, &entry)
+    str_json_db::put(&db, &key, &key)
 }
 
 fn stage_mod(
@@ -309,7 +310,7 @@ fn stage_raw_mod_content(
     commit_entry: &CommitEntry,
     entry: ModEntry,
 ) -> Result<ModEntry, OxenError> {
-    let db_path = mods_db_path(repo, branch, user_id, commit_entry);
+    let db_path = mods_db_path(repo, branch, user_id, &commit_entry.path);
     let opts = db::opts::default();
     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
 
@@ -445,7 +446,7 @@ mod tests {
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry)?;
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry.path)?;
             assert_eq!(mods.len(), 2);
 
             // Delete the first append
@@ -458,7 +459,7 @@ mod tests {
             )?;
 
             // Should only be one mod now
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry)?;
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry.path)?;
             assert_eq!(mods.len(), 1);
 
             Ok(())

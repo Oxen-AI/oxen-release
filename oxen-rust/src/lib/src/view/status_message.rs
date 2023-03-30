@@ -24,10 +24,10 @@ impl StatusMessage {
         }
     }
 
-    pub fn error(msg: &str) -> StatusMessage {
+    pub fn error(msg: impl AsRef<str>) -> StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
-            status_message: String::from(msg),
+            status_message: String::from(msg.as_ref()),
         }
     }
 

@@ -79,7 +79,7 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {err}");
-                HttpResponse::NotFound().json(StatusMessage::error(&msg))
+                HttpResponse::NotFound().json(StatusMessage::error(msg))
             }
         }
     } else {
