@@ -4,6 +4,7 @@ use crate::params::df_opts_query::{self, DFOptsQuery};
 use liboxen::compute::commit_cacher;
 use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
+use liboxen::index::mod_stager;
 use liboxen::model::entry::mod_entry::ModType;
 use liboxen::model::{Branch, CommitBody, CommitEntry, ContentType, LocalRepository, Schema};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
@@ -594,6 +595,43 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
     }
 }
 
+pub async fn restore_file(req: HttpRequest) -> HttpResponse {
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let user_id: &str = req.match_info().get("user_id").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+
+    log::debug!(
+        "stager::restore_file repo name {repo_name}/{}",
+        resource.to_string_lossy()
+    );
+    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    {
+        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+            Ok(Some((_, branch_name, file_name))) => {
+                restore_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
+            }
+            Ok(None) => {
+                log::error!("unable to find resource {:?}", resource);
+                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            Err(err) => {
+                log::error!("Could not parse resource  {repo_name} -> {err}");
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+        },
+        Ok(None) => {
+            log::error!("unable to find repo {}", repo_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting repo by name {repo_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
 pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -626,6 +664,37 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
         }
         Err(err) => {
             log::error!("Error getting repo by name {repo_name} -> {err}");
+            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        }
+    }
+}
+
+fn restore_staged_file_on_branch(
+    repo: &LocalRepository,
+    branch_name: &str,
+    user_id: &str,
+    path: &Path,
+) -> HttpResponse {
+    match api::local::branches::get_by_name(repo, branch_name) {
+        Ok(Some(branch)) => {
+            index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
+            match mod_stager::clear_mods(repo, &branch, user_id, path) {
+                Ok(_) => {
+                    log::debug!("restore_staged_file_on_branch success!");
+                    HttpResponse::Ok().json(StatusMessage::resource_deleted())
+                }
+                Err(err) => {
+                    log::error!("unable to delete file {:?}. Err: {}", path, err);
+                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                }
+            }
+        }
+        Ok(None) => {
+            log::error!("unable to find branch {}", branch_name);
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        Err(err) => {
+            log::error!("Error getting branch by name {branch_name} -> {err}");
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }

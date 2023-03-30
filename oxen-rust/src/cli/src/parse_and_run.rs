@@ -1,4 +1,4 @@
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, RM, STATUS};
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
@@ -111,6 +111,9 @@ pub async fn remote(sub_matches: &ArgMatches) {
             }
             (RM, sub_matches) => {
                 remote_rm(sub_matches).await;
+            }
+            (RESTORE, sub_matches) => {
+                remote_restore(sub_matches).await;
             }
             (COMMIT, sub_matches) => {
                 remote_commit(sub_matches).await;
@@ -420,24 +423,45 @@ pub async fn rm(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn restore(sub_matches: &ArgMatches) {
+pub async fn remote_restore(sub_matches: &ArgMatches) {
+    let path = sub_matches.value_of("PATH").expect("required");
+
+    // For now, restore remote just un-stages all the changes done to the file on the remote
+    let opts = RestoreOpts {
+        path: PathBuf::from(path),
+        staged: sub_matches.is_present("staged"),
+        is_remote: true,
+        source_ref: None,
+    };
+
+    match dispatch::restore(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+pub async fn restore(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("PATH").expect("required");
 
     let opts = if let Some(source) = sub_matches.value_of("source") {
         RestoreOpts {
             path: PathBuf::from(path),
             staged: sub_matches.is_present("staged"),
+            is_remote: false,
             source_ref: Some(String::from(source)),
         }
     } else {
         RestoreOpts {
             path: PathBuf::from(path),
             staged: sub_matches.is_present("staged"),
+            is_remote: false,
             source_ref: None,
         }
     };
 
-    match dispatch::restore(opts) {
+    match dispatch::restore(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

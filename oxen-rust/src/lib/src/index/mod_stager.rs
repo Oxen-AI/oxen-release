@@ -319,6 +319,31 @@ fn stage_raw_mod_content(
     Ok(entry)
 }
 
+pub fn clear_mods(
+    repo: &LocalRepository,
+    branch: &Branch,
+    user_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    log::debug!("clear_mods for {path:?}");
+    // Remove all mods from mod db
+    let db_path = mods_db_path(repo, branch, user_id, path);
+    log::debug!("clear_mods mods_db_path for {db_path:?}");
+
+    let opts = db::opts::default();
+    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    str_json_db::clear(&db)?;
+
+    // Remove file from files db
+    let files_db_path = files_db_path(repo, branch, user_id);
+    log::debug!("clear_mods files_db_path for {files_db_path:?}");
+
+    let files_db = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+    let key = path.to_string_lossy();
+    str_json_db::delete(&files_db, key)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -461,6 +486,66 @@ mod tests {
             // Should only be one mod now
             let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry.path)?;
             assert_eq!(mods.len(), 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_clear_staged_mods() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "test-append";
+            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let user_id = UserConfig::identifier()?;
+            let file_path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+
+            // Append the data to staging area
+            let data = "dawg1.jpg,dog,13,14,100,100".to_string();
+
+            mod_stager::create_mod(
+                &repo,
+                &branch,
+                &user_id,
+                &file_path,
+                ContentType::Csv,
+                ModType::Append,
+                data,
+            )?;
+
+            let data = "dawg2.jpg,dog,13,14,100,100".to_string();
+            mod_stager::create_mod(
+                &repo,
+                &branch,
+                &user_id,
+                &file_path,
+                ContentType::Csv,
+                ModType::Append,
+                data,
+            )?;
+
+            // List the files that are changed
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
+            assert_eq!(commit_entries.len(), 1);
+
+            // List the staged mods
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry.path)?;
+            assert_eq!(mods.len(), 2);
+
+            // Delete the first append
+            mod_stager::clear_mods(&repo, &branch, &user_id, &file_path)?;
+
+            // Should be zero staged files
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &user_id)?;
+            assert_eq!(commit_entries.len(), 0);
+
+            // Should be zero mods left
+            let mods = mod_stager::list_mods_raw(&repo, &branch, &user_id, &commit_entry.path)?;
+            assert_eq!(mods.len(), 0);
 
             Ok(())
         })

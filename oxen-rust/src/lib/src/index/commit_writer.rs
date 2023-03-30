@@ -275,6 +275,7 @@ impl CommitWriter {
         log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
         log::debug!("og df {:?}", df);
         if let Some(rows) = mods_df.added_rows {
+            // TODO: More robust check for schema match
             if rows.width() != df.width() + 1 {
                 return Err(OxenError::basic_str(format!(
                     "Could not commit, schema has changed on file {}",

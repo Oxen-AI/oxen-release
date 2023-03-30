@@ -171,11 +171,15 @@ pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
+pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::restore(&repository, opts)?;
+    if opts.is_remote {
+        command::remote_restore(&repository, opts).await?;
+    } else {
+        command::restore(&repository, opts)?;
+    }
 
     Ok(())
 }

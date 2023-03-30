@@ -105,6 +105,7 @@ pub fn remote() -> Command<'static> {
                 .takes_value(true))
         )
         .subcommand(rm())
+        .subcommand(restore())
         .subcommand(commit())
         .subcommand(log())
         .subcommand(df())

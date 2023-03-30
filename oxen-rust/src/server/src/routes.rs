@@ -116,6 +116,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::delete().to(controllers::stager::stage_delete_from_file),
     )
     .route(
+        "/{namespace}/{repo_name}/staging/{user_id}/df/restore/{resource:.*}",
+        web::delete().to(controllers::stager::restore_file),
+    )
+    .route(
         "/{namespace}/{repo_name}/staging/{user_id}/commit/{branch:.*}",
         web::post().to(controllers::stager::commit),
     )
