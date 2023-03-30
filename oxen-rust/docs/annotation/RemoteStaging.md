@@ -36,7 +36,7 @@ $ oxen push origin add-images
 
 ## Check Remote Status
 
-Now that you have created a remote branch, you can interact with the remote staging area with the `oxen remote` sub command. The subcommand defaults to checking the current branch you are on but on the remote server.
+Now that you have created a remote branch, you can interact with the remote staging area with the `oxen remote` subcommand. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.
 
 ```bash
 $ oxen remote status
@@ -99,7 +99,7 @@ $ oxen remote commit -m "adding my file without pulling the whole repo"
 
 You have now committed data to the remote branch without cloning the full repo 🎉.
 
-Note: If the remote branch cannot do a clean merge, remote commit will fail, and you will have to resolve the merge conflicts with some more advanced commands which we will cover later.
+Note: If the remote branch cannot be merged cleanly, the remote commit will fail, and you will have to resolve the merge conflicts with some more advanced commands which we will cover later.
 
 ## Remote Log
 
@@ -111,7 +111,7 @@ $ oxen remote log
 
 # Staging Tabular Data
 
-It is common that you will want to tie some sort of annotation to your unstructured data. For example, you might want to label an image with a bounding box, or a video with a bounding box and a class label.
+Commonly, you will want to tie some sort of annotation to your unstructured data. For example, you might want to label an image with a bounding box, or a video with a bounding box and a class label.
 
 Oxen has native support for extending and managing structured DataFrames in the form of csv, jsonl, or parquet files. To interact with these files remotely you can use the `oxen remote df` command.
 
@@ -155,7 +155,7 @@ shape: (1, 7)
 └──────────────────────────────────┴──────────────────────┴───────┴───────┴───────┴───────┴────────┘
 ```
 
-This returns a UUID for the row that we can use as a handle to interact with the specific row in the remote staging area. To list add the added rows on the dataframe you can use the `oxen remote diff` command.
+This returns a unique ID for the row that we can use as a handle to interact with the specific row in the remote staging area. To list the added rows on the dataframe you can use the `oxen remote diff` command.
 
 ```bash
 $ oxen remote diff annotations/train.csv
@@ -173,7 +173,7 @@ shape: (2, 7)
 └──────────────────────────────────┴──────────────────────┴───────┴───────┴───────┴───────┴────────┘
 ```
 
-If you want to delete a staged row, you can delete with the `--delete-row` flag and the value in the `_id` column.
+If you want to delete a staged row, you can delete it with the `--delete-row` flag and the value in the `_id` column.
 
 ```bash
 $ oxen remote df annotations/train.csv --delete-row 822ac1facbd79444f1f33a2a0b2f909d
