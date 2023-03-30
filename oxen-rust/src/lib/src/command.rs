@@ -526,6 +526,19 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     index::restore(repo, opts)
 }
 
+/// Remove all staged changes from file on remote
+pub async fn remote_restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
+    let branch = current_branch(repo)?;
+    if branch.is_none() {
+        return Err(OxenError::must_be_on_valid_branch());
+    }
+    let branch = branch.unwrap();
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let user_id = UserConfig::identifier()?;
+    api::remote::staging::restore_df(&remote_repo, &branch.name, &user_id, opts.path.to_owned())
+        .await
+}
+
 /// # Commit the staged files in the repo
 ///
 /// ```
@@ -574,7 +587,7 @@ pub async fn remote_commit(
 ) -> Result<Option<Commit>, OxenError> {
     let branch = current_branch(repo)?;
     if branch.is_none() {
-        return Err(OxenError::basic_str("Must be on branch."));
+        return Err(OxenError::must_be_on_valid_branch());
     }
     let branch = branch.unwrap();
 
