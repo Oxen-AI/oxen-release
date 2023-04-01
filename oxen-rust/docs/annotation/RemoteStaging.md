@@ -58,10 +58,10 @@ $ cp /path/to/image.jpg my-images/ # add image to local dir
 $ oxen remote add my-images/image.jpg # upload image to remote staging area in the my-images/ directory
 ```
 
-For absolute paths to a file, you will also need to specify the data directory you would like to put it in with the `-d` flag.
+For absolute paths to a file, you will also need to specify the path you would like to put it in with the `-p` flag.
 
 ```bash
-$ oxen remote add /path/to/image.jpg -d my-images # upload image to remote staging area
+$ oxen remote add /path/to/image.jpg -p my-images # upload image to remote staging area
 ```
 
 You can now use the `oxen remote status` command to see the files that are staged on the remote branch.
@@ -141,6 +141,9 @@ Slice shape: (10, 6)
 ```
 
 Say you want to add a bounding box annotation to this dataframe without cloning it locally. You can use the `--add-row` flag on the `oxen remote df` command to remotely stage a row on the DataFrame.
+
+TODO: change the remote status to not be modified but be added
+
 
 ```bash
 $ oxen remote df annotations/train.csv --add-row "my-images/image.jpg,dog,100,100,200,200"

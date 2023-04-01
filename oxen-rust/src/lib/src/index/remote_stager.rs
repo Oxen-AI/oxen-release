@@ -31,7 +31,7 @@ pub async fn status(
     let page_size = opts.limit;
     let page_num = opts.skip / page_size;
 
-    let staged_files = api::remote::staging::list_staging_dir(
+    let remote_status = api::remote::staging::status(
         remote_repo,
         &branch.name,
         user_id,
@@ -42,16 +42,16 @@ pub async fn status(
     .await?;
 
     let mut status = StagedData::empty();
-    status.added_dirs = staged_files.added_dirs;
+    status.added_dirs = remote_status.added_dirs;
     status.added_files =
-        HashMap::from_iter(staged_files.added_files.entries.into_iter().map(|e| {
+        HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
             (
                 PathBuf::from(e.filename),
                 StagedEntry::empty_status(StagedEntryStatus::Added),
             )
         }));
     status.modified_files = Vec::from_iter(
-        staged_files
+        remote_status
             .modified_files
             .entries
             .into_iter()

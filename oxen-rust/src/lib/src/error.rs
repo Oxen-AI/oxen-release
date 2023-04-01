@@ -205,7 +205,7 @@ impl OxenError {
 
     pub fn repo_is_shallow() -> OxenError {
         let err = r"
-Repo is in a shallow clone state. You can only perform options remotely.
+Repo is in a shallow clone state. You can only perform operations remotely.
 
 To fetch data from the remote, run:
 

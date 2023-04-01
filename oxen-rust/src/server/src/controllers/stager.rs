@@ -211,7 +211,7 @@ fn get_content_type(req: &HttpRequest) -> Option<&str> {
     req.headers().get("content-type")?.to_str().ok()
 }
 
-pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
+pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -230,7 +230,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
                             log::debug!(
-                                "stager::stage_append_to_file file branch_name [{}] user_id [{}] file_name [{:?}]",
+                                "stager::df_add_row file branch_name [{}] user_id [{}] file_name [{:?}]",
                                 branch_name,
                                 user_id,
                                 file_name
@@ -271,7 +271,7 @@ pub async fn stage_append_to_file(req: HttpRequest, bytes: Bytes) -> Result<Http
     }
 }
 
-pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
+pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -287,7 +287,7 @@ pub async fn stage_delete_from_file(req: HttpRequest, bytes: Bytes) -> Result<Ht
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
                             log::debug!(
-                                "stager::stage_delete_from_file file branch_name [{}] file_name [{:?}] uuid [{}]",
+                                "stager::df_delete_row file branch_name [{}] file_name [{:?}] uuid [{}]",
                                 branch_name,
                                 file_name,
                                 uuid
@@ -406,7 +406,7 @@ fn delete_mod(
     }
 }
 
-pub async fn stage_into_dir(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, Error> {
+pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
@@ -595,7 +595,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
     }
 }
 
-pub async fn restore_file(req: HttpRequest) -> HttpResponse {
+pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -603,14 +603,14 @@ pub async fn restore_file(req: HttpRequest) -> HttpResponse {
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     log::debug!(
-        "stager::restore_file repo name {repo_name}/{}",
+        "stager::clear_modifications repo name {repo_name}/{}",
         resource.to_string_lossy()
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
-                restore_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
+                clear_staged_modifications_on_branch(&repo, &branch_name, user_id, &file_name)
             }
             Ok(None) => {
                 log::error!("unable to find resource {:?}", resource);
@@ -669,7 +669,7 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     }
 }
 
-fn restore_staged_file_on_branch(
+fn clear_staged_modifications_on_branch(
     repo: &LocalRepository,
     branch_name: &str,
     user_id: &str,
@@ -680,7 +680,7 @@ fn restore_staged_file_on_branch(
             index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
             match mod_stager::clear_mods(repo, &branch, user_id, path) {
                 Ok(_) => {
-                    log::debug!("restore_staged_file_on_branch success!");
+                    log::debug!("clear_staged_modifications_on_branch success!");
                     HttpResponse::Ok().json(StatusMessage::resource_deleted())
                 }
                 Err(err) => {

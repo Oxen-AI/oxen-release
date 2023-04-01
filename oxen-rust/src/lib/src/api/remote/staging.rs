@@ -11,7 +11,7 @@ use crate::view::{
 
 use std::path::{Path, PathBuf};
 
-pub async fn list_staging_dir(
+pub async fn status(
     remote_repo: &RemoteRepository,
     branch_name: &str,
     user_id: &str,
@@ -21,39 +21,40 @@ pub async fn list_staging_dir(
 ) -> Result<RemoteStagedStatus, OxenError> {
     let path_str = path.to_str().unwrap();
     let uri = format!(
-        "/staging/{user_id}/dir/{branch_name}/{path_str}?page={page}&page_size={page_size}"
+        "/staging/{user_id}/status/{branch_name}/{path_str}?page={page}&page_size={page_size}"
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("status url: {url}");
 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            log::debug!("list_staging_dir got body: {}", body);
+            log::debug!("status got body: {}", body);
             let response: Result<RemoteStagedStatusResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(val) => Ok(val.staged),
                 Err(err) => Err(OxenError::basic_str(format!(
-                    "api::staging::list_staging_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                    "api::staging::status error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
             }
         }
         Err(err) => {
-            let err = format!("api::staging::list_staging_dir Request failed: {url}\nErr {err:?}");
+            let err = format!("api::staging::status Request failed: {url}\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
 }
 
-pub async fn stage_file(
+pub async fn add_file(
     remote_repo: &RemoteRepository,
     branch_name: &str,
     user_id: &str,
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/staging/{user_id}/dir/{branch_name}/{directory_name}");
+    let uri = format!("/staging/{user_id}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -66,7 +67,7 @@ pub async fn stage_file(
     let file = std::fs::read(&path).unwrap();
     let file_part = reqwest::multipart::Part::bytes(file).file_name(file_name);
     let form = reqwest::multipart::Form::new().part("file", file_part);
-    let client = reqwest::Client::new();
+    let client = client::new_for_url(&url)?;
     match client.post(&url).multipart(form).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
@@ -78,26 +79,26 @@ pub async fn stage_file(
                     Ok(path)
                 }
                 Err(err) => {
-                    let err = format!("api::staging::stage_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("api::staging::add_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }
         }
         Err(err) => {
-            let err = format!("api::staging::stage_file Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::add_file Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
 }
 
-pub async fn stage_files(
+pub async fn add_files(
     remote_repo: &RemoteRepository,
     branch_name: &str,
     user_id: &str,
     directory_name: &str,
     paths: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, OxenError> {
-    let uri = format!("/staging/{user_id}/dir/{branch_name}/{directory_name}");
+    let uri = format!("/staging/{user_id}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -123,13 +124,13 @@ pub async fn stage_files(
             match response {
                 Ok(val) => Ok(val.paths),
                 Err(err) => {
-                    let err = format!("api::staging::stage_files error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("api::staging::add_files error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }
         }
         Err(err) => {
-            let err = format!("api::staging::stage_files Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::add_files Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -151,7 +152,7 @@ pub async fn stage_modification(
     }
 
     let file_path_str = path.to_str().unwrap();
-    let uri = format!("/staging/{user_id}/df/add-row/{branch_name}/{file_path_str}");
+    let uri = format!("/staging/{user_id}/df/rows/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("stage_modification {url}\n{data}");
 
@@ -250,7 +251,7 @@ pub async fn restore_df(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/{user_id}/df/restore/{branch_name}/{file_name}");
+    let uri = format!("/staging/{user_id}/modifications/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("restore_df {}", url);
     let client = reqwest::Client::new();
@@ -275,7 +276,7 @@ pub async fn delete_staged_modification(
     uuid: &str,
 ) -> Result<ModEntry, OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/{user_id}/df/delete-row/{branch_name}/{file_name}");
+    let uri = format!("/staging/{user_id}/df/rows/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("delete_staged_modification [{}] {}", uuid, url);
     let client = reqwest::Client::new();
@@ -380,7 +381,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
-            let entries = api::remote::staging::list_staging_dir(
+            let entries = api::remote::staging::status(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -408,7 +409,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
-            let entries = api::remote::staging::list_staging_dir(
+            let entries = api::remote::staging::status(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -435,7 +436,7 @@ mod tests {
             let directory_name = "images";
             let user_id = UserConfig::identifier()?;
             let path = test::test_jpeg_file().to_path_buf();
-            let result = api::remote::staging::stage_file(
+            let result = api::remote::staging::add_file(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -448,7 +449,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::list_staging_dir(
+            let entries = api::remote::staging::status(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -475,7 +476,7 @@ mod tests {
             let user_id = UserConfig::identifier()?;
             let directory_name = "images";
             let path = test::test_jpeg_file().to_path_buf();
-            let result = api::remote::staging::stage_file(
+            let result = api::remote::staging::add_file(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -499,7 +500,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::list_staging_dir(
+            let entries = api::remote::staging::status(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -529,7 +530,7 @@ mod tests {
                 test::test_jpeg_file().to_path_buf(),
                 test::test_jpeg_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::staging::stage_files(
+            let result = api::remote::staging::add_files(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -542,7 +543,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::list_staging_dir(
+            let entries = api::remote::staging::status(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -569,7 +570,7 @@ mod tests {
             let user_id = UserConfig::identifier()?;
             let file_to_post = test::test_jpeg_file().to_path_buf();
             let directory_name = "data";
-            let result = api::remote::staging::stage_file(
+            let result = api::remote::staging::add_file(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -640,7 +641,7 @@ mod tests {
                 test::test_jpeg_file().to_path_buf(),
                 test::test_jpeg_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::staging::stage_files(
+            let result = api::remote::staging::add_files(
                 &remote_repo,
                 branch_name,
                 &user_id,
@@ -787,7 +788,7 @@ mod tests {
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::remote::staging::list_staging_dir(
+            let entries = api::remote::staging::status(
                 &remote_repo,
                 branch_name,
                 &user_id,
