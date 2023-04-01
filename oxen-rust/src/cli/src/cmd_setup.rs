@@ -97,11 +97,11 @@ pub fn remote() -> Command<'static> {
         .subcommand(status())
         .subcommand(
             add()
-                // can specify a directory on the remote add command
-                .arg(Arg::new("directory")
-                .long("directory")
-                .short('d')
-                .help("Specify a directory in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
+                // can specify a path on the remote add command for where the file will be added to
+                .arg(Arg::new("path")
+                .long("path")
+                .short('p')
+                .help("Specify a path in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
                 .takes_value(true))
         )
         .subcommand(rm())
@@ -145,7 +145,7 @@ pub fn status() -> Command<'static> {
                 .help("If present, does not truncate the output of status at all.")
                 .takes_value(false),
         )
-        .arg(Arg::new("directory").required(false))
+        .arg(Arg::new("path").required(false))
 }
 
 pub fn log() -> Command<'static> {

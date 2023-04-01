@@ -279,7 +279,7 @@ pub async fn remote_add<P: AsRef<Path>>(
     };
 
     let user_id = UserConfig::identifier()?;
-    let result = api::remote::staging::stage_file(
+    let result = api::remote::staging::add_file(
         &remote_repo,
         &branch.name,
         &user_id,

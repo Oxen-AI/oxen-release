@@ -148,7 +148,7 @@ async fn remote_add(sub_matches: &ArgMatches) {
     let opts = AddOpts {
         paths,
         is_remote: true,
-        directory: sub_matches.value_of("directory").map(PathBuf::from),
+        directory: sub_matches.value_of("path").map(PathBuf::from),
     };
     match dispatch::add(opts).await {
         Ok(_) => {}
@@ -191,7 +191,7 @@ async fn remote_status(sub_matches: &ArgMatches) {
 }
 
 pub async fn status(sub_matches: &ArgMatches) {
-    let directory = sub_matches.value_of("directory").map(PathBuf::from);
+    let directory = sub_matches.value_of("path").map(PathBuf::from);
 
     let is_remote = false;
     let opts = parse_status_args(sub_matches, is_remote);
