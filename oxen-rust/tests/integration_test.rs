@@ -3417,14 +3417,14 @@ async fn test_remote_stage_add_row_commit_clears_remote_status() -> Result<(), O
                 ..Default::default()
             };
             let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
-            assert_eq!(status.modified_files.len(), 1);
+            assert_eq!(status.added_files.len(), 1);
 
             // Commit it
             command::remote_commit(&cloned_repo, "Remotely committing").await?;
 
             // Now status should be empty
             let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
-            assert_eq!(status.modified_files.len(), 0);
+            assert_eq!(status.added_files.len(), 0);
 
             Ok(repo_dir)
         })
@@ -3466,7 +3466,7 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
                 ..Default::default()
             };
             let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
-            assert_eq!(status.modified_files.len(), 1);
+            assert_eq!(status.added_files.len(), 1);
 
             // Delete it
             let mut delete_opts = DFOpts::empty();
@@ -3476,7 +3476,7 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
 
             // Now status should be empty
             let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
-            assert_eq!(status.modified_files.len(), 0);
+            assert_eq!(status.added_files.len(), 0);
 
             Ok(repo_dir)
         })
