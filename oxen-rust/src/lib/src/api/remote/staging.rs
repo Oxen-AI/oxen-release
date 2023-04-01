@@ -115,7 +115,7 @@ pub async fn add_files(
         form = form.part("file", file_part);
     }
 
-    let client = reqwest::Client::new();
+    let client = client::new_for_url(&url)?;
     match client.post(&url).multipart(form).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
@@ -156,7 +156,7 @@ pub async fn stage_modification(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("stage_modification {url}\n{data}");
 
-    let client = reqwest::Client::new();
+    let client = client::new_for_url(&url)?;
     match client
         .post(&url)
         .header("Content-Type", content_type.to_http_content_type())
@@ -230,7 +230,7 @@ pub async fn rm_staged_file(
     let uri = format!("/staging/{user_id}/file/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_staged_file {}", url);
-    let client = reqwest::Client::new();
+    let client = client::new_for_url(&url)?;
     match client.delete(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
@@ -254,7 +254,7 @@ pub async fn restore_df(
     let uri = format!("/staging/{user_id}/modifications/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("restore_df {}", url);
-    let client = reqwest::Client::new();
+    let client = client::new_for_url(&url)?;
     match client.delete(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
@@ -279,7 +279,7 @@ pub async fn delete_staged_modification(
     let uri = format!("/staging/{user_id}/df/rows/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("delete_staged_modification [{}] {}", uuid, url);
-    let client = reqwest::Client::new();
+    let client = client::new_for_url(&url)?;
     match client.delete(&url).body(uuid.to_string()).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
