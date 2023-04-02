@@ -2,7 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
-use crate::model::{Commit, CommitBody, DataFrameDiff, ModEntry, RemoteRepository};
+use crate::model::{Commit, CommitBody, DataFrameDiff, ModEntry, ObjectID, RemoteRepository};
 use crate::model::{ContentType, Schema};
 use crate::view::{
     CommitResponse, FilePathsResponse, ListStagedFileModResponseDF, RemoteStagedStatus,
@@ -280,7 +280,11 @@ pub async fn delete_staged_modification(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("delete_staged_modification [{}] {}", uuid, url);
     let client = client::new_for_url(&url)?;
-    match client.delete(&url).body(uuid.to_string()).send().await {
+    let id = ObjectID {
+        id: uuid.to_string(),
+    };
+    let json_id = serde_json::to_string(&id).unwrap();
+    match client.delete(&url).body(json_id).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("delete_staged_modification got body: {}", body);

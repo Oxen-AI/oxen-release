@@ -6,7 +6,9 @@ use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
 use liboxen::index::mod_stager;
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::{Branch, CommitBody, CommitEntry, ContentType, LocalRepository, Schema};
+use liboxen::model::{
+    Branch, CommitBody, CommitEntry, ContentType, LocalRepository, ObjectID, Schema,
+};
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
@@ -278,7 +280,24 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let user_id: &str = req.match_info().get("identifier").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
-    let uuid = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+
+    let body_err_msg = "Invalid Body, must be valid json in the format {\"id\": \"<id>\"}";
+    let body = String::from_utf8(bytes.to_vec());
+    if body.is_err() {
+        log::error!("stager::df_delete_row could not parse body as utf8");
+        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
+    }
+
+    let body = body.unwrap();
+    let response: Result<ObjectID, serde_json::Error> = serde_json::from_str(&body);
+    if response.is_err() {
+        log::error!("stager::df_delete_row could not parse body as ObjectID\n{body:?}");
+        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
+    }
+
+    // Safe to unwrap after checks above
+    let uuid = response.unwrap().id;
+
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
