@@ -5,6 +5,7 @@ pub mod data_frame_diff;
 pub mod entry;
 pub mod merge_conflict;
 pub mod namespace;
+pub mod object_id;
 pub mod remote;
 pub mod remote_branch;
 pub mod repository;
@@ -40,6 +41,8 @@ pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 pub use crate::model::entry::ContentHashable;
 
 pub use crate::model::user::User;
+
+pub use crate::model::object_id::ObjectID;
 
 pub use crate::model::staged_data::StagedData;
 pub use crate::model::staged_dir_stats::StagedDirStats;
