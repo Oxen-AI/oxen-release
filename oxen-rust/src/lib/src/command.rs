@@ -264,7 +264,7 @@ pub async fn remote_add<P: AsRef<Path>>(
             dir.to_string_lossy().to_string()
         } else {
             return Err(OxenError::basic_str(
-                "If the path is absolute, you must specify a directory name to put the file in",
+                "If the path is absolute, you must specify a path to put the file in.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
             ));
         }
     } else {
