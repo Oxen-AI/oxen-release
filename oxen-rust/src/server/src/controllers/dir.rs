@@ -96,7 +96,7 @@ fn list_directory_for_commit(
                         entries.len()
                     );
 
-                    let total_pages = total_entries as f64 / page_size as f64;
+                    let total_pages = (total_entries as f64 / page_size as f64) + 1.0;
                     let view = PaginatedDirEntriesResponse {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),
