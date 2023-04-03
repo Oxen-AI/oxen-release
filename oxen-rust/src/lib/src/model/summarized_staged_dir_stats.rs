@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::model::StagedDirStats;
 
 use std::collections::HashMap;
@@ -19,6 +21,8 @@ use std::path::{Path, PathBuf};
 ///     
 /// Rolled up to:
 ///     annotations/ -> num_staged: 3, total: 4
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SummarizedStagedDirStats {
     pub num_files_staged: usize,
     pub total_files: usize,

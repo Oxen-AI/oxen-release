@@ -60,6 +60,13 @@ impl UserConfig {
         }
     }
 
+    pub fn to_user(&self) -> User {
+        User {
+            name: self.name.to_owned(),
+            email: self.email.to_owned(),
+        }
+    }
+
     fn new_empty() -> UserConfig {
         UserConfig {
             name: String::from(""),
@@ -89,6 +96,10 @@ impl UserConfig {
         } else {
             Err(OxenError::email_and_name_not_set())
         }
+    }
+
+    pub fn identifier() -> Result<String, OxenError> {
+        Ok(util::hasher::hash_str(UserConfig::get()?.to_user().email))
     }
 
     pub fn get_or_create() -> Result<UserConfig, OxenError> {

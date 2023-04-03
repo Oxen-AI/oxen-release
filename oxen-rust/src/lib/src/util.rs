@@ -1,10 +1,12 @@
 pub mod fs;
 pub mod hasher;
+pub mod paginate;
 pub mod read_progress;
 pub mod resource;
 pub mod str;
 
 pub use crate::util::read_progress::ReadProgress;
+pub use paginate::paginate;
 
 pub mod oxen_date_format {
     use chrono::{DateTime, Local};

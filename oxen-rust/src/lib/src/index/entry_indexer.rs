@@ -257,6 +257,7 @@ impl EntryIndexer {
         for unsynced in unsynced_commits.iter() {
             let commit = &unsynced.commit;
             let entries = &unsynced.entries;
+
             println!(
                 "Pushing commit {} entries: {} -> '{}'",
                 entries.len(),
@@ -264,9 +265,7 @@ impl EntryIndexer {
                 commit.message
             );
 
-            if !entries.is_empty() {
-                self.push_entries(remote_repo, entries, commit).await?;
-            }
+            self.push_entries(remote_repo, entries, commit).await?;
         }
         Ok(())
     }
@@ -352,11 +351,13 @@ impl EntryIndexer {
         println!("🐂 push computing size...");
         let total_size = self.compute_entries_size(entries)?;
 
-        println!(
-            "Pushing {} files with size {}",
-            entries.len(),
-            ByteSize::b(total_size)
-        );
+        if !entries.is_empty() {
+            println!(
+                "Pushing {} files with size {}",
+                entries.len(),
+                ByteSize::b(total_size)
+            );
+        }
 
         let bar = Arc::new(ProgressBar::new(total_size));
 
@@ -964,8 +965,7 @@ impl EntryIndexer {
 
                     if limit == 0 {
                         // limit == 0 means we pulled everything
-                        // Mark as synced so we know we don't need to pull versions files again
-                        index::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;
+                        self.pull_complete(commit)?;
                     }
                 }
                 (Err(err), Ok(_)) => {
@@ -982,6 +982,16 @@ impl EntryIndexer {
 
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
+
+        Ok(())
+    }
+
+    fn pull_complete(&self, commit: &Commit) -> Result<(), OxenError> {
+        // This is so that we know when we switch commits that we don't need to pull versions again
+        index::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;
+
+        // When we successfully pull the data, the repo is no longer shallow
+        self.repository.write_is_shallow(false)?;
 
         Ok(())
     }
@@ -1194,21 +1204,31 @@ impl EntryIndexer {
 
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                     let version_path = util::fs::version_path(&self.repository, entry);
-                    // We will unpack tabular later into CADF
-                    if std::fs::copy(&version_path, &filepath).is_err() {
-                        log::error!("Could not unpack file {:?} -> {:?}", version_path, filepath);
+                    match util::fs::copy(&version_path, &filepath) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!(
+                                "Could not copy {:?} to {:?}: {}",
+                                version_path,
+                                filepath,
+                                err
+                            );
+                        }
                     }
 
                     log::debug!(
                         "pull_entries_for_commit updating timestamp for {:?}",
                         filepath
                     );
-                    if filepath.exists() {
-                        let metadata = fs::metadata(filepath).unwrap();
-                        let mtime = FileTime::from_last_modification_time(&metadata);
-                        committer.set_file_timestamps(entry, &mtime).unwrap();
-                    } else {
-                        log::error!("could not update timestamp for entry {:?}", entry.path);
+
+                    match fs::metadata(&filepath) {
+                        Ok(metadata) => {
+                            let mtime = FileTime::from_last_modification_time(&metadata);
+                            committer.set_file_timestamps(entry, &mtime).unwrap();
+                        }
+                        Err(err) => {
+                            log::error!("Could not update timestamp for {:?}: {}", filepath, err);
+                        }
                     }
                 }
                 bar.inc(1);
@@ -1216,6 +1236,8 @@ impl EntryIndexer {
         });
 
         bar.finish();
+
+        log::debug!("Done Unpacking.");
 
         Ok(())
     }
@@ -1277,12 +1299,6 @@ impl EntryIndexer {
 
     fn path_hash_is_different(&self, entry: &CommitEntry, path: &Path) -> bool {
         if let Ok(hash) = util::hasher::hash_file_contents(path) {
-            log::debug!(
-                "path_hash_is_different({:?})? {} == {}",
-                entry.path,
-                hash,
-                entry.hash
-            );
             return hash != entry.hash;
         }
         false
@@ -1299,6 +1315,7 @@ mod tests {
     use crate::index::entry_indexer::UnsyncedCommitEntries;
     use crate::index::EntryIndexer;
     use crate::model::RemoteBranch;
+    use crate::opts::CloneOpts;
     use crate::test;
     use crate::util;
 
@@ -1389,9 +1406,10 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let shallow = true;
-                let cloned_repo =
-                    command::clone(&remote_repo.remote.url, &new_repo_dir, shallow).await?;
+                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                opts.shallow = true;
+
+                let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -1451,9 +1469,9 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let _shallow = true;
-                let cloned_repo =
-                    command::clone(&remote_repo.remote.url, &new_repo_dir, true).await?;
+                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                opts.shallow = true;
+                let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit

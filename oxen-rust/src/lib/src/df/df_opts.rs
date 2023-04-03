@@ -4,7 +4,7 @@ use crate::constants::{FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAM
 use crate::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
-use crate::model::Schema;
+use crate::model::{ContentType, Schema};
 
 use super::filter::{self, DFFilterExp};
 
@@ -33,10 +33,13 @@ pub struct DFOpts {
     pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub delete_row: Option<String>,
     pub sort_by: Option<String>,
     pub unique: Option<String>,
     pub should_randomize: bool,
     pub should_reverse: bool,
+    pub content_type: ContentType,
+    pub is_remote: bool,
     pub page: Option<usize>,
     pub page_size: Option<usize>,
 }
@@ -54,10 +57,13 @@ impl DFOpts {
             vstack: None,
             add_col: None,
             add_row: None,
+            delete_row: None,
             sort_by: None,
             unique: None,
             should_randomize: false,
             should_reverse: false,
+            is_remote: false,
+            content_type: ContentType::Json,
             page: None,
             page_size: None,
         }
@@ -101,8 +107,12 @@ impl DFOpts {
 
     pub fn from_columns(fields: Vec<Field>) -> Self {
         let str_fields: Vec<String> = fields.iter().map(|f| f.name.to_owned()).collect();
+        DFOpts::from_column_names(str_fields)
+    }
+
+    pub fn from_column_names(names: Vec<String>) -> Self {
         let mut opts = DFOpts::empty();
-        opts.columns = Some(str_fields.join(","));
+        opts.columns = Some(names.join(","));
         opts
     }
 
@@ -229,15 +239,52 @@ impl DFOpts {
         None
     }
 
-    pub fn add_row_vals(&self) -> Option<Vec<String>> {
-        if let Some(add_row) = self.add_row.clone() {
-            let split = add_row
-                .split(',')
-                .map(String::from)
-                .collect::<Vec<String>>();
-            return Some(split);
+    pub fn to_http_query_params(&self) -> String {
+        let randomize = if self.should_randomize {
+            Some(String::from("true"))
+        } else {
+            Some(String::from("false"))
+        };
+        let should_reverse = if self.should_reverse {
+            Some(String::from("true"))
+        } else {
+            Some(String::from("false"))
+        };
+        let page = if self.page.is_some() {
+            Some(format!("{}", self.page.unwrap()))
+        } else {
+            None
+        };
+        let page_size = if self.page_size.is_some() {
+            Some(format!("{}", self.page_size.unwrap()))
+        } else {
+            None
+        };
+        let params = vec![
+            ("slice", self.slice.clone()),
+            ("take", self.take.clone()),
+            ("columns", self.columns.clone()),
+            ("filter", self.filter.clone()),
+            ("aggregate", self.aggregate.clone()),
+            ("col-at", self.col_at.clone()),
+            ("sort-by", self.sort_by.clone()),
+            ("unique", self.unique.clone()),
+            ("randomize", randomize),
+            ("reverse", should_reverse),
+            ("page", page),
+            ("page_size", page_size),
+        ];
+
+        let mut query = String::new();
+        for (i, (name, val)) in params.iter().enumerate() {
+            if let Some(val) = val {
+                query.push_str(&format!("{}={}", name, urlencoding::encode(val)));
+                if i != params.len() - 1 {
+                    query.push('&');
+                }
+            }
         }
-        None
+        query
     }
 }
 

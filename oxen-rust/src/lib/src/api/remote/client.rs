@@ -75,7 +75,7 @@ pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String
         Err(err) => {
             log::debug!("Err: {}", err);
             Err(OxenError::basic_str(format!(
-                "Could not deserialize response from [{url}]\n{body}"
+                "Could not deserialize response from [{url}]\n{status}\n'{body}'"
             )))
         }
     }

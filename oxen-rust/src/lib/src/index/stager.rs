@@ -29,8 +29,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 
-pub const STAGED_DIR: &str = "staged";
-
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FileStatus {
     Added,
@@ -49,7 +47,7 @@ pub struct Stager {
 impl Stager {
     pub fn dirs_db_path(path: &Path) -> Result<PathBuf, OxenError> {
         let path = util::fs::oxen_hidden_dir(path)
-            .join(Path::new(STAGED_DIR))
+            .join(Path::new(constants::STAGED_DIR))
             .join(constants::DIRS_DIR);
 
         log::debug!("Stager new dir dir_db_path {:?}", path);
@@ -62,7 +60,7 @@ impl Stager {
 
     pub fn schemas_db_path(path: &Path) -> Result<PathBuf, OxenError> {
         let path = util::fs::oxen_hidden_dir(path)
-            .join(Path::new(STAGED_DIR))
+            .join(Path::new(constants::STAGED_DIR))
             .join(constants::SCHEMAS_DIR);
         log::debug!("Stager new dir schemas_db_path {:?}", path);
         if !path.exists() {
@@ -114,6 +112,10 @@ impl Stager {
         commit_reader: &CommitDirReader,
         ignore: &Option<Gitignore>,
     ) -> Result<(), OxenError> {
+        if self.repository.is_shallow_clone() {
+            return Err(OxenError::repo_is_shallow());
+        }
+
         if self.should_ignore_path(ignore, path) {
             return Ok(());
         }
@@ -179,9 +181,9 @@ impl Stager {
     }
 
     pub fn status(&self, entry_reader: &CommitDirReader) -> Result<StagedData, OxenError> {
-        log::debug!("-----STATUS START-----");
+        log::debug!("-----status START-----");
         let result = self.compute_staged_data(&self.repository.path, entry_reader);
-        log::debug!("-----STATUS END-----");
+        log::debug!("-----status END-----");
         result
     }
 
@@ -194,9 +196,9 @@ impl Stager {
         entry_reader: &CommitDirReader,
         dir: &Path,
     ) -> Result<StagedData, OxenError> {
-        log::debug!("-----STATUS START-----");
+        log::debug!("-----status_from_dir START-----");
         let result = self.compute_staged_data(dir, entry_reader);
-        log::debug!("-----STATUS END-----");
+        log::debug!("-----status_from_dir END-----");
         result
     }
 
@@ -210,13 +212,27 @@ impl Stager {
         dir: &Path,
         entry_reader: &CommitDirReader,
     ) -> Result<StagedData, OxenError> {
-        log::debug!("compute_staged_data listing eligable {:?}", dir);
+        log::debug!(
+            "compute_staged_data listing eligible repo -> {:?} dir -> {:?}",
+            self.repository.path,
+            dir
+        );
+
+        if self.repository.is_shallow_clone() {
+            return Err(OxenError::repo_is_shallow());
+        }
+
         let mut staged_data = StagedData::empty();
         let ignore = oxenignore::create(&self.repository);
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
         // Start with candidate dirs from committed and added, not all the dirs
-        let added_dirs = self.list_staged_dirs()?;
+        let mut added_dirs = self.list_staged_dirs()?;
+        // If we specified a dir, only get the added dirs that are in that dir
+        if dir.is_relative() && dir != self.repository.path {
+            added_dirs.retain(|(path, _)| path.starts_with(dir))
+        }
+
         log::debug!("compute_staged_data Got <added> dirs: {}", added_dirs.len());
         for (dir, status) in added_dirs {
             log::debug!("compute_staged_data considering added dir {:?}", dir);
@@ -229,7 +245,10 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        let committed_dirs = entry_reader.list_committed_dirs()?;
+        let mut committed_dirs = entry_reader.list_committed_dirs()?;
+        if dir.is_relative() && dir != self.repository.path {
+            committed_dirs.retain(|path| path.starts_with(dir))
+        }
         log::debug!(
             "compute_staged_data Got <committed> dirs: {}",
             committed_dirs.len()
@@ -268,7 +287,7 @@ impl Stager {
         staged_data: &mut StagedData,
         ignore: &Option<Gitignore>,
     ) -> Result<(), OxenError> {
-        log::debug!("process_dir {:?}", full_dir);
+        // log::debug!("process_dir {:?}", full_dir);
         // Only check at level of this dir, no need to deep dive recursively
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
@@ -309,24 +328,25 @@ impl Stager {
         );
 
         for relative in candidate_files.iter() {
-            log::debug!("process_dir checking relative path {:?}", relative);
-            let fullpath = self.repository.path.join(relative);
-            if util::fs::is_in_oxen_hidden_dir(&fullpath) {
+            // log::debug!("process_dir checking relative path {:?}", relative);
+            if util::fs::is_in_oxen_hidden_dir(relative) {
                 continue;
             }
 
-            log::debug!(
-                "process_dir checking is_dir? {} {:?}",
-                fullpath.is_dir(),
-                fullpath
-            );
+            let fullpath = self.repository.path.join(relative);
+
+            // log::debug!(
+            //     "process_dir checking is_dir? {} {:?}",
+            //     fullpath.is_dir(),
+            //     fullpath
+            // );
 
             if fullpath.is_dir() {
                 if !self.has_staged_dir(relative)
                     && !staged_data.added_dirs.contains_key(relative)
                     && !root_commit_dir_reader.has_dir(relative)
                 {
-                    log::debug!("process_dir adding untracked dir {:?}", relative);
+                    // log::debug!("process_dir adding untracked dir {:?}", relative);
                     let count = util::fs::count_items_in_dir(&fullpath);
                     staged_data
                         .untracked_dirs
@@ -340,7 +360,7 @@ impl Stager {
                     &staged_dir_db,
                     &root_commit_entry_reader,
                 );
-                log::debug!("process_dir got status {:?} {:?}", relative, file_status);
+                // log::debug!("process_dir got status {:?} {:?}", relative, file_status);
                 if let Some(file_type) = file_status {
                     match file_type {
                         FileStatus::Added => {
@@ -375,14 +395,14 @@ impl Stager {
         commit_dir_db: &CommitDirEntryReader,
     ) -> Option<FileStatus> {
         let file_name = path.file_name().unwrap();
-        log::debug!("get_file_status check path in staging? {:?}", file_name);
+        // log::debug!("get_file_status check path in staging? {:?}", file_name);
 
         // Have to check the file basename not the path, because basenames are stored in each dir
         if staged_dir_db.has_entry(file_name) {
             return Some(FileStatus::Added);
         } else {
             // Not in the staged DB
-            log::debug!("get_file_status check if commit db? {:?}", file_name);
+            // log::debug!("get_file_status check if commit db? {:?}", file_name);
             // check if it is in the HEAD commit to see if it is modified or removed
             if let Some(file_name) = path.file_name() {
                 if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(file_name) {
@@ -402,24 +422,24 @@ impl Stager {
 
     fn file_is_removed(repo_path: &Path, commit_entry: &CommitEntry) -> bool {
         let full_path = repo_path.join(&commit_entry.path);
-        log::debug!(
-            "CHECKING REMOVED {:?} -> {:?}",
-            repo_path,
-            commit_entry.path
-        );
-        log::debug!("CHECKING REMOVED {:?}", full_path);
+        // log::debug!(
+        //     "CHECKING REMOVED {:?} -> {:?}",
+        //     repo_path,
+        //     commit_entry.path
+        // );
+        // log::debug!("CHECKING REMOVED {:?}", full_path);
         !full_path.exists()
     }
 
     fn file_is_modified(repo_path: &Path, commit_entry: &CommitEntry) -> bool {
         // Get last modified time
         let full_path = repo_path.join(&commit_entry.path);
-        log::debug!(
-            "CHECKING MODIFIED {:?} -> {:?}",
-            repo_path,
-            commit_entry.path
-        );
-        log::debug!("CHECKING MODIFIED {:?}", full_path);
+        // log::debug!(
+        //     "CHECKING MODIFIED {:?} -> {:?}",
+        //     repo_path,
+        //     commit_entry.path
+        // );
+        // log::debug!("CHECKING MODIFIED {:?}", full_path);
 
         if !full_path.exists() {
             // might have been removed
@@ -429,17 +449,17 @@ impl Stager {
         let metadata = fs::metadata(&full_path).unwrap();
         let mtime = FileTime::from_last_modification_time(&metadata);
 
-        log::debug!(
-            "file_is_modified comparing timestamps: {} to {}",
-            commit_entry.last_modified_nanoseconds,
-            mtime.nanoseconds()
-        );
+        // log::debug!(
+        //     "file_is_modified comparing timestamps: {} to {}",
+        //     commit_entry.last_modified_nanoseconds,
+        //     mtime.nanoseconds()
+        // );
 
         if commit_entry.has_different_modification_time(&mtime) {
-            log::debug!(
-                "file_is_modified modification times are different! {:?}",
-                full_path
-            );
+            // log::debug!(
+            //     "file_is_modified modification times are different! {:?}",
+            //     full_path
+            // );
 
             // Then check the hashes, because the data might not be different, timestamp is just an optimization
             let hash = util::hasher::hash_file_contents(&full_path).unwrap();
@@ -451,6 +471,15 @@ impl Stager {
         false
     }
 
+    pub fn has_staged_file(&self, path: &Path) -> Result<bool, OxenError> {
+        if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
+            let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
+            Ok(staged_dir.has_entry(filename))
+        } else {
+            Err(OxenError::file_has_no_parent(path))
+        }
+    }
+
     pub fn remove_staged_file(&self, path: &Path) -> Result<(), OxenError> {
         log::debug!("remove_staged_file {:?}", path);
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
@@ -459,6 +488,7 @@ impl Stager {
                 filename,
                 parent
             );
+
             let staged_dir = StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.remove_path(filename)
         } else {
@@ -1067,8 +1097,8 @@ mod tests {
 
             // Commit it
             let commit_writer = CommitWriter::new(&repo)?;
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, "Add Hello World")?;
+            let mut status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&mut status, "Add Hello World")?;
             stager.unstage()?;
 
             // try to add it again
@@ -1341,9 +1371,9 @@ mod tests {
             stager.add_file(&hello_file, &entry_reader)?;
 
             // commit the file
-            let status = stager.status(&entry_reader)?;
+            let mut status = stager.status(&entry_reader)?;
             let commit_writer = CommitWriter::new(&repo)?;
-            let commit = commit_writer.commit(&status, "added hello 1")?;
+            let commit = commit_writer.commit(&mut status, "added hello 1")?;
             stager.unstage()?;
 
             let mod_files = stager.status(&entry_reader)?.modified_files;

@@ -3,6 +3,7 @@ use polars::{lazy::dsl::Expr, prelude::*};
 use crate::df::df_opts::DFOpts;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
+use crate::model::ContentType;
 use crate::util::hasher;
 use crate::{constants, df::filter::DFLogicalOp};
 
@@ -13,6 +14,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
+use std::io::Cursor;
 use std::path::Path;
 
 use super::{
@@ -129,7 +131,12 @@ pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     Ok(collected.take(&idx).expect(TAKE_ERROR))
 }
 
-pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<LazyFrame, OxenError> {
+pub fn add_col_lazy(
+    df: LazyFrame,
+    name: &str,
+    val: &str,
+    dtype: &str,
+) -> Result<LazyFrame, OxenError> {
     let mut df = df.collect().expect(COLLECT_ERROR);
 
     let dtype = DataType::from_string(dtype).to_polars();
@@ -143,31 +150,67 @@ pub fn add_col(df: LazyFrame, name: &str, val: &str, dtype: &str) -> Result<Lazy
     Ok(df)
 }
 
-pub fn add_row(df: LazyFrame, vals: Vec<String>) -> Result<LazyFrame, OxenError> {
+pub fn add_col(
+    mut df: DataFrame,
+    name: &str,
+    val: &str,
+    dtype: &str,
+) -> Result<DataFrame, OxenError> {
+    let dtype = DataType::from_string(dtype).to_polars();
+
+    let column = Series::new_empty(name, &dtype);
+    let column = column
+        .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
+        .expect("Could not extend df");
+    df.with_column(column).expect(COLLECT_ERROR);
+    Ok(df)
+}
+
+pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
 
-    if df.width() != vals.len() {
-        let err = format!(
-            "Cannot add row of len {} to data frame of width {}",
-            vals.len(),
-            df.width()
-        );
-        return Err(OxenError::basic_str(err));
-    }
-
-    let mut series: Vec<Series> = vec![];
-    for (i, field) in df.fields().iter().enumerate() {
-        let s: Series = Series::from_any_values(
-            &field.name,
-            &[val_from_str_and_dtype(&vals[i], field.data_type())],
-        )
-        .expect("Could not create col from row val");
-        series.push(s);
-    }
-
-    let new_row = DataFrame::new(series).unwrap();
+    let schema = crate::model::Schema::from_polars(&df.schema());
+    let new_row = parse_data_into_df(&data, &schema, opts.content_type.to_owned())?;
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
+}
+
+pub fn parse_data_into_df(
+    data: &str,
+    schema: &crate::model::Schema,
+    content_type: ContentType,
+) -> Result<DataFrame, OxenError> {
+    log::debug!("Parsing content into df: {content_type:?}\n{data}");
+    match content_type {
+        ContentType::Json => {
+            // getting an internal error if not jsonl, so do a quick check that it starts with a '{'
+            if !data.trim().starts_with('{') {
+                return Err(OxenError::basic_str(format!(
+                    "Invalid json content: {data}"
+                )));
+            }
+
+            let cursor = Cursor::new(data.as_bytes());
+            match JsonLineReader::new(cursor).finish() {
+                Ok(df) => Ok(df),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "Error parsing {content_type:?}: {err}"
+                ))),
+            }
+        }
+        ContentType::Csv => {
+            let fields = schema.fields_to_csv();
+            let data = format!("{}\n{}", fields, data);
+            let cursor = Cursor::new(data.as_bytes());
+            let schema = schema.to_polars();
+            match CsvReader::new(cursor).with_schema(&schema).finish() {
+                Ok(df) => Ok(df),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "Error parsing {content_type:?}: {err}"
+                ))),
+            }
+        }
+    }
 }
 
 fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {
@@ -306,7 +349,11 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
     Ok(df.unique(Some(columns), UniqueKeepStrategy::First))
 }
 
-pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    transform_lazy(df.lazy(), opts)
+}
+
+pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
     if let Some(vstack) = &opts.vstack {
@@ -323,12 +370,12 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
         }
     }
 
-    if let Some(row_vals) = opts.add_row_vals() {
-        df = add_row(df, row_vals)?;
+    if let Some(data) = &opts.add_row {
+        df = add_row(df, data.to_owned(), &opts)?;
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
-        df = add_col(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+        df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
     if let Some(columns) = opts.columns_names() {
@@ -394,10 +441,10 @@ pub fn transform_df(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenEr
 }
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
-    log::debug!("SLICE {:?}", opts);
+    log::debug!("SLICE {:?}", opts.slice);
     if opts.page.is_some() || opts.page_size.is_some() {
-        let page = opts.page.unwrap_or(1);
-        let page_size = opts.page_size.unwrap_or(10);
+        let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
         let start = (page - 1) * page_size;
         df.slice(start as i64, page_size as u32)
     } else if let Some((start, end)) = opts.slice_indices() {
@@ -493,7 +540,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                             })
                             .collect();
 
-                        Ok(out.into_series())
+                        Ok(Some(out.into_series()))
                     },
                     GetOutput::from_type(polars::prelude::DataType::Utf8),
                 )
@@ -512,11 +559,11 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {extension:?}");
+    let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
 
     if opts.has_transform() {
         let df = scan_df(path)?;
-        let df = transform_df(df, opts)?;
+        let df = transform_lazy(df, opts)?;
         Ok(df)
     } else {
         match extension {
@@ -538,7 +585,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
 pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {extension:?}");
+    let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
 
     match extension {
         Some(extension) => match extension {
@@ -558,6 +605,7 @@ pub fn write_df_json<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<()
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
+    log::debug!("{:?}", df);
     let f = std::fs::File::create(output).unwrap();
     JsonWriter::new(f)
         .with_json_format(JsonFormat::Json)
@@ -616,7 +664,7 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
 pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenError> {
     let path = path.as_ref();
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type {extension:?}");
+    let err = format!("Unknown file type write_df {path:?} {extension:?}");
 
     match extension {
         Some(extension) => match extension {
@@ -766,7 +814,6 @@ mod tests {
 │ str      ┆ str   ┆ str   ┆ str   │
 ╞══════════╪═══════╪═══════╪═══════╡
 │ 0000.jpg ┆ cat   ┆ 0.0   ┆ 3.0   │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
 │ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
 └──────────┴───────┴───────┴───────┘",
             format!("{filtered_df}")
@@ -822,7 +869,7 @@ mod tests {
         let mut opts = DFOpts::from_unique(fields);
         // sort for tests because it comes back random
         opts.sort_by = Some(String::from("image"));
-        let filtered_df = tabular::transform_df(df.lazy(), opts)?;
+        let filtered_df = tabular::transform(df, opts)?;
 
         println!("{filtered_df}");
 
@@ -834,7 +881,6 @@ mod tests {
 │ str      ┆ str     ┆ f64   ┆ f64   ┆ bool       │
 ╞══════════╪═════════╪═══════╪═══════╪════════════╡
 │ 0000.jpg ┆ dog     ┆ 0.0   ┆ 3.0   ┆ true       │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
 │ 0002.jpg ┆ unknown ┆ 2.0   ┆ 5.0   ┆ false      │
 └──────────┴─────────┴───────┴───────┴────────────┘",
             format!("{filtered_df}")
@@ -858,7 +904,7 @@ mod tests {
         let mut opts = DFOpts::from_unique(fields);
         // sort for tests because it comes back random
         opts.sort_by = Some(String::from("image"));
-        let filtered_df = tabular::transform_df(df.lazy(), opts)?;
+        let filtered_df = tabular::transform(df, opts)?;
 
         println!("{filtered_df}");
 
@@ -870,7 +916,6 @@ mod tests {
 │ str      ┆ str   ┆ f64   ┆ f64   ┆ bool       │
 ╞══════════╪═══════╪═══════╪═══════╪════════════╡
 │ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
-├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌┤
 │ 0002.jpg ┆ dog   ┆ 2.0   ┆ 5.0   ┆ false      │
 └──────────┴───────┴───────┴───────┴────────────┘",
             format!("{filtered_df}")
@@ -893,7 +938,6 @@ mod tests {
 │ i64 ┆ str       ┆ str      │
 ╞═════╪═══════════╪══════════╡
 │ 1   ┆ I love it ┆ positive │
-├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
 │ 1   ┆ I hate it ┆ negative │
 └─────┴───────────┴──────────┘",
             format!("{df}")
@@ -916,7 +960,6 @@ mod tests {
 │ i64 ┆ str       ┆ str      │
 ╞═════╪═══════════╪══════════╡
 │ 1   ┆ I love it ┆ positive │
-├╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌┤
 │ 1   ┆ I hate it ┆ negative │
 └─────┴───────────┴──────────┘",
             format!("{df}")

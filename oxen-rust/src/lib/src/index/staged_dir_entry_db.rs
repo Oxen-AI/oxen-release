@@ -1,7 +1,7 @@
+use crate::constants::STAGED_DIR;
 use crate::db;
 use crate::db::path_db;
 use crate::error::OxenError;
-use crate::index::stager::STAGED_DIR;
 use crate::model::{CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
 use crate::util;
 

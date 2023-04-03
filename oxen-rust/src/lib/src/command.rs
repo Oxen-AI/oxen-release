@@ -5,26 +5,37 @@
 
 use crate::api;
 use crate::compute;
+use crate::config::UserConfig;
 use crate::constants;
+use crate::constants::DEFAULT_BRANCH_NAME;
+use crate::constants::DEFAULT_PAGE_NUM;
+use crate::constants::DEFAULT_PAGE_SIZE;
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::df::{df_opts::DFOpts, tabular};
 use crate::error::OxenError;
 use crate::index::oxenignore;
+use crate::index::remote_stager;
 use crate::index::SchemaIndexReader;
 use crate::index::{self, differ};
 use crate::index::{
     CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
     RefReader, RefWriter, Stager,
 };
+use crate::model::entry::mod_entry::ModType;
 use crate::model::schema;
+use crate::model::staged_data::StagedDataOpts;
+use crate::model::CommitBody;
 use crate::model::Schema;
+use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
-use crate::opts::RestoreOpts;
-use crate::opts::RmOpts;
+use crate::opts::AddOpts;
+use crate::opts::{CloneOpts, LogOpts, RestoreOpts, RmOpts};
 use crate::util;
 use crate::util::resource;
 
 use bytevec::ByteDecodable;
+use polars::prelude::DataFrame;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -155,7 +166,25 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
     Ok(status)
 }
 
-/// # Get status of files in repository
+pub async fn remote_status(
+    remote_repo: &RemoteRepository,
+    branch: &Branch,
+    directory: &Path,
+    opts: &StagedDataOpts,
+) -> Result<StagedData, OxenError> {
+    let user_id = UserConfig::identifier()?;
+    remote_stager::status(remote_repo, branch, &user_id, directory, opts).await
+}
+
+pub async fn remote_status_from_local(
+    repository: &LocalRepository,
+    directory: &Path,
+    opts: &StagedDataOpts,
+) -> Result<StagedData, OxenError> {
+    remote_stager::status_from_local(repository, directory, opts).await
+}
+
+/// # Stage files into repository
 ///
 /// ```
 /// use liboxen::command;
@@ -191,9 +220,162 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     Ok(())
 }
 
+pub async fn remote_add<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    path: P,
+    opts: &AddOpts,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    // * make sure we are on a branch
+    let branch = current_branch(repo)?;
+    if branch.is_none() {
+        return Err(OxenError::must_be_on_valid_branch());
+    }
+
+    // * make sure file is not in .oxenignore
+    let ignore = oxenignore::create(repo);
+    if let Some(ignore) = ignore {
+        if ignore.matched(path, path.is_dir()).is_ignore() {
+            return Ok(());
+        }
+    }
+
+    // * read in file and post it to remote
+    let branch = branch.unwrap();
+    let rb = RemoteBranch {
+        remote: DEFAULT_REMOTE_NAME.to_string(),
+        branch: branch.name.to_owned(),
+    };
+    let remote = repo
+        .get_remote(&rb.remote)
+        .ok_or_else(OxenError::remote_not_set)?;
+
+    log::debug!("Pushing to remote {:?}", remote);
+    // Repo should be created before this step
+    let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
+        Ok(Some(repo)) => repo,
+        Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+        Err(err) => return Err(err),
+    };
+
+    let directory_name = if path.is_absolute() {
+        // if path is absolute, require that they specified a directory name to put the file in
+        if let Some(dir) = &opts.directory {
+            dir.to_string_lossy().to_string()
+        } else {
+            return Err(OxenError::basic_str(
+                "If the path is absolute, you must specify a path to put the file in.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
+            ));
+        }
+    } else {
+        // if the path is relative, take the parent directory name and use that as the directory name
+        let directory = path
+            .parent()
+            .ok_or_else(|| OxenError::basic_str("Could not get parent directory"))?;
+        directory
+            .to_str()
+            .ok_or_else(|| OxenError::basic_str("Could not convert path to string"))?
+            .to_string()
+    };
+
+    let user_id = UserConfig::identifier()?;
+    let result = api::remote::staging::add_file(
+        &remote_repo,
+        &branch.name,
+        &user_id,
+        &directory_name,
+        path.to_path_buf(),
+    )
+    .await?;
+
+    println!("{}", result.to_string_lossy());
+
+    Ok(())
+}
+
+fn add_row_local(path: &Path, data: &str) -> Result<(), OxenError> {
+    if util::fs::is_tabular(path) {
+        let mut opts = DFOpts::empty();
+        opts.add_row = Some(data.to_string());
+        opts.output = Some(path.to_path_buf());
+        df(path, opts)?;
+    } else {
+        util::fs::append_to_file(path, data)?;
+    }
+
+    Ok(())
+}
+
+async fn add_row_remote(
+    repo: &LocalRepository,
+    path: &Path,
+    data: &str,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    if let Some(branch) = current_branch(repo)? {
+        let user_id = UserConfig::identifier()?;
+        let modification = api::remote::staging::stage_modification(
+            &remote_repo,
+            &branch.name,
+            &user_id,
+            path,
+            data.to_string(),
+            opts.content_type.to_owned(),
+            ModType::Append,
+        )
+        .await?;
+        println!("{:?}", modification.to_df()?);
+        modification.to_df()
+    } else {
+        Err(OxenError::basic_str(
+            "Must be on a branch to stage remote changes.",
+        ))
+    }
+}
+
+pub async fn add_row(
+    repo: &LocalRepository,
+    path: &Path,
+    data: &str,
+    opts: &DFOpts,
+) -> Result<(), OxenError> {
+    if opts.is_remote {
+        add_row_remote(repo, path, data, opts).await?;
+    } else {
+        add_row_local(path, data)?;
+    }
+
+    Ok(())
+}
+
+pub async fn delete_staged_row(
+    repository: &LocalRepository,
+    path: impl AsRef<Path>,
+    uuid: &str,
+) -> Result<DataFrame, OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
+    if let Some(branch) = current_branch(repository)? {
+        let user_id = UserConfig::identifier()?;
+        let modification = api::remote::staging::delete_staged_modification(
+            &remote_repo,
+            &branch.name,
+            &user_id,
+            path,
+            uuid,
+        )
+        .await?;
+        modification.to_df()
+    } else {
+        Err(OxenError::basic_str(
+            "Must be on a branch to stage remote changes.",
+        ))
+    }
+}
+
 /// Removes the path from the index
-pub fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    index::rm(repo, opts)
+pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    index::rm(repo, opts).await
 }
 
 /// Interact with DataFrames from CLI
@@ -206,6 +388,33 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     }
 
     Ok(())
+}
+
+/// Interact with Remote DataFrames from CLI
+pub async fn remote_df<P: AsRef<Path>>(
+    repo: &LocalRepository,
+    input: P,
+    opts: DFOpts,
+) -> Result<DataFrame, OxenError> {
+    // Special case where we are writing data
+    if let Some(row) = &opts.add_row {
+        add_row_remote(repo, input.as_ref(), row, &opts).await
+    } else if let Some(uuid) = &opts.delete_row {
+        delete_staged_row(repo, input, uuid).await
+    } else {
+        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let branch = current_branch(repo)?.unwrap();
+        let output = opts.output.clone();
+        let (mut df, size) = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
+        if let Some(output) = output {
+            println!("Writing {output:?}");
+            tabular::write_df(&mut df, output)?;
+        }
+
+        println!("Full shape: ({}, {})\n", size.height, size.width);
+        println!("Slice {df:?}");
+        Ok(df)
+    }
 }
 
 pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
@@ -317,6 +526,19 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     index::restore(repo, opts)
 }
 
+/// Remove all staged changes from file on remote
+pub async fn remote_restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
+    let branch = current_branch(repo)?;
+    if branch.is_none() {
+        return Err(OxenError::must_be_on_valid_branch());
+    }
+    let branch = branch.unwrap();
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let user_id = UserConfig::identifier()?;
+    api::remote::staging::restore_df(&remote_repo, &branch.name, &user_id, opts.path.to_owned())
+        .await
+}
+
 /// # Commit the staged files in the repo
 ///
 /// ```
@@ -347,14 +569,40 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
-    let status = status(repo)?;
+    let mut status = status(repo)?;
     if !status.has_added_entries() {
         println!(
             "No files are staged, not committing. Stage a file or directory with `oxen add <file>`"
         );
         return Ok(None);
     }
-    let commit = api::local::commits::commit(repo, &status, message)?;
+    let commit = api::local::commits::commit(repo, &mut status, message)?;
+    Ok(Some(commit))
+}
+
+/// # Commit changes that are staged on the remote repository
+pub async fn remote_commit(
+    repo: &LocalRepository,
+    message: &str,
+) -> Result<Option<Commit>, OxenError> {
+    let branch = current_branch(repo)?;
+    if branch.is_none() {
+        return Err(OxenError::must_be_on_valid_branch());
+    }
+    let branch = branch.unwrap();
+
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let cfg = UserConfig::get()?;
+    let body = CommitBody {
+        message: message.to_string(),
+        user: User {
+            name: cfg.name,
+            email: cfg.email,
+        },
+    };
+    let user_id = UserConfig::identifier()?;
+    let commit =
+        api::remote::staging::commit_staged(&remote_repo, &branch.name, &user_id, &body).await?;
     Ok(Some(commit))
 }
 
@@ -372,7 +620,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, O
 /// let base_dir = Path::new("/tmp/repo_dir_log");
 /// let repo = command::init(base_dir)?;
 ///
-/// // Print     commit history
+/// // Print commit history
 /// let history = command::log(&repo)?;
 /// for commit in history.iter() {
 ///   println!("{} {}", commit.id, commit.message);
@@ -386,6 +634,27 @@ pub fn log(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commits = committer.history_from_head()?;
     Ok(commits)
+}
+
+/// Log given options
+pub async fn log_with_opts(
+    repo: &LocalRepository,
+    opts: &LogOpts,
+) -> Result<Vec<Commit>, OxenError> {
+    if opts.remote {
+        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let committish = if let Some(committish) = &opts.committish {
+            committish.to_owned()
+        } else {
+            current_branch(repo)?.unwrap().name
+        };
+        let commits = api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+        Ok(commits)
+    } else {
+        let committer = CommitReader::new(repo)?;
+        let commits = committer.history_from_head()?;
+        Ok(commits)
+    }
 }
 
 /// # Get the history for a specific branch or commit
@@ -672,9 +941,7 @@ pub fn merge<S: AsRef<str>>(
                 Ok(None)
             }
         } else {
-            Err(OxenError::basic_str(
-                "Must be on a branch to perform a merge.",
-            ))
+            Err(OxenError::must_be_on_valid_branch())
         }
     } else {
         Err(OxenError::local_branch_not_found(branch_name))
@@ -813,10 +1080,29 @@ pub async fn push_remote_branch(
 }
 
 /// Clone a repo from a url to a directory
-pub async fn clone(url: &str, dst: &Path, shallow: bool) -> Result<LocalRepository, OxenError> {
-    match LocalRepository::clone_remote(url, dst, shallow).await {
+pub async fn clone(opts: &CloneOpts) -> Result<LocalRepository, OxenError> {
+    match LocalRepository::clone_remote(opts).await {
         Ok(Some(repo)) => Ok(repo),
-        Ok(None) => Err(OxenError::remote_repo_not_found(url)),
+        Ok(None) => Err(OxenError::remote_repo_not_found(&opts.url)),
+        Err(err) => Err(err),
+    }
+}
+
+// To make CloneOpts refactor easier...
+pub async fn clone_remote(
+    url: &str,
+    dst: &Path,
+    shallow: bool,
+) -> Result<LocalRepository, OxenError> {
+    let opts = CloneOpts {
+        url: url.to_string(),
+        dst: dst.to_path_buf(),
+        branch: DEFAULT_BRANCH_NAME.to_string(),
+        shallow,
+    };
+    match LocalRepository::clone_remote(&opts).await {
+        Ok(Some(repo)) => Ok(repo),
+        Ok(None) => Err(OxenError::remote_repo_not_found(&opts.url)),
         Err(err) => Err(err),
     }
 }
@@ -837,6 +1123,44 @@ pub fn diff(
 ) -> Result<String, OxenError> {
     let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
     differ::diff(repo, Some(&commit.id), path)
+}
+
+pub async fn remote_diff(
+    repo: &LocalRepository,
+    branch_name: Option<&str>,
+    path: &Path,
+) -> Result<String, OxenError> {
+    let branch = get_branch_by_name_or_current(repo, branch_name)?;
+    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let user_id = UserConfig::identifier()?;
+    let diff = api::remote::staging::diff_staged_file(
+        &remote_repo,
+        &branch.name,
+        &user_id,
+        path,
+        DEFAULT_PAGE_NUM,
+        DEFAULT_PAGE_SIZE,
+    )
+    .await?;
+    Ok(diff.to_string())
+}
+
+/// Get branch by name
+fn get_branch_by_name_or_current(
+    repo: &LocalRepository,
+    branch_name: Option<&str>,
+) -> Result<Branch, OxenError> {
+    if let Some(branch_name) = branch_name {
+        match api::local::branches::get_by_name(repo, branch_name)? {
+            Some(branch) => Ok(branch),
+            None => Err(OxenError::local_branch_not_found(branch_name)),
+        }
+    } else {
+        match current_branch(repo)? {
+            Some(branch) => Ok(branch),
+            None => Err(OxenError::must_be_on_valid_branch()),
+        }
+    }
 }
 
 /// Pull a specific origin and branch

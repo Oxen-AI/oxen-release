@@ -46,6 +46,24 @@ pub fn config() -> Command<'static> {
                 .help("Set the email you want your commits to be saved as.")
                 .takes_value(true),
         )
+        // Note: we differ from git here because we have the concept of a remote
+        //       staging area which uses the `oxen remote add` subcommand
+        .arg(
+            Arg::new("set-remote")
+                .long("set-remote")
+                .number_of_values(2)
+                .value_names(&["NAME", "URL"])
+                .help("Set a remote for your current working repository.")
+                .takes_value(true),
+        )
+        // "delete-remote" is easier to read than "remove-remote"
+        .arg(
+            Arg::new("delete-remote")
+                .long("delete-remote")
+                .number_of_values(2)
+                .help("Delete a remote from the current working repository.")
+                .takes_value(true),
+        )
         .arg(
             Arg::new("auth-token")
                 .long("auth")
@@ -74,20 +92,29 @@ pub fn create_remote() -> Command<'static> {
 
 pub fn remote() -> Command<'static> {
     Command::new(REMOTE)
-        .about("Manage set of tracked repositories")
+        .about("Interact with a remote repository without cloning everything locally.")
+        // The commands that you can run locally mirrored here
+        .subcommand(status())
         .subcommand(
-            Command::new("add")
-                .arg(arg!(<NAME> "The remote name"))
-                .arg(arg!(<URL> "The remote url")),
+            add()
+                // can specify a path on the remote add command for where the file will be added to
+                .arg(Arg::new("path")
+                .long("path")
+                .short('p')
+                .help("Specify a path in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
+                .takes_value(true))
         )
-        .subcommand(
-            Command::new("remove").arg(arg!(<NAME> "The name of the remote you want to remove")),
-        )
+        .subcommand(rm())
+        .subcommand(restore())
+        .subcommand(commit())
+        .subcommand(log())
+        .subcommand(df())
+        .subcommand(diff())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
                 .short('v')
-                .help("Be a little more verbose and show remote url after name.")
+                .help("List the remotes that exist on this repository.")
                 .takes_value(false),
         )
 }
@@ -118,10 +145,13 @@ pub fn status() -> Command<'static> {
                 .help("If present, does not truncate the output of status at all.")
                 .takes_value(false),
         )
+        .arg(Arg::new("path").required(false))
 }
 
 pub fn log() -> Command<'static> {
-    Command::new(LOG).about("See log of commits")
+    Command::new(LOG)
+        .about("See log of commits")
+        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
 }
 
 pub fn df() -> Command<'static> {
@@ -158,8 +188,8 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("col_at")
-                .long("col_at")
+            Arg::new("col-at")
+                .long("col-at")
                 .help("Select a specific row item from column to view it fully. Format: 'col_name:index' ie: 'my_col_name:3'")
                 .takes_value(true),
         )
@@ -183,9 +213,9 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("page_size")
-                .long("page_size")
-                .help("Paginated through the data frame. Default page_size = 10")
+            Arg::new("page-size")
+                .long("page-size")
+                .help("Paginated through the data frame. Default page-size = 10")
                 .takes_value(true),
         )
         .arg(
@@ -196,15 +226,27 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
-            Arg::new("add_col")
-                .long("add_col")
+            Arg::new("add-col")
+                .long("add-col")
                 .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
                 .takes_value(true),
         )
         .arg(
-            Arg::new("add_row")
-                .long("add_row")
+            Arg::new("add-row")
+                .long("add-row")
                 .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("delete-row")
+                .long("delete-row")
+                .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("content-type")
+                .long("content-type")
+                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
                 .takes_value(true),
         )
         .arg(
@@ -274,6 +316,19 @@ pub fn add() -> Command<'static> {
     Command::new(ADD)
         .about("Adds the specified files or directories")
         .arg(Arg::new("files").required(true).min_values(1))
+}
+
+pub fn commit() -> Command<'static> {
+    Command::new(COMMIT)
+        .about("Commit the staged files to the repository")
+        .arg(
+            Arg::new("message")
+                .help("Use the given <message> as the commit message.")
+                .long("message")
+                .short('m')
+                .required(true)
+                .takes_value(true),
+        )
 }
 
 pub fn rm() -> Command<'static> {
@@ -390,6 +445,13 @@ pub fn clone() -> Command<'static> {
                 .long("shallow")
                 .help("A shallow clone doesn't actually clone the data files, useful if you want to pull a specific branch instead.")
                 .takes_value(false),
+        )
+        .arg(
+            Arg::new("branch")
+                .long("branch")
+                .short('b')
+                .help("The branch you want to switch to when you clone.")
+                .takes_value(true),
         )
 }
 

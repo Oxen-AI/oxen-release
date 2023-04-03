@@ -23,8 +23,12 @@ pub const FILES_DIR: &str = "files";
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
+/// prefix for the staged dirs
+pub const STAGED_DIR: &str = "staged";
 /// prefix for the sync status dirs to tell if commits are synced locally
 pub const SYNC_STATUS_DIR: &str = "sync_status";
+/// Flag for if the repository was cloned in a shallow fashion
+pub const SHALLOW_FLAG: &str = "SHALLOW";
 /// prefix for the commit indices
 pub const INDICES_DIR: &str = "indices";
 /// prefix for the schema fields that are indexed
@@ -33,6 +37,8 @@ pub const FIELDS_DIR: &str = "fields";
 pub const VERSIONS_DIR: &str = "versions";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
+/// mods/ is where we can stage appends, modifications, deletions to files to be merged later
+pub const MODS_DIR: &str = "mods";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 

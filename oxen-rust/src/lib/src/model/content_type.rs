@@ -1,0 +1,36 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub enum ContentType {
+    Json,
+    Csv,
+}
+
+impl std::str::FromStr for ContentType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<ContentType, String> {
+        match s {
+            "json" => Ok(ContentType::Json),
+            "csv" => Ok(ContentType::Csv),
+            _ => Err(format!("Invalid data type: {}", s)),
+        }
+    }
+}
+
+impl ContentType {
+    pub fn to_http_content_type(&self) -> String {
+        match self {
+            ContentType::Json => "application/json".to_string(),
+            ContentType::Csv => "text/csv".to_string(),
+        }
+    }
+
+    pub fn from_http_content_type(s: &str) -> Result<ContentType, String> {
+        match s {
+            "application/json" => Ok(ContentType::Json),
+            "text/csv" => Ok(ContentType::Csv),
+            _ => Err(format!("Invalid data type: {}", s)),
+        }
+    }
+}
