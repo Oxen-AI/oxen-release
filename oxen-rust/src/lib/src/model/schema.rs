@@ -3,6 +3,7 @@ pub mod field;
 
 pub use data_type::DataType;
 pub use field::Field;
+use itertools::Itertools;
 
 use crate::util::hasher;
 use serde::{Deserialize, Serialize};
@@ -24,11 +25,21 @@ impl Schema {
         }
     }
 
+    pub fn to_polars(&self) -> polars::prelude::Schema {
+        let mut schema = polars::prelude::Schema::new();
+        for field in self.fields.iter() {
+            let data_type = DataType::from_string(&field.dtype);
+            schema.with_column(field.name.to_owned(), DataType::to_polars(&data_type));
+        }
+
+        schema
+    }
+
     pub fn from_polars(schema: &polars::prelude::Schema) -> Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
             let f = Field {
-                name: field.name().trim().to_string(),
+                name: field.name().to_string(),
                 dtype: field.data_type().to_string(),
             };
             fields.push(f);
@@ -41,10 +52,35 @@ impl Schema {
         }
     }
 
+    pub fn has_all_field_names(&self, schema: &polars::prelude::Schema) -> bool {
+        log::debug!(
+            "matches_polars checking size {} == {}",
+            self.fields.len(),
+            schema.len()
+        );
+        if self.fields.len() != schema.len() {
+            return false;
+        }
+
+        let mut has_all_fields = true;
+        for field in schema.iter_fields() {
+            if !self.has_field_name(&field.name) {
+                has_all_fields = false;
+                break;
+            }
+        }
+
+        has_all_fields
+    }
+
     pub fn has_field(&self, field: &Field) -> bool {
         self.fields
             .iter()
             .any(|f| f.name == field.name && f.dtype == field.dtype)
+    }
+
+    pub fn has_field_name(&self, name: &str) -> bool {
+        self.fields.iter().any(|f| f.name == name)
     }
 
     pub fn get_field<S: AsRef<str>>(&self, name: S) -> Option<&Field> {
@@ -61,6 +97,14 @@ impl Schema {
         let buffer_str = hash_buffers.join("");
         let buffer = buffer_str.as_bytes();
         hasher::hash_buffer(buffer)
+    }
+
+    pub fn fields_to_csv(&self) -> String {
+        self.fields.iter().map(|f| f.name.to_owned()).join(",")
+    }
+
+    pub fn fields_names(&self) -> Vec<String> {
+        self.fields.iter().map(|f| f.name.to_owned()).collect()
     }
 
     /// Compare the schemas, looking for added fields
@@ -97,7 +141,7 @@ impl Schema {
         table.set_header(vec!["name", "hash", "fields"]);
 
         for schema in schemas.iter() {
-            let fields_str = Field::fields_to_string(&schema.fields);
+            let fields_str = Field::fields_to_string_with_limit(&schema.fields);
             if let Some(name) = &schema.name {
                 table.add_row(vec![name.to_string(), schema.hash.to_string(), fields_str]);
             } else {

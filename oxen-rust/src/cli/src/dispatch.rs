@@ -5,7 +5,10 @@ use liboxen::df::df_opts::DFOpts;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
-use liboxen::model::LocalRepository;
+use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
+use liboxen::opts::AddOpts;
+use liboxen::opts::CloneOpts;
+use liboxen::opts::LogOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
@@ -40,9 +43,8 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn clone(url: &str, shallow: bool) -> Result<(), OxenError> {
-    let dst = std::env::current_dir()?;
-    command::clone(url, &dst, shallow).await?;
+pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
+    command::clone(opts).await?;
     Ok(())
 }
 
@@ -132,34 +134,52 @@ pub fn set_default_host(host: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn add(paths: Vec<PathBuf>) -> Result<(), OxenError> {
+pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    command::delete_staged_row(&repository, path, uuid).await?;
+
+    Ok(())
+}
+
+pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    for path in paths {
-        command::add(&repository, path)?;
+    for path in &opts.paths {
+        if opts.is_remote {
+            command::remote_add(&repository, path, &opts).await?;
+        } else {
+            command::add(&repository, path)?;
+        }
     }
 
     Ok(())
 }
 
-pub fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
+pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     for path in paths {
         let path_opts = RmOpts::from_path_opts(&path, opts);
-        command::rm(&repository, &path_opts)?;
+        command::rm(&repository, &path_opts).await?;
     }
 
     Ok(())
 }
 
-pub fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
+pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::restore(&repository, opts)?;
+    if opts.is_remote {
+        command::remote_restore(&repository, opts).await?;
+    } else {
+        command::restore(&repository, opts)?;
+    }
 
     Ok(())
 }
@@ -180,12 +200,16 @@ pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn diff(commit_id: Option<&str>, path: &str) -> Result<(), OxenError> {
+pub async fn diff(commit_id: Option<&str>, path: &str, remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = Path::new(path);
 
-    let result = command::diff(&repository, commit_id, path)?;
+    let result = if remote {
+        command::remote_diff(&repository, commit_id, path).await?
+    } else {
+        command::diff(&repository, commit_id, path)?
+    };
     println!("{result}");
     Ok(())
 }
@@ -198,43 +222,33 @@ pub fn merge(branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn commit(args: Vec<&std::ffi::OsStr>) -> Result<(), OxenError> {
+pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
-    if args.len() != 2 {
-        let err = err_str.to_string();
-        return Err(OxenError::Basic(err));
+    if is_remote {
+        println!("Committing to remote with message: {message}");
+        command::remote_commit(&repo, message).await?;
+    } else {
+        println!("Committing with message: {message}");
+        command::commit(&repo, message)?;
     }
 
-    let err_str = "Must supply a commit message with -m. Ex:\n\noxen commit -m \"Adding data\"";
-    let flag = args[0];
-    let value = args[1];
-    match flag.to_str().unwrap() {
-        "-m" => {
-            let message = value.to_str().unwrap_or_default();
-            println!("Committing with message: {message}");
-            command::commit(&repo, message)?;
-            Ok(())
-        }
-        _ => {
-            eprintln!("{err_str}");
-            Err(OxenError::basic_str(err_str))
-        }
-    }
+    Ok(())
 }
 
-pub fn log_commits() -> Result<(), OxenError> {
+pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let commits = command::log_with_opts(&repository, &opts).await?;
 
     // Fri, 21 Oct 2022 16:08:39 -0700
     let format = format_description::parse(
         "[weekday], [day] [month repr:long] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory]",
     ).unwrap();
 
-    for commit in command::log(&repository)? {
+    for commit in commits {
         let commit_id_str = format!("commit {}", commit.id).yellow();
         println!("{commit_id_str}\n");
         println!("Author: {}", commit.author);
@@ -245,13 +259,18 @@ pub fn log_commits() -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenError> {
+pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
+    if opts.is_remote {
+        return remote_status(directory, opts).await;
+    }
+
     // Should we let user call this from any directory and look up for parent?
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
+    let directory = directory.unwrap_or(current_dir);
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let repo_status = command::status_from_dir(&repository, &current_dir)?;
+    let repo_status = command::status_from_dir(&repository, &directory)?;
 
     if let Some(current_branch) = command::current_branch(&repository)? {
         println!(
@@ -266,13 +285,55 @@ pub fn status(skip: usize, limit: usize, print_all: bool) -> Result<(), OxenErro
         );
     }
 
-    repo_status.print_stdout_with_params(skip, limit, print_all);
+    repo_status.print_stdout_with_params(opts);
+
+    Ok(())
+}
+
+async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
+    // Should we let user call this from any directory and look up for parent?
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let directory = directory.unwrap_or(PathBuf::from("."));
+
+    if let Some(current_branch) = command::current_branch(&repository)? {
+        let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+        let repo_status =
+            command::remote_status(&remote_repo, &current_branch, &directory, opts).await?;
+        if let Some(remote_branch) =
+            api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
+        {
+            println!(
+                "Checking remote branch {} -> {}\n",
+                remote_branch.name, remote_branch.commit_id
+            );
+            repo_status.print_stdout_with_params(opts);
+        } else {
+            println!("Remote branch '{}' not found", current_branch.name);
+        }
+    } else {
+        let head = command::head_commit(&repository)?;
+        println!(
+            "You are in 'detached HEAD' state.\nHEAD is now at {} {}\nYou cannot query remote status unless you are on a branch.",
+            head.id, head.message
+        );
+    }
 
     Ok(())
 }
 
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     command::df(input, opts)?;
+    Ok(())
+}
+
+pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    command::remote_df(&repo, input, opts).await?;
     Ok(())
 }
 

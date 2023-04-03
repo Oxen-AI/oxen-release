@@ -1,4 +1,5 @@
 use crate::app_data::OxenAppData;
+use crate::params::df_opts_query::{self, DFOptsQuery};
 
 use liboxen::{api, constants};
 
@@ -8,24 +9,9 @@ use liboxen::model::Schema;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
-use serde::Deserialize;
 use std::path::PathBuf;
 
 use liboxen::util;
-
-#[derive(Deserialize, Debug)]
-pub struct DFOptsQuery {
-    pub slice: Option<String>,
-    pub take: Option<String>,
-    pub columns: Option<String>,
-    pub filter: Option<String>,
-    pub aggregate: Option<String>,
-    pub sort_by: Option<String>,
-    pub randomize: Option<bool>,
-    pub reverse: Option<bool>,
-    pub page: Option<usize>,
-    pub page_size: Option<usize>,
-}
 
 pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -54,11 +40,11 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                             let schema = Schema::from_polars(&polars_schema);
                             let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
                             log::debug!("Initial filter {:?}", filter);
-                            filter = parse_opts(&query, &mut filter);
+                            filter = df_opts_query::parse_opts(&query, &mut filter);
 
                             log::debug!("Got filter {:?}", filter);
                             let lazy_cp = lazy_df.clone();
-                            let mut df = tabular::transform_df(lazy_cp, filter).unwrap();
+                            let mut df = tabular::transform_lazy(lazy_cp, filter).unwrap();
                             let full_df = lazy_df.collect().unwrap();
                             let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
                             let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
@@ -108,37 +94,4 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
-}
-
-/// Provide some default vals for opts
-fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> DFOpts {
-    // Default to 0..10 unless they ask for "all"
-    if let Some(slice) = query.slice.clone() {
-        if slice == "all" {
-            // Return everything...probably don't want to do this unless explicitly asked for
-            filter_ops.slice = None;
-        } else {
-            // Return what they asked for
-            filter_ops.slice = Some(slice);
-        }
-    } else {
-        // No slice val supplied, only return first 10
-        filter_ops.slice = Some(String::from("0..10"));
-    }
-
-    // we are already filtering the hidden columns
-    if let Some(columns) = query.columns.clone() {
-        filter_ops.columns = Some(columns);
-    }
-
-    filter_ops.page = query.page;
-    filter_ops.page_size = query.page_size;
-    filter_ops.take = query.take.clone();
-    filter_ops.filter = query.filter.clone();
-    filter_ops.aggregate = query.aggregate.clone();
-    filter_ops.sort_by = query.sort_by.clone();
-    filter_ops.should_randomize = query.randomize.unwrap_or(false);
-    filter_ops.should_reverse = query.reverse.unwrap_or(false);
-
-    filter_ops.clone()
 }

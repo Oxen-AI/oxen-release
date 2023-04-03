@@ -2,6 +2,14 @@ use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
+use super::User;
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CommitBody {
+    pub message: String,
+    pub user: User,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NewCommit {
     pub parent_ids: Vec<String>,
@@ -85,6 +93,13 @@ impl Commit {
 
     pub fn to_uri_encoded(&self) -> String {
         serde_url_params::to_string(&self).unwrap()
+    }
+
+    pub fn get_user(&self) -> User {
+        User {
+            name: self.author.to_owned(),
+            email: self.email.to_owned(),
+        }
     }
 }
 

@@ -1,8 +1,11 @@
 use crate::api;
 use crate::constants;
+use crate::constants::DEFAULT_REMOTE_NAME;
+use crate::constants::SHALLOW_FLAG;
 use crate::error::OxenError;
 use crate::index::EntryIndexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
+use crate::opts::CloneOpts;
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -102,23 +105,26 @@ impl LocalRepository {
         Ok(())
     }
 
-    pub async fn clone_remote(
-        url: &str,
-        dst: &Path,
-        shallow: bool,
-    ) -> Result<Option<LocalRepository>, OxenError> {
-        log::debug!("clone_remote {} -> {:?} -> shallow? {shallow}", url, dst);
+    pub async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenError> {
+        log::debug!(
+            "clone_remote {} -> {:?} -> shallow? {}",
+            opts.url,
+            opts.dst,
+            opts.shallow
+        );
+
         let remote = Remote {
-            name: String::from("origin"),
-            url: String::from(url),
+            name: String::from(DEFAULT_REMOTE_NAME),
+            url: opts.url.to_owned(),
         };
         match api::remote::repositories::get_by_remote(&remote).await {
             Ok(Some(remote_repo)) => Ok(Some(
-                LocalRepository::clone_repo(remote_repo, dst, shallow).await?,
+                LocalRepository::clone_repo(remote_repo, &opts.branch, &opts.dst, opts.shallow)
+                    .await?,
             )),
             Ok(None) => Ok(None),
             Err(_) => {
-                let err = format!("Could not clone remote {url} not found");
+                let err = format!("Could not clone remote {} not found", opts.url);
                 Err(OxenError::basic_str(err))
             }
         }
@@ -181,6 +187,7 @@ impl LocalRepository {
 
     async fn clone_repo(
         repo: RemoteRepository,
+        branch_name: &str,
         dst: &Path,
         shallow: bool,
     ) -> Result<LocalRepository, OxenError> {
@@ -210,14 +217,12 @@ impl LocalRepository {
         util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
+        let rb = RemoteBranch::from_branch(branch_name);
         let indexer = EntryIndexer::new(&local_repo)?;
-        match indexer
-            .pull_all_commit_objects(&repo, &RemoteBranch::default())
-            .await
-        {
+        match indexer.pull_all_commit_objects(&repo, &rb).await {
             Ok(_) => {
                 local_repo
-                    .maybe_pull_entries(&repo, &indexer, shallow)
+                    .maybe_pull_entries(&repo, branch_name, &indexer, shallow)
                     .await?;
             }
             Err(_err) => {
@@ -236,26 +241,45 @@ impl LocalRepository {
     async fn maybe_pull_entries(
         &self,
         repo: &RemoteRepository,
+        branch_name: &str,
         indexer: &EntryIndexer,
         shallow: bool,
     ) -> Result<(), OxenError> {
         // Shallow means we will not pull the actual data until a user tells us to
         if !shallow {
             // Pull all entries
-            let rb = RemoteBranch::default();
+            let rb = RemoteBranch::from_branch(branch_name);
             indexer.pull(&rb).await?;
             println!(
                 "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
                 repo.remote.url, repo.name, repo.name
             );
         } else {
+            self.write_is_shallow(true)?;
+
             println!(
-                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin main",
-                repo.remote.url, repo.name, repo.name
+                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
+                repo.remote.url, repo.name, repo.name, branch_name
             );
         }
 
         Ok(())
+    }
+
+    pub fn write_is_shallow(&self, shallow: bool) -> Result<(), OxenError> {
+        let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
+        log::debug!("Write is shallow to path: {shallow_flag_path:?}");
+        if shallow {
+            util::fs::write_to_path(&shallow_flag_path, "true")?;
+        } else if shallow_flag_path.exists() {
+            std::fs::remove_file(&shallow_flag_path)?;
+        }
+        Ok(())
+    }
+
+    pub fn is_shallow_clone(&self) -> bool {
+        let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
+        shallow_flag_path.exists()
     }
 }
 
@@ -266,6 +290,7 @@ mod tests {
     use crate::constants;
     use crate::error::OxenError;
     use crate::model::{LocalRepository, RepositoryNew};
+    use crate::opts::CloneOpts;
     use crate::test;
 
     use std::path::Path;
@@ -323,11 +348,8 @@ mod tests {
                     .await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let shallow = true;
-                let local_repo =
-                    LocalRepository::clone_remote(&remote_repo.remote.url, &dir, shallow)
-                        .await?
-                        .unwrap();
+                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
+                let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);

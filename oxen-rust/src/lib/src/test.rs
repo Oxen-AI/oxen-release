@@ -8,6 +8,7 @@ use crate::error::OxenError;
 use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::opts::RmOpts;
+use crate::util;
 
 use env_logger::Env;
 use rand::Rng;
@@ -271,13 +272,17 @@ where
     command::add(&local_repo, local_repo.path.join("annotations"))?;
     command::commit(&local_repo, "Adding annotations/")?;
 
+    command::add(&local_repo, local_repo.path.join("nlp"))?;
+    command::commit(&local_repo, "Adding nlp/")?;
+
     // Remove the test dir to make a more complex history
     let rm_opts = RmOpts {
         path: PathBuf::from("test"),
         recursive: true,
         staged: false,
+        remote: false,
     };
-    command::rm(&local_repo, &rm_opts)?;
+    command::rm(&local_repo, &rm_opts).await?;
     command::commit(&local_repo, "Removing test/")?;
 
     // Add all the files
@@ -343,7 +348,7 @@ where
 /// Test interacting with a remote repo that has nothing synced
 pub async fn run_empty_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
-    T: FnOnce(RemoteRepository) -> Fut,
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
@@ -353,8 +358,57 @@ where
     let local_repo = command::init(&path)?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
-    let repo =
+    let remote_repo =
         api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+
+    println!("REMOTE REPO: {remote_repo:?}");
+
+    // Run test to see if it panic'd
+    let result = match test(local_repo, remote_repo).await {
+        Ok(repo) => {
+            // Cleanup remote repo
+            api::remote::repositories::delete(&repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Cleanup Local
+    std::fs::remove_dir_all(path)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+/// Test interacting with a remote repo that has has the initial commit pushed
+pub async fn run_remote_repo_test_all_data_pushed<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let path = empty_dir.join(name);
+    let mut local_repo = command::init(&path)?;
+
+    // Write all the files
+    populate_dir_with_training_data(&local_repo.path)?;
+    add_all_data_to_repo(&local_repo)?;
+    command::commit(&local_repo, "Adding all data")?;
+
+    // Set the proper remote
+    let remote = repo_remote_url_from(&local_repo.dirname());
+    command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+    // Create remote repo
+    let repo = create_remote_repo(&local_repo).await?;
+
+    command::push(&local_repo).await?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -490,6 +544,7 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
+
     // Add all the files
     command::add(&repo, &repo.path)?;
 
@@ -516,6 +571,26 @@ where
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
+    Ok(())
+}
+
+fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
+    command::add(repo, repo.path.join("train"))?;
+    command::add(repo, repo.path.join("test"))?;
+    command::add(repo, repo.path.join("annotations"))?;
+    command::add(repo, repo.path.join("large_files"))?;
+    command::add(repo, repo.path.join("nlp"))?;
+    command::add(repo, repo.path.join("labels.txt"))?;
+    command::add(repo, repo.path.join("README.md"))?;
+
+    // Make it easy to find these schemas during testing
+    command::schema_name(repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schema_name(
+        repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
+
     Ok(())
 }
 
@@ -584,8 +659,16 @@ pub fn test_jpeg_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
 }
 
-pub fn test_large_file() -> &'static Path {
+pub fn test_jpeg_file_with_name(name: &str) -> PathBuf {
+    PathBuf::from(&format!("data/test/images/{name}"))
+}
+
+pub fn test_200k_csv() -> &'static Path {
     Path::new("data/test/text/celeb_a_200k.csv")
+}
+
+pub fn test_nlp_classification_csv() -> &'static Path {
+    Path::new("nlp/classification/annotations/test.tsv")
 }
 
 pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
@@ -652,29 +735,29 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     let large_dir = repo_dir.join("large_files");
     std::fs::create_dir_all(&large_dir)?;
     let large_file_1 = large_dir.join("test.csv");
-    let from_file = test_large_file();
-    std::fs::copy(from_file, large_file_1)?;
+    let from_file = test_200k_csv();
+    util::fs::copy(from_file, large_file_1)?;
 
     // train/
     let train_dir = repo_dir.join("train");
     std::fs::create_dir_all(&train_dir)?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_1.jpg"),
         train_dir.join("dog_1.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_2.jpg"),
         train_dir.join("dog_2.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_3.jpg"),
         train_dir.join("dog_3.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/cat_1.jpg"),
         train_dir.join("cat_1.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/cat_2.jpg"),
         train_dir.join("cat_2.jpg"),
     )?;
@@ -682,11 +765,11 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     // test/
     let test_dir = repo_dir.join("test");
     std::fs::create_dir_all(&test_dir)?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/dog_4.jpg"),
         test_dir.join("1.jpg"),
     )?;
-    std::fs::copy(
+    util::fs::copy(
         Path::new("data/test/images/cat_3.jpg"),
         test_dir.join("2.jpg"),
     )?;
@@ -871,7 +954,7 @@ pub fn add_img_file_to_dir(dir: &Path, file_path: &Path) -> Result<PathBuf, Oxen
         let full_new_path = dir.join(new_path);
 
         // println!("COPY FILE FROM {:?} => {:?}", file_path, full_new_path);
-        std::fs::copy(file_path, &full_new_path)?;
+        util::fs::copy(file_path, &full_new_path)?;
         Ok(full_new_path)
     } else {
         let err = format!("Unknown extension file: {file_path:?}");

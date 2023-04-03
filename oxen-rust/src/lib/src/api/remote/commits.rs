@@ -7,7 +7,9 @@ use crate::util;
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
 // use crate::util::ReadProgress;
-use crate::view::{CommitParentsResponse, CommitResponse, IsValidStatusMessage, StatusMessage};
+use crate::view::{
+    CommitParentsResponse, CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage,
+};
 
 use std::path::Path;
 use std::str;
@@ -53,6 +55,32 @@ pub async fn get_by_id(
         }
     } else {
         Err(OxenError::basic_str("get_commit_by_id() Request failed"))
+    }
+}
+
+pub async fn list_commit_history(
+    remote_repo: &RemoteRepository,
+    committish: &str,
+) -> Result<Vec<Commit>, OxenError> {
+    let uri = format!("/commits/{committish}/history");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            let response: Result<ListCommitResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(j_res) => Ok(j_res.commits),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "list_commit_history() Could not deserialize response [{err}]\n{body}"
+                ))),
+            }
+        }
+        Err(err) => Err(OxenError::basic_str(format!(
+            "list_commit_history() Request failed: {err}"
+        ))),
     }
 }
 
@@ -214,16 +242,10 @@ async fn create_commit_obj_on_server(
     commit: &CommitWithSize,
 ) -> Result<CommitResponse, OxenError> {
     let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
-    let body = serde_json::to_string(&commit).unwrap();
-    log::debug!("create_commit_obj_on_server {}\n{}", url, body);
+    log::debug!("create_commit_obj_on_server {}\n{:?}", url, commit);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client
-        .post(&url)
-        .body(reqwest::Body::from(body))
-        .send()
-        .await
-    {
+    if let Ok(res) = client.post(&url).json(commit).send().await {
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("create_commit_obj_on_server got response {}", body);
         let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
@@ -494,6 +516,7 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::test;
 
@@ -610,6 +633,46 @@ mod tests {
             assert!(is_synced.is_none());
 
             Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_remote_commits() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
+            let mut local_repo = local_repo;
+            let commit_history = command::log(&local_repo)?;
+            let num_local_commits = commit_history.len();
+
+            // Set the proper remote
+            let name = local_repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = command::create_remote(
+                &local_repo,
+                constants::DEFAULT_NAMESPACE,
+                &local_repo.dirname(),
+                test::test_host(),
+            )
+            .await?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // We unzip in a background thread, so give it a second
+            thread::sleep(std::time::Duration::from_secs(1));
+
+            // List the remote commits
+            let remote_commits =
+                api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                    .await?;
+            assert_eq!(remote_commits.len(), num_local_commits);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(())
         })
         .await
     }

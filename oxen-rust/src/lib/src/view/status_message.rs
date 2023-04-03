@@ -24,10 +24,17 @@ impl StatusMessage {
         }
     }
 
-    pub fn error(msg: &str) -> StatusMessage {
+    pub fn error(msg: impl AsRef<str>) -> StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
-            status_message: String::from(msg),
+            status_message: String::from(msg.as_ref()),
+        }
+    }
+
+    pub fn bad_request() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_ERROR),
+            status_message: String::from(view::http::MSG_BAD_REQUEST),
         }
     }
 
@@ -35,6 +42,13 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_RESOURCE_NOT_FOUND),
+        }
+    }
+
+    pub fn resource_deleted() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_SUCCESS),
+            status_message: String::from(view::http::MSG_RESOURCE_DELETED),
         }
     }
 

@@ -3,8 +3,12 @@ use std::str;
 
 use polars::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 
-use crate::model::Schema;
+use crate::{
+    df::{tabular, DFOpts},
+    model::Schema,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataSize {
@@ -12,10 +16,17 @@ pub struct JsonDataSize {
     pub width: usize,
 }
 
+impl JsonDataSize {
+    pub fn is_empty(&self) -> bool {
+        self.height == 0 && self.width == 0
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataFrame {
     pub schema: Schema,
-    pub size: JsonDataSize,
+    pub slice_size: JsonDataSize,
+    pub full_size: JsonDataSize,
     pub data: serde_json::Value,
 }
 
@@ -32,13 +43,58 @@ pub struct JsonDataFrameSliceResponse {
 }
 
 impl JsonDataFrame {
+    pub fn empty(schema: &Schema) -> JsonDataFrame {
+        JsonDataFrame {
+            schema: schema.to_owned(),
+            slice_size: JsonDataSize {
+                height: 0,
+                width: 0,
+            },
+            full_size: JsonDataSize {
+                height: 0,
+                width: 0,
+            },
+            data: serde_json::Value::Null,
+        }
+    }
+
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
         JsonDataFrame {
             schema: Schema::from_polars(&df.schema()),
-            size: JsonDataSize {
+            slice_size: JsonDataSize {
                 height: df.height(),
                 width: df.width(),
             },
+            full_size: JsonDataSize {
+                height: df.height(),
+                width: df.width(),
+            },
+            data: JsonDataFrame::json_data(df),
+        }
+    }
+
+    pub fn to_df(&self) -> DataFrame {
+        if self.data == serde_json::Value::Null {
+            DataFrame::empty()
+        } else {
+            let data = self.data.to_string();
+            let content = Cursor::new(data.as_bytes());
+            let df = JsonReader::new(content).finish().unwrap();
+            // The fields were coming out of order, so we need to reorder them
+            let columns = self.schema.fields_names();
+            let opts = DFOpts::from_column_names(columns);
+            tabular::transform(df, opts).unwrap()
+        }
+    }
+
+    pub fn from_slice(df: &mut DataFrame, full_size: JsonDataSize) -> JsonDataFrame {
+        JsonDataFrame {
+            schema: Schema::from_polars(&df.schema()),
+            slice_size: JsonDataSize {
+                height: df.height(),
+                width: df.width(),
+            },
+            full_size,
             data: JsonDataFrame::json_data(df),
         }
     }

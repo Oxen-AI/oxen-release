@@ -79,6 +79,47 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         "/{namespace}/{repo_name}/branches/{branch_name:.*}",
         web::put().to(controllers::branches::update),
     )
+    // ----- Compare ----- //
+    .route(
+        "/{namespace}/{repo_name}/compare/{base_head}",
+        web::get().to(controllers::compare::show),
+    )
+    // ----- Stage Remote Data ----- //
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/status/{resource:.*}",
+        web::get().to(controllers::stager::status_dir),
+    )
+    // TODO: add GET for downloading the file from the staging area
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
+        web::post().to(controllers::stager::add_file),
+    )
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
+        web::delete().to(controllers::stager::delete_file),
+    )
+    // TODO: delete "dir" from staging to recursively unstage a dir
+    // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
+        web::get().to(controllers::stager::diff_file), // TODO: diff on a resource
+    )
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",
+        web::post().to(controllers::stager::df_add_row),
+    )
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",
+        web::delete().to(controllers::stager::df_delete_row),
+    )
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/modifications/{resource:.*}",
+        web::delete().to(controllers::stager::clear_modifications),
+    )
+    .route(
+        "/{namespace}/{repo_name}/staging/{identifier}/commit/{branch:.*}",
+        web::post().to(controllers::stager::commit),
+    )
     // ----- Stats ----- //
     .route(
         "/{namespace}/{repo_name}/stats",
@@ -100,7 +141,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         web::get().to(controllers::file::meta_data),
     )
     .route(
-        "/{namespace}/{repo_name}/meta/{resource:.*}",
+        "/{namespace}/{repo_name}/meta/{resource:.*}", // DEPRECIATED
         web::get().to(controllers::file::meta_data_legacy),
     )
     .route(

@@ -21,6 +21,9 @@ impl CommitReader {
     pub fn new(repository: &LocalRepository) -> Result<CommitReader, OxenError> {
         let db_path = util::fs::oxen_hidden_dir(&repository.path).join(COMMITS_DIR);
         let opts = db::opts::default();
+
+        log::debug!("CommitReader::new db_path: {:?}", db_path);
+
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it
@@ -55,6 +58,10 @@ impl CommitReader {
 
     /// List the commit history from the HEAD commit
     pub fn history_from_head(&self) -> Result<Vec<Commit>, OxenError> {
+        if self.repository.is_shallow_clone() {
+            return Err(OxenError::repo_is_shallow());
+        }
+
         let head_commit = self.head_commit()?;
         let mut commits: Vec<Commit> = CommitDBReader::history_from_commit(&self.db, &head_commit)?
             .into_iter()

@@ -31,7 +31,10 @@ pub fn mark_commit_as_synced(repo: &LocalRepository, commit: &Commit) -> Result<
     log::debug!("Writing is synced: {is_synced_path:?}");
 
     match std::fs::write(&is_synced_path, "true") {
-        Ok(_) => Ok(()),
+        Ok(_) => {
+            log::debug!("Wrote is synced file: {is_synced_path:?}");
+            Ok(())
+        }
         Err(err) => Err(OxenError::basic_str(format!(
             "Could not write is_synced file: {}",
             err

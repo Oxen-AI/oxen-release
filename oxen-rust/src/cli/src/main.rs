@@ -32,7 +32,7 @@ async fn main() {
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::branch())
         .subcommand(cmd_setup::merge())
-        .subcommand(cmd_setup::merge())
+        .subcommand(cmd_setup::commit())
         .subcommand(cmd_setup::clone())
         .subcommand(cmd_setup::inspect_kv_db())
         .subcommand(cmd_setup::push())
@@ -49,22 +49,22 @@ async fn main() {
         Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
             parse_and_run::create_remote(sub_matches).await
         }
-        Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches),
-        Some((cmd_setup::STATUS, sub_matches)) => parse_and_run::status(sub_matches),
-        Some((cmd_setup::LOG, _sub_matches)) => parse_and_run::log(),
+        Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
+        Some((cmd_setup::STATUS, sub_matches)) => parse_and_run::status(sub_matches).await,
+        Some((cmd_setup::LOG, sub_matches)) => parse_and_run::log(sub_matches).await,
         Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
         Some((cmd_setup::SCHEMAS, sub_matches)) => parse_and_run::schemas(sub_matches),
-        Some((cmd_setup::ADD, sub_matches)) => parse_and_run::add(sub_matches),
-        Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches),
-        Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches),
+        Some((cmd_setup::ADD, sub_matches)) => parse_and_run::add(sub_matches).await,
+        Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
+        Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
         Some((cmd_setup::BRANCH, sub_matches)) => parse_and_run::branch(sub_matches).await,
         Some((cmd_setup::CHECKOUT, sub_matches)) => parse_and_run::checkout(sub_matches).await,
         Some((cmd_setup::MERGE, sub_matches)) => parse_and_run::merge(sub_matches),
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
-        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches),
+        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
-        Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches),
+        Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches).await,
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
         Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),

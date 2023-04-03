@@ -16,10 +16,9 @@ let command = Command::new("oxen")
     .allow_invalid_utf8_for_external_subcommands(true)
     // ...
     .subcommand(
-        Command::new("set-remote")
-            .about("Sets remote url for repository")
-            .arg(arg!(<NAME> "The remote name"))
-            .arg(arg!(<URL> "The remote url"))
+        Command::new("commit")
+            .about("Commit staged data")
+            .arg(arg!(<MESSAGE> "Your commit message"))
             .arg_required_else_help(true),
     )
     // ...
@@ -32,11 +31,10 @@ After the boiler plate command is setup and args are parsed, you can handle the 
 let matches = command.get_matches();
 match matches.subcommand() {
     // ...
-    Some(("set-remote", sub_matches)) => {
-        let name = sub_matches.value_of("NAME").expect("required");
-        let url = sub_matches.value_of("URL").expect("required");
+    Some(("commit", sub_matches)) => {
+        let message = sub_matches.value_of("MESSAGE").expect("required");
 
-        match dispatch::set_remote(name, url) {
+        match dispatch::commit(message) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{}", err)

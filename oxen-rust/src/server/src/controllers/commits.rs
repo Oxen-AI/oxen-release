@@ -79,7 +79,7 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
                 let msg = format!("api err: {err}");
-                HttpResponse::NotFound().json(StatusMessage::error(&msg))
+                HttpResponse::NotFound().json(StatusMessage::error(msg))
             }
         }
     } else {
@@ -294,7 +294,7 @@ fn p_index_commit_or_branch_history(
 ) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
     let commits = command::log_commit_or_branch_history(&repo, commit_or_branch)?;
-    log::debug!("controllers::commits: : {:#?}", commits);
+    // log::debug!("controllers::commits: : {:#?}", commits);
     Ok(ListCommitResponse::success(commits))
 }
 

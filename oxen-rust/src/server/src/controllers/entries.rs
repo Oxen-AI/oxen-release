@@ -1,7 +1,6 @@
 use crate::app_data::OxenAppData;
 use crate::view::PaginatedLinesResponse;
 
-use liboxen::api;
 use liboxen::constants::AVG_CHUNK_SIZE;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
@@ -9,6 +8,7 @@ use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedEntries, RemoteEntryResponse, StatusMessage};
+use liboxen::{api, constants};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
@@ -50,7 +50,7 @@ pub async fn create(
         }
         Err(err) => {
             let msg = format!("Could not find repo at path\nErr: {err}");
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&msg)))
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(msg)))
         }
     }
 }
@@ -181,9 +181,8 @@ pub async fn download_page(req: HttpRequest, query: web::Query<PageNumQuery>) ->
     let name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
-    // default to first page with first ten values
-    let page: usize = query.page.unwrap_or(1);
-    let page_size: usize = query.page_size.unwrap_or(10);
+    let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     log::debug!(
         "download_entries repo name [{}] commit_id [{}] page {} page_size {}",
@@ -260,8 +259,8 @@ pub async fn list_entries(req: HttpRequest, query: web::Query<PageNumQuery>) -> 
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
     // default to first page with first ten values
-    let page: usize = query.page.unwrap_or(1);
-    let page_size: usize = query.page_size.unwrap_or(10);
+    let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     log::debug!(
         "list_entries repo name [{}] resource [{:?}] page {} page_size {}",
@@ -311,8 +310,8 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
     let name: &str = req.match_info().get("repo_name").unwrap();
 
     // default to first page with first ten values
-    let page: usize = query.page.unwrap_or(1);
-    let page_size: usize = query.page_size.unwrap_or(10);
+    let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     log::debug!(
         "list_entries repo name [{}] resource [{:?}] page {} page_size {}",

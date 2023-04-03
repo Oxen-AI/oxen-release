@@ -4,11 +4,11 @@ use liboxen::model::User;
 pub mod app_data;
 pub mod auth;
 pub mod controllers;
+pub mod params;
 pub mod routes;
 pub mod test;
 pub mod view;
 
-extern crate dotenv;
 extern crate log;
 
 // use actix_http::KeepAlive;

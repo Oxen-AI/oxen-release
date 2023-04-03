@@ -1,12 +1,15 @@
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, RESTORE, RM, STATUS};
+use crate::dispatch;
 use clap::ArgMatches;
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use liboxen::model::staged_data::StagedDataOpts;
+use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::RmOpts;
+use liboxen::opts::{AddOpts, CloneOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
-
-use crate::dispatch;
-use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use std::str::FromStr;
 
 pub async fn init(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("PATH").unwrap_or(".");
@@ -20,6 +23,28 @@ pub async fn init(sub_matches: &ArgMatches) {
 }
 
 pub fn config(sub_matches: &ArgMatches) {
+    if let Some(remote) = sub_matches.values_of("set-remote") {
+        if let [name, url] = remote.collect::<Vec<_>>()[..] {
+            match dispatch::add_remote(name, url) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
+                }
+            }
+        } else {
+            eprintln!("invalid arguments for --set-remote");
+        }
+    }
+
+    if let Some(name) = sub_matches.value_of("delete-remote") {
+        match dispatch::remove_remote(name) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
+            }
+        }
+    }
+
     if let Some(auth) = sub_matches.values_of("auth-token") {
         if let [host, token] = auth.collect::<Vec<_>>()[..] {
             match dispatch::set_auth_token(host, token) {
@@ -74,29 +99,33 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn remote(sub_matches: &ArgMatches) {
+/// The subcommands for interacting with the remote staging area.
+pub async fn remote(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
-            ("add", sub_matches) => {
-                let name = sub_matches.value_of("NAME").expect("required");
-                let url = sub_matches.value_of("URL").expect("required");
-
-                match dispatch::add_remote(name, url) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
+            (STATUS, sub_matches) => {
+                remote_status(sub_matches).await;
             }
-            ("remove", sub_matches) => {
-                let name = sub_matches.value_of("NAME").expect("required");
-
-                match dispatch::remove_remote(name) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
+            (ADD, sub_matches) => {
+                remote_add(sub_matches).await;
+            }
+            (RM, sub_matches) => {
+                remote_rm(sub_matches).await;
+            }
+            (RESTORE, sub_matches) => {
+                remote_restore(sub_matches).await;
+            }
+            (COMMIT, sub_matches) => {
+                remote_commit(sub_matches).await;
+            }
+            (LOG, sub_matches) => {
+                remote_log(sub_matches).await;
+            }
+            (DF, sub_matches) => {
+                remote_df(sub_matches).await;
+            }
+            (DIFF, sub_matches) => {
+                remote_diff(sub_matches).await;
             }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
@@ -109,7 +138,27 @@ pub fn remote(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn status(sub_matches: &ArgMatches) {
+async fn remote_add(sub_matches: &ArgMatches) {
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
+
+    let opts = AddOpts {
+        paths,
+        is_remote: true,
+        directory: sub_matches.value_of("path").map(PathBuf::from),
+    };
+    match dispatch::add(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpts {
     let skip: usize = sub_matches
         .value_of("skip")
         .unwrap_or("0")
@@ -122,7 +171,18 @@ pub fn status(sub_matches: &ArgMatches) {
         .expect("Limit must be a valid integer.");
     let print_all = sub_matches.is_present("print_all");
 
-    match dispatch::status(skip, limit, print_all) {
+    StagedDataOpts {
+        skip,
+        limit,
+        print_all,
+        is_remote,
+    }
+}
+
+async fn remote_status(sub_matches: &ArgMatches) {
+    let is_remote = true;
+    let opts = parse_status_args(sub_matches, is_remote);
+    match dispatch::status(None, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");
@@ -130,8 +190,27 @@ pub fn status(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn log() {
-    match dispatch::log_commits() {
+pub async fn status(sub_matches: &ArgMatches) {
+    let directory = sub_matches.value_of("path").map(PathBuf::from);
+
+    let is_remote = false;
+    let opts = parse_status_args(sub_matches, is_remote);
+    match dispatch::status(directory, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}");
+        }
+    }
+}
+
+async fn remote_log(sub_matches: &ArgMatches) {
+    let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+
+    let opts = LogOpts {
+        committish,
+        remote: true,
+    };
+    match dispatch::log_commits(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -139,7 +218,22 @@ pub fn log() {
     }
 }
 
-fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
+pub async fn log(sub_matches: &ArgMatches) {
+    let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+
+    let opts = LogOpts {
+        committish,
+        remote: false,
+    };
+    match dispatch::log_commits(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::df::DFOpts {
     let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack") {
         let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
         Some(values)
@@ -147,11 +241,14 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         None
     };
 
+    // CSV is easier from the CLI, but JSON is easier from API, so default to CSV here.
+    let content_type = sub_matches.value_of("content-type").unwrap_or("csv");
+
     liboxen::df::DFOpts {
         output: sub_matches.value_of("output").map(std::path::PathBuf::from),
         slice: sub_matches.value_of("slice").map(String::from),
         page_size: sub_matches
-            .value_of("page_size")
+            .value_of("page-size")
             .map(String::from)
             .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
@@ -166,14 +263,30 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::df::DFOpts {
         columns: sub_matches.value_of("columns").map(String::from),
         filter: sub_matches.value_of("filter").map(String::from),
         aggregate: sub_matches.value_of("aggregate").map(String::from),
-        col_at: sub_matches.value_of("col_at").map(String::from),
+        col_at: sub_matches.value_of("col-at").map(String::from),
         vstack,
-        add_col: sub_matches.value_of("add_col").map(String::from),
-        add_row: sub_matches.value_of("add_row").map(String::from),
+        add_col: sub_matches.value_of("add-col").map(String::from),
+        add_row: sub_matches.value_of("add-row").map(String::from),
+        delete_row: sub_matches.value_of("delete-row").map(String::from),
         sort_by: sub_matches.value_of("sort").map(String::from),
         unique: sub_matches.value_of("unique").map(String::from),
+        content_type: ContentType::from_str(content_type).unwrap(),
+        is_remote,
         should_randomize: sub_matches.is_present("randomize"),
         should_reverse: sub_matches.is_present("reverse"),
+    }
+}
+
+async fn remote_df(sub_matches: &ArgMatches) {
+    let path = sub_matches.value_of("DF_SPEC").expect("required");
+    let is_remote = true;
+    let opts = parse_df_sub_matches(sub_matches, is_remote);
+
+    match dispatch::remote_df(path, opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
     }
 }
 
@@ -187,7 +300,8 @@ pub fn df(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        let opts = parse_df_sub_matches(sub_matches);
+        let is_remote = false;
+        let opts = parse_df_sub_matches(sub_matches, is_remote);
 
         match dispatch::df(path, opts) {
             Ok(_) => {}
@@ -243,14 +357,19 @@ pub fn schemas(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn add(sub_matches: &ArgMatches) {
+pub async fn add(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
         .values_of("files")
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
 
-    match dispatch::add(paths) {
+    let opts = AddOpts {
+        paths,
+        is_remote: false,
+        directory: None,
+    };
+    match dispatch::add(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -258,7 +377,7 @@ pub fn add(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn rm(sub_matches: &ArgMatches) {
+pub async fn remote_rm(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
         .values_of("files")
         .expect("Must supply files")
@@ -270,9 +389,10 @@ pub fn rm(sub_matches: &ArgMatches) {
         path: paths.first().unwrap().to_path_buf(),
         staged: sub_matches.is_present("staged"),
         recursive: sub_matches.is_present("recursive"),
+        remote: true,
     };
 
-    match dispatch::rm(paths, &opts) {
+    match dispatch::rm(paths, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -280,24 +400,68 @@ pub fn rm(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn restore(sub_matches: &ArgMatches) {
+pub async fn rm(sub_matches: &ArgMatches) {
+    let paths: Vec<PathBuf> = sub_matches
+        .values_of("files")
+        .expect("Must supply files")
+        .map(PathBuf::from)
+        .collect();
+
+    let opts = RmOpts {
+        // The path will get overwritten for each file that is removed
+        path: paths.first().unwrap().to_path_buf(),
+        staged: sub_matches.is_present("staged"),
+        recursive: sub_matches.is_present("recursive"),
+        remote: false,
+    };
+
+    match dispatch::rm(paths, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+pub async fn remote_restore(sub_matches: &ArgMatches) {
+    let path = sub_matches.value_of("PATH").expect("required");
+
+    // For now, restore remote just un-stages all the changes done to the file on the remote
+    let opts = RestoreOpts {
+        path: PathBuf::from(path),
+        staged: sub_matches.is_present("staged"),
+        is_remote: true,
+        source_ref: None,
+    };
+
+    match dispatch::restore(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+pub async fn restore(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("PATH").expect("required");
 
     let opts = if let Some(source) = sub_matches.value_of("source") {
         RestoreOpts {
             path: PathBuf::from(path),
             staged: sub_matches.is_present("staged"),
+            is_remote: false,
             source_ref: Some(String::from(source)),
         }
     } else {
         RestoreOpts {
             path: PathBuf::from(path),
             staged: sub_matches.is_present("staged"),
+            is_remote: false,
             source_ref: None,
         }
     };
 
-    match dispatch::restore(opts) {
+    match dispatch::restore(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -407,19 +571,29 @@ pub async fn pull(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn diff(sub_matches: &ArgMatches) {
+pub async fn remote_diff(sub_matches: &ArgMatches) {
+    let is_remote = true;
+    p_diff(sub_matches, is_remote).await
+}
+
+pub async fn diff(sub_matches: &ArgMatches) {
+    let is_remote = false;
+    p_diff(sub_matches, is_remote).await
+}
+
+async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     // First arg is optional
     let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
     let path = sub_matches.value_of("PATH");
     if let Some(path) = path {
-        match dispatch::diff(Some(file_or_commit_id), path) {
+        match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
             }
         }
     } else {
-        match dispatch::diff(None, file_or_commit_id) {
+        match dispatch::diff(None, file_or_commit_id, is_remote).await {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
@@ -431,7 +605,19 @@ pub fn diff(sub_matches: &ArgMatches) {
 pub async fn clone(sub_matches: &ArgMatches) {
     let url = sub_matches.value_of("URL").expect("required");
     let shallow = sub_matches.is_present("shallow");
-    match dispatch::clone(url, shallow).await {
+    let branch = sub_matches
+        .value_of("branch")
+        .unwrap_or(DEFAULT_BRANCH_NAME);
+    let dst = std::env::current_dir().expect("Could not get current working directory");
+
+    let opts = CloneOpts {
+        url: url.to_string(),
+        dst,
+        shallow,
+        branch: branch.to_string(),
+    };
+
+    match dispatch::clone(&opts).await {
         Ok(_) => {}
         Err(err) => {
             println!("Err: {err}")
@@ -439,13 +625,23 @@ pub async fn clone(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn commit(sub_matches: &ArgMatches) {
-    let args = sub_matches
-        .values_of_os("")
-        .unwrap_or_default()
-        .collect::<Vec<_>>();
+pub async fn remote_commit(sub_matches: &ArgMatches) {
+    let message = sub_matches.value_of("message").expect("required");
 
-    match dispatch::commit(args) {
+    let is_remote = true;
+    match dispatch::commit(message, is_remote).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+pub async fn commit(sub_matches: &ArgMatches) {
+    let message = sub_matches.value_of("message").expect("required");
+
+    let is_remote = false;
+    match dispatch::commit(message, is_remote).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
