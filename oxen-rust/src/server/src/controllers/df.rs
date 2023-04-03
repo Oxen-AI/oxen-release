@@ -5,7 +5,6 @@ use liboxen::{api, constants};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::df::{tabular, DFOpts};
-use liboxen::model::Schema;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
@@ -36,9 +35,8 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                     Ok(version_path) => match tabular::scan_df(&version_path) {
                         Ok(lazy_df) => {
                             log::debug!("Read version file {:?}", version_path);
-                            let polars_schema = lazy_df.schema().unwrap();
-                            let schema = Schema::from_polars(&polars_schema);
-                            let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
+
+                            let mut filter = DFOpts::empty();
                             log::debug!("Initial filter {:?}", filter);
                             filter = df_opts_query::parse_opts(&query, &mut filter);
 
