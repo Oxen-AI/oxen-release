@@ -255,10 +255,10 @@ shape: (3, 6)
 
 ## Add Column
 
-Your data might not match the schema of a data frame you want to combine with, in this case you may need to add a column to match the schema. You can do this and project default values with `--add_col 'col:val:dtype'`
+Your data might not match the schema of a data frame you want to combine with, in this case you may need to add a column to match the schema. You can do this and project default values with `--add-col 'col:val:dtype'`
 
 ```bash
-$ oxen df annotations/data.csv --add_col 'is_cute:unknown:str'
+$ oxen df annotations/data.csv --add-col 'is_cute:unknown:str'
 
 shape: (10000, 7)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┬─────────┐
@@ -288,10 +288,10 @@ shape: (10000, 7)
 
 ## Add Row
 
-Sometimes it can be a pain to append data to a data file without writing code to do so. The `--add_row` option makes it as easy as a comma separated list and automatically parses the data to the correct dtypes.
+Sometimes it can be a pain to append data to a data file without writing code to do so. The `--add-row` option makes it as easy as a comma separated list and automatically parses the data to the correct dtypes.
 
 ```bash
-$ oxen df annotations/data.csv --add_row 'images/my_cat.jpg,cat,0,0,0,0'
+$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0'
 
 shape: (10001, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
