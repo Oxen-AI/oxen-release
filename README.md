@@ -8,7 +8,7 @@ Oxen helps you version your datasets like you version your code.
 $ oxen init
 $ oxen add images/
 $ oxen commit -m "Adding my data"
-$ oxen remote add origin https://hub.oxen.ai/ox/CatDogBoundingBox
+$ oxen config --set-remote origin https://hub.oxen.ai/ox/CatDogBoundingBox
 $ oxen push
 
 # The first step in collaborating on a dataset should be `oxen clone`
@@ -29,19 +29,6 @@ Oxen was optimized to be fast on structured and unstructured data types. Unlike 
 * 🤝 Collaborate with your team (sync to an oxen-server)
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
-
-# 🧑‍💻 OxenHub
-
-The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
-
-With the Hub, enable your team to discover, view, collaborate, and manage your datasets.
-
-<p align="center">
-    <img src="images/CatsVsDogsRepo.png" alt="oxen cats vs dogs repo" style="max-height: 350px;" />
-</p>
-
-Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
-
 # Why the name Oxen?
 
 "Oxen" 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of the grunt work of your infrastructure so you can focus on the higher-level ML problems that matter to your product.
@@ -57,6 +44,18 @@ Watch as we commit hundreds of thousands of images to an Oxen repository in a ma
 <p align="center">
     <img src="images/cli-celeba.gif" alt="oxen cli demo" />
 </p>
+
+# 🧑‍💻 OxenHub
+
+The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
+
+With the Hub, enable your team to discover, view, collaborate, and manage your datasets.
+
+<p align="center">
+    <img src="images/CatsVsDogsRepo.png" alt="oxen cats vs dogs repo" style="max-height: 350px;" />
+</p>
+
+Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
 
 # Installation
 
@@ -250,7 +249,7 @@ Once you have created a repository, you will see a URL you can push your data to
 From the data repository that you [created above](#create-repository) you can simply add the remote and push.
 
 ```bash
-$ oxen remote add origin https://hub.oxen.ai/<username>/<repo_name>
+$ oxen config --set-remote origin https://hub.oxen.ai/<username>/<repo_name>
 $ oxen push origin main
 ```
 
@@ -265,6 +264,33 @@ $ oxen clone https://hub.oxen.ai/<username>/<repo_name> --shallow
 $ cd <repo_name>
 $ oxen pull origin my-branch
 ```
+
+## Remote Staging
+
+There are times when you do not want to clone the entire repository to make a change. For example, if you have a large dataset and you want to add one annotation, it is very inefficient to clone all the files locally.
+
+Oxen's remote staging area helps enable a more efficient workflow. Simply add the `oxen remote` subcommand to the commands you already know how to use locally. 
+
+Let's walk through an example. Start by shallow cloning a repo and a checkout a specific branch.
+
+```bash
+$ oxen clone https://hub.oxen.ai/<username>/<repo_name> --shallow -b add-images
+```
+
+If you do a quick `ls` you will see that there are no files locally. Never fear, we are in a shallow state and can still interact with the repo remotely.
+
+```bash
+$ oxen remote status
+```
+
+This checks the remote staging area on this branch to see if you have any remote files staged. You can then proceed to `add` and `commit` changes without ever having to clone the entire dataset.
+
+```bash
+$ oxen remote add image.png
+$ oxen remote status
+```
+
+For more information about remote staging, refer to the [remote staging documentation](RemoteStaging.md).
 
 ## Oxen Badges
 
@@ -347,7 +373,7 @@ Oxen knows how to compare text files as well as [tabular data](DataFrames.md) be
 If the file is tabular data `oxen diff` will show you the rows that were added or removed.
 
 ```bash
-$ oxen df annotations/data.csv --add_row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
+$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
 $ oxen diff annotations/data.csv 
 
 Added Rows
@@ -363,7 +389,7 @@ Added Rows
 If the tabular data schema has changed `oxen diff` will flag and show you the columns that were added.
 
 ```bash
-$ oxen df annotations/data.csv --add_col 'is_fluffy:unknown:str' -o annotations/data.csv
+$ oxen df annotations/data.csv --add-col 'is_fluffy:unknown:str' -o annotations/data.csv
 $ oxen diff annotations/data.csv
 
 Added Cols
