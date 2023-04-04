@@ -70,7 +70,7 @@ Repositories that live on an Oxen Server have the idea of a `namespace` and a `n
 Once you know your remote repository URL you can add it as a remote.
 
 ```bash
-$ oxen remote add origin http://<HOST>/MyNamespace/MyRepoName
+$ oxen config --set-remote origin http://<HOST>/MyNamespace/MyRepoName
 ```
 
 Once a remote is set you can push

@@ -1,4 +1,19 @@
 
+# v0.5.0
+
+## Features
+* Remote staging area
+  * `oxen remote status`
+  * `oxen remote add file.png` 
+  * `oxen remote commit -m "committing without cloning data"`
+  * `oxen remote diff path/to/file.png` 
+* Remote DataFrame CLI interface
+  * `oxen remote df annotations/train.csv`
+  * `oxen remote df annotations/train.csv --add-row 'file.png,label'`
+
+## Bug Fixes
+* DF api on DataFrames where we cannot detect the schema
+
 # v0.4.11
 
 * Fix cloning an empty remote repo
