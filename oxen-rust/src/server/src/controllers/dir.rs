@@ -3,8 +3,6 @@ use crate::controllers::entries::PageNumQuery;
 
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
-use liboxen::view::entry::ResourceVersion;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{PaginatedDirEntriesResponse, StatusMessage};
 use liboxen::{api, constants};
 
@@ -89,27 +87,15 @@ fn list_directory_for_commit(
                 &page,
                 &page_size,
             ) {
-                Ok((entries, total_entries)) => {
+                Ok(paginated_entries) => {
                     log::debug!(
-                        "list_directory_for_commit commit {} got {} entries",
+                        "list_directory_for_commit commit {} got total_entries {} entries.len() {}",
                         commit_id,
-                        entries.len()
+                        paginated_entries.total_entries,
+                        paginated_entries.entries.len()
                     );
 
-                    let total_pages = (total_entries as f64 / page_size as f64) + 1.0;
-                    let view = PaginatedDirEntriesResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
-                        page_size,
-                        page_number: page,
-                        total_pages: total_pages as usize,
-                        total_entries,
-                        resource: Some(ResourceVersion {
-                            path: directory.to_str().unwrap().to_string(),
-                            version: branch_or_commit_id.to_string(),
-                        }),
-                        entries,
-                    };
+                    let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
                     Ok((view, commit))
                 }
                 Err(err) => {
