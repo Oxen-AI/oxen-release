@@ -333,7 +333,8 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let directory = directory.unwrap_or(PathBuf::from("."));
     let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
-    let branch = command::current_branch(&repository)?.unwrap();
+    let branch =
+        command::current_branch(&repository)?.ok_or_else(OxenError::must_be_on_valid_branch)?;
 
     let entries = command::remote_ls(&remote_repo, &branch, &directory, opts).await?;
     println!(
