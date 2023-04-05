@@ -12,7 +12,7 @@ Remote url: http://0.0.0.0:3000/greg/SmallCatDog
 Now let's set a remote named `origin` to this url. You can have multiple remotes with different URLs if you want to sync to different servers. For now we will just be working with `origin`
 
 ```shell
-$ oxen remote add origin http://0.0.0.0:3000/repositories/SmallCatDog
+$ oxen config --set-remote origin http://0.0.0.0:3000/repositories/SmallCatDog
 ```
 
 Next let's push the data that is committed on the `main` branch to the remote named `origin`.
