@@ -266,6 +266,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_rm_staged_dir_with_slash() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_no_commits_async(|repo| async move {
+            // Stage the README.md file
+            let path = Path::new("train/");
+            command::add(&repo, repo.path.join(path))?;
+
+            let status = command::status(&repo)?;
+            assert_eq!(status.added_dirs.len(), 1);
+
+            let opts = RmOpts {
+                path: path.to_path_buf(),
+                staged: true,
+                recursive: true, // make sure to pass in recursive
+                remote: false,
+            };
+            let result = rm::rm(&repo, &opts).await;
+            assert!(result.is_ok());
+
+            let status = command::status(&repo)?;
+            status.print_stdout();
+            assert_eq!(status.added_dirs.len(), 0);
+            assert_eq!(status.added_files.len(), 0);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_rm_file() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Remove the readme
@@ -367,6 +396,35 @@ mod tests {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Remove the train dir
             let path = Path::new("train");
+
+            let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(path));
+
+            let opts = RmOpts {
+                path: path.to_path_buf(),
+                staged: false,
+                recursive: true, // Must pass in recursive = true
+                remote: false,
+            };
+            rm::rm(&repo, &opts).await?;
+
+            let status = command::status(&repo)?;
+            status.print_stdout();
+
+            assert_eq!(status.added_files.len(), og_num_files);
+            for (_, staged_entry) in status.added_files.iter() {
+                assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_rm_dir_with_slash() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            // Remove the train dir
+            let path = Path::new("train/");
 
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path.join(path));
 
