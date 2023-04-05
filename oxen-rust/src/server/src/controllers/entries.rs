@@ -340,14 +340,15 @@ pub async fn list_lines_in_file(req: HttpRequest, query: web::Query<PageNumQuery
                                 start,
                                 page_size,
                             );
-                        let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+
+                        let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
                         HttpResponse::Ok().json(PaginatedLinesResponse {
                             status: String::from(STATUS_SUCCESS),
                             status_message: String::from(MSG_RESOURCE_FOUND),
                             lines,
                             page_size,
                             page_number: page,
-                            total_pages: total_pages as usize,
+                            total_pages,
                             total_entries,
                         })
                     }
@@ -401,13 +402,13 @@ pub fn get_entries_for_page(
 
                     let total_entries: usize = api::local::entries::count_for_commit(repo, &commit)
                         .unwrap_or(entries.len());
-                    let total_pages = (total_entries as f64 / page_size as f64) + 1f64;
+                    let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
                     let view = PaginatedEntries {
                         status: String::from(STATUS_SUCCESS),
                         status_message: String::from(MSG_RESOURCE_FOUND),
                         page_size,
                         page_number: page_num,
-                        total_pages: total_pages as usize,
+                        total_pages,
                         total_entries,
                         entries,
                     };

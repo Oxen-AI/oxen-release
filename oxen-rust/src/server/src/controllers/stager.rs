@@ -881,7 +881,8 @@ fn raw_mods_response(
     match index::mod_stager::list_mods_raw(repo, branch, user_id, &entry.path) {
         Ok(staged) => {
             let total_entries = staged.len();
-            let total_pages = (total_entries / page_size) + 1;
+            let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
+
             let paginated = util::paginate(staged, page_num, page_size);
             let response = ListStagedFileModResponseRaw {
                 status: String::from(STATUS_SUCCESS),
