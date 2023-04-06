@@ -129,7 +129,7 @@ Revert back
 
 Push the changes
 
-`oxen remote add origin http://0.0.0.0:3000/repositories/SmallCatDog`
+`oxen config --set-remote origin http://0.0.0.0:3000/repositories/SmallCatDog`
 
 `oxen push`
 
