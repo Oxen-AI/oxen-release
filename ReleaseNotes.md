@@ -1,4 +1,15 @@
 
+# v0.5.1
+
+## Features
+* Add `oxen remote ls` command to view what files are on your remote branch
+
+## Bug Fixes
+* Fully resolve path for `oxen remote add` command and check if it is in the repo directory before requiring `-p` flag
+* Fix pagination on directories
+* Fix `oxen rm -r` with a trailing slash on the directory
+* Fix error message when trying to push and a remote is not set
+
 # v0.5.0
 
 ## Features
