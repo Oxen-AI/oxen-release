@@ -20,9 +20,11 @@ pub fn paginate<T: Clone>(entries: Vec<T>, page: usize, page_size: usize) -> Vec
         entries.len()
     );
 
-    if start > entries.len() || end > entries.len() {
+    if start < entries.len() && end > entries.len() {
         entries[start..].to_vec()
-    } else {
+    } else if start < entries.len() && end <= entries.len() {
         entries[start..end].to_vec()
+    } else {
+        vec![]
     }
 }

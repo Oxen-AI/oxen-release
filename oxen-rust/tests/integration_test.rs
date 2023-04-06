@@ -8,6 +8,7 @@ use liboxen::index::CommitDirReader;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::StagedEntryStatus;
+use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::test;
@@ -3537,6 +3538,59 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
         .await?;
 
         Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|mut repo| async move {
+        // Create 8 directories
+        for n in 0..8 {
+            let dirname = format!("dir_{}", n);
+            let dir_path = repo.path.join(dirname);
+            util::fs::create_dir_all(&dir_path)?;
+            let filename = "data.txt";
+            let filepath = dir_path.join(filename);
+            util::fs::write(&filepath, format!("Hi {}", n))?;
+        }
+        // Create 2 files
+        let filename = "labels.txt";
+        let filepath = repo.path.join(filename);
+        util::fs::write(&filepath, "hello world")?;
+
+        let filename = "README.md";
+        let filepath = repo.path.join(filename);
+        util::fs::write(&filepath, "readme....")?;
+
+        // Add and commit all the dirs and files
+        command::add(&repo, &repo.path)?;
+        command::commit(&repo, "Adding all the data")?.unwrap();
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it real good
+        command::push(&repo).await?;
+
+        // Now list the remote
+        let branch = command::current_branch(&repo)?.unwrap();
+        let dir = Path::new(".");
+        let opts = PaginateOpts {
+            page_num: 1,
+            page_size: 10,
+        };
+        let paginated = command::remote_ls(&remote_repo, &branch, dir, &opts).await?;
+        assert_eq!(paginated.entries.len(), 10);
+        assert_eq!(paginated.page_number, 1);
+        assert_eq!(paginated.page_size, 10);
+        assert_eq!(paginated.total_pages, 1);
+
+        Ok(())
     })
     .await
 }

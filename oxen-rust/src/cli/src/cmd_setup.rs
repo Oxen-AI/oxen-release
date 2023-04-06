@@ -20,6 +20,7 @@ pub const PUSH: &str = "push";
 pub const PULL: &str = "pull";
 pub const DIFF: &str = "diff";
 pub const MIGRATE: &str = "migrate";
+pub const LS: &str = "ls";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const READ_LINES: &str = "read-lines";
 
@@ -110,6 +111,7 @@ pub fn remote() -> Command<'static> {
         .subcommand(log())
         .subcommand(df())
         .subcommand(diff())
+        .subcommand(ls())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
@@ -152,6 +154,24 @@ pub fn log() -> Command<'static> {
     Command::new(LOG)
         .about("See log of commits")
         .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
+}
+
+pub fn ls() -> Command<'static> {
+    Command::new(LS)
+        .about("List the files in an oxen repo, used for remote repos you do not have locally.")
+        .arg(arg!([PATH] "The path you want to list."))
+        .arg(
+            Arg::new("page")
+                .long("page")
+                .help("Page number when paginating through the data frame. Default page = 1")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("page-size")
+                .long("page-size")
+                .help("Paginated through the data frame. Default page-size = 10")
+                .takes_value(true),
+        )
 }
 
 pub fn df() -> Command<'static> {
