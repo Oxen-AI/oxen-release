@@ -47,7 +47,8 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                             let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
                             let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
-                            let total_pages = (full_df.height() / page_size) + 1;
+                            let total_pages =
+                                (full_df.height() as f64 / page_size as f64).ceil() as usize;
 
                             let response = JsonDataFrameSliceResponse {
                                 status: String::from(STATUS_SUCCESS),
