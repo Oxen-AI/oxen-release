@@ -154,9 +154,13 @@ impl Stager {
                 relative_path
             );
             if !files_in_dir.is_empty() {
+                println!("Removing {} files", files_in_dir.len());
+                let pb = ProgressBar::new(files_in_dir.len() as u64);
                 for entry in files_in_dir.iter() {
                     self.add_removed_file(&entry.path, entry)?;
+                    pb.inc(1);
                 }
+                pb.finish();
 
                 log::debug!(
                     "Stager.add() !path.exists() !files_in_dir.is_empty() {:?}",
