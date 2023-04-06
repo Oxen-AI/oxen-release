@@ -1,7 +1,8 @@
 use crate::error::OxenError;
 
 use crate::index::CommitDirReader;
-use crate::model::{Commit, CommitEntry, DirEntry, LocalRepository};
+use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::view::PaginatedDirEntries;
 use std::path::Path;
 
 pub fn get_entry_for_commit(
@@ -40,7 +41,7 @@ pub fn list_directory(
     directory: &Path,
     page: &usize,
     page_size: &usize,
-) -> Result<(Vec<DirEntry>, usize), OxenError> {
+) -> Result<PaginatedDirEntries, OxenError> {
     let reader = CommitDirReader::new(repo, commit)?;
     reader.list_directory(directory, branch_or_commit_id, *page, *page_size)
 }

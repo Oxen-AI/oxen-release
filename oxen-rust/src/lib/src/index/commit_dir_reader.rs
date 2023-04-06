@@ -5,6 +5,7 @@ use crate::index::{CommitDirEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
 use crate::view::entry::ResourceVersion;
+use crate::view::PaginatedDirEntries;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
@@ -137,19 +138,18 @@ impl CommitDirReader {
 
     pub fn list_directory(
         &self,
-        search_dir: &Path,
+        directory: &Path,
         branch_or_commit_id: &str,
         page: usize,
         page_size: usize,
-    ) -> Result<(Vec<DirEntry>, usize), OxenError> {
+    ) -> Result<PaginatedDirEntries, OxenError> {
         let commit_reader = CommitReader::new(&self.repository)?;
 
         let mut dir_paths: Vec<DirEntry> = vec![];
         for dir in self.list_committed_dirs()? {
             // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
             if let Some(parent) = dir.parent() {
-                if parent == search_dir
-                    || (parent == Path::new("") && search_dir == Path::new("./"))
+                if parent == directory || (parent == Path::new("") && directory == Path::new("./"))
                 {
                     dir_paths.push(self.dir_entry_from_dir(
                         &dir,
@@ -159,34 +159,39 @@ impl CommitDirReader {
                 }
             }
         }
+        log::debug!("list_directory got dir_paths {}", dir_paths.len());
 
         let mut file_paths: Vec<DirEntry> = vec![];
         let commit_dir_reader =
-            CommitDirEntryReader::new(&self.repository, &self.commit_id, search_dir)?;
+            CommitDirEntryReader::new(&self.repository, &self.commit_id, directory)?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
-        for file in commit_dir_reader.list_entry_page(page, page_size)? {
+        for file in commit_dir_reader.list_entries()? {
             file_paths.push(self.dir_entry_from_commit_entry(
                 &file,
                 &commit_reader,
                 branch_or_commit_id,
             )?)
         }
+        log::debug!("list_directory got file_paths {}", dir_paths.len());
 
         // Combine all paths, starting with dirs
         dir_paths.append(&mut file_paths);
 
         log::debug!(
-            "list_directory page {} page_size {} total {}",
+            "list_directory {:?} page {} page_size {} total {}",
+            directory,
             page,
             page_size,
-            total
+            total,
         );
-        if page_size < dir_paths.len() {
-            let subset: Vec<DirEntry> = dir_paths[0..page_size].to_vec();
-            Ok((subset, total))
-        } else {
-            Ok((dir_paths, total))
-        }
+
+        let resource = Some(ResourceVersion {
+            path: directory.to_str().unwrap().to_string(),
+            version: branch_or_commit_id.to_string(),
+        });
+        Ok(PaginatedDirEntries::from_entries(
+            dir_paths, resource, page, page_size, total,
+        ))
     }
 
     fn dir_entry_from_dir(
@@ -309,9 +314,9 @@ impl CommitDirReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::error::OxenError;
     use crate::index::CommitDirReader;
+    use crate::{command, util};
 
     use crate::test;
 
@@ -340,7 +345,9 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) = reader.list_directory(Path::new("./"), &commit.id, 1, 10)?;
+            let paginated = reader.list_directory(Path::new("./"), &commit.id, 1, 10)?;
+            let dir_entries = paginated.entries;
+            let size = paginated.total_entries;
             for entry in dir_entries.iter() {
                 println!("{entry:?}");
             }
@@ -368,8 +375,9 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) =
-                reader.list_directory(Path::new("train"), &commit.id, 1, 10)?;
+            let paginated = reader.list_directory(Path::new("train"), &commit.id, 1, 10)?;
+            let dir_entries = paginated.entries;
+            let size = paginated.total_entries;
 
             assert_eq!(size, 5);
             assert_eq!(dir_entries.len(), 5);
@@ -385,8 +393,10 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) =
+            let paginated =
                 reader.list_directory(Path::new("annotations/train"), &commit.id, 1, 10)?;
+            let dir_entries = paginated.entries;
+            let size = paginated.total_entries;
 
             assert_eq!(size, 4);
             assert_eq!(dir_entries.len(), 4);
@@ -402,14 +412,172 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
-            let (dir_entries, size) =
-                reader.list_directory(Path::new("train"), &commit.id, 2, 3)?;
+            let paginated = reader.list_directory(Path::new("train"), &commit.id, 2, 3)?;
+            let dir_entries = paginated.entries;
+            let total_entries = paginated.total_entries;
+
             for entry in dir_entries.iter() {
                 println!("{entry:?}");
             }
 
-            assert_eq!(size, 5);
+            assert_eq!(total_entries, 5);
             assert_eq!(dir_entries.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_dir_reader_list_train_directory_exactly_ten() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create 8 directories
+            for n in 0..8 {
+                let dirname = format!("dir_{}", n);
+                let dir_path = repo.path.join(dirname);
+                util::fs::create_dir_all(&dir_path)?;
+                let filename = "data.txt";
+                let filepath = dir_path.join(filename);
+                util::fs::write(&filepath, format!("Hi {}", n))?;
+            }
+            // Create 2 files
+            let filename = "labels.txt";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "hello world")?;
+
+            let filename = "README.md";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "readme....")?;
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+
+            let page_number = 1;
+            let page_size = 10;
+
+            let reader = CommitDirReader::new(&repo, &commit)?;
+            let paginated =
+                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            assert_eq!(paginated.total_entries, 10);
+            assert_eq!(paginated.total_pages, 1);
+            assert_eq!(paginated.entries.len(), 10);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_dir_reader_list_train_directory_exactly_ten_page_two() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create 8 directories
+            for n in 0..8 {
+                let dirname = format!("dir_{}", n);
+                let dir_path = repo.path.join(dirname);
+                util::fs::create_dir_all(&dir_path)?;
+                let filename = "data.txt";
+                let filepath = dir_path.join(filename);
+                util::fs::write(&filepath, format!("Hi {}", n))?;
+            }
+            // Create 2 files
+            let filename = "labels.txt";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "hello world")?;
+
+            let filename = "README.md";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "readme....")?;
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+
+            let page_number = 2;
+            let page_size = 10;
+
+            let reader = CommitDirReader::new(&repo, &commit)?;
+            let paginated =
+                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            assert_eq!(paginated.total_entries, 10);
+            assert_eq!(paginated.total_pages, 1);
+            assert_eq!(paginated.entries.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_dir_reader_list_train_directory_nine_entries_page_size_ten(
+    ) -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create 7 directories
+            for n in 0..7 {
+                let dirname = format!("dir_{}", n);
+                let dir_path = repo.path.join(dirname);
+                util::fs::create_dir_all(&dir_path)?;
+                let filename = "data.txt";
+                let filepath = dir_path.join(filename);
+                util::fs::write(&filepath, format!("Hi {}", n))?;
+            }
+            // Create 2 files
+            let filename = "labels.txt";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "hello world")?;
+
+            let filename = "README.md";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "readme....")?;
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+
+            let page_number = 1;
+            let page_size = 10;
+
+            let reader = CommitDirReader::new(&repo, &commit)?;
+            let paginated =
+                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            assert_eq!(paginated.total_entries, 9);
+            assert_eq!(paginated.total_pages, 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_dir_reader_list_train_directory_eleven_entries_page_size_ten(
+    ) -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create 9 directories
+            for n in 0..9 {
+                let dirname = format!("dir_{}", n);
+                let dir_path = repo.path.join(dirname);
+                util::fs::create_dir_all(&dir_path)?;
+                let filename = "data.txt";
+                let filepath = dir_path.join(filename);
+                util::fs::write(&filepath, format!("Hi {}", n))?;
+            }
+            // Create 2 files
+            let filename = "labels.txt";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "hello world")?;
+
+            let filename = "README.md";
+            let filepath = repo.path.join(filename);
+            util::fs::write(filepath, "readme....")?;
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+
+            let page_number = 1;
+            let page_size = 10;
+
+            let reader = CommitDirReader::new(&repo, &commit)?;
+            let paginated =
+                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            assert_eq!(paginated.total_entries, 11);
+            assert_eq!(paginated.total_pages, 2);
 
             Ok(())
         })
