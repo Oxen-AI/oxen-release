@@ -68,7 +68,7 @@ impl OxenError {
 
     pub fn remote_not_set() -> OxenError {
         OxenError::basic_str(
-            "Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n",
+            "Remote not set, you can set a remote by running:\n\noxen config --set-remote origin <name> <url>\n",
         )
     }
 
@@ -141,6 +141,14 @@ impl OxenError {
             "File copy error: {err:?}\nCould not copy from `{:?}` to `{:?}`",
             src.as_ref(),
             dst.as_ref()
+        );
+        OxenError::basic_str(err)
+    }
+
+    pub fn remote_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
+        let err = format!(
+            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
+            path.as_ref()
         );
         OxenError::basic_str(err)
     }
