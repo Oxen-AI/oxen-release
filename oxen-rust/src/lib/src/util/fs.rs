@@ -360,6 +360,18 @@ pub fn copy(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenErro
     }
 }
 
+/// Recursively check if a file exists within a directory
+pub fn file_exists_in_directory(directory: impl AsRef<Path>, file: impl AsRef<Path>) -> bool {
+    let mut file = file.as_ref();
+    while file.parent().is_some() {
+        if directory.as_ref() == file.parent().unwrap() {
+            return true;
+        }
+        file = file.parent().unwrap();
+    }
+    false
+}
+
 /// Wrapper around the std::fs::create_dir_all command to tell us which file failed to copy
 pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();

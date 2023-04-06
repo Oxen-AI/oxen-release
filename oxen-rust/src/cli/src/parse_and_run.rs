@@ -185,9 +185,11 @@ fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpt
 }
 
 async fn remote_status(sub_matches: &ArgMatches) {
+    let directory = sub_matches.value_of("path").map(PathBuf::from);
+
     let is_remote = true;
     let opts = parse_status_args(sub_matches, is_remote);
-    match dispatch::status(None, &opts).await {
+    match dispatch::status(directory, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");
