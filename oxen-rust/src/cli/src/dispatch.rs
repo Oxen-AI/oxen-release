@@ -9,6 +9,7 @@ use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::LogOpts;
+use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
@@ -54,7 +55,7 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
 
     let remote_repo = command::create_remote(&repo, namespace, name, host).await?;
     println!(
-        "Remote created for {}\n\noxen remote add origin {}",
+        "Remote created for {}\n\noxen config --set-remote origin {}",
         name, remote_repo.remote.url
     );
 
@@ -320,6 +321,34 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
             head.id, head.message
         );
     }
+
+    Ok(())
+}
+
+pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Result<(), OxenError> {
+    // Should we let user call this from any directory and look up for parent?
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let directory = directory.unwrap_or(PathBuf::from("."));
+    let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+    let branch = command::current_branch(&repository)?.unwrap();
+
+    let entries = command::remote_ls(&remote_repo, &branch, &directory, opts).await?;
+    println!(
+        "Displaying page {}/{} of {} total entries\n",
+        opts.page_num, entries.total_pages, entries.total_entries
+    );
+
+    for entry in entries.entries {
+        if entry.is_dir {
+            println!("  {}/", entry.filename);
+        } else {
+            println!("  {}", entry.filename);
+        }
+    }
+    println!();
 
     Ok(())
 }

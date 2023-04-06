@@ -1,11 +1,13 @@
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, RESTORE, RM, STATUS};
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, LS, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
-use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use liboxen::constants::{
+    DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME,
+};
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AddOpts, CloneOpts, LogOpts, RmOpts};
+use liboxen::opts::{AddOpts, CloneOpts, LogOpts, PaginateOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -127,6 +129,9 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (DIFF, sub_matches) => {
                 remote_diff(sub_matches).await;
             }
+            (LS, sub_matches) => {
+                remote_ls(sub_matches).await;
+            }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
             }
@@ -185,6 +190,35 @@ async fn remote_status(sub_matches: &ArgMatches) {
     let is_remote = true;
     let opts = parse_status_args(sub_matches, is_remote);
     match dispatch::status(directory, &opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}");
+        }
+    }
+}
+
+fn parse_pagination_args(sub_matches: &ArgMatches) -> PaginateOpts {
+    let page_num: usize = sub_matches
+        .value_of("page")
+        .unwrap_or(format!("{}", DEFAULT_PAGE_NUM).as_str())
+        .parse::<usize>()
+        .expect("Page must be a valid integer.");
+    let page_size: usize = sub_matches
+        .value_of("page-size")
+        .unwrap_or(format!("{}", DEFAULT_PAGE_SIZE).as_str())
+        .parse::<usize>()
+        .expect("Page size must be a valid integer.");
+
+    PaginateOpts {
+        page_num,
+        page_size,
+    }
+}
+
+async fn remote_ls(sub_matches: &ArgMatches) {
+    let opts = parse_pagination_args(sub_matches);
+    let path = sub_matches.value_of("PATH").map(PathBuf::from);
+    match dispatch::remote_ls(path, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");

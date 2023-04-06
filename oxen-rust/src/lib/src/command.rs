@@ -30,9 +30,11 @@ use crate::model::User;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository, StagedData};
 
 use crate::opts::AddOpts;
+use crate::opts::PaginateOpts;
 use crate::opts::{CloneOpts, LogOpts, RestoreOpts, RmOpts};
 use crate::util;
 use crate::util::resource;
+use crate::view::PaginatedDirEntries;
 
 use bytevec::ByteDecodable;
 use polars::prelude::DataFrame;
@@ -183,6 +185,22 @@ pub async fn remote_status_from_local(
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
     remote_stager::status_from_local(repository, directory, opts).await
+}
+
+pub async fn remote_ls(
+    remote_repo: &RemoteRepository,
+    branch: &Branch,
+    directory: &Path,
+    opts: &PaginateOpts,
+) -> Result<PaginatedDirEntries, OxenError> {
+    api::remote::dir::list_dir(
+        remote_repo,
+        &branch.name,
+        directory,
+        opts.page_num,
+        opts.page_size,
+    )
+    .await
 }
 
 /// # Stage files into repository

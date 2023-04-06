@@ -68,7 +68,7 @@ impl OxenError {
 
     pub fn remote_not_set() -> OxenError {
         OxenError::basic_str(
-            "Remote not set, you can set a remote by running:\n\noxen remote add <name> <url>\n",
+            "Remote not set, you can set a remote by running:\n\noxen config --set-remote origin <name> <url>\n",
         )
     }
 
