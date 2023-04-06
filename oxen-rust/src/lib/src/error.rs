@@ -145,6 +145,14 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn remote_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
+        let err = format!(
+            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
+            path.as_ref()
+        );
+        OxenError::basic_str(err)
+    }
+
     pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
         path: P,
         commit_id: S,

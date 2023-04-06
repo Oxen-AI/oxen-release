@@ -38,6 +38,7 @@ use bytevec::ByteDecodable;
 use polars::prelude::DataFrame;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
+use std::path::PathBuf;
 use std::str;
 
 /// # Initialize an Empty Oxen Repository
@@ -258,25 +259,8 @@ pub async fn remote_add<P: AsRef<Path>>(
         Err(err) => return Err(err),
     };
 
-    let directory_name = if path.is_absolute() {
-        // if path is absolute, require that they specified a directory name to put the file in
-        if let Some(dir) = &opts.directory {
-            dir.to_string_lossy().to_string()
-        } else {
-            return Err(OxenError::basic_str(
-                "If the path is absolute, you must specify a path to put the file in.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
-            ));
-        }
-    } else {
-        // if the path is relative, take the parent directory name and use that as the directory name
-        let directory = path
-            .parent()
-            .ok_or_else(|| OxenError::basic_str("Could not get parent directory"))?;
-        directory
-            .to_str()
-            .ok_or_else(|| OxenError::basic_str("Could not convert path to string"))?
-            .to_string()
-    };
+    let (remote_directory, resolved_path) = resolve_remote_add_file_path(repo, path, opts)?;
+    let directory_name = remote_directory.to_string_lossy().to_string();
 
     let user_id = UserConfig::identifier()?;
     let result = api::remote::staging::add_file(
@@ -284,13 +268,43 @@ pub async fn remote_add<P: AsRef<Path>>(
         &branch.name,
         &user_id,
         &directory_name,
-        path.to_path_buf(),
+        resolved_path,
     )
     .await?;
 
     println!("{}", result.to_string_lossy());
 
     Ok(())
+}
+
+/// Returns (remote_directory, resolved_path)
+fn resolve_remote_add_file_path(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    opts: &AddOpts,
+) -> Result<(PathBuf, PathBuf), OxenError> {
+    let path = path.as_ref();
+    match std::fs::canonicalize(path) {
+        Ok(path) => {
+            if util::fs::file_exists_in_directory(&repo.path, &path) {
+                // Path is in the repo, so we get the remote directory from the repo path
+                let relative_to_repo = util::fs::path_relative_to_dir(&path, &repo.path)?;
+                let remote_directory = relative_to_repo
+                    .parent()
+                    .ok_or_else(|| OxenError::file_has_no_parent(&path))?;
+                Ok((remote_directory.to_path_buf(), path))
+            } else if opts.directory.is_some() {
+                // We have to get the remote directory from the opts
+                Ok((opts.directory.clone().unwrap(), path))
+            } else {
+                return Err(OxenError::remote_add_file_not_in_repo(path));
+            }
+        }
+        Err(err) => {
+            log::error!("Err: {err:?}");
+            Err(OxenError::file_does_not_exist(path))
+        }
+    }
 }
 
 fn add_row_local(path: &Path, data: &str) -> Result<(), OxenError> {
