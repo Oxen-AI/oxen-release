@@ -420,6 +420,13 @@ pub fn branch() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("move")
+                .long("move")
+                .short('m')
+                .help("Rename the current local branch.")
+                .takes_value(true),
+        )
+        .arg(
             Arg::new("show-current")
                 .long("show-current")
                 .help("Print the current branch")

@@ -530,6 +530,10 @@ pub async fn branch(sub_matches: &ArgMatches) {
         if let Err(err) = dispatch::force_delete_branch(name) {
             eprintln!("{err}")
         }
+    } else if let Some(name) = sub_matches.value_of("move") {
+        if let Err(err) = dispatch::rename_current_branch(name) {
+            eprintln!("{err}")
+        }
     } else if sub_matches.is_present("show-current") {
         if let Err(err) = dispatch::show_current_branch() {
             eprintln!("{err}")
