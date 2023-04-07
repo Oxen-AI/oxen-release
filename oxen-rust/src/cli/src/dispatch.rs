@@ -485,6 +485,13 @@ pub fn force_delete_branch(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn rename_current_branch(name: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::rename_current_branch(&repository, name)?;
+    Ok(())
+}
+
 pub async fn checkout(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
