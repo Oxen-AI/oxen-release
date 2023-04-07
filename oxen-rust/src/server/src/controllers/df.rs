@@ -31,18 +31,18 @@ pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpRespon
                     filepath
                 );
 
+                let mut opts = DFOpts::empty();
+                log::debug!("Initial opts {:?}", opts);
+                opts = df_opts_query::parse_opts(&query, &mut opts);
+
                 match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
-                    Ok(version_path) => match tabular::scan_df(&version_path) {
+                    Ok(version_path) => match tabular::scan_df(&version_path, &opts) {
                         Ok(lazy_df) => {
                             log::debug!("Read version file {:?}", version_path);
 
-                            let mut filter = DFOpts::empty();
-                            log::debug!("Initial filter {:?}", filter);
-                            filter = df_opts_query::parse_opts(&query, &mut filter);
-
-                            log::debug!("Got filter {:?}", filter);
+                            log::debug!("Got opts {:?}", opts);
                             let lazy_cp = lazy_df.clone();
-                            let mut df = tabular::transform_lazy(lazy_cp, filter).unwrap();
+                            let mut df = tabular::transform_lazy(lazy_cp, opts).unwrap();
                             let full_df = lazy_df.collect().unwrap();
                             let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
                             let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
