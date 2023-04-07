@@ -282,6 +282,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
 
     liboxen::df::DFOpts {
         output: sub_matches.value_of("output").map(std::path::PathBuf::from),
+        delimiter: sub_matches.value_of("delimiter").map(String::from),
         slice: sub_matches.value_of("slice").map(String::from),
         page_size: sub_matches
             .value_of("page-size")
@@ -327,18 +328,17 @@ async fn remote_df(sub_matches: &ArgMatches) {
 }
 
 pub fn df(sub_matches: &ArgMatches) {
+    let is_remote = false;
+    let opts = parse_df_sub_matches(sub_matches, is_remote);
     let path = sub_matches.value_of("DF_SPEC").expect("required");
     if sub_matches.is_present("schema") || sub_matches.is_present("schema_flat") {
-        match dispatch::df_schema(path, sub_matches.is_present("schema_flat")) {
+        match dispatch::df_schema(path, sub_matches.is_present("schema_flat"), opts) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
             }
         }
     } else {
-        let is_remote = false;
-        let opts = parse_df_sub_matches(sub_matches, is_remote);
-
         match dispatch::df(path, opts) {
             Ok(_) => {}
             Err(err) => {

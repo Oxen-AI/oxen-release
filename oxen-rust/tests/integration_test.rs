@@ -2376,7 +2376,7 @@ fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         opts.add_row = Some("train/dog_99.jpg,dog,101.5,32.0,385,330".to_string());
         opts.content_type = ContentType::Csv;
-        let og_df = tabular::scan_df(&bbox_path)?;
+        let og_df = tabular::scan_df(&bbox_path, &opts)?;
         let mut new_df = tabular::transform_lazy(og_df, opts)?;
         tabular::write_df(&mut new_df, &bbox_path)?;
 
@@ -2751,7 +2751,7 @@ async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), O
         // Add in a column in this branch
         let mut opts = DFOpts::empty();
         opts.add_col = Some(String::from("random_col:unknown:str"));
-        let df = tabular::scan_df(&bbox_file)?;
+        let df = tabular::scan_df(&bbox_file, &opts)?;
         let mut df = tabular::transform_lazy(df, opts)?;
         println!("WRITE DF IN BRANCH {df:?}");
         tabular::write_df(&mut df, &bbox_file)?;

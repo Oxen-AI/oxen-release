@@ -29,10 +29,12 @@ const TAKE_ERROR: &str = "Could not take DataFrame";
 const CSV_READ_ERROR: &str = "Could not read csv from path";
 
 fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFrame, OxenError> {
+    log::debug!("try_infer_schema_csv delimiter: {:?}", delimiter as char);
     let result = reader
         .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
         .has_header(true)
         .with_delimiter(delimiter)
+        .with_encoding(CsvEncoding::LossyUtf8)
         .finish();
 
     match result {
@@ -59,7 +61,7 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
 }
 
 pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    // TODO: The LazyCsvReader was acting funky here...
+    // TODO: The LazyCsvReader was acting funky here on certain csvs...
     let df = read_df_csv(path, delimiter)?;
     Ok(df.lazy())
 }
@@ -552,6 +554,24 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
+fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, OxenError> {
+    if let Some(delimiter) = &opts.delimiter {
+        if delimiter.len() != 1 {
+            return Err(OxenError::basic_str("Delimiter must be a single character"));
+        }
+        return Ok(delimiter.as_bytes()[0]);
+    }
+
+    match csv_sniffer::Sniffer::new().sniff_path(path) {
+        Ok(metadata) => Ok(metadata.dialect.delimiter),
+        Err(err) => {
+            let err = format!("Error sniffing csv {:?}", err);
+            log::warn!("{}", err);
+            Ok(b',')
+        }
+    }
+}
+
 pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
@@ -562,7 +582,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
 
     if opts.has_transform() {
-        let df = scan_df(path)?;
+        let df = scan_df(path, &opts)?;
         let df = transform_lazy(df, opts)?;
         Ok(df)
     } else {
@@ -571,8 +591,11 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
                 "ndjson" => read_df_jsonl(path),
                 "jsonl" => read_df_jsonl(path),
                 "json" => read_df_json(path),
+                "csv" => {
+                    let delimiter = sniff_db_csv_delimiter(path, &opts)?;
+                    read_df_csv(path, delimiter)
+                }
                 "tsv" => read_df_csv(path, b'\t'),
-                "csv" => read_df_csv(path, b','),
                 "parquet" => read_df_parquet(path),
                 "arrow" => read_df_arrow(path),
                 _ => Err(OxenError::basic_str(err)),
@@ -582,7 +605,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 }
 
-pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
+pub fn scan_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
@@ -591,8 +614,11 @@ pub fn scan_df<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
         Some(extension) => match extension {
             "ndjson" => scan_df_jsonl(path),
             "jsonl" => scan_df_jsonl(path),
+            "csv" => {
+                let delimiter = sniff_db_csv_delimiter(&path, opts)?;
+                scan_df_csv(path, delimiter)
+            }
             "tsv" => scan_df_csv(path, b'\t'),
-            "csv" => scan_df_csv(path, b','),
             "parquet" => scan_df_parquet(path),
             "arrow" => scan_df_arrow(path),
             _ => Err(OxenError::basic_str(err)),
@@ -720,8 +746,12 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
     Ok(df)
 }
 
-pub fn schema_to_string<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
-    let df = scan_df(input)?;
+pub fn schema_to_string<P: AsRef<Path>>(
+    input: P,
+    flatten: bool,
+    opts: &DFOpts,
+) -> Result<String, OxenError> {
+    let df = scan_df(input, opts)?;
     let schema = df.schema().expect("Could not get schema");
 
     if flatten {
