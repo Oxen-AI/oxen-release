@@ -415,6 +415,30 @@ async fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), 
     .await
 }
 
+#[test]
+fn test_rename_current_branch() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test(|repo| {
+        // Create and checkout branch
+        let og_branch_name = "feature/world-explorer";
+        command::create_checkout_branch(&repo, og_branch_name)?;
+
+        // Rename branch
+        let new_branch_name = "feature/brave-new-world";
+        command::rename_current_branch(&repo, new_branch_name)?;
+
+        // Check that the branch name has changed
+        let current_branch = command::current_branch(&repo)?.unwrap();
+        assert_eq!(current_branch.name, new_branch_name);
+
+        // Check that old branch no longer exists
+        command::list_branches(&repo)?.iter().for_each(|branch| {
+            assert_ne!(branch.name, og_branch_name);
+        });
+
+        Ok(())
+    })
+}
+
 #[tokio::test]
 async fn test_command_checkout_added_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test_async(|repo| async move {

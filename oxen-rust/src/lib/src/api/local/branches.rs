@@ -8,8 +8,8 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 }
 
 pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
-    let referencer = RefReader::new(repo)?;
-    referencer.get_branch_by_name(name)
+    let ref_reader = RefReader::new(repo)?;
+    ref_reader.get_branch_by_name(name)
 }
 
 pub fn branch_exists(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
@@ -20,8 +20,8 @@ pub fn branch_exists(repo: &LocalRepository, name: &str) -> Result<bool, OxenErr
 }
 
 pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
-    let referencer = RefReader::new(repo)?;
-    match referencer.get_branch_by_name(name)? {
+    let ref_reader = RefReader::new(repo)?;
+    match ref_reader.get_branch_by_name(name)? {
         Some(branch) => {
             // Set the branch to point to the commit
             let ref_writer = RefWriter::new(repo)?;
@@ -89,4 +89,15 @@ pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError>
 
     let ref_writer = RefWriter::new(repo)?;
     ref_writer.delete_branch(name)
+}
+
+pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(), OxenError> {
+    if let Ok(Some(branch)) = command::current_branch(repo) {
+        let ref_writer = RefWriter::new(repo)?;
+        ref_writer.rename_branch(&branch.name, new_name)?;
+        ref_writer.set_head(new_name);
+        Ok(())
+    } else {
+        Err(OxenError::must_be_on_valid_branch())
+    }
 }
