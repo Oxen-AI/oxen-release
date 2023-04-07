@@ -17,6 +17,7 @@ chrono = "0.4.22"
 clap = { version = "3.1.0", features = ["cargo"] }
 colored = "2.0.0"
 comfy-table = "6.1.0"
+csv-sniffer = "0.3.1"
 deadqueue = "0.2.4"
 difference = "2.0.0"
 dirs = "4.0.0"

@@ -187,6 +187,13 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("delimiter")
+                .long("delimiter")
+                .short('d')
+                .help("The delimiter to use when reading the file. Default is ','")
+                .takes_value(true),
+        )
+        .arg(
             Arg::new("columns")
                 .long("columns")
                 .short('c')
