@@ -740,6 +740,11 @@ pub fn delete_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError
     api::local::branches::delete(repo, name)
 }
 
+/// # Rename current branch
+pub fn rename_current_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    api::local::branches::rename_current_branch(repo, name)
+}
+
 /// # Delete a remote branch
 pub async fn delete_remote_branch(
     repo: &LocalRepository,

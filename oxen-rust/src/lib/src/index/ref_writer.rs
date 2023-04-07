@@ -51,6 +51,20 @@ impl RefWriter {
         }
     }
 
+    pub fn rename_branch(&self, old_name: &str, new_name: &str) -> Result<(), OxenError> {
+        if !self.has_branch(old_name) {
+            Err(OxenError::local_branch_not_found(new_name))
+        } else {
+            // Get old id
+            let old_id = self.refs_db.get(old_name)?.unwrap();
+            // Delete old ref
+            self.refs_db.delete(old_name)?;
+            // Add new ref
+            self.refs_db.put(new_name, old_id)?;
+            Ok(())
+        }
+    }
+
     pub fn delete_branch(&self, name: &str) -> Result<(), OxenError> {
         if !self.has_branch(name) {
             let err = format!("Branch does not exist: {name}");
@@ -259,7 +273,7 @@ mod tests {
     fn test_ref_writer_delete_branch() -> Result<(), OxenError> {
         test::run_referencer_test(|referencer| {
             let name = "my-branch-name";
-            referencer.create_branch(name, "1")?;
+            referencer.create_branch(name, "1234")?;
             let og_branches = referencer.list_branches()?;
             let og_branch_count = og_branches.len();
 
@@ -269,6 +283,27 @@ mod tests {
             // Should have one less branch than after creation
             let branches = referencer.list_branches()?;
             assert_eq!(branches.len(), og_branch_count - 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_ref_writer_rename_branch() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let og_name = "my-branch-name";
+            referencer.create_branch(og_name, "1234")?;
+            let og_branches = referencer.list_branches()?;
+            let og_branch_count = og_branches.len();
+
+            // rename branch
+            let new_name = "new-name";
+            referencer.rename_branch(og_name, new_name)?;
+
+            // Should same number of branches, and one with the new name
+            let branches = referencer.list_branches()?;
+            assert_eq!(branches.len(), og_branch_count);
+            assert!(branches.iter().any(|b| b.name == new_name));
 
             Ok(())
         })
