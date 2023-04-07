@@ -449,8 +449,12 @@ pub async fn remote_df<P: AsRef<Path>>(
     }
 }
 
-pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool) -> Result<String, OxenError> {
-    tabular::schema_to_string(input, flatten)
+pub fn df_schema<P: AsRef<Path>>(
+    input: P,
+    flatten: bool,
+    opts: DFOpts,
+) -> Result<String, OxenError> {
+    tabular::schema_to_string(input, flatten, &opts)
 }
 
 /// List staged schema

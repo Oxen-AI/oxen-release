@@ -24,6 +24,7 @@ pub struct IndexedItem {
 #[derive(Clone, Debug)]
 pub struct DFOpts {
     pub output: Option<PathBuf>,
+    pub delimiter: Option<String>,
     pub slice: Option<String>,
     pub take: Option<String>,
     pub columns: Option<String>,
@@ -48,6 +49,7 @@ impl DFOpts {
     pub fn empty() -> DFOpts {
         DFOpts {
             output: None,
+            delimiter: None,
             slice: None,
             take: None,
             columns: None,
