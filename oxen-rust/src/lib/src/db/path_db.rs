@@ -13,8 +13,12 @@ use crate::db::str_json_db;
 /// More efficient than get_entry since it does not actual deserialize the entry
 pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) -> bool {
     let path = path.as_ref();
+
+    // strip trailing / if exists for looking up directories
+    let path_str = path.to_str().map(|s| s.trim_end_matches('/'));
+
     // log::debug!("path_db::has_entry?({:?}) from db {:?}", path, db.path());
-    if let Some(key) = path.to_str() {
+    if let Some(key) = path_str {
         return str_json_db::has_key(db, key);
     }
 
