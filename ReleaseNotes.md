@@ -1,4 +1,16 @@
 
+# v0.5.2
+
+## Features
+* Can rename local branch with `oxen branch -m <name>`
+* Auto detect delimiter for csv's and try to infer
+  * Can specify delimiter csv files for `oxen df` command with `-d`
+  * Can specify delimiter via API for remote df
+* Add progress bar to `oxen rm`
+
+## Bug Fixes
+* (#93) Set rocksdb MAX_OPEN_FILES to 128, and allow it to be set via environment variable
+
 # v0.5.1
 
 ## Features
