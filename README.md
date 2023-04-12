@@ -9,7 +9,7 @@ $ oxen init
 $ oxen add images/
 $ oxen commit -m "Adding my data"
 $ oxen config --set-remote origin https://hub.oxen.ai/ox/CatDogBoundingBox
-$ oxen push
+$ oxen push origin main
 
 # The first step in collaborating on a dataset should be `oxen clone`
 
