@@ -415,6 +415,27 @@ async fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), 
     .await
 }
 
+#[tokio::test]
+async fn test_cannot_checkout_branch_with_dots_in_name() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
+        // Write the first file
+        let hello_file = repo.path.join("hello.txt");
+        util::fs::write_to_path(&hello_file, "Hello")?;
+
+        // Track & commit the file
+        command::add(&repo, &hello_file)?;
+        command::commit(&repo, "Added hello.txt")?;
+
+        // Create and checkout branch
+        let branch_name = "test..ing";
+        let result = command::create_checkout_branch(&repo, branch_name);
+        assert!(result.is_err());
+
+        Ok(())
+    })
+    .await
+}
+
 #[test]
 fn test_rename_current_branch() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
