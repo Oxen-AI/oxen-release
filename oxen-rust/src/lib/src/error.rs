@@ -32,6 +32,7 @@ pub enum OxenError {
     DB(rocksdb::Error),
     ENV(std::env::VarError),
     RepoAlreadyExists(PathBuf),
+    RootCommitDoesNotMatch(String),
 }
 
 impl OxenError {

@@ -111,7 +111,8 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
     // If we have a root, and we are trying to push a new one, don't allow it
     if let Ok(root) = command::root_commit(&repo) {
         if commit.parent_ids.is_empty() && root.id != commit.id {
-            return Err(OxenError::basic_str("Root commit id does not match"));
+            log::error!("Root commit does not match {} != {}", root.id, commit.id);
+            return Err(OxenError::RootCommitDoesNotMatch(commit.id.to_owned()));
         }
     }
 
