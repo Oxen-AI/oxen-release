@@ -393,6 +393,10 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
                     status_message: String::from(MSG_RESOURCE_CREATED),
                     commit: commit.to_owned(),
                 }),
+                Err(OxenError::RootCommitDoesNotMatch(commit_id)) => {
+                    log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
+                    HttpResponse::InternalServerError().json(StatusMessage::error("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote."))
+                }
                 Err(err) => {
                     log::error!("Err create_commit: {}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())

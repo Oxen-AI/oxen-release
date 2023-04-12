@@ -424,8 +424,6 @@ pub fn schema_list_indices(schema_ref: &str) -> Result<(), OxenError> {
 }
 
 pub fn schema_list(staged: bool) -> Result<(), OxenError> {
-    println!("schema_list staged? {staged}");
-
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let schemas = if staged {
