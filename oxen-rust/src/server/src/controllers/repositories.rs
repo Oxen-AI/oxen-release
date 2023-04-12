@@ -1,6 +1,7 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
+use liboxen::error::OxenError;
 use liboxen::util;
 use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
@@ -130,11 +131,14 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
                     name: data.name.clone(),
                 },
             }),
-
+            Err(OxenError::RepoAlreadyExists(path)) => {
+                log::debug!("Repo already exists: {:?}", path);
+                HttpResponse::Conflict().json(StatusMessage::error("Repo already exists."))
+            }
             Err(err) => {
                 println!("Err api::local::repositories::create: {err:?}");
                 log::error!("Err api::local::repositories::create: {:?}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                HttpResponse::InternalServerError().json(StatusMessage::error("Invalid body."))
             }
         },
         Err(err) => {

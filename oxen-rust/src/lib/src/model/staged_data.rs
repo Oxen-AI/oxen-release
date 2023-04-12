@@ -20,7 +20,7 @@ pub const MSG_OXEN_RESTORE_FILE: &str =
 pub const MSG_OXEN_RESTORE_STAGED_FILE: &str =
     "  (use \"oxen restore --staged <file> ...\" to unstage)\n";
 pub const MSG_OXEN_SHOW_SCHEMA_STAGED: &str =
-    "  (use \"oxen schemas show <HASH> --staged\" to view staged schema)\n";
+    "  (use \"oxen schemas show --staged <HASH>\" to view staged schema)\n";
 
 #[derive(Debug, Clone)]
 pub struct StagedDataOpts {
