@@ -676,4 +676,37 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_list_remote_commits_base_head() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let local_repo = local_repo;
+            // There should be >= 7 commits here
+            let commit_history = command::log(&local_repo)?;
+            assert!(commit_history.len() >= 7);
+
+            // Log comes out in reverse order, so we want the 5th commit as the base,
+            // and will end up with the 2nd,3rd,4th,5th commits (4 commits total)
+            let base_commit = &commit_history[5];
+            let head_commit = &commit_history[2];
+
+            let committish = format!("{}..{}", base_commit.id, head_commit.id);
+            println!("committish: {}", committish);
+
+            // List the remote commits
+            let remote_commits =
+                api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+
+            for commit in remote_commits.iter() {
+                println!("got commit: {} -> {}", commit.id, commit.message);
+            }
+
+            assert_eq!(remote_commits.len(), 4);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(remote_repo)
+        })
+        .await
+    }
 }

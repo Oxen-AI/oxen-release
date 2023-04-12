@@ -698,7 +698,34 @@ pub fn log_commit_or_branch_history(
     repo: &LocalRepository,
     commit_or_branch: &str,
 ) -> Result<Vec<Commit>, OxenError> {
+    log::debug!("log_commit_or_branch_history: {}", commit_or_branch);
     let committer = CommitReader::new(repo)?;
+    if commit_or_branch.contains("..") {
+        // This is BASE..HEAD format, and we only want to history from BASE to HEAD
+        let split: Vec<&str> = commit_or_branch.split("..").collect();
+        let base = split[0];
+        let head = split[1];
+        let base_commit_id = match get_branch_commit_id(repo, base)? {
+            Some(branch_commit_id) => branch_commit_id,
+            None => String::from(base),
+        };
+        let head_commit_id = match get_branch_commit_id(repo, head)? {
+            Some(branch_commit_id) => branch_commit_id,
+            None => String::from(head),
+        };
+        log::debug!(
+            "log_commit_or_branch_history: base_commit_id: {} head_commit_id: {}",
+            base_commit_id,
+            head_commit_id
+        );
+        return match committer.history_from_base_to_head(&base_commit_id, &head_commit_id) {
+            Ok(commits) => Ok(commits),
+            Err(_) => Err(OxenError::local_commit_or_branch_not_found(
+                commit_or_branch,
+            )),
+        };
+    }
+
     let commit_id = match get_branch_commit_id(repo, commit_or_branch)? {
         Some(branch_commit_id) => branch_commit_id,
         None => String::from(commit_or_branch),
