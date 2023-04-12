@@ -3,6 +3,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 use std::path::Path;
+use std::path::PathBuf;
 
 use crate::model::Schema;
 
@@ -30,6 +31,7 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
+    RepoAlreadyExists(PathBuf),
 }
 
 impl OxenError {
@@ -198,6 +200,11 @@ impl OxenError {
 
     pub fn invalid_agg_query<S: AsRef<str>>(query: S) -> OxenError {
         let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
+        OxenError::basic_str(err)
+    }
+
+    pub fn invalid_set_remote_url<S: AsRef<str>>(url: S) -> OxenError {
+        let err = format!("\nRemote invalid, must be fully qualified URL, got: {:?}\n\n  oxen config --set-remote origin https://hub.oxen.ai/<namespace>/<reponame>\n", url.as_ref());
         OxenError::basic_str(err)
     }
 
