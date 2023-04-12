@@ -56,6 +56,23 @@ impl CommitReader {
         Ok(commits)
     }
 
+    pub fn history_from_base_to_head(
+        &self,
+        base_commit_id: &str,
+        head_commit_id: &str,
+    ) -> Result<Vec<Commit>, OxenError> {
+        let mut commits: HashSet<Commit> = HashSet::new();
+        CommitDBReader::history_from_base_to_head(
+            &self.db,
+            base_commit_id,
+            head_commit_id,
+            &mut commits,
+        )?;
+        let mut commits: Vec<Commit> = commits.into_iter().collect();
+        commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        Ok(commits)
+    }
+
     /// List the commit history from the HEAD commit
     pub fn history_from_head(&self) -> Result<Vec<Commit>, OxenError> {
         if self.repository.is_shallow_clone() {
@@ -136,6 +153,41 @@ mod tests {
 
             assert_eq!(history.first().unwrap().message, most_recent_message);
             assert_eq!(history.last().unwrap().message, INITIAL_COMMIT_MSG);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_get_commit_history_base_head() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let new_file = repo.path.join("new_1.txt");
+            test::write_txt_file_to_path(&new_file, "new 1")?;
+            command::add(&repo, new_file)?;
+            let base_commit = command::commit(&repo, "commit 1")?.unwrap();
+
+            let new_file = repo.path.join("new_2.txt");
+            test::write_txt_file_to_path(&new_file, "new 2")?;
+            command::add(&repo, new_file)?;
+            command::commit(&repo, "commit 2")?;
+
+            let new_file = repo.path.join("new_3.txt");
+            test::write_txt_file_to_path(&new_file, "new 3")?;
+            command::add(&repo, new_file)?;
+            let head_commit = command::commit(&repo, "commit 3")?.unwrap();
+
+            let new_file = repo.path.join("new_4.txt");
+            test::write_txt_file_to_path(&new_file, "new 4")?;
+            command::add(&repo, new_file)?;
+            command::commit(&repo, "commit 4")?;
+
+            let commit_reader = CommitReader::new(&repo)?;
+            let history =
+                commit_reader.history_from_base_to_head(&base_commit.id, &head_commit.id)?;
+            assert_eq!(history.len(), 3);
+
+            assert_eq!(history.first().unwrap().message, head_commit.message);
+            assert_eq!(history.last().unwrap().message, base_commit.message);
 
             Ok(())
         })

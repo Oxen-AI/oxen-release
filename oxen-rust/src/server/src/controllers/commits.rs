@@ -78,7 +78,7 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
         match p_index_commit_or_branch_history(&repo_dir, commit_or_branch) {
             Ok(response) => HttpResponse::Ok().json(response),
             Err(err) => {
-                let msg = format!("api err: {err}");
+                let msg = format!("{err}");
                 HttpResponse::NotFound().json(StatusMessage::error(msg))
             }
         }
