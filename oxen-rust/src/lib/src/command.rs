@@ -877,22 +877,22 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         .iter()
         .find(|c| c.merge_entry.path == path.as_ref())
     {
-        if util::fs::is_tabular(&conflict.head_entry.path) {
-            let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
-            let df_head = tabular::read_df(df_head_path, DFOpts::empty())?;
+        if util::fs::is_tabular(&conflict.base_entry.path) {
+            let df_base_path = util::fs::version_path(repo, &conflict.base_entry);
+            let df_base = tabular::read_df(df_base_path, DFOpts::empty())?;
             let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
             let df_merge = tabular::read_df(df_merge_path, DFOpts::empty())?;
 
-            log::debug!("GOT DF HEAD {}", df_head);
+            log::debug!("GOT DF HEAD {}", df_base);
             log::debug!("GOT DF MERGE {}", df_merge);
 
-            match df_head.vstack(&df_merge) {
+            match df_base.vstack(&df_merge) {
                 Ok(result) => {
                     log::debug!("GOT DF COMBINED {}", result);
                     match result.unique(None, polars::frame::UniqueKeepStrategy::First) {
                         Ok(mut uniq) => {
                             log::debug!("GOT DF COMBINED UNIQUE {}", uniq);
-                            let output_path = repo.path.join(&conflict.head_entry.path);
+                            let output_path = repo.path.join(&conflict.base_entry.path);
                             tabular::write_df(&mut uniq, &output_path)
                         }
                         _ => Err(OxenError::basic_str("Could not uniq data")),

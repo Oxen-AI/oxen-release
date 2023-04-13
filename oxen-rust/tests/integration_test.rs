@@ -2176,7 +2176,7 @@ async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
         assert_eq!(status.merge_conflicts.len(), 1);
 
         // Assume that we fixed the conflict and added the file
-        let path = status.merge_conflicts[0].head_entry.path.clone();
+        let path = status.merge_conflicts[0].base_entry.path.clone();
         let fullpath = repo.path.join(path);
         command::add(&repo, fullpath)?;
 
@@ -2192,6 +2192,8 @@ async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
     })
     .await
 }
+
+// TODO: Test what should happen on a diff during a merge conflict for a dataframe
 
 #[tokio::test]
 async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
@@ -2225,7 +2227,7 @@ async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         assert_eq!(status.merge_conflicts.len(), 1);
 
         // Assume that we fixed the conflict and added the file
-        let path = status.merge_conflicts[0].head_entry.path.clone();
+        let path = status.merge_conflicts[0].base_entry.path.clone();
         let fullpath = repo.path.join(path);
         command::add(&repo, fullpath)?;
 

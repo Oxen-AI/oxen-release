@@ -6,6 +6,7 @@ pub mod dir;
 pub mod entries;
 pub mod file;
 pub mod health;
+pub mod merger;
 pub mod namespaces;
 pub mod repositories;
 pub mod schemas;
