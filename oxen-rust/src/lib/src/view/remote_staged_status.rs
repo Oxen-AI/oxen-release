@@ -124,8 +124,7 @@ impl RemoteStagedStatus {
         page_size: usize,
     ) -> PaginatedDirEntries {
         let total_entries = entries.len();
-        let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
-        let paginated = util::paginate(entries, page_number, page_size);
+        let (paginated, total_pages) = util::paginate(entries, page_number, page_size);
 
         PaginatedDirEntries {
             entries: paginated,

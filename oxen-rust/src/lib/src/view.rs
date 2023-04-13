@@ -7,6 +7,7 @@ pub mod file_meta_data;
 pub mod health;
 pub mod http;
 pub mod json_data_frame;
+pub mod merge;
 pub mod namespace;
 pub mod oxen_response;
 pub mod remote_staged_status;

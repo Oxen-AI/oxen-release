@@ -1,14 +1,13 @@
 use crate::app_data::OxenAppData;
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::error::OxenError;
 use liboxen::index::differ;
-use liboxen::model::{Commit, LocalRepository};
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{CompareResponse, StatusMessage};
 use liboxen::{api, constants, util};
 
 use super::entries::PageNumQuery;
+use crate::params::{parse_base_head, resolve_base_head};
 
 pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -26,9 +25,7 @@ pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResp
                     match differ::list_diff_entries(&repository, &base_commit, &head_commit) {
                         Ok(entries) => {
                             let total_entries = entries.len();
-                            let total_pages =
-                                (total_entries as f64 / page_size as f64).ceil() as usize;
-                            let paginated = util::paginate(entries, page, page_size);
+                            let (paginated, total_pages) = util::paginate(entries, page, page_size);
                             let view = CompareResponse {
                                 status: String::from(STATUS_SUCCESS),
                                 status_message: String::from(MSG_RESOURCE_FOUND),
@@ -82,33 +79,4 @@ pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResp
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
-}
-
-fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {
-    let mut split = base_head.split("..");
-    if let (Some(base), Some(head)) = (split.next(), split.next()) {
-        Ok((base.to_string(), head.to_string()))
-    } else {
-        Err(OxenError::basic_str(
-            "Could not parse commits. Format should be base..head",
-        ))
-    }
-}
-
-fn resolve_base_head(
-    repo: &LocalRepository,
-    base: &str,
-    head: &str,
-) -> Result<(Option<Commit>, Option<Commit>), OxenError> {
-    let base = resolve_committish(repo, base)?;
-    let head = resolve_committish(repo, head)?;
-    Ok((base, head))
-}
-
-fn resolve_committish(
-    repo: &LocalRepository,
-    committish: &str,
-) -> Result<Option<Commit>, OxenError> {
-    // Lookup commit by id or branch name
-    api::local::commits::get_by_id_or_branch(repo, committish)
 }
