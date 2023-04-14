@@ -876,7 +876,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
+    async fn test_merger_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA

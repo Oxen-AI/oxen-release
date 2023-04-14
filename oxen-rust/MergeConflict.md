@@ -15,7 +15,7 @@ $ oxen add test.csv
 $ oxen commit -m "adding a dog"
 
 # checkout a new branch where you are going to append a cat
-$ oxen checkout -b "adding-cat"
+$ oxen checkout -b adding-cat
 $ echo "images/cat.png,cat" >> test.csv
 $ oxen add test.csv
 $ oxen commit -m "adding a cat"

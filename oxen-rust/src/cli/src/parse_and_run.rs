@@ -623,7 +623,9 @@ pub async fn diff(sub_matches: &ArgMatches) {
 
 async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     // First arg is optional
-    let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
+    let file_or_commit_id = sub_matches
+        .value_of("FILE_OR_COMMITTISH")
+        .expect("required");
     let path = sub_matches.value_of("PATH");
     if let Some(path) = path {
         match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {

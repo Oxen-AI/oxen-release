@@ -1187,14 +1187,65 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     Ok(())
 }
 
-/// Diff a file from commit history
+/// Diff a file from a commit or compared to another file
+/// `resource` can be a None, commit id, branch name, or another path.
+///    None: compare `path` to the last commit versioned of the file. If a merge conflict with compare to the merge conflict
+///    commit id: compare `path` to the version of `path` from that commit
+///    branch name: compare `path` to the version of `path` from that branch
+///    another path: compare `path` to the other `path` provided
+/// `path` is the path you want to compare the resource to
 pub fn diff(
     repo: &LocalRepository,
-    commit_id_or_branch: Option<&str>,
-    path: &Path,
+    resource: Option<&str>,
+    path: impl AsRef<Path>,
 ) -> Result<String, OxenError> {
-    let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
-    differ::diff(repo, Some(&commit.id), path)
+    if let Some(resource) = resource {
+        // `resource` is Some(resource)
+        if let Some(compare_commit) = api::local::commits::get_by_id(repo, resource)? {
+            // `resource` is a commit id
+            let original_commit = head_commit(repo)?;
+            differ::diff(repo, &original_commit, &compare_commit, path)
+        } else if let Some(branch) = api::local::branches::get_by_name(repo, resource)? {
+            // `resource` is a branch name
+            let compare_commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+            let original_commit = head_commit(repo)?;
+
+            differ::diff(repo, &original_commit, &compare_commit, path)
+        } else if Path::new(resource).exists() {
+            // `resource` is another path
+            differ::diff_files(resource, path)
+        } else {
+            Err(OxenError::basic_str(format!(
+                "Could not find resource: {resource:?}"
+            )))
+        }
+    } else {
+        // `resource` is None
+        // First check if there are merge conflicts
+        let merger = MergeConflictReader::new(repo)?;
+        if merger.has_conflicts()? {
+            match merger.get_conflict_commit() {
+                Ok(Some(commit)) => {
+                    let current_path = path.as_ref();
+                    let version_path =
+                        differ::get_version_file_from_commit(repo, &commit, current_path)?;
+                    differ::diff_files(current_path, version_path)
+                }
+                err => {
+                    log::error!("{err:?}");
+                    Err(OxenError::basic_str(format!(
+                        "Could not find merge resource: {resource:?}"
+                    )))
+                }
+            }
+        } else {
+            // No merge conflicts, compare to last version committed of the file
+            let current_path = path.as_ref();
+            let commit = head_commit(repo)?;
+            let version_path = differ::get_version_file_from_commit(repo, &commit, current_path)?;
+            differ::diff_files(version_path, current_path)
+        }
+    }
 }
 
 pub async fn remote_diff(
