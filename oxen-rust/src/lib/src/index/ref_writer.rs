@@ -38,6 +38,11 @@ impl RefWriter {
     pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
         // Only create branch if it does not exist already
         log::debug!("create_branch {} -> {}", name, commit_id);
+        if self.is_invalid_branch_name(name) {
+            let err = format!("'{name}' is not a valid branch name.");
+            return Err(OxenError::basic_str(err));
+        }
+
         if self.has_branch(name) {
             let err = format!("Branch already exists: {name}");
             Err(OxenError::basic_str(err))
@@ -49,6 +54,32 @@ impl RefWriter {
                 is_head: false,
             })
         }
+    }
+
+    fn is_invalid_branch_name(&self, name: &str) -> bool {
+        // https://git-scm.com/docs/git-check-ref-format
+
+        // They cannot have two consecutive dots .. anywhere.
+        // They cannot have ASCII control characters space, tilde ~, caret ^, or colon : anywhere.
+        // They cannot have question-mark ?, asterisk *, or open bracket [ anywhere.
+        let invalid_substrings = vec!["..", "~", "^", ":", "?", "[", "*", "\\", " ", "@{"];
+        for invalid in invalid_substrings {
+            if name.contains(invalid) {
+                return true;
+            }
+        }
+
+        // They cannot be the single character @
+        if name == "@" {
+            return true;
+        }
+
+        // They cannot end with a dot .
+        if name.ends_with('.') {
+            return true;
+        }
+
+        false
     }
 
     pub fn rename_branch(&self, old_name: &str, new_name: &str) -> Result<(), OxenError> {

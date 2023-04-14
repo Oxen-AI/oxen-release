@@ -137,6 +137,36 @@ impl CommitDBReader {
         }
     }
 
+    pub fn history_from_base_to_head(
+        db: &DBWithThreadMode<MultiThreaded>,
+        base_commit_id: &str,
+        head_commit_id: &str,
+        commits: &mut HashSet<Commit>,
+    ) -> Result<(), OxenError> {
+        // End recursion, we found all the commits from base to head
+        if base_commit_id == head_commit_id {
+            return Ok(());
+        }
+
+        match CommitDBReader::get_commit_by_id(db, head_commit_id) {
+            Ok(Some(commit)) => {
+                commits.insert(commit.to_owned());
+
+                for parent_id in commit.parent_ids.iter() {
+                    CommitDBReader::history_from_base_to_head(
+                        db,
+                        base_commit_id,
+                        parent_id,
+                        commits,
+                    )?;
+                }
+                Ok(())
+            }
+            Ok(None) => Err(OxenError::commit_id_does_not_exist(head_commit_id)),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn history_with_depth_from_commit_id(
         db: &DBWithThreadMode<MultiThreaded>,
         commit_id: &str,
