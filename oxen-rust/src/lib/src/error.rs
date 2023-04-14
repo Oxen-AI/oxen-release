@@ -173,6 +173,11 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn file_has_no_file_name<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File has no file_name: {:?}", path.as_ref());
+        OxenError::basic_str(err)
+    }
+
     pub fn could_not_convert_path_to_str<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File has no name: {:?}", path.as_ref());
         OxenError::basic_str(err)

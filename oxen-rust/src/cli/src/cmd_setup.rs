@@ -519,8 +519,8 @@ pub fn pull() -> Command<'static> {
 
 pub fn diff() -> Command<'static> {
     Command::new(DIFF)
-        .about("Compare file from a commit history")
-        .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
+        .about("Compare two files against each other or against versions. The first parameter can be one of three things 1) another file 2) a commit hash 3) a branch name. If the first parameter is a committish it will compare the second parameter path to that version of the file.")
+        .arg(Arg::new("FILE_OR_COMMITTISH").required(true))
         .arg(Arg::new("PATH").required(false))
 }
 
