@@ -143,15 +143,14 @@ impl CommitDBReader {
         head_commit_id: &str,
         commits: &mut HashSet<Commit>,
     ) -> Result<(), OxenError> {
+        // End recursion, we found all the commits from base to head
+        if base_commit_id == head_commit_id {
+            return Ok(());
+        }
+
         match CommitDBReader::get_commit_by_id(db, head_commit_id) {
             Ok(Some(commit)) => {
-                // Need to add the commit to the set before ending the recursion
                 commits.insert(commit.to_owned());
-
-                // End recursion, we found all the commits from base to head
-                if base_commit_id == head_commit_id {
-                    return Ok(());
-                }
 
                 for parent_id in commit.parent_ids.iter() {
                     CommitDBReader::history_from_base_to_head(
