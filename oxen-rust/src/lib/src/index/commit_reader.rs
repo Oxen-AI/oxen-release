@@ -169,7 +169,7 @@ mod tests {
             let new_file = repo.path.join("new_2.txt");
             test::write_txt_file_to_path(&new_file, "new 2")?;
             command::add(&repo, new_file)?;
-            command::commit(&repo, "commit 2")?;
+            let first_new_commit = command::commit(&repo, "commit 2")?.unwrap();
 
             let new_file = repo.path.join("new_3.txt");
             test::write_txt_file_to_path(&new_file, "new 3")?;
@@ -184,10 +184,10 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let history =
                 commit_reader.history_from_base_to_head(&base_commit.id, &head_commit.id)?;
-            assert_eq!(history.len(), 3);
+            assert_eq!(history.len(), 2);
 
             assert_eq!(history.first().unwrap().message, head_commit.message);
-            assert_eq!(history.last().unwrap().message, base_commit.message);
+            assert_eq!(history.last().unwrap().message, first_new_commit.message);
 
             Ok(())
         })

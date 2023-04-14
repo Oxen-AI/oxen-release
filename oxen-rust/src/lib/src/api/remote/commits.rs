@@ -686,9 +686,9 @@ mod tests {
             assert!(commit_history.len() >= 7);
 
             // Log comes out in reverse order, so we want the 5th commit as the base,
-            // and will end up with the 2nd,3rd,4th,5th commits (4 commits total)
-            let base_commit = &commit_history[5];
+            // and will end up with the 2nd,3rd,4th commits (3 commits total)
             let head_commit = &commit_history[2];
+            let base_commit = &commit_history[5];
 
             let committish = format!("{}..{}", base_commit.id, head_commit.id);
             println!("committish: {}", committish);
@@ -701,7 +701,7 @@ mod tests {
                 println!("got commit: {} -> {}", commit.id, commit.message);
             }
 
-            assert_eq!(remote_commits.len(), 4);
+            assert_eq!(remote_commits.len(), 3);
 
             api::remote::repositories::delete(&remote_repo).await?;
 
