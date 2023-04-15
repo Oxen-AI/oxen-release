@@ -18,7 +18,9 @@ pub mod version;
 
 pub use crate::view::compare::CompareResponse;
 pub use crate::view::file_meta_data::{FileMetaData, FileMetaDataResponse, FilePathsResponse};
-pub use crate::view::status_message::{IsValidStatusMessage, StatusMessage};
+pub use crate::view::status_message::{
+    IsValidStatusMessage, StatusMessage, StatusMessageDescription,
+};
 
 pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameSliceResponse};
 pub use crate::view::namespace::{ListNamespacesResponse, NamespaceResponse, NamespaceView};

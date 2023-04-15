@@ -1,10 +1,12 @@
-use std::error;
+// use std::error;
+use derive_more::{Display, Error};
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
 use std::path::Path;
-use std::path::PathBuf;
 
+use crate::model::Commit;
+use crate::model::RepositoryNew;
 use crate::model::Schema;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
@@ -18,10 +20,33 @@ pub const AUTH_TOKEN_NOT_FOUND: &str =
     "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
 #[derive(Debug)]
+pub struct StringError(String);
+
+impl From<&str> for StringError {
+    fn from(s: &str) -> Self {
+        StringError(s.to_string())
+    }
+}
+
+impl From<String> for StringError {
+    fn from(s: String) -> Self {
+        StringError(s)
+    }
+}
+
+impl std::fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for StringError {}
+
+#[derive(Debug, Display, Error)]
 pub enum OxenError {
+    // Other Library Errors
     IO(io::Error),
-    Basic(String),
-    Authentication(String),
+    Authentication(StringError),
     TomlSer(toml::ser::Error),
     TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
@@ -31,17 +56,40 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
-    RepoAlreadyExists(PathBuf),
-    RootCommitDoesNotMatch(String),
+
+    // Internal Oxen Errors
+    RepoNotFound(Box<RepositoryNew>),
+    RepoAlreadyExists(Box<RepositoryNew>),
+    CommittishNotFound(Box<StringError>),
+    RootCommitDoesNotMatch(Box<Commit>),
+
+    // Fallback
+    Basic(StringError),
 }
 
 impl OxenError {
     pub fn basic_str<T: AsRef<str>>(s: T) -> Self {
-        OxenError::Basic(String::from(s.as_ref()))
+        OxenError::Basic(StringError::from(s.as_ref()))
     }
 
     pub fn authentication<T: AsRef<str>>(s: T) -> Self {
-        OxenError::Authentication(String::from(s.as_ref()))
+        OxenError::Authentication(StringError::from(s.as_ref()))
+    }
+
+    pub fn repo_not_found(repo: RepositoryNew) -> Self {
+        OxenError::RepoNotFound(Box::new(repo))
+    }
+
+    pub fn repo_already_exists(repo: RepositoryNew) -> Self {
+        OxenError::RepoAlreadyExists(Box::new(repo))
+    }
+
+    pub fn committish_not_found(value: StringError) -> Self {
+        OxenError::CommittishNotFound(Box::new(value))
+    }
+
+    pub fn root_commit_does_not_match(commit: Commit) -> Self {
+        OxenError::RootCommitDoesNotMatch(Box::new(commit))
     }
 
     pub fn local_repo_not_found() -> OxenError {
@@ -242,19 +290,6 @@ Or you can interact with the remote directly with the `oxen remote` subcommand:
     }
 }
 
-impl fmt::Display for OxenError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let OxenError::Basic(err) = self {
-            write!(f, "{err}")
-        } else {
-            write!(f, "{self:?}")
-        }
-    }
-}
-
-// Defers to default method impls, compiler will fill in the blanks
-impl error::Error for OxenError {}
-
 // if you do not want to call .map_err, implement the std::convert::From trait
 impl From<io::Error> for OxenError {
     fn from(error: io::Error) -> Self {
@@ -264,7 +299,7 @@ impl From<io::Error> for OxenError {
 
 impl From<String> for OxenError {
     fn from(error: String) -> Self {
-        OxenError::Basic(error)
+        OxenError::Basic(StringError::from(error))
     }
 }
 
