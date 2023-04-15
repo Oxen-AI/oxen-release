@@ -1,14 +1,18 @@
 use crate::app_data::OxenAppData;
+use crate::errors::OxenHttpError;
+use crate::params::{get_path_param, parse_base_head, resolve_base_head};
 
 use actix_web::{HttpRequest, HttpResponse};
+
 use liboxen::api;
+use liboxen::error::OxenError;
 use liboxen::index::{CommitReader, Merger};
+use liboxen::model::RepositoryNew;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::merge::{MergeConflictFile, MergeableResponse};
 use liboxen::view::StatusMessage;
 
 // use super::entries::PageNumQuery;
-use crate::params::{parse_base_head, resolve_base_head};
 
 pub async fn show(
     req: HttpRequest,
@@ -75,19 +79,61 @@ pub async fn show(
             }
         },
         Ok(None) => {
-            log::debug!(
-                "404 api::local::branches::index could not get repo {}",
-                name,
-            );
+            log::debug!("404 could not get repo {}", name,);
             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
         }
         Err(err) => {
-            log::error!(
-                "Err api::local::branches::index could not get repo {} {:?}",
-                name,
-                err
-            );
+            log::error!("Err could not get repo {} {:?}", name, err);
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
+}
+
+pub async fn merge(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = req
+        .app_data::<OxenAppData>()
+        .ok_or(OxenHttpError::AppDataDoesNotExist)?;
+    let namespace = get_path_param(&req, "namespace")?;
+    let name = get_path_param(&req, "repo_name")?;
+    let base_head = get_path_param(&req, "base_head")?;
+
+    // Get the repository or return error
+    let repository =
+        api::local::repositories::get_by_namespace_and_name(&app_data.path, &namespace, &name)?
+            .ok_or(OxenError::repo_not_found(RepositoryNew::new(
+                namespace, name,
+            )))?;
+
+    // Parse the base and head from the base..head string
+    let (base, head) = parse_base_head(&base_head)?;
+    let (base_commit, head_commit) = resolve_base_head(&repository, &base, &head)?;
+    let base_commit = base_commit.ok_or(OxenError::committish_not_found(base.into()))?;
+    let head_commit = head_commit.ok_or(OxenError::committish_not_found(head.into()))?;
+
+    // Check if mergeable
+    let merger = Merger::new(&repository)?;
+    let commit_reader = CommitReader::new(&repository).unwrap();
+    let is_mergeable = merger
+        .can_merge_commits(&commit_reader, &base_commit, &head_commit)
+        .unwrap();
+    // Get merge conflicts
+    let paths = merger
+        .list_conflicting_files(&commit_reader, &base_commit, &head_commit)
+        .unwrap();
+    let conflicts = paths
+        .iter()
+        .map(|p| MergeConflictFile {
+            path: p.to_string_lossy().to_string(),
+        })
+        .collect();
+
+    // Create response object
+    let response = MergeableResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_FOUND),
+        is_mergeable,
+        conflicts,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }

@@ -375,7 +375,7 @@ fn create_mod(
                 file,
                 err
             );
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err)))
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())))
         }
         Err(err) => {
             log::error!(
@@ -410,7 +410,7 @@ fn delete_mod(
                 uuid,
                 err
             );
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(&err)))
+            Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())))
         }
         Err(err) => {
             log::error!(

@@ -68,6 +68,14 @@ impl Hash for Commit {
     }
 }
 
+impl std::fmt::Display for Commit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] '{}'", self.id, self.message)
+    }
+}
+
+impl std::error::Error for Commit {}
+
 impl Commit {
     pub fn from_new_and_id(new_commit: &NewCommit, id: String) -> Commit {
         Commit {

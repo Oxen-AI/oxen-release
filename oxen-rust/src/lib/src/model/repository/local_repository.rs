@@ -22,7 +22,23 @@ pub struct RepositoryNew {
     pub root_commit: Option<Commit>,
 }
 
+impl std::fmt::Display for RepositoryNew {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.namespace, self.name)
+    }
+}
+
+impl std::error::Error for RepositoryNew {}
+
 impl RepositoryNew {
+    pub fn new(namespace: impl AsRef<str>, name: impl AsRef<str>) -> RepositoryNew {
+        RepositoryNew {
+            namespace: String::from(namespace.as_ref()),
+            name: String::from(name.as_ref()),
+            root_commit: None,
+        }
+    }
+
     pub fn from_url(url: &str) -> Result<RepositoryNew, OxenError> {
         let uri = url.parse::<Uri>()?;
         let mut split_path: Vec<&str> = uri.path().split('/').collect();

@@ -1,3 +1,4 @@
+pub mod base_head;
 pub mod branch;
 pub mod commit;
 pub mod content_type;
@@ -21,6 +22,7 @@ pub use crate::model::repository::remote_repository::RemoteRepository;
 pub use crate::model::repository::repo_stats::{DataTypeStat, RepoStats};
 
 // Commit
+pub use crate::model::base_head::BaseHead;
 pub use crate::model::commit::{Commit, CommitBody, CommitStats, NewCommit};
 
 // Merge

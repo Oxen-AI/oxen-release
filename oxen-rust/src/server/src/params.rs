@@ -2,7 +2,19 @@ use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 
+use actix_web::HttpRequest;
+
+use crate::errors::OxenHttpError;
+
 pub mod df_opts_query;
+
+pub fn get_path_param(req: &HttpRequest, param: &str) -> Result<String, OxenHttpError> {
+    Ok(req
+        .match_info()
+        .get(param)
+        .ok_or(OxenHttpError::PathParamDoesNotExist(param.into()))?
+        .to_string())
+}
 
 pub fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {
     let mut split = base_head.split("..");

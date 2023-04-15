@@ -112,7 +112,7 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
     if let Ok(root) = command::root_commit(&repo) {
         if commit.parent_ids.is_empty() && root.id != commit.id {
             log::error!("Root commit does not match {} != {}", root.id, commit.id);
-            return Err(OxenError::RootCommitDoesNotMatch(commit.id.to_owned()));
+            return Err(OxenError::root_commit_does_not_match(commit.to_owned()));
         }
     }
 

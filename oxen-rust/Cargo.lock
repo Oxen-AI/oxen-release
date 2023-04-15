@@ -2150,6 +2150,7 @@ dependencies = [
  "comfy-table",
  "csv-sniffer",
  "deadqueue",
+ "derive_more",
  "difference",
  "dirs",
  "dotenv",
