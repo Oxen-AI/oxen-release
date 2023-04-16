@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
-use super::User;
+use crate::{error::OxenError, index::CommitReader};
+
+use super::{Branch, User};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitBody {
@@ -97,6 +99,14 @@ impl Commit {
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
         }
+    }
+
+    pub fn from_branch(commit_reader: &CommitReader, branch: &Branch) -> Result<Commit, OxenError> {
+        commit_reader
+            .get_commit_by_id(&branch.commit_id)?
+            .ok_or(OxenError::committish_not_found(
+                branch.commit_id.to_string().into(),
+            ))
     }
 
     pub fn to_uri_encoded(&self) -> String {
