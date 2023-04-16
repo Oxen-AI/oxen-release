@@ -1,3 +1,4 @@
+use crate::api;
 use crate::command;
 use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
@@ -17,7 +18,7 @@ use std::str;
 use super::restore;
 
 // This is a struct to find the commits we want to merge
-struct MergeCommits {
+pub struct MergeCommits {
     lca: Commit,
     base: Commit,
     merge: Commit,
@@ -53,19 +54,14 @@ impl Merger {
         merge_branch: &Branch,
     ) -> Result<bool, OxenError> {
         let commit_reader = CommitReader::new(&self.repository)?;
+        let base_commit = Commit::from_branch(&commit_reader, base_branch)?;
+        let merge_commit = Commit::from_branch(&commit_reader, merge_branch)?;
 
-        let base_commit = commit_reader
-            .get_commit_by_id(&base_branch.commit_id)?
-            .unwrap();
-        let merge_commit = commit_reader
-            .get_commit_by_id(&merge_branch.commit_id)?
-            .unwrap();
-
-        self.can_merge_commits(&commit_reader, &base_commit, &merge_commit)
+        Ok(!self.can_merge_commits(&commit_reader, &base_commit, &merge_commit)?)
     }
 
     /// Check if there are conflicts between the merge commit and the base commit
-    /// Returns true if there are conflicts, false if there are not
+    /// Returns true if there are no conflicts, false if there are conflicts
     pub fn can_merge_commits(
         &self,
         commit_reader: &CommitReader,
@@ -81,14 +77,26 @@ impl Merger {
 
         if merge_commits.is_fast_forward_merge() {
             // If it is fast forward merge, there are no merge conflicts
-            return Ok(false);
+            return Ok(true);
         }
 
         let conflicts = self.find_merge_conflicts(&merge_commits)?;
-        Ok(!conflicts.is_empty())
+        Ok(conflicts.is_empty())
     }
 
-    pub fn list_conflicting_files(
+    pub fn list_conflicts_between_branches(
+        &self,
+        commit_reader: &CommitReader,
+        base_branch: &Branch,
+        merge_branch: &Branch,
+    ) -> Result<Vec<PathBuf>, OxenError> {
+        let base_commit = Commit::from_branch(commit_reader, base_branch)?;
+        let merge_commit = Commit::from_branch(commit_reader, merge_branch)?;
+
+        self.list_conflicts_between_commits(commit_reader, &base_commit, &merge_commit)
+    }
+
+    pub fn list_conflicts_between_commits(
         &self,
         commit_reader: &CommitReader,
         base_commit: &Commit,
@@ -107,29 +115,45 @@ impl Merger {
             .collect())
     }
 
-    /// Merge a branch name into the current checked out branch, returns the new HEAD commit if successful,
-    /// and None if there were conflicts. Conflicts get written to disk so we can return to them to fix.
-    pub fn merge(&self, branch_name: impl AsRef<str>) -> Result<Option<Commit>, OxenError> {
+    /// Merge into the current branch, returns the merge commit if successful, and None if there is conflicts
+    pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Option<Commit>, OxenError> {
         let branch_name = branch_name.as_ref();
-        // This returns Base, LCA, and the Merge commits we can work with
-        let merge_commits = self.find_merge_commits(branch_name)?;
+        let commit_reader = CommitReader::new(&self.repository)?;
 
-        self.merge_commits(branch_name, &merge_commits)
+        let merge_branch = api::local::branches::get_by_name(&self.repository, branch_name)?
+            .ok_or(OxenError::local_branch_not_found(branch_name))?;
+
+        let base_commit = commit_reader.head_commit()?;
+        let merge_commit = Commit::from_branch(&commit_reader, &merge_branch)?;
+
+        let lca = self.p_lowest_common_ancestor(&commit_reader, &base_commit, &merge_commit)?;
+        let merge_commits = MergeCommits {
+            lca,
+            base: base_commit,
+            merge: merge_commit,
+        };
+
+        self.merge_commits(&merge_branch.name, &merge_commits)
     }
 
     /// Merge a branch into a base branch, returns the merge commit if successful, and None if there is conflicts
-    pub fn merge_branch_into_base_branch(
+    pub fn merge_into_base(
         &self,
         merge_branch: &Branch,
         base_branch: &Branch,
     ) -> Result<Option<Commit>, OxenError> {
+        println!(
+            "merge_into_base merge {} into {}",
+            merge_branch, base_branch
+        );
+        if merge_branch.commit_id == base_branch.commit_id {
+            // If the merge branch is the same as the base branch, there is nothing to merge
+            return Ok(None);
+        }
+
         let commit_reader = CommitReader::new(&self.repository)?;
-        let merge_commit = commit_reader
-            .get_commit_by_id(&merge_branch.commit_id)?
-            .unwrap();
-        let base_commit = commit_reader
-            .get_commit_by_id(&base_branch.commit_id)?
-            .unwrap();
+        let base_commit = Commit::from_branch(&commit_reader, base_branch)?;
+        let merge_commit = Commit::from_branch(&commit_reader, merge_branch)?;
 
         let lca = self.p_lowest_common_ancestor(&commit_reader, &base_commit, &merge_commit)?;
         let merge_commits = MergeCommits {
@@ -251,7 +275,10 @@ impl Merger {
 
     // This will try to find the least common ancestor, and if the least common ancestor is HEAD, then we just
     // fast forward, otherwise we need to three way merge
-    fn find_merge_commits<S: AsRef<str>>(&self, branch_name: S) -> Result<MergeCommits, OxenError> {
+    pub fn find_merge_commits<S: AsRef<str>>(
+        &self,
+        branch_name: S,
+    ) -> Result<MergeCommits, OxenError> {
         let branch_name = branch_name.as_ref();
         let ref_reader = RefReader::new(&self.repository)?;
         let head_commit_id = ref_reader
@@ -277,10 +304,11 @@ impl Merger {
     /// It is a fast forward merge if we cannot traverse cleanly back from merge to HEAD
     fn fast_forward_merge(
         &self,
-        head_commit: &Commit,
+        base_commit: &Commit,
         merge_commit: &Commit,
     ) -> Result<Commit, OxenError> {
-        let base_commit_entry_reader = CommitDirReader::new(&self.repository, head_commit)?;
+        log::debug!("FF merge!");
+        let base_commit_entry_reader = CommitDirReader::new(&self.repository, base_commit)?;
         let merge_commit_entry_reader = CommitDirReader::new(&self.repository, merge_commit)?;
 
         let base_entries = base_commit_entry_reader.list_entries_set()?;
@@ -288,19 +316,25 @@ impl Merger {
 
         // Can just copy over all new versions since it is fast forward
         for merge_entry in merge_entries.iter() {
+            log::debug!("Merge entry: {:?}", merge_entry.path);
             // Only copy over if hash is different or it doesn't exist for performance
             if let Some(base_entry) = base_entries.get(merge_entry) {
                 if base_entry.hash != merge_entry.hash {
+                    log::debug!("Merge entry has changed, restore: {:?}", merge_entry.path);
                     self.update_entry(merge_entry)?;
                 }
             } else {
+                log::debug!("Merge entry is new, restore: {:?}", merge_entry.path);
                 self.update_entry(merge_entry)?;
             }
         }
 
         // Remove all entries that are in HEAD but not in merge entries
         for base_entry in base_entries.iter() {
+            log::debug!("Base entry: {:?}", base_entry.path);
             if !merge_entries.contains(base_entry) {
+                log::debug!("Removing Base Entry: {:?}", base_entry.path);
+
                 let path = self.repository.path.join(&base_entry.path);
                 std::fs::remove_file(path)?;
             }
@@ -542,16 +576,18 @@ mod tests {
             util::fs::write_to_path(&world_file, "World")?;
             command::add(&repo, &world_file)?;
             command::commit(&repo, "Adding world file")?;
+            // Fetch the branch again to get the latest commit
+            let merge_branch = command::current_branch(&repo)?.unwrap();
 
             // Checkout and merge additions
-            command::checkout(&repo, og_branch.name).await?;
+            let og_branch = command::checkout(&repo, &og_branch.name).await?.unwrap();
 
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
 
             // Merge it
             let merger = Merger::new(&repo)?;
-            let commit = merger.merge(branch_name)?.unwrap();
+            let commit = merger.merge_into_base(&merge_branch, &og_branch)?.unwrap();
 
             // Now that we've merged in, world file should exist
             assert!(world_file.exists());
@@ -584,7 +620,7 @@ mod tests {
 
             // Branch to remove world
             let branch_name = "remove-world";
-            command::create_checkout_branch(&repo, branch_name)?;
+            let merge_branch = command::create_checkout_branch(&repo, branch_name)?;
 
             // Remove the file
             let world_file = repo.path.join("world.txt");
@@ -595,13 +631,13 @@ mod tests {
             command::commit(&repo, "Removing world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, og_branch.name).await?;
+            command::checkout(&repo, &og_branch.name).await?;
 
             // Make sure world file exists until we merge the removal in
             assert!(world_file.exists());
 
             let merger = Merger::new(&repo)?;
-            merger.merge(branch_name)?;
+            merger.merge(&merge_branch.name)?.unwrap();
 
             // Now that we've merged in, world file should not exist
             assert!(!world_file.exists());
@@ -642,14 +678,14 @@ mod tests {
             command::commit(&repo, "Modifying world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, og_branch.name).await?;
+            command::checkout(&repo, &og_branch.name).await?;
 
             // Make sure world file exists in it's original form
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, og_contents);
 
             let merger = Merger::new(&repo)?;
-            merger.merge(branch_name)?;
+            merger.merge(branch_name)?.unwrap();
 
             // Now that we've merged in, world file should be new content
             let contents = util::fs::read_from_path(&world_file)?;
@@ -966,8 +1002,11 @@ mod tests {
             // There should be one file that is in conflict
             let commit_reader = CommitReader::new(&repo)?;
             let base_commit = result_commit.unwrap();
-            let conflicts =
-                merger.list_conflicting_files(&commit_reader, &base_commit, &human_commit)?;
+            let conflicts = merger.list_conflicts_between_commits(
+                &commit_reader,
+                &base_commit,
+                &human_commit,
+            )?;
             assert_eq!(conflicts.len(), 1);
 
             Ok(())

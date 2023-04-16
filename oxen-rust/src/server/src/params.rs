@@ -1,6 +1,6 @@
 use liboxen::api;
 use liboxen::error::OxenError;
-use liboxen::model::{Commit, LocalRepository};
+use liboxen::model::{Branch, Commit, LocalRepository};
 
 use actix_web::HttpRequest;
 
@@ -27,6 +27,16 @@ pub fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {
     }
 }
 
+pub fn resolve_base_head_branches(
+    repo: &LocalRepository,
+    base: &str,
+    head: &str,
+) -> Result<(Option<Branch>, Option<Branch>), OxenError> {
+    let base = resolve_branch(repo, base)?;
+    let head = resolve_branch(repo, head)?;
+    Ok((base, head))
+}
+
 pub fn resolve_base_head(
     repo: &LocalRepository,
     base: &str,
@@ -43,4 +53,9 @@ pub fn resolve_committish(
 ) -> Result<Option<Commit>, OxenError> {
     // Lookup commit by id or branch name
     api::local::commits::get_by_id_or_branch(repo, committish)
+}
+
+pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
+    // Lookup branch name
+    api::local::branches::get_by_name(repo, name)
 }

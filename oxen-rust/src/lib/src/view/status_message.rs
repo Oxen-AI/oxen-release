@@ -62,6 +62,13 @@ impl StatusMessage {
         }
     }
 
+    pub fn resource_created() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_SUCCESS),
+            status_message: String::from(view::http::MSG_RESOURCE_CREATED),
+        }
+    }
+
     pub fn resource_deleted() -> StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_SUCCESS),

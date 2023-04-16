@@ -809,31 +809,34 @@ pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), Oxe
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub async fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
+pub async fn checkout<S: AsRef<str>>(
+    repo: &LocalRepository,
+    value: S,
+) -> Result<Option<Branch>, OxenError> {
     let value = value.as_ref();
     log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
             println!("Already on branch {value}");
-            return Ok(());
+            return api::local::branches::get_by_name(repo, value);
         }
 
         println!("Checkout branch: {value}");
         set_working_branch(repo, value).await?;
         set_head(repo, value)?;
+        api::local::branches::get_by_name(repo, value)
     } else {
         // If we are already on the commit, do nothing
         if already_on_commit(repo, value) {
             eprintln!("Commit already checked out {value}");
-            return Ok(());
+            return Ok(None);
         }
 
         println!("Checkout commit: {value}");
         set_working_commit_id(repo, value).await?;
         set_head(repo, value)?;
+        Ok(None)
     }
-    log::debug!("--- CHECKOUT END {} ----", value);
-    Ok(())
 }
 
 /// # Checkout a file and take their changes
@@ -991,28 +994,28 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<Bran
 /// If there are conflicts, it will abort and show the conflicts to be resolved in the `status` command
 pub fn merge<S: AsRef<str>>(
     repo: &LocalRepository,
-    branch_name: S,
+    merge_branch_name: S,
 ) -> Result<Option<Commit>, OxenError> {
-    let branch_name = branch_name.as_ref();
-    if branch_exists(repo, branch_name) {
-        if let Some(branch) = current_branch(repo)? {
-            let merger = Merger::new(repo)?;
-            if let Some(commit) = merger.merge(branch_name)? {
-                println!(
-                    "Successfully merged `{}` into `{}`",
-                    branch_name, branch.name
-                );
-                println!("HEAD -> {}", commit.id);
-                Ok(Some(commit))
-            } else {
-                eprintln!("Automatic merge failed; fix conflicts and then commit the result.");
-                Ok(None)
-            }
-        } else {
-            Err(OxenError::must_be_on_valid_branch())
-        }
+    let merge_branch_name = merge_branch_name.as_ref();
+    if !branch_exists(repo, merge_branch_name) {
+        return Err(OxenError::local_branch_not_found(merge_branch_name));
+    }
+
+    let base_branch = current_branch(repo)?.ok_or(OxenError::must_be_on_valid_branch())?;
+    let merge_branch = api::local::branches::get_by_name(repo, merge_branch_name)?
+        .ok_or(OxenError::local_branch_not_found(merge_branch_name))?;
+
+    let merger = Merger::new(repo)?;
+    if let Some(commit) = merger.merge_into_base(&merge_branch, &base_branch)? {
+        println!(
+            "Successfully merged `{}` into `{}`",
+            merge_branch_name, base_branch.name
+        );
+        println!("HEAD -> {}", commit.id);
+        Ok(Some(commit))
     } else {
-        Err(OxenError::local_branch_not_found(branch_name))
+        eprintln!("Automatic merge failed; fix conflicts and then commit the result.");
+        Ok(None)
     }
 }
 
