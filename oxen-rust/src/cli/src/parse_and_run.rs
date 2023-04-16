@@ -296,6 +296,18 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
             .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
             .ok(),
+        head: sub_matches
+            .value_of("head")
+            .map(String::from)
+            .unwrap_or_else(|| String::from(""))
+            .parse::<usize>()
+            .ok(),
+        tail: sub_matches
+            .value_of("tail")
+            .map(String::from)
+            .unwrap_or_else(|| String::from(""))
+            .parse::<usize>()
+            .ok(),
         take: sub_matches.value_of("take").map(String::from),
         columns: sub_matches.value_of("columns").map(String::from),
         filter: sub_matches.value_of("filter").map(String::from),
