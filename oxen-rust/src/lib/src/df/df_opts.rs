@@ -41,6 +41,8 @@ pub struct DFOpts {
     pub should_reverse: bool,
     pub content_type: ContentType,
     pub is_remote: bool,
+    pub head: Option<usize>,
+    pub tail: Option<usize>,
     pub page: Option<usize>,
     pub page_size: Option<usize>,
 }
@@ -66,6 +68,8 @@ impl DFOpts {
             should_reverse: false,
             is_remote: false,
             content_type: ContentType::Json,
+            head: None,
+            tail: None,
             page: None,
             page_size: None,
         }
@@ -122,6 +126,8 @@ impl DFOpts {
         self.slice.is_some()
             || self.page.is_some()
             || self.page_size.is_some()
+            || self.head.is_some()
+            || self.tail.is_some()
             || self.take.is_some()
             || self.columns.is_some()
             || self.vstack.is_some()

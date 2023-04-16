@@ -234,6 +234,18 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("head")
+                .long("head")
+                .help("Grab the first N entries of the data frame.")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("tail")
+                .long("tail")
+                .help("Grab the last N entries of the data frame.")
+                .takes_value(true),
+        )
+        .arg(
             Arg::new("page")
                 .long("page")
                 .help("Page number when paginating through the data frame. Default page = 1")
