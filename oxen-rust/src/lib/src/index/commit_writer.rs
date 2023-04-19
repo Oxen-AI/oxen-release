@@ -755,7 +755,7 @@ mod tests {
     use crate::df::DFOpts;
     use crate::error::OxenError;
     use crate::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
-    use crate::model::entry::mod_entry::ModType;
+    use crate::model::entry::mod_entry::{ModType, NewMod};
     use crate::model::{ContentType, StagedData};
     use crate::{api, command, df, test, util};
 
@@ -823,22 +823,24 @@ mod tests {
     fn test_commit_tabular_append_invalid_schema() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             // Try stage an append
-            let readme_file = Path::new("annotations")
+            let path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
             let branch = command::current_branch(&repo)?.unwrap();
-            let user_id = UserConfig::identifier()?;
+            let identity = UserConfig::identifier()?;
+
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, &path)?.unwrap();
 
             let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
-            let result = index::mod_stager::create_mod(
-                &repo,
-                &branch,
-                &user_id,
-                &readme_file,
-                ContentType::Json,
-                ModType::Append,
-                append_contents,
-            );
+            let new_mod = NewMod {
+                entry: commit_entry,
+                data: append_contents,
+                mod_type: ModType::Append,
+                content_type: ContentType::Json,
+            };
+            let result = index::mod_stager::create_mod(&repo, &branch, &identity, &new_mod);
             // Should be an error
             assert!(result.is_err());
 
@@ -849,41 +851,40 @@ mod tests {
     #[test]
     fn test_commit_tabular_appends_staged() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let annotations_file = Path::new("annotations")
+            let path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
 
             // Stage an append
             let branch = command::current_branch(&repo)?.unwrap();
             let user = UserConfig::get()?.to_user();
-            let user_id = UserConfig::identifier()?;
+            let identity = UserConfig::identifier()?;
             let branch_repo =
-                index::remote_dir_stager::init_or_get(&repo, &branch, &user_id).unwrap();
+                index::remote_dir_stager::init_or_get(&repo, &branch, &identity).unwrap();
 
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_entry_for_commit(&repo, &commit, &path)?.unwrap();
             let append_contents = "{\"file\": \"images/test.jpg\", \"label\": \"dog\", \"min_x\": 2.0, \"min_y\": 3.0, \"width\": 100, \"height\": 120}".to_string();
-            index::mod_stager::create_mod(
-                &repo,
-                &branch,
-                &user_id,
-                &annotations_file,
-                ContentType::Json,
-                ModType::Append,
-                append_contents,
-            )?;
+            let new_mod = NewMod {
+                entry: commit_entry,
+                data: append_contents,
+                mod_type: ModType::Append,
+                content_type: ContentType::Json,
+            };
+            index::mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
 
             let commit = remote_dir_stager::commit_staged(
                 &repo,
                 &branch_repo,
                 &branch,
                 &user,
-                &user_id,
+                &identity,
                 "Appending tabular data",
             )?;
 
             // Make sure version file is updated
-            let entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &annotations_file)?
-                    .unwrap();
+            let entry = api::local::entries::get_entry_for_commit(&repo, &commit, &path)?.unwrap();
             let version_file = util::fs::version_path(&repo, &entry);
 
             let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;

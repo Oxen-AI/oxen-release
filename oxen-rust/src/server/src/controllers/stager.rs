@@ -1,19 +1,25 @@
 use crate::app_data::OxenAppData;
-use crate::params::df_opts_query::{self, DFOptsQuery};
+use crate::errors::OxenHttpError;
+use crate::helpers::get_repo;
+use crate::params::{
+    app_data,
+    df_opts_query::{self, DFOptsQuery},
+    parse_resource, path_param,
+};
 
 use liboxen::compute::commit_cacher;
 use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
 use liboxen::index::mod_stager;
-use liboxen::model::entry::mod_entry::ModType;
+use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{
-    Branch, CommitBody, CommitEntry, ContentType, LocalRepository, ObjectID, Schema,
+    entry::mod_entry::ModType, Branch, CommitBody, CommitEntry, ContentType, LocalRepository,
+    ObjectID, Schema,
 };
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
-    ListStagedFileModResponseDF, ListStagedFileModResponseRaw, RemoteStagedStatus,
-    StagedDFModifications, StagedFileModResponse,
+    ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
 };
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrame, RemoteStagedStatusResponse, StatusMessage,
@@ -31,138 +37,65 @@ use uuid::Uuid;
 
 use super::entries::PageNumQuery;
 
-enum ModResponseFormat {
-    Raw,
-    DataFrame,
-}
-
-pub async fn status_dir(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+pub async fn status_dir(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
     let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     log::debug!(
-        "stager::status repo name {repo_name}/{}",
-        resource.to_string_lossy()
+        "{} resource {namespace}/{repo_name}/{resource}",
+        liboxen::current_function!()
     );
 
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, directory))) => get_dir_status_for_branch(
-                &repo,
-                &branch_name,
-                user_id,
-                &directory,
-                page_num,
-                page_size,
-            ),
-            Ok(None) => {
-                log::error!("unable to find resource {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not parse resource  {repo_name} -> {err}");
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find repo {}", repo_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting repo by name {repo_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    Ok(get_dir_status_for_branch(
+        &repo,
+        &resource.branch.ok_or(OxenHttpError::NotFound)?.name,
+        &identifier,
+        &resource.file_path,
+        page_num,
+        page_size,
+    ))
 }
 
-pub async fn status_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+pub async fn diff_file(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
 
     log::debug!(
-        "stager::status repo name {repo_name}/{}",
-        resource.to_string_lossy()
+        "{} resource {namespace}/{repo_name}/{resource}",
+        liboxen::current_function!()
     );
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, file_name))) => get_file_status_for_branch(
-                &repo,
-                &branch_name,
-                user_id,
-                &file_name,
-                ModResponseFormat::Raw,
-                query,
-            ),
-            Ok(None) => {
-                log::error!("unable to find resource {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not parse resource  {repo_name} -> {err}");
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find repo {}", repo_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting repo by name {repo_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
-}
 
-pub async fn diff_file(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let entry =
+        api::local::entries::get_entry_for_commit(&repo, &resource.commit, &resource.file_path)?
+            .ok_or(OxenHttpError::NotFound)?;
 
-    log::debug!(
-        "stager::status repo name {repo_name}/{}",
-        resource.to_string_lossy()
-    );
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, file_name))) => get_file_status_for_branch(
-                &repo,
-                &branch_name,
-                user_id,
-                &file_name,
-                ModResponseFormat::DataFrame,
-                query,
-            ),
-            Ok(None) => {
-                log::error!("unable to find resource {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not parse resource  {repo_name} -> {err}");
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find repo {}", repo_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting repo by name {repo_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    Ok(df_mods_response(
+        &repo,
+        &resource
+            .branch
+            .to_owned()
+            .ok_or(OxenError::parsed_resource_not_found(resource))?,
+        &identifier,
+        &entry,
+        query,
+    ))
 }
 
 async fn save_parts(
@@ -213,64 +146,53 @@ fn get_content_type(req: &HttpRequest) -> Option<&str> {
     req.headers().get("content-type")?.to_str().ok()
 }
 
-pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
 
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
 
+    // TODO: better error handling for content-types
     let content_type_str = get_content_type(&req).unwrap_or("text/plain");
     let content_type = ContentType::from_http_content_type(content_type_str).unwrap();
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => {
-            match util::resource::parse_resource(&repo, &resource) {
-                Ok(Some((_, branch_name, file_name))) => {
-                    match api::local::branches::get_by_name(&repo, &branch_name) {
-                        Ok(Some(branch)) => {
-                            log::debug!(
-                                "stager::df_add_row file branch_name [{}] user_id [{}] file_name [{:?}]",
-                                branch_name,
-                                user_id,
-                                file_name
-                            );
-                            index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
-                            create_mod(&repo, &branch, user_id, &file_name, content_type, data)
-                        }
-                        Ok(None) => {
-                            log::debug!("stager::stage could not find branch {:?}", branch_name);
-                            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                        }
-                        Err(err) => {
-                            log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
-                            Ok(HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error()))
-                        }
-                    }
-                }
-                Ok(None) => {
-                    log::debug!("stager::stage could not find parse resource {:?}", resource);
-                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                }
-                Err(err) => {
-                    log::error!("unable to parse resource {:?}. Err: {}", resource, err);
-                    Ok(HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()))
-                }
-            }
-        }
-        Ok(None) => {
-            log::debug!("stager::stage could not find repo with name {}", repo_name);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(err) => {
-            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Have to initialize this branch repo before we can do any operations on it
+    index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    log::debug!(
+        "stager::df_add_row repo {resource} -> staged repo path {:?}",
+        repo.path
+    );
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::committish_not_found(branch.commit_id.to_owned().into()),
+    )?;
+
+    let entry = api::local::entries::get_entry_for_commit(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::file_does_not_exist(resource.file_path))?;
+
+    let new_mod = NewMod {
+        content_type,
+        mod_type: ModType::Append,
+        entry,
+        data,
+    };
+
+    let row = liboxen::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
+
+    Ok(HttpResponse::Ok().json(StagedFileModResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_CREATED),
+        modification: row,
+    }))
 }
 
 pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
@@ -342,49 +264,6 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
         Err(err) => {
             log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
-}
-
-fn create_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    user_id: &str,
-    file: &Path,
-    content_type: ContentType,
-    data: String,
-) -> Result<HttpResponse, Error> {
-    match liboxen::index::mod_stager::create_mod(
-        repo,
-        branch,
-        user_id,
-        file,
-        content_type,
-        ModType::Append,
-        data,
-    ) {
-        Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_CREATED),
-            modification: entry,
-        })),
-        Err(OxenError::Basic(err)) => {
-            log::error!(
-                "unable to append data to file {:?}/{:?}. Err: {}",
-                branch.name,
-                file,
-                err
-            );
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())))
-        }
-        Err(err) => {
-            log::error!(
-                "unable to append data to file {:?}/{:?}. Err: {}",
-                branch.name,
-                file,
-                err
-            );
-            Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("{err:?}"))))
         }
     }
 }
@@ -762,59 +641,6 @@ fn delete_staged_file_on_branch(
     }
 }
 
-fn get_file_status_for_branch(
-    repo: &LocalRepository,
-    branch_name: &str,
-    user_id: &str,
-    path: &Path,
-    format: ModResponseFormat,
-    query: web::Query<DFOptsQuery>,
-) -> HttpResponse {
-    let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-    match api::local::branches::get_by_name(repo, branch_name) {
-        Ok(Some(branch)) => match api::local::commits::get_by_id(repo, &branch.commit_id) {
-            Ok(Some(commit)) => {
-                match api::local::entries::get_entry_for_commit(repo, &commit, path) {
-                    Ok(Some(entry)) => match format {
-                        ModResponseFormat::Raw => {
-                            raw_mods_response(repo, &branch, user_id, &entry, page_num, page_size)
-                        }
-                        ModResponseFormat::DataFrame => {
-                            df_mods_response(repo, &branch, user_id, &entry, query)
-                        }
-                    },
-                    Ok(None) => {
-                        log::error!("unable to find entry {:?}", path);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                    Err(err) => {
-                        log::error!("Error getting entry by path {:?} -> {err}", path);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
-                    }
-                }
-            }
-            Ok(None) => {
-                log::error!("unable to find commit {}", branch.commit_id);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Error getting commit by id {} -> {err}", branch.commit_id);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find branch {}", branch_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting branch by name {branch_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
-}
-
 fn df_mods_response(
     repo: &LocalRepository,
     branch: &Branch,
@@ -857,41 +683,6 @@ fn df_mods_response(
                 modifications: StagedDFModifications { added_rows: df },
             };
 
-            HttpResponse::Ok().json(response)
-        }
-        Err(err) => {
-            log::error!(
-                "unable to get list staged data {:?}. Err: {}",
-                branch.name,
-                err
-            );
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
-}
-
-fn raw_mods_response(
-    repo: &LocalRepository,
-    branch: &Branch,
-    user_id: &str,
-    entry: &CommitEntry,
-    page_num: usize,
-    page_size: usize,
-) -> HttpResponse {
-    match index::mod_stager::list_mods_raw(repo, branch, user_id, &entry.path) {
-        Ok(staged) => {
-            let total_entries = staged.len();
-            let (paginated, total_pages) = util::paginate(staged, page_num, page_size);
-            let response = ListStagedFileModResponseRaw {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_FOUND),
-                data_type: String::from("text"),
-                modifications: paginated,
-                page_size,
-                page_number: page_num,
-                total_pages,
-                total_entries,
-            };
             HttpResponse::Ok().json(response)
         }
         Err(err) => {

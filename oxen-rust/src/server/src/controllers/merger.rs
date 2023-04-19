@@ -1,7 +1,6 @@
-use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{get_path_param, parse_base_head, resolve_base_head_branches};
+use crate::params::{app_data, parse_base_head, path_param, resolve_base_head_branches};
 
 use actix_web::{HttpRequest, HttpResponse};
 
@@ -12,12 +11,10 @@ use liboxen::view::merge::{MergeConflictFile, MergeableResponse};
 use liboxen::view::StatusMessage;
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = req
-        .app_data::<OxenAppData>()
-        .ok_or(OxenHttpError::AppDataDoesNotExist)?;
-    let namespace = get_path_param(&req, "namespace")?;
-    let name = get_path_param(&req, "repo_name")?;
-    let base_head = get_path_param(&req, "base_head")?;
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let base_head = path_param(&req, "base_head")?;
 
     // Get the repository or return error
     let repository = get_repo(&app_data.path, namespace, name)?;
@@ -54,12 +51,10 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 }
 
 pub async fn merge(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = req
-        .app_data::<OxenAppData>()
-        .ok_or(OxenHttpError::AppDataDoesNotExist)?;
-    let namespace = get_path_param(&req, "namespace")?;
-    let name = get_path_param(&req, "repo_name")?;
-    let base_head = get_path_param(&req, "base_head")?;
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let base_head = path_param(&req, "base_head")?;
 
     // Get the repository or return error
     let repository = get_repo(&app_data.path, namespace, name)?;

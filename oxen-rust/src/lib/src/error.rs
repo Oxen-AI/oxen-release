@@ -3,11 +3,11 @@ use derive_more::{Display, Error};
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::model::Commit;
 use crate::model::RepositoryNew;
 use crate::model::Schema;
+use crate::model::{Commit, ParsedResource};
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
@@ -42,6 +42,29 @@ impl std::fmt::Display for StringError {
 
 impl std::error::Error for StringError {}
 
+#[derive(Debug)]
+pub struct PathBufError(PathBuf);
+
+impl From<&Path> for PathBufError {
+    fn from(p: &Path) -> Self {
+        PathBufError(p.to_path_buf())
+    }
+}
+
+impl From<PathBuf> for PathBufError {
+    fn from(p: PathBuf) -> Self {
+        PathBufError(p)
+    }
+}
+
+impl std::fmt::Display for PathBufError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.to_string_lossy())
+    }
+}
+
+impl std::error::Error for PathBufError {}
+
 #[derive(Debug, Display, Error)]
 pub enum OxenError {
     // Other Library Errors
@@ -59,6 +82,8 @@ pub enum OxenError {
 
     // Internal Oxen Errors
     RepoNotFound(Box<RepositoryNew>),
+    ParsedResourceNotFound(Box<PathBufError>),
+    BranchNotFound(Box<StringError>),
     RepoAlreadyExists(Box<RepositoryNew>),
     CommittishNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
@@ -78,6 +103,10 @@ impl OxenError {
 
     pub fn repo_not_found(repo: RepositoryNew) -> Self {
         OxenError::RepoNotFound(Box::new(repo))
+    }
+
+    pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {
+        OxenError::ParsedResourceNotFound(Box::new(resource.resource.into()))
     }
 
     pub fn repo_already_exists(repo: RepositoryNew) -> Self {

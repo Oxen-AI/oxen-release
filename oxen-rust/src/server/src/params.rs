@@ -1,19 +1,37 @@
+use std::path::PathBuf;
+
 use liboxen::api;
 use liboxen::error::OxenError;
-use liboxen::model::{Branch, Commit, LocalRepository};
+use liboxen::model::{Branch, Commit, LocalRepository, ParsedResource};
+use liboxen::util::resource::parse_resource_from_path;
 
 use actix_web::HttpRequest;
 
+use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 
 pub mod df_opts_query;
 
-pub fn get_path_param(req: &HttpRequest, param: &str) -> Result<String, OxenHttpError> {
+pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
+    req
+        .app_data::<OxenAppData>()
+        .ok_or(OxenHttpError::AppDataDoesNotExist)
+}
+
+pub fn path_param(req: &HttpRequest, param: &str) -> Result<String, OxenHttpError> {
     Ok(req
         .match_info()
         .get(param)
         .ok_or(OxenHttpError::PathParamDoesNotExist(param.into()))?
         .to_string())
+}
+
+pub fn parse_resource(
+    req: &HttpRequest,
+    repo: &LocalRepository,
+) -> Result<ParsedResource, OxenHttpError> {
+    let resource: PathBuf = PathBuf::from(req.match_info().query("resource"));
+    parse_resource_from_path(repo, &resource)?.ok_or(OxenHttpError::NotFound)
 }
 
 pub fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {

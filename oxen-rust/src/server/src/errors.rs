@@ -55,6 +55,22 @@ impl error::ResponseError for OxenHttpError {
                             repo
                         )))
                     }
+                    OxenError::ParsedResourceNotFound(resource) => {
+                        log::error!("Resource not found: {}", resource);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
+                            "Resource '{}' not found",
+                            resource
+                        )))
+                    }
+                    OxenError::BranchNotFound(branch) => {
+                        log::error!("Branch not found: {}", branch);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
+                            "Branch '{}' not found",
+                            branch
+                        )))
+                    }
                     OxenError::CommittishNotFound(commit_id) => {
                         log::error!("Not found: {}", commit_id);
 
