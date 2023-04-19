@@ -1,7 +1,7 @@
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::get_path_param;
+use crate::params::path_param;
 
 use liboxen::api;
 use liboxen::error::OxenError;
@@ -51,8 +51,8 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let app_data = req
         .app_data::<OxenAppData>()
         .ok_or(OxenHttpError::AppDataDoesNotExist)?;
-    let namespace = get_path_param(&req, "namespace")?;
-    let name = get_path_param(&req, "repo_name")?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
 
     // Get the repository or return error
     let _repository = get_repo(&app_data.path, &namespace, &name)?;

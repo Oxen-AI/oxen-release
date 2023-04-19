@@ -12,3 +12,5 @@ impl std::fmt::Display for Branch {
         write!(f, "{}:{}", self.name, self.commit_id)
     }
 }
+
+impl std::error::Error for Branch {}

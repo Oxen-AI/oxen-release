@@ -114,7 +114,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
     .route(
         "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
-        web::get().to(controllers::stager::diff_file), // TODO: diff on a resource
+        web::get().to(controllers::stager::diff_file),
     )
     .route(
         "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",

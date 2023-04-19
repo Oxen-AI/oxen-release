@@ -7,6 +7,7 @@ pub mod entry;
 pub mod merge_conflict;
 pub mod namespace;
 pub mod object_id;
+pub mod parsed_resource;
 pub mod remote;
 pub mod remote_branch;
 pub mod repository;
@@ -45,6 +46,7 @@ pub use crate::model::entry::ContentHashable;
 pub use crate::model::user::User;
 
 pub use crate::model::object_id::ObjectID;
+pub use crate::model::parsed_resource::ParsedResource;
 
 pub use crate::model::staged_data::StagedData;
 pub use crate::model::staged_dir_stats::StagedDirStats;

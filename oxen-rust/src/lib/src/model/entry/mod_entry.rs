@@ -7,7 +7,7 @@ use time::OffsetDateTime;
 use crate::{
     df::{tabular, DFOpts},
     error::OxenError,
-    model::{ContentType, Schema},
+    model::{CommitEntry, ContentType, Schema},
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
@@ -15,6 +15,14 @@ pub enum ModType {
     Append,
     Delete,
     Modify,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct NewMod {
+    pub content_type: ContentType,
+    pub mod_type: ModType,
+    pub entry: CommitEntry, // can only modify a committed file
+    pub data: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
