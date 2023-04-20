@@ -45,6 +45,7 @@ dependencies = [
  "jwalk",
  "lazy_static",
  "log",
+ "minus",
  "nom",
  "num_cpus",
  "pluralizer",
@@ -220,7 +221,7 @@ dependencies = [
  "actix-utils",
  "futures-core",
  "futures-util",
- "mio",
+ "mio 0.8.6",
  "num_cpus",
  "socket2",
  "tokio",
@@ -900,7 +901,7 @@ dependencies = [
  "once_cell",
  "strsim",
  "termcolor",
- "textwrap",
+ "textwrap 0.16.0",
 ]
 
 [[package]]
@@ -939,7 +940,7 @@ version = "6.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e7b787b0dc42e8111badfdbe4c3059158ccb2db8780352fa1b01e8ccf45cc4d"
 dependencies = [
- "crossterm",
+ "crossterm 0.25.0",
  "strum",
  "strum_macros",
  "unicode-width",
@@ -1109,6 +1110,22 @@ dependencies = [
 
 [[package]]
 name = "crossterm"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c85525306c4291d1b73ce93c8acf9c339f9b213aef6c1d85c3830cbf1c16325c"
+dependencies = [
+ "bitflags",
+ "crossterm_winapi",
+ "libc",
+ "mio 0.7.14",
+ "parking_lot 0.11.2",
+ "signal-hook",
+ "signal-hook-mio",
+ "winapi",
+]
+
+[[package]]
+name = "crossterm"
 version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e64e6c0fbe2c17357405f7c758c1ef960fce08bdfb2c03d88d2a18d7e09c4b67"
@@ -1116,7 +1133,7 @@ dependencies = [
  "bitflags",
  "crossterm_winapi",
  "libc",
- "mio",
+ "mio 0.8.6",
  "parking_lot 0.12.1",
  "signal-hook",
  "signal-hook-mio",
@@ -2352,6 +2369,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "minus"
+version = "5.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f693b29c6437a0198f17581fbe68bea9f7ff072ff921cf2280761bbe54214442"
+dependencies = [
+ "crossbeam-channel",
+ "crossterm 0.22.1",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "regex",
+ "textwrap 0.13.4",
+ "thiserror",
+]
+
+[[package]]
+name = "mio"
+version = "0.7.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8067b404fe97c70829f082dec8bcf4f71225d7eaea1d8645349cb76fa06205cc"
+dependencies = [
+ "libc",
+ "log",
+ "miow",
+ "ntapi 0.3.7",
+ "winapi",
+]
+
+[[package]]
 name = "mio"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2361,6 +2406,15 @@ dependencies = [
  "log",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.45.0",
+]
+
+[[package]]
+name = "miow"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
@@ -2418,6 +2472,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d89e9874397a1f0a52fc1f197a8effd9735223cb2390e9dcc83ac6cd02923d0"
 dependencies = [
  "chrono",
+]
+
+[[package]]
+name = "ntapi"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
+dependencies = [
+ "winapi",
 ]
 
 [[package]]
@@ -2527,6 +2590,9 @@ name = "once_cell"
 version = "1.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
+dependencies = [
+ "parking_lot_core 0.9.7",
+]
 
 [[package]]
 name = "openssl"
@@ -2587,6 +2653,7 @@ dependencies = [
  "colored",
  "env_logger",
  "liboxen",
+ "minus",
  "rpassword",
  "time 0.3.20",
  "tokio",
@@ -3436,7 +3503,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29ad2e15f37ec9a6cc544097b78a1ec90001e9f71b81338ca39f430adaca99af"
 dependencies = [
  "libc",
- "mio",
+ "mio 0.7.14",
+ "mio 0.8.6",
  "signal-hook",
 ]
 
@@ -3619,7 +3687,7 @@ dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
- "ntapi",
+ "ntapi 0.4.0",
  "once_cell",
  "winapi",
 ]
@@ -3633,7 +3701,7 @@ dependencies = [
  "cfg-if",
  "core-foundation-sys",
  "libc",
- "ntapi",
+ "ntapi 0.4.0",
  "once_cell",
  "rayon",
  "winapi",
@@ -3670,6 +3738,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be55cf8942feac5c765c2c993422806843c9a9a45d4d5c407ad6dd2ea95eb9b6"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "textwrap"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd05616119e612a8041ef58f2b578906cc2531a6069047ae092cfb86a325d835"
+dependencies = [
+ "unicode-width",
 ]
 
 [[package]]
@@ -3789,7 +3866,7 @@ dependencies = [
  "bytes",
  "libc",
  "memchr",
- "mio",
+ "mio 0.8.6",
  "num_cpus",
  "parking_lot 0.12.1",
  "pin-project-lite",
