@@ -87,6 +87,8 @@ pub enum OxenError {
     RepoAlreadyExists(Box<RepositoryNew>),
     CommittishNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
+    InvalidSchema(Box<Schema>),
+    ParsingError(Box<StringError>),
 
     // Fallback
     Basic(StringError),

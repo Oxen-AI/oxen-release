@@ -157,7 +157,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
 
     // TODO: better error handling for content-types
     let content_type_str = get_content_type(&req).unwrap_or("text/plain");
-    let content_type = ContentType::from_http_content_type(content_type_str).unwrap();
+    let content_type = ContentType::from_http_content_type(content_type_str)?;
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
 
     let branch = resource

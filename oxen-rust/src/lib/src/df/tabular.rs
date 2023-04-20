@@ -212,6 +212,10 @@ pub fn parse_data_into_df(
                 ))),
             }
         }
+        _ => {
+            let err = format!("Unsupported content type: {content_type:?}");
+            Err(OxenError::basic_str(err))
+        }
     }
 }
 

@@ -31,6 +31,14 @@ impl StatusMessageDescription {
             status_description: String::from(description.as_ref()),
         }
     }
+
+    pub fn bad_request(description: impl AsRef<str>) -> StatusMessageDescription {
+        StatusMessageDescription {
+            status: String::from(view::http::STATUS_ERROR),
+            status_message: String::from(view::http::MSG_BAD_REQUEST),
+            status_description: String::from(description.as_ref()),
+        }
+    }
 }
 
 impl StatusMessage {
