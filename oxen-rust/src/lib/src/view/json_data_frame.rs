@@ -77,13 +77,33 @@ impl JsonDataFrame {
         if self.data == serde_json::Value::Null {
             DataFrame::empty()
         } else {
-            let data = self.data.to_string();
-            let content = Cursor::new(data.as_bytes());
-            let df = JsonReader::new(content).finish().unwrap();
             // The fields were coming out of order, so we need to reorder them
             let columns = self.schema.fields_names();
-            let opts = DFOpts::from_column_names(columns);
-            tabular::transform(df, opts).unwrap()
+            log::debug!("Got columns: {:?}", columns);
+
+            match &self.data {
+                serde_json::Value::Array(arr) => {
+                    if !arr.is_empty() {
+                        let data = self.data.to_string();
+                        let content = Cursor::new(data.as_bytes());
+                        log::debug!("Deserializing df: [{}]", data);
+                        let df = JsonReader::new(content).finish().unwrap();
+
+                        let opts = DFOpts::from_column_names(columns);
+                        tabular::transform(df, opts).unwrap()
+                    } else {
+                        let cols = columns
+                            .iter()
+                            .map(|name| Series::new(name, Vec::<&str>::new()))
+                            .collect::<Vec<Series>>();
+                        DataFrame::new(cols).unwrap()
+                    }
+                }
+                _ => {
+                    log::error!("Could not parse non-array json data: {:?}", self.data);
+                    DataFrame::empty()
+                }
+            }
         }
     }
 
