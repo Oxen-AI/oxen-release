@@ -13,8 +13,7 @@ use crate::errors::OxenHttpError;
 pub mod df_opts_query;
 
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
-    req
-        .app_data::<OxenAppData>()
+    req.app_data::<OxenAppData>()
         .ok_or(OxenHttpError::AppDataDoesNotExist)
 }
 

@@ -79,6 +79,20 @@ impl error::ResponseError for OxenHttpError {
                             commit_id
                         )))
                     }
+                    OxenError::InvalidSchema(schema) => {
+                        log::error!("Invalid schema: {}", schema);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::bad_request(
+                            format!("Schema is invalid: '{}'", schema),
+                        ))
+                    }
+                    OxenError::ParsingError(error) => {
+                        log::error!("Invalid schema: {}", error);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::bad_request(
+                            format!("Parsing error: '{}'", error),
+                        ))
+                    }
                     err => {
                         log::error!("Internal server error: {:?}", err);
                         HttpResponse::InternalServerError()
@@ -99,6 +113,8 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::CommittishNotFound(_) => StatusCode::NOT_FOUND,
+                OxenError::InvalidSchema(_) => StatusCode::BAD_REQUEST,
+                OxenError::ParsingError(_) => StatusCode::BAD_REQUEST,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             },
         }

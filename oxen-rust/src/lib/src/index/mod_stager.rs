@@ -8,8 +8,7 @@ use crate::db::{self, str_json_db};
 use crate::df::tabular;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::NewMod;
-use crate::model::schema::Field;
-use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry};
+use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry, Schema};
 use crate::{api, current_function, util};
 
 use super::{remote_dir_stager, SchemaReader};
@@ -250,14 +249,16 @@ fn stage_tabular_mod(
 
                     stage_raw_mod_content(repo, branch, identity, &new_mod.entry, mod_entry)
                 } else {
-                    let schema_fields_str = Field::all_fields_to_string(&schema.fields);
-                    let err = format!("Json schema does not contain same fields as DataFrame schema. {schema_fields_str}");
-                    Err(OxenError::basic_str(err))
+                    Err(OxenError::InvalidSchema(Box::new(Schema::from_polars(
+                        &polars_schema,
+                    ))))
                 }
             }
             Err(err) => {
-                let err = format!("Error parsing content: {err}");
-                Err(OxenError::basic_str(err))
+                log::error!("Error parsing content: {err}");
+                Err(OxenError::ParsingError(Box::new(
+                    new_mod.data.clone().into(),
+                )))
             }
         }
     } else {

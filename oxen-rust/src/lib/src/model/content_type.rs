@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::OxenError;
+
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum ContentType {
     Json,
     Csv,
+    Text,
 }
 
 impl std::str::FromStr for ContentType {
@@ -13,6 +16,7 @@ impl std::str::FromStr for ContentType {
         match s {
             "json" => Ok(ContentType::Json),
             "csv" => Ok(ContentType::Csv),
+            "text" => Ok(ContentType::Text),
             _ => Err(format!("Invalid data type: {}", s)),
         }
     }
@@ -23,14 +27,18 @@ impl ContentType {
         match self {
             ContentType::Json => "application/json".to_string(),
             ContentType::Csv => "text/csv".to_string(),
+            ContentType::Text => "text/plain".to_string(),
         }
     }
 
-    pub fn from_http_content_type(s: &str) -> Result<ContentType, String> {
+    pub fn from_http_content_type(s: &str) -> Result<ContentType, OxenError> {
         match s {
             "application/json" => Ok(ContentType::Json),
             "text/csv" => Ok(ContentType::Csv),
-            _ => Err(format!("Invalid data type: {}", s)),
+            "text/plain" => Ok(ContentType::Text),
+            _ => Err(OxenError::basic_str(format!(
+                "Unsupported content-type: {s}"
+            ))),
         }
     }
 }
