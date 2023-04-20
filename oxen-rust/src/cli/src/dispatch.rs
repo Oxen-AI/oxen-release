@@ -15,7 +15,9 @@ use liboxen::opts::RmOpts;
 use liboxen::util;
 
 use colored::Colorize;
+use minus::Pager;
 use std::env;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use time::format_description;
 
@@ -238,6 +240,13 @@ pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
     Ok(())
 }
 
+fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
+    match writeln!(output, "{}", text) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(OxenError::basic_str("Could not write to pager")),
+    }
+}
+
 pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -249,12 +258,24 @@ pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
         "[weekday], [day] [month repr:long] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory]",
     ).unwrap();
 
+    let mut output = Pager::new();
+
     for commit in commits {
         let commit_id_str = format!("commit {}", commit.id).yellow();
-        println!("{commit_id_str}\n");
-        println!("Author: {}", commit.author);
-        println!("Date:   {}\n", commit.timestamp.format(&format).unwrap());
-        println!("    {}\n", commit.message);
+        write_to_pager(&mut output, &format!("{}\n", commit_id_str))?;
+        write_to_pager(&mut output, &format!("Author: {}", commit.author))?;
+        write_to_pager(
+            &mut output,
+            &format!("Date:   {}\n", commit.timestamp.format(&format).unwrap()),
+        )?;
+        write_to_pager(&mut output, &format!("    {}\n", commit.message))?;
+    }
+
+    match minus::page_all(output) {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("Error while paging: {}", e);
+        }
     }
 
     Ok(())
