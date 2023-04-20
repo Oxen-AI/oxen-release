@@ -25,8 +25,9 @@ pub fn get_by_id_or_branch(
         None => String::from(branch_or_commit),
     };
     log::debug!(
-        "get_by_id_or_branch resolved commit id {}",
-        branch_or_commit
+        "get_by_id_or_branch resolved commit id {} -> {}",
+        branch_or_commit,
+        commit_id
     );
     let reader = CommitReader::new(repo)?;
     reader.get_commit_by_id(commit_id)

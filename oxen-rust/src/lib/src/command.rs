@@ -688,7 +688,15 @@ pub async fn log_with_opts(
         Ok(commits)
     } else {
         let committer = CommitReader::new(repo)?;
-        let commits = committer.history_from_head()?;
+
+        let commits = if let Some(committish) = &opts.committish {
+            let commit = api::local::commits::get_by_id_or_branch(repo, committish)?.ok_or(
+                OxenError::committish_not_found(committish.to_string().into()),
+            )?;
+            committer.history_from_commit_id(&commit.id)?
+        } else {
+            committer.history_from_head()?
+        };
         Ok(commits)
     }
 }
@@ -1305,14 +1313,14 @@ pub async fn pull_remote_branch(
 }
 
 /// Run the computation cache on all repositories within a directory
-pub fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
+pub async fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
     let namespaces = api::local::repositories::list_namespaces(path)?;
     for namespace in namespaces {
         let namespace_path = path.join(namespace);
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             println!("Migrate repo {:?}", repo.path);
-            match migrate_repo(&repo) {
+            match migrate_repo(&repo, None).await {
                 Ok(_) => {
                     println!("Done.");
                 }
@@ -1327,9 +1335,22 @@ pub fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
 }
 
 /// Run the computation cache on all repositories within a directory
-pub fn migrate_repo(repo: &LocalRepository) -> Result<(), OxenError> {
-    let commits = log(repo)?;
+pub async fn migrate_repo(
+    repo: &LocalRepository,
+    committish: Option<String>,
+) -> Result<(), OxenError> {
+    println!("Migrate repo commit [{committish:?}] -> {:?}", repo.path);
+    let commits = if let Some(committish) = committish {
+        let opts = LogOpts {
+            committish: Some(committish),
+            remote: false,
+        };
+        log_with_opts(repo, &opts).await?
+    } else {
+        log(repo)?
+    };
     for commit in commits {
+        println!("Migrate commit {:?}", commit);
         compute::commit_cacher::run_all(repo, &commit)?;
     }
     Ok(())

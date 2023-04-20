@@ -69,6 +69,8 @@ pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String
     let status = res.status();
     let body = res.text().await?;
 
+    log::debug!("parse_json_body url: {url}\nstatus: {status}\nbody: {body}");
+
     let response: Result<OxenResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
         Ok(response) => parse_status_and_message(url, body, status, response),

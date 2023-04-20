@@ -240,7 +240,7 @@ impl EntryIndexer {
                 }
             }
             Err(err) => {
-                let err = format!("Could not push missing commit err: {err}");
+                let err = format!("{err}");
                 return Err(OxenError::basic_str(err));
             }
         }

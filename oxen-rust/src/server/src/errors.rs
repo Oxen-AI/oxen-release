@@ -48,7 +48,7 @@ impl error::ResponseError for OxenHttpError {
                 // Catch specific OxenError's and return the appropriate response
                 match error {
                     OxenError::RepoNotFound(repo) => {
-                        log::error!("Repo not found: {}", repo);
+                        log::debug!("Repo not found: {}", repo);
 
                         HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
                             "Repository '{}' not found",
@@ -56,7 +56,7 @@ impl error::ResponseError for OxenHttpError {
                         )))
                     }
                     OxenError::ParsedResourceNotFound(resource) => {
-                        log::error!("Resource not found: {}", resource);
+                        log::debug!("Resource not found: {}", resource);
 
                         HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
                             "Resource '{}' not found",
@@ -64,7 +64,7 @@ impl error::ResponseError for OxenHttpError {
                         )))
                     }
                     OxenError::BranchNotFound(branch) => {
-                        log::error!("Branch not found: {}", branch);
+                        log::debug!("Branch not found: {}", branch);
 
                         HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
                             "Branch '{}' not found",
@@ -72,7 +72,7 @@ impl error::ResponseError for OxenHttpError {
                         )))
                     }
                     OxenError::CommittishNotFound(commit_id) => {
-                        log::error!("Not found: {}", commit_id);
+                        log::debug!("Not found: {}", commit_id);
 
                         HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
                             "'{}' not found",

@@ -72,10 +72,10 @@ impl RefReader {
         match self.refs_db.get(bytes) {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => {
-                log::debug!(
-                    "get_commit_id_for_branch could not find commit id for branch {}",
-                    name
-                );
+                // log::debug!(
+                //     "get_commit_id_for_branch could not find commit id for branch {}",
+                //     name
+                // );
                 Ok(None)
             }
             Err(err) => {

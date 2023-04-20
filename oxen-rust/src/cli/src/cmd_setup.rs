@@ -547,6 +547,7 @@ pub fn migrate() -> Command<'static> {
                 .help("Migrate all the oxen repositories in this directory")
                 .takes_value(false),
         )
+        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
 }
 
 pub fn read_lines() -> Command<'static> {
