@@ -14,10 +14,10 @@ pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for director
 pub const HEAD_NOT_FOUND: &str = "HEAD not found";
 
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
-    "Err: oxen not configured, set email and name with:\n\noxen config --name YOUR_NAME --email YOUR_EMAIL\n";
+    "oxen not configured, set email and name with:\n\noxen config --name YOUR_NAME --email YOUR_EMAIL\n";
 
 pub const AUTH_TOKEN_NOT_FOUND: &str =
-    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
+    "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
 #[derive(Debug)]
 pub struct StringError(String);
@@ -81,6 +81,7 @@ pub enum OxenError {
     ENV(std::env::VarError),
 
     // Internal Oxen Errors
+    UserConfigNotFound(Box<StringError>),
     RepoNotFound(Box<RepositoryNew>),
     ParsedResourceNotFound(Box<PathBufError>),
     BranchNotFound(Box<StringError>),
@@ -101,6 +102,10 @@ impl OxenError {
 
     pub fn authentication<T: AsRef<str>>(s: T) -> Self {
         OxenError::Authentication(StringError::from(s.as_ref()))
+    }
+
+    pub fn user_config_not_found(value: StringError) -> Self {
+        OxenError::UserConfigNotFound(Box::new(value))
     }
 
     pub fn repo_not_found(repo: RepositoryNew) -> Self {
@@ -128,7 +133,7 @@ impl OxenError {
     }
 
     pub fn email_and_name_not_set() -> OxenError {
-        OxenError::basic_str(EMAIL_AND_NAME_NOT_FOUND)
+        OxenError::user_config_not_found(EMAIL_AND_NAME_NOT_FOUND.to_string().into())
     }
 
     pub fn auth_token_not_set() -> OxenError {
