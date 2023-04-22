@@ -16,8 +16,11 @@ $ brew install oxen
 ### Ubuntu Latest
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-ubuntu-latest-0.5.2.deb
-$ sudo dpkg -i oxen-ubuntu-latest-0.5.2.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-ubuntu-latest-0.5.2.deb
+```
+
+```bash
+sudo dpkg -i oxen-ubuntu-latest-0.5.2.deb
 ```
 
 ### Ubuntu 20.04
