@@ -9,8 +9,11 @@ You can find the source code for the client [here](https://github.com/Oxen-AI/Ox
 ### Mac
 
 ```bash
-$ brew tap Oxen-AI/oxen
-$ brew install oxen
+brew tap Oxen-AI/oxen
+```
+
+```bash
+brew install oxen
 ```
 
 ### Ubuntu Latest
@@ -26,14 +29,17 @@ sudo dpkg -i oxen-ubuntu-latest-0.5.2.deb
 ### Ubuntu 20.04
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-ubuntu-20.04-0.5.2.deb
-$ sudo dpkg -i oxen-ubuntu-20.04-0.5.2.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-ubuntu-20.04-0.5.2.deb
+```
+
+```bash
+sudo dpkg -i oxen-ubuntu-20.04-0.5.2.deb
 ```
 
 ### Windows
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen.exe
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen.exe
 ```
 
 ## Oxen Server
@@ -43,36 +49,51 @@ The Oxen server binary can be deployed where ever you want to store and backup y
 ### Mac
 
 ```bash
-$ brew tap Oxen-AI/oxen-server
-$ brew install oxen-server
+brew tap Oxen-AI/oxen-server
+```
+
+```bash
+brew install oxen-server
 ```
 
 ### Docker
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server-docker-0.5.2.tar
-$ docker load < oxen-server-docker-0.5.2.tar
-$ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/oxen-server:latest
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server-docker-0.5.2.tar
+```
+
+```bash
+docker load < oxen-server-docker-0.5.2.tar
+```
+
+```bash
+docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/oxen-server:latest
 ```
 
 ### Ubuntu Latest
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server-ubuntu-latest-0.5.2.deb
-$ sudo dpkg -i oxen-server-ubuntu-latest-0.5.2.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server-ubuntu-latest-0.5.2.deb
+```
+
+```bash
+sudo dpkg -i oxen-server-ubuntu-latest-0.5.2.deb
 ```
 
 ### Ubuntu 20.04
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server-ubuntu-20.04-0.5.2.deb
-$ sudo dpkg -i oxen-server-ubuntu-20.04-0.5.2.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server-ubuntu-20.04-0.5.2.deb
+```
+
+```bash
+sudo dpkg -i oxen-server-ubuntu-20.04-0.5.2.deb
 ```
 
 ### Windows
 
 ```bash
-$ wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server.exe
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.5.2/oxen-server.exe
 ```
 
 To get up and running using the client and server, you can follow the [getting started docs](README.md).
