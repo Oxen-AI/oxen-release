@@ -2,18 +2,22 @@
 
 Oxen helps you version your datasets like you version your code.
 
-```
+```bash
 # The first step for creating any dataset should be `oxen init`
 
-$ oxen init
-$ oxen add images/
-$ oxen commit -m "Adding my data"
-$ oxen config --set-remote origin https://hub.oxen.ai/ox/CatDogBoundingBox
-$ oxen push origin main
+oxen init
+oxen add images/
+oxen commit -m "Adding my data"
+oxen config --set-remote origin https://hub.oxen.ai/ox/CatDogBoundingBox
+oxen push origin main
+```
 
+Clone your data faster than ever before.
+
+```bash
 # The first step in collaborating on a dataset should be `oxen clone`
 
-$ oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
+oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
 ```
 
 # ✅ Features
@@ -62,8 +66,11 @@ Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register f
 For Mac Users
 
 ```bash
-$ brew tap Oxen-AI/oxen
-$ brew install oxen
+brew tap Oxen-AI/oxen
+```
+
+```bash
+brew install oxen
 ```
 
 For other platforms follow the [installation instructions](Installation.md).
@@ -77,7 +84,7 @@ Here is a quick overview of common commands translated to Oxen.
 For your commit history, you will have to set up your local Oxen user name and email. This is what will show up in `oxen log` or in the OxenHub dashboard for who changed what.
 
 ```bash
-$ oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
+oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
 ```
 
 ## Create Local Repository
@@ -85,7 +92,7 @@ $ oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
 First, create a new directory, navigate into it, and perform
 
 ```bash
-$ oxen init
+oxen init
 ```
 
 ## Stage Data
@@ -93,7 +100,7 @@ $ oxen init
 You can stage changes that you are interested in committing with the `oxen add` command and giving a full file path or directory.
 
 ```bash
-$ oxen add images/
+oxen add images/
 ```
 
 ## View Status
@@ -103,8 +110,10 @@ To see what data is tracked, staged, or not yet added to the repository you can 
 Note: since we are dealing with large datasets with many files, `status` rolls up the changes and summarizes them for you.
 
 ```bash
-$ oxen status
+oxen status
+```
 
+```
 On branch main -> e76dd52a4fc13a6f
 
 Directories to be committed
@@ -135,7 +144,7 @@ You can always paginate through the changes with the `-s` (skip) and `-l` (limit
 To commit the changes that are staged with a message you can use
 
 ```bash
-$ oxen commit -m "Some informative commit message"
+oxen commit -m "Some informative commit message"
 ```
 
 ## Log
@@ -143,8 +152,10 @@ $ oxen commit -m "Some informative commit message"
 You can see the history of changes on your current branch by running:
 
 ```bash
-$ oxen log
+oxen log
+```
 
+```
 commit 6b958e268656b0c5
 
 Author: Ox
@@ -165,7 +176,7 @@ Date:   Fri, 21 Oct 2022 16:05:22 -0700
 If ever you want to change your working directory to a point in your commit history, you can simply supply the commit id from your history to the `checkout` command.
 
 ```bash
-$ oxen checkout COMMIT_ID
+oxen checkout COMMIT_ID
 ```
 
 ## Restore Working Directory
@@ -173,7 +184,7 @@ $ oxen checkout COMMIT_ID
 The `restore` command comes in handy if you made some changes locally and you want to revert the changes. This can be used for example if you accidentally delete or modify or stage a file that you did not intend to.
 
 ```bash
-$ oxen restore path/to/file.txt
+oxen restore path/to/file.txt
 ```
 
 Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the [restore documentation](commands/Restore.md).
@@ -183,7 +194,7 @@ Restore defaults to restoring the files to the current HEAD. For more detailed o
 To stage a file to be removed from the next commit, use the `oxen rm` command. Removing data from a commit can be useful if you find errors or simply want to create a smaller subset of data on a separate branch for debugging or testing.
 
 ```bash
-$ oxen rm path/to/file.txt
+oxen rm path/to/file.txt
 ```
 
 Note: the file must be committed in the history for this to work. If you want to remove a file that has not been committed yet, simple use your /bin/rm command.
@@ -191,13 +202,13 @@ Note: the file must be committed in the history for this to work. If you want to
 To recursively remove a directory use the `-r` flag.
 
 ```bash
-$ oxen rm -r path/to/dir
+oxen rm -r path/to/dir
 ```
 
 If you accidentally staged a file that you do not want to commit, you can also use `oxen rm` with the `--staged` flag to unstage the file or directory.
 
 ```bash
-$ oxen rm --staged -r path/to/dir
+oxen rm --staged -r path/to/dir
 ```
 
 Once data has been committed, a version of it always lives in the .oxen/versions directory. As of right now there is no way to completely remove it from the repository history, this functionality is in our backlog for sensitive data that was accidentally committed.
@@ -232,8 +243,11 @@ From your home page, you can view your repositories and create a new repository.
 You will notice on the side panel you have access to your API Key. In order to push data to your repository you will need to copy this key and set it up in your user config. This saves your key in `~/.oxen/user_config.toml` with one key per host if you ever need to push to multiple hosts.
 
 ```bash
-$ oxen config --auth hub.oxen.ai YOUR_API_KEY
-$ cat ~/.oxen/user_config.toml
+oxen config --auth hub.oxen.ai YOUR_API_KEY
+```
+
+```bash
+cat ~/.oxen/user_config.toml
 ```
 
 ## Create Remote Repository
@@ -249,8 +263,11 @@ Once you have created a repository, you will see a URL you can push your data to
 From the data repository that you [created above](#create-repository) you can simply add the remote and push.
 
 ```bash
-$ oxen config --set-remote origin https://hub.oxen.ai/<username>/<repo_name>
-$ oxen push origin main
+oxen config --set-remote origin https://hub.oxen.ai/<username>/<repo_name>
+```
+
+```bash
+oxen push origin main
 ```
 
 🎉 Congrats! You should now be able to see your data in the hub.
@@ -260,9 +277,15 @@ Now you can set up your training job or another collaborator on your team to use
 There is a `--shallow` flag on `oxen clone` to make sure you don't pull all the data on clone. The default is cloning `main` and all the associated data
 
 ```bash
-$ oxen clone https://hub.oxen.ai/<username>/<repo_name> --shallow
-$ cd <repo_name>
-$ oxen pull origin my-branch
+oxen clone https://hub.oxen.ai/$USERNAME/$REPO_NAME --shallow
+```
+
+```bash
+cd $REPO_NAME
+```
+
+```bash
+oxen pull origin my-branch
 ```
 
 ## Remote Staging
@@ -274,20 +297,23 @@ Oxen's remote staging area helps enable a more efficient workflow. Simply add th
 Let's walk through an example. Start by shallow cloning a repo and a checkout a specific branch.
 
 ```bash
-$ oxen clone https://hub.oxen.ai/<username>/<repo_name> --shallow -b add-images
+oxen clone https://hub.oxen.ai/<username>/<repo_name> --shallow -b add-images
 ```
 
 If you do a quick `ls` you will see that there are no files locally. Never fear, we are in a shallow state and can still interact with the repo remotely.
 
 ```bash
-$ oxen remote status
+oxen remote status
 ```
 
 This checks the remote staging area on this branch to see if you have any remote files staged. You can then proceed to `add` and `commit` changes without ever having to clone the entire dataset.
 
 ```bash
-$ oxen remote add image.png
-$ oxen remote status
+oxen remote add image.png
+```
+
+```bash
+oxen remote status
 ```
 
 For more information about remote staging, refer to the [remote staging documentation](RemoteStaging.md).
@@ -319,8 +345,11 @@ You can read more about self-hosting [here](SelfHosting.md).
 Oxen is smart about what file types you are adding. For example, if you track a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) Oxen will index and keep track of each row of data.
 
 ```bash
-$ oxen add annotations/train.csv
-$ oxen commit -m "adding rows and rows of data"
+oxen add annotations/train.csv
+```
+
+```bash
+oxen commit -m "adding rows and rows of data"
 ```
 
 Under the hood, Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames check out the [data point level version control documentation](DataPointLevelVersionControl.md).
@@ -328,8 +357,10 @@ Under the hood, Oxen will detect the data schema and hash every row of content. 
 Oxen also has some [handy command line tooling](DataFrames.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command lets you easily view, modify, slice, and modify the data.
 
 ```bash
-$ oxen df annotations/train.csv
+oxen df annotations/train.csv
+```
 
+```
 shape: (10000, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
 │ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
@@ -373,9 +404,14 @@ Oxen knows how to compare text files as well as [tabular data](DataFrames.md) be
 If the file is tabular data `oxen diff` will show you the rows that were added or removed.
 
 ```bash
-$ oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
-$ oxen diff annotations/data.csv 
+oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
+```
+  
+```bash
+oxen diff annotations/data.csv 
+``` 
 
+```
 Added Rows
 
 ╭───────────────────┬───────┬───────┬───────┬───────┬────────╮
@@ -439,8 +475,10 @@ Current
 If the file is any other type of text data, it will simply show you the added and removed lines.
 
 ```bash
-$ oxen diff path/to/file.txt
+oxen diff path/to/file.txt
+```
 
+```
  i
 +here
  am a text file that
@@ -457,31 +495,31 @@ Branches are used to augment the dataset and run experiments with different subs
 You can create a new branch with
 
 ```bash
-$ oxen checkout -b branch_name
+oxen checkout -b branch_name
 ```
 
 Switch back to main
 
 ```bash
-$ oxen checkout main
+oxen checkout main
 ```
 
 and delete the branch again
 
 ```bash
-$ oxen branch -d branch_name
+oxen branch -d branch_name
 ```
 
 If you want to make the branch available to others, make sure to push it to a remote
 
 ```bash
-$ oxen push origin branch_name
+oxen push origin branch_name
 ```
 
 To see all the available branches you have locally run
 
 ```bash
-$ oxen branch -a
+oxen branch -a
 ```
 
 ## Pulling New Changes
@@ -489,7 +527,7 @@ $ oxen branch -a
 To update your local repository to the latest changes, run
 
 ```bash
-$ oxen pull origin branch_name
+oxen pull origin branch_name
 ```
 
 Again you can specify the remote and the branch name you would like to pull
@@ -499,15 +537,21 @@ Again you can specify the remote and the branch name you would like to pull
 If you feel confident in your changes, you can check out the main branch again, then merge your changes in.
 
 ```bash
-$ oxen checkout main
-$ oxen merge branch_name
+oxen checkout main
+```
+
+```bash
+oxen merge branch_name
 ```
 
 If there are conflicts, Oxen will flag them and you will need to add and commit the files again in a separate commit. Oxen currently does not add any modifications to your working file, just flags it as conflicting. If you simply want to take your version, just add and commit again.
 
 ```bash
-$ oxen add file/with/conflict.jpg
-$ oxen commit -m "fixing conflict"
+oxen add file/with/conflict.jpg
+```
+
+```bash
+oxen commit -m "fixing conflict"
 ```
 
 ## Dealing With Merge Conflicts
