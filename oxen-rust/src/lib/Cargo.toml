@@ -7,7 +7,7 @@ description = "Oxen is a fast, unstructured data version control, to help versio
 homepage = "https://oxen.ai"
 repository = "https://github.com/Oxen-AI/Oxen"
 readme = "README.md"
-keywords = ["machine learning", "AI", "version control"]
+keywords = ["machine-learning", "AI", "version-control"]
 categories = ["command-line-utilities", "science", "multimedia", "database", "computer-vision"]
 
 [dependencies]
