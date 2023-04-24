@@ -14,9 +14,11 @@ use std::path::Path;
 
 pub fn get_by_namespace_and_name(
     sync_dir: &Path,
-    namespace: &str,
-    name: &str,
+    namespace: impl AsRef<str>,
+    name: impl AsRef<str>,
 ) -> Result<Option<LocalRepository>, OxenError> {
+    let namespace = namespace.as_ref();
+    let name = name.as_ref();
     let repo_dir = sync_dir.join(namespace).join(name);
 
     if !repo_dir.exists() {
@@ -152,14 +154,14 @@ pub fn list_repos_in_namespace(namespace_path: &Path) -> Vec<LocalRepository> {
 
 pub fn create_empty(
     sync_dir: &Path,
-    new_repo: &RepositoryNew,
+    new_repo: RepositoryNew,
 ) -> Result<LocalRepository, OxenError> {
     let repo_dir = sync_dir
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
     if repo_dir.exists() {
         log::error!("Repository already exists {repo_dir:?}");
-        return Err(OxenError::RepoAlreadyExists(repo_dir));
+        return Err(OxenError::repo_already_exists(new_repo));
     }
 
     // Create the repo dir
@@ -235,7 +237,7 @@ mod tests {
                     timestamp,
                 }),
             };
-            let _repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
+            let _repo = api::local::repositories::create_empty(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -259,7 +261,7 @@ mod tests {
                 name: String::from(name),
                 root_commit: None,
             };
-            let _repo = api::local::repositories::create_empty(sync_dir, &repo_new)?;
+            let _repo = api::local::repositories::create_empty(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))

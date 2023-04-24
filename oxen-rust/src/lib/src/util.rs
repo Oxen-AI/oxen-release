@@ -1,5 +1,6 @@
 pub mod fs;
 pub mod hasher;
+pub mod logging;
 pub mod paginate;
 pub mod read_progress;
 pub mod resource;

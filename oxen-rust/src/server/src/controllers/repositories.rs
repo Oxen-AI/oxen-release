@@ -1,4 +1,7 @@
 use crate::app_data::OxenAppData;
+use crate::errors::OxenHttpError;
+use crate::helpers::get_repo;
+use crate::params::path_param;
 
 use liboxen::api;
 use liboxen::error::OxenError;
@@ -44,35 +47,22 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn show(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = req
+        .app_data::<OxenAppData>()
+        .ok_or(OxenHttpError::AppDataDoesNotExist)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
 
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    if let (Some(name), Some(namespace)) = (name, namespace) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(_)) => HttpResponse::Ok().json(RepositoryResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_FOUND),
-                repository: RepositoryView {
-                    namespace: String::from(namespace),
-                    name: String::from(name),
-                },
-            }),
+    // Get the repository or return error
+    let _repository = get_repo(&app_data.path, &namespace, &name)?;
 
-            Ok(None) => {
-                log::debug!("404 Could not find repo: {}", name);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::debug!("Err finding repo: {} => {:?}", name, err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Could not find `name` or `namespace` param...";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    // Return the repository view
+    Ok(HttpResponse::Ok().json(RepositoryResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_FOUND),
+        repository: RepositoryView { namespace, name },
+    }))
 }
 
 pub async fn stats(req: HttpRequest) -> HttpResponse {
@@ -122,13 +112,13 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     println!("controllers::repositories::create body:\n{}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => match api::local::repositories::create_empty(&app_data.path, &data) {
+        Ok(data) => match api::local::repositories::create_empty(&app_data.path, data.to_owned()) {
             Ok(_) => HttpResponse::Ok().json(RepositoryResponse {
                 status: String::from(STATUS_SUCCESS),
                 status_message: String::from(MSG_RESOURCE_CREATED),
                 repository: RepositoryView {
                     namespace: data.namespace.clone(),
-                    name: data.name.clone(),
+                    name: data.name,
                 },
             }),
             Err(OxenError::RepoAlreadyExists(path)) => {
@@ -338,7 +328,7 @@ mod tests {
         let uri = format!("/api/repos/{namespace}/{name}");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
-        let resp = controllers::repositories::show(req).await;
+        let resp = controllers::repositories::show(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();

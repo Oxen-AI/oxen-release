@@ -1,15 +1,18 @@
-use crate::constants::MERGE_DIR;
+use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
 use crate::index::MergeConflictDBReader;
-use crate::model::{LocalRepository, MergeConflict};
+use crate::model::{Commit, LocalRepository, MergeConflict};
 use crate::util;
 
 use rocksdb::DB;
 use std::path::Path;
 
+use super::CommitReader;
+
 pub struct MergeConflictReader {
     merge_db: DB,
+    repository: LocalRepository,
 }
 
 impl MergeConflictReader {
@@ -26,7 +29,16 @@ impl MergeConflictReader {
 
         Ok(MergeConflictReader {
             merge_db: DB::open_for_read_only(&opts, dunce::simplified(&db_path), false)?,
+            repository: repo.clone(),
         })
+    }
+
+    pub fn get_conflict_commit(&self) -> Result<Option<Commit>, OxenError> {
+        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
+        let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
+        let commit_id = util::fs::read_first_line(merge_head_path)?;
+        let commit_reader = CommitReader::new(&self.repository)?;
+        commit_reader.get_commit_by_id(commit_id)
     }
 
     pub fn has_conflicts(&self) -> Result<bool, OxenError> {

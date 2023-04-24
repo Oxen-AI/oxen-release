@@ -31,6 +31,7 @@ pub async fn show(
                 serde_json::from_str(&body);
             match response {
                 Ok(val) => {
+                    log::debug!("got JsonDataFrameSliceResponse: {:?}", val);
                     let df = val.df.to_df();
                     Ok((df, val.full_size))
                 }

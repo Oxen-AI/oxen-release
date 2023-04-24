@@ -1,6 +1,6 @@
 use crate::df::{tabular, DFOpts};
 use crate::error::OxenError;
-use crate::index::{CommitDirEntryReader, CommitReader};
+use crate::index::CommitDirEntryReader;
 use crate::model::entry::diff_entry::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::{constants, util};
@@ -11,69 +11,77 @@ use polars::export::ahash::HashMap;
 use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use super::{CommitDirReader, SchemaReader};
+use super::CommitDirReader;
 
 pub fn diff(
     repo: &LocalRepository,
-    commit_id: Option<&str>,
-    path: &Path,
+    original: &Commit,
+    compare: &Commit,
+    path: impl AsRef<Path>,
 ) -> Result<String, OxenError> {
-    match _commit_or_head(repo, commit_id)? {
-        Some(commit) => _diff_commit(repo, &commit, path),
-        None => Err(OxenError::commit_id_does_not_exist(commit_id.unwrap())),
-    }
+    let original_path = get_version_file_from_commit(repo, original, &path)?;
+    let compare_path = get_version_file_from_commit(repo, compare, &path)?;
+    diff_files(original_path, compare_path)
 }
 
-fn _commit_or_head(
+pub fn get_version_file_from_commit(
     repo: &LocalRepository,
-    commit_id: Option<&str>,
-) -> Result<Option<Commit>, OxenError> {
-    let commit_reader = CommitReader::new(repo)?;
-    if let Some(commit_id) = commit_id {
-        commit_reader.get_commit_by_id(commit_id)
-    } else {
-        Ok(Some(commit_reader.head_commit()?))
-    }
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
+
+    // Extract parent so we can use it to instantiate CommitDirEntryReader
+    let parent = match path.parent() {
+        Some(parent) => parent,
+        None => return Err(OxenError::file_has_no_parent(path)),
+    };
+
+    // Instantiate CommitDirEntryReader to fetch entry
+    let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
+    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
+    let file_name = match path.file_name() {
+        Some(file_name) => file_name,
+        None => return Err(OxenError::file_has_no_file_name(path)),
+    };
+
+    // Get entry from the reader
+    let entry = match commit_entry_reader.get_entry(file_name) {
+        Ok(Some(entry)) => entry,
+        _ => return Err(OxenError::file_does_not_exist_in_commit(path, &commit.id)),
+    };
+
+    Ok(util::fs::version_path(repo, &entry))
 }
 
-// TODO: Change API to take two commits
-fn _diff_commit(repo: &LocalRepository, commit: &Commit, path: &Path) -> Result<String, OxenError> {
-    if let Some(parent) = path.parent() {
-        let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-        let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
-        let file_name = path.file_name().unwrap();
-        if let Ok(Some(entry)) = commit_entry_reader.get_entry(file_name) {
-            if util::fs::is_tabular(path) {
-                let commit_reader = CommitReader::new(repo)?;
-                let commits = commit_reader.history_from_head()?;
-
-                let current_commit = commits.first().unwrap();
-
-                return diff_tabular(repo, current_commit, &entry.path);
-            } else if util::fs::is_utf8(path) {
-                // TODO: Change API to take two commits
-                return diff_utf8(repo, &entry);
-            }
-            Err(OxenError::basic_str(format!(
-                "Diff not supported for file: {path:?}"
-            )))
-        } else {
-            Err(OxenError::file_does_not_exist_in_commit(path, &commit.id))
-        }
-    } else {
-        Err(OxenError::file_has_no_parent(path))
+pub fn diff_files(
+    original: impl AsRef<Path>,
+    compare: impl AsRef<Path>,
+) -> Result<String, OxenError> {
+    let original = original.as_ref();
+    let compare = compare.as_ref();
+    if util::fs::is_tabular(original) && util::fs::is_tabular(compare) {
+        let tabular_diff = diff_tabular(original, compare)?;
+        return Ok(tabular_diff.to_string());
+    } else if util::fs::is_utf8(original) && util::fs::is_utf8(compare) {
+        return diff_utf8(original, compare);
     }
+    Err(OxenError::basic_str(format!(
+        "Diff not supported for files: {original:?} and {compare:?}"
+    )))
 }
 
-pub fn diff_utf8(repo: &LocalRepository, entry: &CommitEntry) -> Result<String, OxenError> {
-    let current_path = repo.path.join(&entry.path);
-    let version_path = util::fs::version_path(repo, entry);
-
-    let original = util::fs::read_from_path(&version_path)?;
-    let modified = util::fs::read_from_path(&current_path)?;
-    let Changeset { diffs, .. } = Changeset::new(&original, &modified, "\n");
+pub fn diff_utf8(
+    original: impl AsRef<Path>,
+    compare: impl AsRef<Path>,
+) -> Result<String, OxenError> {
+    let original = original.as_ref();
+    let compare = compare.as_ref();
+    let original_data = util::fs::read_from_path(original)?;
+    let compare_data = util::fs::read_from_path(compare)?;
+    let Changeset { diffs, .. } = Changeset::new(&original_data, &compare_data, "\n");
 
     let mut outputs: Vec<String> = vec![];
     for diff in diffs {
@@ -100,62 +108,57 @@ pub fn diff_utf8(repo: &LocalRepository, entry: &CommitEntry) -> Result<String, 
 }
 
 pub fn diff_tabular(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: &Path,
-) -> Result<String, OxenError> {
-    let schema_reader = SchemaReader::new(repo, &commit.id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(path)? {
-        let diff = compute_dataframe_diff(repo, commit, &schema, path)?;
-        Ok(diff.to_string())
-    } else {
-        Err(OxenError::schema_does_not_exist_for_file(path))
-    }
-}
-
-fn compute_dataframe_diff(
-    repo: &LocalRepository,
-    commit: &Commit,
-    versioned_schema: &Schema,
-    path: &Path,
+    original_path: impl AsRef<Path>,
+    compare_path: impl AsRef<Path>,
 ) -> Result<DataFrameDiff, OxenError> {
-    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, path.parent().unwrap())?;
-    let filename = Path::new(path.file_name().unwrap().to_str().unwrap());
-    if let Some(entry) = commit_entry_reader.get_entry(filename)? {
-        // Read current DF and get schema
-        let current_path = repo.path.join(path);
-        let versioned_path = util::fs::version_path(repo, &entry);
-        let current_df = tabular::read_df(&current_path, DFOpts::empty())?;
-        let current_schema = Schema::from_polars(&current_df.schema());
+    let original_path = original_path.as_ref();
+    let compare_path = compare_path.as_ref();
+    // Make sure files exist
+    if !original_path.exists() {
+        return Err(OxenError::file_does_not_exist(original_path));
+    }
 
-        // If schemas don't match, figure out which columns are different
-        if versioned_schema.hash != current_schema.hash {
-            compute_new_columns(
-                &current_path,
-                &versioned_path,
-                &current_schema,
-                versioned_schema,
-            )
-        } else {
-            println!("Computing diff for {path:?}");
-            // Schemas match, find added and removed rows
-            // Read versioned df
-            let versioned_df = tabular::read_df(&versioned_path, DFOpts::empty())?;
-            compute_new_rows(current_df, versioned_df, versioned_schema)
-        }
+    if !compare_path.exists() {
+        return Err(OxenError::file_does_not_exist(compare_path));
+    }
+
+    // Read DFs and get schemas
+    let original_df = tabular::read_df(original_path, DFOpts::empty())?;
+    let compare_df = tabular::read_df(compare_path, DFOpts::empty())?;
+    let original_schema = Schema::from_polars(&original_df.schema());
+    let compare_schema = Schema::from_polars(&compare_df.schema());
+
+    log::debug!(
+        "Original df {} {original_path:?}\n{original_df:?}",
+        original_schema.hash
+    );
+    log::debug!(
+        "Compare df {} {compare_path:?}\n{compare_df:?}",
+        compare_schema.hash
+    );
+
+    // If schemas don't match, figure out which columns are different
+    if original_schema.hash != compare_schema.hash {
+        compute_new_columns(
+            original_path,
+            compare_path,
+            &original_schema,
+            &compare_schema,
+        )
     } else {
-        Err(OxenError::file_does_not_exist(path))
+        log::debug!("Computing diff for {original_path:?} to {compare_path:?}");
+        compute_new_rows(original_df, compare_df, &original_schema)
     }
 }
 
 fn compute_new_rows(
-    current_df: DataFrame,
-    versioned_df: DataFrame,
-    versioned_schema: &Schema,
+    original_df: DataFrame,
+    compare_df: DataFrame,
+    schema: &Schema,
 ) -> Result<DataFrameDiff, OxenError> {
     // Hash the rows
-    let versioned_df = tabular::df_hash_rows(versioned_df)?;
-    let current_df = tabular::df_hash_rows(current_df)?;
+    let versioned_df = tabular::df_hash_rows(original_df)?;
+    let current_df = tabular::df_hash_rows(compare_df)?;
 
     // log::debug!("diff_current got current hashes {}", current_df);
 
@@ -200,17 +203,17 @@ fn compute_new_rows(
     // log::debug!("diff_current removed_indices {:?}", removed_indices);
 
     // Take added from the current df
-    let opts = DFOpts::from_schema_columns(versioned_schema);
+    let opts = DFOpts::from_schema_columns(schema);
     let current_df = tabular::transform(current_df, opts)?;
     let added_rows = tabular::take(current_df.lazy(), added_indices)?;
 
     // Take removed from versioned df
-    let opts = DFOpts::from_schema_columns(versioned_schema);
+    let opts = DFOpts::from_schema_columns(schema);
     let versioned_df = tabular::transform(versioned_df, opts)?;
     let removed_rows = tabular::take(versioned_df.lazy(), removed_indices)?;
 
     Ok(DataFrameDiff {
-        base_schema: versioned_schema.to_owned(),
+        base_schema: schema.to_owned(),
         added_rows: if added_rows.height() > 0 {
             Some(added_rows)
         } else {
@@ -227,10 +230,10 @@ fn compute_new_rows(
 }
 
 fn compute_new_columns(
-    current_path: &Path,
     versioned_path: &Path,
-    current_schema: &Schema,
+    current_path: &Path,
     versioned_schema: &Schema,
+    current_schema: &Schema,
 ) -> Result<DataFrameDiff, OxenError> {
     let added_fields = current_schema.added_fields(versioned_schema);
     let removed_fields = current_schema.removed_fields(versioned_schema);

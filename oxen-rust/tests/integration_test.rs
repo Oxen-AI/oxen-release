@@ -2176,7 +2176,7 @@ async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
         assert_eq!(status.merge_conflicts.len(), 1);
 
         // Assume that we fixed the conflict and added the file
-        let path = status.merge_conflicts[0].head_entry.path.clone();
+        let path = status.merge_conflicts[0].base_entry.path.clone();
         let fullpath = repo.path.join(path);
         command::add(&repo, fullpath)?;
 
@@ -2187,6 +2187,83 @@ async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
 
         // Adding should get rid of the merge conflict
         assert_eq!(status.merge_conflicts.len(), 0);
+
+        Ok(())
+    })
+    .await
+}
+
+// Test diff during a merge conflict should show conflicts for a dataframe
+#[tokio::test]
+async fn test_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|repo| async move {
+        let og_branch = command::current_branch(&repo)?.unwrap();
+        let data_path = repo.path.join("data.csv");
+        util::fs::write_to_path(&data_path, "file,label\nimages/0.png,dog\n")?;
+        command::add(&repo, &data_path)?;
+        command::commit(&repo, "Add initial data.csv file with dog")?;
+
+        // Add a fish label to the file on a branch
+        let fish_branch_name = "add-fish-label";
+        command::create_checkout_branch(&repo, fish_branch_name)?;
+        let data_path = test::append_line_txt_file(data_path, "images/fish.png,fish\n")?;
+        command::add(&repo, &data_path)?;
+        command::commit(&repo, "Adding fish to data.csv file")?;
+
+        // Checkout main, and branch from it to another branch to add a cat label
+        command::checkout(&repo, &og_branch.name).await?;
+        let cat_branch_name = "add-cat-label";
+        command::create_checkout_branch(&repo, cat_branch_name)?;
+        let data_path = test::append_line_txt_file(data_path, "images/cat.png,cat\n")?;
+        command::add(&repo, &data_path)?;
+        command::commit(&repo, "Adding cat to data.csv file")?;
+
+        // Checkout main again
+        command::checkout(&repo, &og_branch.name).await?;
+
+        // Merge the fish branch in
+        let result = command::merge(&repo, fish_branch_name)?;
+        assert!(result.is_some());
+
+        // And then the cat branch should have conflicts
+        let result = command::merge(&repo, cat_branch_name)?;
+        assert!(result.is_none());
+
+        // Make sure we can access the conflicts in the status command
+        let status = command::status(&repo)?;
+        assert_eq!(status.merge_conflicts.len(), 1);
+
+        // Get the diff dataframe
+        let diff = command::diff(&repo, None, &data_path)?;
+        log::debug!("{diff:?}");
+
+        assert_eq!(
+            diff,
+            r"Added Rows
+
+shape: (1, 2)
+┌────────────────┬───────┐
+│ file           ┆ label │
+│ ---            ┆ ---   │
+│ str            ┆ str   │
+╞════════════════╪═══════╡
+│ images/cat.png ┆ cat   │
+└────────────────┴───────┘
+
+
+Removed Rows
+
+shape: (1, 2)
+┌─────────────────┬───────┐
+│ file            ┆ label │
+│ ---             ┆ ---   │
+│ str             ┆ str   │
+╞═════════════════╪═══════╡
+│ images/fish.png ┆ fish  │
+└─────────────────┴───────┘
+
+"
+        );
 
         Ok(())
     })
@@ -2225,7 +2302,7 @@ async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         assert_eq!(status.merge_conflicts.len(), 1);
 
         // Assume that we fixed the conflict and added the file
-        let path = status.merge_conflicts[0].head_entry.path.clone();
+        let path = status.merge_conflicts[0].base_entry.path.clone();
         let fullpath = repo.path.join(path);
         command::add(&repo, fullpath)?;
 
@@ -2397,9 +2474,8 @@ fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         opts.add_row = Some("train/dog_99.jpg,dog,101.5,32.0,385,330".to_string());
         opts.content_type = ContentType::Csv;
-        let og_df = tabular::scan_df(&bbox_path, &opts)?;
-        let mut new_df = tabular::transform_lazy(og_df, opts)?;
-        tabular::write_df(&mut new_df, &bbox_path)?;
+        let mut df = tabular::read_df(&bbox_path, opts)?;
+        tabular::write_df(&mut df, &bbox_path)?;
 
         command::restore(
             &repo,
@@ -2772,8 +2848,7 @@ async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), O
         // Add in a column in this branch
         let mut opts = DFOpts::empty();
         opts.add_col = Some(String::from("random_col:unknown:str"));
-        let df = tabular::scan_df(&bbox_file, &opts)?;
-        let mut df = tabular::transform_lazy(df, opts)?;
+        let mut df = tabular::read_df(&bbox_file, opts)?;
         println!("WRITE DF IN BRANCH {df:?}");
         tabular::write_df(&mut df, &bbox_file)?;
 
@@ -2813,7 +2888,7 @@ fn test_diff_tabular_add_col() -> Result<(), OxenError> {
         let bbox_filename = Path::new("annotations")
             .join("train")
             .join("bounding_box.csv");
-        let bbox_file = repo.path.join(&bbox_filename);
+        let bbox_file = repo.path.join(bbox_filename);
 
         let mut opts = DFOpts::empty();
         // Add Column
@@ -2821,9 +2896,11 @@ fn test_diff_tabular_add_col() -> Result<(), OxenError> {
         // Save to Output
         opts.output = Some(bbox_file.clone());
         // Perform df transform
-        command::df(bbox_file, opts)?;
+        command::df(&bbox_file, opts)?;
 
-        let diff = command::diff(&repo, None, &bbox_filename);
+        let diff = command::diff(&repo, None, &bbox_file);
+        println!("{:?}", diff);
+
         assert!(diff.is_ok());
         let diff = diff.unwrap();
         assert_eq!(
@@ -2857,7 +2934,7 @@ fn test_diff_tabular_add_row() -> Result<(), OxenError> {
         let bbox_filename = Path::new("annotations")
             .join("train")
             .join("bounding_box.csv");
-        let bbox_file = repo.path.join(&bbox_filename);
+        let bbox_file = repo.path.join(bbox_filename);
 
         let mut opts = DFOpts::empty();
         // Add Row
@@ -2866,9 +2943,9 @@ fn test_diff_tabular_add_row() -> Result<(), OxenError> {
         // Save to Output
         opts.output = Some(bbox_file.clone());
         // Perform df transform
-        command::df(bbox_file, opts)?;
+        command::df(&bbox_file, opts)?;
 
-        match command::diff(&repo, None, &bbox_filename) {
+        match command::diff(&repo, None, &bbox_file) {
             Ok(diff) => {
                 println!("{diff}");
 
@@ -2903,10 +2980,10 @@ fn test_diff_tabular_remove_row() -> Result<(), OxenError> {
         let bbox_filename = Path::new("annotations")
             .join("train")
             .join("bounding_box.csv");
-        let bbox_file = repo.path.join(&bbox_filename);
+        let bbox_file = repo.path.join(bbox_filename);
 
         // Remove a row
-        test::modify_txt_file(
+        let bbox_file = test::modify_txt_file(
             bbox_file,
             r"
 file,label,min_x,min_y,width,height
@@ -2916,7 +2993,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 ",
         )?;
 
-        match command::diff(&repo, None, &bbox_filename) {
+        match command::diff(&repo, None, bbox_file) {
             Ok(diff) => {
                 println!("{diff}");
 

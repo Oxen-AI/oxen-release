@@ -212,6 +212,10 @@ pub fn parse_data_into_df(
                 ))),
             }
         }
+        _ => {
+            let err = format!("Unsupported content type: {content_type:?}");
+            Err(OxenError::basic_str(err))
+        }
     }
 }
 
@@ -352,10 +356,15 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
 }
 
 pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
-    transform_lazy(df.lazy(), opts)
+    let height = df.height();
+    transform_lazy(df.lazy(), height, opts)
 }
 
-pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn transform_lazy(
+    mut df: LazyFrame,
+    height: usize,
+    opts: DFOpts,
+) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
 
     if let Some(vstack) = &opts.vstack {
@@ -407,12 +416,9 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, Oxen
     }
 
     if opts.should_randomize {
-        // TODO: Inefficient, but let's release
-        let full_df = df.collect().unwrap();
-        let height = full_df.height() as u32;
-        let mut rand_indices: Vec<u32> = (0..height).collect();
+        let mut rand_indices: Vec<u32> = (0..height as u32).collect();
         rand_indices.shuffle(&mut thread_rng());
-        df = take(full_df.lazy(), rand_indices)?.lazy();
+        df = take(df, rand_indices)?.lazy();
     }
 
     if let Some(sort_by) = &opts.sort_by {
@@ -430,6 +436,8 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, Oxen
 
     // Maybe slice it up
     df = slice(df, &opts);
+    df = head(df, &opts);
+    df = tail(df, height, &opts);
 
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
@@ -440,6 +448,24 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<DataFrame, Oxen
     }
 
     Ok(df.collect().expect(COLLECT_ERROR))
+}
+
+fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
+    if let Some(head) = opts.head {
+        df.slice(0, head as u32)
+    } else {
+        df
+    }
+}
+
+fn tail(df: LazyFrame, height: usize, opts: &DFOpts) -> LazyFrame {
+    if let Some(tail) = opts.tail {
+        let start = (height - tail) as i64;
+        let end = (height - 1) as u32;
+        df.slice(start, end)
+    } else {
+        df
+    }
 }
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
@@ -581,27 +607,28 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     let extension = path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
 
+    let df = match extension {
+        Some(extension) => match extension {
+            "ndjson" => read_df_jsonl(path),
+            "jsonl" => read_df_jsonl(path),
+            "json" => read_df_json(path),
+            "csv" => {
+                let delimiter = sniff_db_csv_delimiter(path, &opts)?;
+                read_df_csv(path, delimiter)
+            }
+            "tsv" => read_df_csv(path, b'\t'),
+            "parquet" => read_df_parquet(path),
+            "arrow" => read_df_arrow(path),
+            _ => Err(OxenError::basic_str(err)),
+        },
+        None => Err(OxenError::basic_str(err)),
+    }?;
+
     if opts.has_transform() {
-        let df = scan_df(path, &opts)?;
-        let df = transform_lazy(df, opts)?;
+        let df = transform(df, opts)?;
         Ok(df)
     } else {
-        match extension {
-            Some(extension) => match extension {
-                "ndjson" => read_df_jsonl(path),
-                "jsonl" => read_df_jsonl(path),
-                "json" => read_df_json(path),
-                "csv" => {
-                    let delimiter = sniff_db_csv_delimiter(path, &opts)?;
-                    read_df_csv(path, delimiter)
-                }
-                "tsv" => read_df_csv(path, b'\t'),
-                "parquet" => read_df_parquet(path),
-                "arrow" => read_df_arrow(path),
-                _ => Err(OxenError::basic_str(err)),
-            },
-            None => Err(OxenError::basic_str(err)),
-        }
+        Ok(df)
     }
 }
 

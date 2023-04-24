@@ -62,15 +62,14 @@ impl PaginatedDirEntries {
             page_size,
             total
         );
-        let total_entries = total;
-        let total_pages = (total_entries as f64 / page_size as f64).ceil() as u64;
-        let paginated = util::paginate(entries, page_num, page_size);
+
+        let (paginated, total_pages) = util::paginate(entries, page_num, page_size);
         PaginatedDirEntries {
             entries: paginated,
             resource,
             page_size,
             page_number: page_num,
-            total_pages: total_pages as usize,
+            total_pages,
             total_entries: total,
         }
     }

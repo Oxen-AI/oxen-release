@@ -384,6 +384,18 @@ pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     }
 }
 
+/// Wrapper around the std::fs::remove_dir_all command to tell us which file failed to copy
+pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
+    let src = src.as_ref();
+    match std::fs::remove_dir_all(src) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            log::error!("{}", err);
+            Err(OxenError::file_does_not_exist(src))
+        }
+    }
+}
+
 /// Wrapper around the std::fs::write command to tell us which file failed to copy
 pub fn write(src: impl AsRef<Path>, data: impl AsRef<[u8]>) -> Result<(), OxenError> {
     let src = src.as_ref();

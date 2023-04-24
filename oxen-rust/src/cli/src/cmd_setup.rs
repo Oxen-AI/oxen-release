@@ -234,6 +234,18 @@ pub fn df() -> Command<'static> {
                 .takes_value(true),
         )
         .arg(
+            Arg::new("head")
+                .long("head")
+                .help("Grab the first N entries of the data frame.")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::new("tail")
+                .long("tail")
+                .help("Grab the last N entries of the data frame.")
+                .takes_value(true),
+        )
+        .arg(
             Arg::new("page")
                 .long("page")
                 .help("Page number when paginating through the data frame. Default page = 1")
@@ -519,8 +531,8 @@ pub fn pull() -> Command<'static> {
 
 pub fn diff() -> Command<'static> {
     Command::new(DIFF)
-        .about("Compare file from a commit history")
-        .arg(Arg::new("FILE_OR_COMMIT_ID").required(true))
+        .about("Compare two files against each other or against versions. The first parameter can be one of three things 1) another file 2) a commit hash 3) a branch name. If the first parameter is a committish it will compare the second parameter path to that version of the file.")
+        .arg(Arg::new("FILE_OR_COMMITTISH").required(true))
         .arg(Arg::new("PATH").required(false))
 }
 
@@ -535,6 +547,7 @@ pub fn migrate() -> Command<'static> {
                 .help("Migrate all the oxen repositories in this directory")
                 .takes_value(false),
         )
+        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
 }
 
 pub fn read_lines() -> Command<'static> {

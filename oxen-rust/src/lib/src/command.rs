@@ -688,7 +688,15 @@ pub async fn log_with_opts(
         Ok(commits)
     } else {
         let committer = CommitReader::new(repo)?;
-        let commits = committer.history_from_head()?;
+
+        let commits = if let Some(committish) = &opts.committish {
+            let commit = api::local::commits::get_by_id_or_branch(repo, committish)?.ok_or(
+                OxenError::committish_not_found(committish.to_string().into()),
+            )?;
+            committer.history_from_commit_id(&commit.id)?
+        } else {
+            committer.history_from_head()?
+        };
         Ok(commits)
     }
 }
@@ -809,31 +817,34 @@ pub fn force_delete_branch(repo: &LocalRepository, name: &str) -> Result<(), Oxe
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub async fn checkout<S: AsRef<str>>(repo: &LocalRepository, value: S) -> Result<(), OxenError> {
+pub async fn checkout<S: AsRef<str>>(
+    repo: &LocalRepository,
+    value: S,
+) -> Result<Option<Branch>, OxenError> {
     let value = value.as_ref();
     log::debug!("--- CHECKOUT START {} ----", value);
     if branch_exists(repo, value) {
         if already_on_branch(repo, value) {
             println!("Already on branch {value}");
-            return Ok(());
+            return api::local::branches::get_by_name(repo, value);
         }
 
         println!("Checkout branch: {value}");
         set_working_branch(repo, value).await?;
         set_head(repo, value)?;
+        api::local::branches::get_by_name(repo, value)
     } else {
         // If we are already on the commit, do nothing
         if already_on_commit(repo, value) {
             eprintln!("Commit already checked out {value}");
-            return Ok(());
+            return Ok(None);
         }
 
         println!("Checkout commit: {value}");
         set_working_commit_id(repo, value).await?;
         set_head(repo, value)?;
+        Ok(None)
     }
-    log::debug!("--- CHECKOUT END {} ----", value);
-    Ok(())
 }
 
 /// # Checkout a file and take their changes
@@ -877,22 +888,22 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
         .iter()
         .find(|c| c.merge_entry.path == path.as_ref())
     {
-        if util::fs::is_tabular(&conflict.head_entry.path) {
-            let df_head_path = util::fs::version_path(repo, &conflict.head_entry);
-            let df_head = tabular::read_df(df_head_path, DFOpts::empty())?;
+        if util::fs::is_tabular(&conflict.base_entry.path) {
+            let df_base_path = util::fs::version_path(repo, &conflict.base_entry);
+            let df_base = tabular::read_df(df_base_path, DFOpts::empty())?;
             let df_merge_path = util::fs::version_path(repo, &conflict.merge_entry);
             let df_merge = tabular::read_df(df_merge_path, DFOpts::empty())?;
 
-            log::debug!("GOT DF HEAD {}", df_head);
+            log::debug!("GOT DF HEAD {}", df_base);
             log::debug!("GOT DF MERGE {}", df_merge);
 
-            match df_head.vstack(&df_merge) {
+            match df_base.vstack(&df_merge) {
                 Ok(result) => {
                     log::debug!("GOT DF COMBINED {}", result);
                     match result.unique(None, polars::frame::UniqueKeepStrategy::First) {
                         Ok(mut uniq) => {
                             log::debug!("GOT DF COMBINED UNIQUE {}", uniq);
-                            let output_path = repo.path.join(&conflict.head_entry.path);
+                            let output_path = repo.path.join(&conflict.base_entry.path);
                             tabular::write_df(&mut uniq, &output_path)
                         }
                         _ => Err(OxenError::basic_str("Could not uniq data")),
@@ -991,28 +1002,28 @@ pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<Bran
 /// If there are conflicts, it will abort and show the conflicts to be resolved in the `status` command
 pub fn merge<S: AsRef<str>>(
     repo: &LocalRepository,
-    branch_name: S,
+    merge_branch_name: S,
 ) -> Result<Option<Commit>, OxenError> {
-    let branch_name = branch_name.as_ref();
-    if branch_exists(repo, branch_name) {
-        if let Some(branch) = current_branch(repo)? {
-            let merger = Merger::new(repo)?;
-            if let Some(commit) = merger.merge(branch_name)? {
-                println!(
-                    "Successfully merged `{}` into `{}`",
-                    branch_name, branch.name
-                );
-                println!("HEAD -> {}", commit.id);
-                Ok(Some(commit))
-            } else {
-                eprintln!("Automatic merge failed; fix conflicts and then commit the result.");
-                Ok(None)
-            }
-        } else {
-            Err(OxenError::must_be_on_valid_branch())
-        }
+    let merge_branch_name = merge_branch_name.as_ref();
+    if !branch_exists(repo, merge_branch_name) {
+        return Err(OxenError::local_branch_not_found(merge_branch_name));
+    }
+
+    let base_branch = current_branch(repo)?.ok_or(OxenError::must_be_on_valid_branch())?;
+    let merge_branch = api::local::branches::get_by_name(repo, merge_branch_name)?
+        .ok_or(OxenError::local_branch_not_found(merge_branch_name))?;
+
+    let merger = Merger::new(repo)?;
+    if let Some(commit) = merger.merge_into_base(&merge_branch, &base_branch)? {
+        println!(
+            "Successfully merged `{}` into `{}`",
+            merge_branch_name, base_branch.name
+        );
+        println!("HEAD -> {}", commit.id);
+        Ok(Some(commit))
     } else {
-        Err(OxenError::local_branch_not_found(branch_name))
+        eprintln!("Automatic merge failed; fix conflicts and then commit the result.");
+        Ok(None)
     }
 }
 
@@ -1187,14 +1198,65 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     Ok(())
 }
 
-/// Diff a file from commit history
+/// Diff a file from a commit or compared to another file
+/// `resource` can be a None, commit id, branch name, or another path.
+///    None: compare `path` to the last commit versioned of the file. If a merge conflict with compare to the merge conflict
+///    commit id: compare `path` to the version of `path` from that commit
+///    branch name: compare `path` to the version of `path` from that branch
+///    another path: compare `path` to the other `path` provided
+/// `path` is the path you want to compare the resource to
 pub fn diff(
     repo: &LocalRepository,
-    commit_id_or_branch: Option<&str>,
-    path: &Path,
+    resource: Option<&str>,
+    path: impl AsRef<Path>,
 ) -> Result<String, OxenError> {
-    let commit = resource::get_commit_or_head(repo, commit_id_or_branch)?;
-    differ::diff(repo, Some(&commit.id), path)
+    if let Some(resource) = resource {
+        // `resource` is Some(resource)
+        if let Some(compare_commit) = api::local::commits::get_by_id(repo, resource)? {
+            // `resource` is a commit id
+            let original_commit = head_commit(repo)?;
+            differ::diff(repo, &original_commit, &compare_commit, path)
+        } else if let Some(branch) = api::local::branches::get_by_name(repo, resource)? {
+            // `resource` is a branch name
+            let compare_commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+            let original_commit = head_commit(repo)?;
+
+            differ::diff(repo, &original_commit, &compare_commit, path)
+        } else if Path::new(resource).exists() {
+            // `resource` is another path
+            differ::diff_files(resource, path)
+        } else {
+            Err(OxenError::basic_str(format!(
+                "Could not find resource: {resource:?}"
+            )))
+        }
+    } else {
+        // `resource` is None
+        // First check if there are merge conflicts
+        let merger = MergeConflictReader::new(repo)?;
+        if merger.has_conflicts()? {
+            match merger.get_conflict_commit() {
+                Ok(Some(commit)) => {
+                    let current_path = path.as_ref();
+                    let version_path =
+                        differ::get_version_file_from_commit(repo, &commit, current_path)?;
+                    differ::diff_files(current_path, version_path)
+                }
+                err => {
+                    log::error!("{err:?}");
+                    Err(OxenError::basic_str(format!(
+                        "Could not find merge resource: {resource:?}"
+                    )))
+                }
+            }
+        } else {
+            // No merge conflicts, compare to last version committed of the file
+            let current_path = path.as_ref();
+            let commit = head_commit(repo)?;
+            let version_path = differ::get_version_file_from_commit(repo, &commit, current_path)?;
+            differ::diff_files(version_path, current_path)
+        }
+    }
 }
 
 pub async fn remote_diff(
@@ -1251,14 +1313,14 @@ pub async fn pull_remote_branch(
 }
 
 /// Run the computation cache on all repositories within a directory
-pub fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
+pub async fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
     let namespaces = api::local::repositories::list_namespaces(path)?;
     for namespace in namespaces {
         let namespace_path = path.join(namespace);
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             println!("Migrate repo {:?}", repo.path);
-            match migrate_repo(&repo) {
+            match migrate_repo(&repo, None).await {
                 Ok(_) => {
                     println!("Done.");
                 }
@@ -1273,9 +1335,22 @@ pub fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
 }
 
 /// Run the computation cache on all repositories within a directory
-pub fn migrate_repo(repo: &LocalRepository) -> Result<(), OxenError> {
-    let commits = log(repo)?;
+pub async fn migrate_repo(
+    repo: &LocalRepository,
+    committish: Option<String>,
+) -> Result<(), OxenError> {
+    println!("Migrate repo commit [{committish:?}] -> {:?}", repo.path);
+    let commits = if let Some(committish) = committish {
+        let opts = LogOpts {
+            committish: Some(committish),
+            remote: false,
+        };
+        log_with_opts(repo, &opts).await?
+    } else {
+        log(repo)?
+    };
     for commit in commits {
+        println!("Migrate commit {:?}", commit);
         compute::commit_cacher::run_all(repo, &commit)?;
     }
     Ok(())
