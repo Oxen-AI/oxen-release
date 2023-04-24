@@ -59,6 +59,17 @@ impl Schema {
             schema.len()
         );
         if self.fields.len() != schema.len() {
+            // Print debug logic to help figure out why schemas don't match
+            log::debug!("====schema.len {}====", schema.len());
+            for field in schema.iter_fields() {
+                log::debug!("schema.field: {}", field.name());
+            }
+
+            log::debug!("====self.fields.len {}====", self.fields.len());
+            for field in self.fields.iter() {
+                log::debug!("self.field: {}", field.name);
+            }
+
             return false;
         }
 
