@@ -296,6 +296,18 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
             .unwrap_or_else(|| String::from(""))
             .parse::<usize>()
             .ok(),
+        head: sub_matches
+            .value_of("head")
+            .map(String::from)
+            .unwrap_or_else(|| String::from(""))
+            .parse::<usize>()
+            .ok(),
+        tail: sub_matches
+            .value_of("tail")
+            .map(String::from)
+            .unwrap_or_else(|| String::from(""))
+            .parse::<usize>()
+            .ok(),
         take: sub_matches.value_of("take").map(String::from),
         columns: sub_matches.value_of("columns").map(String::from),
         filter: sub_matches.value_of("filter").map(String::from),
@@ -623,7 +635,9 @@ pub async fn diff(sub_matches: &ArgMatches) {
 
 async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     // First arg is optional
-    let file_or_commit_id = sub_matches.value_of("FILE_OR_COMMIT_ID").expect("required");
+    let file_or_commit_id = sub_matches
+        .value_of("FILE_OR_COMMITTISH")
+        .expect("required");
     let path = sub_matches.value_of("PATH");
     if let Some(path) = path {
         match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {
@@ -689,20 +703,22 @@ pub async fn commit(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn migrate(sub_matches: &ArgMatches) {
+pub async fn migrate(sub_matches: &ArgMatches) {
     let path_str = sub_matches.value_of("PATH").expect("required");
     let path = Path::new(path_str);
 
     if sub_matches.is_present("all") {
-        match command::migrate_all_repos(path) {
+        match command::migrate_all_repos(path).await {
             Ok(_) => {}
             Err(err) => {
                 println!("Err: {err}")
             }
         }
     } else {
+        let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+
         match LocalRepository::new(path) {
-            Ok(repo) => match command::migrate_repo(&repo) {
+            Ok(repo) => match command::migrate_repo(&repo, committish).await {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {err}")

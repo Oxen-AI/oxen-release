@@ -22,7 +22,23 @@ pub struct RepositoryNew {
     pub root_commit: Option<Commit>,
 }
 
+impl std::fmt::Display for RepositoryNew {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.namespace, self.name)
+    }
+}
+
+impl std::error::Error for RepositoryNew {}
+
 impl RepositoryNew {
+    pub fn new(namespace: impl AsRef<str>, name: impl AsRef<str>) -> RepositoryNew {
+        RepositoryNew {
+            namespace: String::from(namespace.as_ref()),
+            name: String::from(name.as_ref()),
+            root_commit: None,
+        }
+    }
+
     pub fn from_url(url: &str) -> Result<RepositoryNew, OxenError> {
         let uri = url.parse::<Uri>()?;
         let mut split_path: Vec<&str> = uri.path().split('/').collect();
@@ -117,17 +133,12 @@ impl LocalRepository {
             name: String::from(DEFAULT_REMOTE_NAME),
             url: opts.url.to_owned(),
         };
-        match api::remote::repositories::get_by_remote(&remote).await {
-            Ok(Some(remote_repo)) => Ok(Some(
-                LocalRepository::clone_repo(remote_repo, &opts.branch, &opts.dst, opts.shallow)
-                    .await?,
-            )),
-            Ok(None) => Ok(None),
-            Err(_) => {
-                let err = format!("Could not clone remote {} not found", opts.url);
-                Err(OxenError::basic_str(err))
-            }
-        }
+        let remote_repo = api::remote::repositories::get_by_remote(&remote)
+            .await?
+            .ok_or_else(|| OxenError::remote_repo_not_found(&opts.url))?;
+        let repo =
+            LocalRepository::clone_repo(remote_repo, &opts.branch, &opts.dst, opts.shallow).await?;
+        Ok(Some(repo))
     }
 
     pub fn add_remote(&mut self, name: &str, url: &str) {

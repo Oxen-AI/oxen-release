@@ -1,27 +1,75 @@
-use std::error;
+// use std::error;
+use derive_more::{Display, Error};
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use crate::model::RepositoryNew;
 use crate::model::Schema;
+use crate::model::{Commit, ParsedResource};
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
 pub const HEAD_NOT_FOUND: &str = "HEAD not found";
 
 pub const EMAIL_AND_NAME_NOT_FOUND: &str =
-    "Err: oxen not configured, set email and name with:\n\noxen config --name YOUR_NAME --email YOUR_EMAIL\n";
+    "oxen not configured, set email and name with:\n\noxen config --name YOUR_NAME --email YOUR_EMAIL\n";
 
 pub const AUTH_TOKEN_NOT_FOUND: &str =
-    "Err: oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
+    "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
 #[derive(Debug)]
+pub struct StringError(String);
+
+impl From<&str> for StringError {
+    fn from(s: &str) -> Self {
+        StringError(s.to_string())
+    }
+}
+
+impl From<String> for StringError {
+    fn from(s: String) -> Self {
+        StringError(s)
+    }
+}
+
+impl std::fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for StringError {}
+
+#[derive(Debug)]
+pub struct PathBufError(PathBuf);
+
+impl From<&Path> for PathBufError {
+    fn from(p: &Path) -> Self {
+        PathBufError(p.to_path_buf())
+    }
+}
+
+impl From<PathBuf> for PathBufError {
+    fn from(p: PathBuf) -> Self {
+        PathBufError(p)
+    }
+}
+
+impl std::fmt::Display for PathBufError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.to_string_lossy())
+    }
+}
+
+impl std::error::Error for PathBufError {}
+
+#[derive(Debug, Display, Error)]
 pub enum OxenError {
+    // Other Library Errors
     IO(io::Error),
-    Basic(String),
-    Authentication(String),
+    Authentication(StringError),
     TomlSer(toml::ser::Error),
     TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
@@ -31,17 +79,53 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
-    RepoAlreadyExists(PathBuf),
-    RootCommitDoesNotMatch(String),
+
+    // Internal Oxen Errors
+    UserConfigNotFound(Box<StringError>),
+    RepoNotFound(Box<RepositoryNew>),
+    ParsedResourceNotFound(Box<PathBufError>),
+    BranchNotFound(Box<StringError>),
+    RepoAlreadyExists(Box<RepositoryNew>),
+    CommittishNotFound(Box<StringError>),
+    RootCommitDoesNotMatch(Box<Commit>),
+    InvalidSchema(Box<Schema>),
+    ParsingError(Box<StringError>),
+
+    // Fallback
+    Basic(StringError),
 }
 
 impl OxenError {
     pub fn basic_str<T: AsRef<str>>(s: T) -> Self {
-        OxenError::Basic(String::from(s.as_ref()))
+        OxenError::Basic(StringError::from(s.as_ref()))
     }
 
     pub fn authentication<T: AsRef<str>>(s: T) -> Self {
-        OxenError::Authentication(String::from(s.as_ref()))
+        OxenError::Authentication(StringError::from(s.as_ref()))
+    }
+
+    pub fn user_config_not_found(value: StringError) -> Self {
+        OxenError::UserConfigNotFound(Box::new(value))
+    }
+
+    pub fn repo_not_found(repo: RepositoryNew) -> Self {
+        OxenError::RepoNotFound(Box::new(repo))
+    }
+
+    pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {
+        OxenError::ParsedResourceNotFound(Box::new(resource.resource.into()))
+    }
+
+    pub fn repo_already_exists(repo: RepositoryNew) -> Self {
+        OxenError::RepoAlreadyExists(Box::new(repo))
+    }
+
+    pub fn committish_not_found(value: StringError) -> Self {
+        OxenError::CommittishNotFound(Box::new(value))
+    }
+
+    pub fn root_commit_does_not_match(commit: Commit) -> Self {
+        OxenError::RootCommitDoesNotMatch(Box::new(commit))
     }
 
     pub fn local_repo_not_found() -> OxenError {
@@ -49,7 +133,7 @@ impl OxenError {
     }
 
     pub fn email_and_name_not_set() -> OxenError {
-        OxenError::basic_str(EMAIL_AND_NAME_NOT_FOUND)
+        OxenError::user_config_not_found(EMAIL_AND_NAME_NOT_FOUND.to_string().into())
     }
 
     pub fn auth_token_not_set() -> OxenError {
@@ -173,6 +257,11 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn file_has_no_file_name<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("File has no file_name: {:?}", path.as_ref());
+        OxenError::basic_str(err)
+    }
+
     pub fn could_not_convert_path_to_str<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File has no name: {:?}", path.as_ref());
         OxenError::basic_str(err)
@@ -237,19 +326,6 @@ Or you can interact with the remote directly with the `oxen remote` subcommand:
     }
 }
 
-impl fmt::Display for OxenError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let OxenError::Basic(err) = self {
-            write!(f, "{err}")
-        } else {
-            write!(f, "{self:?}")
-        }
-    }
-}
-
-// Defers to default method impls, compiler will fill in the blanks
-impl error::Error for OxenError {}
-
 // if you do not want to call .map_err, implement the std::convert::From trait
 impl From<io::Error> for OxenError {
     fn from(error: io::Error) -> Self {
@@ -259,7 +335,7 @@ impl From<io::Error> for OxenError {
 
 impl From<String> for OxenError {
     fn from(error: String) -> Self {
-        OxenError::Basic(error)
+        OxenError::Basic(StringError::from(error))
     }
 }
 

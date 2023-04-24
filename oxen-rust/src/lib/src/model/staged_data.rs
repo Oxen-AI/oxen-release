@@ -157,7 +157,7 @@ impl StagedData {
         self.__collapse_outputs(
             &self.merge_conflicts,
             |conflict| {
-                let path = &conflict.head_entry.path;
+                let path = &conflict.base_entry.path;
 
                 // println!(
                 //     "    LCA {} {:?}",
@@ -166,8 +166,8 @@ impl StagedData {
                 // );
                 // println!(
                 //     "    HEAD {} {:?}",
-                //     conflict.head_entry.commit_id,
-                //     conflict.head_entry.version_file()
+                //     conflict.base_entry.commit_id,
+                //     conflict.base_entry.version_file()
                 // );
                 // println!(
                 //     "    MERGE {} {:?}",

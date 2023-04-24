@@ -72,10 +72,10 @@ impl RefReader {
         match self.refs_db.get(bytes) {
             Ok(Some(value)) => Ok(Some(String::from(str::from_utf8(&value)?))),
             Ok(None) => {
-                log::debug!(
-                    "get_commit_id_for_branch could not find commit id for branch {}",
-                    name
-                );
+                // log::debug!(
+                //     "get_commit_id_for_branch could not find commit id for branch {}",
+                //     name
+                // );
                 Ok(None)
             }
             Err(err) => {
@@ -91,7 +91,7 @@ impl RefReader {
 
     pub fn head_commit_id(&self) -> Result<Option<String>, OxenError> {
         let head_ref = self.read_head_ref()?;
-        log::debug!("Got HEAD ref {:?}", head_ref);
+        // log::debug!("Got HEAD ref {:?}", head_ref);
 
         if let Some(head_ref) = head_ref {
             if let Some(commit_id) = self.get_commit_id_for_branch(&head_ref)? {
@@ -123,7 +123,7 @@ impl RefReader {
     pub fn read_head_ref(&self) -> Result<Option<String>, OxenError> {
         // Should probably lock before reading...
         // but not a lot of parallel action going on here
-        log::debug!("Looking for HEAD at {:?}", self.head_file);
+        // log::debug!("Looking for HEAD at {:?}", self.head_file);
         if self.head_file.exists() {
             Ok(Some(util::fs::read_from_path(&self.head_file)?))
         } else {
@@ -164,14 +164,14 @@ impl RefReader {
     }
 
     pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
-        log::debug!("get_branch_by_name {name}");
+        // log::debug!("get_branch_by_name {name}");
         let maybe_head_id = self.head_commit_id()?;
         if maybe_head_id.is_none() {
             return Ok(None);
         }
 
         let head_commit_id = maybe_head_id.unwrap();
-        log::debug!("get_branch_by_name got head_commit_id {}", head_commit_id);
+        // log::debug!("get_branch_by_name got head_commit_id {}", head_commit_id);
         match self.get_commit_id_for_branch(name) {
             Ok(Some(commit_id)) => Ok(Some(Branch {
                 name: name.to_string(),

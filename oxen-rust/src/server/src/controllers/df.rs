@@ -1,96 +1,62 @@
-use crate::app_data::OxenAppData;
+use crate::errors::OxenHttpError;
+use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
+use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::{api, constants};
+use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::df::{tabular, DFOpts};
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
-use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
-use std::path::PathBuf;
+use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse};
 
 use liboxen::util;
 
-pub async fn get(req: HttpRequest, query: web::Query<DFOptsQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn get(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
 
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let name: &str = req.match_info().get("repo_name").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    log::debug!(
+        "{} resource {}/{}",
+        current_function!(),
+        repo_name,
+        resource
+    );
 
-    log::debug!("file::get repo name [{}] resource [{:?}]", name, resource,);
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-        Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, _, filepath))) =
-                util::resource::parse_resource(&repo, &resource)
-            {
-                log::debug!(
-                    "dir::get commit_id [{}] and filepath {:?}",
-                    commit_id,
-                    filepath
-                );
+    let mut opts = DFOpts::empty();
+    log::debug!("Initial opts {:?}", opts);
+    opts = df_opts_query::parse_opts(&query, &mut opts);
 
-                let mut opts = DFOpts::empty();
-                log::debug!("Initial opts {:?}", opts);
-                opts = df_opts_query::parse_opts(&query, &mut opts);
+    let version_path =
+        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+    log::debug!("Reading version file {:?}", version_path);
+    let mut df = tabular::read_df(&version_path, opts)?;
+    log::debug!("Read df {:?}", df);
 
-                match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
-                    Ok(version_path) => match tabular::scan_df(&version_path, &opts) {
-                        Ok(lazy_df) => {
-                            log::debug!("Read version file {:?}", version_path);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
-                            log::debug!("Got opts {:?}", opts);
-                            let lazy_cp = lazy_df.clone();
-                            let mut df = tabular::transform_lazy(lazy_cp, opts).unwrap();
-                            let full_df = lazy_df.collect().unwrap();
-                            let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-                            let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let total_pages = (df.height() as f64 / page_size as f64).ceil() as usize;
 
-                            let total_pages =
-                                (full_df.height() as f64 / page_size as f64).ceil() as usize;
-
-                            let response = JsonDataFrameSliceResponse {
-                                status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_FOUND),
-                                df: JsonDataFrame::from_df(&mut df),
-                                full_size: JsonDataSize {
-                                    width: full_df.width(),
-                                    height: full_df.height(),
-                                },
-                                page_number: page,
-                                page_size,
-                                total_pages,
-                                total_entries: full_df.height(),
-                            };
-                            HttpResponse::Ok().json(response)
-                        }
-                        Err(err) => {
-                            log::error!("unable to read data frame {:?}. Err: {}", resource, err);
-                            HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error())
-                        }
-                    },
-                    Err(err) => {
-                        log::error!("df::get err: {:?}", err);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                }
-            } else {
-                log::debug!(
-                    "schema::get could not find resource from uri {:?}",
-                    resource
-                );
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-        }
-        Ok(None) => {
-            log::debug!("schema::get could not find repo with name {}", name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("schema::get Err: {}", err);
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    let response = JsonDataFrameSliceResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_FOUND),
+        full_size: JsonDataSize {
+            width: df.width(),
+            height: df.height(),
+        },
+        df: JsonDataFrame::from_df(&mut df),
+        page_number: page,
+        page_size,
+        total_pages,
+        total_entries: df.height(),
+    };
+    Ok(HttpResponse::Ok().json(response))
 }

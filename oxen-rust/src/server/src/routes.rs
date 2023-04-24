@@ -81,9 +81,21 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     )
     // ----- Compare ----- //
     .route(
-        "/{namespace}/{repo_name}/compare/{base_head}",
+        "/{namespace}/{repo_name}/compare/{base_head:.*}",
         web::get().to(controllers::compare::show),
     )
+    // ----- Merge ----- //
+    // GET merge to test if merge is possible
+    .route(
+        "/{namespace}/{repo_name}/merge/{base_head:.*}",
+        web::get().to(controllers::merger::show),
+    )
+    // POST merge to actually merge the branches
+    .route(
+        "/{namespace}/{repo_name}/merge/{base_head:.*}",
+        web::post().to(controllers::merger::merge),
+    )
+
     // ----- Stage Remote Data ----- //
     .route(
         "/{namespace}/{repo_name}/staging/{identifier}/status/{resource:.*}",
@@ -102,7 +114,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
     .route(
         "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
-        web::get().to(controllers::stager::diff_file), // TODO: diff on a resource
+        web::get().to(controllers::stager::diff_file),
     )
     .route(
         "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",

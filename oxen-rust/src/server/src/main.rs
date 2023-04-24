@@ -4,6 +4,8 @@ use liboxen::model::User;
 pub mod app_data;
 pub mod auth;
 pub mod controllers;
+pub mod errors;
+pub mod helpers;
 pub mod params;
 pub mod routes;
 pub mod test;

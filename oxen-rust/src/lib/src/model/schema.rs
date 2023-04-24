@@ -59,6 +59,17 @@ impl Schema {
             schema.len()
         );
         if self.fields.len() != schema.len() {
+            // Print debug logic to help figure out why schemas don't match
+            log::debug!("====schema.len {}====", schema.len());
+            for field in schema.iter_fields() {
+                log::debug!("schema.field: {}", field.name());
+            }
+
+            log::debug!("====self.fields.len {}====", self.fields.len());
+            for field in self.fields.iter() {
+                log::debug!("self.field: {}", field.name);
+            }
+
             return false;
         }
 
@@ -154,20 +165,17 @@ impl Schema {
 
 impl fmt::Display for Schema {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut table = comfy_table::Table::new();
-        table.set_header(vec!["id", "name", "dtype"]);
-
-        for (i, field) in self.fields.iter().enumerate() {
-            let mut cells: Vec<comfy_table::Cell> = vec![];
-            cells.push(comfy_table::Cell::from(format!("{i}")));
-            cells.push(comfy_table::Cell::from(field.name.to_owned()));
-            cells.push(comfy_table::Cell::from(field.dtype.to_owned()));
-            table.add_row(cells);
-        }
-
-        write!(f, "{table}")
+        let field_strs: Vec<String> = self
+            .fields
+            .iter()
+            .map(|f| format!("{}:{}", f.name, f.dtype))
+            .collect();
+        let fields_str = field_strs.join(", ");
+        write!(f, "{fields_str}")
     }
 }
+
+impl std::error::Error for Schema {}
 
 #[cfg(test)]
 mod tests {

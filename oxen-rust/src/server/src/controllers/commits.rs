@@ -8,6 +8,7 @@ use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
+use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
 use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
@@ -18,6 +19,9 @@ use liboxen::view::{
 };
 
 use crate::app_data::OxenAppData;
+use crate::errors::OxenHttpError;
+use crate::helpers::get_repo;
+use crate::params::{app_data, path_param};
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use bytesize::ByteSize;
@@ -126,109 +130,96 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn is_synced(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
+pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let commit_or_branch = path_param(&req, "commit_or_branch")?;
+    let repository = get_repo(&app_data.path, namespace, &repo_name)?;
 
-    if let (Some(namespace), Some(name), Some(commit_or_branch)) =
-        (namespace, name, commit_or_branch)
-    {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => {
-                match api::local::commits::get_by_id_or_branch(&repository, commit_or_branch) {
-                    Ok(Some(commit)) => match commit_cacher::get_status(&repository, &commit) {
-                        Ok(Some(CacherStatusType::Success)) => {
-                            match content_validator::is_valid(&repository, &commit) {
-                                Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
-                                    status: String::from(STATUS_SUCCESS),
-                                    status_message: String::from(MSG_RESOURCE_FOUND),
-                                    status_description: String::from(""),
-                                    is_processing: false,
-                                    is_valid: true,
-                                }),
-                                err => HttpResponse::Ok().json(IsValidStatusMessage {
-                                    status: String::from(STATUS_ERROR),
-                                    status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                                    status_description: format!("Err: {err:?}"),
-                                    is_processing: false,
-                                    is_valid: false,
-                                }),
-                            }
-                        }
-                        Ok(Some(CacherStatusType::Pending)) => {
-                            HttpResponse::Ok().json(IsValidStatusMessage {
-                                status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_IS_PROCESSING),
-                                status_description: String::from("Commit is still processing"),
-                                is_processing: true,
-                                is_valid: false,
-                            })
-                        }
-                        Ok(Some(CacherStatusType::Failed)) => {
-                            let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
-                            let error_str = errors
-                                .into_iter()
-                                .map(|e| e.status_message)
-                                .collect::<Vec<String>>()
-                                .join(", ");
+    let commit = api::local::commits::get_by_id_or_branch(&repository, &commit_or_branch)?.ok_or(
+        OxenError::committish_not_found(commit_or_branch.clone().into()),
+    )?;
 
-                            HttpResponse::Ok().json(IsValidStatusMessage {
-                                status: String::from(STATUS_ERROR),
-                                status_message: String::from(MSG_FAILED_PROCESS),
-                                status_description: format!("Err: {error_str}"),
-                                is_processing: false,
-                                is_valid: false,
-                            })
-                        }
-                        Ok(None) => {
-                            // This means background status was never kicked off...
-                            log::debug!(
-                                "get_status commit {} no status kicked off for repo: {}",
-                                commit_or_branch,
-                                name
-                            );
-                            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                        }
-                        err => {
-                            log::debug!("Error getting status... {:?}", err);
-                            HttpResponse::Ok().json(IsValidStatusMessage {
-                                status: String::from(STATUS_ERROR),
-                                status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
-                                status_description: format!("Err: {err:?}"),
-                                is_processing: false,
-                                is_valid: false,
-                            })
-                        }
-                    },
-                    Ok(None) => {
-                        log::debug!(
-                            "commit or branch {} does not exist for repo: {}",
-                            commit_or_branch,
-                            name
-                        );
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                    Err(err) => {
-                        log::debug!("Err getting commit or branch {}: {}", commit_or_branch, err);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
+    let response = match commit_cacher::get_status(&repository, &commit) {
+        Ok(Some(CacherStatusType::Success)) => {
+            match content_validator::is_valid(&repository, &commit) {
+                Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
+                    status: String::from(STATUS_SUCCESS),
+                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    status_description: String::from(""),
+                    is_processing: false,
+                    is_valid: true,
+                }),
+                Ok(false) => {
+                    log::error!("content_validator::is_valid false");
+
+                    HttpResponse::Ok().json(IsValidStatusMessage {
+                        status: String::from(STATUS_ERROR),
+                        status_message: String::from(MSG_CONTENT_IS_INVALID),
+                        status_description: "Content is not valid".to_string(),
+                        is_processing: false,
+                        is_valid: false,
+                    })
+                }
+                err => {
+                    log::error!("content_validator::is_valid error {err:?}");
+
+                    HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                        status: String::from(STATUS_ERROR),
+                        status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
+                        status_description: format!("Err: {err:?}"),
+                        is_processing: false,
+                        is_valid: false,
+                    })
                 }
             }
-            Ok(None) => {
-                log::debug!("404 could not get repo {}", name,);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
         }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+        Ok(Some(CacherStatusType::Pending)) => HttpResponse::Ok().json(IsValidStatusMessage {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_IS_PROCESSING),
+            status_description: String::from("Commit is still processing"),
+            is_processing: true,
+            is_valid: false,
+        }),
+        Ok(Some(CacherStatusType::Failed)) => {
+            let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
+            let error_str = errors
+                .into_iter()
+                .map(|e| e.status_message)
+                .collect::<Vec<String>>()
+                .join(", ");
+            log::error!("CacherStatusType::Failed for commit {error_str}");
+            HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                status: String::from(STATUS_ERROR),
+                status_message: String::from(MSG_FAILED_PROCESS),
+                status_description: format!("Err: {error_str}"),
+                is_processing: false,
+                is_valid: false,
+            })
+        }
+        Ok(None) => {
+            // This means background status was never kicked off...
+            log::debug!(
+                "get_status commit {} no status kicked off for repo: {}",
+                commit_or_branch,
+                repo_name
+            );
+            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        }
+        err => {
+            log::error!("Error getting status... {:?}", err);
+            HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                status: String::from(STATUS_ERROR),
+                status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
+                status_description: format!("Err: {err:?}"),
+                is_processing: false,
+                is_valid: false,
+            })
+        }
+    };
+
+    Ok(response)
 }
 
 pub async fn parents(req: HttpRequest) -> HttpResponse {

@@ -112,10 +112,6 @@ You can grab your auth token from the config file above (~/.oxen/user_config.tom
 
 `curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"name": "MyRepo"}' "http://$SERVER/repositories"`
 
-## Add file
-
-`curl -v -H "Authorization: Bearer $TOKEN" -X POST --data-binary @/Users/gregschoeninger/Downloads/woof_meow.jpeg "http://$SERVER/repositories/MyRepo/entries?id=1234&path=woof_meow.jpeg&is_synced=true&hash=4321&commit_id=1234&extension=jpeg"`
-
 # Docker
 
 Create the docker image
