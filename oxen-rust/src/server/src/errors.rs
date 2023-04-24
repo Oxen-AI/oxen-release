@@ -82,14 +82,14 @@ impl error::ResponseError for OxenHttpError {
                     OxenError::InvalidSchema(schema) => {
                         log::error!("Invalid schema: {}", schema);
 
-                        HttpResponse::NotFound().json(StatusMessageDescription::bad_request(
+                        HttpResponse::BadRequest().json(StatusMessageDescription::bad_request(
                             format!("Schema is invalid: '{}'", schema),
                         ))
                     }
                     OxenError::ParsingError(error) => {
-                        log::error!("Invalid schema: {}", error);
+                        log::error!("Parsing error: {}", error);
 
-                        HttpResponse::NotFound().json(StatusMessageDescription::bad_request(
+                        HttpResponse::BadRequest().json(StatusMessageDescription::bad_request(
                             format!("Parsing error: '{}'", error),
                         ))
                     }

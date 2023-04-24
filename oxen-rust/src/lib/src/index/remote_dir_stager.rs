@@ -40,6 +40,22 @@ pub fn init_or_get(
     branch: &Branch,
     user_id: &str,
 ) -> Result<LocalRepository, OxenError> {
+    // Cleans up the staging dir if there is an error at any point
+    match p_init_or_get(repo, branch, user_id) {
+        Ok(repo) => Ok(repo),
+        Err(e) => {
+            let staging_dir = branch_staging_dir(repo, branch, user_id);
+            util::fs::remove_dir_all(staging_dir)?;
+            Err(e)
+        }
+    }
+}
+
+pub fn p_init_or_get(
+    repo: &LocalRepository,
+    branch: &Branch,
+    user_id: &str,
+) -> Result<LocalRepository, OxenError> {
     let staging_dir = branch_staging_dir(repo, branch, user_id);
     let oxen_dir = staging_dir.join(OXEN_HIDDEN_DIR);
     let branch_repo = if oxen_dir.exists() {
