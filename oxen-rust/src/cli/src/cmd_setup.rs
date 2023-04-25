@@ -19,7 +19,7 @@ pub const CLONE: &str = "clone";
 pub const PUSH: &str = "push";
 pub const PULL: &str = "pull";
 pub const DIFF: &str = "diff";
-pub const MIGRATE: &str = "migrate";
+pub const COMMIT_CACHE: &str = "commit-cache";
 pub const LS: &str = "ls";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const READ_LINES: &str = "read-lines";
@@ -536,18 +536,18 @@ pub fn diff() -> Command<'static> {
         .arg(Arg::new("PATH").required(false))
 }
 
-pub fn migrate() -> Command<'static> {
-    Command::new(MIGRATE)
-        .about("Migrate a repository or set of repositories")
+pub fn commit_cache() -> Command<'static> {
+    Command::new(COMMIT_CACHE)
+        .about("Compute a commit cache a server repository or set of repositories")
         .arg(Arg::new("PATH").required(true))
         .arg(
             Arg::new("all")
                 .long("all")
                 .short('a')
-                .help("Migrate all the oxen repositories in this directory")
+                .help("Compute the cache for all the oxen repositories in this directory")
                 .takes_value(false),
         )
-        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
+        .arg(arg!([COMMITTISH] "The commit or branch id you want to compute the cache for. Defaults to main."))
 }
 
 pub fn read_lines() -> Command<'static> {

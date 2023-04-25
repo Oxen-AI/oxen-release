@@ -1,3 +1,6 @@
+//! # Endpoint - Helpers for creating urls for the remote API
+//!
+
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use url::Url;

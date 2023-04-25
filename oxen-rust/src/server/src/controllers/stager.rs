@@ -7,7 +7,7 @@ use crate::params::{
     parse_resource, path_param,
 };
 
-use liboxen::compute::commit_cacher;
+use liboxen::cache::commit_cacher;
 use liboxen::df::{tabular, DFOpts};
 use liboxen::error::OxenError;
 use liboxen::index::mod_stager;

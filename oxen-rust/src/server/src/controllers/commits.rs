@@ -1,8 +1,8 @@
 use liboxen::api;
 use liboxen::command;
-use liboxen::compute::cachers::content_validator;
-use liboxen::compute::commit_cacher;
-use liboxen::compute::commit_cacher::CacherStatusType;
+use liboxen::cache::cachers::content_validator;
+use liboxen::cache::commit_cacher;
+use liboxen::cache::commit_cacher::CacherStatusType;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;

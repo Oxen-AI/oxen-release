@@ -171,7 +171,7 @@ impl EntryIndexer {
                         head_commit.message
                     );
                 } else if sync_status.is_processing {
-                    // Print that last commit is still processing (or we may be in a migration on the server)
+                    // Print that last commit is still processing (or we may be in still caching values on the server)
                     println!("Commit is still processing on server {}", local_commit.id);
                 } else {
                     return Err(OxenError::basic_str(sync_status.status_description));

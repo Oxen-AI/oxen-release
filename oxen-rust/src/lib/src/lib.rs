@@ -14,7 +14,7 @@ extern crate lazy_static;
 
 pub mod api;
 pub mod command;
-pub mod compute;
+pub mod cache;
 pub mod config;
 pub mod constants;
 pub mod db;

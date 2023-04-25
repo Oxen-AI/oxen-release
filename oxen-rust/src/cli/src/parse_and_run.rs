@@ -703,12 +703,12 @@ pub async fn commit(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn migrate(sub_matches: &ArgMatches) {
+pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
     let path_str = sub_matches.value_of("PATH").expect("required");
     let path = Path::new(path_str);
 
     if sub_matches.is_present("all") {
-        match command::migrate_all_repos(path).await {
+        match command::compute_cache_on_all_repos(path).await {
             Ok(_) => {}
             Err(err) => {
                 println!("Err: {err}")
@@ -718,7 +718,7 @@ pub async fn migrate(sub_matches: &ArgMatches) {
         let committish = sub_matches.value_of("COMMITTISH").map(String::from);
 
         match LocalRepository::new(path) {
-            Ok(repo) => match command::migrate_repo(&repo, committish).await {
+            Ok(repo) => match command::compute_cache(&repo, committish).await {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {err}")
