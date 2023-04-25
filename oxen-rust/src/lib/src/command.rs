@@ -42,10 +42,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 
-
 pub mod init;
 pub use crate::command::init::init;
-
 
 /// # Get status of files in repository
 ///
@@ -853,7 +851,7 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
             match df_base.vstack(&df_merge) {
                 Ok(result) => {
                     log::debug!("GOT DF COMBINED {}", result);
-                    match result.unique(None, polars::frame::UniqueKeepStrategy::First) {
+                    match result.unique(None, polars::frame::UniqueKeepStrategy::First, None) {
                         Ok(mut uniq) => {
                             log::debug!("GOT DF COMBINED UNIQUE {}", uniq);
                             let output_path = repo.path.join(&conflict.base_entry.path);
@@ -1278,7 +1276,11 @@ pub async fn compute_cache_on_all_repos(path: &Path) -> Result<(), OxenError> {
                     println!("Done.");
                 }
                 Err(err) => {
-                    log::error!("Could not compute cache for repo {:?}\nErr: {}", repo.path, err)
+                    log::error!(
+                        "Could not compute cache for repo {:?}\nErr: {}",
+                        repo.path,
+                        err
+                    )
                 }
             }
         }
@@ -1292,7 +1294,10 @@ pub async fn compute_cache(
     repo: &LocalRepository,
     committish: Option<String>,
 ) -> Result<(), OxenError> {
-    println!("Compute cache for commit given [{committish:?}] on repo {:?}", repo.path);
+    println!(
+        "Compute cache for commit given [{committish:?}] on repo {:?}",
+        repo.path
+    );
     let commits = if let Some(committish) = committish {
         let opts = LogOpts {
             committish: Some(committish),

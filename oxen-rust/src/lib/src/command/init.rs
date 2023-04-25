@@ -5,9 +5,9 @@
 
 use std::path::Path;
 
-use crate::model::LocalRepository;
 use crate::error::OxenError;
-use crate::{util, api, constants};
+use crate::model::LocalRepository;
+use crate::{api, constants, util};
 
 /// # Initialize an Empty Oxen Repository
 /// ```
