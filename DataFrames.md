@@ -6,8 +6,11 @@ As a data scientist or machine learning engineer we deal with a lot of tabular d
 To follow along with the examples below feel free to grab to grab the example data from our public [CatDogBoundingBox](https://www.oxen.ai/ox/CatDogBoundingBox) repository.
 
 ```bash
-$ oxen clone http://hub.oxen.ai/ox/CatDogBoundingBox
-$ cd CatDogBoundingBox
+oxen clone http://hub.oxen.ai/ox/CatDogBoundingBox
+```
+
+```bash
+cd CatDogBoundingBox
 ```
 
 ## oxen df
@@ -15,8 +18,10 @@ $ cd CatDogBoundingBox
 Oxen has a convenient `df` (short for "DataFrame") command to deal with tabular data. This example data has 10,000 rows and 6 columns of bounding boxes around cats or dogs. The shape hint at the top of the output can be useful for making sure you are transforming the data correctly.
 
 ```bash
-$ oxen df annotations/data.csv
+oxen df annotations/data.csv
+```
 
+```
 shape: (10000, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
 │ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
@@ -58,8 +63,10 @@ The `--output` option is handy for quickly transforming data files between data 
 Oxen currently supports these file extensions: `csv`, `tsv`, `parquet`, `arrow`, `json`, `jsonl`.
 
 ```bash
-$ oxen df annotations/data.csv -o annotations/data.parquet
+oxen df annotations/data.csv -o annotations/data.parquet
+```
 
+```
 shape: (10000, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
 │ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
@@ -93,7 +100,10 @@ Writing "annotations/data.parquet"
 Sometimes a DataFrame will have many columns and the default command collapses them so they are hard to see. You can use the `--schema` flag to just display the schema of this data frame. Note this is an exclusive flag.
 
 ```bash
-$ oxen df annotations/train.csv --schema
+oxen df annotations/train.csv --schema
+```
+
+```
 +--------+-------+
 | column | dtype |
 +================+
@@ -116,8 +126,10 @@ $ oxen df annotations/train.csv --schema
 Say you want to take a subset of the datafile and save it in another data file. You can do this with the `--slice` option. This can be handy when creating train, test, and validation sets. The two numbers represent the start and end indices you want to slice into.
 
 ```bash
-$ oxen df annotations/data.csv --slice '0..9000' -o annotations/train.parquet
+oxen df annotations/data.csv --slice '0..9000' -o annotations/train.parquet
+```
 
+```
 shape: (9000, 6)
 ┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
 │ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │

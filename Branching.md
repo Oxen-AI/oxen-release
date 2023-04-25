@@ -4,14 +4,16 @@
 It is probably a good idea to do these changes on a new branch as we have already made a few significant changes to the data.
 
 ```bash
-$ oxen checkout -b is_famous_and_smiling
+oxen checkout -b is_famous_and_smiling
 ```
 
 Now let's add and commit our updated DataFrame.
 
 ```bash
-$ oxen add list_attr_celeba.csv
-$ oxen commit -m "removing all attributes except Smiling and Is_Famous"
+oxen add list_attr_celeba.csv
+
+```bash
+oxen commit -m "removing all attributes except Smiling and Is_Famous"
 ```
 
 TODO: ......
@@ -22,8 +24,10 @@ TODO: ......
 Oxen needs to detect changes to your data schemas over time. To see the schema that Oxen is tracking you can use the `schemas` command.
 
 ```bash
-$ oxen schemas
+oxen schemas
+```
 
+```
 +------+----------------------------------+-------------------------------------+
 | name | hash                             | fields                              |
 +===============================================================================+
@@ -36,7 +40,7 @@ $ oxen schemas
 We can see that neither of these schemas are named yet. If you want to reference a schema by name you can name it with the `schema name` sub command. This is useful for example if you are building an tool on top of Oxen with a specific schema in mind.
 
 ```bash
-$ oxen schemas name 9d277b6a412ba4890265ec7d2a98e10b "my_bounding_box"
+oxen schemas name 9d277b6a412ba4890265ec7d2a98e10b "my_bounding_box"
 ```
 
 Knowing whether a data schema has changed is useful for making sure that there are no breaking changes in your data that could have downstream consequences. They also allow us to index all of the data into [Apache Arrow](https://arrow.apache.org/) DataFrames which will be useful down the line.
