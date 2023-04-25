@@ -1,12 +1,11 @@
-//! # Oxen Commands
+//! # Oxen Commands - entry point for all Oxen commands
 //!
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
 use crate::api;
-use crate::compute;
+use crate::cache;
 use crate::config::UserConfig;
-use crate::constants;
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::DEFAULT_PAGE_NUM;
 use crate::constants::DEFAULT_PAGE_SIZE;
@@ -43,56 +42,10 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 
-/// # Initialize an Empty Oxen Repository
-///
-/// ```
-/// # use liboxen::command;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # use liboxen::test;
-///
-/// # fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-///
-/// let base_dir = Path::new("/tmp/repo_dir_init");
-/// command::init(base_dir)?;
-/// assert!(base_dir.join(".oxen").exists());
-///
-/// # std::fs::remove_dir_all(base_dir)?;
-/// # Ok(())
-/// # }
-/// ```
-pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(path);
-    if hidden_dir.exists() {
-        let err = format!("Oxen repository already exists: {path:?}");
-        return Err(OxenError::basic_str(err));
-    }
 
-    // Cleanup the .oxen dir if init fails
-    match p_init(path) {
-        Ok(result) => Ok(result),
-        Err(error) => {
-            std::fs::remove_dir_all(hidden_dir)?;
-            Err(error)
-        }
-    }
-}
+pub mod init;
+pub use crate::command::init::init;
 
-fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(path);
-
-    std::fs::create_dir_all(hidden_dir)?;
-    let config_path = util::fs::config_filepath(path);
-    let repo = LocalRepository::new(path)?;
-    repo.save(&config_path)?;
-
-    api::local::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
-
-    // TODO: cleanup .oxen on failure
-
-    Ok(repo)
-}
 
 /// # Get status of files in repository
 ///
@@ -1313,19 +1266,19 @@ pub async fn pull_remote_branch(
 }
 
 /// Run the computation cache on all repositories within a directory
-pub async fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
+pub async fn compute_cache_on_all_repos(path: &Path) -> Result<(), OxenError> {
     let namespaces = api::local::repositories::list_namespaces(path)?;
     for namespace in namespaces {
         let namespace_path = path.join(namespace);
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
-            println!("Migrate repo {:?}", repo.path);
-            match migrate_repo(&repo, None).await {
+            println!("Compute cache for repo {:?}", repo.path);
+            match compute_cache(&repo, None).await {
                 Ok(_) => {
                     println!("Done.");
                 }
                 Err(err) => {
-                    log::error!("Could not migrate repo {:?}\nErr: {}", repo.path, err)
+                    log::error!("Could not compute cache for repo {:?}\nErr: {}", repo.path, err)
                 }
             }
         }
@@ -1335,11 +1288,11 @@ pub async fn migrate_all_repos(path: &Path) -> Result<(), OxenError> {
 }
 
 /// Run the computation cache on all repositories within a directory
-pub async fn migrate_repo(
+pub async fn compute_cache(
     repo: &LocalRepository,
     committish: Option<String>,
 ) -> Result<(), OxenError> {
-    println!("Migrate repo commit [{committish:?}] -> {:?}", repo.path);
+    println!("Compute cache for commit given [{committish:?}] on repo {:?}", repo.path);
     let commits = if let Some(committish) = committish {
         let opts = LogOpts {
             committish: Some(committish),
@@ -1350,8 +1303,8 @@ pub async fn migrate_repo(
         log(repo)?
     };
     for commit in commits {
-        println!("Migrate commit {:?}", commit);
-        compute::commit_cacher::run_all(repo, &commit)?;
+        println!("Compute cache for commit {:?}", commit);
+        cache::commit_cacher::run_all(repo, &commit)?;
     }
     Ok(())
 }
