@@ -205,7 +205,10 @@ pub fn parse_data_into_df(
             let data = format!("{}\n{}", fields, data);
             let cursor = Cursor::new(data.as_bytes());
             let schema = schema.to_polars();
-            match CsvReader::new(cursor).with_schema(&schema).finish() {
+            match CsvReader::new(cursor)
+                .with_schema(Arc::new(schema))
+                .finish()
+            {
                 Ok(df) => Ok(df),
                 Err(err) => Err(OxenError::basic_str(format!(
                     "Error parsing {content_type:?}: {err}"
@@ -789,7 +792,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
             }
 
             let dtype = DataType::from_polars(field.data_type());
-            let field_str = String::from(field.name());
+            let field_str = field.name().to_string();
             let dtype_str = String::from(DataType::as_str(&dtype));
             result = format!("{result}{field_str}:{dtype_str}");
         }
@@ -801,7 +804,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
 
         for field in schema.iter_fields() {
             let dtype = DataType::from_polars(field.data_type());
-            let field_str = String::from(field.name());
+            let field_str = field.name().to_string();
             let dtype_str = String::from(DataType::as_str(&dtype));
             table.add_row(vec![field_str, dtype_str]);
         }
