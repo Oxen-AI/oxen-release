@@ -1,4 +1,19 @@
 
+# v0.5.3
+
+## Features/Improvements
+* Creating liboxen crates.io package
+* API to fetch commit history given a committish base..head
+* API to check if commits are mergeable
+* `oxen diff` can take two different files or a committish to compare
+* Add pagination on output of log command
+* Add --head and --tail to `oxen df` command
+* Better error handling and messages
+  * Cloning non-existent remote
+  * Pushing to non-existent remote
+  * remote df on an empty DataFrame
+
+
 # v0.5.2
 
 ## Features

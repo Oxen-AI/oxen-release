@@ -425,8 +425,11 @@ Added Rows
 If the tabular data schema has changed `oxen diff` will flag and show you the columns that were added.
 
 ```bash
-$ oxen df annotations/data.csv --add-col 'is_fluffy:unknown:str' -o annotations/data.csv
-$ oxen diff annotations/data.csv
+oxen df annotations/data.csv --add-col 'is_fluffy:unknown:str' -o annotations/data.csv
+```
+
+```bash
+oxen diff annotations/data.csv
 
 Added Cols
 shape: (10001, 1)
