@@ -12,7 +12,7 @@ pub fn clone(url: String, dst: String, branch: String, shallow: bool) -> PyResul
     rt.block_on(async {
         async_clone(url, dst, branch, shallow).await;
     });
-   Ok(())
+    Ok(())
 }
 
 async fn async_clone(url: String, dst: String, branch: String, shallow: bool) {
@@ -26,7 +26,7 @@ async fn async_clone(url: String, dst: String, branch: String, shallow: bool) {
     match command::clone(&opts).await {
         Ok(_) => {
             log::info!("Success!");
-        },
+        }
         Err(err) => {
             log::error!("Error: {}", err);
         }

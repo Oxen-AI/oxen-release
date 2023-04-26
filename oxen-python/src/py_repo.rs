@@ -1,4 +1,3 @@
-
 use liboxen::model::LocalRepository;
 use pyo3::prelude::*;
 
@@ -7,8 +6,8 @@ use liboxen::command;
 use std::path::PathBuf;
 
 use crate::error::PyOxenError;
-use crate::py_staged_data::PyStagedData;
 use crate::py_commit::PyCommit;
+use crate::py_staged_data::PyStagedData;
 
 #[pyclass]
 pub struct PyRepo {
@@ -43,12 +42,20 @@ impl PyRepo {
     pub fn commit(&self, message: &str) -> Result<PyCommit, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let commit = command::commit(&repo, message)?;
-        Ok(PyCommit { commit: commit })
+        Ok(PyCommit { commit })
     }
 
     pub fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let log = command::log(&repo)?;
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
+    }
+
+    pub fn push(&self) -> Result<(), PyOxenError> {
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            let repo = LocalRepository::from_dir(&self.path)?;
+            command::push(&repo).await
+        })?;
+        Ok(())
     }
 }
