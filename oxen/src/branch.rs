@@ -5,4 +5,3 @@ pub struct PyBranch {
     pub name: String,
     pub commit_id: String,
 }
-
