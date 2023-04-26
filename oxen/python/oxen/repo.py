@@ -36,3 +36,15 @@ class Repo:
         Check the status of the repo. Returns a StagedData object.
         """
         return self._repo.status()
+
+    def commit(self, message: str):
+        """
+        Commit the staged data in a repo with a message.
+        """
+        return self._repo.commit(message)
+
+    def log(self):
+        """
+        Get the commit history for a repo.
+        """
+        return self._repo.log()

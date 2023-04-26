@@ -7,7 +7,8 @@ use liboxen::command;
 use std::path::PathBuf;
 
 use crate::error::PyOxenError;
-use crate::py_staged_data::StagedData;
+use crate::py_staged_data::PyStagedData;
+use crate::py_commit::PyCommit;
 
 #[pyclass]
 pub struct PyRepo {
@@ -33,9 +34,21 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn status(&self) -> Result<StagedData, PyOxenError> {
+    pub fn status(&self) -> Result<PyStagedData, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let status = command::status(&repo)?;
-        Ok(StagedData { data: status })
+        Ok(PyStagedData { data: status })
+    }
+
+    pub fn commit(&self, message: &str) -> Result<PyCommit, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let commit = command::commit(&repo, message)?;
+        Ok(PyCommit { commit: commit })
+    }
+
+    pub fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let log = command::log(&repo)?;
+        Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
 }
