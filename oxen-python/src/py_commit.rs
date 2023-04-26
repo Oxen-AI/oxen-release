@@ -6,7 +6,7 @@ use liboxen::model::Commit as OxenCommit;
 
 #[pyclass]
 pub struct PyCommit {
-    pub commit: OxenCommit
+    pub commit: OxenCommit,
 }
 
 #[pymethods]
@@ -15,4 +15,3 @@ impl PyCommit {
         Ok(self.commit.id.to_string())
     }
 }
-
