@@ -300,7 +300,7 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
             current_branch.name, current_branch.commit_id
         );
     } else {
-        let head = command::head_commit(&repository)?;
+        let head = api::local::commits::head_commit(&repository)?;
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
             head.id, head.message
@@ -336,7 +336,7 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
             println!("Remote branch '{}' not found", current_branch.name);
         }
     } else {
-        let head = command::head_commit(&repository)?;
+        let head = api::local::commits::head_commit(&repository)?;
         println!(
             "You are in 'detached HEAD' state.\nHEAD is now at {} {}\nYou cannot query remote status unless you are on a branch.",
             head.id, head.message

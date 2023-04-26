@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use liboxen::api;
+use liboxen::api::local::resource::parse_resource_from_path;
 use liboxen::error::OxenError;
 use liboxen::model::{Branch, Commit, LocalRepository, ParsedResource};
-use liboxen::util::resource::parse_resource_from_path;
 
 use actix_web::HttpRequest;
 

@@ -1,12 +1,13 @@
 use filetime::FileTime;
 use std::path::Path;
 
+use crate::api::local::resource;
 use crate::error::OxenError;
 use crate::index::Stager;
 use crate::index::{CommitDirEntryWriter, CommitDirReader};
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
-use crate::util::{self, resource};
+use crate::util;
 
 use super::CommitDirEntryReader;
 

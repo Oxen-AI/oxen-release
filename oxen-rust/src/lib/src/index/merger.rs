@@ -1,5 +1,4 @@
 use crate::api;
-use crate::command;
 use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::db;
 use crate::error::OxenError;
@@ -250,7 +249,7 @@ impl Merger {
 
         // Stage changes
         let stager = Stager::new(repo)?;
-        let commit = command::head_commit(repo)?;
+        let commit = api::local::commits::head_commit(repo)?;
         let reader = CommitDirReader::new(repo, &commit)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &ignore)?;
@@ -555,7 +554,7 @@ mod tests {
         // Checkout the OG branch again so that we can merge into it
         command::checkout(repo, &a_branch.name).await?;
 
-        Ok(lca.unwrap())
+        Ok(lca)
     }
 
     #[tokio::test]
@@ -593,7 +592,7 @@ mod tests {
             assert!(world_file.exists());
 
             // Check that HEAD has updated to the merge commit
-            let head_commit = command::head_commit(&repo)?;
+            let head_commit = api::local::commits::head_commit(&repo)?;
             assert_eq!(head_commit.id, commit.id);
 
             Ok(())
@@ -988,7 +987,7 @@ mod tests {
             command::create_checkout_branch(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             command::add(&repo, labels_path)?;
-            let human_commit = command::commit(&repo, "Adding human to labels.txt file")?.unwrap();
+            let human_commit = command::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
             command::checkout(&repo, &og_branch.name).await?;

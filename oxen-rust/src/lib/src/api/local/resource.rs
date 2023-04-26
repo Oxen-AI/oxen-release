@@ -1,3 +1,4 @@
+use crate::api;
 use crate::error::OxenError;
 use crate::index::{CommitReader, RefReader};
 use crate::model::{Commit, LocalRepository, ParsedResource};
@@ -221,22 +222,17 @@ pub fn maybe_get_commit<S: AsRef<str>>(
     }
 }
 
-pub fn get_head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let committer = CommitReader::new(repo)?;
-    committer.head_commit()
-}
-
 pub fn get_commit_or_head<S: AsRef<str>>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
     if commit_id_or_branch_name.is_none() {
-        return get_head_commit(repo);
+        return api::local::commits::head_commit(repo);
     }
 
     match maybe_get_commit(repo, commit_id_or_branch_name.unwrap().as_ref()) {
         Ok(Some(commit)) => Ok(commit),
-        _ => get_head_commit(repo),
+        _ => api::local::commits::head_commit(repo),
     }
 }
 
@@ -244,9 +240,9 @@ pub fn get_commit_or_head<S: AsRef<str>>(
 mod tests {
     use std::path::Path;
 
+    use crate::api::local::resource;
     use crate::command;
     use crate::error::OxenError;
-    use crate::util::resource;
 
     #[test]
     fn test_parse_resource_for_commit() -> Result<(), OxenError> {

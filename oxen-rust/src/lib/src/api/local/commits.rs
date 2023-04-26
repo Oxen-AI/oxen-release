@@ -5,6 +5,11 @@ use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 
 use std::path::Path;
 
+pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let reader = CommitReader::new(repo)?;
+    reader.head_commit()
+}
+
 pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let reader = CommitReader::new(repo)?;
     reader.get_commit_by_id(commit_id)

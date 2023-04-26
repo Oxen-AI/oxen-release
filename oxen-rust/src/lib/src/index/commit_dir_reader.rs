@@ -328,7 +328,7 @@ mod tests {
             let filename = "labels.txt";
             let filepath = repo.path.join(filename);
             command::add(&repo, filepath)?;
-            let commit = command::commit(&repo, "Adding labels file")?.unwrap();
+            let commit = command::commit(&repo, "Adding labels file")?;
 
             let reader = CommitDirReader::new(&repo, &commit)?;
             let path = Path::new(filename);
@@ -450,7 +450,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+            let commit = command::commit(&repo, "Adding all the data")?;
 
             let page_number = 1;
             let page_size = 10;
@@ -489,7 +489,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+            let commit = command::commit(&repo, "Adding all the data")?;
 
             let page_number = 2;
             let page_size = 10;
@@ -529,7 +529,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+            let commit = command::commit(&repo, "Adding all the data")?;
 
             let page_number = 1;
             let page_size = 10;
@@ -568,7 +568,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?.unwrap();
+            let commit = command::commit(&repo, "Adding all the data")?;
 
             let page_number = 1;
             let page_size = 10;

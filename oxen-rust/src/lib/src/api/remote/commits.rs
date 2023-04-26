@@ -539,8 +539,7 @@ mod tests {
             let commit = command::commit(
                 &local_repo,
                 "Adding annotations data dir, which has two levels",
-            )?
-            .unwrap();
+            )?;
 
             // Post commit
             let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
@@ -613,8 +612,7 @@ mod tests {
             let commit = command::commit(
                 &local_repo,
                 "Adding annotations data dir, which has two levels",
-            )?
-            .unwrap();
+            )?;
 
             // Post commit but not the actual files
             let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests

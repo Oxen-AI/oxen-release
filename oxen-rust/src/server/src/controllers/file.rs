@@ -24,7 +24,7 @@ pub async fn get(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             if let Ok(Some((commit_id, _, filepath))) =
-                util::resource::parse_resource(&repo, &resource)
+                api::local::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
                     "file::get commit_id [{}] and filepath {:?}",
@@ -63,7 +63,7 @@ pub async fn meta_data_legacy(req: HttpRequest) -> HttpResponse {
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             if let Ok(Some((commit_id, _, filepath))) =
-                util::resource::parse_resource(&repo, &resource)
+                api::local::resource::parse_resource(&repo, &resource)
             {
                 match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
                     Ok(version_path) => {
@@ -133,7 +133,7 @@ pub async fn meta_data(req: HttpRequest) -> HttpResponse {
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             if let Ok(Some((commit_id, branch_or_commit_id, filepath))) =
-                util::resource::parse_resource(&repo, &resource)
+                api::local::resource::parse_resource(&repo, &resource)
             {
                 match util::fs::version_path_for_commit_id(&repo, &commit_id, &filepath) {
                     Ok(version_path) => {

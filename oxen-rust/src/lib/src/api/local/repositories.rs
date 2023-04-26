@@ -1,5 +1,4 @@
 use crate::api;
-use crate::command;
 use crate::constants;
 use crate::error::OxenError;
 use crate::index::{CommitDirReader, CommitWriter, RefWriter};
@@ -31,7 +30,7 @@ pub fn get_by_namespace_and_name(
 }
 
 pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, OxenError> {
-    let commit = command::head_commit(repo)?;
+    let commit = api::local::commits::head_commit(repo)?;
     let reader = CommitDirReader::new_from_head(repo)?;
     Ok(CommitStats {
         commit,
