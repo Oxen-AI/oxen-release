@@ -1,13 +1,13 @@
 
 use liboxen::model::LocalRepository;
 use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
 
 use liboxen::command;
 
 use std::path::PathBuf;
 
 use crate::error::PyOxenError;
+use crate::py_staged_data::StagedData;
 
 #[pyclass]
 pub struct PyRepo {
@@ -22,22 +22,20 @@ impl PyRepo {
         Ok(Self { path })
     }
 
-    pub fn init(&self) -> PyResult<()> {
-        match command::init(&self.path) {
-            Ok(_) => {
-                log::info!("Success!");
-                Ok(())
-            },
-            Err(err) => {
-                log::error!("Error: {}", err);
-                Err(PyValueError::new_err("could not init repo"))
-            }
-        }
+    pub fn init(&self) -> Result<(), PyOxenError> {
+        command::init(&self.path)?;
+        Ok(())
     }
 
     pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         command::add(&repo, path)?;
         Ok(())
+    }
+
+    pub fn status(&self) -> Result<StagedData, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let status = command::status(&repo)?;
+        Ok(StagedData { data: status })
     }
 }
