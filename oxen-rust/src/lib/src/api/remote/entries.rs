@@ -420,7 +420,7 @@ mod tests {
             let image_file = local_repo.path.join("train").join("dog_1.jpg");
             command::add(&local_repo, &image_file)?;
             // Commit the directory
-            let commit = command::commit(&local_repo, "Adding image")?.unwrap();
+            let commit = command::commit(&local_repo, "Adding image")?;
 
             let committer = CommitDirReader::new(&local_repo, &commit)?;
             let entries = committer.list_entries()?;

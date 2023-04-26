@@ -2,7 +2,6 @@ use crate::app_data::OxenAppData;
 use crate::controllers::entries::PageNumQuery;
 
 use liboxen::model::{Commit, LocalRepository};
-use liboxen::util;
 use liboxen::view::{PaginatedDirEntriesResponse, StatusMessage};
 use liboxen::{api, constants};
 
@@ -30,7 +29,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             if let Ok(Some((commit_id, branch_or_commit_id, filepath))) =
-                util::resource::parse_resource(&repo, &resource)
+                api::local::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
                     "dir::get commit_id [{}] and filepath {:?}",
@@ -155,7 +154,7 @@ mod tests {
         command::add(&repo, &train_dir)?;
 
         // commit the changes
-        let commit = command::commit(&repo, "adding training dir")?.expect("Could not commit data");
+        let commit = command::commit(&repo, "adding training dir")?;
 
         // Use the api list the files from the commit
         let uri = format!("/oxen/{}/{}/dir/{}/train/", namespace, name, commit.id);

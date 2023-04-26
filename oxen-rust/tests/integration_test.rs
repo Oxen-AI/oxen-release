@@ -140,7 +140,8 @@ fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         let commits = command::log(&repo)?;
         let initial_len = commits.len();
-        command::commit(&repo, "Should not work")?;
+        let result = command::commit(&repo, "Should not work");
+        assert!(result.is_err());
         let commits = command::log(&repo)?;
         // We should not have added any commits
         assert_eq!(commits.len(), initial_len);
@@ -157,7 +158,8 @@ fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenErro
         let labels_path = repo.path.join("labels.txt");
         util::fs::write_to_path(&labels_path, "changing this guy, but not committing")?;
 
-        command::commit(&repo, "Should not work")?;
+        let result = command::commit(&repo, "Should not work");
+        assert!(result.is_err());
         let commits = command::log(&repo)?;
         // We should not have added any commits
         assert_eq!(commits.len(), initial_len);
@@ -273,7 +275,7 @@ fn test_command_restore_file_from_commit_id() -> Result<(), OxenError> {
         let first_modification = "Hola Mundo";
         let hello_file = test::modify_txt_file(hello_file, first_modification)?;
         command::add(&repo, &hello_file)?;
-        let first_mod_commit = command::commit(&repo, "Changing to spanish")?.unwrap();
+        let first_mod_commit = command::commit(&repo, "Changing to spanish")?;
 
         // Modify again
         let second_modification = "Bonjour le monde";
@@ -317,7 +319,6 @@ async fn test_command_checkout_commit_id() -> Result<(), OxenError> {
         command::add(&repo, &hello_file)?;
         // Commit the hello file
         let first_commit = command::commit(&repo, "Adding hello")?;
-        assert!(first_commit.is_some());
 
         // Write a world
         let world_file = repo.path.join("world.txt");
@@ -327,14 +328,13 @@ async fn test_command_checkout_commit_id() -> Result<(), OxenError> {
         command::add(&repo, &world_file)?;
 
         // Commit the world file
-        let second_commit = command::commit(&repo, "Adding world")?;
-        assert!(second_commit.is_some());
+        command::commit(&repo, "Adding world")?;
 
         // We have the world file
         assert!(world_file.exists());
 
         // We checkout the previous commit
-        command::checkout(&repo, first_commit.unwrap().id).await?;
+        command::checkout(&repo, first_commit.id).await?;
 
         // // Then we do not have the world file anymore
         assert!(!world_file.exists());
@@ -944,7 +944,7 @@ async fn test_command_push_one_commit() -> Result<(), OxenError> {
         let num_files = util::fs::rcount_files_in_dir(&train_dir);
         command::add(&repo, &train_dir)?;
         // Commit the train dir
-        let commit = command::commit(&repo, "Adding training data")?.unwrap();
+        let commit = command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -983,7 +983,7 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
         command::add(&repo, &train_dir)?;
         command::add(&repo, &annotations_dir)?;
         // Commit the train dir
-        let commit = command::commit(&repo, "Adding training data")?.unwrap();
+        let commit = command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1026,7 +1026,7 @@ async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenE
         command::add(&repo, &train_dir)?;
         command::add(&repo, &train_bounding_box)?;
         // Commit the train dir
-        command::commit(&repo, "Adding training data")?.unwrap();
+        command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1045,7 +1045,7 @@ async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenE
         // The nlp annotations have duplicates which broke the system at a time
         let annotations_dir = repo.path.join("nlp");
         command::add(&repo, &annotations_dir)?;
-        let commit = command::commit(&repo, "adding the rest of the annotations")?.unwrap();
+        let commit = command::commit(&repo, "adding the rest of the annotations")?;
 
         // Push again
         command::push(&repo).await?;
@@ -1087,7 +1087,7 @@ async fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         let test_dir = repo.path.join("test");
         let num_test_files = util::fs::count_files_in_dir(&test_dir);
         command::add(&repo, &test_dir)?;
-        let commit = command::commit(&repo, "Adding test data")?.unwrap();
+        let commit = command::commit(&repo, "Adding test data")?;
 
         // Push the files
         command::push(&repo).await?;
@@ -1132,7 +1132,7 @@ async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         let test_dir = repo.path.join("test");
         let num_test_files = util::fs::rcount_files_in_dir(&test_dir);
         command::add(&repo, &test_dir)?;
-        let commit = command::commit(&repo, "Adding test data")?.unwrap();
+        let commit = command::commit(&repo, "Adding test data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1199,7 +1199,7 @@ async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenErro
         let full_dir = &repo.path;
         let num_files = util::fs::count_items_in_dir(full_dir);
         command::add(&repo, full_dir)?;
-        let commit = command::commit(&repo, "Adding rest of data")?.unwrap();
+        let commit = command::commit(&repo, "Adding rest of data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1233,7 +1233,7 @@ async fn test_cannot_push_if_remote_not_set() -> Result<(), OxenError> {
         let train_dir = repo.path.join(train_dirname);
         command::add(&repo, &train_dir)?;
         // Commit the train dir
-        command::commit(&repo, "Adding training data")?.unwrap();
+        command::commit(&repo, "Adding training data")?;
 
         // Should not be able to push
         let result = command::push(&repo).await;
@@ -1252,7 +1252,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
         let og_num_files = util::fs::rcount_files_in_dir(&train_dir);
         command::add(&repo, &train_dir)?;
         // Commit the train dir
-        command::commit(&repo, "Adding training data")?.unwrap();
+        command::commit(&repo, "Adding training data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1272,7 +1272,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // Add and commit and push
         command::add(&repo, &party_ppl_file_path)?;
-        let latest_commit = command::commit(&repo, "Adding party_ppl.txt")?.unwrap();
+        let latest_commit = command::commit(&repo, "Adding party_ppl.txt")?;
         command::push(&repo).await?;
 
         // run another test with a new repo dir that we are going to sync to
@@ -1296,7 +1296,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             assert_eq!(cloned_contents, party_ppl_contents);
 
             // Make sure that pull updates local HEAD to be correct
-            let head = command::head_commit(&cloned_repo)?;
+            let head = api::local::commits::head_commit(&cloned_repo)?;
             assert_eq!(head.id, latest_commit.id);
 
             // Make sure we synced all the commits
@@ -1381,7 +1381,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
         let filename = "labels.txt";
         let filepath = repo.path.join(filename);
         command::add(&repo, &filepath)?;
-        command::commit(&repo, "Adding labels file")?.unwrap();
+        command::commit(&repo, "Adding labels file")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1405,7 +1405,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             let changed_content = "messing up the labels";
             util::fs::write_to_path(&cloned_filepath, changed_content)?;
             command::add(&cloned_repo, &cloned_filepath)?;
-            command::commit(&cloned_repo, "I messed with the label file")?.unwrap();
+            command::commit(&cloned_repo, "I messed with the label file")?;
 
             // Push back to server
             command::push(&cloned_repo).await?;
@@ -1422,7 +1422,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
             // Stage & Commit & Push the removal
             command::add(&repo, &filepath)?;
-            command::commit(&repo, "You mess with it, I remove it")?.unwrap();
+            command::commit(&repo, "You mess with it, I remove it")?;
             command::push(&repo).await?;
 
             command::pull(&cloned_repo).await?;
@@ -1444,15 +1444,15 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
         let filename = "labels.txt";
         let file_path = repo.path.join(filename);
         command::add(&repo, &file_path)?;
-        command::commit(&repo, "Adding labels file")?.unwrap();
+        command::commit(&repo, "Adding labels file")?;
 
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
-        command::commit(&repo, "Adding train dir")?.unwrap();
+        command::commit(&repo, "Adding train dir")?;
 
         let test_path = repo.path.join("test");
         command::add(&repo, &test_path)?;
-        command::commit(&repo, "Adding test dir")?.unwrap();
+        command::commit(&repo, "Adding test dir")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1490,15 +1490,15 @@ async fn test_clone_full() -> Result<(), OxenError> {
         let filename = "labels.txt";
         let file_path = repo.path.join(filename);
         command::add(&repo, &file_path)?;
-        command::commit(&repo, "Adding labels file")?.unwrap();
+        command::commit(&repo, "Adding labels file")?;
 
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
-        command::commit(&repo, "Adding train dir")?.unwrap();
+        command::commit(&repo, "Adding train dir")?;
 
         let test_path = repo.path.join("test");
         command::add(&repo, &test_path)?;
-        command::commit(&repo, "Adding test dir")?.unwrap();
+        command::commit(&repo, "Adding test dir")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1538,7 +1538,7 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
         let og_contents = util::fs::read_from_path(&file_path)?;
 
         command::add(&repo, &file_path)?;
-        command::commit(&repo, "Adding bounding box file")?.unwrap();
+        command::commit(&repo, "Adding bounding box file")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1645,12 +1645,12 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         // Track a dir
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
-        command::commit(&repo, "Adding train dir")?.unwrap();
+        command::commit(&repo, "Adding train dir")?;
 
         // Track larger files
         let larger_dir = repo.path.join("large_files");
         command::add(&repo, &larger_dir)?;
-        command::commit(&repo, "Adding larger files")?.unwrap();
+        command::commit(&repo, "Adding larger files")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1683,7 +1683,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
             util::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&cloned_repo, &new_file_path)?;
-            command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
+            command::commit(&cloned_repo, "Adding one file to train dir")?;
 
             // Push it back
             command::push_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
@@ -1700,7 +1700,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             let new_file_path = train_path.join("hotdog_2.jpg");
             util::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&repo, &train_path)?;
-            command::commit(&repo, "Adding next file to train dir")?.unwrap();
+            command::commit(&repo, "Adding next file to train dir")?;
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
             // Pull it on the second side again
@@ -1738,7 +1738,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         }
 
         command::add(&repo, &train_dir)?;
-        command::commit(&repo, "Adding train dir")?.unwrap();
+        command::commit(&repo, "Adding train dir")?;
 
         let og_branch = command::current_branch(&repo)?.unwrap();
 
@@ -1771,7 +1771,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
             let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
             util::fs::copy(hotdog_path, &new_file_path)?;
             command::add(&cloned_repo, &new_file_path)?;
-            command::commit(&cloned_repo, "Adding one file to train dir")?.unwrap();
+            command::commit(&cloned_repo, "Adding one file to train dir")?;
 
             // Push it back
             command::push_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
@@ -1799,7 +1799,7 @@ async fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
         // Track a dir
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
-        command::commit(&repo, "Adding train dir")?.unwrap();
+        command::commit(&repo, "Adding train dir")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1907,24 +1907,24 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
         let filename = "labels.txt";
         let filepath = repo.path.join(filename);
         command::add(&repo, &filepath)?;
-        command::commit(&repo, "Adding labels file")?.unwrap();
+        command::commit(&repo, "Adding labels file")?;
 
         // Second commit
         let new_filename = "new.txt";
         let new_filepath = repo.path.join(new_filename);
         util::fs::write_to_path(&new_filepath, "hallo")?;
         command::add(&repo, &new_filepath)?;
-        command::commit(&repo, "Adding a new file")?.unwrap();
+        command::commit(&repo, "Adding a new file")?;
 
         // Third commit
         let train_path = repo.path.join("train");
         command::add(&repo, &train_path)?;
-        command::commit(&repo, "Adding train dir")?.unwrap();
+        command::commit(&repo, "Adding train dir")?;
 
         // Fourth commit
         let test_path = repo.path.join("test");
         command::add(&repo, &test_path)?;
-        command::commit(&repo, "Adding test dir")?.unwrap();
+        command::commit(&repo, "Adding test dir")?;
 
         // Get local history
         let local_history = command::log(&repo)?;
@@ -2562,7 +2562,7 @@ fn test_restore_data_frame_with_duplicates() -> Result<(), OxenError> {
 
         // Commit
         command::add(&repo, &ann_path)?;
-        let commit = command::commit(&repo, "adding data with duplicates")?.unwrap();
+        let commit = command::commit(&repo, "adding data with duplicates")?;
 
         // Remove
         std::fs::remove_file(&ann_path)?;
@@ -2594,7 +2594,7 @@ fn test_restore_bounding_box_data_frame() -> Result<(), OxenError> {
 
         // Commit
         command::add(&repo, &ann_path)?;
-        let commit = command::commit(&repo, "adding data with duplicates")?.unwrap();
+        let commit = command::commit(&repo, "adding data with duplicates")?;
 
         // Remove
         std::fs::remove_file(&ann_path)?;
@@ -3687,7 +3687,7 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
 
         // Add and commit all the dirs and files
         command::add(&repo, &repo.path)?;
-        command::commit(&repo, "Adding all the data")?.unwrap();
+        command::commit(&repo, "Adding all the data")?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());

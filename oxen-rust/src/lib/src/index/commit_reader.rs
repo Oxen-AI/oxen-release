@@ -164,17 +164,17 @@ mod tests {
             let new_file = repo.path.join("new_1.txt");
             test::write_txt_file_to_path(&new_file, "new 1")?;
             command::add(&repo, new_file)?;
-            let base_commit = command::commit(&repo, "commit 1")?.unwrap();
+            let base_commit = command::commit(&repo, "commit 1")?;
 
             let new_file = repo.path.join("new_2.txt");
             test::write_txt_file_to_path(&new_file, "new 2")?;
             command::add(&repo, new_file)?;
-            let first_new_commit = command::commit(&repo, "commit 2")?.unwrap();
+            let first_new_commit = command::commit(&repo, "commit 2")?;
 
             let new_file = repo.path.join("new_3.txt");
             test::write_txt_file_to_path(&new_file, "new 3")?;
             command::add(&repo, new_file)?;
-            let head_commit = command::commit(&repo, "commit 3")?.unwrap();
+            let head_commit = command::commit(&repo, "commit 3")?;
 
             let new_file = repo.path.join("new_4.txt");
             test::write_txt_file_to_path(&new_file, "new 4")?;

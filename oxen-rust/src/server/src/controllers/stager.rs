@@ -24,7 +24,7 @@ use liboxen::view::remote_staged_status::{
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrame, RemoteStagedStatusResponse, StatusMessage,
 };
-use liboxen::{api, constants, index, util};
+use liboxen::{api, constants, index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
 use std::io::Write;
@@ -223,7 +223,7 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
-            match util::resource::parse_resource(&repo, &resource) {
+            match api::local::resource::parse_resource(&repo, &resource) {
                 Ok(Some((_, branch_name, file_name))) => {
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
@@ -315,7 +315,7 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, directory))) => {
                 match api::local::branches::get_by_name(&repo, &branch_name) {
                     Ok(Some(branch)) => {
@@ -506,7 +506,7 @@ pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
                 clear_staged_modifications_on_branch(&repo, &branch_name, user_id, &file_name)
             }
@@ -543,7 +543,7 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
                 delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
             }

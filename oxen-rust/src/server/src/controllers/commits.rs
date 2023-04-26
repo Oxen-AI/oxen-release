@@ -949,7 +949,7 @@ mod tests {
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
         command::add(&repo, &hello_file)?;
-        let commit = command::commit(&repo, "First commit")?.unwrap();
+        let commit = command::commit(&repo, "First commit")?;
 
         // create random tarball to post.. currently no validation that it is a valid commit dir
         let path_to_compress = format!("history/{}", commit.id);

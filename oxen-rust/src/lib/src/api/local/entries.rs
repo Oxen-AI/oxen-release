@@ -62,7 +62,7 @@ mod tests {
 
             // Commit the file
             command::add(&repo, file_to_add)?;
-            let commit = command::commit(&repo, "Adding labels file")?.unwrap();
+            let commit = command::commit(&repo, "Adding labels file")?;
 
             let entries = api::local::entries::list_all(&repo, &commit)?;
             assert_eq!(entries.len(), 1);
@@ -79,7 +79,7 @@ mod tests {
 
             // Commit the file
             command::add(&repo, file_to_add)?;
-            let commit = command::commit(&repo, "Adding labels file")?.unwrap();
+            let commit = command::commit(&repo, "Adding labels file")?;
 
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, 1);
@@ -97,7 +97,7 @@ mod tests {
 
             // Commit the dir
             command::add(&repo, &dir_to_add)?;
-            let commit = command::commit(&repo, "Adding training data")?.unwrap();
+            let commit = command::commit(&repo, "Adding training data")?;
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
 
@@ -113,7 +113,7 @@ mod tests {
 
             // Commit the dir
             command::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all data")?.unwrap();
+            let commit = command::commit(&repo, "Adding all data")?;
 
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);

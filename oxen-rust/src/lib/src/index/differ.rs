@@ -389,6 +389,7 @@ fn read_entries_from_commit(
 mod tests {
     use std::path::Path;
 
+    use crate::api;
     use crate::command;
     use crate::error::OxenError;
     use crate::index::differ;
@@ -399,7 +400,7 @@ mod tests {
     fn test_list_diff_entries_add_multiple() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             // get og commit
-            let base_commit = command::head_commit(&repo)?;
+            let base_commit = api::local::commits::head_commit(&repo)?;
 
             // add a new file
             let hello_file = repo.path.join("Hello.txt");
@@ -409,8 +410,7 @@ mod tests {
 
             command::add(&repo, &hello_file)?;
             command::add(&repo, &world_file)?;
-            let head_commit =
-                command::commit(&repo, "Removing a row from train bbox data")?.unwrap();
+            let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
 
             let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(2, entries.len());
@@ -430,7 +430,7 @@ mod tests {
             let bbox_file = repo.path.join(bbox_filename);
 
             // get og commit
-            let base_commit = command::head_commit(&repo)?;
+            let base_commit = api::local::commits::head_commit(&repo)?;
 
             // Remove a row
             let bbox_file = test::modify_txt_file(
@@ -444,8 +444,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             )?;
 
             command::add(&repo, bbox_file)?;
-            let head_commit =
-                command::commit(&repo, "Removing a row from train bbox data")?.unwrap();
+            let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
 
             let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
@@ -467,14 +466,14 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let bbox_file = repo.path.join(&bbox_filename);
 
             // get og commit
-            let base_commit = command::head_commit(&repo)?;
+            let base_commit = api::local::commits::head_commit(&repo)?;
 
             // Remove the file
             std::fs::remove_file(bbox_file)?;
 
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
-            let head_commit = command::commit(&repo, "Removing a the training data file")?.unwrap();
+            let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
             let entries = differ::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());

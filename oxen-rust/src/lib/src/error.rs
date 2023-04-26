@@ -1,6 +1,9 @@
-// use std::error;
+//! # OxenError
+//!
+//! Enumeration for all errors that can occur in the oxen library
+//!
+
 use derive_more::{Display, Error};
-use std::fmt;
 use std::fmt::Debug;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -8,6 +11,12 @@ use std::path::{Path, PathBuf};
 use crate::model::RepositoryNew;
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
+
+pub mod path_buf_error;
+pub mod string_error;
+
+pub use crate::error::path_buf_error::PathBufError;
+pub use crate::error::string_error::StringError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
@@ -19,55 +28,33 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
 pub const AUTH_TOKEN_NOT_FOUND: &str =
     "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
-#[derive(Debug)]
-pub struct StringError(String);
-
-impl From<&str> for StringError {
-    fn from(s: &str) -> Self {
-        StringError(s.to_string())
-    }
-}
-
-impl From<String> for StringError {
-    fn from(s: String) -> Self {
-        StringError(s)
-    }
-}
-
-impl std::fmt::Display for StringError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::error::Error for StringError {}
-
-#[derive(Debug)]
-pub struct PathBufError(PathBuf);
-
-impl From<&Path> for PathBufError {
-    fn from(p: &Path) -> Self {
-        PathBufError(p.to_path_buf())
-    }
-}
-
-impl From<PathBuf> for PathBufError {
-    fn from(p: PathBuf) -> Self {
-        PathBufError(p)
-    }
-}
-
-impl std::fmt::Display for PathBufError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0.to_string_lossy())
-    }
-}
-
-impl std::error::Error for PathBufError {}
-
 #[derive(Debug, Display, Error)]
 pub enum OxenError {
-    // Other Library Errors
+    /// Internal Oxen Errors
+    // User
+    UserConfigNotFound(Box<StringError>),
+
+    // Repo
+    RepoNotFound(Box<RepositoryNew>),
+    RepoAlreadyExists(Box<RepositoryNew>),
+
+    // Branches/Commits
+    BranchNotFound(Box<StringError>),
+    CommittishNotFound(Box<StringError>),
+    RootCommitDoesNotMatch(Box<Commit>),
+    NothingToCommit(StringError),
+
+    // Resources (paths, uris, etc.)
+    PathDoesNotExist(Box<PathBufError>),
+    ParsedResourceNotFound(Box<PathBufError>),
+
+    // Schema
+    InvalidSchema(Box<Schema>),
+
+    // Generic
+    ParsingError(Box<StringError>),
+
+    // External Library Errors
     IO(io::Error),
     Authentication(StringError),
     TomlSer(toml::ser::Error),
@@ -79,17 +66,6 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
-
-    // Internal Oxen Errors
-    UserConfigNotFound(Box<StringError>),
-    RepoNotFound(Box<RepositoryNew>),
-    ParsedResourceNotFound(Box<PathBufError>),
-    BranchNotFound(Box<StringError>),
-    RepoAlreadyExists(Box<RepositoryNew>),
-    CommittishNotFound(Box<StringError>),
-    RootCommitDoesNotMatch(Box<Commit>),
-    InvalidSchema(Box<Schema>),
-    ParsingError(Box<StringError>),
 
     // Fallback
     Basic(StringError),
@@ -110,6 +86,10 @@ impl OxenError {
 
     pub fn repo_not_found(repo: RepositoryNew) -> Self {
         OxenError::RepoNotFound(Box::new(repo))
+    }
+
+    pub fn path_does_not_exist(path: PathBuf) -> Self {
+        OxenError::PathDoesNotExist(Box::new(path.into()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {

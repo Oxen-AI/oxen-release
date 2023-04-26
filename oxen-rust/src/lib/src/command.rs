@@ -17,8 +17,8 @@ use crate::index::remote_stager;
 use crate::index::SchemaIndexReader;
 use crate::index::{self, differ};
 use crate::index::{
-    CommitDirReader, CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger,
-    RefReader, RefWriter, Stager,
+    CommitReader, CommitWriter, EntryIndexer, MergeConflictReader, Merger, RefReader, RefWriter,
+    Stager,
 };
 use crate::model::entry::mod_entry::ModType;
 use crate::model::schema;
@@ -32,7 +32,6 @@ use crate::opts::AddOpts;
 use crate::opts::PaginateOpts;
 use crate::opts::{CloneOpts, LogOpts, RestoreOpts, RmOpts};
 use crate::util;
-use crate::util::resource;
 use crate::view::PaginatedDirEntries;
 
 use bytevec::ByteDecodable;
@@ -42,83 +41,15 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 
+pub mod add;
+pub mod commit;
 pub mod init;
+pub mod status;
+
+pub use crate::command::add::add;
+pub use crate::command::commit::commit;
 pub use crate::command::init::init;
-
-/// # Get status of files in repository
-///
-/// What files are tracked, added, untracked, etc
-///
-/// Empty Repository:
-///
-/// ```
-/// use liboxen::command;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # use liboxen::test;
-///
-/// # fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-///
-/// let base_dir = Path::new("/tmp/repo_dir_status_1");
-/// // Initialize empty repo
-/// let repo = command::init(&base_dir)?;
-/// // Get status on repo
-/// let status = command::status(&repo)?;
-/// assert!(status.is_clean());
-///
-/// # std::fs::remove_dir_all(base_dir)?;
-/// # Ok(())
-/// # }
-/// ```
-///
-/// Repository with files
-/// ```
-/// use liboxen::command;
-/// use liboxen::util;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # use liboxen::test;
-///
-/// # fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-///
-/// let base_dir = Path::new("/tmp/repo_dir_status_2");
-/// // Initialize empty repo
-/// let repo = command::init(&base_dir)?;
-///
-/// // Write file to disk
-/// let hello_file = base_dir.join("hello.txt");
-/// util::fs::write_to_path(&hello_file, "Hello World");
-///
-/// // Get status on repo
-/// let status = command::status(&repo)?;
-/// assert_eq!(status.untracked_files.len(), 1);
-///
-/// # std::fs::remove_dir_all(base_dir)?;
-/// # Ok(())
-/// # }
-/// ```
-pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    log::debug!("status before new_from_head");
-    let reader = CommitDirReader::new_from_head(repository)?;
-    log::debug!("status before Stager::new");
-    let stager = Stager::new(repository)?;
-    log::debug!("status before stager.status");
-    let status = stager.status(&reader)?;
-    Ok(status)
-}
-
-/// Similar to status but takes the starting directory to look from
-pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<StagedData, OxenError> {
-    log::debug!("status before new_from_head");
-    let reader = CommitDirReader::new_from_head(repository)?;
-    log::debug!("status before Stager::new");
-    let stager = Stager::new(repository)?;
-    log::debug!("status before stager.status");
-    let status = stager.status_from_dir(&reader, dir)?;
-    Ok(status)
-}
+pub use crate::command::status::{status, status_from_dir};
 
 pub async fn remote_status(
     remote_repo: &RemoteRepository,
@@ -152,42 +83,6 @@ pub async fn remote_ls(
         opts.page_size,
     )
     .await
-}
-
-/// # Stage files into repository
-///
-/// ```
-/// use liboxen::command;
-/// use liboxen::util;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # use liboxen::test;
-///
-/// # fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-///
-/// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir_add");
-/// let repo = command::init(base_dir)?;
-///
-/// // Write file to disk
-/// let hello_file = base_dir.join("hello.txt");
-/// util::fs::write_to_path(&hello_file, "Hello World");
-///
-/// // Stage the file
-/// command::add(&repo, &hello_file)?;
-///
-/// # std::fs::remove_dir_all(base_dir)?;
-/// # Ok(())
-/// # }
-/// ```
-pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let stager = Stager::new_with_merge(repo)?;
-    let commit = head_commit(repo)?;
-    let reader = CommitDirReader::new(repo, &commit)?;
-    let ignore = oxenignore::create(repo);
-    stager.add(path.as_ref(), &reader, &ignore)?;
-    Ok(())
 }
 
 pub async fn remote_add<P: AsRef<Path>>(
@@ -463,7 +358,7 @@ pub fn schema_list_indices(
     repo: &LocalRepository,
     schema_ref: &str,
 ) -> Result<Vec<schema::Field>, OxenError> {
-    let head_commit = head_commit(repo)?;
+    let head_commit = api::local::commits::head_commit(repo)?;
     if let Some(schema) = schema_get(repo, Some(&head_commit.id), schema_ref)? {
         let index_reader = SchemaIndexReader::new(repo, &head_commit, &schema)?;
         index_reader.list_field_indices()
@@ -524,47 +419,6 @@ pub async fn remote_restore(repo: &LocalRepository, opts: RestoreOpts) -> Result
     let user_id = UserConfig::identifier()?;
     api::remote::staging::restore_df(&remote_repo, &branch.name, &user_id, opts.path.to_owned())
         .await
-}
-
-/// # Commit the staged files in the repo
-///
-/// ```
-/// use liboxen::command;
-/// use liboxen::util;
-/// # use liboxen::test;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-///
-/// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir_commit");
-/// let repo = command::init(base_dir)?;
-///
-/// // Write file to disk
-/// let hello_file = base_dir.join("hello.txt");
-/// util::fs::write_to_path(&hello_file, "Hello World");
-///
-/// // Stage the file
-/// command::add(&repo, &hello_file)?;
-///
-/// // Commit staged
-/// command::commit(&repo, "My commit message")?;
-///
-/// # std::fs::remove_dir_all(base_dir)?;
-/// # Ok(())
-/// # }
-/// ```
-pub fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
-    let mut status = status(repo)?;
-    if !status.has_added_entries() {
-        println!(
-            "No files are staged, not committing. Stage a file or directory with `oxen add <file>`"
-        );
-        return Ok(None);
-    }
-    let commit = api::local::commits::commit(repo, &mut status, message)?;
-    Ok(Some(commit))
 }
 
 /// # Commit changes that are staged on the remote repository
@@ -939,7 +793,7 @@ fn already_on_commit(repo: &LocalRepository, commit_id: &str) -> bool {
 /// then switches HEAD to point to the branch
 pub fn create_checkout_branch(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     println!("Create and checkout branch: {name}");
-    let head_commit = head_commit(repo)?;
+    let head_commit = api::local::commits::head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
 
     let branch = ref_writer.create_branch(name, &head_commit.id)?;
@@ -1016,11 +870,6 @@ pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commit = committer.root_commit()?;
     Ok(commit)
-}
-
-/// # Get the current commit
-pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    resource::get_head_commit(repo)
 }
 
 /// # Create a remote repository
@@ -1165,12 +1014,12 @@ pub fn diff(
         // `resource` is Some(resource)
         if let Some(compare_commit) = api::local::commits::get_by_id(repo, resource)? {
             // `resource` is a commit id
-            let original_commit = head_commit(repo)?;
+            let original_commit = api::local::commits::head_commit(repo)?;
             differ::diff(repo, &original_commit, &compare_commit, path)
         } else if let Some(branch) = api::local::branches::get_by_name(repo, resource)? {
             // `resource` is a branch name
             let compare_commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-            let original_commit = head_commit(repo)?;
+            let original_commit = api::local::commits::head_commit(repo)?;
 
             differ::diff(repo, &original_commit, &compare_commit, path)
         } else if Path::new(resource).exists() {
@@ -1203,7 +1052,7 @@ pub fn diff(
         } else {
             // No merge conflicts, compare to last version committed of the file
             let current_path = path.as_ref();
-            let commit = head_commit(repo)?;
+            let commit = api::local::commits::head_commit(repo)?;
             let version_path = differ::get_version_file_from_commit(repo, &commit, current_path)?;
             differ::diff_files(version_path, current_path)
         }

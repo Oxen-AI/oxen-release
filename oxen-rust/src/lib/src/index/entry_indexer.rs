@@ -1309,6 +1309,7 @@ impl EntryIndexer {
 mod tests {
     use std::collections::VecDeque;
 
+    use crate::api;
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
@@ -1338,7 +1339,7 @@ mod tests {
             // Make a few more commits, and then make sure the total count is correct to push
             let entry_indexer = EntryIndexer::new(&repo).unwrap();
 
-            let head_commit = command::head_commit(&repo)?;
+            let head_commit = api::local::commits::head_commit(&repo)?;
             let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
             entry_indexer
                 .rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
@@ -1351,7 +1352,7 @@ mod tests {
             command::push(&repo).await?;
 
             // There should be none unsynced
-            let head_commit = command::head_commit(&repo)?;
+            let head_commit = api::local::commits::head_commit(&repo)?;
             let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
             entry_indexer
                 .rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
@@ -1366,7 +1367,7 @@ mod tests {
             command::add(&repo, readme_path)?;
 
             // Commit again
-            let head_commit = command::commit(&repo, "Changed the readme")?.unwrap();
+            let head_commit = command::commit(&repo, "Changed the readme")?;
             let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
             entry_indexer
                 .rpush_missing_commit_objects(&remote_repo, &head_commit, &mut unsynced_commits)
