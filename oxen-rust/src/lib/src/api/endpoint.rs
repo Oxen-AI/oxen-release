@@ -32,16 +32,20 @@ pub fn url_from_remote_url(url: &str) -> Result<String, OxenError> {
 }
 
 pub fn url_from_remote(remote: &Remote, uri: &str) -> Result<String, OxenError> {
-    log::debug!("creating url_from_remote {remote:?} -> {uri:?}");
+    // log::info!("url_from_remote creating url_from_remote {remote:?} -> {uri:?}");
     match Url::parse(&remote.url) {
         Ok(mut parsed_url) => {
-            let new_path = format!("{}{}{}", API_NAMESPACE, parsed_url.path(), uri);
             // TODO: this is a workaround because to_string was URL encoding characters that we didn't want encoded
-            // parsed_url.set_path(&new_path);
-            // Ok(parsed_url.to_string())
+            // log::info!("url_from_remote parsed_url: {}", parsed_url);
+            let new_path = format!("{}{}{}", API_NAMESPACE, parsed_url.path(), uri);
+
             parsed_url.set_path("");
+            // log::info!("url_from_remote parsed_url after set path: {}", parsed_url);
+
             let mut remote_url = parsed_url.to_string();
             remote_url.pop(); // to_string adds a trailing slash we don't want
+                              // log::info!("url_from_remote new_path: {}", new_path);
+                              // log::info!("url_from_remote remote_url: {}", remote_url);
             Ok(format!("{remote_url}{new_path}"))
         }
         Err(e) => {
