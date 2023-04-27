@@ -18,6 +18,13 @@ class RemoteRepo:
         """
         self._repo = PyRemoteRepo(path, host)
 
+    @property
+    def url(self) -> str:
+        """
+        Returns the remote url for the repo.
+        """
+        return self._repo.url()
+
     def create(self):
         """
         Will create the repo on the remote server.
