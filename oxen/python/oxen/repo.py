@@ -18,6 +18,13 @@ class Repo:
         """
         self._repo = PyRepo(path)
 
+    @property
+    def path(self):
+        """
+        Returns the path to the repo.
+        """
+        return self._repo.path()
+
     def init(self):
         """
         Initializes a new oxen repository at the path specified in the constructor.

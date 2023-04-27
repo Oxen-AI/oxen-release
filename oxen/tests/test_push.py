@@ -1,11 +1,16 @@
-from oxen import Repo, RemoteRepo
+import pytest
 
+# Alias the fixtures just to make it a little easier to read
+@pytest.fixture
+def local_repo(local_repo_one_image_committed):
+    yield local_repo_one_image_committed
 
-def test_repo_push(local_repo_one_image_committed: Repo, empty_remote_repo: RemoteRepo):
-    local_repo = local_repo_one_image_committed
-    remote_repo = empty_remote_repo
+@pytest.fixture
+def remote_repo(empty_remote_repo):
+    yield empty_remote_repo
 
+def test_repo_push(local_repo, remote_repo):
     remote_name = "origin"
     branch_name = "main"
     local_repo.set_remote(remote_name, remote_repo.url)
-    local_repo_one_image_committed.push(remote_name, branch_name)
+    local_repo.push(remote_name, branch_name)
