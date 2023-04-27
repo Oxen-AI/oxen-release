@@ -51,10 +51,18 @@ impl PyRepo {
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
 
-    pub fn push(&self) -> Result<(), PyOxenError> {
+    pub fn set_remote(&self, name: &str, url: &str) -> Result<(), PyOxenError> {
+        let mut repo = LocalRepository::from_dir(&self.path)?;
+        log::info!("Adding remote: {url}");
+        command::add_remote(&mut repo, name, url)?;
+        Ok(())
+    }
+
+    pub fn push(&self, remote: &str, branch: &str) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
+            log::info!("Pushing to remote: {remote} branch: {branch}");
             let repo = LocalRepository::from_dir(&self.path)?;
-            command::push(&repo).await
+            command::push_remote_branch(&repo, remote, branch).await
         })?;
         Ok(())
     }

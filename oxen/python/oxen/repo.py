@@ -40,6 +40,11 @@ class Repo:
     def commit(self, message: str):
         """
         Commit the staged data in a repo with a message.
+
+        Parameters
+        ----------
+        message : str
+            The commit message.
         """
         return self._repo.commit(message)
 
@@ -48,3 +53,29 @@ class Repo:
         Get the commit history for a repo.
         """
         return self._repo.log()
+
+    def set_remote(self, name: str, url: str):
+        """
+        Map a name to a remote url.
+
+        Parameters
+        ----------
+        name : str
+            The name of the remote. Ex) origin
+        url : str
+            The url you want to map the name to. Ex) https://hub.oxen.ai/ox/chatbot
+        """
+        self._repo.set_remote(name, url)
+
+    def push(self, remote_name: str = "origin", branch: str = "main"):
+        """
+        Push data to a remote repo from a local repo.
+
+        Parameters
+        ----------
+        remote_name : str
+            The name of the remote to push to.
+        branch : str
+            The name of the branch to push to.
+        """
+        return self._repo.push(remote_name, branch)
