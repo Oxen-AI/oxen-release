@@ -32,32 +32,39 @@ pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
 
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
     // TODO: run tests on oxen side to see if this is needed
+    log::debug!("api::remote::repositories::get_by_remote({:?})", remote);
+
     let url = api::endpoint::url_from_remote(remote, "")?;
-    log::debug!("api::remote::repositories::get_by_remote({})", url);
+    log::debug!("api::remote::repositories::get_by_remote url: {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        if 404 == res.status() {
-            return Ok(None);
-        }
+    match client.get(&url).send().await {
+        Ok(res) => {
+            if 404 == res.status() {
+                return Ok(None);
+            }
 
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("repositories::get_by_remote {}\n {}", url, body);
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("repositories::get_by_remote {}\n {}", url, body);
 
-        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
-            Err(err) => {
-                log::debug!("Err: {}", err);
-                Err(OxenError::basic_str(format!(
-                    "api::repositories::get_by_remote() Could not deserialize repository [{url}]"
-                )))
+            let response: Result<RepositoryResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
+                Err(err) => {
+                    log::debug!("Err: {}", err);
+                    Err(OxenError::basic_str(format!(
+                        "api::repositories::get_by_remote() Could not deserialize repository [{url}]"
+                    )))
+                }
             }
         }
-    } else {
-        Err(OxenError::basic_str(
-            "api::repositories::get_by_remote() Request failed",
-        ))
+        Err(err) => {
+            log::error!("Failed to get remote url {url}\n{err:?}");
+            Err(OxenError::basic_str(format!(
+                "api::repositories::get_by_remote() Request failed at url {url}"
+            )))
+        }
     }
 }
 
@@ -132,7 +139,7 @@ pub async fn create<S: AsRef<str>>(
 }
 
 pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
-    let url = repository.url()?;
+    let url = repository.api_url()?;
     log::debug!("Deleting repository: {}", url);
 
     let client = client::new_for_url(&url)?;
