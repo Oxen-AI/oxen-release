@@ -69,6 +69,10 @@ impl PyRemoteRepo {
         Ok(())
     }
 
+    fn url(&self) -> &str {
+        self.repo.url()
+    }
+
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
         log::info!("Get branch... {branch_name}");
 
