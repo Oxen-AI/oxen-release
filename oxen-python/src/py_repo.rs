@@ -22,6 +22,10 @@ impl PyRepo {
         Ok(Self { path })
     }
 
+    pub fn path(&self) -> PyResult<String> {
+        Ok(self.path.to_string_lossy().to_string())
+    }
+
     pub fn init(&self) -> Result<(), PyOxenError> {
         command::init(&self.path)?;
         Ok(())
