@@ -25,7 +25,13 @@ pub async fn get_by_remote_repo(
     get_by_remote(&repo.remote).await
 }
 
+pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
+    let repo = get_by_remote_repo(repo).await?;
+    Ok(repo.is_some())
+}
+
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
+    // TODO: run tests on oxen side to see if this is needed
     let url = api::endpoint::url_from_remote(remote, "")?;
     log::debug!("api::remote::repositories::get_by_remote({})", url);
 
@@ -126,7 +132,7 @@ pub async fn create<S: AsRef<str>>(
 }
 
 pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
-    let url = api::endpoint::url_from_repo(repository, "")?;
+    let url = repository.url()?;
     log::debug!("Deleting repository: {}", url);
 
     let client = client::new_for_url(&url)?;

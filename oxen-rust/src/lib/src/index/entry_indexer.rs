@@ -19,7 +19,7 @@ use crate::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter,
     RefReader, RefWriter,
 };
-use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 use crate::{api, index};
 
@@ -64,7 +64,14 @@ impl EntryIndexer {
             Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
             Err(err) => return Err(err),
         };
+        self.push_remote_repo(remote_repo, branch).await
+    }
 
+    pub async fn push_remote_repo(
+        &self,
+        remote_repo: RemoteRepository,
+        branch: Branch,
+    ) -> Result<RemoteRepository, OxenError> {
         // Push unsynced commit db and history dbs
         let commit_reader = CommitReader::new(&self.repository)?;
         let head_commit = commit_reader.get_commit_by_id(branch.commit_id)?.unwrap();
@@ -89,7 +96,7 @@ impl EntryIndexer {
             // update the branch after everything else is synced
             log::debug!(
                 "Updating remote branch {:?} to commit {:?}",
-                &rb.branch,
+                &branch.name,
                 &head_commit
             );
 
@@ -100,10 +107,10 @@ impl EntryIndexer {
         }
 
         // Update the remote branch name last
-        api::remote::branches::update(&remote_repo, &rb.branch, &head_commit).await?;
+        api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
         println!(
             "Updated remote branch {} -> {}",
-            &rb.branch, &head_commit.id
+            &branch.name, &head_commit.id
         );
 
         Ok(remote_repo)
