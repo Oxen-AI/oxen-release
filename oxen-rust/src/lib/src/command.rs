@@ -44,11 +44,13 @@ use std::str;
 pub mod add;
 pub mod commit;
 pub mod init;
+pub mod push;
 pub mod status;
 
 pub use crate::command::add::add;
 pub use crate::command::commit::commit;
 pub use crate::command::init::init;
+pub use crate::command::push::{push, push_remote_branch, push_remote_repo_branch_name};
 pub use crate::command::status::{status, status_from_dir};
 
 pub async fn remote_status(
@@ -901,65 +903,6 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
     repo.remove_remote(name);
     repo.save_default()?;
     Ok(())
-}
-
-/// # Get a log of all the commits
-///
-/// ```
-/// # use liboxen::api;
-/// # use liboxen::test;
-/// use liboxen::command;
-/// use liboxen::util;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # #[tokio::main]
-/// # async fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-/// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir_push");
-/// let mut repo = command::init(base_dir)?;
-///
-/// // Write file to disk
-/// let hello_file = base_dir.join("hello.txt");
-/// util::fs::write_to_path(&hello_file, "Hello World");
-///
-/// // Stage the file
-/// command::add(&repo, &hello_file)?;
-///
-/// // Commit staged
-/// command::commit(&repo, "My commit message")?;
-///
-/// // Set the remote server
-/// command::add_remote(&mut repo, "origin", "http://localhost:3000/repositories/hello");
-///
-/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "localhost:3000").await?;
-///
-/// // Push the file
-/// command::push(&repo).await;
-///
-/// # std::fs::remove_dir_all(base_dir)?;
-/// # api::remote::repositories::delete(&remote_repo).await?;
-/// # Ok(())
-/// # }
-/// ```
-pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch::default();
-    indexer.push(&rb).await
-}
-
-/// Push to a specific remote
-pub async fn push_remote_branch(
-    repo: &LocalRepository,
-    remote: &str,
-    branch: &str,
-) -> Result<RemoteRepository, OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch {
-        remote: String::from(remote),
-        branch: String::from(branch),
-    };
-    indexer.push(&rb).await
 }
 
 /// Clone a repo from a url to a directory
