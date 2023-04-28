@@ -140,7 +140,7 @@ impl CommitWriter {
 
         // User output
         println!("Commit {} done.", commit.id);
-        log::debug!("---COMMIT END---"); // for debug logging / timing purposes
+        log::debug!("---COMMIT END {} -> '{}'---", commit.id, message); // for debug logging / timing purposes
         Ok(commit)
     }
 

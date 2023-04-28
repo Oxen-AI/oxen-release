@@ -44,6 +44,8 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let commit = api::local::commits::head_commit(repo)?;
     let reader = CommitDirReader::new(repo, &commit)?;
     let ignore = oxenignore::create(repo);
+    log::debug!("---START--- oxen add: {:?}", path.as_ref());
     stager.add(path.as_ref(), &reader, &ignore)?;
+    log::debug!("---END--- oxen add: {:?}", path.as_ref());
     Ok(())
 }

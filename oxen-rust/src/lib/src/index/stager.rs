@@ -529,22 +529,30 @@ impl Stager {
         let mut files: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
         let mut total: usize = 0;
         let repository = self.repository.to_owned();
+
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&dir)
             .skip_hidden(true)
-            .parallelism(jwalk::Parallelism::RayonDefaultPool)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
                 let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
-                log::debug!(
-                    "list_unadded_files_in_dir process_dir {:?} with {} files",
-                    parent,
-                    dir_entry_results.len()
-                );
-                let staged_dir_db = StagedDirEntryDB::new(&repository, &parent).unwrap();
+                // log::debug!(
+                //     "list_unadded_files_in_dir process_dir {:?} with {} files",
+                //     parent,
+                //     dir_entry_results.len()
+                // );
+
+                let staged_dir_db = match StagedDirEntryDB::new(&repository, &parent) {
+                    Ok(db) => db,
+                    Err(err) => {
+                        log::error!("Error creating staged dir db: {:?}", err);
+                        return;
+                    }
+                };
 
                 dir_entry_results
-                    .par_iter_mut()
-                    .for_each(|dir_entry_result| {
-                        if let Ok(dir_entry) = dir_entry_result {
+                .par_iter_mut()
+                .for_each(|dir_entry_result| {
+                    match dir_entry_result {
+                        Ok(dir_entry) => {
                             // log::debug!(
                             //     "list_unadded_files_in_dir checking file type {:?}",
                             //     dir_entry
@@ -552,8 +560,14 @@ impl Stager {
                             if !dir_entry.file_type.is_dir() {
                                 // Entry is file
                                 let path = dir_entry.path();
-                                let path = util::fs::path_relative_to_dir(&path, &repository.path)
-                                    .unwrap();
+                                let path = match util::fs::path_relative_to_dir(&path, &repository.path) {
+                                    Ok(p) => p,
+                                    Err(err) => {
+                                        log::error!("Error path_relative_to_dir: {:?}", err);
+                                        return;
+                                    }
+                                };
+
                                 let is_added = staged_dir_db.has_entry(path);
                                 // log::debug!(
                                 //     "list_unadded_files_in_dir checking is added? {:?} -> {}",
@@ -562,13 +576,31 @@ impl Stager {
                                 // );
 
                                 dir_entry.client_state = Some(is_added);
+                            } else {
+                                log::debug!("list_unadded_files_in_dir skipping dir {:?} because it is a dir", dir_entry.path());
                             }
+                        },
+                        Err(err) => {
+                            log::error!("list_unadded_files_in_dir dir entry is err: {:?}", err);
                         }
-                    })
+                    }
+                });
+                log::debug!(
+                    "list_unadded_files_in_dir process_dir {:?} done",
+                    parent,
+                );
             })
         {
+            // log::debug!(
+            //     "list_unadded_files_in_dir in for loop {:?}",
+            //     dir_entry_result,
+            // );
             match dir_entry_result {
                 Ok(dir_entry) => {
+                    // log::debug!(
+                    //     "list_unadded_files_in_dir match dir_entry_result {:?}",
+                    //     &dir_entry.client_state,
+                    // );
                     if let Some(is_added) = &dir_entry.client_state {
                         if !*is_added {
                             let path = util::fs::path_relative_to_dir(
@@ -576,6 +608,10 @@ impl Stager {
                                 &self.repository.path,
                             )
                             .unwrap();
+                            // log::debug!(
+                            //     "list_unadded_files_in_dir got path {:?}",
+                            //     path,
+                            // );
                             if let Some(parent) = path.parent() {
                                 // log::debug!(
                                 //     "list_unadded_files_in_dir adding {:?} -> {:?}",
@@ -588,9 +624,13 @@ impl Stager {
                             }
                         }
                     }
+                    // log::debug!(
+                    //     "list_unadded_files_in_dir match dir_entry_result done. {:?}",
+                    //     dir_entry,
+                    // );
                 }
                 Err(error) => {
-                    println!("Read dir_entry error: {error}");
+                    log::error!("Read dir_entry error: {error}");
                 }
             }
         }
@@ -606,22 +646,36 @@ impl Stager {
         // add the the directory to list of dirs we are tracking so that when we find untracked files
         // they are added to the list
         let short_path = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        path_db::put(&self.dir_db, &short_path, &StagedEntryStatus::Added)?;
+        path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Added)?;
+        // log::debug!("Stager.add_dir added path {short_path:?}");
 
         // Add all untracked files and modified files
         let (dir_paths, total) = self.list_unadded_files_in_dir(dir);
-        log::debug!("Stager.add_dir {:?} -> {}", dir, total);
+        // log::debug!("Stager.add_dir {:?} -> {}", dir, total);
 
-        println!("Adding files in directory: {short_path:?}");
+        // println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
         dir_paths.par_iter().for_each(|(parent, paths)| {
-            let staged_db = StagedDirEntryDB::new(&self.repository, parent).unwrap();
-            let entry_reader =
-                CommitDirEntryReader::new(&self.repository, &entry_reader.commit_id, parent)
-                    .unwrap();
+            // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
 
+            let staged_db = StagedDirEntryDB::new(&self.repository, parent).unwrap();
+            let entry_reader = match CommitDirEntryReader::new(
+                &self.repository,
+                &entry_reader.commit_id,
+                parent,
+            ) {
+                Ok(reader) => reader,
+                Err(err) => {
+                    log::error!("Could not create CommitDirEntryReader: {}", err);
+                    return;
+                }
+            };
+
+            // log::debug!("paths.len() {:?}", paths.len());
             paths.par_iter().for_each(|path| {
+                // log::debug!("paths.par_iter().foreach {:?}", path);
+
                 let full_path = self.repository.path.join(path);
                 match self.add_staged_entry_in_dir_db(&full_path, &entry_reader, &staged_db) {
                     Ok(_) => {
