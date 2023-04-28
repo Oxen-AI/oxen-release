@@ -18,6 +18,9 @@ class Repo:
         """
         self._repo = PyRepo(path)
 
+    def __repr__(self):
+        return f"Repo({self.path})"
+
     @property
     def path(self):
         """
@@ -31,6 +34,21 @@ class Repo:
         Will create a .oxen folder to store all the versions and metadata.
         """
         self._repo.init()
+
+    def clone(self, url: str, branch: str = "main", shallow=False):
+        """
+        Clone repository from a remote url.
+
+        Parameters
+        ----------
+        url : str
+            The url of the remote repository. ex) https://hub.oxen.ai/ox/chatbot
+        branch : str
+            The name of the branch to clone. Default: main
+        shallow : bool
+            Whether to do a shallow clone or not. Default: False
+        """
+        return self._repo.clone(url, branch, shallow)
 
     def add(self, path: str):
         """
