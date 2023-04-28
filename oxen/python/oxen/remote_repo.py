@@ -18,6 +18,9 @@ class RemoteRepo:
         """
         self._repo = PyRemoteRepo(path, host)
 
+    def __repr__(self):
+        return f"RemoteRepo({self._repo.url()})"
+
     @property
     def url(self) -> str:
         """
