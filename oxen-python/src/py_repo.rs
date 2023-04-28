@@ -1,4 +1,5 @@
 use liboxen::model::LocalRepository;
+use liboxen::opts::CloneOpts;
 use pyo3::prelude::*;
 
 use liboxen::command;
@@ -31,9 +32,25 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
-        let repo = LocalRepository::from_dir(&self.path)?;
-        command::add(&repo, path)?;
+    pub fn clone(&self, url: &str, branch: &str, shallow: bool) -> Result<(), PyOxenError> {
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            log::info!("Cloning url: {url} to path {:?}", self.path);
+            let opts = CloneOpts {
+                url: url.to_string(),
+                dst: self.path.clone(),
+                branch: branch.to_string(),
+                shallow,
+            };
+            command::clone(&opts).await
+        })?;
+        Ok(())
+    }
+
+    pub fn add(&self, path: PathBuf, py: Python<'_>) -> Result<(), PyOxenError> {
+        py.allow_threads(|| {
+            let repo = LocalRepository::from_dir(&self.path).unwrap();
+            command::add(&repo, path).unwrap();
+        });
         Ok(())
     }
 
