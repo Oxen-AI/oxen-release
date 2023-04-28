@@ -87,7 +87,7 @@ impl SummarizedStagedDirStats {
 
             self.paths.entry(path).or_default().push(stats.clone());
         } else {
-            log::warn!("Cannot add stats to path {:?}", stats.path);
+            log::debug!("Cannot add stats to path {:?}", stats.path);
         }
     }
 }

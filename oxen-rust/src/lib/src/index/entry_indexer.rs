@@ -1254,7 +1254,6 @@ impl EntryIndexer {
         let commit = commit.clone();
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)
-            .parallelism(jwalk::Parallelism::RayonDefaultPool)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
                 let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
                 let commit_reader =
