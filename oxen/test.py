@@ -4,7 +4,7 @@ import logging
 
 # from oxen.branches import get_branch
 
-import oxen
+# import oxen
 
 FORMAT = "%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -36,12 +36,9 @@ logging.getLogger().setLevel(logging.DEBUG)
 # * push
 # * pull
 
-# Remote
-
-
-repo = oxen.RemoteRepo("pyox/testing1", host="0.0.0.0:3000")
-repo.create()
-repo.delete()
+# repo = oxen.RemoteRepo("pyox/testing1", host="0.0.0.0:3000")
+# repo.create()
+# repo.delete()
 
 # repo = Repo.clone("https://hub.oxen.ai/nurul-oxen/Laion-100K", "/tmp/test")
 
