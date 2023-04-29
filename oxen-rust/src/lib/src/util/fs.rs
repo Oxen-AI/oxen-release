@@ -317,6 +317,28 @@ pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// Recursively lists directories in a repo that are not .oxen directories
+pub fn rlist_dirs_in_repo(repo: &LocalRepository) -> Vec<PathBuf> {
+    let dir = &repo.path;
+    let mut dirs: Vec<PathBuf> = vec![];
+    if !dir.is_dir() {
+        return dirs;
+    }
+
+    for entry in WalkDir::new(dir) {
+        match entry {
+            Ok(val) => {
+                let path = val.path();
+                if path.is_dir() && !is_in_oxen_hidden_dir(&path) {
+                    dirs.push(path);
+                }
+            }
+            Err(err) => log::error!("rlist_dirs_in_repo Could not iterate over dir... {err}"),
+        }
+    }
+    dirs
+}
+
 /// Recursively tries to traverse up for an .oxen directory, returns None if not found
 pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     if path.join(".oxen").exists() {

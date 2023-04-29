@@ -100,7 +100,7 @@ pub fn get_failures(
     let db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    let vals = str_json_db::list_vals::<CacherStatus>(&db)?
+    let vals = str_json_db::list_vals::<MultiThreaded, CacherStatus>(&db)?
         .into_iter()
         .filter(|v| v.status == CacherStatusType::Failed)
         .collect();
@@ -121,7 +121,7 @@ pub fn get_all_statuses(
     let db = DBWithThreadMode::open(&opts, dunce::simplified(&db_path));
     match db {
         Ok(db) => {
-            let vals = str_json_db::list_vals::<CacherStatus>(&db)?;
+            let vals = str_json_db::list_vals::<MultiThreaded, CacherStatus>(&db)?;
             Ok(vals)
         }
         Err(_) => {
@@ -142,7 +142,7 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     for (name, cacher) in CACHERS.iter() {
         // Skip ones that are already cached successfully
-        if let Some(val) = str_json_db::get::<&str, CacherStatus>(&db, name)? {
+        if let Some(val) = str_json_db::get::<MultiThreaded, &str, CacherStatus>(&db, name)? {
             if CacherStatusType::Success == val.status {
                 continue;
             }

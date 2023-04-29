@@ -1,40 +1,44 @@
 use crate::db::kv_db;
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, ThreadMode, IteratorMode, MultiThreaded};
 use std::collections::HashMap;
 use std::str;
 
 /// More efficient than get since it does not actual deserialize the entry
-pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> bool {
+pub fn has_key<T: ThreadMode, S: AsRef<str>>(
+    db: &DBWithThreadMode<T>, key: S
+) -> bool {
     kv_db::has_key(db, key)
 }
 
 /// Remove all values from the db
-pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+pub fn clear<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<(), OxenError> {
     kv_db::clear(db)
 }
 
 /// # Removes key from database
-pub fn delete<S: AsRef<str>>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn delete<T: ThreadMode, S: AsRef<str>>(
+    db: &DBWithThreadMode<T>,
     key: S,
 ) -> Result<(), OxenError> {
     kv_db::delete(db, key)
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, OxenError> {
+pub fn list_keys<T: ThreadMode>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<String>, OxenError> {
     kv_db::list_keys(db)
 }
 
 /// # Get the value from the key
-pub fn get<S: AsRef<str>, T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn get<T: ThreadMode, S: AsRef<str>, D>(
+    db: &DBWithThreadMode<T>,
     key: S,
-) -> Result<Option<T>, OxenError>
+) -> Result<Option<D>, OxenError>
 where
-    T: bytevec::ByteDecodable,
+    D: bytevec::ByteDecodable,
 {
     let key = key.as_ref();
     log::debug!("hash_val_index::get({:?}) from db {:?}", key, db.path());
@@ -43,7 +47,7 @@ where
     match db.get(key_bytes) {
         Ok(Some(value)) => {
             // found it
-            if let Ok(entry) = T::decode::<u8>(&value) {
+            if let Ok(entry) = D::decode::<u8>(&value) {
                 Ok(Some(entry))
             } else {
                 Err(OxenError::could_not_decode_value_for_key_error(key))
@@ -67,13 +71,13 @@ where
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn put<S: AsRef<str>, T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn put<T: ThreadMode, S: AsRef<str>, D>(
+    db: &DBWithThreadMode<T>,
     key: S,
-    entry: &T,
+    entry: &D,
 ) -> Result<(), OxenError>
 where
-    T: bytevec::ByteEncodable + std::fmt::Debug,
+    D: bytevec::ByteEncodable + std::fmt::Debug,
 {
     let key = key.as_ref();
 
@@ -92,17 +96,19 @@ where
 }
 
 /// List Values
-pub fn list_vals<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<T>, OxenError>
+pub fn list_vals<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<D>, OxenError>
 where
-    T: bytevec::ByteDecodable,
+    D: bytevec::ByteDecodable,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut values: Vec<T> = vec![];
+    let mut values: Vec<D> = vec![];
     for item in iter {
         match item {
             Ok((key, value)) => {
                 // Full path given the dir it is in
-                if let Ok(entry) = T::decode::<u8>(&value) {
+                if let Ok(entry) = D::decode::<u8>(&value) {
                     values.push(entry);
                 } else {
                     let key = str::from_utf8(&key).unwrap();

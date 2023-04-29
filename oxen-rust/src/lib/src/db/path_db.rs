@@ -1,7 +1,7 @@
 use crate::error::OxenError;
 use serde::{de, Serialize};
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
@@ -11,7 +11,9 @@ use crate::db::str_json_db;
 
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry
-pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) -> bool {
+pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(
+    db: &DBWithThreadMode<T>, path: P
+) -> bool {
     let path = path.as_ref();
 
     // strip trailing / if exists for looking up directories
@@ -26,12 +28,12 @@ pub fn has_entry<P: AsRef<Path>>(db: &DBWithThreadMode<MultiThreaded>, path: P) 
 }
 
 /// # Get the staged entry object from the file path
-pub fn get_entry<P: AsRef<Path>, T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn get_entry<T: ThreadMode, P: AsRef<Path>, D>(
+    db: &DBWithThreadMode<T>,
     path: P,
-) -> Result<Option<T>, OxenError>
+) -> Result<Option<D>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     let path = path.as_ref();
     // log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
@@ -42,13 +44,13 @@ where
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn put<P: AsRef<Path>, T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn put<T: ThreadMode, P: AsRef<Path>, S>(
+    db: &DBWithThreadMode<T>,
     path: P,
-    entry: &T,
+    entry: &S,
 ) -> Result<(), OxenError>
 where
-    T: Serialize,
+    S: Serialize,
 {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
@@ -59,8 +61,8 @@ where
 }
 
 /// # Removes path entry from database
-pub fn delete<P: AsRef<Path>>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn delete<T: ThreadMode, P: AsRef<Path>>(
+    db: &DBWithThreadMode<T>,
     path: P,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
@@ -73,8 +75,8 @@ pub fn delete<P: AsRef<Path>>(
 
 /// # List the file paths in the staged dir
 /// More efficient than list_added_path_entries since it does not deserialize the entries
-pub fn list_paths(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn list_paths<T: ThreadMode>(
+    db: &DBWithThreadMode<T>,
     base_dir: &Path,
 ) -> Result<Vec<PathBuf>, OxenError> {
     log::debug!("path_db::list_paths({:?})", base_dir);
@@ -104,15 +106,15 @@ pub fn list_paths(
 }
 
 /// # List file names and attached entries
-pub fn list_path_entries<T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn list_path_entries<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>,
     base_dir: &Path,
-) -> Result<Vec<(PathBuf, T)>, OxenError>
+) -> Result<Vec<(PathBuf, D)>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut paths: Vec<(PathBuf, T)> = vec![];
+    let mut paths: Vec<(PathBuf, D)> = vec![];
     for item in iter {
         match item {
             Ok((key, value)) => {
@@ -120,7 +122,7 @@ where
                     (Ok(key), Ok(value)) => {
                         // Full path given the dir it is in
                         let path = base_dir.join(String::from(key));
-                        let entry: Result<T, serde_json::error::Error> =
+                        let entry: Result<D, serde_json::error::Error> =
                             serde_json::from_str(value);
                         if let Ok(entry) = entry {
                             paths.push((path, entry));
@@ -151,28 +153,32 @@ where
 }
 
 /// # List entries without file names
-pub fn list_entries<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<T>, OxenError>
+pub fn list_entries<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<D>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     str_json_db::list_vals(db)
 }
 
-pub fn list_entries_set<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashSet<T>, OxenError>
+pub fn list_entries_set<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>
+) -> Result<HashSet<D>, OxenError>
 where
-    T: de::DeserializeOwned,
-    T: Hash,
-    T: Eq,
+    D: de::DeserializeOwned,
+    D: Hash,
+    D: Eq,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut paths: HashSet<T> = HashSet::new();
+    let mut paths: HashSet<D> = HashSet::new();
     for item in iter {
         match item {
             Ok((_, value)) => {
                 match str::from_utf8(&value) {
                     Ok(value) => {
                         // Full path given the dir it is in
-                        let entry: Result<T, serde_json::error::Error> =
+                        let entry: Result<D, serde_json::error::Error> =
                             serde_json::from_str(value);
                         if let Ok(entry) = entry {
                             paths.insert(entry);
@@ -193,21 +199,23 @@ where
     Ok(paths)
 }
 
-pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+pub fn clear<T: ThreadMode>(
+    db: &DBWithThreadMode<T>
+) -> Result<(), OxenError> {
     str_json_db::clear(db)
 }
 
-pub fn list_entry_page<T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn list_entry_page<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>,
     page: usize,
     page_size: usize,
-) -> Result<Vec<T>, OxenError>
+) -> Result<Vec<D>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     // The iterator doesn't technically have a skip method as far as I can tell
     // so we are just going to manually do it
-    let mut paths: Vec<T> = vec![];
+    let mut paths: Vec<D> = vec![];
     let iter = db.iterator(IteratorMode::Start);
     // Do not go negative, and start from 0
     let start_page = if page == 0 { 0 } else { page - 1 };
@@ -222,7 +230,7 @@ where
 
                 // only grab values after start_idx based on page and page_size
                 if entry_i >= start_idx {
-                    let entry: T = serde_json::from_str(str::from_utf8(&value)?)?;
+                    let entry: D = serde_json::from_str(str::from_utf8(&value)?)?;
                     paths.push(entry);
                 }
             }

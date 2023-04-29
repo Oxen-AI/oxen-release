@@ -1,6 +1,13 @@
+//! # ModStager
+//!
+//! Stages modifications in the remote staging area that can later be applied
+//! to files on commit.
+//!
+
+
 use std::path::{Path, PathBuf};
 
-use rocksdb::{DBWithThreadMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 use time::OffsetDateTime;
 
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
@@ -98,7 +105,7 @@ pub fn delete_mod(
             let remaining = list_mods_raw_from_db(&db)?;
             if remaining.is_empty() {
                 let files_db_path = files_db_path(repo, branch, identity);
-                let files_db = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+                let files_db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
                 let key = path.to_string_lossy();
                 str_json_db::delete(&files_db, key)?;
             }
@@ -175,7 +182,7 @@ pub fn list_mod_entries(
     let db_path = files_db_path(repo, branch, identity);
     log::debug!("list_mod_entries from files_db_path {db_path:?}");
     let opts = db::opts::default();
-    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    let db: DBWithThreadMode<SingleThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     str_json_db::list_vals(&db)
 }
 
@@ -188,7 +195,7 @@ fn track_mod_commit_entry(
     let db_path = files_db_path(repo, branch, identity);
     log::debug!("track_mod_commit_entry from files_db_path {db_path:?}");
     let opts = db::opts::default();
-    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     let key = entry.path.to_string_lossy();
     str_json_db::put(&db, &key, &key)
 }
@@ -282,7 +289,7 @@ fn stage_raw_mod_content(
     );
 
     let opts = db::opts::default();
-    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
 
     str_json_db::put(&db, &entry.uuid, &entry)?;
 
@@ -302,14 +309,14 @@ pub fn clear_mods(
     log::debug!("clear_mods mods_db_path for {db_path:?}");
 
     let opts = db::opts::default();
-    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     str_json_db::clear(&db)?;
 
     // Remove file from files db
     let files_db_path = files_db_path(repo, branch, identity);
     log::debug!("clear_mods files_db_path for {files_db_path:?}");
 
-    let files_db = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+    let files_db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
     let key = path.to_string_lossy();
     str_json_db::delete(&files_db, key)
 }

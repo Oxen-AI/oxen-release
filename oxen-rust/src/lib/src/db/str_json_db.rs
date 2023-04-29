@@ -2,39 +2,45 @@ use crate::db::kv_db;
 use crate::error::OxenError;
 use serde::{de, Serialize};
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
 use std::str;
 
 /// More efficient than get since it does not actual deserialize the entry
-pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> bool {
+pub fn has_key<T: ThreadMode, S: AsRef<str>>(
+    db: &DBWithThreadMode<T>, key: S
+) -> bool {
     kv_db::has_key(db, key)
 }
 
 /// Remove all values from the db
-pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+pub fn clear<T: ThreadMode>(
+    db: &DBWithThreadMode<T>
+) -> Result<(), OxenError> {
     kv_db::clear(db)
 }
 
 /// # Removes key from database
-pub fn delete<S: AsRef<str>>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn delete<T: ThreadMode, S: AsRef<str>>(
+    db: &DBWithThreadMode<T>,
     key: S,
 ) -> Result<(), OxenError> {
     kv_db::delete(db, key)
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, OxenError> {
+pub fn list_keys<T: ThreadMode>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<String>, OxenError> {
     kv_db::list_keys(db)
 }
 
 /// # Get the value from the key
-pub fn get<S: AsRef<str>, T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn get<T: ThreadMode, S: AsRef<str>, D>(
+    db: &DBWithThreadMode<T>,
     key: S,
-) -> Result<Option<T>, OxenError>
+) -> Result<Option<D>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     let key = key.as_ref();
     // log::debug!("kv_json_db::get({:?}) from db {:?}", key, db.path());
@@ -65,13 +71,13 @@ where
 }
 
 /// # Serializes the entry to json and writes to db
-pub fn put<S: AsRef<str>, T>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn put<T: ThreadMode, S: AsRef<str>, D>(
+    db: &DBWithThreadMode<T>,
     key: S,
-    entry: &T,
+    entry: &D,
 ) -> Result<(), OxenError>
 where
-    T: Serialize,
+    D: Serialize,
 {
     let key = key.as_ref();
     let json_val = serde_json::to_string(entry)?;
@@ -88,26 +94,27 @@ where
 }
 
 /// List Values
-pub fn list_vals<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<T>, OxenError>
+pub fn list_vals<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<D>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut values: Vec<T> = vec![];
+    let mut values: Vec<D> = vec![];
     for item in iter {
         match item {
             Ok((_, value)) => {
-                match str::from_utf8(&value) {
-                    Ok(value) => {
-                        // Full path given the dir it is in
-                        let entry: Result<T, serde_json::error::Error> =
-                            serde_json::from_str(value);
-                        if let Ok(entry) = entry {
-                            values.push(entry);
-                        }
-                    }
-                    _ => {
-                        log::error!("list_added_path_entries() Could not decoded keys and values.")
+                let value = str::from_utf8(&value)?;
+                // Full path given the dir it is in
+                let entry: Result<D, serde_json::error::Error> =
+                    serde_json::from_str(value);
+                match entry {
+                    Ok(entry) => {
+                        values.push(entry);
+                    },
+                    Err(err) => {
+                        log::error!("Could not decode value: {}", err);
                     }
                 }
             }
@@ -122,18 +129,20 @@ where
 }
 
 /// # List keys and attached values
-pub fn list<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<(String, T)>, OxenError>
+pub fn list<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<(String, D)>, OxenError>
 where
-    T: de::DeserializeOwned,
+    D: de::DeserializeOwned,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut results: Vec<(String, T)> = vec![];
+    let mut results: Vec<(String, D)> = vec![];
     for item in iter {
         match item {
             Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
                 (Ok(key), Ok(value)) => {
                     let key = String::from(key);
-                    let entry: Result<T, serde_json::error::Error> = serde_json::from_str(value);
+                    let entry: Result<D, serde_json::error::Error> = serde_json::from_str(value);
                     if let Ok(entry) = entry {
                         results.push((key, entry));
                     }
