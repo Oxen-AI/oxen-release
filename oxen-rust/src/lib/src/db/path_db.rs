@@ -11,9 +11,7 @@ use crate::db::str_json_db;
 
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry
-pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(
-    db: &DBWithThreadMode<T>, path: P
-) -> bool {
+pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(db: &DBWithThreadMode<T>, path: P) -> bool {
     let path = path.as_ref();
 
     // strip trailing / if exists for looking up directories
@@ -153,18 +151,14 @@ where
 }
 
 /// # List entries without file names
-pub fn list_entries<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>
-) -> Result<Vec<D>, OxenError>
+pub fn list_entries<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
     str_json_db::list_vals(db)
 }
 
-pub fn list_entries_set<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>
-) -> Result<HashSet<D>, OxenError>
+pub fn list_entries_set<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<HashSet<D>, OxenError>
 where
     D: de::DeserializeOwned,
     D: Hash,
@@ -199,9 +193,7 @@ where
     Ok(paths)
 }
 
-pub fn clear<T: ThreadMode>(
-    db: &DBWithThreadMode<T>
-) -> Result<(), OxenError> {
+pub fn clear<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<(), OxenError> {
     str_json_db::clear(db)
 }
 

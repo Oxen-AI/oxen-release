@@ -6,7 +6,6 @@
 use crate::api;
 use crate::cache;
 use crate::config::UserConfig;
-use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::DEFAULT_PAGE_NUM;
 use crate::constants::DEFAULT_PAGE_SIZE;
 use crate::constants::DEFAULT_REMOTE_NAME;
@@ -30,7 +29,7 @@ use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteReposito
 
 use crate::opts::AddOpts;
 use crate::opts::PaginateOpts;
-use crate::opts::{CloneOpts, LogOpts, RestoreOpts, RmOpts};
+use crate::opts::{LogOpts, RestoreOpts, RmOpts};
 use crate::util;
 use crate::view::PaginatedDirEntries;
 
@@ -42,12 +41,14 @@ use std::path::PathBuf;
 use std::str;
 
 pub mod add;
+pub mod clone;
 pub mod commit;
 pub mod init;
 pub mod push;
 pub mod status;
 
 pub use crate::command::add::add;
+pub use crate::command::clone::clone;
 pub use crate::command::commit::commit;
 pub use crate::command::init::init;
 pub use crate::command::push::{push, push_remote_branch, push_remote_repo_branch_name};
@@ -903,34 +904,6 @@ pub fn remove_remote(repo: &mut LocalRepository, name: &str) -> Result<(), OxenE
     repo.remove_remote(name);
     repo.save_default()?;
     Ok(())
-}
-
-/// Clone a repo from a url to a directory
-pub async fn clone(opts: &CloneOpts) -> Result<LocalRepository, OxenError> {
-    match LocalRepository::clone_remote(opts).await {
-        Ok(Some(repo)) => Ok(repo),
-        Ok(None) => Err(OxenError::remote_repo_not_found(&opts.url)),
-        Err(err) => Err(err),
-    }
-}
-
-// To make CloneOpts refactor easier...
-pub async fn clone_remote(
-    url: &str,
-    dst: &Path,
-    shallow: bool,
-) -> Result<LocalRepository, OxenError> {
-    let opts = CloneOpts {
-        url: url.to_string(),
-        dst: dst.to_path_buf(),
-        branch: DEFAULT_BRANCH_NAME.to_string(),
-        shallow,
-    };
-    match LocalRepository::clone_remote(&opts).await {
-        Ok(Some(repo)) => Ok(repo),
-        Ok(None) => Err(OxenError::remote_repo_not_found(&opts.url)),
-        Err(err) => Err(err),
-    }
 }
 
 /// Pull a repository's data from origin/main

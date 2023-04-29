@@ -6,16 +6,12 @@ use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
 use std::str;
 
 /// More efficient than get since it does not actual deserialize the entry
-pub fn has_key<T: ThreadMode, S: AsRef<str>>(
-    db: &DBWithThreadMode<T>, key: S
-) -> bool {
+pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
     kv_db::has_key(db, key)
 }
 
 /// Remove all values from the db
-pub fn clear<T: ThreadMode>(
-    db: &DBWithThreadMode<T>
-) -> Result<(), OxenError> {
+pub fn clear<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<(), OxenError> {
     kv_db::clear(db)
 }
 
@@ -28,9 +24,7 @@ pub fn delete<T: ThreadMode, S: AsRef<str>>(
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys<T: ThreadMode>(
-    db: &DBWithThreadMode<T>
-) -> Result<Vec<String>, OxenError> {
+pub fn list_keys<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<Vec<String>, OxenError> {
     kv_db::list_keys(db)
 }
 
@@ -94,9 +88,7 @@ where
 }
 
 /// List Values
-pub fn list_vals<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>
-) -> Result<Vec<D>, OxenError>
+pub fn list_vals<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<D>, OxenError>
 where
     D: de::DeserializeOwned,
 {
@@ -107,12 +99,11 @@ where
             Ok((_, value)) => {
                 let value = str::from_utf8(&value)?;
                 // Full path given the dir it is in
-                let entry: Result<D, serde_json::error::Error> =
-                    serde_json::from_str(value);
+                let entry: Result<D, serde_json::error::Error> = serde_json::from_str(value);
                 match entry {
                     Ok(entry) => {
                         values.push(entry);
-                    },
+                    }
                     Err(err) => {
                         log::error!("Could not decode value: {}", err);
                     }
@@ -129,9 +120,7 @@ where
 }
 
 /// # List keys and attached values
-pub fn list<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>
-) -> Result<Vec<(String, D)>, OxenError>
+pub fn list<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<(String, D)>, OxenError>
 where
     D: de::DeserializeOwned,
 {
