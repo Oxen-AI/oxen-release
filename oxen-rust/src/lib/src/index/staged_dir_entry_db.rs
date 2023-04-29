@@ -1,3 +1,10 @@
+//! # StagedDirEntryDB
+//!
+//! This module helps read and write to the staging area on `oxen add`
+//! It takes a directory and creates a db for that directory allowing fast
+//! querying for files per directory that is staged
+//!
+
 use crate::constants::STAGED_DIR;
 use crate::db;
 use crate::db::path_db;
@@ -5,39 +12,77 @@ use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
 use crate::util;
 
-use rocksdb::{DBWithThreadMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, ThreadMode};
 use std::path::{Path, PathBuf};
 
 /// # StagedDirEntryDB
-/// We keep a list of all the staged files in a directory for fast lookup
-pub struct StagedDirEntryDB {
-    db: DBWithThreadMode<MultiThreaded>,
+/// We keep a list of all the staged files in a directory
+/// for more efficient lookup per directory
+pub struct StagedDirEntryDB<T: ThreadMode> {
+    db: DBWithThreadMode<T>,
     dir: PathBuf,
     pub repository: LocalRepository,
 }
 
-impl StagedDirEntryDB {
-    pub fn staging_dir(repo: &LocalRepository, dir: &Path) -> PathBuf {
-        log::debug!("StagedDirEntryDB got repo path {:?}", repo.path);
-        util::fs::oxen_hidden_dir(&repo.path)
-            .join(Path::new(STAGED_DIR))
-            .join("files")
-            .join(dir)
+pub fn staging_dir(repo: &LocalRepository, dir: &Path) -> PathBuf {
+    log::debug!("StagedDirEntryDB got repo path {:?}", repo.path);
+    util::fs::oxen_hidden_dir(&repo.path)
+        .join(Path::new(STAGED_DIR))
+        .join("files")
+        .join(dir)
+}
+
+impl<T: ThreadMode> StagedDirEntryDB<T> {
+    /// # Create new staged dir
+    /// Contains all the staged files within that dir,
+    /// for faster filtering during `oxen status`
+    pub fn new(
+        repository: &LocalRepository,
+        dir: &Path,
+    ) -> Result<StagedDirEntryDB<T>, OxenError> {
+        let read_only = false;
+        StagedDirEntryDB::p_new(repository, dir, read_only)
     }
 
-    /// # Create new staged dir
-    /// Contains all the staged files within that dir, for faster filtering during `oxen status`
-    pub fn new(repository: &LocalRepository, dir: &Path) -> Result<StagedDirEntryDB, OxenError> {
+    /// # Create read only version
+    pub fn new_read_only(
+        repository: &LocalRepository,
+        dir: &Path,
+    ) -> Result<StagedDirEntryDB<T>, OxenError> {
+        let read_only = true;
+        StagedDirEntryDB::p_new(repository, dir, read_only)
+    }
+
+    pub fn p_new(
+        repository: &LocalRepository,
+        dir: &Path,
+        read_only: bool,
+    ) -> Result<StagedDirEntryDB<T>, OxenError> {
         log::debug!("StagedDirEntryDB got dir {:?}", dir);
-        let db_path = StagedDirEntryDB::staging_dir(repository, dir);
+        let db_path = staging_dir(repository, dir);
 
         log::debug!("StagedDirEntryDB db_path {:?}", db_path);
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
         }
         let opts = db::opts::default();
+        let db = if read_only {
+            // Before opening for read only, we need to make sure the db is instantiated on disk
+            if !db_path.join("CURRENT").exists() {
+                if let Err(err) = std::fs::create_dir_all(&db_path) {
+                    log::error!("StagedDirEntryDB could not create dir {:?}\nerr: {:?}", db_path, err);
+                }
+                // open it then lose scope to close it
+                let _db: DBWithThreadMode<T> =
+                    DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+            }
+
+            DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), false)?
+        } else {
+            DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?
+        };
         Ok(StagedDirEntryDB {
-            db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
+            db: db,
             dir: dir.to_owned(),
             repository: repository.clone(),
         })

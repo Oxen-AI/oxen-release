@@ -1,10 +1,10 @@
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, ThreadMode, IteratorMode};
 use std::str;
 
 /// More efficient than get since it does not actual deserialize the value
-pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> bool {
+pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
     let key = key.as_ref();
     let bytes = key.as_bytes();
     match db.get_pinned(bytes) {
@@ -18,8 +18,8 @@ pub fn has_key<S: AsRef<str>>(db: &DBWithThreadMode<MultiThreaded>, key: S) -> b
 }
 
 /// Remove key from database
-pub fn delete<S: AsRef<str>>(
-    db: &DBWithThreadMode<MultiThreaded>,
+pub fn delete<T: ThreadMode, S: AsRef<str>>(
+    db: &DBWithThreadMode<T>,
     key: S,
 ) -> Result<(), OxenError> {
     let key = key.as_ref();
@@ -30,7 +30,9 @@ pub fn delete<S: AsRef<str>>(
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, OxenError> {
+pub fn list_keys<T: ThreadMode>(
+    db: &DBWithThreadMode<T>
+) -> Result<Vec<String>, OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     let mut keys: Vec<String> = vec![];
     for item in iter {
@@ -57,7 +59,9 @@ pub fn list_keys(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<String>, Ox
 }
 
 /// Remove all values from the db
-pub fn clear(db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+pub fn clear<T: ThreadMode>(
+    db: &DBWithThreadMode<T>
+) -> Result<(), OxenError> {
     let iter = db.iterator(IteratorMode::Start);
     for item in iter {
         match item {
