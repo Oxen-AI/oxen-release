@@ -1,14 +1,12 @@
 use crate::db::kv_db;
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, ThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, ThreadMode};
 use std::collections::HashMap;
 use std::str;
 
 /// More efficient than get since it does not actual deserialize the entry
-pub fn has_key<T: ThreadMode, S: AsRef<str>>(
-    db: &DBWithThreadMode<T>, key: S
-) -> bool {
+pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
     kv_db::has_key(db, key)
 }
 
@@ -26,9 +24,7 @@ pub fn delete<T: ThreadMode, S: AsRef<str>>(
 }
 
 /// More efficient than `list` since it does not deserialize the values
-pub fn list_keys<T: ThreadMode>(
-    db: &DBWithThreadMode<T>
-) -> Result<Vec<String>, OxenError> {
+pub fn list_keys<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<Vec<String>, OxenError> {
     kv_db::list_keys(db)
 }
 
@@ -96,9 +92,7 @@ where
 }
 
 /// List Values
-pub fn list_vals<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>
-) -> Result<Vec<D>, OxenError>
+pub fn list_vals<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<D>, OxenError>
 where
     D: bytevec::ByteDecodable,
 {

@@ -4,7 +4,6 @@
 //! to files on commit.
 //!
 
-
 use std::path::{Path, PathBuf};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
@@ -105,7 +104,8 @@ pub fn delete_mod(
             let remaining = list_mods_raw_from_db(&db)?;
             if remaining.is_empty() {
                 let files_db_path = files_db_path(repo, branch, identity);
-                let files_db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+                let files_db: DBWithThreadMode<MultiThreaded> =
+                    rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
                 let key = path.to_string_lossy();
                 str_json_db::delete(&files_db, key)?;
             }
@@ -316,7 +316,8 @@ pub fn clear_mods(
     let files_db_path = files_db_path(repo, branch, identity);
     log::debug!("clear_mods files_db_path for {files_db_path:?}");
 
-    let files_db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+    let files_db: DBWithThreadMode<MultiThreaded> =
+        rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
     let key = path.to_string_lossy();
     str_json_db::delete(&files_db, key)
 }

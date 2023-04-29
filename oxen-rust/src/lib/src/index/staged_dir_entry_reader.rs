@@ -5,8 +5,8 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::{LocalRepository, StagedEntry};
 use crate::index::StagedDirEntryDB;
+use crate::model::{LocalRepository, StagedEntry};
 
 use rocksdb::SingleThreaded;
 use std::path::{Path, PathBuf};
@@ -27,7 +27,7 @@ impl StagedDirEntryReader {
         dir: &Path,
     ) -> Result<StagedDirEntryReader, OxenError> {
         let db = StagedDirEntryDB::new_read_only(repository, dir)?;
-        Ok(StagedDirEntryReader { db: db })
+        Ok(StagedDirEntryReader { db })
     }
 
     /// # Checks if the file exists in this directory

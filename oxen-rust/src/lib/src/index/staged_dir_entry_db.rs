@@ -36,10 +36,7 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
     /// # Create new staged dir
     /// Contains all the staged files within that dir,
     /// for faster filtering during `oxen status`
-    pub fn new(
-        repository: &LocalRepository,
-        dir: &Path,
-    ) -> Result<StagedDirEntryDB<T>, OxenError> {
+    pub fn new(repository: &LocalRepository, dir: &Path) -> Result<StagedDirEntryDB<T>, OxenError> {
         let read_only = false;
         StagedDirEntryDB::p_new(repository, dir, read_only)
     }
@@ -70,7 +67,11 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
             // Before opening for read only, we need to make sure the db is instantiated on disk
             if !db_path.join("CURRENT").exists() {
                 if let Err(err) = std::fs::create_dir_all(&db_path) {
-                    log::error!("StagedDirEntryDB could not create dir {:?}\nerr: {:?}", db_path, err);
+                    log::error!(
+                        "StagedDirEntryDB could not create dir {:?}\nerr: {:?}",
+                        db_path,
+                        err
+                    );
                 }
                 // open it then lose scope to close it
                 let _db: DBWithThreadMode<T> =
@@ -82,7 +83,7 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
             DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?
         };
         Ok(StagedDirEntryDB {
-            db: db,
+            db,
             dir: dir.to_owned(),
             repository: repository.clone(),
         })

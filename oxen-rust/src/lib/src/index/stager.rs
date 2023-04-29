@@ -307,8 +307,8 @@ impl Stager {
         let commit = committer.head_commit()?;
         let root_commit_dir_reader = CommitDirReader::new(&self.repository, &commit)?;
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
-        let staged_dir_db: StagedDirEntryDB<SingleThreaded> 
-            = StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+        let staged_dir_db: StagedDirEntryDB<SingleThreaded> =
+            StagedDirEntryDB::new(&self.repository, &relative_dir)?;
         let root_commit_entry_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir)?;
 
@@ -504,8 +504,8 @@ impl Stager {
                 parent
             );
 
-            let staged_dir: StagedDirEntryDB<SingleThreaded> 
-                = StagedDirEntryDB::new(&self.repository, parent)?;
+            let staged_dir: StagedDirEntryDB<SingleThreaded> =
+                StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.remove_path(filename)
         } else {
             Err(OxenError::file_has_no_parent(path))
@@ -525,7 +525,7 @@ impl Stager {
             let short_path = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Removed)?;
 
-            let staged_dir: StagedDirEntryDB<SingleThreaded> = 
+            let staged_dir: StagedDirEntryDB<SingleThreaded> =
                 StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
@@ -557,9 +557,7 @@ impl Stager {
                     }
                 };
 
-                children
-                .par_iter_mut()
-                .for_each(|child_result| {
+                children.par_iter_mut().for_each(|child_result| {
                     match child_result {
                         Ok(child) => {
                             // log::debug!(
@@ -569,18 +567,19 @@ impl Stager {
                             if !child.file_type.is_dir() {
                                 // Entry is file
                                 let path = child.path();
-                                let path = match util::fs::path_relative_to_dir(&path, &repository.path) {
-                                    Ok(p) => p,
-                                    Err(err) => {
-                                        log::error!("Error path_relative_to_dir: {:?}", err);
-                                        return;
-                                    }
-                                };
+                                let path =
+                                    match util::fs::path_relative_to_dir(&path, &repository.path) {
+                                        Ok(p) => p,
+                                        Err(err) => {
+                                            log::error!("Error path_relative_to_dir: {:?}", err);
+                                            return;
+                                        }
+                                    };
 
                                 let is_added = reader.has_entry(path);
                                 child.client_state = Some(is_added);
                             }
-                        },
+                        }
                         Err(err) => {
                             log::error!("list_unadded_files_in_dir dir entry is err: {:?}", err);
                         }
@@ -657,7 +656,8 @@ impl Stager {
         dir_paths.par_iter().for_each(|(parent, paths)| {
             // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
 
-            let staged_db: StagedDirEntryDB<MultiThreaded> = StagedDirEntryDB::new(&self.repository, parent).unwrap();
+            let staged_db: StagedDirEntryDB<MultiThreaded> =
+                StagedDirEntryDB::new(&self.repository, parent).unwrap();
             let entry_reader = match CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,
@@ -760,9 +760,10 @@ impl Stager {
 
     /// Update the name of a staged schema, assuming it exists
     pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
-        for (path, mut schema) in
-            path_db::list_path_entries::<MultiThreaded, schema::Schema>(&self.schemas_db, Path::new(""))?
-        {
+        for (path, mut schema) in path_db::list_path_entries::<MultiThreaded, schema::Schema>(
+            &self.schemas_db,
+            Path::new(""),
+        )? {
             if schema.hash == hash {
                 schema.name = Some(String::from(name));
                 path_db::put(&self.schemas_db, path, &schema)?;
@@ -781,10 +782,12 @@ impl Stager {
     }
 
     pub fn list_staged_schemas(&self) -> Result<Vec<schema::Schema>, OxenError> {
-        Ok(path_db::list_entries::<MultiThreaded, schema::Schema>(&self.schemas_db)?
-            .into_iter()
-            .unique_by(|p| p.hash.to_owned())
-            .collect::<Vec<_>>())
+        Ok(
+            path_db::list_entries::<MultiThreaded, schema::Schema>(&self.schemas_db)?
+                .into_iter()
+                .unique_by(|p| p.hash.to_owned())
+                .collect::<Vec<_>>(),
+        )
     }
 
     fn add_staged_entry(
@@ -795,8 +798,8 @@ impl Stager {
         log::debug!("add_staged_entry {:?}", path);
         if let Some(parent) = path.parent() {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
-            let staged_db: StagedDirEntryDB<MultiThreaded> 
-                = StagedDirEntryDB::new(&self.repository, &relative_parent)?;
+            let staged_db: StagedDirEntryDB<MultiThreaded> =
+                StagedDirEntryDB::new(&self.repository, &relative_parent)?;
             let entry_reader = CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,
@@ -1042,7 +1045,8 @@ impl Stager {
                 log::debug!("Removing files from added_dir: {:?}", added_dir);
 
                 // Remove all files within that dir
-                let staged_dir: StagedDirEntryDB<MultiThreaded> = StagedDirEntryDB::new(&self.repository, added_dir)?;
+                let staged_dir: StagedDirEntryDB<MultiThreaded> =
+                    StagedDirEntryDB::new(&self.repository, added_dir)?;
                 staged_dir.unstage()?;
 
                 // Remove from dir db
@@ -1058,10 +1062,12 @@ impl Stager {
         log::debug!("Unstage dirs: {}", added_dirs.len());
         for (dir, _) in added_dirs {
             log::debug!("Unstaging dir: {:?}", dir);
-            let staged_dir: StagedDirEntryDB<MultiThreaded> = StagedDirEntryDB::new(&self.repository, &dir)?;
+            let staged_dir: StagedDirEntryDB<MultiThreaded> =
+                StagedDirEntryDB::new(&self.repository, &dir)?;
             staged_dir.unstage()?;
         }
-        let staged_dir_db: StagedDirEntryDB<MultiThreaded> = StagedDirEntryDB::new(&self.repository, Path::new(""))?;
+        let staged_dir_db: StagedDirEntryDB<MultiThreaded> =
+            StagedDirEntryDB::new(&self.repository, Path::new(""))?;
         staged_dir_db.unstage()?;
         path_db::clear(&self.dir_db)?;
         path_db::clear(&self.schemas_db)?;

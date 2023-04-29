@@ -1,4 +1,4 @@
-use rocksdb::{LogLevel, Options, DBCompressionType};
+use rocksdb::{DBCompressionType, LogLevel, Options};
 
 pub fn default() -> Options {
     let mut opts = Options::default();
