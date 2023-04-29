@@ -46,11 +46,9 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn add(&self, path: PathBuf, py: Python<'_>) -> Result<(), PyOxenError> {
-        py.allow_threads(|| {
-            let repo = LocalRepository::from_dir(&self.path).unwrap();
-            command::add(&repo, path).unwrap();
-        });
+    pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path).unwrap();
+        command::add(&repo, path).unwrap();
         Ok(())
     }
 
