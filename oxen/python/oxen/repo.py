@@ -104,3 +104,16 @@ class Repo:
             The name of the branch to push to.
         """
         return self._repo.push(remote_name, branch)
+
+    def pull(self, remote_name: str = "origin", branch: str = "main"):
+        """
+        Pull data from a remote repo to a local repo.
+
+        Parameters
+        ----------
+        remote_name : str
+            The name of the remote to pull from.
+        branch : str
+            The name of the branch to pull from.
+        """
+        return self._repo.pull(remote_name, branch)
