@@ -32,9 +32,8 @@ impl PyRepo {
         Ok(())
     }
 
-    pub fn clone(&self, url: &str, branch: &str, shallow: bool) -> Result<(), PyOxenError> {
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
-            log::info!("Cloning url: {url} to path {:?}", self.path);
+    pub fn clone(&mut self, url: &str, branch: &str, shallow: bool) -> Result<(), PyOxenError> {
+        let repo = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let opts = CloneOpts {
                 url: url.to_string(),
                 dst: self.path.clone(),
@@ -43,6 +42,10 @@ impl PyRepo {
             };
             command::clone(&opts).await
         })?;
+
+        // cd repo_path
+        self.path = repo.path;
+
         Ok(())
     }
 
@@ -72,16 +75,22 @@ impl PyRepo {
 
     pub fn set_remote(&self, name: &str, url: &str) -> Result<(), PyOxenError> {
         let mut repo = LocalRepository::from_dir(&self.path)?;
-        log::info!("Adding remote: {url}");
         command::add_remote(&mut repo, name, url)?;
         Ok(())
     }
 
     pub fn push(&self, remote: &str, branch: &str) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            log::info!("Pushing to remote: {remote} branch: {branch}");
             let repo = LocalRepository::from_dir(&self.path)?;
             command::push_remote_branch(&repo, remote, branch).await
+        })?;
+        Ok(())
+    }
+
+    pub fn pull(&self, remote: &str, branch: &str) -> Result<(), PyOxenError> {
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            let repo = LocalRepository::from_dir(&self.path)?;
+            command::pull_remote_branch(&repo, remote, branch).await
         })?;
         Ok(())
     }

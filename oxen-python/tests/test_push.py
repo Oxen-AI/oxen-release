@@ -13,6 +13,5 @@ def remote_repo(empty_remote_repo):
 
 def test_repo_push(local_repo, remote_repo):
     remote_name = "origin"
-    branch_name = "main"
     local_repo.set_remote(remote_name, remote_repo.url)
-    local_repo.push(remote_name, branch_name)
+    local_repo.push(remote_name)

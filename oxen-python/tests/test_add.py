@@ -11,7 +11,11 @@ def test_add(shared_datadir):
     full_path = os.path.join(repo_dir, image_file)
     repo.add(full_path)
     staged_data = repo.status()
-    assert staged_data.added_files() == [
-        "annotations/train.csv",
+
+    added_files = staged_data.added_files()
+    added_files.sort()
+
+    assert added_files == [
         "annotations/test.csv",
+        "annotations/train.csv",
     ]
