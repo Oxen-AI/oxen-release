@@ -4,7 +4,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::index;
+use crate::core::index;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
 

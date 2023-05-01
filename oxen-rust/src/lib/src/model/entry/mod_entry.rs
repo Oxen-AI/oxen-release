@@ -5,11 +5,11 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::{
-    df::tabular,
     error::OxenError,
     model::{CommitEntry, ContentType, Schema},
     opts::DFOpts,
 };
+use crate::core::df::tabular;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum ModType {

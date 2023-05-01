@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::api;
 use crate::error::OxenError;
-use crate::index::{differ, MergeConflictReader};
+use crate::core::index::MergeConflictReader;
 use crate::model::LocalRepository;
 
 /// Diff a file from a commit or compared to another file
@@ -27,16 +27,16 @@ pub fn diff(
         if let Some(compare_commit) = api::local::commits::get_by_id(repo, resource)? {
             // `resource` is a commit id
             let original_commit = api::local::commits::head_commit(repo)?;
-            differ::diff(repo, &original_commit, &compare_commit, path)
+            api::local::diff::diff(repo, &original_commit, &compare_commit, path)
         } else if let Some(branch) = api::local::branches::get_by_name(repo, resource)? {
             // `resource` is a branch name
             let compare_commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
             let original_commit = api::local::commits::head_commit(repo)?;
 
-            differ::diff(repo, &original_commit, &compare_commit, path)
+            api::local::diff::diff(repo, &original_commit, &compare_commit, path)
         } else if Path::new(resource).exists() {
             // `resource` is another path
-            differ::diff_files(resource, path)
+            api::local::diff::diff_files(resource, path)
         } else {
             Err(OxenError::basic_str(format!(
                 "Could not find resource: {resource:?}"
@@ -51,8 +51,8 @@ pub fn diff(
                 Ok(Some(commit)) => {
                     let current_path = path.as_ref();
                     let version_path =
-                        differ::get_version_file_from_commit(repo, &commit, current_path)?;
-                    differ::diff_files(current_path, version_path)
+                        api::local::diff::get_version_file_from_commit(repo, &commit, current_path)?;
+                    api::local::diff::diff_files(current_path, version_path)
                 }
                 err => {
                     log::error!("{err:?}");
@@ -65,8 +65,8 @@ pub fn diff(
             // No merge conflicts, compare to last version committed of the file
             let current_path = path.as_ref();
             let commit = api::local::commits::head_commit(repo)?;
-            let version_path = differ::get_version_file_from_commit(repo, &commit, current_path)?;
-            differ::diff_files(version_path, current_path)
+            let version_path = api::local::diff::get_version_file_from_commit(repo, &commit, current_path)?;
+            api::local::diff::diff_files(version_path, current_path)
         }
     }
 }

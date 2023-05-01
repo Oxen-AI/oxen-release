@@ -3,7 +3,7 @@ use crate::view::PaginatedLinesResponse;
 
 use liboxen::constants::AVG_CHUNK_SIZE;
 use liboxen::error::OxenError;
-use liboxen::index::CommitDirReader;
+use liboxen::core::index::CommitDirReader;
 use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};

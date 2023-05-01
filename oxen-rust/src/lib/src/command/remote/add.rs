@@ -9,7 +9,7 @@ use crate::api;
 use crate::config::UserConfig;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
-use crate::index::oxenignore;
+use crate::core::index::oxenignore;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::opts::AddOpts;
 use crate::util;

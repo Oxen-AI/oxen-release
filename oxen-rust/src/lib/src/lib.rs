@@ -13,14 +13,11 @@ extern crate fs_extra;
 extern crate lazy_static;
 
 pub mod api;
-pub mod cache;
+pub mod core;
 pub mod command;
 pub mod config;
 pub mod constants;
-pub mod db;
-pub mod df;
 pub mod error;
-pub mod index;
 pub mod model;
 pub mod opts;
 pub mod test;

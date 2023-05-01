@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use crate::constants::{FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
-use crate::df::agg::{self, DFAggregation};
+use crate::core::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::{ContentType, Schema};
 
-use crate::df::filter::{self, DFFilterExp};
+use crate::core::df::filter::{self, DFFilterExp};
 
 #[derive(Debug)]
 pub struct AddColVals {

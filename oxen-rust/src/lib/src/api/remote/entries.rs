@@ -411,7 +411,7 @@ mod tests {
     use crate::command;
     // use crate::constants;
     use crate::error::OxenError;
-    use crate::index::CommitDirReader;
+    use crate::core::index::CommitDirReader;
     use crate::test;
     // use crate::util;
 

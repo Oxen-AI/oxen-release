@@ -3,7 +3,7 @@
 
 use crate::error::OxenError;
 
-use crate::index::CommitDirReader;
+use crate::core::index::CommitDirReader;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::view::PaginatedDirEntries;
 use std::path::Path;

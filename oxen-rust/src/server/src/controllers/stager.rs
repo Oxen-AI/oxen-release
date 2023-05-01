@@ -7,10 +7,10 @@ use crate::params::{
     parse_resource, path_param,
 };
 
-use liboxen::cache::commit_cacher;
-use liboxen::df::tabular;
+use liboxen::core::cache::commit_cacher;
+use liboxen::core::df::tabular;
 use liboxen::error::OxenError;
-use liboxen::index::mod_stager;
+use liboxen::core::index::mod_stager;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitBody, CommitEntry, ContentType, LocalRepository,
@@ -25,7 +25,7 @@ use liboxen::view::remote_staged_status::{
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrame, RemoteStagedStatusResponse, StatusMessage,
 };
-use liboxen::{api, constants, index};
+use liboxen::{api, constants, core::index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
 use std::io::Write;
@@ -187,7 +187,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         data,
     };
 
-    let row = liboxen::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
+    let row = liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
 
     Ok(HttpResponse::Ok().json(StagedFileModResponse {
         status: String::from(STATUS_SUCCESS),
@@ -276,7 +276,7 @@ fn delete_mod(
     file: &Path,
     uuid: String,
 ) -> Result<HttpResponse, Error> {
-    match liboxen::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid) {
+    match liboxen::core::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid) {
         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),

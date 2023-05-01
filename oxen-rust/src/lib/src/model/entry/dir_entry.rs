@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{model::Commit, view::entry::ResourceVersion};
+use crate::model::Commit;
+use crate::view::entry::ResourceVersion;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirEntry {
