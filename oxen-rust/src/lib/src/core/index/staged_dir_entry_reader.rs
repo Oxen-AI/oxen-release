@@ -4,8 +4,8 @@
 //! Faster for lookups since it does not allow writing, hence no locking
 //!
 
-use crate::error::OxenError;
 use crate::core::index::StagedDirEntryDB;
+use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedEntry};
 
 use rocksdb::SingleThreaded;

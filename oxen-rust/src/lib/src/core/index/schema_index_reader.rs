@@ -78,8 +78,8 @@ impl SchemaIndexReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::OxenError;
     use crate::core::index::SchemaIndexReader;
+    use crate::error::OxenError;
     use crate::test;
     use crate::{api, command};
 

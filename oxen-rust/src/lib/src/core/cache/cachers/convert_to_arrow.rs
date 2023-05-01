@@ -1,6 +1,6 @@
 use crate::core::df::tabular;
-use crate::error::OxenError;
 use crate::core::index::CommitDirReader;
+use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::opts::DFOpts;
 use crate::util;

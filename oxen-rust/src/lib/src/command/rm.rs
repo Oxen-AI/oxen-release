@@ -3,8 +3,8 @@
 //! Remove files from the index and working directory
 //!
 
-use crate::error::OxenError;
 use crate::core::index;
+use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 

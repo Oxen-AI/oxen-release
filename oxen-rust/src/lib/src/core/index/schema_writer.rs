@@ -61,9 +61,9 @@ impl SchemaWriter {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::error::OxenError;
     use crate::core::index::SchemaReader;
     use crate::core::index::SchemaWriter;
+    use crate::error::OxenError;
     use crate::model::schema;
     use crate::model::Schema;
     use crate::test;

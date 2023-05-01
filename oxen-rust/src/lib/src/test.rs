@@ -4,8 +4,8 @@
 use crate::api;
 use crate::command;
 use crate::constants;
-use crate::error::OxenError;
 use crate::core::index::{RefWriter, Stager};
+use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
 use crate::opts::RmOpts;
 use crate::util;

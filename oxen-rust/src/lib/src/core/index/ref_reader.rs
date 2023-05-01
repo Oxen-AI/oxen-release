@@ -1,7 +1,7 @@
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::core::db;
-use crate::error::OxenError;
 use crate::core::index::CommitReader;
+use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::util;
 
@@ -187,8 +187,8 @@ impl RefReader {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::error::OxenError;
     use crate::core::index::RefReader;
+    use crate::error::OxenError;
     use crate::test;
 
     #[test]

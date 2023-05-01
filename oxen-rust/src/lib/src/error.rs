@@ -1,4 +1,4 @@
-//! # OxenError
+//! Errors for the oxen library
 //!
 //! Enumeration for all errors that can occur in the oxen library
 //!

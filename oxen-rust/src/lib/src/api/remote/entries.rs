@@ -410,8 +410,8 @@ mod tests {
     use crate::api;
     use crate::command;
     // use crate::constants;
-    use crate::error::OxenError;
     use crate::core::index::CommitDirReader;
+    use crate::error::OxenError;
     use crate::test;
     // use crate::util;
 

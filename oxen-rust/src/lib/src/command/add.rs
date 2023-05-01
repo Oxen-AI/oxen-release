@@ -5,12 +5,8 @@
 
 use std::path::Path;
 
-use crate::{
-    api,
-    error::OxenError,
-    model::LocalRepository,
-};
 use crate::core::index::{oxenignore, CommitDirReader, Stager};
+use crate::{api, error::OxenError, model::LocalRepository};
 
 /// # Stage files into repository
 ///

@@ -1,3 +1,6 @@
+//! Various utility functions
+//!
+
 pub mod fs;
 pub mod hasher;
 pub mod logging;

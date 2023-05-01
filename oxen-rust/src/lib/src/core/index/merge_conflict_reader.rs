@@ -1,7 +1,7 @@
 use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE};
 use crate::core::db;
-use crate::error::OxenError;
 use crate::core::index::MergeConflictDBReader;
+use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, MergeConflict};
 use crate::util;
 

@@ -2,8 +2,8 @@ use crate::app_data::OxenAppData;
 use crate::view::PaginatedLinesResponse;
 
 use liboxen::constants::AVG_CHUNK_SIZE;
-use liboxen::error::OxenError;
 use liboxen::core::index::CommitDirReader;
+use liboxen::error::OxenError;
 use liboxen::model::{Commit, CommitEntry, LocalRepository, RemoteEntry};
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};

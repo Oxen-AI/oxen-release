@@ -3,8 +3,8 @@
 //! Restore a file to a previous version
 //!
 
-use crate::error::OxenError;
 use crate::core::index;
+use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
 

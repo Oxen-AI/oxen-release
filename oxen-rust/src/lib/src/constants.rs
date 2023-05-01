@@ -1,3 +1,6 @@
+//! Constants used throughout the codebase
+//!
+
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
@@ -44,34 +47,45 @@ pub const DATA_ARROW_FILE: &str = "data.arrow";
 
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";
+/// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const ORIG_HEAD_FILE: &str = "ORIG_HEAD";
 
-// Precomputed vals
+/// Key for hash of the file
 pub const HASH_FILE: &str = "HASH";
+/// Key for content being valid
 pub const CONTENT_IS_VALID: &str = "CONTENT_IS_VALID";
+/// Key for if something is synced
 pub const IS_SYNCED: &str = "IS_SYNCED";
 
-// Default Remotes and Origins
+/// Default branch name: main
 pub const DEFAULT_BRANCH_NAME: &str = "main";
+/// Default remote name: origin
 pub const DEFAULT_REMOTE_NAME: &str = "origin";
+/// Default remote host: hub.oxen.ai
 pub const DEFAULT_HOST: &str = "hub.oxen.ai";
 
-// Namespace
+/// Default Namespace: ox
 pub const DEFAULT_NAMESPACE: &str = "ox";
 
-// Commits
+/// Initial Commit Message
 pub const INITIAL_COMMIT_MSG: &str = "Initialized Repo 🐂";
 
-// Internal Tabular Data Names
+/// Internal Name When Performing Computation
 pub const ROW_NUM_COL_NAME: &str = "_row_num";
+/// Internal Name When Performing Computation
 pub const ROW_HASH_COL_NAME: &str = "_row_hash";
+/// Internal Name When Performing Computation
 pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
 
 // Data transfer
 // Average chunk size of ~4mb
+/// Average chunk size of ~4mb when chunking and sending data
 pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 // Retry and back off of requests N times
+/// Retry and back off of requests N times
 pub const NUM_HTTP_RETRIES: u64 = 6;
-// Pagination page size
+
+/// Pagination page size of 10
 pub const DEFAULT_PAGE_SIZE: usize = 10;
+/// Pagination page number of 1
 pub const DEFAULT_PAGE_NUM: usize = 1;

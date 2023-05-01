@@ -1,7 +1,7 @@
 use crate::api;
 
-use crate::error::OxenError;
 use crate::core::index::SchemaReader;
+use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema};
 
 pub fn list(repo: &LocalRepository, commit_id: Option<&str>) -> Result<Vec<Schema>, OxenError> {

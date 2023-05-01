@@ -1,6 +1,6 @@
 use crate::constants::HASH_FILE;
-use crate::error::OxenError;
 use crate::core::index::CommitDirReader;
+use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
 

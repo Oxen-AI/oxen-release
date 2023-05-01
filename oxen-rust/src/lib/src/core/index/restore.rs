@@ -2,9 +2,9 @@ use filetime::FileTime;
 use std::path::Path;
 
 use crate::api::local::resource;
-use crate::error::OxenError;
 use crate::core::index::Stager;
 use crate::core::index::{CommitDirEntryWriter, CommitDirReader};
+use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util;

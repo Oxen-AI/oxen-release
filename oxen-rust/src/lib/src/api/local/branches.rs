@@ -4,8 +4,8 @@
 //!
 
 use crate::api;
-use crate::error::OxenError;
 use crate::core::index::{CommitReader, CommitWriter, RefReader, RefWriter};
+use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 
 /// List all the local branches within a repo

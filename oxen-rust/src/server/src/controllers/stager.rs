@@ -9,8 +9,8 @@ use crate::params::{
 
 use liboxen::core::cache::commit_cacher;
 use liboxen::core::df::tabular;
-use liboxen::error::OxenError;
 use liboxen::core::index::mod_stager;
+use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitBody, CommitEntry, ContentType, LocalRepository,
@@ -276,7 +276,8 @@ fn delete_mod(
     file: &Path,
     uuid: String,
 ) -> Result<HttpResponse, Error> {
-    match liboxen::core::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid) {
+    match liboxen::core::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid)
+    {
         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),

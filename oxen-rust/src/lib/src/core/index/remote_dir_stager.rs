@@ -7,10 +7,10 @@ use time::OffsetDateTime;
 use crate::api;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
-use crate::error::OxenError;
 use crate::core::index;
 use crate::core::index::CommitDirReader;
 use crate::core::index::Stager;
+use crate::error::OxenError;
 use crate::model::Branch;
 use crate::model::Commit;
 use crate::model::LocalRepository;
@@ -290,8 +290,8 @@ mod tests {
 
     use crate::api;
     use crate::config::UserConfig;
-    use crate::error::OxenError;
     use crate::core::index;
+    use crate::error::OxenError;
     use crate::model::User;
     use crate::test;
     use crate::util;

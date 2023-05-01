@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+use crate::view::entry::ResourceVersion;
 use crate::{
     model::{CommitEntry, LocalRepository},
     util,
 };
-use crate::view::entry::ResourceVersion;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum DiffEntryStatus {

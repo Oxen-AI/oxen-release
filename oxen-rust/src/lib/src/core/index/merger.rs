@@ -1,11 +1,11 @@
 use crate::api;
 use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db;
-use crate::error::OxenError;
 use crate::core::index::{
     oxenignore, CommitDirReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
     RefWriter, Stager,
 };
+use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 
 use crate::util;
@@ -501,8 +501,8 @@ impl Merger {
 mod tests {
     use crate::api;
     use crate::command;
-    use crate::error::OxenError;
     use crate::core::index::{CommitReader, MergeConflictReader, Merger};
+    use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository};
     use crate::test;
     use crate::util;

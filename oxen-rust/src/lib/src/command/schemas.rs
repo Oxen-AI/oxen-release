@@ -4,8 +4,8 @@
 //!
 
 use crate::api;
-use crate::error::OxenError;
 use crate::core::index::Stager;
+use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema};
 
 /// List the saved off schemas for a commit id

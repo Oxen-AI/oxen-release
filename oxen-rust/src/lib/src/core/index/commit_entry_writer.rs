@@ -1,8 +1,8 @@
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::db::path_db;
-use crate::error::OxenError;
 use crate::core::index::{CommitDirEntryWriter, RefReader, RefWriter, SchemaWriter};
+use crate::error::OxenError;
 use crate::model::schema::Schema;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
