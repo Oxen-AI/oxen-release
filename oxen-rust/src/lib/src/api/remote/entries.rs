@@ -1,5 +1,5 @@
 use crate::api::remote::client;
-use crate::constants::AVG_CHUNK_SIZE;
+use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, RemoteEntry, RemoteRepository};
 use crate::util;
@@ -355,7 +355,9 @@ pub async fn download_entry(
     repository: &LocalRepository,
     entry: &CommitEntry,
 ) -> Result<bool, OxenError> {
-    let remote = repository.remote().ok_or_else(OxenError::remote_not_set)?;
+    let remote = repository
+        .remote()
+        .ok_or(OxenError::remote_not_set(DEFAULT_REMOTE_NAME))?;
     let fpath = repository.path.join(&entry.path);
     log::debug!("download_remote_entry entry {:?}", entry.path);
 

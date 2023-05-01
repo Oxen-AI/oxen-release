@@ -3,13 +3,13 @@ use liboxen::command;
 use liboxen::constants;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::df::tabular;
-use liboxen::df::DFOpts;
 use liboxen::error::OxenError;
 use liboxen::index::CommitDirReader;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::CloneOpts;
+use liboxen::opts::DFOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
@@ -35,7 +35,7 @@ fn test_command_init() -> Result<(), OxenError> {
 
         // We make an initial parent commit and branch called "main"
         // just to make our lives easier down the line
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
         assert_eq!(orig_branch.name, constants::DEFAULT_BRANCH_NAME);
         assert!(!orig_branch.commit_id.is_empty());
 
@@ -140,11 +140,11 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
 #[test]
 fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         let initial_len = commits.len();
         let result = command::commit(&repo, "Should not work");
         assert!(result.is_err());
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         // We should not have added any commits
         assert_eq!(commits.len(), initial_len);
         Ok(())
@@ -154,7 +154,7 @@ fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
 #[test]
 fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         let initial_len = commits.len();
 
         let labels_path = repo.path.join("labels.txt");
@@ -162,7 +162,7 @@ fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenErro
 
         let result = command::commit(&repo, "Should not work");
         assert!(result.is_err());
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         // We should not have added any commits
         assert_eq!(commits.len(), initial_len);
         Ok(())
@@ -226,7 +226,7 @@ fn test_command_commit_file() -> Result<(), OxenError> {
         assert_eq!(repo_status.untracked_files.len(), 0);
         assert_eq!(repo_status.untracked_dirs.len(), 0);
 
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         assert_eq!(commits.len(), 2);
 
         Ok(())
@@ -366,7 +366,7 @@ fn test_command_commit_dir() -> Result<(), OxenError> {
         assert_eq!(repo_status.untracked_files.len(), 2);
         assert_eq!(repo_status.untracked_dirs.len(), 4);
 
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         assert_eq!(commits.len(), 2);
 
         Ok(())
@@ -389,7 +389,7 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
         assert_eq!(repo_status.untracked_files.len(), 2);
         assert_eq!(repo_status.untracked_dirs.len(), 4);
 
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         assert_eq!(commits.len(), 2);
 
         Ok(())
@@ -409,7 +409,7 @@ async fn test_command_checkout_current_branch_name_does_nothing() -> Result<(), 
 
         // Create and checkout branch
         let branch_name = "feature/world-explorer";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
         command::checkout(&repo, branch_name).await?;
 
         Ok(())
@@ -430,7 +430,7 @@ async fn test_cannot_checkout_branch_with_dots_in_name() -> Result<(), OxenError
 
         // Create and checkout branch
         let branch_name = "test..ing";
-        let result = command::create_checkout_branch(&repo, branch_name);
+        let result = api::local::branches::create_checkout(&repo, branch_name);
         assert!(result.is_err());
 
         Ok(())
@@ -443,20 +443,22 @@ fn test_rename_current_branch() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Create and checkout branch
         let og_branch_name = "feature/world-explorer";
-        command::create_checkout_branch(&repo, og_branch_name)?;
+        api::local::branches::create_checkout(&repo, og_branch_name)?;
 
         // Rename branch
         let new_branch_name = "feature/brave-new-world";
-        command::rename_current_branch(&repo, new_branch_name)?;
+        api::local::branches::rename_current_branch(&repo, new_branch_name)?;
 
         // Check that the branch name has changed
-        let current_branch = command::current_branch(&repo)?.unwrap();
+        let current_branch = api::local::branches::current_branch(&repo)?.unwrap();
         assert_eq!(current_branch.name, new_branch_name);
 
         // Check that old branch no longer exists
-        command::list_branches(&repo)?.iter().for_each(|branch| {
-            assert_ne!(branch.name, og_branch_name);
-        });
+        api::local::branches::list(&repo)?
+            .iter()
+            .for_each(|branch| {
+                assert_ne!(branch.name, og_branch_name);
+            });
 
         Ok(())
     })
@@ -474,11 +476,11 @@ async fn test_command_checkout_added_file() -> Result<(), OxenError> {
         command::commit(&repo, "Added hello.txt")?;
 
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Create and checkout branch
         let branch_name = "feature/world-explorer";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Write a second file
         let world_file = repo.path.join("world.txt");
@@ -489,10 +491,10 @@ async fn test_command_checkout_added_file() -> Result<(), OxenError> {
         command::commit(&repo, "Added world.txt")?;
 
         // Make sure we have both commits after the initial
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         assert_eq!(commits.len(), 3);
 
-        let branches = command::list_branches(&repo)?;
+        let branches = api::local::branches::list(&repo)?;
         assert_eq!(branches.len(), 2);
 
         // Make sure we have both files on disk in our repo dir
@@ -532,11 +534,11 @@ async fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenErr
         command::commit(&repo, "Added hello.txt")?;
 
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Create and checkout branch
         let branch_name = "feature/world-explorer";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Write a second file
         let world_file = repo.path.join("world.txt");
@@ -547,10 +549,10 @@ async fn test_command_checkout_added_file_keep_untracked() -> Result<(), OxenErr
         command::commit(&repo, "Added world.txt")?;
 
         // Make sure we have both commits after the initial
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         assert_eq!(commits.len(), 3);
 
-        let branches = command::list_branches(&repo)?;
+        let branches = api::local::branches::list(&repo)?;
         assert_eq!(branches.len(), 2);
 
         // Make sure we have all files on disk in our repo dir
@@ -589,11 +591,11 @@ async fn test_command_checkout_modified_file() -> Result<(), OxenError> {
         command::commit(&repo, "Added hello.txt")?;
 
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Create and checkout branch
         let branch_name = "feature/world-explorer";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Modify the file
         let hello_file = test::modify_txt_file(hello_file, "World")?;
@@ -647,7 +649,7 @@ fn test_command_add_modified_file_in_subdirectory() -> Result<(), OxenError> {
 async fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Track & commit the file
         let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
@@ -658,7 +660,7 @@ async fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), Oxe
         let og_content = util::fs::read_from_path(&one_shot_path)?;
 
         let branch_name = "feature/change-the-shot";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
@@ -689,7 +691,7 @@ async fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), Oxe
 async fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Track & commit all the data
         let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
@@ -700,7 +702,7 @@ async fn test_command_checkout_modified_file_from_fully_committed_repo() -> Resu
         let og_content = util::fs::read_from_path(&one_shot_path)?;
 
         let branch_name = "feature/modify-data";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
         let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
@@ -734,11 +736,11 @@ async fn test_command_checkout_modified_file_from_fully_committed_repo() -> Resu
 async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Create a branch to make the changes
         let branch_name = "feature/adding-train";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Track & commit (train dir already created in helper)
         let train_path = repo.path.join("train");
@@ -774,11 +776,11 @@ async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError
 async fn test_command_add_second_level_dir_then_revert() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Create a branch to make the changes
         let branch_name = "feature/adding-annotations";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Track & commit (dir already created in helper)
         let new_dir_path = repo.path.join("annotations").join("train");
@@ -829,7 +831,7 @@ async fn test_command_restore_removed_file_from_branch_with_commits_between(
         // (file already created in helper)
         let file_to_remove = repo.path.join("labels.txt");
 
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Commit the file
         command::add(&repo, &file_to_remove)?;
@@ -840,7 +842,7 @@ async fn test_command_restore_removed_file_from_branch_with_commits_between(
         command::commit(&repo, "Adding train dir")?;
 
         // Branch
-        command::create_checkout_branch(&repo, "remove-labels")?;
+        api::local::branches::create_checkout(&repo, "remove-labels")?;
 
         // Delete the file
         std::fs::remove_file(&file_to_remove)?;
@@ -901,7 +903,7 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
 async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branch name
-        let orig_branch = command::current_branch(&repo)?.unwrap();
+        let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // (dir already created in helper)
         let dir_to_remove = repo.path.join("train");
@@ -913,7 +915,7 @@ async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
 
         // Create a branch to make the changes
         let branch_name = "feature/removing-train";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Delete the directory from disk
         std::fs::remove_dir_all(&dir_to_remove)?;
@@ -950,7 +952,7 @@ async fn test_command_push_one_commit() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -989,7 +991,7 @@ async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError>
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1032,7 +1034,7 @@ async fn test_command_push_multiple_commit_check_is_synced() -> Result<(), OxenE
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1077,7 +1079,7 @@ async fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1138,7 +1140,7 @@ async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1205,7 +1207,7 @@ async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenErro
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1258,7 +1260,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create the remote repo
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1307,8 +1309,8 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
             assert_eq!(head.id, latest_commit.id);
 
             // Make sure we synced all the commits
-            let repo_commits = command::log(&repo)?;
-            let cloned_commits = command::log(&cloned_repo)?;
+            let repo_commits = api::local::commits::list(&repo)?;
+            let cloned_commits = api::local::commits::list(&cloned_repo)?;
             assert_eq!(repo_commits.len(), cloned_commits.len());
 
             // Make sure we updated the dbs properly
@@ -1392,7 +1394,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1468,7 +1470,7 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1519,7 +1521,7 @@ async fn test_clone_full() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1564,7 +1566,7 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1597,7 +1599,7 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
             assert!(status.is_clean());
 
             // Make sure that the schema gets pulled
-            let schemas = command::schema_list(&repo, None)?;
+            let schemas = command::schemas::list(&repo, None)?;
             assert!(!schemas.is_empty());
 
             api::remote::repositories::delete(&remote_repo).await?;
@@ -1618,12 +1620,12 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
         let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
         let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
 
-        let schemas = command::schema_list(&repo, None)?;
+        let schemas = command::schemas::list(&repo, None)?;
         let num_schemas = schemas.len();
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1658,7 +1660,7 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
             assert!(status.is_clean());
 
             // Make sure we grab the same amount of schemas
-            let pulled_schemas = command::schema_list(&repo, None)?;
+            let pulled_schemas = command::schemas::list(&repo, None)?;
             assert_eq!(pulled_schemas.len(), num_schemas);
 
             api::remote::repositories::delete(&remote_repo).await?;
@@ -1686,7 +1688,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1707,13 +1709,13 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             assert_eq!(6, cloned_num_files);
-            let og_commits = command::log(&repo)?;
-            let cloned_commits = command::log(&cloned_repo)?;
+            let og_commits = api::local::commits::list(&repo)?;
+            let cloned_commits = api::local::commits::list(&cloned_repo)?;
             assert_eq!(og_commits.len(), cloned_commits.len());
 
             // Create a branch to collab on
             let branch_name = "adding-training-data";
-            command::create_checkout_branch(&cloned_repo, branch_name)?;
+            api::local::branches::create_checkout(&cloned_repo, branch_name)?;
 
             // Track some more data in the cloned repo
             let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
@@ -1777,11 +1779,11 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         command::add(&repo, &train_dir)?;
         command::commit(&repo, "Adding train dir")?;
 
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1806,7 +1808,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
             // Create a branch to collaborate on
             let branch_name = "adding-training-data";
-            command::create_checkout_branch(&cloned_repo, branch_name)?;
+            api::local::branches::create_checkout(&cloned_repo, branch_name)?;
 
             // Track some more data in the cloned repo
             let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
@@ -1845,7 +1847,7 @@ async fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1854,7 +1856,7 @@ async fn test_push_branch_with_with_no_new_commits() -> Result<(), OxenError> {
         command::push(&repo).await?;
 
         let new_branch_name = "my-branch";
-        command::create_checkout_branch(&repo, new_branch_name)?;
+        api::local::branches::create_checkout(&repo, new_branch_name)?;
 
         // Push new branch, without any new commits, should still create the branch
         command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name).await?;
@@ -1874,7 +1876,7 @@ async fn test_delete_remote_branch() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1884,7 +1886,7 @@ async fn test_delete_remote_branch() -> Result<(), OxenError> {
 
         // Create new branch
         let new_branch_name = "my-branch";
-        command::create_checkout_branch(&repo, new_branch_name)?;
+        api::local::branches::create_checkout(&repo, new_branch_name)?;
 
         // Push new branch
         command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name).await?;
@@ -1907,7 +1909,7 @@ async fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenErr
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1969,11 +1971,11 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
         command::commit(&repo, "Adding test dir")?;
 
         // Get local history
-        let local_history = command::log(&repo)?;
+        let local_history = api::local::commits::list(&repo)?;
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -1994,7 +1996,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
             command::pull(&cloned_repo).await?;
 
             // Get cloned history
-            let cloned_history = command::log(&cloned_repo)?;
+            let cloned_history = api::local::commits::list(&cloned_repo)?;
 
             // Make sure the histories match
             assert_eq!(local_history.len(), cloned_history.len());
@@ -2027,7 +2029,7 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         test::populate_dir_with_training_data(dir)?;
 
         let repo = command::init(dir)?;
-        let commits = command::log(&repo)?;
+        let commits = api::local::commits::list(&repo)?;
         let commit = commits.last().unwrap();
         let reader = CommitDirReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
@@ -2041,20 +2043,20 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
 async fn test_delete_branch() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         // Get the original branches
-        let og_branches = command::list_branches(&repo)?;
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branches = api::local::branches::list(&repo)?;
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let branch_name = "my-branch";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Must checkout main again before deleting
         command::checkout(&repo, og_branch.name).await?;
 
         // Now we can delete
-        command::delete_branch(&repo, branch_name)?;
+        api::local::branches::delete(&repo, branch_name)?;
 
         // Should be same num as og_branches
-        let leftover_branches = command::list_branches(&repo)?;
+        let leftover_branches = api::local::branches::list(&repo)?;
         assert_eq!(og_branches.len(), leftover_branches.len());
 
         Ok(())
@@ -2066,10 +2068,10 @@ async fn test_delete_branch() -> Result<(), OxenError> {
 async fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
         let branch_name = "my-branch";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Add another commit on this branch that moves us ahead of main
-        if command::delete_branch(&repo, branch_name).is_ok() {
+        if api::local::branches::delete(&repo, branch_name).is_ok() {
             panic!("Should not be able to delete the branch you are on");
         }
 
@@ -2082,10 +2084,10 @@ async fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
 fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         let branch_name = "my-branch";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Add another commit on this branch that moves us ahead of main
-        if command::force_delete_branch(&repo, branch_name).is_ok() {
+        if api::local::branches::force_delete(&repo, branch_name).is_ok() {
             panic!("Should not be able to force delete the branch you are on");
         }
 
@@ -2096,11 +2098,11 @@ fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
 #[tokio::test]
 async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
-        let og_branches = command::list_branches(&repo)?;
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branches = api::local::branches::list(&repo)?;
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let branch_name = "my-branch";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Add another commit on this branch
         let labels_path = repo.path.join("labels.txt");
@@ -2111,12 +2113,12 @@ async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), Oxen
         command::checkout(&repo, og_branch.name).await?;
 
         // Should not be able to delete `my-branch` because it is ahead of `main`
-        if command::delete_branch(&repo, branch_name).is_ok() {
+        if api::local::branches::delete(&repo, branch_name).is_ok() {
             panic!("Should not be able to delete the branch that is ahead of the one you are on");
         }
 
         // Should be one less branch
-        let leftover_branches = command::list_branches(&repo)?;
+        let leftover_branches = api::local::branches::list(&repo)?;
         assert_eq!(og_branches.len(), leftover_branches.len() - 1);
 
         Ok(())
@@ -2127,11 +2129,11 @@ async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), Oxen
 #[tokio::test]
 async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|repo| async move {
-        let og_branches = command::list_branches(&repo)?;
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branches = api::local::branches::list(&repo)?;
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let branch_name = "my-branch";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Add another commit on this branch
         let labels_path = repo.path.join("labels.txt");
@@ -2142,10 +2144,10 @@ async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenE
         command::checkout(&repo, og_branch.name).await?;
 
         // Force delete
-        command::force_delete_branch(&repo, branch_name)?;
+        api::local::branches::force_delete(&repo, branch_name)?;
 
         // Should be one less branch
-        let leftover_branches = command::list_branches(&repo)?;
+        let leftover_branches = api::local::branches::list(&repo)?;
         assert_eq!(og_branches.len(), leftover_branches.len());
 
         Ok(())
@@ -2160,11 +2162,11 @@ async fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
 
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Add a "none" category on a branch
         let branch_name = "change-labels";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
         command::add(&repo, &labels_path)?;
@@ -2199,11 +2201,11 @@ async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
 
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Add a "none" category on a branch
         let branch_name = "change-labels";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
         command::add(&repo, &labels_path)?;
@@ -2244,7 +2246,7 @@ async fn test_can_add_merge_conflict() -> Result<(), OxenError> {
 #[tokio::test]
 async fn test_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
     test::run_empty_local_repo_test_async(|repo| async move {
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
         let data_path = repo.path.join("data.csv");
         util::fs::write_to_path(&data_path, "file,label\nimages/0.png,dog\n")?;
         command::add(&repo, &data_path)?;
@@ -2252,7 +2254,7 @@ async fn test_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
 
         // Add a fish label to the file on a branch
         let fish_branch_name = "add-fish-label";
-        command::create_checkout_branch(&repo, fish_branch_name)?;
+        api::local::branches::create_checkout(&repo, fish_branch_name)?;
         let data_path = test::append_line_txt_file(data_path, "images/fish.png,fish\n")?;
         command::add(&repo, &data_path)?;
         command::commit(&repo, "Adding fish to data.csv file")?;
@@ -2260,7 +2262,7 @@ async fn test_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
         // Checkout main, and branch from it to another branch to add a cat label
         command::checkout(&repo, &og_branch.name).await?;
         let cat_branch_name = "add-cat-label";
-        command::create_checkout_branch(&repo, cat_branch_name)?;
+        api::local::branches::create_checkout(&repo, cat_branch_name)?;
         let data_path = test::append_line_txt_file(data_path, "images/cat.png,cat\n")?;
         command::add(&repo, &data_path)?;
         command::commit(&repo, "Adding cat to data.csv file")?;
@@ -2324,11 +2326,11 @@ async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;
 
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Add a "none" category on a branch
         let branch_name = "change-labels";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
         command::add(&repo, &labels_path)?;
@@ -2362,7 +2364,7 @@ async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         //  3) change-labels branch modification
         //  4) main branch modification
         //  5) merge commit
-        let history = command::log(&repo)?;
+        let history = api::local::commits::list(&repo)?;
         assert_eq!(history.len(), 5);
 
         Ok(())
@@ -2413,7 +2415,7 @@ async fn test_add_commit_push_pull_file_without_extension() -> Result<(), OxenEr
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -2448,7 +2450,7 @@ async fn test_add_commit_push_pull_file_without_extension() -> Result<(), OxenEr
 #[test]
 fn test_restore_directory() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let history = command::log(&repo)?;
+        let history = api::local::commits::list(&repo)?;
         let last_commit = history.first().unwrap();
 
         let annotations_dir = Path::new("annotations");
@@ -2488,7 +2490,7 @@ fn test_restore_directory() -> Result<(), OxenError> {
 #[test]
 fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let history = command::log(&repo)?;
+        let history = api::local::commits::list(&repo)?;
         let last_commit = history.first().unwrap();
 
         let bbox_file = Path::new("annotations")
@@ -2513,7 +2515,7 @@ fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
 #[test]
 fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let history = command::log(&repo)?;
+        let history = api::local::commits::list(&repo)?;
         let last_commit = history.first().unwrap();
 
         let bbox_file = Path::new("annotations")
@@ -2547,7 +2549,7 @@ fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
 #[test]
 fn test_restore_modified_text_data() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let history = command::log(&repo)?;
+        let history = api::local::commits::list(&repo)?;
         let last_commit = history.first().unwrap();
 
         let bbox_file = Path::new("annotations")
@@ -2696,10 +2698,10 @@ fn test_restore_staged_directory() -> Result<(), OxenError> {
 #[test]
 fn test_command_schema_list() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let schemas = command::schema_list(&repo, None)?;
+        let schemas = command::schemas::list(&repo, None)?;
         assert_eq!(schemas.len(), 3);
 
-        let schema = command::schema_get_from_head(&repo, "bounding_box")?.unwrap();
+        let schema = command::schemas::get_from_head(&repo, "bounding_box")?.unwrap();
 
         assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
         assert_eq!(schema.fields.len(), 6);
@@ -2728,7 +2730,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         assert_eq!(status.added_schemas.len(), 0);
 
         // Make sure no schemas are committed
-        let schemas = command::schema_list(&repo, None)?;
+        let schemas = command::schemas::list(&repo, None)?;
         assert_eq!(schemas.len(), 0);
 
         // Schema should be staged when added
@@ -2748,7 +2750,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         // name the schema when staged
         let schema_ref = "b821946753334c083124fd563377d795";
         let schema_name = "bounding_box";
-        command::schema_name(&repo, schema_ref, schema_name)?;
+        command::schemas::set_name(&repo, schema_ref, schema_name)?;
 
         // Schema should be committed after commit
         command::commit(&repo, "Adding bounding box schema")?;
@@ -2758,7 +2760,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         assert_eq!(status.added_schemas.len(), 0);
 
         // Fetch schema from HEAD commit
-        let schema = command::schema_get_from_head(&repo, "bounding_box")?.unwrap();
+        let schema = command::schemas::get_from_head(&repo, "bounding_box")?.unwrap();
 
         assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
         assert_eq!(schema.fields.len(), 6);
@@ -2783,11 +2785,11 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
 async fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs(
 ) -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         // Add a more rows on this branch
         let branch_name = "ox-add-rows";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let bbox_filename = Path::new("annotations")
             .join("train")
@@ -2836,7 +2838,7 @@ async fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs(
 async fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq(
 ) -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let bbox_filename = Path::new("annotations")
             .join("train")
@@ -2845,7 +2847,7 @@ async fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq(
 
         // Add a more rows on this branch
         let branch_name = "ox-add-rows";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Add in a line in this branch
         let row_from_branch = "train/cat_3.jpg,cat,41.0,31.5,410,427";
@@ -2886,7 +2888,7 @@ async fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq(
 #[tokio::test]
 async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let bbox_filename = Path::new("annotations")
             .join("train")
@@ -2895,7 +2897,7 @@ async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), O
 
         // Add a more columns on this branch
         let branch_name = "ox-add-column";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Add in a column in this branch
         let mut opts = DFOpts::empty();
@@ -3386,7 +3388,7 @@ async fn test_cannot_push_two_separate_repos() -> Result<(), OxenError> {
             command::commit(&repo_1, "Adding first file path.")?;
             // Set/create the proper remote
             let remote = test::repo_remote_url_from(&repo_1.dirname());
-            command::add_remote(&mut repo_1, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut repo_1, constants::DEFAULT_REMOTE_NAME, &remote)?;
             test::create_remote_repo(&repo_1).await?;
             command::push(&repo_1).await?;
 
@@ -3404,7 +3406,7 @@ async fn test_cannot_push_two_separate_repos() -> Result<(), OxenError> {
             command::commit(&repo_2, "Adding third file path.")?;
 
             // Set remote to the same as the first repo
-            command::add_remote(&mut repo_2, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut repo_2, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push should FAIL
             let result = command::push(&repo_2).await;
@@ -3465,7 +3467,7 @@ async fn test_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
 
                     // Reset the remote on the second repo to the first repo
                     let first_remote = test::repo_remote_url_from(&first_cloned_repo.dirname());
-                    command::add_remote(
+                    command::config::set_remote(
                         &mut second_cloned_repo,
                         constants::DEFAULT_REMOTE_NAME,
                         &first_remote,
@@ -3532,7 +3534,7 @@ async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), Oxen
             };
             let cloned_repo = command::clone(&opts).await?;
 
-            let commits = command::log(&cloned_repo)?;
+            let commits = api::local::commits::list(&cloned_repo)?;
             // iterate over commits in reverse order and checkout each one
             for commit in commits.iter().rev() {
                 println!(
@@ -3626,26 +3628,25 @@ async fn test_remote_stage_add_row_commit_clears_remote_status() -> Result<(), O
             // Remote add row
             let path = test::test_nlp_classification_csv();
             let mut opts = DFOpts::empty();
-            opts.is_remote = true;
             opts.add_row = Some("I am a new row,neutral".to_string());
             opts.content_type = ContentType::Csv;
-            command::remote_df(&cloned_repo, path, opts).await?;
+            command::remote::df(&cloned_repo, path, opts).await?;
 
             // Make sure it is listed as modified
-            let branch = command::current_branch(&cloned_repo)?.unwrap();
+            let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
             let directory = Path::new("");
             let opts = StagedDataOpts {
                 is_remote: true,
                 ..Default::default()
             };
-            let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            let status = command::remote::status(&remote_repo, &branch, directory, &opts).await?;
             assert_eq!(status.added_files.len(), 1);
 
             // Commit it
-            command::remote_commit(&cloned_repo, "Remotely committing").await?;
+            command::remote::commit(&cloned_repo, "Remotely committing").await?;
 
             // Now status should be empty
-            let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            let status = command::remote::status(&remote_repo, &branch, directory, &opts).await?;
             assert_eq!(status.added_files.len(), 0);
 
             Ok(repo_dir)
@@ -3675,34 +3676,32 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
             // Remote add row
             let path = test::test_nlp_classification_csv();
             let mut opts = DFOpts::empty();
-            opts.is_remote = true;
             opts.add_row = Some("I am a new row,neutral".to_string());
             opts.content_type = ContentType::Csv;
             // Grab ID from the row we just added
-            let df = command::remote_df(&cloned_repo, &path, opts).await?;
+            let df = command::remote::df(&cloned_repo, &path, opts).await?;
             let uuid = match df.get(0).unwrap().first().unwrap() {
                 AnyValue::Utf8(s) => s.to_string(),
                 _ => panic!("Expected string"),
             };
 
             // Make sure it is listed as modified
-            let branch = command::current_branch(&cloned_repo)?.unwrap();
+            let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
             let directory = Path::new("");
             let opts = StagedDataOpts {
                 is_remote: true,
                 ..Default::default()
             };
-            let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            let status = command::remote::status(&remote_repo, &branch, directory, &opts).await?;
             assert_eq!(status.added_files.len(), 1);
 
             // Delete it
             let mut delete_opts = DFOpts::empty();
-            delete_opts.is_remote = true;
             delete_opts.delete_row = Some(uuid);
-            command::remote_df(&cloned_repo, &path, delete_opts).await?;
+            command::remote::df(&cloned_repo, &path, delete_opts).await?;
 
             // Now status should be empty
-            let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+            let status = command::remote::status(&remote_repo, &branch, directory, &opts).await?;
             assert_eq!(status.added_files.len(), 0);
 
             Ok(repo_dir)
@@ -3732,10 +3731,9 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
             // Remote stage row
             let path = test::test_nlp_classification_csv();
             let mut opts = DFOpts::empty();
-            opts.is_remote = true;
             opts.add_row = Some("I am a new row,neutral".to_string());
             opts.content_type = ContentType::Csv;
-            command::remote_df(&cloned_repo, path, opts).await?;
+            command::remote::df(&cloned_repo, path, opts).await?;
 
             // Local add col
             let full_path = cloned_repo.path.join(path);
@@ -3750,12 +3748,12 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
             command::push(&cloned_repo).await?;
 
             // Try to commit the remote changes, should fail
-            let result = command::remote_commit(&cloned_repo, "Remotely committing").await;
+            let result = command::remote::commit(&cloned_repo, "Remotely committing").await;
             println!("{:?}", result);
             assert!(result.is_err());
 
             // Now status should be empty
-            // let branch = command::current_branch(&cloned_repo)?.unwrap();
+            // let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
             // let directory = Path::new("");
             // let opts = StagedDataOpts {
             //     is_remote: true,
@@ -3800,7 +3798,7 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
 
         // Set the proper remote
         let remote = test::repo_remote_url_from(&repo.dirname());
-        command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
         // Create Remote
         let remote_repo = test::create_remote_repo(&repo).await?;
@@ -3809,13 +3807,13 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
         command::push(&repo).await?;
 
         // Now list the remote
-        let branch = command::current_branch(&repo)?.unwrap();
+        let branch = api::local::branches::current_branch(&repo)?.unwrap();
         let dir = Path::new(".");
         let opts = PaginateOpts {
             page_num: 1,
             page_size: 10,
         };
-        let paginated = command::remote_ls(&remote_repo, &branch, dir, &opts).await?;
+        let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
         assert_eq!(paginated.entries.len(), 10);
         assert_eq!(paginated.page_number, 1);
         assert_eq!(paginated.page_size, 10);

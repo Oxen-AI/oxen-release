@@ -8,9 +8,9 @@ use std::fmt::Debug;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::model::RepositoryNew;
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
+use crate::model::{Remote, RepositoryNew};
 
 pub mod path_buf_error;
 pub mod string_error;
@@ -37,6 +37,9 @@ pub enum OxenError {
     // Repo
     RepoNotFound(Box<RepositoryNew>),
     RepoAlreadyExists(Box<RepositoryNew>),
+
+    // Remotes
+    RemoteRepoNotFound(Box<Remote>),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -88,6 +91,16 @@ impl OxenError {
         OxenError::RepoNotFound(Box::new(repo))
     }
 
+    pub fn remote_not_set(name: &str) -> Self {
+        OxenError::basic_str(
+            format!("Remote not set, you can set a remote by running:\n\noxen config --set-remote origin {} <url>\n", name)
+        )
+    }
+
+    pub fn remote_not_found(remote: Remote) -> Self {
+        OxenError::RemoteRepoNotFound(Box::new(remote))
+    }
+
     pub fn path_does_not_exist(path: PathBuf) -> Self {
         OxenError::PathDoesNotExist(Box::new(path.into()))
     }
@@ -131,12 +144,6 @@ impl OxenError {
 
     pub fn must_be_on_valid_branch() -> OxenError {
         OxenError::basic_str("Repository is in a detached HEAD state, checkout a valid branch to continue.\n\n  oxen checkout <branch>\n")
-    }
-
-    pub fn remote_not_set() -> OxenError {
-        OxenError::basic_str(
-            "Remote not set, you can set a remote by running:\n\noxen config --set-remote origin <name> <url>\n",
-        )
     }
 
     pub fn no_schemas_found() -> OxenError {

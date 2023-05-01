@@ -8,13 +8,13 @@ use crate::constants;
 use crate::db;
 use crate::db::path_db;
 use crate::df::tabular;
-use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::index::oxenignore;
 use crate::index::{
     CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
 };
+use crate::opts::DFOpts;
 
 use crate::model::schema;
 use crate::model::{

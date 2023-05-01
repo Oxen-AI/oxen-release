@@ -1,6 +1,5 @@
 use crate::api;
 use crate::api::remote::client;
-use crate::command;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
@@ -10,7 +9,7 @@ use serde_json::json;
 pub async fn get_default_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let remote = repo
         .get_remote(DEFAULT_REMOTE_NAME)
-        .ok_or_else(OxenError::remote_not_set)?;
+        .ok_or(OxenError::remote_not_set(DEFAULT_REMOTE_NAME))?;
     let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
         Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
@@ -109,7 +108,7 @@ pub async fn create<S: AsRef<str>>(
     host: S,
 ) -> Result<RemoteRepository, OxenError> {
     let url = api::endpoint::url_from_host(host.as_ref(), "");
-    let root_commit = command::root_commit(repository)?;
+    let root_commit = api::local::commits::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {} {} {}", url, namespace, name);
 

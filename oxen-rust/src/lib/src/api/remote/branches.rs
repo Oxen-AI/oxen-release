@@ -1,7 +1,7 @@
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, RemoteRepository};
+use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
 
 use serde_json::json;
@@ -123,6 +123,31 @@ pub async fn update(
         Err(OxenError::basic_str(&msg))
     }
 }
+
+/// # Delete a remote branch
+pub async fn delete_remote(
+    repo: &LocalRepository,
+    remote: &str,
+    branch_name: &str,
+) -> Result<(), OxenError> {
+    if let Some(remote) = repo.get_remote(remote) {
+        if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
+            if let Some(branch) =
+                api::remote::branches::get_by_name(&remote_repo, branch_name).await?
+            {
+                api::remote::branches::delete(&remote_repo, &branch.name).await?;
+                Ok(())
+            } else {
+                Err(OxenError::remote_branch_not_found(branch_name))
+            }
+        } else {
+            Err(OxenError::remote_repo_not_found(&remote.url))
+        }
+    } else {
+        Err(OxenError::remote_not_set(remote))
+    }
+}
+
 pub async fn delete(
     repository: &RemoteRepository,
     branch_name: &str,

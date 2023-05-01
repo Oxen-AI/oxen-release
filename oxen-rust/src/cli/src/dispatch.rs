@@ -1,13 +1,13 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::config::UserConfig;
-use liboxen::df::df_opts::DFOpts;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
+use liboxen::opts::DFOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
@@ -55,7 +55,7 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let remote_repo = command::create_remote(&repo, namespace, name, host).await?;
+    let remote_repo = api::remote::repositories::create(&repo, namespace, name, host).await?;
     println!(
         "Remote created for {}\n\noxen config --set-remote origin {}",
         name, remote_repo.remote.url
@@ -64,20 +64,20 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
     Ok(())
 }
 
-pub fn add_remote(name: &str, url: &str) -> Result<(), OxenError> {
+pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::add_remote(&mut repo, name, url)?;
+    command::config::set_remote(&mut repo, name, url)?;
 
     Ok(())
 }
 
-pub fn remove_remote(name: &str) -> Result<(), OxenError> {
+pub fn delete_remote(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let mut repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::remove_remote(&mut repo, name)?;
+    command::config::delete_remote(&mut repo, name)?;
 
     Ok(())
 }
@@ -142,7 +142,7 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::delete_staged_row(&repository, path, uuid).await?;
+    command::remote::df::delete_staged_row(&repository, path, uuid).await?;
 
     Ok(())
 }
@@ -153,7 +153,7 @@ pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
 
     for path in &opts.paths {
         if opts.is_remote {
-            command::remote_add(&repository, path, &opts).await?;
+            command::remote::add(&repository, path, &opts).await?;
         } else {
             command::add(&repository, path)?;
         }
@@ -179,7 +179,7 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     if opts.is_remote {
-        command::remote_restore(&repository, opts).await?;
+        command::remote::restore(&repository, opts).await?;
     } else {
         command::restore(&repository, opts)?;
     }
@@ -209,7 +209,7 @@ pub async fn diff(commit_id: Option<&str>, path: &str, remote: bool) -> Result<(
     let path = Path::new(path);
 
     let result = if remote {
-        command::remote_diff(&repository, commit_id, path).await?
+        command::remote::diff(&repository, commit_id, path).await?
     } else {
         command::diff(&repository, commit_id, path)?
     };
@@ -231,7 +231,7 @@ pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
 
     if is_remote {
         println!("Committing to remote with message: {message}");
-        command::remote_commit(&repo, message).await?;
+        command::remote::commit(&repo, message).await?;
     } else {
         println!("Committing with message: {message}");
         command::commit(&repo, message)?;
@@ -251,7 +251,7 @@ pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let commits = command::log_with_opts(&repository, &opts).await?;
+    let commits = api::local::commits::list_with_opts(&repository, &opts).await?;
 
     // Fri, 21 Oct 2022 16:08:39 -0700
     let format = format_description::parse(
@@ -294,7 +294,7 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let repo_status = command::status_from_dir(&repository, &directory)?;
 
-    if let Some(current_branch) = command::current_branch(&repository)? {
+    if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
         println!(
             "On branch {} -> {}\n",
             current_branch.name, current_branch.commit_id
@@ -320,10 +320,10 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let directory = directory.unwrap_or(PathBuf::from("."));
 
-    if let Some(current_branch) = command::current_branch(&repository)? {
+    if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
         let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
         let repo_status =
-            command::remote_status(&remote_repo, &current_branch, &directory, opts).await?;
+            command::remote::status(&remote_repo, &current_branch, &directory, opts).await?;
         if let Some(remote_branch) =
             api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
         {
@@ -354,10 +354,10 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let directory = directory.unwrap_or(PathBuf::from("."));
     let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
-    let branch =
-        command::current_branch(&repository)?.ok_or_else(OxenError::must_be_on_valid_branch)?;
+    let branch = api::local::branches::current_branch(&repository)?
+        .ok_or_else(OxenError::must_be_on_valid_branch)?;
 
-    let entries = command::remote_ls(&remote_repo, &branch, &directory, opts).await?;
+    let entries = command::remote::ls(&remote_repo, &branch, &directory, opts).await?;
     println!(
         "Displaying page {}/{} of {} total entries\n",
         opts.page_num, entries.total_pages, entries.total_entries
@@ -384,12 +384,12 @@ pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), Oxe
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    command::remote_df(&repo, input, opts).await?;
+    command::remote::df(&repo, input, opts).await?;
     Ok(())
 }
 
 pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool, opts: DFOpts) -> Result<(), OxenError> {
-    let result = command::df_schema(input, flatten, opts)?;
+    let result = command::df::schema(input, flatten, opts)?;
     println!("{result}");
     Ok(())
 }
@@ -399,9 +399,9 @@ pub fn schema_show(val: &str, staged: bool) -> Result<Option<schema::Schema>, Ox
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let schema = if staged {
-        command::schema_get_staged(&repo, val)?
+        command::schemas::get_staged(&repo, val)?
     } else {
-        command::schema_get(&repo, None, val)?
+        command::schemas::get(&repo, None, val)?
     };
 
     if let Some(schema) = schema {
@@ -424,21 +424,9 @@ pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::schema_name(&repository, schema_ref, val)?;
+    command::schemas::set_name(&repository, schema_ref, val)?;
     if let Some(schema) = schema_show(schema_ref, true)? {
         println!("{schema}");
-    }
-
-    Ok(())
-}
-
-pub fn schema_list_indices(schema_ref: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let fields = command::schema_list_indices(&repository, schema_ref)?;
-    for field in fields {
-        println!("{}", field.name);
     }
 
     Ok(())
@@ -448,9 +436,9 @@ pub fn schema_list(staged: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let schemas = if staged {
-        command::schema_list_staged(&repository)?
+        command::schemas::list_staged(&repository)?
     } else {
-        command::schema_list(&repository, None)?
+        command::schemas::list(&repository, None)?
     };
 
     if schemas.is_empty() {
@@ -466,7 +454,7 @@ pub fn schema_list(staged: bool) -> Result<(), OxenError> {
 pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let schemas = command::schema_list(&repository, Some(commit_id))?;
+    let schemas = command::schemas::list(&repository, Some(commit_id))?;
     if schemas.is_empty() {
         eprintln!("{}", OxenError::no_schemas_found());
     } else {
@@ -479,35 +467,35 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
 pub fn create_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::create_branch_from_head(&repository, name)?;
+    api::local::branches::create_from_head(&repository, name)?;
     Ok(())
 }
 
 pub fn delete_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::delete_branch(&repository, name)?;
+    api::local::branches::delete(&repository, name)?;
     Ok(())
 }
 
 pub async fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::delete_remote_branch(&repository, remote_name, branch_name).await?;
+    api::remote::branches::delete_remote(&repository, remote_name, branch_name).await?;
     Ok(())
 }
 
 pub fn force_delete_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::force_delete_branch(&repository, name)?;
+    api::local::branches::force_delete(&repository, name)?;
     Ok(())
 }
 
 pub fn rename_current_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::rename_current_branch(&repository, name)?;
+    api::local::branches::rename_current_branch(&repository, name)?;
     Ok(())
 }
 
@@ -528,14 +516,14 @@ pub fn checkout_theirs(path: &str) -> Result<(), OxenError> {
 pub fn create_checkout_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::create_checkout_branch(&repository, name)?;
+    api::local::branches::create_checkout(&repository, name)?;
     Ok(())
 }
 
 pub fn list_branches() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    let branches = command::list_branches(&repository)?;
+    let branches = api::local::branches::list(&repository)?;
 
     for branch in branches.iter() {
         if branch.is_head {
@@ -551,11 +539,18 @@ pub fn list_branches() -> Result<(), OxenError> {
 
 pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let remotes = command::list_remote_branches(&repository, name).await?;
+    let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    for branch in remotes.iter() {
-        println!("{}\t{}", branch.remote, branch.branch);
+    let remote = repo
+        .get_remote(name)
+        .ok_or(OxenError::remote_not_set(name))?;
+    let remote_repo = api::remote::repositories::get_by_remote(&remote)
+        .await?
+        .ok_or(OxenError::remote_not_found(remote.clone()))?;
+
+    let branches = api::remote::branches::list(&remote_repo).await?;
+    for branch in branches.iter() {
+        println!("{}\t{}", &remote.name, branch.name);
     }
     Ok(())
 }
@@ -576,7 +571,7 @@ pub fn show_current_branch() -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    if let Some(current_branch) = command::current_branch(&repository)? {
+    if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
         println!("{}", current_branch.name);
     }
 
@@ -584,5 +579,5 @@ pub fn show_current_branch() -> Result<(), OxenError> {
 }
 
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
-    command::inspect(path)
+    command::db_inspect::inspect(path)
 }

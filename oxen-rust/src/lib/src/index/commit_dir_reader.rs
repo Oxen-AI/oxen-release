@@ -314,6 +314,7 @@ impl CommitDirReader {
 
 #[cfg(test)]
 mod tests {
+    use crate::api;
     use crate::error::OxenError;
     use crate::index::CommitDirReader;
     use crate::{command, util};
@@ -341,7 +342,7 @@ mod tests {
     #[test]
     fn test_commit_dir_reader_list_top_level_directory() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commits = command::log(&repo)?;
+            let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
@@ -371,7 +372,7 @@ mod tests {
     #[test]
     fn test_commit_dir_reader_list_train_directory_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commits = command::log(&repo)?;
+            let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
@@ -389,7 +390,7 @@ mod tests {
     #[test]
     fn test_commit_dir_reader_list_train_sub_directory_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commits = command::log(&repo)?;
+            let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;
@@ -408,7 +409,7 @@ mod tests {
     #[test]
     fn test_commit_dir_reader_list_train_directory_subset() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commits = command::log(&repo)?;
+            let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
             let reader = CommitDirReader::new(&repo, commit)?;

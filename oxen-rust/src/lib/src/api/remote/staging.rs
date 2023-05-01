@@ -371,9 +371,9 @@ mod tests {
     async fn test_list_empty_staging_dir_empty_remote() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
             let branch_name = "add-images";
-            command::create_checkout_branch(&local_repo, branch_name)?;
+            api::local::branches::create_checkout(&local_repo, branch_name)?;
             let remote = test::repo_remote_url_from(&local_repo.dirname());
-            command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
             command::push_remote_branch(&local_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
                 .await?;
 
@@ -616,7 +616,7 @@ mod tests {
                 command::pull_remote_branch(&cloned_repo, DEFAULT_REMOTE_NAME, "add-data").await?;
 
                 // We should have the commit locally
-                let log = command::log(&cloned_repo)?;
+                let log = api::local::commits::list(&cloned_repo)?;
                 assert_eq!(log.first().unwrap().id, commit.id);
 
                 // The file should exist locally

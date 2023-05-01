@@ -327,7 +327,6 @@ mod tests {
     use std::path::Path;
 
     use crate::api;
-    use crate::command;
     use crate::config::UserConfig;
     use crate::error::OxenError;
     use crate::index::mod_stager;
@@ -340,7 +339,7 @@ mod tests {
     fn test_stage_json_append_tabular() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let identity = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
@@ -374,7 +373,7 @@ mod tests {
     fn test_stage_csv_append_tabular() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let identity = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
@@ -408,7 +407,7 @@ mod tests {
     fn test_stage_delete_appended_mod() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let identity = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
@@ -465,7 +464,7 @@ mod tests {
     fn test_clear_staged_mods() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let identity = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")

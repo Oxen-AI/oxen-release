@@ -61,18 +61,18 @@ impl SchemaFieldValIndex {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::error::OxenError;
     use crate::index::SchemaFieldValIndex;
     use crate::model::schema;
     use crate::test;
+    use crate::{api, command};
 
     #[test]
     fn test_list_empty_indices() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
-            let schemas = command::schema_list(&repo, Some(&last_commit.id))?;
+            let schemas = command::schemas::list(&repo, Some(&last_commit.id))?;
             let schema = schemas
                 .iter()
                 .find(|s| s.name.as_ref().unwrap() == "bounding_box")
@@ -96,9 +96,9 @@ mod tests {
     #[test]
     fn test_insert_index() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
-            let schemas = command::schema_list(&repo, Some(&last_commit.id))?;
+            let schemas = command::schemas::list(&repo, Some(&last_commit.id))?;
             let schema = schemas
                 .iter()
                 .find(|s| s.name.as_ref().unwrap() == "bounding_box")
@@ -125,9 +125,9 @@ mod tests {
     #[test]
     fn test_insert_large_index() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
-            let schemas = command::schema_list(&repo, Some(&last_commit.id))?;
+            let schemas = command::schemas::list(&repo, Some(&last_commit.id))?;
             let schema = schemas
                 .iter()
                 .find(|s| s.name.as_ref().unwrap() == "bounding_box")

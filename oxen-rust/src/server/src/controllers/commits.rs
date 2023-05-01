@@ -2,7 +2,6 @@ use liboxen::api;
 use liboxen::cache::cachers::content_validator;
 use liboxen::cache::commit_cacher;
 use liboxen::cache::commit_cacher::CacherStatusType;
-use liboxen::command;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::error::OxenError;
@@ -275,7 +274,7 @@ fn p_get_parents(
 
 fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
-    let commits = command::log(&repo)?;
+    let commits = api::local::commits::list(&repo)?;
     Ok(ListCommitResponse::success(commits))
 }
 
@@ -284,7 +283,7 @@ fn p_index_commit_or_branch_history(
     commit_or_branch: &str,
 ) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
-    let commits = command::log_commit_or_branch_history(&repo, commit_or_branch)?;
+    let commits = api::local::commits::list_from(&repo, commit_or_branch)?;
     // log::debug!("controllers::commits: : {:#?}", commits);
     Ok(ListCommitResponse::success(commits))
 }
@@ -781,6 +780,7 @@ mod tests {
     use std::path::Path;
     use std::thread;
 
+    use liboxen::api;
     use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
@@ -862,7 +862,7 @@ mod tests {
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::add(&repo, path)?;
@@ -899,14 +899,14 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         command::add(&repo, path)?;
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::add(&repo, path)?;

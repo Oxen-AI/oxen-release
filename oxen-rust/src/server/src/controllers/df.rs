@@ -6,7 +6,8 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::df::{tabular, DFOpts};
+use liboxen::df::tabular;
+use liboxen::opts::DFOpts;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse};

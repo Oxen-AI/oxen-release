@@ -99,7 +99,7 @@ impl SchemaReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+    use crate::api;
     use crate::error::OxenError;
     use crate::index::SchemaReader;
     use crate::test;
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn test_list_empty_schemas() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
             let schemas = schema_reader.list_schemas()?;
@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn test_list_committed_schemas() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
             let schemas = schema_reader.list_schemas()?;

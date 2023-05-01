@@ -1,7 +1,8 @@
-use crate::df::{tabular, DFOpts};
+use crate::df::tabular;
 use crate::error::OxenError;
 use crate::index::CommitDirReader;
 use crate::model::{Commit, LocalRepository};
+use crate::opts::DFOpts;
 use crate::util;
 
 pub fn convert_to_arrow(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {

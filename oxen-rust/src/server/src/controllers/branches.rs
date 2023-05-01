@@ -114,21 +114,23 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                             branch,
                         })
                     }
-                    Ok(None) => match api::local::branches::create(&repository, &data.name) {
-                        Ok(branch) => {
-                            // Set the remote to this server
-                            HttpResponse::Ok().json(BranchResponse {
-                                status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_CREATED),
-                                branch,
-                            })
+                    Ok(None) => {
+                        match api::local::branches::create_from_head(&repository, &data.name) {
+                            Ok(branch) => {
+                                // Set the remote to this server
+                                HttpResponse::Ok().json(BranchResponse {
+                                    status: String::from(STATUS_SUCCESS),
+                                    status_message: String::from(MSG_RESOURCE_CREATED),
+                                    branch,
+                                })
+                            }
+                            Err(err) => {
+                                log::error!("Err api::local::branches::create: {:?}", err);
+                                HttpResponse::InternalServerError()
+                                    .json(StatusMessage::internal_server_error())
+                            }
                         }
-                        Err(err) => {
-                            log::error!("Err api::local::branches::create: {:?}", err);
-                            HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error())
-                        }
-                    },
+                    }
                     Err(err) => {
                         log::error!(
                             "Err api::local::branches::create_or_get get_by_name {:?}",
@@ -312,8 +314,8 @@ mod tests {
         let namespace = "Testing-Namespace";
         let name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
-        api::local::branches::create(&repo, "branch-1")?;
-        api::local::branches::create(&repo, "branch-2")?;
+        api::local::branches::create_from_head(&repo, "branch-1")?;
+        api::local::branches::create_from_head(&repo, "branch-2")?;
 
         let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
@@ -340,7 +342,7 @@ mod tests {
         let repo_name = "Testing-Branches-1";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
         let branch_name = "branch-1";
-        api::local::branches::create(&repo, branch_name)?;
+        api::local::branches::create_from_head(&repo, branch_name)?;
 
         let uri = format!("/oxen/{namespace}/{repo_name}/branches");
         let req = test::repo_request_with_param(

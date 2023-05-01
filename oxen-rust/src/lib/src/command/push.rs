@@ -35,9 +35,9 @@ use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 /// command::commit(&repo, "My commit message")?;
 ///
 /// // Set the remote server
-/// command::add_remote(&mut repo, "origin", "http://localhost:3000/repositories/hello");
+/// command::config::set_remote(&mut repo, "origin", "http://localhost:3000/repositories/hello");
 ///
-/// let remote_repo = command::create_remote(&repo, "repositories", "hello", "localhost:3000").await?;
+/// let remote_repo = api::remote::repositories::create(&repo, "repositories", "hello", "localhost:3000").await?;
 ///
 /// // Push the file
 /// command::push(&repo).await;

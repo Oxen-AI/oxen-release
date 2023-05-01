@@ -560,16 +560,16 @@ mod tests {
     async fn test_remote_commits_commit_is_valid() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
             let mut local_repo = local_repo;
-            let commit_history = command::log(&local_repo)?;
+            let commit_history = api::local::commits::list(&local_repo)?;
             let commit = commit_history.first().unwrap();
 
             // Set the proper remote
             let name = local_repo.dirname();
             let remote = test::repo_remote_url_from(&name);
-            command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
-            let remote_repo = command::create_remote(
+            let remote_repo = api::remote::repositories::create(
                 &local_repo,
                 constants::DEFAULT_NAMESPACE,
                 &local_repo.dirname(),
@@ -639,16 +639,16 @@ mod tests {
     async fn test_list_remote_commits() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
             let mut local_repo = local_repo;
-            let commit_history = command::log(&local_repo)?;
+            let commit_history = api::local::commits::list(&local_repo)?;
             let num_local_commits = commit_history.len();
 
             // Set the proper remote
             let name = local_repo.dirname();
             let remote = test::repo_remote_url_from(&name);
-            command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
-            let remote_repo = command::create_remote(
+            let remote_repo = api::remote::repositories::create(
                 &local_repo,
                 constants::DEFAULT_NAMESPACE,
                 &local_repo.dirname(),
@@ -680,7 +680,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let local_repo = local_repo;
             // There should be >= 7 commits here
-            let commit_history = command::log(&local_repo)?;
+            let commit_history = api::local::commits::list(&local_repo)?;
             assert!(commit_history.len() >= 7);
 
             // Log comes out in reverse order, so we want the 5th commit as the base,

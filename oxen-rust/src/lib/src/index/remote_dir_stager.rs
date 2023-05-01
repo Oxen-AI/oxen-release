@@ -5,7 +5,6 @@ use std::path::Path;
 use time::OffsetDateTime;
 
 use crate::api;
-use crate::command;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::error::OxenError;
@@ -73,8 +72,8 @@ pub fn p_init_or_get(
         init_local_repo_staging_dir(repo, &staging_dir, should_clear)?
     };
 
-    if !api::local::branches::branch_exists(&branch_repo, &branch.name)? {
-        command::create_checkout_branch(&branch_repo, &branch.name)?;
+    if !api::local::branches::exists(&branch_repo, &branch.name)? {
+        api::local::branches::create_checkout(&branch_repo, &branch.name)?;
     }
 
     Ok(branch_repo)
@@ -87,8 +86,8 @@ fn local_staging_dir_is_up_to_date(
 ) -> Result<bool, OxenError> {
     let staging_repo = LocalRepository::new(staging_dir)?;
 
-    let oxen_commits = command::log_commit_or_branch_history(repo, &branch.commit_id)?;
-    let staging_commits = command::log(&staging_repo)?;
+    let oxen_commits = api::local::commits::list_from(repo, &branch.commit_id)?;
+    let staging_commits = api::local::commits::list(&staging_repo)?;
 
     // If the number of commits is different, then we know we need to update
     Ok(oxen_commits.len() == staging_commits.len())
@@ -289,7 +288,7 @@ fn add_mod_entries(
 mod tests {
     use std::path::Path;
 
-    use crate::command;
+    use crate::api;
     use crate::config::UserConfig;
     use crate::error::OxenError;
     use crate::index;
@@ -301,7 +300,7 @@ mod tests {
     fn test_remote_stager_stage_file() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Stage file contents
-            let branch = command::current_branch(&repo)?.unwrap();
+            let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
             let user_id = UserConfig::identifier()?;
@@ -340,7 +339,7 @@ mod tests {
     fn test_remote_commit_staged() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Stage file contents
-            let branch = command::current_branch(&repo)?.unwrap();
+            let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
             let user_id = UserConfig::identifier()?;
@@ -360,7 +359,7 @@ mod tests {
                 &full_path,
             )?;
 
-            let og_commits = command::log(&repo)?;
+            let og_commits = api::local::commits::list(&repo)?;
             let user = User {
                 name: String::from("Test User"),
                 email: String::from("test@oxen.ai"),
@@ -379,7 +378,7 @@ mod tests {
                 println!("OG commit: {commit:#?}");
             }
 
-            let new_commits = command::log(&repo)?;
+            let new_commits = api::local::commits::list(&repo)?;
             assert_eq!(og_commits.len() + 1, new_commits.len());
 
             Ok(())

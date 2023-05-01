@@ -60,7 +60,7 @@ impl SchemaWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+    use crate::api;
     use crate::error::OxenError;
     use crate::index::SchemaReader;
     use crate::index::SchemaWriter;
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_put_schema() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
 
             {

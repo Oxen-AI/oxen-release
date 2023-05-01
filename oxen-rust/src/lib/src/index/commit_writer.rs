@@ -1,6 +1,6 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::df::{tabular, DFOpts};
+use crate::df::tabular;
 use crate::error::OxenError;
 use crate::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
@@ -9,6 +9,7 @@ use crate::index::{
 use crate::model::{
     Branch, Commit, CommitEntry, NewCommit, RemoteBranch, Schema, StagedData, StagedEntry,
 };
+use crate::opts::DFOpts;
 use crate::{api, db};
 use crate::{command, df, util};
 
@@ -752,12 +753,12 @@ mod tests {
     use std::path::Path;
 
     use crate::config::UserConfig;
-    use crate::df::DFOpts;
     use crate::error::OxenError;
     use crate::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::entry::mod_entry::{ModType, NewMod};
     use crate::model::{ContentType, StagedData};
-    use crate::{api, command, df, test, util};
+    use crate::opts::DFOpts;
+    use crate::{api, df, test, util};
 
     // This is how we initialize
     #[test]
@@ -826,7 +827,7 @@ mod tests {
             let path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let branch = command::current_branch(&repo)?.unwrap();
+            let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let identity = UserConfig::identifier()?;
 
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
@@ -856,7 +857,7 @@ mod tests {
                 .join("bounding_box.csv");
 
             // Stage an append
-            let branch = command::current_branch(&repo)?.unwrap();
+            let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let user = UserConfig::get()?.to_user();
             let identity = UserConfig::identifier()?;
             let branch_repo =
