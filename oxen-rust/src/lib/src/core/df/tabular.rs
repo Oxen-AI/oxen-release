@@ -1,12 +1,12 @@
 use polars::{lazy::dsl::Expr, prelude::*};
 
+use crate::constants;
+use crate::core::df::filter::DFLogicalOp;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::ContentType;
 use crate::opts::DFOpts;
 use crate::util::hasher;
-use crate::constants;
-use crate::core::df::filter::DFLogicalOp;
 
 use colored::Colorize;
 use comfy_table::Table;
@@ -816,11 +816,8 @@ pub fn schema_to_string<P: AsRef<Path>>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        error::OxenError,
-        opts::DFOpts,
-    };
     use crate::core::df::{filter, tabular};
+    use crate::{error::OxenError, opts::DFOpts};
     use polars::prelude::*;
 
     #[test]

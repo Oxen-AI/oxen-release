@@ -3,8 +3,8 @@
 //! Pull data from a remote branch
 //!
 
-use crate::error::OxenError;
 use crate::core::index::EntryIndexer;
+use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 
 /// Pull a repository's data from default branches origin/main

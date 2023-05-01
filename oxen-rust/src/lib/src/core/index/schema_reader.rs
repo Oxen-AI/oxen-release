@@ -100,8 +100,8 @@ impl SchemaReader {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::error::OxenError;
     use crate::core::index::SchemaReader;
+    use crate::error::OxenError;
     use crate::test;
 
     #[test]

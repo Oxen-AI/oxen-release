@@ -1,18 +1,18 @@
+use crate::api;
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::df::tabular;
-use crate::error::OxenError;
 use crate::core::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
     CommitDirEntryWriter, CommitDirReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
 };
+use crate::core::{db, df};
+use crate::error::OxenError;
 use crate::model::{
     Branch, Commit, CommitEntry, NewCommit, RemoteBranch, Schema, StagedData, StagedEntry,
 };
 use crate::opts::DFOpts;
-use crate::api;
 use crate::{command, util};
-use crate::core::{db, df};
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -754,13 +754,15 @@ mod tests {
     use std::path::Path;
 
     use crate::config::UserConfig;
+    use crate::core::df;
+    use crate::core::index::{
+        self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter,
+    };
     use crate::error::OxenError;
-    use crate::core::index::{self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter};
     use crate::model::entry::mod_entry::{ModType, NewMod};
     use crate::model::{ContentType, StagedData};
     use crate::opts::DFOpts;
     use crate::{api, test, util};
-    use crate::core::df;
 
     // This is how we initialize
     #[test]

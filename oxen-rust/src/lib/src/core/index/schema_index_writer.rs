@@ -44,8 +44,8 @@ impl SchemaIndexWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::OxenError;
     use crate::core::index::{SchemaIndexReader, SchemaIndexWriter};
+    use crate::error::OxenError;
     use crate::model::schema;
     use crate::test;
     use crate::{api, command};

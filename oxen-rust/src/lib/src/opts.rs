@@ -1,3 +1,6 @@
+//! Command line option structs.
+//!
+
 pub mod add_opts;
 pub mod clone_opts;
 pub mod df_opts;

@@ -4,8 +4,8 @@
 //!
 
 use crate::api;
-use crate::error::OxenError;
 use crate::core::index::{CommitDirReader, CommitReader, CommitWriter, RefReader, Stager};
+use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
 

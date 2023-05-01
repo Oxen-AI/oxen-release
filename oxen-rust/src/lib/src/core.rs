@@ -1,8 +1,5 @@
-//! core
-//!
 //! Core functionality for Oxen
 //!
-
 
 pub mod cache;
 pub mod db;

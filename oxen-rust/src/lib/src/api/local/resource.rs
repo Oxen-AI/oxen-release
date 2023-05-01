@@ -1,6 +1,6 @@
 use crate::api;
-use crate::error::OxenError;
 use crate::core::index::{CommitReader, RefReader};
+use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, ParsedResource};
 
 use std::path::{Path, PathBuf};

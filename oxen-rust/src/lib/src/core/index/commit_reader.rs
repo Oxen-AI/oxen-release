@@ -1,7 +1,7 @@
 use crate::constants::COMMITS_DIR;
 use crate::core::db;
-use crate::error::OxenError;
 use crate::core::index::CommitDBReader;
+use crate::error::OxenError;
 use crate::model::Commit;
 use crate::util;
 
@@ -119,8 +119,8 @@ impl CommitReader {
 mod tests {
     use crate::command;
     use crate::constants::INITIAL_COMMIT_MSG;
-    use crate::error::OxenError;
     use crate::core::index::CommitReader;
+    use crate::error::OxenError;
     use crate::test;
 
     #[test]

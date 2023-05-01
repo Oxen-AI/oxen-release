@@ -4,8 +4,8 @@
 //!
 
 use crate::api;
-use crate::error::OxenError;
 use crate::core::index::Merger;
+use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 
 /// # Merge a branch into the current branch

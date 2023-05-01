@@ -1,3 +1,6 @@
+//! Configuration for Oxen, including user configuration and remote host configuration
+//!
+
 pub mod endpoint;
 pub mod user_config;
 

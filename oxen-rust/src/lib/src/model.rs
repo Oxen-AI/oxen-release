@@ -1,3 +1,6 @@
+//! The structs and enums that are used to represent the data in the oxen library
+//!
+
 pub mod base_head;
 pub mod branch;
 pub mod commit;

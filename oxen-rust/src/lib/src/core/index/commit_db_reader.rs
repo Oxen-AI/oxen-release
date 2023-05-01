@@ -1,5 +1,5 @@
-use crate::error::OxenError;
 use crate::core::index::RefReader;
+use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};

@@ -1,7 +1,7 @@
 //! entry_hash_cacher goes through the commit entry list and pre-computes the hash to verify everything is synced
 
-use crate::error::OxenError;
 use crate::core::index::{commit_validator, CommitDirReader};
+use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, NewCommit};
 use crate::util;
 

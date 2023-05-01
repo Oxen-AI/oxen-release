@@ -12,17 +12,17 @@ use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::api;
 use crate::api::remote::commits::ChunkParams;
 use crate::constants::{AVG_CHUNK_SIZE, HISTORY_DIR};
-use crate::error::OxenError;
+use crate::core::index;
 use crate::core::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitDirReader, CommitReader, CommitWriter,
     RefReader, RefWriter,
 };
+use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
-use crate::api;
-use crate::core::index;
 
 pub struct UnsyncedCommitEntries {
     commit: Commit,
@@ -1319,9 +1319,9 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::error::OxenError;
     use crate::core::index::entry_indexer::UnsyncedCommitEntries;
     use crate::core::index::EntryIndexer;
+    use crate::error::OxenError;
     use crate::model::RemoteBranch;
     use crate::opts::CloneOpts;
     use crate::test;

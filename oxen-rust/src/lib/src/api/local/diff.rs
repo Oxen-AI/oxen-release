@@ -1,6 +1,6 @@
 use crate::core::df::tabular;
-use crate::error::OxenError;
 use crate::core::index::CommitDirEntryReader;
+use crate::error::OxenError;
 use crate::model::entry::diff_entry::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
@@ -449,10 +449,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
-            assert_eq!(
-                entries.first().unwrap().status,
-                DiffEntryStatus::Modified
-            );
+            assert_eq!(entries.first().unwrap().status, DiffEntryStatus::Modified);
 
             Ok(())
         })
@@ -478,10 +475,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
-            assert_eq!(
-                entries.first().unwrap().status,
-                DiffEntryStatus::Removed
-            );
+            assert_eq!(entries.first().unwrap().status, DiffEntryStatus::Removed);
 
             Ok(())
         })

@@ -4,8 +4,8 @@
 //!
 
 use crate::api;
-use crate::error::OxenError;
 use crate::core::index::EntryIndexer;
+use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 
 /// # Get a log of all the commits

@@ -1,7 +1,7 @@
 use crate::constants::{DIRS_DIR, HISTORY_DIR};
 use crate::core::db;
-use crate::error::OxenError;
 use crate::core::index::{CommitDirEntryReader, CommitReader};
+use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, DirEntry};
 use crate::util;
 use crate::view::entry::ResourceVersion;
@@ -315,8 +315,8 @@ impl CommitDirReader {
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::error::OxenError;
     use crate::core::index::CommitDirReader;
+    use crate::error::OxenError;
     use crate::{command, util};
 
     use crate::test;

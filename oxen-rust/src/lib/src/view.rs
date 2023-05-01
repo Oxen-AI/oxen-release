@@ -1,3 +1,6 @@
+//! Views are the data structures that are returned by the API endpoints.
+//!
+
 pub mod branch;
 pub mod commit;
 pub mod compare;

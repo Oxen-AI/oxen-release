@@ -328,8 +328,8 @@ mod tests {
 
     use crate::api;
     use crate::config::UserConfig;
-    use crate::error::OxenError;
     use crate::core::index::mod_stager;
+    use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::entry::mod_entry::NewMod;
     use crate::model::ContentType;

@@ -70,7 +70,7 @@ Enable auto refresh on save of the file
 Run docs
 
 ```bash
-cargo watch -s 'cargo doc && browser-sync start --port 8000 --ss target/doc -s target/doc --directory --no-open'
+cargo watch -s 'cargo doc --lib --open --document-private-items && browser-sync start --port 8000 --ss target/doc -s target/doc --directory --no-open'
 ```
 
 Navigate to http://localhost:8000/liboxen/

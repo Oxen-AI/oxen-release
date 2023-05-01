@@ -182,8 +182,8 @@ mod tests {
     use std::path::Path;
 
     use crate::command;
-    use crate::error::OxenError;
     use crate::core::index::rm;
+    use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RmOpts;
     use crate::test;

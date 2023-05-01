@@ -8,12 +8,12 @@ use crate::constants;
 use crate::core::db;
 use crate::core::db::path_db;
 use crate::core::df::tabular;
-use crate::error::OxenError;
 use crate::core::index::oxenignore;
 use crate::core::index::{
     CommitDirEntryReader, CommitDirReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
 };
+use crate::error::OxenError;
 use crate::opts::DFOpts;
 
 use crate::model::schema;
@@ -1077,8 +1077,8 @@ impl Stager {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::OxenError;
     use crate::core::index::{oxenignore, CommitDirReader, CommitReader, CommitWriter, Stager};
+    use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::test;
     use crate::util;

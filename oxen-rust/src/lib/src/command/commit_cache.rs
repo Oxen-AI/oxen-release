@@ -6,10 +6,10 @@
 use std::path::Path;
 
 use crate::api;
+use crate::core::cache;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::LogOpts;
-use crate::core::cache;
 
 /// Run the computation cache on all repositories within a directory
 pub async fn compute_cache_on_all_repos(path: &Path) -> Result<(), OxenError> {
