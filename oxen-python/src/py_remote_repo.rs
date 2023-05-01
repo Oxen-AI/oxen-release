@@ -2,7 +2,9 @@ use pyo3::prelude::*;
 
 use liboxen::model::{Remote, RemoteRepository};
 use liboxen::{api, command};
+use liboxen::config::UserConfig;
 use pyo3::exceptions::PyValueError;
+use std::path::PathBuf;
 
 use crate::branch::PyBranch;
 use crate::error::PyOxenError;
@@ -104,6 +106,13 @@ impl PyRemoteRepo {
             command::remote::download(&self.repo, &remote_path, &local_path, &self.revision).await
         })?;
 
+        Ok(())
+    }
+
+    fn add(&self, path: PathBuf, branch_name: String, directory_name: String) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { api::remote::staging::add_file(&self.repo, &branch_name, &user_id, &directory_name, path).await})?;
         Ok(())
     }
 
