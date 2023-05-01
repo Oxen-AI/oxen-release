@@ -89,3 +89,15 @@ class RemoteRepo:
         if revision is None:
             revision = self.revision
         self._repo.download(remote_path, local_path, revision)
+        
+    def add(self, path: str, branch_name: str = "main", directory_name: str = ""):
+        """
+        Stage a file to be committed.
+        """
+        self._repo.add(path, branch_name, directory_name)
+
+    def get_branch(self, branch_name: str):
+        """
+        Return a branch at the specified name    
+        """
+        self._repo.get_branch(branch_name)
