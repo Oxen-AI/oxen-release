@@ -3,9 +3,9 @@ use std::path::Path;
 use polars::prelude::DataFrame;
 
 use crate::api;
-use crate::df::DFOpts;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
+use crate::opts::DFOpts;
 use crate::view::json_data_frame::JsonDataSize;
 use crate::view::JsonDataFrameSliceResponse;
 

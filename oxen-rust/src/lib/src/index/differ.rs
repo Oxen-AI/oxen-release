@@ -1,8 +1,9 @@
-use crate::df::{tabular, DFOpts};
+use crate::df::tabular;
 use crate::error::OxenError;
 use crate::index::CommitDirEntryReader;
 use crate::model::entry::diff_entry::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
+use crate::opts::DFOpts;
 use crate::{constants, util};
 
 use colored::Colorize;

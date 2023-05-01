@@ -1,4 +1,4 @@
-//! # Oxen Init
+//! # oxen init
 //!
 //! Initialize a local oxen repository
 //!

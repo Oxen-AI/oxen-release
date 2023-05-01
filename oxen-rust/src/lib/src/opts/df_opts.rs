@@ -6,7 +6,7 @@ use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::{ContentType, Schema};
 
-use super::filter::{self, DFFilterExp};
+use crate::df::filter::{self, DFFilterExp};
 
 #[derive(Debug)]
 pub struct AddColVals {
@@ -40,7 +40,6 @@ pub struct DFOpts {
     pub should_randomize: bool,
     pub should_reverse: bool,
     pub content_type: ContentType,
-    pub is_remote: bool,
     pub head: Option<usize>,
     pub tail: Option<usize>,
     pub page: Option<usize>,
@@ -66,7 +65,6 @@ impl DFOpts {
             unique: None,
             should_randomize: false,
             should_reverse: false,
-            is_remote: false,
             content_type: ContentType::Json,
             head: None,
             tail: None,
@@ -298,7 +296,7 @@ impl DFOpts {
 
 #[cfg(test)]
 mod tests {
-    use crate::{df::DFOpts, error::OxenError};
+    use crate::{error::OxenError, opts::DFOpts};
 
     #[test]
     fn test_parse_agg_one_lit_input_one_output() -> Result<(), OxenError> {

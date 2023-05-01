@@ -518,7 +518,7 @@ mod tests {
         //    \      /
         //     B - E
 
-        let a_branch = command::current_branch(repo)?.unwrap();
+        let a_branch = api::local::branches::current_branch(repo)?.unwrap();
         let a_path = repo.path.join("a.txt");
         util::fs::write_to_path(&a_path, "a")?;
         command::add(repo, a_path)?;
@@ -526,7 +526,7 @@ mod tests {
         let lca = command::commit(repo, "Committing a.txt file")?;
 
         // Make changes on B
-        command::create_checkout_branch(repo, merge_branch_name)?;
+        api::local::branches::create_checkout(repo, merge_branch_name)?;
         let b_path = repo.path.join("b.txt");
         util::fs::write_to_path(&b_path, "b")?;
         command::add(repo, b_path)?;
@@ -561,7 +561,7 @@ mod tests {
     async fn test_merge_one_commit_add_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
             // Write and commit hello file to main branch
-            let og_branch = command::current_branch(&repo)?.unwrap();
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
@@ -569,14 +569,14 @@ mod tests {
 
             // Branch to add world
             let branch_name = "add-world";
-            command::create_checkout_branch(&repo, branch_name)?;
+            api::local::branches::create_checkout(&repo, branch_name)?;
 
             let world_file = repo.path.join("world.txt");
             util::fs::write_to_path(&world_file, "World")?;
             command::add(&repo, &world_file)?;
             command::commit(&repo, "Adding world file")?;
             // Fetch the branch again to get the latest commit
-            let merge_branch = command::current_branch(&repo)?.unwrap();
+            let merge_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
             // Checkout and merge additions
             let og_branch = command::checkout(&repo, &og_branch.name).await?.unwrap();
@@ -604,7 +604,7 @@ mod tests {
     async fn test_merge_one_commit_remove_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
             // Write and add hello file
-            let og_branch = command::current_branch(&repo)?.unwrap();
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
@@ -619,7 +619,7 @@ mod tests {
 
             // Branch to remove world
             let branch_name = "remove-world";
-            let merge_branch = command::create_checkout_branch(&repo, branch_name)?;
+            let merge_branch = api::local::branches::create_checkout(&repo, branch_name)?;
 
             // Remove the file
             let world_file = repo.path.join("world.txt");
@@ -650,7 +650,7 @@ mod tests {
     async fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
             // Write and add hello file
-            let og_branch = command::current_branch(&repo)?.unwrap();
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
@@ -666,7 +666,7 @@ mod tests {
 
             // Branch to remove world
             let branch_name = "modify-world";
-            command::create_checkout_branch(&repo, branch_name)?;
+            api::local::branches::create_checkout(&repo, branch_name)?;
 
             // Modify the file
             let new_contents = "Around the world";
@@ -777,7 +777,7 @@ mod tests {
             //    \      /
             //     B - E
 
-            let a_branch = command::current_branch(&repo)?.unwrap();
+            let a_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let a_path = repo.path.join("a.txt");
             util::fs::write_to_path(&a_path, "a")?;
             command::add(&repo, &a_path)?;
@@ -786,7 +786,7 @@ mod tests {
 
             // Make changes on B
             let merge_branch_name = "B";
-            command::create_checkout_branch(&repo, merge_branch_name)?;
+            api::local::branches::create_checkout(&repo, merge_branch_name)?;
 
             // Add a text new text file
             let b_path = repo.path.join("b.txt");
@@ -860,7 +860,7 @@ mod tests {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
-            let og_branch = command::current_branch(&repo)?.unwrap();
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
             command::add(&repo, &labels_path)?;
@@ -869,7 +869,7 @@ mod tests {
 
             // Add a fish label to the file on a branch
             let fish_branch_name = "add-fish-label";
-            command::create_checkout_branch(&repo, fish_branch_name)?;
+            api::local::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
             command::add(&repo, &labels_path)?;
             command::commit(&repo, "Adding fish to labels.txt file")?;
@@ -877,7 +877,7 @@ mod tests {
             // Checkout main, and branch from it to another branch to add a human label
             command::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
-            command::create_checkout_branch(&repo, human_branch_name)?;
+            api::local::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             command::add(&repo, labels_path)?;
             command::commit(&repo, "Adding human to labels.txt file")?;
@@ -916,7 +916,7 @@ mod tests {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
-            let og_branch = command::current_branch(&repo)?.unwrap();
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
             command::add(&repo, &labels_path)?;
@@ -925,7 +925,7 @@ mod tests {
 
             // Add a fish label to the file on a branch
             let fish_branch_name = "add-fish-label";
-            command::create_checkout_branch(&repo, fish_branch_name)?;
+            api::local::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
             command::add(&repo, &labels_path)?;
             command::commit(&repo, "Adding fish to labels.txt file")?;
@@ -933,7 +933,7 @@ mod tests {
             // Checkout main, and branch from it to another branch to add a human label
             command::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
-            command::create_checkout_branch(&repo, human_branch_name)?;
+            api::local::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             command::add(&repo, labels_path)?;
             command::commit(&repo, "Adding human to labels.txt file")?;
@@ -967,7 +967,7 @@ mod tests {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
-            let og_branch = command::current_branch(&repo)?.unwrap();
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
             command::add(&repo, &labels_path)?;
@@ -976,7 +976,7 @@ mod tests {
 
             // Add a fish label to the file on a branch
             let fish_branch_name = "add-fish-label";
-            command::create_checkout_branch(&repo, fish_branch_name)?;
+            api::local::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
             command::add(&repo, &labels_path)?;
             command::commit(&repo, "Adding fish to labels.txt file")?;
@@ -984,7 +984,7 @@ mod tests {
             // Checkout main, and branch from it to another branch to add a human label
             command::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
-            command::create_checkout_branch(&repo, human_branch_name)?;
+            api::local::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             command::add(&repo, labels_path)?;
             let human_commit = command::commit(&repo, "Adding human to labels.txt file")?;

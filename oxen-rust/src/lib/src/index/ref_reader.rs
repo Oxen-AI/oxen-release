@@ -186,7 +186,7 @@ impl RefReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+    use crate::api;
     use crate::error::OxenError;
     use crate::index::RefReader;
     use crate::test;
@@ -194,8 +194,8 @@ mod tests {
     #[test]
     fn test_ref_reader_list_branches() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
-            command::create_branch_from_head(&repo, "feature/add-something")?;
-            command::create_branch_from_head(&repo, "bug/something-is-broken")?;
+            api::local::branches::create_from_head(&repo, "feature/add-something")?;
+            api::local::branches::create_from_head(&repo, "bug/something-is-broken")?;
 
             let ref_reader = RefReader::new(&repo)?;
             let branches = ref_reader.list_branches()?;

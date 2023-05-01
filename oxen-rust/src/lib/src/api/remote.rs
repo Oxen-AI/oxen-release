@@ -1,3 +1,6 @@
+//! # Remote - Interact with repositories on a remote machine
+//!
+
 pub mod branches;
 pub mod client;
 pub mod commits;

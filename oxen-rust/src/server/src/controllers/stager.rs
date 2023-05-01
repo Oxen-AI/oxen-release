@@ -8,7 +8,7 @@ use crate::params::{
 };
 
 use liboxen::cache::commit_cacher;
-use liboxen::df::{tabular, DFOpts};
+use liboxen::df::tabular;
 use liboxen::error::OxenError;
 use liboxen::index::mod_stager;
 use liboxen::model::entry::mod_entry::NewMod;
@@ -16,6 +16,7 @@ use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitBody, CommitEntry, ContentType, LocalRepository,
     ObjectID, Schema,
 };
+use liboxen::opts::DFOpts;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{

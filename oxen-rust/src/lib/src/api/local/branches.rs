@@ -1,24 +1,102 @@
-use crate::command;
+//! # Local Branches
+//!
+//! Interact with branches on your local machine.
+//!
+
+use crate::api;
 use crate::error::OxenError;
-use crate::index::{CommitReader, RefReader, RefWriter};
+use crate::index::{CommitReader, CommitWriter, RefReader, RefWriter};
 use crate::model::{Branch, LocalRepository};
 
+/// List all the local branches within a repo
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    command::list_branches(repo)
+    let ref_reader = RefReader::new(repo)?;
+    let branches = ref_reader.list_branches()?;
+    Ok(branches)
 }
 
+/// Get a branch by name
 pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
     let ref_reader = RefReader::new(repo)?;
     ref_reader.get_branch_by_name(name)
 }
 
-pub fn branch_exists(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
+/// Get branch by name or fall back the current
+pub fn get_by_name_or_current(
+    repo: &LocalRepository,
+    branch_name: Option<&str>,
+) -> Result<Branch, OxenError> {
+    if let Some(branch_name) = branch_name {
+        match api::local::branches::get_by_name(repo, branch_name)? {
+            Some(branch) => Ok(branch),
+            None => Err(OxenError::local_branch_not_found(branch_name)),
+        }
+    } else {
+        match api::local::branches::current_branch(repo)? {
+            Some(branch) => Ok(branch),
+            None => Err(OxenError::must_be_on_valid_branch()),
+        }
+    }
+}
+
+/// Get commit id from a branch by name
+pub fn get_commit_id(repo: &LocalRepository, name: &str) -> Result<Option<String>, OxenError> {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => ref_reader.get_commit_id_for_branch(name),
+        _ => Err(OxenError::basic_str("Could not read reference for repo.")),
+    }
+}
+
+/// Check if a branch exists
+pub fn exists(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
     match get_by_name(repo, name)? {
         Some(_) => Ok(true),
         None => Ok(false),
     }
 }
 
+/// Get the current branch
+pub fn current_branch(repo: &LocalRepository) -> Result<Option<Branch>, OxenError> {
+    let ref_reader = RefReader::new(repo)?;
+    let branch = ref_reader.get_current_branch()?;
+    Ok(branch)
+}
+
+/// # Create a new branch from the head commit
+/// This creates a new pointer to the current commit with a name,
+/// it does not switch you to this branch, you still must call `checkout_branch`
+pub fn create_from_head(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    let head_commit = commit_reader.head_commit()?;
+    ref_writer.create_branch(name, &head_commit.id)
+}
+
+/// # Create a local branch from a specific commit id
+pub fn create(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    if commit_reader.commit_id_exists(commit_id) {
+        ref_writer.create_branch(name, commit_id)
+    } else {
+        Err(OxenError::commit_id_does_not_exist(commit_id))
+    }
+}
+
+/// # Create a branch and check it out in one go
+/// This creates a branch with name,
+/// then switches HEAD to point to the branch
+pub fn create_checkout(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+    println!("Create and checkout branch: {name}");
+    let head_commit = api::local::commits::head_commit(repo)?;
+    let ref_writer = RefWriter::new(repo)?;
+
+    let branch = ref_writer.create_branch(name, &head_commit.id)?;
+    ref_writer.set_head(name);
+    Ok(branch)
+}
+
+/// Update the branch name to point to a commit id
 pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
     let ref_reader = RefReader::new(repo)?;
     match ref_reader.get_branch_by_name(name)? {
@@ -30,16 +108,12 @@ pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Bra
                 Err(err) => Err(err),
             }
         }
-        None => command::create_branch(repo, name, commit_id),
+        None => create(repo, name, commit_id),
     }
 }
 
-pub fn create(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
-    command::create_branch_from_head(repo, name)
-}
-
 pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    if let Ok(Some(branch)) = command::current_branch(repo) {
+    if let Ok(Some(branch)) = current_branch(repo) {
         if branch.name == name {
             let err = format!("Err: Cannot delete current checked out branch '{name}'");
             return Err(OxenError::basic_str(err));
@@ -53,6 +127,54 @@ pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
         let err = format!("Err: The branch '{name}' is not fully merged.\nIf you are sure you want to delete it, run 'oxen branch -D {name}'.");
         Err(OxenError::basic_str(err))
     }
+}
+
+/// # Force delete a local branch
+/// Caution! Will delete a local branch without checking if it has been merged or pushed.
+pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    if let Ok(Some(branch)) = current_branch(repo) {
+        if branch.name == name {
+            let err = format!("Err: Cannot delete current checked out branch '{name}'");
+            return Err(OxenError::basic_str(err));
+        }
+    }
+
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.delete_branch(name)
+}
+
+pub fn is_checked_out(repo: &LocalRepository, name: &str) -> bool {
+    match RefReader::new(repo) {
+        Ok(ref_reader) => {
+            if let Ok(Some(current_branch)) = ref_reader.get_current_branch() {
+                // If we are already on the branch, do nothing
+                if current_branch.name == name {
+                    return true;
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+pub async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    let commit_writer = CommitWriter::new(repo)?;
+    commit_writer.set_working_repo_to_branch(name).await
+}
+
+pub async fn set_working_commit_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    let commit_writer = CommitWriter::new(repo)?;
+    commit_writer.set_working_repo_to_commit_id(commit_id).await
+}
+
+pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_head(value);
+    Ok(())
 }
 
 fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
@@ -79,20 +201,8 @@ fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, Ox
     }
 }
 
-pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    if let Ok(Some(branch)) = command::current_branch(repo) {
-        if branch.name == name {
-            let err = format!("Err: Cannot delete current checked out branch '{name}'");
-            return Err(OxenError::basic_str(err));
-        }
-    }
-
-    let ref_writer = RefWriter::new(repo)?;
-    ref_writer.delete_branch(name)
-}
-
 pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(), OxenError> {
-    if let Ok(Some(branch)) = command::current_branch(repo) {
+    if let Ok(Some(branch)) = current_branch(repo) {
         let ref_writer = RefWriter::new(repo)?;
         ref_writer.rename_branch(&branch.name, new_name)?;
         ref_writer.set_head(new_name);

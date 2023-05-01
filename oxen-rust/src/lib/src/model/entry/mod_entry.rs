@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::{
-    df::{tabular, DFOpts},
+    df::tabular,
     error::OxenError,
     model::{CommitEntry, ContentType, Schema},
+    opts::DFOpts,
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]

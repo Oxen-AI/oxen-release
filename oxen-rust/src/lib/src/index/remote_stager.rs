@@ -2,24 +2,10 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
-use crate::config::UserConfig;
+use crate::api;
 use crate::error::OxenError;
 use crate::model::staged_data::StagedDataOpts;
-use crate::model::{
-    Branch, LocalRepository, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus,
-};
-use crate::{api, command};
-
-pub async fn status_from_local(
-    repo: &LocalRepository,
-    directory: &Path,
-    opts: &StagedDataOpts,
-) -> Result<StagedData, OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-    let branch = command::current_branch(repo)?.expect("Must be on branch.");
-    let user_id = UserConfig::identifier()?;
-    status(&remote_repo, &branch, &user_id, directory, opts).await
-}
+use crate::model::{Branch, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus};
 
 pub async fn status(
     remote_repo: &RemoteRepository,

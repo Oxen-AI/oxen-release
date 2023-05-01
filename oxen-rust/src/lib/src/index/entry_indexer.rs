@@ -55,7 +55,7 @@ impl EntryIndexer {
         let remote = self
             .repository
             .get_remote(&rb.remote)
-            .ok_or_else(OxenError::remote_not_set)?;
+            .ok_or(OxenError::remote_not_set(&rb.remote))?;
 
         log::debug!("Pushing to remote {:?}", remote);
         // Repo should be created before this step
@@ -685,7 +685,7 @@ impl EntryIndexer {
         let remote = self
             .repository
             .get_remote(&rb.remote)
-            .ok_or_else(OxenError::remote_not_set)?;
+            .ok_or(OxenError::remote_not_set(&rb.remote))?;
 
         let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
             Ok(Some(repo)) => repo,
@@ -1332,9 +1332,9 @@ mod tests {
             // Set the proper remote
             let name = repo.dirname();
             let remote = test::repo_remote_url_from(&name);
-            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = command::create_remote(
+            let remote_repo = api::remote::repositories::create(
                 &repo,
                 constants::DEFAULT_NAMESPACE,
                 &name,
@@ -1400,9 +1400,9 @@ mod tests {
             // Set the proper remote
             let name = repo.dirname();
             let remote = test::repo_remote_url_from(&name);
-            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = command::create_remote(
+            let remote_repo = api::remote::repositories::create(
                 &repo,
                 constants::DEFAULT_NAMESPACE,
                 &name,
@@ -1420,7 +1420,7 @@ mod tests {
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
-                let commits = command::log(&repo)?;
+                let commits = api::local::commits::list(&repo)?;
                 let latest_commit = commits.first().unwrap();
                 let page_size = 2;
                 let limit = page_size;
@@ -1451,7 +1451,7 @@ mod tests {
             // Set the proper remote
             let name = repo.dirname();
             let remote = test::repo_remote_url_from(&name);
-            command::add_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
             command::add(&repo, &train_dir)?;
@@ -1464,7 +1464,7 @@ mod tests {
             command::commit(&repo, "Adding testing data")?;
 
             // Create remote
-            let remote_repo = command::create_remote(
+            let remote_repo = api::remote::repositories::create(
                 &repo,
                 constants::DEFAULT_NAMESPACE,
                 &name,
@@ -1482,7 +1482,7 @@ mod tests {
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
-                let commits = command::log(&repo)?;
+                let commits = api::local::commits::list(&repo)?;
                 let last_commit = commits.first().unwrap();
                 let limit = 7;
                 indexer

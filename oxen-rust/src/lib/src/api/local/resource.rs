@@ -240,14 +240,14 @@ pub fn get_commit_or_head<S: AsRef<str>>(
 mod tests {
     use std::path::Path;
 
+    use crate::api;
     use crate::api::local::resource;
-    use crate::command;
     use crate::error::OxenError;
 
     #[test]
     fn test_parse_resource_for_commit() -> Result<(), OxenError> {
         crate::test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = command::log(&repo)?;
+            let history = api::local::commits::list(&repo)?;
             let commit = history.first().unwrap();
             let path_str = format!("{}/annotations/train/one_shot.csv", commit.id);
             let path = Path::new(&path_str);
@@ -270,7 +270,7 @@ mod tests {
     fn test_parse_resource_for_branch() -> Result<(), OxenError> {
         crate::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my-branch";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
 
             let path_str = format!("{branch_name}/annotations/train/one_shot.csv");
             let path = Path::new(&path_str);
@@ -294,7 +294,7 @@ mod tests {
     fn test_parse_resource_for_long_branch_name() -> Result<(), OxenError> {
         crate::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my/crazy/branch/name";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
 
             let path_str = format!("{branch_name}/annotations/train/one_shot.csv");
             let path = Path::new(&path_str);
@@ -318,7 +318,7 @@ mod tests {
     fn test_parse_resource_for_branch_base_dir() -> Result<(), OxenError> {
         crate::test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "my_branch";
-            let branch = command::create_checkout_branch(&repo, branch_name)?;
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
 
             let path_str = branch_name.to_string();
             let path = Path::new(&path_str);

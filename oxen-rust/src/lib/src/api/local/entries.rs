@@ -1,3 +1,6 @@
+//! Entries are the files and directories that are stored in a commit.
+//!
+
 use crate::error::OxenError;
 
 use crate::index::CommitDirReader;
