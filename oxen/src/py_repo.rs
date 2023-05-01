@@ -2,6 +2,7 @@ use liboxen::model::LocalRepository;
 use liboxen::opts::CloneOpts;
 use pyo3::prelude::*;
 
+use liboxen::api;
 use liboxen::command;
 
 use std::path::PathBuf;
@@ -69,13 +70,13 @@ impl PyRepo {
 
     pub fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
-        let log = command::log(&repo)?;
-        Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
+        let commits = api::local::commits::list(&repo)?;
+        Ok(commits.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
 
     pub fn set_remote(&self, name: &str, url: &str) -> Result<(), PyOxenError> {
         let mut repo = LocalRepository::from_dir(&self.path)?;
-        command::add_remote(&mut repo, name, url)?;
+        command::config::set_remote(&mut repo, name, url)?;
         Ok(())
     }
 
