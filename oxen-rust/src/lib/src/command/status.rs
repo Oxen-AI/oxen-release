@@ -6,11 +6,9 @@
 
 use std::path::Path;
 
-use crate::{
-    error::OxenError,
-    index::{CommitDirReader, Stager},
-    model::{LocalRepository, StagedData},
-};
+use crate::error::OxenError;
+use crate::model::{LocalRepository, StagedData};
+use crate::core::index::{CommitDirReader, Stager};
 
 /// # oxen status
 ///

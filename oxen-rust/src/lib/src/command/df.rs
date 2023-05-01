@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::df::tabular;
+use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::opts::DFOpts;
 use crate::util;

@@ -3,7 +3,7 @@ use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::constants::SHALLOW_FLAG;
 use crate::error::OxenError;
-use crate::index::EntryIndexer;
+use crate::core::index::EntryIndexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::CloneOpts;
 use crate::util;

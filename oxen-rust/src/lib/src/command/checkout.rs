@@ -5,9 +5,9 @@
 
 use std::path::Path;
 
-use crate::df::tabular;
+use crate::core::df::tabular;
 use crate::error::OxenError;
-use crate::index::MergeConflictReader;
+use crate::core::index::MergeConflictReader;
 use crate::model::{Branch, LocalRepository};
 use crate::opts::{DFOpts, RestoreOpts};
 use crate::{api, command, util};

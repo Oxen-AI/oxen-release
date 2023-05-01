@@ -9,7 +9,7 @@ use polars::prelude::DataFrame;
 
 use crate::api;
 use crate::config::UserConfig;
-use crate::df::tabular;
+use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::LocalRepository;

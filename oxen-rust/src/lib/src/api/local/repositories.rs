@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants;
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, CommitWriter, RefWriter};
+use crate::core::index::{CommitDirReader, CommitWriter, RefWriter};
 use crate::model::DataTypeStat;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};

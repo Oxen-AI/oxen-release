@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::config::UserConfig;
 use crate::error::OxenError;
-use crate::index::remote_stager;
+use crate::core::index::remote_stager;
 use crate::model::StagedData;
 use crate::model::{staged_data::StagedDataOpts, Branch, RemoteRepository};
 

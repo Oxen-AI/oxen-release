@@ -8,9 +8,9 @@ use std::path::Path;
 use crate::{
     api,
     error::OxenError,
-    index::{oxenignore, CommitDirReader, Stager},
     model::LocalRepository,
 };
+use crate::core::index::{oxenignore, CommitDirReader, Stager};
 
 /// # Stage files into repository
 ///
