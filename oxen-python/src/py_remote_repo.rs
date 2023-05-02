@@ -1,8 +1,12 @@
 use pyo3::prelude::*;
 
-use liboxen::model::{Remote, RemoteRepository};
+use std::collections::HashMap;
+
+
+use liboxen::model::{Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus};
 use liboxen::{api, command};
 use liboxen::config::UserConfig;
+
 use pyo3::exceptions::PyValueError;
 use std::path::PathBuf;
 
@@ -10,6 +14,8 @@ use crate::branch::PyBranch;
 use crate::error::PyOxenError;
 
 use std::path::PathBuf;
+use crate::py_staged_data::PyStagedData;
+
 
 #[pyclass]
 pub struct PyRemoteRepo {
@@ -109,12 +115,38 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn add(&self, path: PathBuf, branch_name: String, directory_name: String) -> Result<(), PyOxenError> {
+    fn add(&self, branch_name: String, directory_name: String, path: PathBuf,) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime()
             .block_on(async { api::remote::staging::add_file(&self.repo, &branch_name, &user_id, &directory_name, path).await})?;
         Ok(())
     }
+
+    fn status(&self, branch_name: String, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        let remote_status = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { api::remote::staging::status(&self.repo, &branch_name, &user_id, &path, liboxen::constants::DEFAULT_PAGE_NUM, liboxen::constants::DEFAULT_PAGE_SIZE).await})?;
+        
+        let mut status = StagedData::empty();
+        status.added_dirs = remote_status.added_dirs;
+        let added_files: HashMap<PathBuf, StagedEntry> =
+        HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
+            (
+                PathBuf::from(e.filename),
+                StagedEntry::empty_status(StagedEntryStatus::Added),
+            )
+        }));
+        let added_mods: HashMap<PathBuf, StagedEntry> =
+            HashMap::from_iter(remote_status.modified_files.entries.into_iter().map(|e| {
+                (
+                    PathBuf::from(e.filename),
+                    StagedEntry::empty_status(StagedEntryStatus::Modified),
+                )
+            }));
+        status.added_files = added_files.into_iter().chain(added_mods).collect();
+
+        Ok(PyStagedData { data: status })
+        }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
         log::info!("Get branch... {branch_name}");
@@ -130,6 +162,23 @@ impl PyRemoteRepo {
                 commit_id: branch.commit_id,
             }),
             _ => Err(PyValueError::new_err("could not get branch")),
+        }
+    }
+
+    fn create_or_get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
+        log::info!("Create or get branch... {branch_name}");
+
+        let branch = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            log::info!("From repo...{}", self.repo.remote.url);
+            api::remote::branches::create_or_get(&self.repo, &branch_name).await
+        });
+
+        match branch {
+            Ok(branch) => Ok(PyBranch {
+                name: branch.name,
+                commit_id: branch.commit_id
+            }),
+            _ => Err(PyValueError::new_err("could not get / create branch"))
         }
     }
 }
