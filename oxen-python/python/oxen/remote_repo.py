@@ -94,10 +94,22 @@ class RemoteRepo:
         """
         Stage a file to be committed.
         """
-        self._repo.add(path, branch_name, directory_name)
+        self._repo.add(branch_name, directory_name, path)
+
+    def status(self, branch_name: str = "main", path: str=""):
+        return self._repo.status(branch_name, path)
 
     def get_branch(self, branch_name: str):
         """
-        Return a branch at the specified name    
+        Return a branch by name on this repo
         """
         self._repo.get_branch(branch_name)
+<<<<<<< HEAD
+=======
+
+    def create_or_get_branch(self, branch_name: str):
+        """
+        Return a branch by name on this repo, creating it if it doesn't yet exist
+        """
+        self._repo.create_or_get_branch(branch_name)
+>>>>>>> 0d6f656 (add initial tests)
