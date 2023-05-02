@@ -3,14 +3,16 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 
 
-use liboxen::model::{Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus};
+use liboxen::model::{CommitBody, Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus};
 use liboxen::{api, command};
+use liboxen::api;
 use liboxen::config::UserConfig;
 
 use pyo3::exceptions::PyValueError;
 use std::path::PathBuf;
 
 use crate::branch::PyBranch;
+use crate::py_commit::PyCommit;
 use crate::error::PyOxenError;
 
 use std::path::PathBuf;
@@ -121,6 +123,23 @@ impl PyRemoteRepo {
             .block_on(async { api::remote::staging::add_file(&self.repo, &branch_name, &user_id, &directory_name, path).await})?;
         Ok(())
     }
+
+    fn commit(&self, branch_name: String, message: String) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        let user = UserConfig::get()?.to_user();
+        let commit = CommitBody { message, user };
+        pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { api::remote::staging::commit_staged(&self.repo, &branch_name, &user_id, &commit).await })?;
+        Ok(())
+    }
+
+    fn log(&self, branch_name_or_commit_id: String) -> Result<Vec<PyCommit>, PyOxenError> {
+        let log = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { api::remote::commits::list_commit_history(&self.repo, &branch_name_or_commit_id).await })?;
+        Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
+    }
+    
+
 
     fn status(&self, branch_name: String, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
         let user_id = UserConfig::identifier()?;
