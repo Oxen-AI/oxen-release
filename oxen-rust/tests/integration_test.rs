@@ -3559,14 +3559,7 @@ async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo = command::shallow_clone(&remote_repo.remote.url, &repo_dir).await?;
 
             let result = command::status(&cloned_repo);
             assert!(result.is_err());

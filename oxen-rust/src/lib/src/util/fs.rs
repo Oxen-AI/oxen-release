@@ -1,3 +1,7 @@
+//! Wrapper around std::fs commands to make them easier to use
+//! and eventually abstract away the fs implementation
+//!
+
 use jwalk::WalkDir;
 
 use bytesize;
@@ -426,6 +430,19 @@ pub fn write(src: impl AsRef<Path>, data: impl AsRef<[u8]>) -> Result<(), OxenEr
         Err(err) => {
             log::error!("{}", err);
             Err(OxenError::file_does_not_exist(src))
+        }
+    }
+}
+
+/// Wrapper around std::fs::File::create to give us a better when failed to create
+/// Also can abstract away the file system at some point
+pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
+    let path = path.as_ref();
+    match std::fs::File::create(path) {
+        Ok(file) => Ok(file),
+        Err(err) => {
+            log::error!("{}", err);
+            Err(OxenError::file_create_error(path))
         }
     }
 }

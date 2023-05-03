@@ -1065,16 +1065,34 @@ impl EntryIndexer {
                     log::debug!("worker[{}] processing task...", worker);
 
                     // Chunk and individual files
+                    let remote_path = &entry.path;
+                    let local_path = repo.path.join(remote_path);
                     match api::remote::entries::download_large_entry(
-                        &repo,
                         &remote_repo,
-                        &entry,
+                        &remote_path,
+                        &local_path,
+                        &entry.commit_id,
+                        entry.num_bytes,
                         &bar,
                     )
                     .await
                     {
                         Ok(_) => {
-                            log::debug!("Downloaded large entry {:?}", entry.path);
+                            log::debug!("Downloaded large entry {:?}", remote_path);
+                            // Copy to version path
+                            let version_path = util::fs::version_path(&repo, &entry);
+                            log::debug!("Copying to version path {:?}", version_path);
+                            if let Some(parent) = version_path.parent() {
+                                if !parent.exists() {
+                                    log::debug!("Creating parent {:?}", parent);
+                                    let err =
+                                        format!("Could not create version dir path {parent:?}");
+                                    std::fs::create_dir_all(parent).expect(&err);
+                                }
+                            }
+
+                            // TODO: better error handling
+                            util::fs::copy(&local_path, &version_path).unwrap();
                         }
                         Err(err) => {
                             log::error!("Could not download chunk... {}", err)
