@@ -206,6 +206,11 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn file_create_error<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("Could not create file: {:?}", path.as_ref());
+        OxenError::basic_str(err)
+    }
+
     pub fn file_copy_error(
         src: impl AsRef<Path>,
         dst: impl AsRef<Path>,
