@@ -147,6 +147,26 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     Ok(())
 }
 
+pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let local_repo = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    // TODO: pass in committish to download a different version
+    let head_commit = api::local::commits::head_commit(&local_repo)?;
+    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
+    let remote_path = path;
+    let dst_path = path;
+    command::remote::download(
+        &remote_repo,
+        remote_path,
+        dst_path,
+        &head_commit.id
+    ).await?;
+
+    Ok(())
+}
+
 pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

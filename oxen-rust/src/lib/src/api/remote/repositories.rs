@@ -6,6 +6,7 @@ use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
 use serde_json::json;
 
+/// Gets remote "origin" that is set on the local repo
 pub async fn get_default_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let remote = repo
         .get_remote(DEFAULT_REMOTE_NAME)
