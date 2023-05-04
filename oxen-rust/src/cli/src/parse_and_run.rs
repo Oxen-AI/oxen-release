@@ -1,4 +1,11 @@
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, LS, RESTORE, RM, STATUS};
+
+// TODO: better define relationship between parse_and_run and dispatch and command
+//       * do we want to break each command into a separate file?
+//       * what is the common functionality in dispatch right now?
+//           * create local repo
+//           * printing errors as strings
+
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, LS, RESTORE, RM, STATUS, DOWNLOAD};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::constants::{
@@ -129,6 +136,9 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (DIFF, sub_matches) => {
                 remote_diff(sub_matches).await;
             }
+            (DOWNLOAD, sub_matches) => {
+                remote_download(sub_matches).await;
+            }
             (LS, sub_matches) => {
                 remote_ls(sub_matches).await;
             }
@@ -140,6 +150,18 @@ pub async fn remote(sub_matches: &ArgMatches) {
         dispatch::list_remotes_verbose().expect("Unable to list remotes.");
     } else {
         dispatch::list_remotes().expect("Unable to list remotes.");
+    }
+}
+
+async fn remote_download(sub_matches: &ArgMatches) {
+    let path = sub_matches.value_of("path").map(PathBuf::from).expect("Must supply path");
+
+    // Make `oxen remote download $path` work
+    match dispatch::remote_download(&path).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
     }
 }
 
