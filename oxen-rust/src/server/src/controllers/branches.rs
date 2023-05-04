@@ -1,4 +1,10 @@
 use crate::app_data::OxenAppData;
+use crate::helpers::get_repo;
+use crate::params::{
+    app_data,
+    df_opts_query::{self, DFOptsQuery},
+    parse_resource, path_param,
+};
 
 use actix_web::{HttpRequest, HttpResponse};
 
@@ -7,6 +13,7 @@ use liboxen::view::http::{
     MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED,
     STATUS_SUCCESS,
 };
+
 use liboxen::view::{BranchNew, BranchResponse, BranchUpdate, ListBranchesResponse, StatusMessage};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
@@ -90,6 +97,22 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     }
 }
 
+pub async fn create_from_or_get(req: HttpRequest, body: String) -> HttpResponse {
+    let app_data = app_data(&req);
+    let new_name = path_param(&req, "new_name");
+    let from_name = path_param(&req, "from_name");
+    let namespace = path_param(&req, "namespace");
+    let repo_name = path_param(&req, "repo_name");
+    // Unsure if needed
+    // let data: Result<BranchNew, serde_json::Error> = serde_json::from_str(&body);
+
+    // Get repo / ensure exists 
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+
+    HttpResponse::Ok()
+
+}
+
 pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
@@ -98,15 +121,19 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let name: &str = req.match_info().get("repo_name").unwrap();
+    println!("looking for resository under {}, {}, {}", &app_data.path.display(), namespace, name);
     match data {
+
         Ok(data) => match api::local::repositories::get_by_namespace_and_name(
             &app_data.path,
             namespace,
             name,
         ) {
             Ok(Some(repository)) => {
+                println!("found repository {:?}", repository);
                 match api::local::branches::get_by_name(&repository, &data.name) {
                     Ok(Some(branch)) => {
+                        println!("found branch {:?}", branch);
                         // Set the remote to this server
                         HttpResponse::Ok().json(BranchResponse {
                             status: String::from(STATUS_SUCCESS),
@@ -115,6 +142,7 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
                         })
                     }
                     Ok(None) => {
+                        println!("did not find branch, trying to create from head.");
                         match api::local::branches::create_from_head(&repository, &data.name) {
                             Ok(branch) => {
                                 // Set the remote to this server
@@ -160,6 +188,9 @@ pub async fn create_or_get(req: HttpRequest, body: String) -> HttpResponse {
         Err(_) => HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")),
     }
 }
+
+
+
 
 pub async fn delete(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
