@@ -1,7 +1,7 @@
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
+use crate::model::{Branch, Commit, RemoteRepository};
 use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
 
 use serde_json::json;
@@ -67,6 +67,33 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
     }
 }
 
+pub async fn create_from_or_get(repository: &RemoteRepository, new_name: &str, from_name: &str) -> Result<Branch, OxenError> {
+    let url = api::endpoint::url_from_repo(repository, "/branches/new")?;
+    log::debug!("create_or_get {}", url);
+
+    let params = serde_json::to_string(&json!({ "new_name": new_name, "from_name": from_name }))?;
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).body(params).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<BranchResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(response) => Ok(response.branch),
+            Err(err) => {
+                let err = format!(
+                    "Could not create or find branch [{}]: {}\n{}",
+                    repository.name, err, body
+                );
+                Err(OxenError::basic_str(err))
+            }
+        }
+    } else {
+        let msg = format!("Could not create branch {new_name}");
+        log::error!("remote::branches::create_or_get() {}", msg);
+        Err(OxenError::basic_str(&msg))
+    }
+}
+
 pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenError> {
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
 
@@ -123,31 +150,6 @@ pub async fn update(
         Err(OxenError::basic_str(&msg))
     }
 }
-
-/// # Delete a remote branch
-pub async fn delete_remote(
-    repo: &LocalRepository,
-    remote: &str,
-    branch_name: &str,
-) -> Result<(), OxenError> {
-    if let Some(remote) = repo.get_remote(remote) {
-        if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
-            if let Some(branch) =
-                api::remote::branches::get_by_name(&remote_repo, branch_name).await?
-            {
-                api::remote::branches::delete(&remote_repo, &branch.name).await?;
-                Ok(())
-            } else {
-                Err(OxenError::remote_branch_not_found(branch_name))
-            }
-        } else {
-            Err(OxenError::remote_repo_not_found(&remote.url))
-        }
-    } else {
-        Err(OxenError::remote_not_set(remote))
-    }
-}
-
 pub async fn delete(
     repository: &RemoteRepository,
     branch_name: &str,
