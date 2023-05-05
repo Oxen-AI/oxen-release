@@ -315,7 +315,7 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
-    
+
     let branch = resource
         .branch
         .clone()
@@ -329,20 +329,12 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
 
     let files = save_parts(&repo, &branch, &user_id, &resource.file_path, payload).await?;
     let mut ret_files = vec![];
-    
+
     for file in files.iter() {
         log::debug!("stager::stage file {:?}", file);
-        let file_path = index::remote_dir_stager::stage_file(
-            &repo,
-            &branch_repo,
-            &branch,
-            &user_id,
-            file,
-        )?;
-        log::debug!(
-            "stager::stage ✅ success! staged file {:?}",
-            file_path
-        );
+        let file_path =
+            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &user_id, file)?;
+        log::debug!("stager::stage ✅ success! staged file {:?}", file_path);
         ret_files.push(file_path);
     }
     Ok(HttpResponse::Ok().json(FilePathsResponse {
