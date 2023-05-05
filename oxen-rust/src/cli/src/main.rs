@@ -40,8 +40,7 @@ async fn main() {
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::rm())
         .subcommand(cmd_setup::schemas())
-        .subcommand(cmd_setup::status())
-    ;
+        .subcommand(cmd_setup::status());
 
     let matches = command.get_matches();
 
@@ -50,10 +49,14 @@ async fn main() {
         Some((cmd_setup::BRANCH, sub_matches)) => parse_and_run::branch(sub_matches).await,
         Some((cmd_setup::CHECKOUT, sub_matches)) => parse_and_run::checkout(sub_matches).await,
         Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
-        Some((cmd_setup::COMMIT_CACHE, sub_matches)) => parse_and_run::compute_commit_cache(sub_matches).await,
+        Some((cmd_setup::COMMIT_CACHE, sub_matches)) => {
+            parse_and_run::compute_commit_cache(sub_matches).await
+        }
         Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches).await,
         Some((cmd_setup::CONFIG, sub_matches)) => parse_and_run::config(sub_matches),
-        Some((cmd_setup::CREATE_REMOTE, sub_matches)) => parse_and_run::create_remote(sub_matches).await,
+        Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
+            parse_and_run::create_remote(sub_matches).await
+        }
         Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::INIT, sub_matches)) => parse_and_run::init(sub_matches).await,

@@ -16,7 +16,7 @@ pub enum OxenHttpError {
 
     // External
     ActixError(actix_web::Error),
-    SerdeError(serde_json::Error)
+    SerdeError(serde_json::Error),
 }
 
 impl From<OxenError> for OxenHttpError {
