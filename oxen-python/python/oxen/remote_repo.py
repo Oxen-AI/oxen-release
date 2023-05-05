@@ -102,25 +102,29 @@ class RemoteRepo:
     def commit(self, message: str, branch_name: str = "main"):
         self._repo.commit(branch_name, message)
 
+    def log(self, branch_name_or_commit_id: str = "main"):
+        return self._repo.log(branch_name_or_commit_id)
+
+    def list_branches(self):
+        """
+        List all branches for a remote repo
+        """
+        return self._repo.list_branches()
+    
     def get_branch(self, branch_name: str):
         """
         Return a branch by name on this repo
         """
-<<<<<<< HEAD
-        self._repo.get_branch(branch_name)
-<<<<<<< HEAD
-=======
-=======
         return self._repo.get_branch(branch_name)
->>>>>>> 3b24251 (wip - adding commit and log)
 
     def create_or_get_branch(self, branch_name: str):
         """
         Return a branch by name on this repo, creating it if it doesn't yet exist
         """
-<<<<<<< HEAD
-        self._repo.create_or_get_branch(branch_name)
->>>>>>> 0d6f656 (add initial tests)
-=======
         return self._repo.create_or_get_branch(branch_name)
->>>>>>> 3b24251 (wip - adding commit and log)
+    
+    def create_from_or_get_branch(self, new_name: str, from_name: str = "main"):
+        """
+        Return a branch by name on this repo, creating it from a specified existing branch if it doesn't exist
+        """
+        return self._repo.create_from_or_get_branch(new_name, from_name)
