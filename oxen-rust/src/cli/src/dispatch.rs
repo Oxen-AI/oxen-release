@@ -157,12 +157,7 @@ pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
     let remote_path = path;
     let dst_path = path;
-    command::remote::download(
-        &remote_repo,
-        remote_path,
-        dst_path,
-        &head_commit.id
-    ).await?;
+    command::remote::download(&remote_repo, remote_path, dst_path, &head_commit.id).await?;
 
     Ok(())
 }

@@ -362,7 +362,11 @@ pub fn add() -> Command<'static> {
 pub fn download() -> Command<'static> {
     Command::new(DOWNLOAD)
         .about("Download a specific file from the remote repository")
-        .arg(Arg::new("path").help("Path to the remote file").exclusive(true))
+        .arg(
+            Arg::new("path")
+                .help("Path to the remote file")
+                .exclusive(true),
+        )
 }
 
 pub fn commit() -> Command<'static> {

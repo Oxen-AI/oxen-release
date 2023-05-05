@@ -14,6 +14,12 @@ pub struct BranchNew {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct BranchNewFromExisting {
+    pub new_name: String,
+    pub from_name: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BranchUpdate {
     pub commit_id: String,
 }
