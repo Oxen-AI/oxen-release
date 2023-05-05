@@ -4,6 +4,7 @@ pub mod branch;
 pub mod error;
 
 pub mod py_commit;
+pub mod py_dataset;
 pub mod py_remote_repo;
 pub mod py_repo;
 pub mod py_staged_data;
@@ -32,6 +33,7 @@ fn oxen(_py: Python, m: &PyModule) -> PyResult<()> {
 
     m.add_class::<py_repo::PyRepo>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
+    m.add_class::<py_dataset::PyDataset>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_commit::PyCommit>()?;
 

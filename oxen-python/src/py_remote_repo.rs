@@ -1,11 +1,13 @@
 use pyo3::prelude::*;
 
-use liboxen::api;
 use liboxen::model::{Remote, RemoteRepository};
+use liboxen::{api, command};
 use pyo3::exceptions::PyValueError;
 
 use crate::branch::PyBranch;
 use crate::error::PyOxenError;
+
+use std::path::PathBuf;
 
 #[pyclass]
 pub struct PyRemoteRepo {
@@ -28,10 +30,12 @@ impl PyRemoteRepo {
 
         Ok(Self {
             repo: RemoteRepository {
-                namespace,
-                name: repo_name,
+                namespace: namespace.to_owned(),
+                name: repo_name.to_owned(),
                 remote: Remote {
-                    url: host,
+                    url: liboxen::api::endpoint::remote_url_from_host(
+                        &host, &namespace, &repo_name,
+                    ),
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
                 },
             },
@@ -65,6 +69,19 @@ impl PyRemoteRepo {
     fn delete(&self) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime()
             .block_on(async { api::remote::repositories::delete(&self.repo).await })?;
+
+        Ok(())
+    }
+
+    fn download(
+        &self,
+        remote_path: PathBuf,
+        local_path: PathBuf,
+        committish: String,
+    ) -> Result<(), PyOxenError> {
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            command::remote::download(&self.repo, &remote_path, &local_path, &committish).await
+        })?;
 
         Ok(())
     }
