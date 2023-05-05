@@ -2,8 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
-use crate::view::{BranchResponse, ListBranchesResponse, StatusMessage};
-
+use crate::view::{BranchNewFromExisting, BranchResponse, ListBranchesResponse, StatusMessage};
 use serde_json::json;
 
 pub async fn get_by_name(
@@ -40,11 +39,18 @@ pub async fn get_by_name(
     }
 }
 
-pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<Branch, OxenError> {
+pub async fn create_from_or_get(
+    repository: &RemoteRepository,
+    new_name: &str,
+    from_name: &str,
+) -> Result<Branch, OxenError> {
     let url = api::endpoint::url_from_repo(repository, "/branches")?;
-    log::debug!("create_or_get {}", url);
+    log::debug!("create_from_or_get {}", url);
 
-    let params = serde_json::to_string(&json!({ "name": name }))?;
+    let params = serde_json::to_string(&BranchNewFromExisting {
+        new_name: new_name.to_string(),
+        from_name: from_name.to_string(),
+    })?;
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.post(&url).body(params).send().await {
@@ -54,15 +60,15 @@ pub async fn create_or_get(repository: &RemoteRepository, name: &str) -> Result<
             Ok(response) => Ok(response.branch),
             Err(err) => {
                 let err = format!(
-                    "Could not create or find branch [{}]: {}\n{}",
-                    repository.name, err, body
+                    "Could not find branch [{}] or create it from branch [{}]: {}\n{}",
+                    new_name, from_name, err, body
                 );
                 Err(OxenError::basic_str(err))
             }
         }
     } else {
-        let msg = format!("Could not create branch {name}");
-        log::error!("remote::branches::create_or_get() {}", msg);
+        let msg = format!("Could not create branch {new_name}");
+        log::error!("remote::branches::create_from_or_get() {}", msg);
         Err(OxenError::basic_str(&msg))
     }
 }
@@ -177,6 +183,7 @@ pub async fn delete(
 mod tests {
 
     use crate::api;
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::test;
 
@@ -184,7 +191,24 @@ mod tests {
     async fn test_create_remote_branch() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let name = "my-branch";
-            let branch = api::remote::branches::create_or_get(&remote_repo, name).await?;
+            let branch =
+                api::remote::branches::create_from_or_get(&remote_repo, name, "main").await?;
+            assert_eq!(branch.name, name);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_create_remote_branch_from_existing() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+            let name = "my-branch";
+            let from = "old-branch";
+            api::remote::branches::create_from_or_get(&remote_repo, from, DEFAULT_BRANCH_NAME)
+                .await?;
+            let branch =
+                api::remote::branches::create_from_or_get(&remote_repo, name, from).await?;
             assert_eq!(branch.name, name);
 
             Ok(remote_repo)
@@ -196,7 +220,7 @@ mod tests {
     async fn test_get_branch_by_name() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "my-branch";
-            api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            api::remote::branches::create_from_or_get(&remote_repo, branch_name, "main").await?;
 
             let branch = api::remote::branches::get_by_name(&remote_repo, branch_name).await?;
             assert!(branch.is_some());
@@ -210,15 +234,25 @@ mod tests {
     #[tokio::test]
     async fn test_list_remote_branches() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
-            api::remote::branches::create_or_get(&remote_repo, "branch-1").await?;
-            api::remote::branches::create_or_get(&remote_repo, "branch-2").await?;
+            api::remote::branches::create_from_or_get(
+                &remote_repo,
+                "branch-1",
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            api::remote::branches::create_from_or_get(
+                &remote_repo,
+                "branch-2",
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
 
             let branches = api::remote::branches::list(&remote_repo).await?;
             assert_eq!(branches.len(), 3);
 
             assert!(branches.iter().any(|b| b.name == "branch-1"));
             assert!(branches.iter().any(|b| b.name == "branch-2"));
-            assert!(branches.iter().any(|b| b.name == "main"));
+            assert!(branches.iter().any(|b| b.name == DEFAULT_BRANCH_NAME));
 
             Ok(remote_repo)
         })
@@ -229,7 +263,12 @@ mod tests {
     async fn test_delete_branch() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "my-branch";
-            api::remote::branches::create_or_get(&remote_repo, branch_name).await?;
+            api::remote::branches::create_from_or_get(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
 
             let branch = api::remote::branches::get_by_name(&remote_repo, branch_name).await?;
             assert!(branch.is_some());
