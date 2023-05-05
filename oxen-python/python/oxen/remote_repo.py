@@ -45,3 +45,21 @@ class RemoteRepo:
         Delete this remote repo from the server.
         """
         self._repo.delete()
+
+    def download(
+        self, remote_path: str, local_path: str | None, committish: str = "main"
+    ):
+        """
+        Download a file or directory from the remote repo.
+
+        Parameters
+        ----------
+        remote_path : str
+            The path to the remote file
+        local_path : str | None
+            The path to the local file. If None, will download to
+            the same path as remote_path
+        committish : str
+            The branch name or commit id to download from
+        """
+        self._repo.download(remote_path, local_path, committish)

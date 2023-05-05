@@ -1,3 +1,6 @@
+//! Python bindings for the `Repo` struct.
+//!
+
 use liboxen::model::LocalRepository;
 use liboxen::opts::CloneOpts;
 use pyo3::prelude::*;
@@ -71,7 +74,10 @@ impl PyRepo {
     pub fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let commits = api::local::commits::list(&repo)?;
-        Ok(commits.iter().map(|c| PyCommit { commit: c.clone() }).collect())
+        Ok(commits
+            .iter()
+            .map(|c| PyCommit { commit: c.clone() })
+            .collect())
     }
 
     pub fn set_remote(&self, name: &str, url: &str) -> Result<(), PyOxenError> {
