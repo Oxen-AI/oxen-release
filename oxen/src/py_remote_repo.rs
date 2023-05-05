@@ -12,13 +12,15 @@ use std::path::PathBuf;
 #[pyclass]
 pub struct PyRemoteRepo {
     repo: RemoteRepository,
+    host: String,
+    revision: String
 }
 
 #[pymethods]
 impl PyRemoteRepo {
     #[new]
-    #[pyo3(signature = (repo, host))]
-    fn py_new(repo: String, host: String) -> PyResult<Self> {
+    #[pyo3(signature = (repo, host, revision))]
+    fn py_new(repo: String, host: String, revision: String) -> PyResult<Self> {
         let (namespace, repo_name) = match repo.split_once('/') {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
@@ -39,7 +41,21 @@ impl PyRemoteRepo {
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
                 },
             },
+            host,
+            revision
         })
+    }
+
+    fn url(&self) -> &str {
+        self.repo.url()
+    }
+
+    fn namespace(&self) -> &str {
+        &self.repo.namespace
+    }
+
+    fn name(&self) -> &str {
+        &self.repo.name
     }
 
     fn create(&mut self) -> Result<PyRemoteRepo, PyOxenError> {
@@ -47,7 +63,7 @@ impl PyRemoteRepo {
             api::remote::repositories::create_no_root(
                 &self.repo.namespace,
                 &self.repo.name,
-                &self.repo.remote.url,
+                &self.host,
             )
             .await
         })?;
@@ -56,6 +72,8 @@ impl PyRemoteRepo {
 
         Ok(PyRemoteRepo {
             repo: self.repo.clone(),
+            host: self.host.clone(),
+            revision: self.revision.clone()
         })
     }
 
@@ -84,10 +102,6 @@ impl PyRemoteRepo {
         })?;
 
         Ok(())
-    }
-
-    fn url(&self) -> &str {
-        self.repo.url()
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
