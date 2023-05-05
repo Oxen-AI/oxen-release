@@ -36,9 +36,11 @@
 #    (way more efficient, can convert on disk, do we do out of the box?)
 
 from oxen import PyDataset
-import polars as pl
 
+import os
+import polars as pl
 from typing import Sequence, Union
+from pathlib import Path
 
 
 class Dataset:
@@ -48,7 +50,7 @@ class Dataset:
     """
 
     # TODO: allow remote or local repos
-    def __init__(self, repo):
+    def __init__(self, repo, cache_dir: str = None):
         """
         Create a new RemoteRepo object to interact with.
 
@@ -57,28 +59,66 @@ class Dataset:
         repo : Repo
             The oxen repository you are loading data from
             can be a local or a remote repo
+        cache_dir : str
+            The directory to download/cache the data in.
         """
         self._repo = repo
+        if cache_dir is None:
+            self._cache_dir = Dataset.default_cache_dir(repo)
+        else:
+            self._cache_dir = cache_dir
+
         self._data_files = []
+        self._data_frames = []
+
+    @staticmethod
+    def default_cache_dir(repo) -> str:
+        # ~/.oxen/data/<namespace>/<repo>/<revision>
+        cache_dir = os.path.join(Path.home(), ".oxen")
+        cache_dir = os.path.join(cache_dir, "data")
+        cache_dir = os.path.join(cache_dir, repo.namespace)
+        cache_dir = os.path.join(cache_dir, repo.name)
+        cache_dir = os.path.join(cache_dir, repo.revision)
+        return cache_dir
+
+    def _cache_path(self, path: str) -> str:
+        """
+        Returns the path to the file in the cache directory.
+        """
+        return os.path.join(self._cache_dir, path)
+
+    def _df_download_path(self, path, base_dir: str | None) -> str:
+        """
+        Returns the path to the file given the base dir or defaults to
+        the cache directory.
+        """
+        if base_dir is None:
+            return self._cache_path(path)
+        return os.path.join(base_dir, path)
 
     # TODO: optionally download data
-    def df(
-        self,
-        path: str,
-    ) -> pl.DataFrame:
+    def df(self, path: str, base_dir: str = None) -> pl.DataFrame:
         """
         Returns a dataframe of the data from the repo.
             Parameters
         ----------
         path : str
             Paths to the data frames you want to load.
+        base_dir : str | None
+            The base directory to download the data to.
         """
         # TODO:
-        #  * handle download = False, stream in memory
-        #  * pass in destination if download = True
+        #  * handle streaming into memory without downloading to disk
 
-        self._repo.download(path, path)
-        df = PyDataset.df(path)
+        # Download file to cache path if it does not already exist
+        # Cache path has the revision, so if the revision changes, it will
+        # download the new data
+        output_path = self._df_download_path(path, base_dir)
+        if not os.path.exists(output_path):
+            os.makedirs(os.path.dirname(output_path))
+            self._repo.download(path, output_path)
+
+        df = PyDataset.df(output_path)
         return df
 
     def load(
@@ -103,4 +143,5 @@ class Dataset:
         if download:
             for data_file in self._data_files:
                 print(f"Downloading {data_file}...")
-                self._repo.download(data_file, data_file)
+                df = self.df(data_file, self._cache_dir)
+                self._data_frames.append(df)

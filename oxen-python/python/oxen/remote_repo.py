@@ -6,7 +6,7 @@ class RemoteRepo:
     Remote repository object that allows you to interact with a remote oxen repository.
     """
 
-    def __init__(self, path: str, host: str = "hub.oxen.ai"):
+    def __init__(self, path: str, host: str = "hub.oxen.ai", revision: str = "main"):
         """
         Create a new RemoteRepo object to interact with.
 
@@ -15,8 +15,12 @@ class RemoteRepo:
         path : str
             Name of the repository in the format `namespace/repo_name`.
             For example `ox/chatbot`
+        host : str
+            The host to connect to. Defaults to `hub.oxen.ai`
+        revision : str
+            The branch name or commit id to download from
         """
-        self._repo = PyRemoteRepo(path, host)
+        self._repo = PyRemoteRepo(path, host, revision)
 
     def __repr__(self):
         return f"RemoteRepo({self._repo.url()})"
@@ -24,9 +28,16 @@ class RemoteRepo:
     @property
     def url(self) -> str:
         """
-        Returns the remote url for the repo.
+        The remote url for the repo.
         """
         return self._repo.url()
+
+    @property
+    def revision(self) -> str:
+        """
+        The branch or commit id for the repo
+        """
+        return self._repo.revision
 
     def create(self):
         """
@@ -47,7 +58,7 @@ class RemoteRepo:
         self._repo.delete()
 
     def download(
-        self, remote_path: str, local_path: str | None, committish: str = "main"
+        self, remote_path: str, local_path: str | None, revision: str | None = "main"
     ):
         """
         Download a file or directory from the remote repo.
@@ -59,7 +70,11 @@ class RemoteRepo:
         local_path : str | None
             The path to the local file. If None, will download to
             the same path as remote_path
-        committish : str
+        revision : str | None
             The branch name or commit id to download from
         """
-        self._repo.download(remote_path, local_path, committish)
+        if local_path is None:
+            local_path = remote_path
+        if revision is None:
+            revision = self.revision
+        self._repo.download(remote_path, local_path, revision)
