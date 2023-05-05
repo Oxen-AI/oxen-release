@@ -130,7 +130,7 @@ pub async fn update(
     }
 }
 
-/// # Delete a remote branchs
+/// # Delete a remote branch
 pub async fn delete_remote(
     repo: &LocalRepository,
     remote: &str,
