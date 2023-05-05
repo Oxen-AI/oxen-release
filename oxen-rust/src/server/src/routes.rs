@@ -63,7 +63,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         .route(
             "/{namespace}/{repo_name}/branches",
-            web::post().to(controllers::branches::create_or_get),
+            web::post().to(controllers::branches::create_from_or_get),
         )
         .route(
             "/{namespace}/{repo_name}/branches/{branch_name:.*}",

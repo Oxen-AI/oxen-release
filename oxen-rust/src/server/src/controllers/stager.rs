@@ -306,94 +306,42 @@ fn delete_mod(
     }
 }
 
-pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
 
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
-
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let user_id = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, directory))) => {
-                match api::local::branches::get_by_name(&repo, &branch_name) {
-                    Ok(Some(branch)) => {
-                        log::debug!(
-                            "stager::stage file branch_name [{}] in directory {:?}",
-                            branch_name,
-                            directory
-                        );
 
-                        let branch_repo =
-                            index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
-                        let files =
-                            save_parts(&repo, &branch, user_id, &directory, payload).await?;
-                        let mut ret_files = vec![];
-                        for file in files.iter() {
-                            log::debug!("stager::stage file {:?}", file);
-                            match index::remote_dir_stager::stage_file(
-                                &repo,
-                                &branch_repo,
-                                &branch,
-                                user_id,
-                                file,
-                            ) {
-                                Ok(file_path) => {
-                                    log::debug!(
-                                        "stager::stage ✅ success! staged file {:?}",
-                                        file_path
-                                    );
-                                    ret_files.push(file_path);
-                                }
-                                Err(err) => {
-                                    log::error!("unable to stage file {:?}. Err: {}", file, err);
-                                    return Ok(HttpResponse::InternalServerError()
-                                        .json(StatusMessage::internal_server_error()));
-                                }
-                            }
-                        }
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-                        Ok(HttpResponse::Ok().json(FilePathsResponse {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_CREATED),
-                            paths: ret_files,
-                        }))
-                    }
-                    Ok(None) => {
-                        log::debug!("stager::stage could not find branch {:?}", branch_name);
-                        Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                    }
-                    Err(err) => {
-                        log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
-                        Ok(HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error()))
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("stager::stage could not find parse resource {:?}", resource);
-                Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-            }
-            Err(err) => {
-                log::error!("unable to parse resource {:?}. Err: {}", resource, err);
-                Ok(
-                    HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()),
-                )
-            }
-        },
-        Ok(None) => {
-            log::debug!("stager::stage could not find repo with name {}", repo_name);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(err) => {
-            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+    log::debug!(
+        "stager::stage file repo {resource} -> staged repo path {:?}",
+        repo.path
+    );
+
+    let files = save_parts(&repo, &branch, &user_id, &resource.file_path, payload).await?;
+    let mut ret_files = vec![];
+
+    for file in files.iter() {
+        log::debug!("stager::stage file {:?}", file);
+        let file_path =
+            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &user_id, file)?;
+        log::debug!("stager::stage ✅ success! staged file {:?}", file_path);
+        ret_files.push(file_path);
     }
+    Ok(HttpResponse::Ok().json(FilePathsResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_CREATED),
+        paths: ret_files,
+    }))
 }
 
 pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Error> {
