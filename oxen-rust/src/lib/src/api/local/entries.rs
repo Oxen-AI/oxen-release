@@ -4,7 +4,7 @@
 use crate::error::OxenError;
 
 use crate::core::index::CommitDirReader;
-use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::model::{Commit, CommitEntry, LocalRepository, ParsedResource};
 use crate::view::PaginatedDirEntries;
 use std::path::Path;
 
@@ -39,14 +39,12 @@ pub fn list_page(
 
 pub fn list_directory(
     repo: &LocalRepository,
-    commit: &Commit,
-    branch_or_commit_id: &str,
-    directory: &Path,
+    resource: &ParsedResource,
     page: &usize,
     page_size: &usize,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    let reader = CommitDirReader::new(repo, commit)?;
-    reader.list_directory(directory, branch_or_commit_id, *page, *page_size)
+    let reader = CommitDirReader::new(repo, &resource.commit)?;
+    reader.list_directory(resource, *page, *page_size)
 }
 
 #[cfg(test)]

@@ -26,6 +26,15 @@ pub struct ResourceVersion {
     pub version: String,
 }
 
+impl ResourceVersion {
+    pub fn from_parsed_resource(resource: &crate::model::ParsedResource) -> ResourceVersion {
+        ResourceVersion {
+            path: resource.file_path.to_string_lossy().to_string(),
+            version: resource.version(),
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedEntries {
     pub status: String,
