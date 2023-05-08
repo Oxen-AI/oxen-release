@@ -2,7 +2,7 @@ use crate::constants::{DIRS_DIR, HISTORY_DIR};
 use crate::core::db;
 use crate::core::index::{CommitDirEntryReader, CommitReader};
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, DirEntry};
+use crate::model::{Commit, CommitEntry, DirEntry, ParsedResource};
 use crate::util;
 use crate::view::entry::ResourceVersion;
 use crate::view::PaginatedDirEntries;
@@ -138,8 +138,7 @@ impl CommitDirReader {
 
     pub fn list_directory(
         &self,
-        directory: &Path,
-        branch_or_commit_id: &str,
+        resource: &ParsedResource,
         page: usize,
         page_size: usize,
     ) -> Result<PaginatedDirEntries, OxenError> {
@@ -149,28 +148,24 @@ impl CommitDirReader {
         for dir in self.list_committed_dirs()? {
             // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
             if let Some(parent) = dir.parent() {
-                if parent == directory || (parent == Path::new("") && directory == Path::new("./"))
+                if parent == resource.file_path
+                    || (parent == Path::new("") && resource.file_path == Path::new("./"))
                 {
-                    dir_paths.push(self.dir_entry_from_dir(
-                        &dir,
-                        &commit_reader,
-                        branch_or_commit_id,
-                    )?);
+                    dir_paths.push(self.dir_entry_from_dir(&dir, &commit_reader, &resource)?);
                 }
             }
         }
         log::debug!("list_directory got dir_paths {}", dir_paths.len());
 
         let mut file_paths: Vec<DirEntry> = vec![];
-        let commit_dir_reader =
-            CommitDirEntryReader::new(&self.repository, &self.commit_id, directory)?;
+        let commit_dir_reader = CommitDirEntryReader::new(
+            &self.repository,
+            &self.commit_id,
+            resource.file_path.as_path(),
+        )?;
         let total = commit_dir_reader.num_entries() + dir_paths.len();
         for file in commit_dir_reader.list_entries()? {
-            file_paths.push(self.dir_entry_from_commit_entry(
-                &file,
-                &commit_reader,
-                branch_or_commit_id,
-            )?)
+            file_paths.push(self.dir_entry_from_commit_entry(&file, &commit_reader, &resource)?)
         }
         log::debug!("list_directory got file_paths {}", dir_paths.len());
 
@@ -179,18 +174,19 @@ impl CommitDirReader {
 
         log::debug!(
             "list_directory {:?} page {} page_size {} total {}",
-            directory,
+            resource.file_path,
             page,
             page_size,
             total,
         );
 
-        let resource = Some(ResourceVersion {
-            path: directory.to_str().unwrap().to_string(),
-            version: branch_or_commit_id.to_string(),
-        });
+        let resource_version = Some(ResourceVersion::from_parsed_resource(resource));
         Ok(PaginatedDirEntries::from_entries(
-            dir_paths, resource, page, page_size, total,
+            dir_paths,
+            resource_version,
+            page,
+            page_size,
+            total,
         ))
     }
 
@@ -198,7 +194,7 @@ impl CommitDirReader {
         &self,
         path: &Path,
         commit_reader: &CommitReader,
-        branch_or_commit_id: &str,
+        resource: &ParsedResource,
     ) -> Result<DirEntry, OxenError> {
         let commit = commit_reader.get_commit_by_id(&self.commit_id)?.unwrap();
         let commit_dir_reader = CommitDirReader::new(&self.repository, &commit)?;
@@ -242,10 +238,7 @@ impl CommitDirReader {
             size: total_size,
             latest_commit,
             datatype: String::from("dir"),
-            resource: Some(ResourceVersion {
-                version: branch_or_commit_id.to_string(),
-                path: path.to_str().unwrap().to_string(),
-            }),
+            resource: Some(ResourceVersion::from_parsed_resource(&resource)),
         });
     }
 
@@ -253,7 +246,7 @@ impl CommitDirReader {
         &self,
         entry: &CommitEntry,
         commit_reader: &CommitReader,
-        branch_or_commit_id: &str,
+        resource: &ParsedResource,
     ) -> Result<DirEntry, OxenError> {
         let size = util::fs::version_file_size(&self.repository, entry)?;
         let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
@@ -265,10 +258,7 @@ impl CommitDirReader {
             size,
             latest_commit: Some(latest_commit),
             datatype: util::fs::file_datatype(&version_path),
-            resource: Some(ResourceVersion {
-                version: branch_or_commit_id.to_string(),
-                path: entry.path.to_str().unwrap().to_string(),
-            }),
+            resource: Some(ResourceVersion::from_parsed_resource(&resource)),
         });
     }
 
@@ -344,9 +334,13 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
-
             let reader = CommitDirReader::new(&repo, commit)?;
-            let paginated = reader.list_directory(Path::new("./"), &commit.id, 1, 10)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), 1, 10)?;
             let dir_entries = paginated.entries;
             let size = paginated.total_entries;
             for entry in dir_entries.iter() {
@@ -374,9 +368,13 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
-
             let reader = CommitDirReader::new(&repo, commit)?;
-            let paginated = reader.list_directory(Path::new("train"), &commit.id, 1, 10)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/train", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), 1, 10)?;
             let dir_entries = paginated.entries;
             let size = paginated.total_entries;
 
@@ -392,10 +390,13 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
-
             let reader = CommitDirReader::new(&repo, commit)?;
-            let paginated =
-                reader.list_directory(Path::new("annotations/train"), &commit.id, 1, 10)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/annotations/train", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), 1, 10)?;
             let dir_entries = paginated.entries;
             let size = paginated.total_entries;
 
@@ -411,9 +412,13 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
-
             let reader = CommitDirReader::new(&repo, commit)?;
-            let paginated = reader.list_directory(Path::new("train"), &commit.id, 2, 3)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/train", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), 2, 3)?;
             let dir_entries = paginated.entries;
             let total_entries = paginated.total_entries;
 
@@ -455,10 +460,13 @@ mod tests {
 
             let page_number = 1;
             let page_size = 10;
-
             let reader = CommitDirReader::new(&repo, &commit)?;
-            let paginated =
-                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), page_number, page_size)?;
             assert_eq!(paginated.total_entries, 10);
             assert_eq!(paginated.total_pages, 1);
             assert_eq!(paginated.entries.len(), 10);
@@ -494,10 +502,13 @@ mod tests {
 
             let page_number = 2;
             let page_size = 10;
-
             let reader = CommitDirReader::new(&repo, &commit)?;
-            let paginated =
-                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), page_number, page_size)?;
             assert_eq!(paginated.total_entries, 10);
             assert_eq!(paginated.total_pages, 1);
             assert_eq!(paginated.entries.len(), 0);
@@ -534,10 +545,13 @@ mod tests {
 
             let page_number = 1;
             let page_size = 10;
-
             let reader = CommitDirReader::new(&repo, &commit)?;
-            let paginated =
-                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), page_number, page_size)?;
             assert_eq!(paginated.total_entries, 9);
             assert_eq!(paginated.total_pages, 1);
 
@@ -573,10 +587,13 @@ mod tests {
 
             let page_number = 1;
             let page_size = 10;
-
             let reader = CommitDirReader::new(&repo, &commit)?;
-            let paginated =
-                reader.list_directory(Path::new("."), &commit.id, page_number, page_size)?;
+            let resource = api::local::resource::parse_resource_from_path(
+                &repo,
+                Path::new(&format!("{}/", commit.id)),
+            )?;
+
+            let paginated = reader.list_directory(&resource.unwrap(), page_number, page_size)?;
             assert_eq!(paginated.total_entries, 11);
             assert_eq!(paginated.total_pages, 2);
 
