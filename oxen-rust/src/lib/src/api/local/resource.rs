@@ -155,6 +155,7 @@ pub fn parse_resource_from_path(
                 // );
 
                 let commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
+                file_path = PathBuf::from("./");
                 return Ok(Some(ParsedResource {
                     commit,
                     branch: Some(branch),
@@ -331,6 +332,94 @@ mod tests {
                 }
                 _ => {
                     panic!("Should return a branch");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_parse_resource_from_path_root_dir() -> Result<(), OxenError> {
+        crate::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "main";
+            // let branch = api::local::branches::create_checkout(&repo, branch_name)?;
+
+            let path_str = format!("{branch_name}/");
+            let path = Path::new(&path_str);
+
+            match resource::parse_resource_from_path(&repo, path) {
+                Ok(Some(resource)) => {
+                    assert_eq!(resource.file_path, Path::new("./"))
+                }
+                _ => {
+                    panic!("Should return a parsed resource");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_parse_resource_from_path_root_dir_complicated_branch() -> Result<(), OxenError> {
+        crate::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "super/complex/branch-name/slashes";
+            let _branch = api::local::branches::create_checkout(&repo, branch_name)?;
+
+            let path_str = format!("{branch_name}/");
+            let path = Path::new(&path_str);
+
+            match resource::parse_resource_from_path(&repo, path) {
+                Ok(Some(resource)) => {
+                    assert_eq!(resource.file_path, Path::new("./"))
+                }
+                _ => {
+                    panic!("Should return a parsed resource");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_parse_resource_from_path_nonroot_complicated_branch() -> Result<(), OxenError> {
+        crate::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "super/complex/branch-name/slashes";
+            let _branch = api::local::branches::create_checkout(&repo, branch_name)?;
+
+            let path_str = format!("{branch_name}/folder-new");
+            let path = Path::new(&path_str);
+
+            match resource::parse_resource_from_path(&repo, path) {
+                Ok(Some(resource)) => {
+                    assert_eq!(resource.file_path, Path::new("folder-new"))
+                }
+                _ => {
+                    panic!("Should return a parsed resource");
+                }
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_parse_resource_from_path_with_file() -> Result<(), OxenError> {
+        crate::test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "super/complex/branch-name/slashes";
+            let _branch = api::local::branches::create_checkout(&repo, branch_name)?;
+
+            let path_str = format!("{branch_name}/folder/item.txt");
+            let path = Path::new(&path_str);
+
+            match resource::parse_resource_from_path(&repo, path) {
+                Ok(Some(resource)) => {
+                    assert_eq!(resource.file_path, Path::new("folder/item.txt"))
+                }
+                _ => {
+                    panic!("Should return a parsed resource");
                 }
             }
 
