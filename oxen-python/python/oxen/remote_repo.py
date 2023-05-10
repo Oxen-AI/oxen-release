@@ -89,20 +89,50 @@ class RemoteRepo:
         if revision is None:
             revision = self.revision
         self._repo.download(remote_path, local_path, revision)
-        
-    def add(self, path: str, branch_name: str = "main", directory_name: str = ""):
-        """
-        Stage a file to be committed.
-        """
-        self._repo.add(branch_name, directory_name, path)
 
-    def remove(self, path: str, branch_name: str = "main"):
-        self._repo.remove(branch_name, path)
+    def add(self, local_path: str, remote_directory: str = "", revision: str = "main"):
+        """
+        Stage a file to the remote staging environment
 
-    def status(self, branch_name: str = "main", path: str=""):
-        return self._repo.status(branch_name, path)
-    
-    def commit(self, message: str, branch_name: str = "main"):
+        Parameters
+        ----------
+        path: str
+            The path to the local file to be staged
+        remote_directory: str
+            The path in the remote repo where the file will be added
+        revision: str
+            The branch name or commit id to stage the commit on
+        """
+        self._repo.add(revision, remote_directory, local_path)
+
+    def remove(self, path: str, branch: str = "main"):
+        """
+        Unstage a file from the remote staging environment
+
+        Parameters
+        ----------
+        path: str
+            The path to the file on remote to be removed from staging
+        branch: str
+            The branch name on which to unstage this file
+        """
+        self._repo.remove(branch, path)
+
+    def status(self, revision: str = "main", path: str = ""):
+        """
+        Get the status of the remote repo. Returns a StagedData object.
+
+        Parameters
+        ----------
+        revision: str
+            The branch name or commit id to check the status of
+        path: str
+            The directory or file path on the remote that 
+            will be checked for modifications
+        """
+        return self._repo.status(revision, path)
+
+    def commit(self, message: str, branch: str = "main"):
         """
         Commit the staged data in the remote repo with a message.
 
@@ -110,29 +140,49 @@ class RemoteRepo:
         ----------
         message : str
             The commit message.
+        branch:
+            The remote branch name to commit to 
         """
-        self._repo.commit(branch_name, message)
+        self._repo.commit(branch, message)
 
-    def log(self, branch_name_or_commit_id: str = "main"):
+    def log(self, revision: str = "main"):
         """
-        Get the commit history for a remote repo.
+        Get the commit history for a remote repo
+
+        Parameters
+        ----------
+        revision: str
+            The branch name or commit id to get history from
         """
-        return self._repo.log(branch_name_or_commit_id)
+        return self._repo.log(revision)
 
     def list_branches(self):
         """
         List all branches for a remote repo
         """
         return self._repo.list_branches()
-    
-    def get_branch(self, branch_name: str):
+
+    def get_branch(self, branch: str):
         """
-        Return a branch by name on this repo
+        Return a branch by name if it exists
+
+        Parameters
+        ----------
+        branch: str
+            The branch name to get   
         """
-        return self._repo.get_branch(branch_name)
-    
-    def create_or_get_branch(self, new_name: str, from_name: str = "main"):
+        return self._repo.get_branch(branch)
+
+    def create_branch(self, new_branch: str, from_branch: str = "main"):
         """
-        Return a branch by name on this repo, creating it from a specified existing branch if it doesn't exist
+        Return a branch by name on this repo, 
+        creating it from a specified existing branch if it doesn't exist
+
+        Parameters
+        ----------
+        new_branch: str
+            The name to assign to the created branch 
+        from_branch: str
+            The name of the branch to branch the new branch off of
         """
-        return self._repo.create_or_get_branch(new_name, from_name)
+        return self._repo.create_branch(new_branch, from_branch)
