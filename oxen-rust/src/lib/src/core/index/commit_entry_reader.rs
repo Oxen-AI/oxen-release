@@ -75,6 +75,7 @@ impl CommitEntryReader {
     }
 
     pub fn list_committed_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
+        log::debug!("CommitEntryReader::list_committed_dirs()");
         path_db::list_paths(&self.dir_db, Path::new(""))
     }
 
@@ -149,14 +150,19 @@ impl CommitEntryReader {
     }
 
     pub fn list_directory(&self, dir: &Path) -> Result<Vec<CommitEntry>, OxenError> {
+        log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
         let mut entries = vec![];
         // This lists all the committed dirs
         let dirs = self.list_committed_dirs()?;
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
+            // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
             if committed_dir.starts_with(dir) {
-                let entry_reader =
-                    CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, dir)?;
+                let entry_reader = CommitDirEntryReader::new_from_path(
+                    &self.base_path,
+                    &self.commit_id,
+                    &committed_dir,
+                )?;
                 let mut dir_entries = entry_reader.list_entries()?;
                 entries.append(&mut dir_entries);
             }
