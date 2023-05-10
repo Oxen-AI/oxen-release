@@ -52,6 +52,9 @@ pub enum OxenError {
     PathDoesNotExist(Box<PathBufError>),
     ParsedResourceNotFound(Box<PathBufError>),
 
+    // Entry
+    CommitEntryNotFound(StringError),
+
     // Schema
     InvalidSchema(Box<Schema>),
 
@@ -259,16 +262,16 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
+    pub fn entry_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
         path: P,
         commit_id: S,
     ) -> OxenError {
         let err = format!(
-            "File {:?} does not exist in commit {}",
+            "Entry {:?} does not exist in commit {}",
             path.as_ref(),
             commit_id.as_ref()
         );
-        OxenError::basic_str(err)
+        OxenError::CommitEntryNotFound(err.into())
     }
 
     pub fn file_has_no_parent<T: AsRef<Path>>(path: T) -> OxenError {
@@ -276,7 +279,7 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_has_no_file_name<T: AsRef<Path>>(path: T) -> OxenError {
+    pub fn file_has_no_name<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File has no file_name: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }

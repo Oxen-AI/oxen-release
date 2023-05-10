@@ -45,13 +45,13 @@ pub fn get_version_file_from_commit(
     let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
-        None => return Err(OxenError::file_has_no_file_name(path)),
+        None => return Err(OxenError::file_has_no_name(path)),
     };
 
     // Get entry from the reader
     let entry = match commit_entry_reader.get_entry(file_name) {
         Ok(Some(entry)) => entry,
-        _ => return Err(OxenError::file_does_not_exist_in_commit(path, &commit.id)),
+        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, &commit.id)),
     };
 
     Ok(util::fs::version_path(repo, &entry))
