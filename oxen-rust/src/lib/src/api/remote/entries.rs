@@ -73,11 +73,10 @@ pub async fn download_dir(
         .await?;
     // Read the entries from the cache commit db
     let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision)?;
-    let entries = commit_reader.list_directory(Path::new(&entry.filename))?;
+    let entries =
+        commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 
-    // TODO:
-    // * Progress bar downloading entries
-    // * Option to unpack to current dir
+    // Pull all the entries
     puller::pull_entries(remote_repo, &entries, local_path, &|| {
         log::debug!("Pull entries complete.")
     })
@@ -131,9 +130,17 @@ pub async fn download_small_entry(
     if reqwest::StatusCode::OK == status {
         // Copy to file
         let dest = dest.as_ref();
-        let mut dest = { fs::File::create(dest)? };
+        // Create parent directories if they don't exist
+        if let Some(parent) = dest.parent() {
+            if !parent.exists() {
+                util::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let mut dest_file = { util::fs::file_create(dest)? };
         let mut content = Cursor::new(response.bytes().await?);
-        std::io::copy(&mut content, &mut dest)?;
+
+        std::io::copy(&mut content, &mut dest_file)?;
         Ok(())
     } else {
         let err = format!("Could not download entry status: {status}");
@@ -317,6 +324,7 @@ async fn download_entry_chunk(
 
     let status = response.status();
     if reqwest::StatusCode::OK == status {
+        // TODO: replace these with util::fs:: file functions for better error messages
         // Copy to file
         let mut dest = { fs::File::create(local_path)? };
         let mut content = Cursor::new(response.bytes().await?);
@@ -396,9 +404,9 @@ pub async fn try_download_data_from_version_paths(
         // Iterate over archive entries and unpack them to their entry paths
         let mut entries = archive.entries()?;
         while let Some(file) = entries.next().await {
-            let version = &content_ids[idx];
+            // let version = &content_ids[idx];
             let entry_path = &content_ids[idx].1;
-            log::debug!("Unpacking {:?} -> {:?}", version, entry_path);
+            // log::debug!("Unpacking {:?} -> {:?}", version, entry_path);
 
             let full_path = dst.join(entry_path);
 
@@ -416,10 +424,10 @@ pub async fn try_download_data_from_version_paths(
                 }
             }
 
-            log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
+            // log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
             match file.unpack(&full_path).await {
                 Ok(_) => {
-                    log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
+                    // log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
                 }
                 Err(err) => {
                     let err = format!("Could not unpack file {:?} -> {:?}", entry_path, err);
@@ -430,7 +438,7 @@ pub async fn try_download_data_from_version_paths(
             let metadata = util::fs::metadata(&full_path)?;
             size += metadata.len();
             idx += 1;
-            log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
+            // log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
         }
 
         Ok(size)
@@ -449,16 +457,19 @@ mod tests {
     use crate::error::OxenError;
     use crate::test;
 
+    use std::path::Path;
+
     #[tokio::test]
     async fn test_get_file_entry() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let path = "README.md";
+            let path = Path::new("annotations").join("README.md");
             let revision = DEFAULT_BRANCH_NAME;
             let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
 
-            assert_eq!(entry.filename, path);
+            assert_eq!(entry.filename, "README.md");
             assert!(!entry.is_dir);
             assert_eq!(entry.datatype, "markdown");
+            assert_eq!(entry.resource.unwrap().path, "annotations/README.md");
 
             Ok(remote_repo)
         })
@@ -476,6 +487,92 @@ mod tests {
             assert!(entry.is_dir);
             assert_eq!(entry.datatype, "dir");
             assert!(entry.size > 0);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_file_large() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let remote_path = Path::new("large_files").join("test.csv");
+            let local_path = local_repo.path.join("data.csv");
+            let revision = DEFAULT_BRANCH_NAME;
+            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
+                .await?;
+
+            assert!(local_path.exists());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_file_large_different_dir() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let remote_path = Path::new("large_files").join("test.csv");
+            let local_path = local_repo.path.join("train_data").join("data.csv");
+            let revision = DEFAULT_BRANCH_NAME;
+            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
+                .await?;
+
+            assert!(local_path.exists());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_file_entry_same_name() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let remote_path = Path::new("annotations").join("README.md");
+            let local_path = local_repo.path.join("annotations").join("README.md");
+            let revision = DEFAULT_BRANCH_NAME;
+            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
+                .await?;
+
+            assert!(local_path.exists());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_file_entry_different_dir() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let remote_path = Path::new("annotations").join("README.md");
+            let local_path = local_repo.path.join("different").join("README.md");
+            let revision = DEFAULT_BRANCH_NAME;
+            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
+                .await?;
+
+            assert!(local_path.exists());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_dir_different_dir() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let remote_path = Path::new("annotations");
+            let local_path = local_repo.path.join("data");
+            let revision = DEFAULT_BRANCH_NAME;
+            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
+                .await?;
+
+            assert!(local_path.exists());
+            assert!(local_path.join("annotations").join("README.md").exists());
+            assert!(local_path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv")
+                .exists());
 
             Ok(remote_repo)
         })
