@@ -102,6 +102,12 @@ impl error::ResponseError for OxenHttpError {
                             commit_id
                         )))
                     }
+                    OxenError::CommitEntryNotFound(msg) => {
+                        log::warn!("{msg}");
+
+                        HttpResponse::NotFound()
+                            .json(StatusMessageDescription::not_found(format!("{msg}")))
+                    }
                     OxenError::InvalidSchema(schema) => {
                         log::error!("Invalid schema: {}", schema);
 

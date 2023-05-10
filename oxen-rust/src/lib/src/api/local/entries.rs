@@ -26,10 +26,11 @@ pub fn get_dir_entry(
         dir_entry_from_dir(repo, commit, path, &commit_reader, &commit.id)
     } else {
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
+        let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
         let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent)?;
         let entry = dir_entry_reader
-            .get_entry(path)?
-            .ok_or(OxenError::file_does_not_exist_in_commit(path, &commit.id))?;
+            .get_entry(base_name)?
+            .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
         dir_entry_from_commit_entry(repo, &entry, &commit_reader, &commit.id)
     }
 }
@@ -296,6 +297,21 @@ mod tests {
 
             let count = api::local::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_get_dir_entry() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = api::local::commits::list(&repo)?;
+            let commit = commits.first().unwrap();
+
+            let path = test::test_nlp_classification_csv();
+            let entry = api::local::entries::get_dir_entry(&repo, commit, path)?;
+
+            assert!(!entry.is_dir);
 
             Ok(())
         })

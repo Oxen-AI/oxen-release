@@ -72,7 +72,7 @@ pub fn delete_mod_from_path(
                 Err(e)
             }
         },
-        None => Err(OxenError::file_does_not_exist_in_commit(
+        None => Err(OxenError::entry_does_not_exist_in_commit(
             file_path, &commit.id,
         )),
     }
