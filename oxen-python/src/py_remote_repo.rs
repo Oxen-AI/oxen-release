@@ -124,6 +124,13 @@ impl PyRemoteRepo {
         Ok(())
     }
 
+    fn remove(&self, branch_name: String, path: PathBuf) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { api::remote::staging::rm_staged_file(&self.repo, &branch_name, &user_id, path).await})?;
+        Ok(())
+    }
+
     fn commit(&self, branch_name: String, message: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         let user = UserConfig::get()?.to_user();
@@ -188,24 +195,7 @@ impl PyRemoteRepo {
         }
     }
 
-    fn create_or_get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
-        log::info!("Create or get branch... {branch_name}");
-
-        let branch = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            log::info!("From repo...{}", self.repo.remote.url);
-            api::remote::branches::create_or_get(&self.repo, &branch_name).await
-        });
-
-        match branch {
-            Ok(branch) => Ok(PyBranch {
-                name: branch.name,
-                commit_id: branch.commit_id
-            }),
-            _ => Err(PyValueError::new_err("could not get / create branch"))
-        }
-    }
-
-    fn create_from_or_get_branch(&self, new_name: String, from_name: String) -> PyResult<PyBranch> {
+    fn create_or_get_branch(&self, new_name: String, from_name: String) -> PyResult<PyBranch> {
         log::info!("create from or get branch... {new_name} from {from_name}");
         log::info!("From repo... {}", self.repo.remote.url);
         let branch = pyo3_asyncio::tokio::get_runtime().block_on(async {
