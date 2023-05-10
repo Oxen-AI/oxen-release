@@ -1,7 +1,7 @@
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::db::path_db;
-use crate::core::index::{CommitDirEntryWriter, RefReader, RefWriter, SchemaWriter};
+use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::schema::Schema;
 use crate::model::{
@@ -47,7 +47,11 @@ impl CommitEntryWriter {
         log::debug!("CommitEntryWriter::new() commit_id: {}", commit.id);
         let db_path = CommitEntryWriter::commit_dir_db(&repository.path, &commit.id);
         if !db_path.exists() {
-            CommitEntryWriter::create_db_dir_for_commit_id(repository, &commit.id)?;
+            CommitEntryWriter::create_db_dir_for_commit_id(
+                repository,
+                &commit.id,
+                commit.parent_ids.get(0),
+            )?;
         }
 
         let opts = db::opts::default();
@@ -61,16 +65,17 @@ impl CommitEntryWriter {
     fn create_db_dir_for_commit_id(
         repo: &LocalRepository,
         commit_id: &str,
+        parent_id: Option<&String>,
     ) -> Result<PathBuf, OxenError> {
         // either copy over parent db as a starting point, or start new
-        match CommitEntryWriter::head_commit_id(repo) {
-            Ok(Some(parent_id)) => {
+        match parent_id {
+            Some(parent_id) => {
                 log::debug!(
                     "CommitEntryWriter::create_db_dir_for_commit_id have parent_id {}",
                     parent_id
                 );
                 // We have a parent, we have to copy over last db, and continue
-                let parent_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, &parent_id);
+                let parent_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, parent_id);
                 let current_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, commit_id);
                 log::debug!(
                     "COPY DB from {:?} => {:?}",
@@ -102,11 +107,6 @@ impl CommitEntryWriter {
                 Ok(commit_db_path)
             }
         }
-    }
-
-    fn head_commit_id(repo: &LocalRepository) -> Result<Option<String>, OxenError> {
-        let ref_reader = RefReader::new(repo)?;
-        ref_reader.head_commit_id()
     }
 
     pub fn set_file_timestamps(
@@ -324,7 +324,14 @@ impl CommitEntryWriter {
             }
             StagedEntryStatus::Added => {
                 match self.add_staged_entry_to_db(writer, commit, entry, origin_path, path) {
-                    Ok(_) => {}
+                    Ok(_) => {
+                        log::debug!(
+                            "DELETE ME Added file: {:?} to commit {:?} at origin path {:?}",
+                            entry,
+                            commit,
+                            origin_path
+                        )
+                    }
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
                         panic!("{}", err)

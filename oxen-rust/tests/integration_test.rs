@@ -1,13 +1,16 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::config::UserConfig;
 use liboxen::constants;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::core::df::tabular;
 use liboxen::core::index::CommitDirReader;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
+use liboxen::model::CommitBody;
 use liboxen::model::ContentType;
 use liboxen::model::StagedEntryStatus;
+use liboxen::model::User;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
 use liboxen::opts::PaginateOpts;
@@ -3813,6 +3816,82 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
         assert_eq!(paginated.total_pages, 1);
 
         Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_commit_behind_main() -> Result<(), OxenError> {
+    test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        // Create branch behind-main off main
+        let new_branch = "behind-main";
+        let main_branch = "main";
+
+        let main_path = "images/folder";
+        let identifier = UserConfig::identifier()?;
+
+        api::remote::branches::create_from_or_get(&remote_repo, new_branch, main_branch).await?;
+        // assert_eq!(branch.name, branch_name);
+
+        // Advance head on main branch, leave behind-main behind
+        let path = test::test_jpeg_file().to_path_buf();
+        let result =
+            api::remote::staging::add_file(&remote_repo, main_branch, &identifier, main_path, path)
+                .await;
+        assert!(result.is_ok());
+
+        let body = CommitBody {
+            message: "Add to main".to_string(),
+            user: User {
+                name: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            },
+        };
+
+        api::remote::staging::commit_staged(&remote_repo, main_branch, &identifier, &body).await?;
+
+        // Make an EMPTY commit to behind-main
+        let body = CommitBody {
+            message: "Add behind main".to_string(),
+            user: User {
+                name: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            },
+        };
+        let _commit =
+            api::remote::staging::commit_staged(&remote_repo, new_branch, &identifier, &body)
+                .await?;
+
+        // Add file at images/folder to behind-main, committed to main
+        let image_path = test::test_jpeg_file().to_path_buf();
+        let result = api::remote::staging::add_file(
+            &remote_repo,
+            new_branch,
+            &identifier,
+            main_path,
+            image_path,
+        )
+        .await;
+        assert!(result.is_ok());
+
+        // Check status: if valid, there should be an entry here for the file at images/folder
+        let page_num = constants::DEFAULT_PAGE_NUM;
+        let page_size = constants::DEFAULT_PAGE_SIZE;
+        let path = Path::new("");
+        let entries = api::remote::staging::status(
+            &remote_repo,
+            new_branch,
+            &identifier,
+            path,
+            page_num,
+            page_size,
+        )
+        .await?;
+
+        assert_eq!(entries.added_files.entries.len(), 1);
+        assert_eq!(entries.added_files.total_entries, 1);
+
+        Ok(remote_repo)
     })
     .await
 }
