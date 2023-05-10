@@ -27,7 +27,11 @@ pub async fn pull_entries(
 
     let missing_entries = get_missing_commit_entries(entries, &dst);
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
-    println!("Total size {}", ByteSize::b(total_size));
+    println!(
+        "Downloading {} entries with size {}",
+        missing_entries.len(),
+        ByteSize::b(total_size)
+    );
 
     // Some files may be much larger than others....so we can't just download them within a single body
     // Hence we chunk and send the big ones, and bundle and download the small ones
@@ -151,7 +155,7 @@ async fn pull_large_entries(
                     &download_path, // local path to download to
                     &entry.commit_id,
                     entry.num_bytes,
-                    &bar,
+                    bar,
                 )
                 .await
                 {

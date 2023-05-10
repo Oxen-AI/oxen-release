@@ -4,7 +4,6 @@
 //!
 
 use std::path::Path;
-use std::sync::Arc;
 
 use crate::api;
 use crate::error::OxenError;
@@ -16,13 +15,11 @@ pub async fn download(
     local_path: impl AsRef<Path>,
     committish: impl AsRef<str>,
 ) -> Result<(), OxenError> {
-    let bar = Arc::new(indicatif::ProgressBar::new_spinner());
     api::remote::entries::download_entry(
         repo,
         remote_path.as_ref(),
         local_path.as_ref(),
         committish.as_ref(),
-        &bar,
     )
     .await
 }

@@ -48,13 +48,12 @@ pub async fn download_entry(
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-    bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let entry = get_entry(remote_repo, &remote_path, &revision).await?;
     if entry.is_dir {
-        download_dir(remote_repo, &entry, local_path, bar).await
+        download_dir(remote_repo, &entry, local_path).await
     } else {
-        download_file(remote_repo, &entry, remote_path, local_path, revision, bar).await
+        download_file(remote_repo, &entry, remote_path, local_path, revision).await
     }
 }
 
@@ -62,36 +61,27 @@ pub async fn download_dir(
     remote_repo: &RemoteRepository,
     entry: &DirEntry,
     local_path: impl AsRef<Path>,
-    bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    // TODO:
-    // * It would be more efficient to download a subset of the history dbs
-    //   that is just for this dir but start with simple version first
-    //
-    let commit_id = &entry.resource.as_ref().unwrap().version;
-    // TODO:
-    // * This unpacks history and everything to local path
-    //   we want to unpack version dirs to proper location...
-    // * Think through behavior of downloading from python vs CLI
-    //   I think python should download to ~/.oxen/repos/<namespace>/<repo_name>/.oxen/...
-    //   I think rust --shallow should download to current dir and not duplicate to version dir 🤔
-    // * Progress bar downloading commit db
-
+    // Download the commit db for the given commit id or branch
+    let revision = &entry.resource.as_ref().unwrap().version;
     let home_dir = util::fs::oxen_home_dir()?;
     let repo_dir = home_dir
         .join(&remote_repo.namespace)
         .join(&remote_repo.name);
     let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-    api::remote::commits::download_commit_db_to_path(remote_repo, commit_id, &repo_cache_dir)
+    api::remote::commits::download_commit_db_to_path(remote_repo, revision, &repo_cache_dir)
         .await?;
     // Read the entries from the cache commit db
-    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, commit_id)?;
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision)?;
     let entries = commit_reader.list_directory(Path::new(&entry.filename))?;
 
     // TODO:
     // * Progress bar downloading entries
     // * Option to unpack to current dir
-    puller::pull_entries(remote_repo, &entries, local_path, &|| bar.finish()).await?;
+    puller::pull_entries(remote_repo, &entries, local_path, &|| {
+        log::debug!("Pull entries complete.")
+    })
+    .await?;
 
     Ok(())
 }
@@ -102,9 +92,9 @@ pub async fn download_file(
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-    bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     if entry.size > AVG_CHUNK_SIZE {
+        let bar = Arc::new(ProgressBar::new(entry.size));
         download_large_entry(
             remote_repo,
             &remote_path,
@@ -158,7 +148,7 @@ pub async fn download_large_entry(
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
     num_bytes: u64,
-    bar: &Arc<ProgressBar>,
+    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     // Read chunks
     let chunk_size = AVG_CHUNK_SIZE;
@@ -195,6 +185,8 @@ pub async fn download_large_entry(
 
         bar.inc(chunk_size);
     }
+
+    bar.finish();
 
     // Once all downloaded, recombine file and delete temp dir
     log::debug!("Unpack to {:?}", local_path);
