@@ -12,7 +12,7 @@ use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 
-use super::CommitDirReader;
+use super::CommitEntryReader;
 use super::Stager;
 
 use pluralizer::pluralize;
@@ -100,13 +100,13 @@ fn dir_is_staged(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError>
 
 fn dir_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
     let commit = api::local::commits::head_commit(repo)?;
-    let commit_reader = CommitDirReader::new(repo, &commit)?;
+    let commit_reader = CommitEntryReader::new(repo, &commit)?;
     Ok(commit_reader.has_dir(path))
 }
 
 fn file_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
     let commit = api::local::commits::head_commit(repo)?;
-    let commit_reader = CommitDirReader::new(repo, &commit)?;
+    let commit_reader = CommitEntryReader::new(repo, &commit)?;
     Ok(commit_reader.has_file(path))
 }
 

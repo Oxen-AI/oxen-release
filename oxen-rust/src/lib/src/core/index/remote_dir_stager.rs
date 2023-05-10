@@ -8,7 +8,7 @@ use crate::api;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core::index;
-use crate::core::index::CommitDirReader;
+use crate::core::index::CommitEntryReader;
 use crate::core::index::Stager;
 use crate::error::OxenError;
 use crate::model::Branch;
@@ -146,7 +146,7 @@ pub fn stage_file(
     let stager = Stager::new(branch_repo)?;
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-    let reader = CommitDirReader::new(repo, &commit)?;
+    let reader = CommitEntryReader::new(repo, &commit)?;
     stager.add_file(filepath.as_ref(), &reader)?;
 
     log::debug!("remote stager after add...");
@@ -170,7 +170,7 @@ pub fn delete_file(branch_repo: &LocalRepository, filepath: &Path) -> Result<(),
         Ok(_) => Ok(()),
         Err(e) => {
             log::error!("Error deleting file {full_path:?} -> {e:?}");
-            Err(OxenError::file_does_not_exist(full_path))
+            Err(OxenError::entry_does_not_exist(full_path))
         }
     }
 }
@@ -227,7 +227,7 @@ fn status_for_branch(
     let stager = Stager::new(branch_repo)?;
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-    let reader = CommitDirReader::new(repo, &commit)?;
+    let reader = CommitEntryReader::new(repo, &commit)?;
     let status = stager.status(&reader)?;
     status.print_stdout();
 
@@ -252,7 +252,7 @@ pub fn list_staged_data(
     );
     match api::local::commits::get_by_id(repo, &branch.commit_id)? {
         Some(commit) => {
-            let reader = CommitDirReader::new(repo, &commit)?;
+            let reader = CommitEntryReader::new(repo, &commit)?;
             if Path::new(".") == directory {
                 log::debug!("list_staged_data: status for root");
                 let mut status = stager.status(&reader)?;

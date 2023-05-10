@@ -84,7 +84,7 @@ pub async fn diff_file(
     );
 
     let entry =
-        api::local::entries::get_entry_for_commit(&repo, &resource.commit, &resource.file_path)?
+        api::local::entries::get_commit_entry(&repo, &resource.commit, &resource.file_path)?
             .ok_or(OxenHttpError::NotFound)?;
 
     Ok(df_mods_response(
@@ -177,8 +177,8 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         OxenError::committish_not_found(branch.commit_id.to_owned().into()),
     )?;
 
-    let entry = api::local::entries::get_entry_for_commit(&repo, &commit, &resource.file_path)?
-        .ok_or(OxenError::file_does_not_exist(resource.file_path))?;
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path))?;
 
     let new_mod = NewMod {
         content_type,

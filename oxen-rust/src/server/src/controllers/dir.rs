@@ -28,7 +28,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, branch_or_commit_id, filepath))) =
+            if let Ok(Some((commit_id, revision, filepath))) =
                 api::local::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
@@ -37,12 +37,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
                     filepath
                 );
                 match list_directory_for_commit(
-                    &repo,
-                    &commit_id,
-                    &branch_or_commit_id,
-                    &filepath,
-                    page,
-                    page_size,
+                    &repo, &commit_id, &revision, &filepath, page, page_size,
                 ) {
                     Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
                     Err(status_message) => HttpResponse::InternalServerError().json(status_message),
@@ -66,7 +61,7 @@ pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpRespo
 fn list_directory_for_commit(
     repo: &LocalRepository,
     commit_id: &str,
-    branch_or_commit_id: &str,
+    revision: &str,
     directory: &Path,
     page: usize,
     page_size: usize,
@@ -79,12 +74,7 @@ fn list_directory_for_commit(
                 commit.message
             );
             match api::local::entries::list_directory(
-                repo,
-                &commit,
-                branch_or_commit_id,
-                directory,
-                &page,
-                &page_size,
+                repo, &commit, directory, revision, page, page_size,
             ) {
                 Ok(paginated_entries) => {
                     log::debug!(

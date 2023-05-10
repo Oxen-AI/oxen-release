@@ -48,6 +48,7 @@ pub enum OxenError {
     NothingToCommit(StringError),
 
     // Resources (paths, uris, etc.)
+    ResourceNotFound(StringError),
     PathDoesNotExist(Box<PathBufError>),
     ParsedResourceNotFound(Box<PathBufError>),
 
@@ -101,6 +102,10 @@ impl OxenError {
         OxenError::RemoteRepoNotFound(Box::new(remote))
     }
 
+    pub fn resource_not_found(value: impl AsRef<str>) -> Self {
+        OxenError::ResourceNotFound(StringError::from(value.as_ref()))
+    }
+
     pub fn path_does_not_exist(path: PathBuf) -> Self {
         OxenError::PathDoesNotExist(Box::new(path.into()))
     }
@@ -140,6 +145,10 @@ impl OxenError {
 
     pub fn head_not_found() -> OxenError {
         OxenError::basic_str(HEAD_NOT_FOUND)
+    }
+
+    pub fn home_dir_not_found() -> OxenError {
+        OxenError::basic_str("Home directory not found")
     }
 
     pub fn must_be_on_valid_branch() -> OxenError {
@@ -201,13 +210,31 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
-        let err = format!("File does not exist: {:?}", path.as_ref());
+    pub fn entry_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("Entry does not exist: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn file_create_error<T: AsRef<Path>>(path: T) -> OxenError {
-        let err = format!("Could not create file: {:?}", path.as_ref());
+    pub fn file_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!("File does not exist: {:?} error {:?}", path.as_ref(), error);
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_create_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!(
+            "Could not create file: {:?} error {:?}",
+            path.as_ref(),
+            error
+        );
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_metadata_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!(
+            "Could not get file metadata: {:?} error {:?}",
+            path.as_ref(),
+            error
+        );
         OxenError::basic_str(err)
     }
 

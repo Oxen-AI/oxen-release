@@ -1,7 +1,8 @@
 use crate::api::remote::client;
-use crate::constants::AVG_CHUNK_SIZE;
+use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
+use crate::core::index::{puller, CommitEntryReader};
 use crate::error::OxenError;
-use crate::model::{DirEntry, LocalRepository, RemoteRepository};
+use crate::model::{DirEntry, RemoteRepository};
 use crate::view::EntryMetaDataResponse;
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -16,18 +17,19 @@ use indicatif::ProgressBar;
 use std::fs;
 use std::io::prelude::*;
 use std::io::Cursor;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Get a entry from the remote repository given a path and a branch or commit id
+/// Get a entry metadata from the remote repository
+/// given a path and a branch or commit id
 pub async fn get_entry(
     remote_repo: &RemoteRepository,
     path: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
 ) -> Result<DirEntry, OxenError> {
     let path = path.as_ref().to_string_lossy();
-    let committish = committish.as_ref();
-    let uri = format!("/entry/{}/{}", committish, path);
+    let revision = revision.as_ref();
+    let uri = format!("/entry/{}/{}", revision, path);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -45,22 +47,75 @@ pub async fn download_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    let entry = get_entry(remote_repo, &remote_path, &committish).await?;
+    let entry = get_entry(remote_repo, &remote_path, &revision).await?;
+    if entry.is_dir {
+        download_dir(remote_repo, &entry, local_path, bar).await
+    } else {
+        download_file(remote_repo, &entry, remote_path, local_path, revision, bar).await
+    }
+}
+
+pub async fn download_dir(
+    remote_repo: &RemoteRepository,
+    entry: &DirEntry,
+    local_path: impl AsRef<Path>,
+    bar: &Arc<ProgressBar>,
+) -> Result<(), OxenError> {
+    // TODO:
+    // * It would be more efficient to download a subset of the history dbs
+    //   that is just for this dir but start with simple version first
+    //
+    let commit_id = &entry.resource.as_ref().unwrap().version;
+    // TODO:
+    // * This unpacks history and everything to local path
+    //   we want to unpack version dirs to proper location...
+    // * Think through behavior of downloading from python vs CLI
+    //   I think python should download to ~/.oxen/repos/<namespace>/<repo_name>/.oxen/...
+    //   I think rust --shallow should download to current dir and not duplicate to version dir 🤔
+    // * Progress bar downloading commit db
+
+    let home_dir = util::fs::oxen_home_dir()?;
+    let repo_dir = home_dir
+        .join(&remote_repo.namespace)
+        .join(&remote_repo.name);
+    let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
+    api::remote::commits::download_commit_db_to_path(remote_repo, commit_id, &repo_cache_dir)
+        .await?;
+    // Read the entries from the cache commit db
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, commit_id)?;
+    let entries = commit_reader.list_directory(Path::new(&entry.filename))?;
+
+    // TODO:
+    // * Progress bar downloading entries
+    // * Option to unpack to current dir
+    puller::pull_entries(remote_repo, &entries, local_path, &|| bar.finish()).await?;
+
+    Ok(())
+}
+
+pub async fn download_file(
+    remote_repo: &RemoteRepository,
+    entry: &DirEntry,
+    remote_path: impl AsRef<Path>,
+    local_path: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    bar: &Arc<ProgressBar>,
+) -> Result<(), OxenError> {
     if entry.size > AVG_CHUNK_SIZE {
         download_large_entry(
             remote_repo,
             &remote_path,
             &local_path,
-            &committish,
+            &revision,
             entry.size,
             bar,
         )
         .await
     } else {
-        download_small_entry(remote_repo, remote_path, local_path, committish).await
+        download_small_entry(remote_repo, remote_path, local_path, revision).await
     }
 }
 
@@ -68,15 +123,19 @@ pub async fn download_small_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     dest: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     let path = remote_path.as_ref().to_string_lossy();
-    let committish = committish.as_ref();
-    let uri = format!("/file/{}/{}", committish, path);
+    let revision = revision.as_ref();
+    let uri = format!("/file/{}/{}", revision, path);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    let response = client.get(&url).send().await?;
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|_| OxenError::resource_not_found(&url))?;
 
     let status = response.status();
     if reqwest::StatusCode::OK == status {
@@ -92,16 +151,12 @@ pub async fn download_small_entry(
     }
 }
 
-/// Download a file from the remote repository that is too large
-/// to fit in a standard HTTP response body
-///
-/// Note: Does not do the check for if the file exists remotely before
-/// downloading for efficiency reasons
+/// Download a file from the remote repository in parallel chunks
 pub async fn download_large_entry(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
     num_bytes: u64,
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
@@ -132,7 +187,7 @@ pub async fn download_large_entry(
             remote_repo,
             &remote_path,
             &tmp_file, // local_path
-            &committish,
+            &revision,
             chunk_start,
             chunk_size,
         )
@@ -197,7 +252,7 @@ async fn try_download_entry_chunk(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
     chunk_start: u64,
     chunk_size: u64,
 ) -> Result<(), OxenError> {
@@ -207,7 +262,7 @@ async fn try_download_entry_chunk(
             remote_repo,
             &remote_path,
             &local_path,
-            &committish,
+            &revision,
             chunk_start,
             chunk_size,
         )
@@ -233,7 +288,7 @@ async fn download_entry_chunk(
     remote_repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
     chunk_start: u64,
     chunk_size: u64,
 ) -> Result<(), OxenError> {
@@ -248,7 +303,7 @@ async fn download_entry_chunk(
 
     let uri = format!(
         "/chunk/{}/{}?chunk_start={}&chunk_size={}",
-        committish.as_ref(),
+        revision.as_ref(),
         remote_path.to_string_lossy(),
         chunk_start,
         chunk_size
@@ -282,15 +337,15 @@ async fn download_entry_chunk(
 }
 
 pub async fn download_data_from_version_paths(
-    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    content_ids: &[String],
+    content_ids: &[(String, PathBuf)], // tuple of content id and entry path
+    dst: impl AsRef<Path>,
 ) -> Result<u64, OxenError> {
     let total_retries = constants::NUM_HTTP_RETRIES;
     let mut num_retries = 0;
 
     while num_retries < total_retries {
-        match try_download_data_from_version_paths(local_repo, remote_repo, content_ids).await {
+        match try_download_data_from_version_paths(remote_repo, content_ids, &dst).await {
             Ok(val) => return Ok(val),
             Err(OxenError::Authentication(val)) => return Err(OxenError::Authentication(val)),
             Err(err) => {
@@ -316,12 +371,13 @@ pub async fn download_data_from_version_paths(
 }
 
 pub async fn try_download_data_from_version_paths(
-    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    content_ids: &[String],
+    content_ids: &[(String, PathBuf)], // tuple of content id and entry path
+    dst: impl AsRef<Path>,
 ) -> Result<u64, OxenError> {
+    let dst = dst.as_ref();
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    for content_id in content_ids.iter() {
+    for (content_id, _) in content_ids.iter() {
         let line = format!("{content_id}\n");
         encoder.write_all(line.as_bytes())?;
     }
@@ -344,25 +400,45 @@ pub async fn try_download_data_from_version_paths(
         let archive = Archive::new(decoder);
 
         let mut size: u64 = 0;
-        // For debug if you want to see each file we are unpacking...
+        let mut idx: usize = 0;
+        // Iterate over archive entries and unpack them to their entry paths
         let mut entries = archive.entries()?;
         while let Some(file) = entries.next().await {
-            let mut file = file?;
-            let path = file.path()?.to_path_buf();
+            let version = &content_ids[idx];
+            let entry_path = &content_ids[idx].1;
+            log::debug!("Unpacking {:?} -> {:?}", version, entry_path);
 
-            let fullpath = local_repo.path.join(&path);
-            if let Some(parent) = fullpath.parent() {
+            let full_path = dst.join(entry_path);
+
+            let mut file = match file {
+                Ok(file) => file,
+                Err(err) => {
+                    let err = format!("Could not unwrap file {:?} -> {:?}", entry_path, err);
+                    return Err(OxenError::basic_str(err));
+                }
+            };
+
+            if let Some(parent) = full_path.parent() {
                 if !parent.exists() {
-                    std::fs::create_dir_all(parent)?;
+                    util::fs::create_dir_all(parent)?;
                 }
             }
 
-            // log::debug!("Unpacking into path {:?}", path);
-            file.unpack_in(&local_repo.path).await?;
+            log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
+            match file.unpack(&full_path).await {
+                Ok(_) => {
+                    log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
+                }
+                Err(err) => {
+                    let err = format!("Could not unpack file {:?} -> {:?}", entry_path, err);
+                    return Err(OxenError::basic_str(err));
+                }
+            }
 
-            let metadata = std::fs::metadata(&fullpath)?;
+            let metadata = util::fs::metadata(&full_path)?;
             size += metadata.len();
-            log::debug!("Unpacking {} bytes {:?}", metadata.len(), path);
+            idx += 1;
+            log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
         }
 
         Ok(size)
@@ -377,17 +453,37 @@ pub async fn try_download_data_from_version_paths(
 mod tests {
 
     use crate::api;
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::test;
 
     #[tokio::test]
-    async fn test_get_dir_entry() -> Result<(), OxenError> {
+    async fn test_get_file_entry() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = "README.md";
-            let committish = "main";
-            let entry = api::remote::entries::get_entry(&remote_repo, path, committish).await?;
+            let revision = DEFAULT_BRANCH_NAME;
+            let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
 
-            assert_eq!(entry.filename, "README.md");
+            assert_eq!(entry.filename, path);
+            assert!(!entry.is_dir);
+            assert_eq!(entry.datatype, "markdown");
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_dir_entry() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let path = "train";
+            let revision = DEFAULT_BRANCH_NAME;
+            let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
+
+            assert_eq!(entry.filename, path);
+            assert!(entry.is_dir);
+            assert_eq!(entry.datatype, "dir");
+            assert!(entry.size > 0);
 
             Ok(remote_repo)
         })
