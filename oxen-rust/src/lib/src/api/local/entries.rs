@@ -77,8 +77,9 @@ pub fn dir_entry_from_dir(
         }
     }
 
+    let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
     return Ok(DirEntry {
-        filename: String::from(path.to_string_lossy()),
+        filename: String::from(base_name.to_string_lossy()),
         is_dir: true,
         size: total_size,
         latest_commit,
@@ -99,9 +100,13 @@ pub fn dir_entry_from_commit_entry(
     let size = util::fs::version_file_size(repo, entry)?;
     let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
 
+    let base_name = entry
+        .path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(&entry.path))?;
     let version_path = util::fs::version_path(repo, entry);
     return Ok(DirEntry {
-        filename: String::from(entry.path.to_string_lossy()),
+        filename: String::from(base_name.to_string_lossy()),
         is_dir: false,
         size,
         latest_commit: Some(latest_commit),
@@ -303,7 +308,24 @@ mod tests {
     }
 
     #[test]
-    fn test_get_dir_entry() -> Result<(), OxenError> {
+    fn test_get_dir_entry_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let commits = api::local::commits::list(&repo)?;
+            let commit = commits.first().unwrap();
+
+            let path = Path::new("annotations").join("train");
+            let entry = api::local::entries::get_dir_entry(&repo, commit, &path)?;
+
+            assert!(entry.is_dir);
+            assert_eq!(entry.filename, "train");
+            assert_eq!(Path::new(&entry.resource.unwrap().path), path);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_get_dir_entry_file() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
@@ -312,6 +334,11 @@ mod tests {
             let entry = api::local::entries::get_dir_entry(&repo, commit, path)?;
 
             assert!(!entry.is_dir);
+            assert_eq!(entry.filename, "test.tsv");
+            assert_eq!(
+                Path::new(&entry.resource.unwrap().path),
+                test::test_nlp_classification_csv()
+            );
 
             Ok(())
         })
