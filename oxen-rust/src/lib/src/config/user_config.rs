@@ -77,23 +77,19 @@ impl UserConfig {
     }
 
     pub fn get() -> Result<UserConfig, OxenError> {
-        if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
-            let mut config_file = oxen_dir.join(Path::new(USER_CONFIG_FILENAME));
-            if std::env::var("TEST").is_ok() {
-                config_file = PathBuf::from("data/test/config/user_config.toml");
-            }
-            if config_file.exists() {
-                Ok(UserConfig::new(&config_file))
-            } else {
-                log::debug!(
-                    "unable to find config file at {:?}. Current working directory is {:?}",
-                    config_file,
-                    std::env::current_dir().unwrap()
-                );
-                Err(OxenError::email_and_name_not_set())
-            }
+        let home_dir = util::fs::oxen_home_dir()?;
+        let mut config_file = home_dir.join(Path::new(USER_CONFIG_FILENAME));
+        if std::env::var("TEST").is_ok() {
+            config_file = PathBuf::from("data/test/config/user_config.toml");
+        }
+        if config_file.exists() {
+            Ok(UserConfig::new(&config_file))
         } else {
+            log::debug!(
+                "unable to find config file at {:?}. Current working directory is {:?}",
+                config_file,
+                std::env::current_dir().unwrap()
+            );
             Err(OxenError::email_and_name_not_set())
         }
     }
@@ -116,7 +112,7 @@ impl UserConfig {
 
     pub fn save_default(&self) -> Result<(), OxenError> {
         if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = util::fs::oxen_hidden_dir(&home_dir);
+            let oxen_dir = util::fs::oxen_hidden_dir(home_dir);
 
             fs::create_dir_all(&oxen_dir)?;
             let config_file = oxen_dir.join(Path::new(USER_CONFIG_FILENAME));

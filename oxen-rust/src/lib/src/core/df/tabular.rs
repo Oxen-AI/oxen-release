@@ -605,7 +605,7 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
 pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
-        return Err(OxenError::file_does_not_exist(path));
+        return Err(OxenError::entry_does_not_exist(path));
     }
 
     let extension = path.extension().and_then(OsStr::to_str);

@@ -288,6 +288,7 @@ fn p_index_commit_or_branch_history(
     Ok(ListCommitResponse::success(commits))
 }
 
+// TODO: cleanup, and allow for downloading of sub-dirs
 pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
@@ -333,6 +334,7 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     }
 }
 
+// Allow downloading of sub-dirs for efficiency
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
     // zip up the rocksdb in history dir, and post to server
@@ -342,7 +344,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     // This will be the subdir within the tarball
     let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
 
-    log::debug!("Compressing commit {}", commit.id);
+    log::debug!("Compressing commit {} from dir {:?}", commit.id, commit_dir);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
@@ -534,7 +536,7 @@ fn check_if_upload_complete_and_unpack(
 
     let mut uploaded_size: u64 = 0;
     for file in files.iter() {
-        match std::fs::metadata(file) {
+        match util::fs::metadata(file) {
             Ok(metadata) => {
                 uploaded_size += metadata.len();
             }

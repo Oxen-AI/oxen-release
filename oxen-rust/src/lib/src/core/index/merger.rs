@@ -2,7 +2,7 @@ use crate::api;
 use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db;
 use crate::core::index::{
-    oxenignore, CommitDirReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
+    oxenignore, CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
     RefWriter, Stager,
 };
 use crate::error::OxenError;
@@ -250,7 +250,7 @@ impl Merger {
         // Stage changes
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
-        let reader = CommitDirReader::new(repo, &commit)?;
+        let reader = CommitEntryReader::new(repo, &commit)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &ignore)?;
 
@@ -259,7 +259,7 @@ impl Merger {
         log::debug!("create_merge_commit {}", commit_msg);
 
         // Create a commit with both parents
-        let reader = CommitDirReader::new_from_head(repo)?;
+        let reader = CommitEntryReader::new_from_head(repo)?;
         let status = stager.status(&reader)?;
         let commit_writer = CommitWriter::new(repo)?;
         let parent_ids: Vec<String> = vec![
@@ -307,8 +307,8 @@ impl Merger {
         merge_commit: &Commit,
     ) -> Result<Commit, OxenError> {
         log::debug!("FF merge!");
-        let base_commit_entry_reader = CommitDirReader::new(&self.repository, base_commit)?;
-        let merge_commit_entry_reader = CommitDirReader::new(&self.repository, merge_commit)?;
+        let base_commit_entry_reader = CommitEntryReader::new(&self.repository, base_commit)?;
+        let merge_commit_entry_reader = CommitEntryReader::new(&self.repository, merge_commit)?;
 
         let base_entries = base_commit_entry_reader.list_entries_set()?;
         let merge_entries = merge_commit_entry_reader.list_entries_set()?;
@@ -431,9 +431,9 @@ impl Merger {
         let mut conflicts: Vec<MergeConflict> = vec![];
 
         // Read all the entries from each commit into sets we can compare to one another
-        let lca_entry_reader = CommitDirReader::new(&self.repository, &merge_commits.lca)?;
-        let base_entry_reader = CommitDirReader::new(&self.repository, &merge_commits.base)?;
-        let merge_entry_reader = CommitDirReader::new(&self.repository, &merge_commits.merge)?;
+        let lca_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.lca)?;
+        let base_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.base)?;
+        let merge_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.merge)?;
 
         let lca_entries = lca_entry_reader.list_entries_set()?;
         let base_entries = base_entry_reader.list_entries_set()?;

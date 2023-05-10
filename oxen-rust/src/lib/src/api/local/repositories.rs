@@ -1,6 +1,6 @@
 use crate::api;
 use crate::constants;
-use crate::core::index::{CommitDirReader, CommitWriter, RefWriter};
+use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
 use crate::model::DataTypeStat;
 use crate::model::RepoStats;
@@ -31,7 +31,7 @@ pub fn get_by_namespace_and_name(
 
 pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, OxenError> {
     let commit = api::local::commits::head_commit(repo)?;
-    let reader = CommitDirReader::new_from_head(repo)?;
+    let reader = CommitEntryReader::new_from_head(repo)?;
     Ok(CommitStats {
         commit,
         num_entries: reader.num_entries()?,
@@ -45,7 +45,7 @@ pub fn get_commit_stats_from_id(
 ) -> Result<Option<CommitStats>, OxenError> {
     match api::local::commits::get_by_id(repo, commit_id) {
         Ok(Some(commit)) => {
-            let reader = CommitDirReader::new(repo, &commit)?;
+            let reader = CommitEntryReader::new(repo, &commit)?;
             Ok(Some(CommitStats {
                 commit,
                 num_entries: reader.num_entries()?,

@@ -4,7 +4,7 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::df::tabular;
 use crate::core::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
-    CommitDirEntryWriter, CommitDirReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
+    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -176,7 +176,7 @@ impl CommitWriter {
 
         let entries = mod_stager::list_mod_entries(&self.repository, branch, user_id)?;
         let commit_entry_reader =
-            CommitDirReader::new_from_commit_id(&self.repository, &branch.commit_id)?;
+            CommitEntryReader::new_from_commit_id(&self.repository, &branch.commit_id)?;
         // TODO: this is not the most efficient, but easiest way right now
         //       might want to make helper for dir entry reader
         let entries: Vec<CommitEntry> = entries
@@ -485,8 +485,8 @@ impl CommitWriter {
         self.maybe_pull_missing_entries(&commit).await?;
 
         // Two readers, one for HEAD and one for this current commit
-        let head_entry_reader = CommitDirReader::new_from_head(&self.repository)?;
-        let commit_entry_reader = CommitDirReader::new(&self.repository, &commit)?;
+        let head_entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
+        let commit_entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
         let head_entries = head_entry_reader.list_files()?;
         log::debug!(
             "set_working_repo_to_commit_id got {} entries in commit",
@@ -756,7 +756,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::core::df;
     use crate::core::index::{
-        self, remote_dir_stager, CommitDBReader, CommitDirReader, CommitWriter,
+        self, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter,
     };
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::{ModType, NewMod};
@@ -783,7 +783,7 @@ mod tests {
         test::run_empty_stager_test(|stager, repo| {
             // Create committer with no commits
             let repo_path = &repo.path;
-            let entry_reader = CommitDirReader::new_from_head(&repo)?;
+            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
             let commit_writer = CommitWriter::new(&repo)?;
 
             let train_dir = repo_path.join("training_data");
@@ -836,7 +836,7 @@ mod tests {
 
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &path)?.unwrap();
+                api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
             let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
@@ -869,7 +869,7 @@ mod tests {
 
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &path)?.unwrap();
+                api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
             let append_contents = "{\"file\": \"images/test.jpg\", \"label\": \"dog\", \"min_x\": 2.0, \"min_y\": 3.0, \"width\": 100, \"height\": 120}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
@@ -889,7 +889,7 @@ mod tests {
             )?;
 
             // Make sure version file is updated
-            let entry = api::local::entries::get_entry_for_commit(&repo, &commit, &path)?.unwrap();
+            let entry = api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
             let version_file = util::fs::version_path(&repo, &entry);
 
             let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;

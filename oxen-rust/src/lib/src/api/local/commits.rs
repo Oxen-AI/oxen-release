@@ -4,7 +4,7 @@
 //!
 
 use crate::api;
-use crate::core::index::{CommitDirReader, CommitReader, CommitWriter, RefReader, Stager};
+use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
@@ -71,7 +71,7 @@ pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit
 }
 
 pub fn commit_content_size(repo: &LocalRepository, commit: &Commit) -> Result<u64, OxenError> {
-    let reader = CommitDirReader::new(repo, commit)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
     let entries = reader.list_entries()?;
     compute_entries_size(&entries)
 }

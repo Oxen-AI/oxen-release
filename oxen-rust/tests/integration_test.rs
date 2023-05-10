@@ -3,7 +3,7 @@ use liboxen::command;
 use liboxen::constants;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::core::df::tabular;
-use liboxen::core::index::CommitDirReader;
+use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
@@ -2009,7 +2009,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(commit_history_dir.exists());
 
                 // make sure we can successfully open the db and read entries
-                let reader = CommitDirReader::new(&cloned_repo, commit)?;
+                let reader = CommitEntryReader::new(&cloned_repo, commit)?;
                 let entries = reader.list_entries();
                 assert!(entries.is_ok());
             }
@@ -2031,7 +2031,7 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         let repo = command::init(dir)?;
         let commits = api::local::commits::list(&repo)?;
         let commit = commits.last().unwrap();
-        let reader = CommitDirReader::new(&repo, commit)?;
+        let reader = CommitEntryReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
 

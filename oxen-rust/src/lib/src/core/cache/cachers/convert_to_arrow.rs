@@ -1,5 +1,5 @@
 use crate::core::df::tabular;
-use crate::core::index::CommitDirReader;
+use crate::core::index::CommitEntryReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::opts::DFOpts;
@@ -7,7 +7,7 @@ use crate::util;
 
 pub fn convert_to_arrow(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
     log::debug!("running convert_to_arrow");
-    let commit_entry_reader = CommitDirReader::new(repo, commit)?;
+    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
 
     for entry in commit_entry_reader.list_entries()? {
         let version_path = util::fs::version_path(repo, &entry);
