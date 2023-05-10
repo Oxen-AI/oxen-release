@@ -324,14 +324,7 @@ impl CommitEntryWriter {
             }
             StagedEntryStatus::Added => {
                 match self.add_staged_entry_to_db(writer, commit, entry, origin_path, path) {
-                    Ok(_) => {
-                        log::debug!(
-                            "DELETE ME Added file: {:?} to commit {:?} at origin path {:?}",
-                            entry,
-                            commit,
-                            origin_path
-                        )
-                    }
+                    Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
                         panic!("{}", err)
