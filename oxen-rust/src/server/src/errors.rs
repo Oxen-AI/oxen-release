@@ -103,7 +103,7 @@ impl error::ResponseError for OxenHttpError {
                         )))
                     }
                     OxenError::CommitEntryNotFound(msg) => {
-                        log::warn!("{msg}");
+                        log::error!("{msg}");
 
                         HttpResponse::NotFound()
                             .json(StatusMessageDescription::not_found(format!("{msg}")))
