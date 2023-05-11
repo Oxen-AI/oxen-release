@@ -26,6 +26,20 @@ class RemoteRepo:
         return f"RemoteRepo({self._repo.url()})"
 
     @property
+    def namespace(self) -> str:
+        """
+        The namespace for the repo.
+        """
+        return self._repo.namespace()
+
+    @property
+    def name(self) -> str:
+        """
+        The name of the repo.
+        """
+        return self._repo.name()
+
+    @property
     def url(self) -> str:
         """
         The remote url for the repo.
@@ -37,7 +51,7 @@ class RemoteRepo:
         """
         The branch or commit id for the repo
         """
-        return self._repo.revision
+        return self._repo.revision()
 
     def create(self):
         """
@@ -58,7 +72,7 @@ class RemoteRepo:
         self._repo.delete()
 
     def download(
-        self, remote_path: str, local_path: str | None, revision: str | None = "main"
+        self, remote_path: str, local_path: str, revision: str | None = "main"
     ):
         """
         Download a file or directory from the remote repo.
@@ -67,14 +81,11 @@ class RemoteRepo:
         ----------
         remote_path : str
             The path to the remote file
-        local_path : str | None
-            The path to the local file. If None, will download to
-            the same path as remote_path
+        local_path : str
+            The path to the local file.
         revision : str | None
             The branch name or commit id to download from
         """
-        if local_path is None:
-            local_path = remote_path
         if revision is None:
             revision = self.revision
         self._repo.download(remote_path, local_path, revision)
