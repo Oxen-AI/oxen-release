@@ -13,7 +13,7 @@ use std::path::PathBuf;
 pub struct PyRemoteRepo {
     repo: RemoteRepository,
     host: String,
-    revision: String
+    revision: String,
 }
 
 #[pymethods]
@@ -42,7 +42,7 @@ impl PyRemoteRepo {
                 },
             },
             host,
-            revision
+            revision,
         })
     }
 
@@ -56,6 +56,10 @@ impl PyRemoteRepo {
 
     fn name(&self) -> &str {
         &self.repo.name
+    }
+
+    fn revision(&self) -> &str {
+        &self.revision
     }
 
     fn create(&mut self) -> Result<PyRemoteRepo, PyOxenError> {
@@ -73,7 +77,7 @@ impl PyRemoteRepo {
         Ok(PyRemoteRepo {
             repo: self.repo.clone(),
             host: self.host.clone(),
-            revision: self.revision.clone()
+            revision: self.revision.clone(),
         })
     }
 

@@ -8,10 +8,11 @@ pub mod py_dataset;
 pub mod py_remote_repo;
 pub mod py_repo;
 pub mod py_staged_data;
+pub mod util;
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn oxen(_py: Python, m: &PyModule) -> PyResult<()> {
+fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     let mut builder = tokio::runtime::Builder::new_multi_thread();
     builder.enable_all();
     pyo3_asyncio::tokio::init(builder);
@@ -36,6 +37,11 @@ fn oxen(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<py_dataset::PyDataset>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_commit::PyCommit>()?;
+
+    // Util Module
+    let util_module = PyModule::new(py, "util")?;
+    util_module.add_function(wrap_pyfunction!(util::is_tabular, util_module)?)?;
+    m.add_submodule(util_module)?;
 
     Ok(())
 }
