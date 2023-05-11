@@ -1,6 +1,11 @@
 import oxen
 
-repo = oxen.RemoteRepo("ox/CIFAR-10", host="0.0.0.0:3001")
-dataset = oxen.Dataset(repo)
-df = dataset.df("train.csv")
+repo = oxen.RemoteRepo("ox/CatsVsDogs", host="0.0.0.0:3001")
+
+train_file = "annotations/train.csv"
+dataset = oxen.Dataset(
+    repo,
+    paths=[train_file],
+)
+df = dataset.df(train_file)
 print(df)
