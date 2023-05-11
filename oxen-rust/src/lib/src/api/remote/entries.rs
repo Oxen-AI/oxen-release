@@ -50,6 +50,36 @@ pub async fn download_entry(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     let entry = get_entry(remote_repo, &remote_path, &revision).await?;
+    let remote_path = remote_path.as_ref();
+    let remote_file_name = remote_path.file_name();
+    let mut local_path = local_path.as_ref().to_path_buf();
+
+    // Following the similar logic as cp or scp
+
+    // * if the dst parent is a file, we error because cannot copy to a file subdirectory
+    if let Some(parent) = local_path.parent() {
+        if parent.is_file() {
+            return Err(OxenError::basic_str(format!(
+                "{:?} is not a directory",
+                parent
+            )));
+        }
+
+        // * if the dst parent does not exist, we error because cannot copy a directory to a non-existent location
+        if !parent.exists() {
+            return Err(OxenError::basic_str(format!("{:?} does not exist", parent)));
+        }
+    }
+
+    // * if the dst is a directory, and it exists, then we download the file to the dst
+    // given by the dst + the file name
+    if local_path.is_dir() && local_path.exists() && remote_file_name.is_some() {
+        // Only append if the remote entry is a file
+        if !entry.is_dir {
+            local_path = local_path.join(remote_file_name.unwrap());
+        }
+    }
+
     if entry.is_dir {
         download_dir(remote_repo, &entry, local_path).await
     } else {
@@ -167,6 +197,8 @@ pub async fn download_large_entry(
     let remote_path = remote_path.as_ref();
     let local_path = local_path.as_ref();
     let hash = util::hasher::hash_str(&format!("{:?}_{:?}", remote_path, local_path));
+
+    // TODO: write these to ~/.oxen/tmp?
     let tmp_dir = Path::new("/tmp").join("oxen").join(&hash);
 
     // TODO: We could probably download chunks in parallel too
@@ -452,10 +484,10 @@ pub async fn try_download_data_from_version_paths(
 #[cfg(test)]
 mod tests {
 
-    use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::test;
+    use crate::{api, util};
 
     use std::path::Path;
 
@@ -510,15 +542,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_download_file_large_different_dir() -> Result<(), OxenError> {
+    async fn test_download_file_large_to_dir() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let remote_path = Path::new("large_files").join("test.csv");
-            let local_path = local_repo.path.join("train_data").join("data.csv");
+            let local_path = local_repo.path.join("train_data");
             let revision = DEFAULT_BRANCH_NAME;
+            // mkdir train_data
+            util::fs::create_dir_all(&local_path)?;
             api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
                 .await?;
 
-            assert!(local_path.exists());
+            assert!(local_path.join("test.csv").exists());
 
             Ok(remote_repo)
         })
@@ -526,15 +560,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_download_file_entry_same_name() -> Result<(), OxenError> {
+    async fn test_download_file_large_to_dir_does_not_exist() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let remote_path = Path::new("annotations").join("README.md");
-            let local_path = local_repo.path.join("annotations").join("README.md");
+            let remote_path = Path::new("large_files").join("test.csv");
+            let local_path = local_repo.path.join("I_DO_NOT_EXIST").join("put_it_here");
             let revision = DEFAULT_BRANCH_NAME;
-            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
-                .await?;
+            let result = api::remote::entries::download_entry(
+                &remote_repo,
+                &remote_path,
+                &local_path,
+                revision,
+            )
+            .await;
 
-            assert!(local_path.exists());
+            assert!(result.is_err());
 
             Ok(remote_repo)
         })
@@ -542,15 +581,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_download_file_entry_different_dir() -> Result<(), OxenError> {
+    async fn test_download_file_large_to_dir_does_exist() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let remote_path = Path::new("large_files").join("test.csv");
+            let local_path = local_repo.path.join("I_DO_EXIST");
+            util::fs::create_dir_all(&local_path)?;
+            let revision = DEFAULT_BRANCH_NAME;
+            let result = api::remote::entries::download_entry(
+                &remote_repo,
+                &remote_path,
+                &local_path,
+                revision,
+            )
+            .await;
+
+            assert!(result.is_ok());
+            assert!(local_path.join("test.csv").exists());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_small_file_to_dir_does_exist() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let remote_path = Path::new("annotations").join("README.md");
-            let local_path = local_repo.path.join("different").join("README.md");
+            let local_path = local_repo.path.join("I_DO_EXIST");
+            util::fs::create_dir_all(&local_path)?;
             let revision = DEFAULT_BRANCH_NAME;
-            api::remote::entries::download_entry(&remote_repo, &remote_path, &local_path, revision)
-                .await?;
+            let result = api::remote::entries::download_entry(
+                &remote_repo,
+                &remote_path,
+                &local_path,
+                revision,
+            )
+            .await;
 
-            assert!(local_path.exists());
+            assert!(result.is_ok());
+            assert!(local_path.join("README.md").exists());
 
             Ok(remote_repo)
         })
