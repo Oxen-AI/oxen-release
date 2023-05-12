@@ -1,5 +1,4 @@
 import oxen
-import polars as pl
 
 
 class ReadDF(oxen.Op):
@@ -7,14 +6,5 @@ class ReadDF(oxen.Op):
         super().__init__(*args, **kwargs)
 
     def call(self, args):
-        # TODO: actually read a file...
-        return pl.DataFrame(
-            {
-                "prompt": [
-                    "what?",
-                    "who?",
-                    "where?",
-                ],
-                "response": ["blue", "slim shady", "here"],
-            }
-        )
+        # print(f"read_df {args}")
+        return oxen.util.read_df(args[0])

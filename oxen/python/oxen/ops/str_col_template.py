@@ -3,7 +3,7 @@ import oxen
 
 class StrColTemplate(oxen.Op):
     def __init__(self, *args, **kwargs):
-        self.search = kwargs["search"] if "search" in kwargs else "<REPLACE_ME>"
+        self.search = kwargs["search"] if "search" in kwargs else "{prompt}"
         super().__init__(*args, **kwargs)
 
     def call(self, args):

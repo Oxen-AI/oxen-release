@@ -59,6 +59,15 @@ def celeba_local_repo_no_commits(shared_datadir):
 
 
 @pytest.fixture
+def chat_bot_local_repo_no_commits(shared_datadir):
+    repo_dir = os.path.join(shared_datadir, "ChatBot")
+    repo = Repo(repo_dir)
+    repo.init()
+
+    yield repo
+
+
+@pytest.fixture
 def empty_remote_repo():
     repo_name = f"py-ox/test_repo_{str(uuid.uuid4())}"
     repo = RemoteRepo(repo_name, host=TEST_HOST)
