@@ -109,6 +109,14 @@ impl error::ResponseError for OxenHttpError {
                             commit_id
                         )))
                     }
+                    OxenError::PathDoesNotExist(path) => {
+                        log::debug!("Path does not exist: {}", path);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
+                            "'{}' not found",
+                            path
+                        )))
+                    }
                     OxenError::CommitEntryNotFound(msg) => {
                         log::error!("{msg}");
 
