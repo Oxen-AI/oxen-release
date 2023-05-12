@@ -14,7 +14,7 @@ use polars::prelude::IntoLazy;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::core::index::CommitDirReader;
+use crate::core::index::CommitEntryReader;
 
 pub fn diff(
     repo: &LocalRepository,
@@ -45,13 +45,13 @@ pub fn get_version_file_from_commit(
     let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
-        None => return Err(OxenError::file_has_no_file_name(path)),
+        None => return Err(OxenError::file_has_no_name(path)),
     };
 
     // Get entry from the reader
     let entry = match commit_entry_reader.get_entry(file_name) {
         Ok(Some(entry)) => entry,
-        _ => return Err(OxenError::file_does_not_exist_in_commit(path, &commit.id)),
+        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, &commit.id)),
     };
 
     Ok(util::fs::version_path(repo, &entry))
@@ -116,11 +116,11 @@ pub fn diff_tabular(
     let compare_path = compare_path.as_ref();
     // Make sure files exist
     if !original_path.exists() {
-        return Err(OxenError::file_does_not_exist(original_path));
+        return Err(OxenError::entry_does_not_exist(original_path));
     }
 
     if !compare_path.exists() {
-        return Err(OxenError::file_does_not_exist(compare_path));
+        return Err(OxenError::entry_does_not_exist(compare_path));
     }
 
     // Read DFs and get schemas
@@ -381,7 +381,7 @@ fn read_entries_from_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<HashSet<CommitEntry>, OxenError> {
-    let reader = CommitDirReader::new(repo, commit)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
     let entries = reader.list_entries_set()?;
     Ok(entries)
 }

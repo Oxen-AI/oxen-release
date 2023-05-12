@@ -64,7 +64,7 @@ pub fn delete_mod_from_path(
     uuid: &str,
 ) -> Result<ModEntry, OxenError> {
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-    match api::local::entries::get_entry_for_commit(repo, &commit, file_path)? {
+    match api::local::entries::get_commit_entry(repo, &commit, file_path)? {
         Some(_) => match delete_mod(repo, branch, identity, file_path, uuid) {
             Ok(mod_entry) => Ok(mod_entry),
             Err(e) => {
@@ -72,7 +72,7 @@ pub fn delete_mod_from_path(
                 Err(e)
             }
         },
-        None => Err(OxenError::file_does_not_exist_in_commit(
+        None => Err(OxenError::entry_does_not_exist_in_commit(
             file_path, &commit.id,
         )),
     }
@@ -346,7 +346,7 @@ mod tests {
                 .join("bounding_box.csv");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
             // Append the data to staging area
             let data = "{\"file\":\"dawg1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
@@ -380,7 +380,7 @@ mod tests {
                 .join("bounding_box.csv");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
             // Append the data to staging area
             let data = "dawg1.jpg,dog,13,14,100,100";
@@ -414,7 +414,7 @@ mod tests {
                 .join("bounding_box.csv");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
             // Append the data to staging area
             let data = "dawg1.jpg,dog,13,14,100,100".to_string();
@@ -471,7 +471,7 @@ mod tests {
                 .join("bounding_box.csv");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
-                api::local::entries::get_entry_for_commit(&repo, &commit, &file_path)?.unwrap();
+                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
             // Append the data to staging area
             let data = "dawg1.jpg,dog,13,14,100,100".to_string();

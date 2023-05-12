@@ -100,7 +100,7 @@ impl RemoteStagedStatus {
         entries
             .map(|path| {
                 let full_path = repo.path.join(path);
-                let len = match std::fs::metadata(&full_path) {
+                let len = match util::fs::metadata(&full_path) {
                     Ok(m) => m.len(),
                     Err(_) => 0,
                 };

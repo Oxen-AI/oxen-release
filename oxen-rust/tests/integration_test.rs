@@ -1,14 +1,15 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::config::UserConfig;
 use liboxen::constants;
-use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::core::df::tabular;
-use liboxen::core::index::CommitDirReader;
+use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
+use liboxen::model::CommitBody;
 use liboxen::model::ContentType;
 use liboxen::model::StagedEntryStatus;
-use liboxen::opts::CloneOpts;
+use liboxen::model::User;
 use liboxen::opts::DFOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
@@ -1281,14 +1282,8 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             let oxen_dir = cloned_repo.path.join(".oxen");
             assert!(oxen_dir.exists());
             command::pull(&cloned_repo).await?;
@@ -1404,14 +1399,8 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
             // Modify the file in the cloned dir
@@ -1480,14 +1469,8 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
@@ -1531,14 +1514,7 @@ async fn test_clone_full() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = false; // full pull
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
@@ -1576,14 +1552,8 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let file_path = cloned_repo.path.join(filename);
 
@@ -1635,14 +1605,8 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
             let filename = "nlp/classification/annotations/train.tsv";
@@ -1698,14 +1662,8 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             assert_eq!(6, cloned_num_files);
@@ -1793,14 +1751,8 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // the original training files
@@ -1985,14 +1937,8 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
             // Get cloned history
@@ -2009,7 +1955,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 assert!(commit_history_dir.exists());
 
                 // make sure we can successfully open the db and read entries
-                let reader = CommitDirReader::new(&cloned_repo, commit)?;
+                let reader = CommitEntryReader::new(&cloned_repo, commit)?;
                 let entries = reader.list_entries();
                 assert!(entries.is_ok());
             }
@@ -2031,7 +1977,7 @@ fn test_do_not_commit_any_files_on_init() -> Result<(), OxenError> {
         let repo = command::init(dir)?;
         let commits = api::local::commits::list(&repo)?;
         let commit = commits.last().unwrap();
-        let reader = CommitDirReader::new(&repo, commit)?;
+        let reader = CommitEntryReader::new(&repo, commit)?;
         let num_entries = reader.num_entries()?;
         assert_eq!(num_entries, 0);
 
@@ -2425,14 +2371,8 @@ async fn test_add_commit_push_pull_file_without_extension() -> Result<(), OxenEr
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
             let filepath = cloned_repo.path.join(filename);
             let content = util::fs::read_from_path(&filepath)?;
@@ -3247,14 +3187,7 @@ async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
 
         // Create a new repo to clone to, then clean it up
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = false;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());
@@ -3275,14 +3208,7 @@ async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
 
         // Create a new repo to clone to, then clean it up
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let shallow = false;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: new_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());
@@ -3312,25 +3238,13 @@ async fn test_cannot_push_two_separate_empty_roots() -> Result<(), OxenError> {
 
         // Clone the first repo
         test::run_empty_dir_test_async(|first_repo_dir| async move {
-            let shallow = false;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: first_repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let first_cloned_repo = command::clone(&opts).await?;
+            let first_cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &first_repo_dir).await?;
 
             // Clone the second repo
             test::run_empty_dir_test_async(|second_repo_dir| async move {
-                let shallow = false;
-                let opts = CloneOpts {
-                    url: remote_repo.remote.url.to_string(),
-                    dst: second_repo_dir.to_owned(),
-                    shallow,
-                    branch: DEFAULT_BRANCH_NAME.to_string(),
-                };
-                let second_cloned_repo = command::clone(&opts).await?;
+                let second_cloned_repo =
+                    command::clone_url(&remote_repo.remote.url, &second_repo_dir).await?;
 
                 // Add to the first repo, after we have the second repo cloned
                 let new_file = "new_file.txt";
@@ -3437,25 +3351,13 @@ async fn test_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
             let remote_repo_2_copy = remote_repo_2.clone();
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
-                let shallow = false;
-                let opts = CloneOpts {
-                    url: remote_repo_1.remote.url.to_string(),
-                    dst: first_repo_dir.to_owned(),
-                    shallow,
-                    branch: DEFAULT_BRANCH_NAME.to_string(),
-                };
-                let first_cloned_repo = command::clone(&opts).await?;
+                let first_cloned_repo =
+                    command::clone_url(&remote_repo_1.remote.url, &first_repo_dir).await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
-                    let shallow = false;
-                    let opts = CloneOpts {
-                        url: remote_repo_2.remote.url.to_string(),
-                        dst: second_repo_dir.to_owned(),
-                        shallow,
-                        branch: DEFAULT_BRANCH_NAME.to_string(),
-                    };
-                    let mut second_cloned_repo = command::clone(&opts).await?;
+                    let mut second_cloned_repo =
+                        command::clone_url(&remote_repo_2.remote.url, &second_repo_dir).await?;
 
                     // Add to the first repo, after we have the second repo cloned
                     let new_file = "new_file.txt";
@@ -3525,14 +3427,7 @@ async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), Oxen
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let shallow = false;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
             let commits = api::local::commits::list(&cloned_repo)?;
             // iterate over commits in reverse order and checkout each one
@@ -3559,7 +3454,8 @@ async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let cloned_repo = command::shallow_clone(&remote_repo.remote.url, &repo_dir).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
             let result = command::status(&cloned_repo);
             assert!(result.is_err());
@@ -3579,14 +3475,8 @@ async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
             let path = cloned_repo.path.join("README.md");
             util::fs::write_to_path(&path, "# Can't add this")?;
@@ -3609,14 +3499,8 @@ async fn test_remote_stage_add_row_commit_clears_remote_status() -> Result<(), O
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
             // Remote add row
             let path = test::test_nlp_classification_csv();
@@ -3657,14 +3541,8 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let shallow = true;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
             // Remote add row
             let path = test::test_nlp_classification_csv();
@@ -3712,14 +3590,7 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let shallow = false;
-            let opts = CloneOpts {
-                url: remote_repo.remote.url.to_string(),
-                dst: repo_dir.to_owned(),
-                shallow,
-                branch: DEFAULT_BRANCH_NAME.to_string(),
-            };
-            let cloned_repo = command::clone(&opts).await?;
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
             // Remote stage row
             let path = test::test_nlp_classification_csv();
@@ -3813,6 +3684,82 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
         assert_eq!(paginated.total_pages, 1);
 
         Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_commit_behind_main() -> Result<(), OxenError> {
+    test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        // Create branch behind-main off main
+        let new_branch = "behind-main";
+        let main_branch = "main";
+
+        let main_path = "images/folder";
+        let identifier = UserConfig::identifier()?;
+
+        api::remote::branches::create_from_or_get(&remote_repo, new_branch, main_branch).await?;
+        // assert_eq!(branch.name, branch_name);
+
+        // Advance head on main branch, leave behind-main behind
+        let path = test::test_jpeg_file().to_path_buf();
+        let result =
+            api::remote::staging::add_file(&remote_repo, main_branch, &identifier, main_path, path)
+                .await;
+        assert!(result.is_ok());
+
+        let body = CommitBody {
+            message: "Add to main".to_string(),
+            user: User {
+                name: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            },
+        };
+
+        api::remote::staging::commit_staged(&remote_repo, main_branch, &identifier, &body).await?;
+
+        // Make an EMPTY commit to behind-main
+        let body = CommitBody {
+            message: "Add behind main".to_string(),
+            user: User {
+                name: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            },
+        };
+        let _commit =
+            api::remote::staging::commit_staged(&remote_repo, new_branch, &identifier, &body)
+                .await?;
+
+        // Add file at images/folder to behind-main, committed to main
+        let image_path = test::test_jpeg_file().to_path_buf();
+        let result = api::remote::staging::add_file(
+            &remote_repo,
+            new_branch,
+            &identifier,
+            main_path,
+            image_path,
+        )
+        .await;
+        assert!(result.is_ok());
+
+        // Check status: if valid, there should be an entry here for the file at images/folder
+        let page_num = constants::DEFAULT_PAGE_NUM;
+        let page_size = constants::DEFAULT_PAGE_SIZE;
+        let path = Path::new("");
+        let entries = api::remote::staging::status(
+            &remote_repo,
+            new_branch,
+            &identifier,
+            path,
+            page_num,
+            page_size,
+        )
+        .await?;
+
+        assert_eq!(entries.added_files.entries.len(), 1);
+        assert_eq!(entries.added_files.total_entries, 1);
+
+        Ok(remote_repo)
     })
     .await
 }

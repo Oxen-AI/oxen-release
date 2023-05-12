@@ -3,15 +3,15 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::commit::CommitWithSize;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
-use crate::util;
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
+use crate::{current_function, util};
 // use crate::util::ReadProgress;
 use crate::view::{
     CommitParentsResponse, CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage,
 };
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
 use std::time;
@@ -116,32 +116,42 @@ pub async fn commit_is_synced(
     }
 }
 
-pub async fn download_commit_db_by_id(
+pub async fn download_commit_db_to_repo(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: &str,
-) -> Result<(), OxenError> {
+) -> Result<PathBuf, OxenError> {
+    let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
+    download_commit_db_to_path(remote_repo, commit_id, hidden_dir).await
+}
+
+pub async fn download_commit_db_to_path(
+    remote_repo: &RemoteRepository,
+    commit_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
     let uri = format!("/commits/{commit_id}/commit_db");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
+    log::debug!("{} downloading from {}", current_function!(), url);
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(url).send().await {
-        // Unpack tarball to our hidden dir
-        let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
+    match client.get(url).send().await {
+        Ok(res) => {
+            let path = path.as_ref();
+            let reader = res
+                .bytes_stream()
+                .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                .into_async_read();
+            let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+            let archive = Archive::new(decoder);
+            archive.unpack(path).await?;
+            log::debug!("{} writing to {:?}", current_function!(), path);
 
-        let reader = res
-            .bytes_stream()
-            .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-            .into_async_read();
-        let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
-        let archive = Archive::new(decoder);
-        archive.unpack(hidden_dir).await?;
-
-        Ok(())
-    } else {
-        Err(OxenError::basic_str(
-            "download_commit_db_by_id() Request failed",
-        ))
+            Ok(path.to_path_buf())
+        }
+        Err(err) => {
+            let error = format!("Error fetching commit db: {}", err);
+            Err(OxenError::basic_str(error))
+        }
     }
 }
 
@@ -214,8 +224,11 @@ pub async fn post_commit_to_server(
     let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
         .join(commit.id.clone());
+
+    log::debug!("Commit dir {:?}", commit_dir);
+
     // This will be the subdir within the tarball
-    let tar_subdir = Path::new("history").join(commit.id.clone());
+    let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
