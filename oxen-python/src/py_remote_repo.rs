@@ -99,10 +99,9 @@ impl PyRemoteRepo {
         &self,
         remote_path: PathBuf,
         local_path: PathBuf,
-        committish: String,
     ) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            command::remote::download(&self.repo, &remote_path, &local_path, &committish).await
+            command::remote::download(&self.repo, &remote_path, &local_path, &self.revision).await
         })?;
 
         Ok(())
