@@ -12,6 +12,15 @@ pub struct ParsedResource {
     pub resource: PathBuf,      // full resource we parsed
 }
 
+impl ParsedResource {
+    pub fn version(&self) -> String {
+        match &self.branch {
+            Some(branch) => branch.name.clone(),
+            None => self.commit.id.clone(),
+        }
+    }
+}
+
 impl std::fmt::Display for ParsedResource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.branch {
