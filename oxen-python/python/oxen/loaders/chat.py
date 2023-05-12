@@ -28,8 +28,7 @@ class ChatLoader:
         self.graph = DAG(outputs=[output])
 
     def run(self):
-        # Run the graph
-        # Evaluate the graph with input data
+        # Run the graph to get the outputs
         result = self.graph.evaluate()
 
         print("\n\nResult:")
