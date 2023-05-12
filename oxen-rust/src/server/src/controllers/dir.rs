@@ -1,115 +1,42 @@
-use crate::app_data::OxenAppData;
 use crate::controllers::entries::PageNumQuery;
+use crate::errors::OxenHttpError;
+use crate::helpers::get_repo;
+use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::model::{Commit, LocalRepository};
-use liboxen::view::{PaginatedDirEntriesResponse, StatusMessage};
+use liboxen::view::PaginatedDirEntriesResponse;
 use liboxen::{api, constants};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
-use std::path::{Path, PathBuf};
-
-pub async fn get(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let name: &str = req.match_info().get("repo_name").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+pub async fn get(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     log::debug!(
-        "dir::get repo name [{}] resource [{:?}] page {} page_size {}",
-        name,
-        resource,
+        "{} resource {namespace}/{repo_name}/{resource}",
+        liboxen::current_function!()
+    );
+
+    let paginated_entries = api::local::entries::list_directory(
+        &repo,
+        &resource.commit,
+        &resource.file_path,
+        resource.version().as_str(),
         page,
         page_size,
-    );
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-        Ok(Some(repo)) => {
-            if let Ok(Some((commit_id, revision, filepath))) =
-                api::local::resource::parse_resource(&repo, &resource)
-            {
-                log::debug!(
-                    "dir::get commit_id [{}] and filepath {:?}",
-                    commit_id,
-                    filepath
-                );
-                match list_directory_for_commit(
-                    &repo, &commit_id, &revision, &filepath, page, page_size,
-                ) {
-                    Ok((entries, _commit)) => HttpResponse::Ok().json(entries),
-                    Err(status_message) => HttpResponse::InternalServerError().json(status_message),
-                }
-            } else {
-                log::debug!("dir::get could not find resource from uri {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-        }
-        Ok(None) => {
-            log::debug!("dir::get could not find repo with name {}", name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("unable to get directory {:?}. Err: {}", resource, err);
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
-}
+    )?;
 
-fn list_directory_for_commit(
-    repo: &LocalRepository,
-    commit_id: &str,
-    revision: &str,
-    directory: &Path,
-    page: usize,
-    page_size: usize,
-) -> Result<(PaginatedDirEntriesResponse, Commit), StatusMessage> {
-    match api::local::commits::get_by_id(repo, commit_id) {
-        Ok(Some(commit)) => {
-            log::debug!(
-                "list_directory_for_commit got commit [{}] '{}'",
-                commit.id,
-                commit.message
-            );
-            match api::local::entries::list_directory(
-                repo, &commit, directory, revision, page, page_size,
-            ) {
-                Ok(paginated_entries) => {
-                    log::debug!(
-                        "list_directory_for_commit commit {} got total_entries {} entries.len() {}",
-                        commit_id,
-                        paginated_entries.total_entries,
-                        paginated_entries.entries.len()
-                    );
-
-                    let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
-                    Ok((view, commit))
-                }
-                Err(err) => {
-                    log::error!("Unable to list repositories. Err: {}", err);
-                    Err(StatusMessage::internal_server_error())
-                }
-            }
-        }
-        Ok(None) => {
-            log::debug!(
-                "list_directory_for_commit Could not find commit with id {}",
-                commit_id
-            );
-
-            Err(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!(
-                "list_directory_for_commit Unable to get commit id {}. Err: {}",
-                commit_id,
-                err
-            );
-            Err(StatusMessage::internal_server_error())
-        }
-    }
+    let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
+    Ok(HttpResponse::Ok().json(view))
 }
 
 #[cfg(test)]

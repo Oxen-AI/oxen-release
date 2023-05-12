@@ -30,7 +30,8 @@ pub fn parse_resource(
     repo: &LocalRepository,
 ) -> Result<ParsedResource, OxenHttpError> {
     let resource: PathBuf = PathBuf::from(req.match_info().query("resource"));
-    parse_resource_from_path(repo, &resource)?.ok_or(OxenHttpError::NotFound)
+    parse_resource_from_path(repo, &resource)?
+        .ok_or(OxenError::path_does_not_exist(resource).into())
 }
 
 pub fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {

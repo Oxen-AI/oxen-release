@@ -2,6 +2,7 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::error::{OxenError, StringError};
 use liboxen::view::{StatusMessage, StatusMessageDescription};
+use std::io;
 
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
@@ -22,6 +23,12 @@ pub enum OxenHttpError {
 impl From<OxenError> for OxenHttpError {
     fn from(error: OxenError) -> Self {
         OxenHttpError::InternalOxenError(error)
+    }
+}
+
+impl From<io::Error> for OxenHttpError {
+    fn from(error: io::Error) -> Self {
+        OxenHttpError::InternalOxenError(OxenError::IO(error))
     }
 }
 
@@ -100,6 +107,14 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
                             "'{}' not found",
                             commit_id
+                        )))
+                    }
+                    OxenError::PathDoesNotExist(path) => {
+                        log::debug!("Path does not exist: {}", path);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
+                            "'{}' not found",
+                            path
                         )))
                     }
                     OxenError::CommitEntryNotFound(msg) => {
