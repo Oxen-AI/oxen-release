@@ -6,5 +6,5 @@ class Identity(oxen.Op):
         super().__init__(*args, **kwargs)
 
     def call(self, args):
-        print(f"identity_fn {args}")
+        # print(f"identity_fn {args}")
         return self.input

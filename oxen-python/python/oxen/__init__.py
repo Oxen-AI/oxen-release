@@ -1,5 +1,6 @@
 # Rust wrappers
 from .oxen import PyRepo, PyStagedData, PyCommit, PyRemoteRepo, PyDataset
+from .oxen import util
 
 # Python classes
 from oxen.dataset import Dataset
@@ -22,4 +23,5 @@ __all__ = [
     "Op",
     "RemoteRepo",
     "Repo",
+    "util",
 ]

@@ -136,7 +136,6 @@ class Dataset:
             return self._cache_dir
         return base_dir
 
-    # TODO: optionally download data
     def df(self, path: str, base_dir: str = None) -> pl.DataFrame:
         """
         Returns a dataframe of the data from the repo, fully loaded into memory.

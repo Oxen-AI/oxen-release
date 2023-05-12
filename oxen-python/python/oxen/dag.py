@@ -18,7 +18,7 @@ class DAG:
 
         results = []
         for node in outputs:
-            print(f"node {node}")
+            # print(f"node {node}")
             result = node.run()
             if node in self.outputs:
                 results.append(result)
