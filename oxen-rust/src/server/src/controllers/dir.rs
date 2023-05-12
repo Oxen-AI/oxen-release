@@ -26,8 +26,14 @@ pub async fn get(
         liboxen::current_function!()
     );
 
-    let paginated_entries =
-        api::local::entries::list_directory(&repo, &resource, &page, &page_size)?;
+    let paginated_entries = api::local::entries::list_directory(
+        &repo,
+        &resource.commit,
+        &resource.file_path,
+        resource.version().as_str(),
+        page,
+        page_size,
+    )?;
 
     let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
     Ok(HttpResponse::Ok().json(view))
