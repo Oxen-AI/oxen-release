@@ -1,5 +1,5 @@
 use crate::constants::HASH_FILE;
-use crate::core::index::CommitDirReader;
+use crate::core::index::CommitEntryReader;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::util;
@@ -19,7 +19,7 @@ pub fn compute_commit_content_hash(
     repository: &LocalRepository,
     commit: &Commit,
 ) -> Result<String, OxenError> {
-    let commit_entry_reader = CommitDirReader::new(repository, commit)?;
+    let commit_entry_reader = CommitEntryReader::new(repository, commit)?;
     let entries = commit_entry_reader.list_entries()?;
     let n_commit = NewCommit::from_commit(commit); // need this to pass in metadata about commit
     let content_hash = compute_versions_hash(repository, &n_commit, &entries)?;

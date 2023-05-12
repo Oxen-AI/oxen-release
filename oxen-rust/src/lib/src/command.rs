@@ -24,7 +24,7 @@ pub mod status;
 
 pub use crate::command::add::add;
 pub use crate::command::checkout::{checkout, checkout_combine, checkout_theirs};
-pub use crate::command::clone::{clone, shallow_clone};
+pub use crate::command::clone::{clone, clone_url, shallow_clone_url};
 pub use crate::command::commit::commit;
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::diff;

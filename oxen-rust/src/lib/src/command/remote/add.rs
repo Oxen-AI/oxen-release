@@ -95,7 +95,7 @@ fn resolve_remote_add_file_path(
         }
         Err(err) => {
             log::error!("Err: {err:?}");
-            Err(OxenError::file_does_not_exist(path))
+            Err(OxenError::entry_does_not_exist(path))
         }
     }
 }

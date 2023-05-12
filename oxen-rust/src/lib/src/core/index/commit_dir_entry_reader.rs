@@ -1,3 +1,6 @@
+//! Reader to find entries within a commit directory
+//!
+
 use crate::constants::{FILES_DIR, HISTORY_DIR};
 use crate::core::db;
 use crate::core::db::path_db;
@@ -15,17 +18,23 @@ use std::str;
 pub struct CommitDirEntryReader {
     db: DBWithThreadMode<MultiThreaded>,
     dir: PathBuf,
-    pub repository: LocalRepository,
 }
 
 impl CommitDirEntryReader {
-    pub fn db_dir(repo: &LocalRepository, commit_id: &str, dir: &Path) -> PathBuf {
-        // .oxen/history/COMMIT_ID/files/path/to/dir
-        util::fs::oxen_hidden_dir(&repo.path)
+    /// .oxen/history/commit_id/files/path/to/dir
+    pub fn db_dir(base_path: &Path, commit_id: &str, dir: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(base_path)
             .join(HISTORY_DIR)
             .join(commit_id)
             .join(FILES_DIR)
             .join(dir)
+    }
+
+    pub fn db_exists(base_path: &Path, commit_id: &str, dir: &Path) -> bool {
+        // Must check the CURRENT file since the .oxen/history/COMMIT_ID/files/ path
+        // may have already been created by a deeper object
+        let db_path = CommitDirEntryReader::db_dir(base_path, commit_id, dir);
+        db_path.join("CURRENT").exists()
     }
 
     /// # Create new commit dir
@@ -35,18 +44,25 @@ impl CommitDirEntryReader {
         commit_id: &str,
         dir: &Path,
     ) -> Result<CommitDirEntryReader, OxenError> {
-        let db_path = CommitDirEntryReader::db_dir(repository, commit_id, dir);
+        CommitDirEntryReader::new_from_path(&repository.path, commit_id, dir)
+    }
+
+    pub fn new_from_path(
+        base_path: &Path,
+        commit_id: &str,
+        dir: &Path,
+    ) -> Result<CommitDirEntryReader, OxenError> {
+        let db_path = CommitDirEntryReader::db_dir(base_path, commit_id, dir);
         log::debug!(
             "CommitDirEntryReader::new() dir {:?} db_path {:?}",
             dir,
             db_path
         );
+
         let opts = db::opts::default();
-        // Must check the CURRENT file since the .oxen/history/COMMIT_ID/files/ path
-        // may have already been created by a deeper object
-        if !db_path.join("CURRENT").exists() {
-            if std::fs::create_dir_all(&db_path).is_err() {
-                log::error!("CommitDirEntryReader could not create dir {:?}", db_path);
+        if !CommitDirEntryReader::db_exists(base_path, commit_id, dir) {
+            if let Err(err) = std::fs::create_dir_all(&db_path) {
+                log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
             }
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
@@ -56,7 +72,6 @@ impl CommitDirEntryReader {
         Ok(CommitDirEntryReader {
             db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
             dir: dir.to_owned(),
-            repository: repository.clone(),
         })
     }
 

@@ -1,6 +1,6 @@
 //! entry_hash_cacher goes through the commit entry list and pre-computes the hash to verify everything is synced
 
-use crate::core::index::{commit_validator, CommitDirReader};
+use crate::core::index::{commit_validator, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, NewCommit};
 use crate::util;
@@ -9,7 +9,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     log::debug!("Running compute_and_write_hash");
 
     log::debug!("computing entry hash {} -> {}", commit.id, commit.message);
-    let commit_entry_reader = CommitDirReader::new(repo, commit)?;
+    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
     let entries = commit_entry_reader.list_entries()?;
     let n_commit = NewCommit::from_commit(commit); // need this to pass in metadata about commit
     let entries_hash = util::hasher::compute_commit_hash(&n_commit, &entries);

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::api::local::resource;
 use crate::core::index::Stager;
-use crate::core::index::{CommitDirEntryWriter, CommitDirReader};
+use crate::core::index::{CommitDirEntryWriter, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
@@ -18,7 +18,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
 
     let path = opts.path;
     let commit = resource::get_commit_or_head(repo, opts.source_ref)?;
-    let reader = CommitDirReader::new(repo, &commit)?;
+    let reader = CommitEntryReader::new(repo, &commit)?;
 
     // Check if is directory, need to recursively restore
     if reader.has_dir(&path) {
@@ -54,7 +54,7 @@ fn restore_dir(
     repo: &LocalRepository,
     path: &Path,
     commit: &Commit,
-    dir_reader: &CommitDirReader,
+    dir_reader: &CommitEntryReader,
 ) -> Result<(), OxenError> {
     let dirs = dir_reader.list_committed_dirs()?;
     for dir in dirs {
@@ -95,7 +95,7 @@ pub fn restore_file_with_commit_writer(
 
     // Update the local modified timestamps
     let working_path = repo.path.join(path);
-    let metadata = std::fs::metadata(working_path).unwrap();
+    let metadata = util::fs::metadata(working_path).unwrap();
     let mtime = FileTime::from_last_modification_time(&metadata);
     committer.set_file_timestamps(entry, &mtime).unwrap();
 
