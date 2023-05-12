@@ -31,69 +31,7 @@ pub async fn get(
 
     let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
     Ok(HttpResponse::Ok().json(view))
-
-    // match list_directory_for_commit(&repo, &resource, page, page_size) {
-    //     Ok((entries, _commit)) => Ok(HttpResponse::Ok().json(entries)),
-    //     Err(status_message) => Ok(HttpResponse::InternalServerError().json(status_message)),
-    // }
 }
-
-// fn list_directory_for_commit(
-//     repo: &LocalRepository,
-//     resource: &ParsedResource,
-//     page: usize,
-//     page_size: usize,
-// ) -> Result<(PaginatedDirEntriesResponse, Commit), StatusMessage> {
-//     match api::local::commits::get_by_id(repo, commit_id) {
-//         Ok(Some(commit)) => {
-//             log::debug!(
-//                 "list_directory_for_commit got commit [{}] '{}'",
-//                 commit.id,
-//                 commit.message
-//             );
-//             match api::local::entries::list_directory(
-//                 repo,
-//                 &commit,
-//                 branch_or_commit_id,
-//                 directory,
-//                 &page,
-//                 &page_size,
-//             ) {
-//                 Ok(paginated_entries) => {
-//                     log::debug!(
-//                         "list_directory_for_commit commit {} got total_entries {} entries.len() {}",
-//                         commit_id,
-//                         paginated_entries.total_entries,
-//                         paginated_entries.entries.len()
-//                     );
-
-//                     let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
-//                     Ok((view, commit))
-//                 }
-//                 Err(err) => {
-//                     log::error!("Unable to list repositories. Err: {}", err);
-//                     Err(StatusMessage::internal_server_error())
-//                 }
-//             }
-//         }
-//         Ok(None) => {
-//             log::debug!(
-//                 "list_directory_for_commit Could not find commit with id {}",
-//                 commit_id
-//             );
-
-//             Err(StatusMessage::resource_not_found())
-//         }
-//         Err(err) => {
-//             log::error!(
-//                 "list_directory_for_commit Unable to get commit id {}. Err: {}",
-//                 commit_id,
-//                 err
-//             );
-//             Err(StatusMessage::internal_server_error())
-//         }
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
