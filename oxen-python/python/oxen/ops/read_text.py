@@ -1,4 +1,5 @@
 import oxen
+from pathlib import Path
 
 
 class ReadText(oxen.Op):
@@ -6,5 +7,5 @@ class ReadText(oxen.Op):
         super().__init__(*args, **kwargs)
 
     def call(self, args):
-        # TODO: actually read a file...
-        return "Human: <REPLACE_ME> AI:"
+        file = args[0]
+        return Path(file).read_text()

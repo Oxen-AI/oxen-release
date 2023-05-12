@@ -11,7 +11,7 @@ class Op:
         if "input" in kwargs:
             self.input = kwargs["input"]
 
-        print(f"Creating op {self.name}(args={self.args}, kwargs={self.kwargs})")
+        # print(f"Creating op {self.name}(args={self.args}, kwargs={self.kwargs})")
 
         self.parents = []
 
@@ -21,7 +21,7 @@ class Op:
     # Links to the parent Operations that need to run first
     def __call__(self, *args):
         for arg in args:
-            print(f"  {self} --parent--> {arg}")
+            # print(f"  {self} --parent--> {arg}")
             self.parents.append(arg)
         return self
 
@@ -31,9 +31,9 @@ class Op:
 
     # Combines the data, the args, and the parent inputs, and computes the output
     def run(self):
-        print("=" * 5)
-        print(f"Running {self}")
-        print(f"children {self.parents}")
+        # print("=" * 5)
+        # print(f"Running {self}")
+        # print(f"parents {self.parents}")
 
         # these will be the inputs to the subsequent node call
         inputs = []
@@ -46,6 +46,6 @@ class Op:
 
         # transform the inputs into the output
         self.input = self.call(inputs)
-        print(f"output {self.input}")
-        print("=" * 5)
+        # print(f"output {self.input}")
+        # print("=" * 5)
         return self.input
