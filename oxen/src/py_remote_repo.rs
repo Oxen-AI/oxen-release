@@ -1,10 +1,14 @@
+use liboxen::constants::{DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
+use liboxen::model::entry::mod_entry::ModType;
+use liboxen::view::PaginatedDirEntries;
 use pyo3::prelude::*;
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use liboxen::config::UserConfig;
 use liboxen::model::{
-    CommitBody, Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus,
+    CommitBody, Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus, ContentType,
 };
 use liboxen::{api, command};
 
@@ -21,6 +25,7 @@ use crate::py_staged_data::PyStagedData;
 pub struct PyRemoteRepo {
     repo: RemoteRepository,
     host: String,
+    #[pyo3(get)]
     revision: String,
 }
 
@@ -65,10 +70,14 @@ impl PyRemoteRepo {
     fn name(&self) -> &str {
         &self.repo.name
     }
-
     fn revision(&self) -> &str {
         &self.revision
     }
+
+    fn set_revision(&mut self, new_revision: String) {
+        self.revision = new_revision;
+    }
+
 
     fn create(&mut self) -> Result<PyRemoteRepo, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
@@ -160,6 +169,23 @@ impl PyRemoteRepo {
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
 
+    fn add_df_row(&self, branch_name: String, path: PathBuf, data: String) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            api::remote::staging::stage_modification(
+                &self.repo,
+                &branch_name,
+                &user_id,
+                &path,
+                data,
+                ContentType::Json,
+                ModType::Append
+            )
+            .await
+        })?;
+        Ok(())
+    }
+
     fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {
         let branches = pyo3_asyncio::tokio::get_runtime()
             .block_on(async { api::remote::branches::list(&self.repo).await })?;
@@ -224,6 +250,18 @@ impl PyRemoteRepo {
         }
     }
 
+    fn get_commit(&self, commit_id: String) -> PyResult<PyCommit> {
+        let commit = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            api::remote::commits::get_by_id(&self.repo, &commit_id).await
+        });
+        match commit {
+            Ok(Some(commit)) => Ok(PyCommit {
+                commit
+            }),
+            _ => Err(PyValueError::new_err("could not get commit id {commit_id}" ))
+        }
+    }
+
     fn create_branch(&self, new_name: String, from_name: String) -> PyResult<PyBranch> {
         log::info!("create from or get branch... {new_name} from {from_name}");
         log::info!("From repo... {}", self.repo.remote.url);
@@ -239,4 +277,28 @@ impl PyRemoteRepo {
             _ => Err(PyValueError::new_err("Could not get or create branch")),
         }
     }
+    fn checkout(&mut self, revision: String) -> PyResult<()> {
+        // TODO: Flatten
+        // Attempt to checkout the passed revision as a branch
+        let branch = self.get_branch(revision.clone());
+        match branch {
+            Ok(branch) => {
+                self.set_revision(branch.name);
+                Ok(())
+            }
+            // If this doesn't work, get a commit
+            _ => {
+                let commit = self.get_commit(revision.clone());
+                match commit {
+                    Ok(commit) => {
+                        self.set_revision(commit.commit.id);
+                        Ok(())
+                    }
+                    _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision))),
+                }
+            }
+        }
+
+    }
+        
 }
