@@ -10,11 +10,11 @@ def test_remove_staged_file(
     _, remote_repo = celeba_remote_repo_one_image_pushed
 
     remote_repo.add(full_path, "folder")
-    staged_data = remote_repo.status("main", "folder")
+    staged_data = remote_repo.status()
     added_files = staged_data.added_files()
     assert len(added_files) == 1, "Error adding to test remove"
 
-    remote_repo.remove("folder/2.jpg", "main")
-    staged_data = remote_repo.status("main", "folder")
+    remote_repo.remove("folder/2.jpg")
+    staged_data = remote_repo.status()
     added_files = staged_data.added_files()
     assert len(added_files) == 0, "File not successfully removed from staging"

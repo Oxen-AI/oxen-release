@@ -18,8 +18,6 @@ class RemoteRepo:
             For example `ox/chatbot`
         host : str
             The host to connect to. Defaults to `hub.oxen.ai`
-        revision : str
-            The branch name or commit id to download from
         """
         self._repo = PyRemoteRepo(path, host, revision)
 
@@ -80,8 +78,7 @@ class RemoteRepo:
         
 
     def download(
-        self, remote_path: str, local_path: str, revision: str | None = "main"
-    ):
+        self, remote_path: str, local_path: str | None):
         """
         Download a file or directory from the remote repo.
 
@@ -95,11 +92,11 @@ class RemoteRepo:
         revision : str | None
             The branch name or commit id to download from
         """
-        if revision is None:
-            revision = self.revision
-        self._repo.download(remote_path, local_path, revision)
+        if local_path is None:
+            local_path = remote_path
+        self._repo.download(remote_path, local_path)
 
-    def add(self, local_path: str, remote_directory: str = "", revision: str | None = None):
+    def add(self, local_path: str, remote_directory: str = ""):
         """
         Stage a file to the remote staging environment
 
@@ -109,14 +106,10 @@ class RemoteRepo:
             The path to the local file to be staged
         remote_directory: str
             The path in the remote repo where the file will be added
-        revision: str
-            The branch name or commit id to stage the commit on
         """
-        if revision is None:
-            revision = self.revision
-        self._repo.add(revision, remote_directory, local_path)
+        self._repo.add(remote_directory, local_path)
 
-    def remove(self, path: str, revision: str | None = None):
+    def remove(self, path: str):
         """
         Unstage a file from the remote staging environment
 
@@ -127,27 +120,21 @@ class RemoteRepo:
         branch: str
             The branch name on which to unstage this file
         """
-        if revision is None: 
-            revision = self.revision
-        self._repo.remove(revision, path)
+        self._repo.remove(path)
 
-    def status(self, revision: str = "main", path: str | None = ""):
+    def status(self, path: str = ""):
         """
         Get the status of the remote repo. Returns a StagedData object.
 
         Parameters
         ----------
-        revision: str
-            The branch name or commit id to check the status of
         path: str
             The directory or file path on the remote that 
             will be checked for modifications
         """
-        if revision is None: 
-            revision = self.revision
-        return self._repo.status(revision, path)
+        return self._repo.status(path)
 
-    def commit(self, message: str, revision: str | None):
+    def commit(self, message: str):
         """
         Commit the staged data in the remote repo with a message.
 
@@ -155,25 +142,14 @@ class RemoteRepo:
         ----------
         message : str
             The commit message.
-        branch:
-            The remote branch name to commit to 
         """
-        if revision is None:
-            revision = self.revision
-        self._repo.commit(revision, message)
+        self._repo.commit(message)
 
-    def log(self, revision: str | None):
+    def log(self):
         """
         Get the commit history for a remote repo
-
-        Parameters
-        ----------
-        revision: str
-            The branch name or commit id to get history from
         """
-        if revision is None:
-            revision = self.revision
-        return self._repo.log(revision)
+        return self._repo.log()
 
     def list_branches(self):
         """
@@ -181,12 +157,9 @@ class RemoteRepo:
         """
         return self._repo.list_branches()
     
-    def add_df_row(self, path: str, row: dict, revision: str | None = None):
-        if revision is None:
-            revision = self.revision
-
+    def add_df_row(self, path: str, row: dict):
         data = json.dumps(row)
-        return self._repo.add_df_row(revision, path, data)
+        return self._repo.add_df_row(path, data)
     
     def get_branch(self, branch: str):
         """
@@ -200,7 +173,7 @@ class RemoteRepo:
         return self._repo.get_branch(branch)
 
 
-    def create_branch(self, new_branch: str, from_revision: str = "main"):
+    def create_branch(self, new_branch: str):
         """
         Return a branch by name on this repo, 
         creating it from a specified existing branch if it doesn't exist
@@ -212,8 +185,5 @@ class RemoteRepo:
         from_branch: str
             The name of the branch to branch the new branch off of
         """
-        if from_revision is None:
-            from_revision = self.revision
-        
-        return self._repo.create_branch(new_branch, from_revision)
+        return self._repo.create_branch(new_branch)
     
