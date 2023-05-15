@@ -1,14 +1,11 @@
-use liboxen::constants::{DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::view::PaginatedDirEntries;
 use pyo3::prelude::*;
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use liboxen::config::UserConfig;
 use liboxen::model::{
-    CommitBody, Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus, ContentType,
+    CommitBody, ContentType, Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
 use liboxen::{api, command};
 
@@ -78,7 +75,6 @@ impl PyRemoteRepo {
         self.revision = new_revision;
     }
 
-
     fn create(&mut self) -> Result<PyRemoteRepo, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::repositories::create_no_root(
@@ -112,11 +108,7 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn download(
-        &self,
-        remote_path: PathBuf,
-        local_path: PathBuf,
-    ) -> Result<(), PyOxenError> {
+    fn download(&self, remote_path: PathBuf, local_path: PathBuf) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             command::remote::download(&self.repo, &remote_path, &local_path, &self.revision).await
         })?;
@@ -124,11 +116,7 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn add(
-        &self,
-        directory_name: String,
-        path: PathBuf,
-    ) -> Result<(), PyOxenError> {
+    fn add(&self, directory_name: String, path: PathBuf) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::add_file(
@@ -178,7 +166,7 @@ impl PyRemoteRepo {
                 &path,
                 data,
                 ContentType::Json,
-                ModType::Append
+                ModType::Append,
             )
             .await
         })?;
@@ -250,14 +238,11 @@ impl PyRemoteRepo {
     }
 
     fn get_commit(&self, commit_id: String) -> PyResult<PyCommit> {
-        let commit = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::commits::get_by_id(&self.repo, &commit_id).await
-        });
+        let commit = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { api::remote::commits::get_by_id(&self.repo, &commit_id).await });
         match commit {
-            Ok(Some(commit)) => Ok(PyCommit {
-                commit
-            }),
-            _ => Err(PyValueError::new_err("could not get commit id {commit_id}" ))
+            Ok(Some(commit)) => Ok(PyCommit { commit }),
+            _ => Err(PyValueError::new_err("could not get commit id {commit_id}")),
         }
     }
 
@@ -295,7 +280,5 @@ impl PyRemoteRepo {
                 }
             }
         }
-
     }
-        
 }

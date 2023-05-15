@@ -13,9 +13,8 @@ def test_commit_one_file(
     remote_repo.commit("a commit message!")
     assert len(remote_repo.log()) == 3
 
-def test_commit_empty(
-    celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
-):
+
+def test_commit_empty(celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     remote_repo.commit("a commit message")
     assert len(remote_repo.log()) == 3

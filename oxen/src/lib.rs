@@ -38,7 +38,6 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_commit::PyCommit>()?;
 
-
     // Util Module
     let util_module = PyModule::new(py, "util")?;
     util_module.add_function(wrap_pyfunction!(util::is_tabular, util_module)?)?;
