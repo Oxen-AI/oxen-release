@@ -8,13 +8,13 @@ from oxen import RemoteRepo
 def test_checkout_then_add_new_branch(celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     remote_repo.create_branch("newbranch")
-    remote_repo.checkout("newbranchaa")
+    remote_repo.checkout("newbranch")
+
     full_path = os.path.join(shared_datadir, "CelebA/images/1.jpg")
     remote_repo.add(full_path)
-    staged_data = remote_repo.status("newbranch", "")
-    staged_data_no_params = remote_repo.status()
+    staged_data = remote_repo.status()
+
     staged_data_main = remote_repo.status("main")
 
     assert len(staged_data_main.added_files()) == 0
     assert len(staged_data.added_files()) == 1
-    assert staged_data.added_files() == staged_data_no_params.added_files()

@@ -126,7 +126,6 @@ impl PyRemoteRepo {
 
     fn add(
         &self,
-        branch_name: String,
         directory_name: String,
         path: PathBuf,
     ) -> Result<(), PyOxenError> {
@@ -134,7 +133,7 @@ impl PyRemoteRepo {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::add_file(
                 &self.repo,
-                &branch_name,
+                &self.revision,
                 &user_id,
                 &directory_name,
                 path,
@@ -144,37 +143,37 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn remove(&self, branch_name: String, path: PathBuf) -> Result<(), PyOxenError> {
+    fn remove(&self, path: PathBuf) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::staging::rm_staged_file(&self.repo, &branch_name, &user_id, path).await
+            api::remote::staging::rm_staged_file(&self.repo, &self.revision, &user_id, path).await
         })?;
         Ok(())
     }
 
-    fn commit(&self, branch_name: String, message: String) -> Result<(), PyOxenError> {
+    fn commit(&self, message: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         let user = UserConfig::get()?.to_user();
         let commit = CommitBody { message, user };
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::staging::commit_staged(&self.repo, &branch_name, &user_id, &commit).await
+            api::remote::staging::commit_staged(&self.repo, &self.revision, &user_id, &commit).await
         })?;
         Ok(())
     }
 
-    fn log(&self, branch_name_or_commit_id: String) -> Result<Vec<PyCommit>, PyOxenError> {
+    fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
         let log = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::commits::list_commit_history(&self.repo, &branch_name_or_commit_id).await
+            api::remote::commits::list_commit_history(&self.repo, &self.revision).await
         })?;
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
     }
 
-    fn add_df_row(&self, branch_name: String, path: PathBuf, data: String) -> Result<(), PyOxenError> {
+    fn add_df_row(&self, path: PathBuf, data: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::stage_modification(
                 &self.repo,
-                &branch_name,
+                &self.revision,
                 &user_id,
                 &path,
                 data,
@@ -198,12 +197,12 @@ impl PyRemoteRepo {
             .collect())
     }
 
-    fn status(&self, branch_name: String, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
+    fn status(&self, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
         let user_id = UserConfig::identifier()?;
         let remote_status = pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::status(
                 &self.repo,
-                &branch_name,
+                &self.revision,
                 &user_id,
                 &path,
                 liboxen::constants::DEFAULT_PAGE_NUM,
@@ -262,11 +261,9 @@ impl PyRemoteRepo {
         }
     }
 
-    fn create_branch(&self, new_name: String, from_name: String) -> PyResult<PyBranch> {
-        log::info!("create from or get branch... {new_name} from {from_name}");
-        log::info!("From repo... {}", self.repo.remote.url);
+    fn create_branch(&self, new_name: String) -> PyResult<PyBranch> {
         let branch = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::branches::create_from_or_get(&self.repo, &new_name, &from_name).await
+            api::remote::branches::create_from_or_get(&self.repo, &new_name, &self.revision).await
         });
 
         match branch {
