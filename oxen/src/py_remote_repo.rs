@@ -1,12 +1,8 @@
 use liboxen::model::entry::mod_entry::ModType;
 use pyo3::prelude::*;
 
-use std::collections::HashMap;
-
 use liboxen::config::UserConfig;
-use liboxen::model::{
-    CommitBody, ContentType, Remote, RemoteRepository, StagedData, StagedEntry, StagedEntryStatus,
-};
+use liboxen::model::{CommitBody, ContentType, Remote, RemoteRepository};
 use liboxen::{api, command};
 
 use pyo3::exceptions::PyValueError;
@@ -199,25 +195,8 @@ impl PyRemoteRepo {
             .await
         })?;
 
-        let mut status = StagedData::empty();
-        status.added_dirs = remote_status.added_dirs;
-        let added_files: HashMap<PathBuf, StagedEntry> =
-            HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
-                (
-                    PathBuf::from(e.filename),
-                    StagedEntry::empty_status(StagedEntryStatus::Added),
-                )
-            }));
-        let added_mods: HashMap<PathBuf, StagedEntry> =
-            HashMap::from_iter(remote_status.modified_files.entries.into_iter().map(|e| {
-                (
-                    PathBuf::from(e.filename),
-                    StagedEntry::empty_status(StagedEntryStatus::Modified),
-                )
-            }));
-        status.added_files = added_files.into_iter().chain(added_mods).collect();
-
-        Ok(PyStagedData { data: status })
+        // Convert remote status to a PyStagedData using the from method
+        Ok(PyStagedData::from(remote_status))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
