@@ -18,6 +18,8 @@ class RemoteRepo:
             For example `ox/chatbot`
         host : str
             The host to connect to. Defaults to `hub.oxen.ai`
+        revision: str
+            The branch name or commit id to checkout. Defaults to `main`
         """
         self._repo = PyRemoteRepo(path, host, revision)
 
@@ -87,8 +89,6 @@ class RemoteRepo:
         local_path : str | None
             The path to the local file. If None, will download to
             the same path as remote_path
-        revision : str | None
-            The branch name or commit id to download from
         """
         if local_path is None:
             local_path = remote_path
@@ -115,8 +115,6 @@ class RemoteRepo:
         ----------
         path: str
             The path to the file on remote to be removed from staging
-        branch: str
-            The branch name on which to unstage this file
         """
         self._repo.remove(path)
 
@@ -156,12 +154,24 @@ class RemoteRepo:
         return self._repo.list_branches()
 
     def add_df_row(self, path: str, row: dict):
+        """
+        Adds a row to the dataframe at the specified path on the remote repo
+
+        Parameters 
+        ----------
+        path: str
+            Path to the dataframe on the remote repo
+        row: dict
+            A dictionary representing the row to be added to the dataframe,
+            where keys are column names and values are the values to be inserted.
+            Schema must exactly match DF on remote repo.
+        """
         data = json.dumps(row)
         return self._repo.add_df_row(path, data)
 
     def get_branch(self, branch: str):
         """
-        Return a branch by name on this repo
+        Return a branch by name on this repo, if exists
 
         Parameters
         ----------
@@ -173,13 +183,11 @@ class RemoteRepo:
     def create_branch(self, new_branch: str):
         """
         Return a branch by name on this repo, 
-        creating it from a specified existing branch if it doesn't exist
+        creating it from the currently checked out branch if it doesn't exist
 
         Parameters
         ----------
         new_branch: str
             The name to assign to the created branch 
-        from_branch: str
-            The name of the branch to branch the new branch off of
         """
         return self._repo.create_branch(new_branch)
