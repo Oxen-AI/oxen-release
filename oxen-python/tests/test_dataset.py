@@ -11,11 +11,7 @@ def test_dataset_load_celeba_train_download_df(
 
     # download the remote dataframe, and load the data into a dataloader
     train_file = "annotations/train.csv"
-    dataset = Dataset(
-        remote_repo,
-        paths=[train_file],
-        cache_dir=empty_local_dir,
-    )
+    dataset = Dataset(remote_repo, paths=[train_file], cache_dir=empty_local_dir,)
     df = dataset.df(train_file)
     assert df is not None
     assert df.height == 5
@@ -33,9 +29,7 @@ def test_dataset_load_celeba_train_download_df_and_images(
     train_file = "annotations/train.csv"
     images = "images"
     dataset = Dataset(
-        remote_repo,
-        paths=[train_file, images],
-        cache_dir=empty_local_dir,
+        remote_repo, paths=[train_file, images], cache_dir=empty_local_dir,
     )
     dataset.download_all()
 
