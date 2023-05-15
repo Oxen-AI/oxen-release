@@ -75,10 +75,8 @@ class RemoteRepo:
         Switches the remote repo to the specified revision.
         """
         self._repo.checkout(revision)
-        
 
-    def download(
-        self, remote_path: str, local_path: str | None):
+    def download(self, remote_path: str, local_path: str | None):
         """
         Download a file or directory from the remote repo.
 
@@ -156,11 +154,11 @@ class RemoteRepo:
         List all branches for a remote repo
         """
         return self._repo.list_branches()
-    
+
     def add_df_row(self, path: str, row: dict):
         data = json.dumps(row)
         return self._repo.add_df_row(path, data)
-    
+
     def get_branch(self, branch: str):
         """
         Return a branch by name on this repo
@@ -171,7 +169,6 @@ class RemoteRepo:
             The name of the branch to return
         """
         return self._repo.get_branch(branch)
-
 
     def create_branch(self, new_branch: str):
         """
@@ -186,4 +183,3 @@ class RemoteRepo:
             The name of the branch to branch the new branch off of
         """
         return self._repo.create_branch(new_branch)
-    

@@ -1,11 +1,12 @@
 import pandas as pd
-import pytest
 import os
-import glob
 
-from oxen import RemoteRepo 
+from oxen import RemoteRepo
 
-def test_checkout_then_add_new_branch(celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir):
+
+def test_checkout_then_add_new_branch(
+    celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
+):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     remote_repo.create_branch("newbranch")
     remote_repo.checkout("newbranch")

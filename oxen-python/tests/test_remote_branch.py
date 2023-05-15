@@ -11,7 +11,6 @@ def test_create_new_branch(
     assert len(remote_repo.list_branches()) == 2
 
 
-
 def test_create_existing_branch(
     celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
 ):
