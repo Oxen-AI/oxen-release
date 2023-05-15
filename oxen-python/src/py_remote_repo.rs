@@ -260,25 +260,19 @@ impl PyRemoteRepo {
         }
     }
     fn checkout(&mut self, revision: String) -> PyResult<()> {
-        // TODO: Flatten
-        // Attempt to checkout the passed revision as a branch
         let branch = self.get_branch(revision.clone());
-        match branch {
-            Ok(branch) => {
-                self.set_revision(branch.name);
+        if let Ok(branch) = branch {
+            self.set_revision(branch.name);
+            return Ok(());
+        }
+
+        let commit = self.get_commit(revision.clone());
+        match commit {
+            Ok(commit) => {
+                self.set_revision(commit.commit.id);
                 Ok(())
-            }
-            // If this doesn't work, get a commit
-            _ => {
-                let commit = self.get_commit(revision.clone());
-                match commit {
-                    Ok(commit) => {
-                        self.set_revision(commit.commit.id);
-                        Ok(())
-                    }
-                    _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision))),
-                }
-            }
+            },
+            _ => Err(PyValueError::new_err(format!("{} is not a valid branch name or commit id. Consider creating it with `create_branch`", revision)))
         }
     }
 }
