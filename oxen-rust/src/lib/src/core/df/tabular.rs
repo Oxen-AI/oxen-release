@@ -11,13 +11,13 @@ use crate::util::hasher;
 use colored::Colorize;
 use comfy_table::Table;
 use indicatif::ProgressBar;
+use qsv_sniffer;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
-use qsv_sniffer;
 
 use super::{
     agg::{DFAggFn, DFAggFnType, DFAggregation},
