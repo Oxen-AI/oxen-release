@@ -2,8 +2,8 @@ use crate::api;
 use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::constants::SHALLOW_FLAG;
+use crate::core::index::EntryIndexer;
 use crate::error::OxenError;
-use crate::index::EntryIndexer;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::CloneOpts;
 use crate::util;
@@ -141,7 +141,7 @@ impl LocalRepository {
         Ok(Some(repo))
     }
 
-    pub fn add_remote(&mut self, name: &str, url: &str) {
+    pub fn set_remote(&mut self, name: &str, url: &str) {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
@@ -160,7 +160,7 @@ impl LocalRepository {
         }
     }
 
-    pub fn remove_remote(&mut self, name: &str) {
+    pub fn delete_remote(&mut self, name: &str) {
         let mut new_remotes: Vec<Remote> = vec![];
         for i in 0..self.remotes.len() {
             if self.remotes[i].name != name {
@@ -180,7 +180,9 @@ impl LocalRepository {
     }
 
     pub fn get_remote(&self, name: &str) -> Option<Remote> {
+        log::debug!("Checking for remote {name} have {}", self.remotes.len());
         for remote in self.remotes.iter() {
+            log::debug!("comparing: {name} -> {}", remote.name);
             if remote.name == name {
                 return Some(remote.clone());
             }
@@ -222,7 +224,7 @@ impl LocalRepository {
         let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
         let mut local_repo = LocalRepository::from_remote(repo.clone(), &repo_path)?;
         local_repo.path = repo_path;
-        local_repo.add_remote("origin", &repo.remote.url);
+        local_repo.set_remote(DEFAULT_REMOTE_NAME, &repo.remote.url);
 
         let toml = toml::to_string(&local_repo)?;
         util::fs::write_to_path(&repo_config_file, &toml)?;
@@ -320,7 +322,7 @@ mod tests {
         test::run_empty_local_repo_test(|mut local_repo| {
             let url = "http://0.0.0.0:3000/repositories/OxenData";
             let remote_name = "origin";
-            local_repo.add_remote(remote_name, url);
+            local_repo.set_remote(remote_name, url);
             let remote = local_repo.get_remote(remote_name).unwrap();
             assert_eq!(remote.name, remote_name);
             assert_eq!(remote.url, url);
@@ -330,18 +332,18 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_remote() -> Result<(), OxenError> {
+    fn test_delete_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|mut local_repo| {
             let origin_url = "http://0.0.0.0:3000/repositories/OxenData";
             let origin_name = "origin";
 
             let other_url = "http://0.0.0.0:4000/repositories/OxenData";
             let other_name = "other";
-            local_repo.add_remote(origin_name, origin_url);
-            local_repo.add_remote(other_name, other_url);
+            local_repo.set_remote(origin_name, origin_url);
+            local_repo.set_remote(other_name, other_url);
 
             // Remove and make sure we cannot get again
-            local_repo.remove_remote(origin_name);
+            local_repo.delete_remote(origin_name);
             let remote = local_repo.get_remote(origin_name);
             assert!(remote.is_none());
 

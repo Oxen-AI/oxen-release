@@ -1,9 +1,20 @@
-use crate::command;
+//! # Local Commits
+//!
+//! Interact with local commits.
+//!
+
+use crate::api;
+use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
-use crate::index::{CommitDirReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
+use crate::opts::LogOpts;
 
 use std::path::Path;
+
+pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let reader = CommitReader::new(repo)?;
+    reader.head_commit()
+}
 
 pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let reader = CommitReader::new(repo)?;
@@ -33,9 +44,17 @@ pub fn get_by_id_or_branch(
     reader.get_commit_by_id(commit_id)
 }
 
+/// Current head commit
 pub fn get_head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let committer = CommitReader::new(repo)?;
     committer.head_commit()
+}
+
+/// Get the root commit
+pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commit = committer.root_commit()?;
+    Ok(commit)
 }
 
 pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit>, OxenError> {
@@ -52,7 +71,7 @@ pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit
 }
 
 pub fn commit_content_size(repo: &LocalRepository, commit: &Commit) -> Result<u64, OxenError> {
-    let reader = CommitDirReader::new(repo, commit)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
     let entries = reader.list_entries()?;
     compute_entries_size(&entries)
 }
@@ -110,7 +129,7 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
     let repo = LocalRepository::from_dir(repo_dir)?;
 
     // If we have a root, and we are trying to push a new one, don't allow it
-    if let Ok(root) = command::root_commit(&repo) {
+    if let Ok(root) = root_commit(&repo) {
         if commit.parent_ids.is_empty() && root.id != commit.id {
             log::error!("Root commit does not match {} != {}", root.id, commit.id);
             return Err(OxenError::root_commit_does_not_match(commit.to_owned()));
@@ -139,4 +158,84 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
         }
     };
     Ok(())
+}
+
+/// List commits on the current branch
+pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commits = committer.history_from_head()?;
+    Ok(commits)
+}
+
+/// Get commit history given options
+pub async fn list_with_opts(
+    repo: &LocalRepository,
+    opts: &LogOpts,
+) -> Result<Vec<Commit>, OxenError> {
+    if opts.remote {
+        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let committish = if let Some(committish) = &opts.committish {
+            committish.to_owned()
+        } else {
+            api::local::branches::current_branch(repo)?.unwrap().name
+        };
+        let commits = api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+        Ok(commits)
+    } else {
+        let committer = CommitReader::new(repo)?;
+
+        let commits = if let Some(committish) = &opts.committish {
+            let commit = api::local::commits::get_by_id_or_branch(repo, committish)?.ok_or(
+                OxenError::committish_not_found(committish.to_string().into()),
+            )?;
+            committer.history_from_commit_id(&commit.id)?
+        } else {
+            committer.history_from_head()?
+        };
+        Ok(commits)
+    }
+}
+
+/// # List the history for a specific branch or commit
+pub fn list_from(repo: &LocalRepository, commit_or_branch: &str) -> Result<Vec<Commit>, OxenError> {
+    log::debug!("log_commit_or_branch_history: {}", commit_or_branch);
+    let committer = CommitReader::new(repo)?;
+    if commit_or_branch.contains("..") {
+        // This is BASE..HEAD format, and we only want to history from BASE to HEAD
+        let split: Vec<&str> = commit_or_branch.split("..").collect();
+        let base = split[0];
+        let head = split[1];
+        let base_commit_id = match api::local::branches::get_commit_id(repo, base)? {
+            Some(branch_commit_id) => branch_commit_id,
+            None => String::from(base),
+        };
+        let head_commit_id = match api::local::branches::get_commit_id(repo, head)? {
+            Some(branch_commit_id) => branch_commit_id,
+            None => String::from(head),
+        };
+        log::debug!(
+            "log_commit_or_branch_history: base_commit_id: {} head_commit_id: {}",
+            base_commit_id,
+            head_commit_id
+        );
+        return match committer.history_from_base_to_head(&base_commit_id, &head_commit_id) {
+            Ok(commits) => Ok(commits),
+            Err(_) => Err(OxenError::local_commit_or_branch_not_found(
+                commit_or_branch,
+            )),
+        };
+    }
+
+    let commit_id = match api::local::branches::get_commit_id(repo, commit_or_branch)? {
+        Some(branch_commit_id) => branch_commit_id,
+        None => String::from(commit_or_branch),
+    };
+
+    log::debug!("log_commit_or_branch_history: commit_id: {}", commit_id);
+    match committer.history_from_commit_id(&commit_id) {
+        Ok(commits) => Ok(commits),
+        Err(_) => Err(OxenError::local_commit_or_branch_not_found(
+            commit_or_branch,
+        )),
+    }
 }

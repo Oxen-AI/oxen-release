@@ -1,3 +1,6 @@
+//! Views are the data structures that are returned by the API endpoints.
+//!
+
 pub mod branch;
 pub mod commit;
 pub mod compare;
@@ -40,7 +43,9 @@ pub use crate::view::commit::{
     PaginatedCommits,
 };
 
-pub use crate::view::branch::{BranchNew, BranchResponse, BranchUpdate, ListBranchesResponse};
+pub use crate::view::branch::{
+    BranchNew, BranchNewFromExisting, BranchResponse, BranchUpdate, ListBranchesResponse,
+};
 
 pub use crate::view::entry_meta_data::EntryMetaDataResponse;
 

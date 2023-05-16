@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use crate::view::entry::ResourceVersion;
 use crate::{
     model::{CommitEntry, LocalRepository},
     util,
-    view::entry::ResourceVersion,
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]

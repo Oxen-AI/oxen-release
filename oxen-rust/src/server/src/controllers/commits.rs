@@ -1,10 +1,9 @@
 use liboxen::api;
-use liboxen::command;
-use liboxen::compute::cachers::content_validator;
-use liboxen::compute::commit_cacher;
-use liboxen::compute::commit_cacher::CacherStatusType;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
+use liboxen::core::cache::cachers::content_validator;
+use liboxen::core::cache::commit_cacher;
+use liboxen::core::cache::commit_cacher::CacherStatusType;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
@@ -275,7 +274,7 @@ fn p_get_parents(
 
 fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
-    let commits = command::log(&repo)?;
+    let commits = api::local::commits::list(&repo)?;
     Ok(ListCommitResponse::success(commits))
 }
 
@@ -284,11 +283,12 @@ fn p_index_commit_or_branch_history(
     commit_or_branch: &str,
 ) -> Result<ListCommitResponse, OxenError> {
     let repo = LocalRepository::new(repo_dir)?;
-    let commits = command::log_commit_or_branch_history(&repo, commit_or_branch)?;
+    let commits = api::local::commits::list_from(&repo, commit_or_branch)?;
     // log::debug!("controllers::commits: : {:#?}", commits);
     Ok(ListCommitResponse::success(commits))
 }
 
+// TODO: cleanup, and allow for downloading of sub-dirs
 pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
@@ -334,6 +334,7 @@ pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
     }
 }
 
+// Allow downloading of sub-dirs for efficiency
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
     // zip up the rocksdb in history dir, and post to server
@@ -343,7 +344,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     // This will be the subdir within the tarball
     let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
 
-    log::debug!("Compressing commit {}", commit.id);
+    log::debug!("Compressing commit {} from dir {:?}", commit.id, commit_dir);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
@@ -535,7 +536,7 @@ fn check_if_upload_complete_and_unpack(
 
     let mut uploaded_size: u64 = 0;
     for file in files.iter() {
-        match std::fs::metadata(file) {
+        match util::fs::metadata(file) {
             Ok(metadata) => {
                 uploaded_size += metadata.len();
             }
@@ -781,6 +782,7 @@ mod tests {
     use std::path::Path;
     use std::thread;
 
+    use liboxen::api;
     use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
@@ -862,7 +864,7 @@ mod tests {
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::add(&repo, path)?;
@@ -899,14 +901,14 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-        let og_branch = command::current_branch(&repo)?.unwrap();
+        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         command::add(&repo, path)?;
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
-        command::create_checkout_branch(&repo, branch_name)?;
+        api::local::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::add(&repo, path)?;
@@ -949,7 +951,7 @@ mod tests {
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
         command::add(&repo, &hello_file)?;
-        let commit = command::commit(&repo, "First commit")?.unwrap();
+        let commit = command::commit(&repo, "First commit")?;
 
         // create random tarball to post.. currently no validation that it is a valid commit dir
         let path_to_compress = format!("history/{}", commit.id);

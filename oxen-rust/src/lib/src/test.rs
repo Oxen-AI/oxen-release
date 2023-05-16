@@ -4,9 +4,11 @@
 use crate::api;
 use crate::command;
 use crate::constants;
+
+use crate::core::index::{RefWriter, Stager};
 use crate::error::OxenError;
-use crate::index::{RefWriter, Stager};
 use crate::model::{LocalRepository, RemoteRepository};
+
 use crate::opts::RmOpts;
 use crate::util;
 
@@ -58,7 +60,7 @@ fn create_empty_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
 }
 
 pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    command::create_remote(
+    api::remote::repositories::create(
         repo,
         constants::DEFAULT_NAMESPACE,
         &repo.dirname(),
@@ -298,7 +300,7 @@ where
 
     // Add remote
     let remote_url = repo_remote_url_from(&local_repo.dirname());
-    command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
     // Push data
     command::push(&local_repo).await?;
 
@@ -403,7 +405,7 @@ where
 
     // Set the proper remote
     let remote = repo_remote_url_from(&local_repo.dirname());
-    command::add_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
     // Create remote repo
     let repo = create_remote_repo(&local_repo).await?;
@@ -507,8 +509,8 @@ where
     command::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
-    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schema_name(
+    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schemas::set_name(
         &repo,
         "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",
@@ -549,8 +551,8 @@ where
     command::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
-    command::schema_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schema_name(
+    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schemas::set_name(
         &repo,
         "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",
@@ -584,8 +586,8 @@ fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
     command::add(repo, repo.path.join("README.md"))?;
 
     // Make it easy to find these schemas during testing
-    command::schema_name(repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schema_name(
+    command::schemas::set_name(repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schemas::set_name(
         repo,
         "34a3b58f5471d7ae9580ebcf2582be2f",
         "text_classification",

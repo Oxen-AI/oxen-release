@@ -5,10 +5,8 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
-use crate::{
-    df::{tabular, DFOpts},
-    model::Schema,
-};
+use crate::core::df::tabular;
+use crate::{model::Schema, opts::DFOpts};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataSize {

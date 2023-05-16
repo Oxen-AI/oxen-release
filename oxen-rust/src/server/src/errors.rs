@@ -2,6 +2,7 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::error::{OxenError, StringError};
 use liboxen::view::{StatusMessage, StatusMessageDescription};
+use std::io;
 
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
@@ -13,11 +14,33 @@ pub enum OxenHttpError {
 
     // Translate OxenError to OxenHttpError
     InternalOxenError(OxenError),
+
+    // External
+    ActixError(actix_web::Error),
+    SerdeError(serde_json::Error),
 }
 
 impl From<OxenError> for OxenHttpError {
     fn from(error: OxenError) -> Self {
         OxenHttpError::InternalOxenError(error)
+    }
+}
+
+impl From<io::Error> for OxenHttpError {
+    fn from(error: io::Error) -> Self {
+        OxenHttpError::InternalOxenError(OxenError::IO(error))
+    }
+}
+
+impl From<actix_web::Error> for OxenHttpError {
+    fn from(error: actix_web::Error) -> Self {
+        OxenHttpError::ActixError(error)
+    }
+}
+
+impl From<serde_json::Error> for OxenHttpError {
+    fn from(error: serde_json::Error) -> Self {
+        OxenHttpError::SerdeError(error)
     }
 }
 
@@ -44,6 +67,13 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::NotFound => {
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
+            OxenHttpError::ActixError(_) => {
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+            OxenHttpError::SerdeError(_) => {
+                HttpResponse::BadRequest().json(StatusMessage::bad_request())
+            }
+
             OxenHttpError::InternalOxenError(error) => {
                 // Catch specific OxenError's and return the appropriate response
                 match error {
@@ -79,6 +109,20 @@ impl error::ResponseError for OxenHttpError {
                             commit_id
                         )))
                     }
+                    OxenError::PathDoesNotExist(path) => {
+                        log::debug!("Path does not exist: {}", path);
+
+                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
+                            "'{}' not found",
+                            path
+                        )))
+                    }
+                    OxenError::CommitEntryNotFound(msg) => {
+                        log::error!("{msg}");
+
+                        HttpResponse::NotFound()
+                            .json(StatusMessageDescription::not_found(format!("{msg}")))
+                    }
                     OxenError::InvalidSchema(schema) => {
                         log::error!("Invalid schema: {}", schema);
 
@@ -110,6 +154,8 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::PathParamDoesNotExist(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::BadRequest => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
+            OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::CommittishNotFound(_) => StatusCode::NOT_FOUND,

@@ -1,5 +1,5 @@
 use actix_web::web;
-use liboxen::df::DFOpts;
+use liboxen::opts::DFOpts;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]

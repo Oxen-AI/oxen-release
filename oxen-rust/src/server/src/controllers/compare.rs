@@ -1,7 +1,6 @@
 use crate::app_data::OxenAppData;
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::index::differ;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{CompareResponse, StatusMessage};
 use liboxen::{api, constants, util};
@@ -22,7 +21,11 @@ pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResp
         Ok(Some(repository)) => match parse_base_head(base_head) {
             Ok((base, head)) => match resolve_base_head(&repository, &base, &head) {
                 Ok((Some(base_commit), Some(head_commit))) => {
-                    match differ::list_diff_entries(&repository, &base_commit, &head_commit) {
+                    match api::local::diff::list_diff_entries(
+                        &repository,
+                        &base_commit,
+                        &head_commit,
+                    ) {
                         Ok(entries) => {
                             let total_entries = entries.len();
                             let (paginated, total_pages) = util::paginate(entries, page, page_size);

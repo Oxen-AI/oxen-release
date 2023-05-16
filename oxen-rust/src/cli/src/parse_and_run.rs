@@ -1,4 +1,10 @@
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, LOG, LS, RESTORE, RM, STATUS};
+// TODO: better define relationship between parse_and_run and dispatch and command
+//       * do we want to break each command into a separate file?
+//       * what is the common functionality in dispatch right now?
+//           * create local repo
+//           * printing errors as strings
+
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::constants::{
@@ -27,7 +33,7 @@ pub async fn init(sub_matches: &ArgMatches) {
 pub fn config(sub_matches: &ArgMatches) {
     if let Some(remote) = sub_matches.values_of("set-remote") {
         if let [name, url] = remote.collect::<Vec<_>>()[..] {
-            match dispatch::add_remote(name, url) {
+            match dispatch::set_remote(name, url) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{err}")
@@ -39,7 +45,7 @@ pub fn config(sub_matches: &ArgMatches) {
     }
 
     if let Some(name) = sub_matches.value_of("delete-remote") {
-        match dispatch::remove_remote(name) {
+        match dispatch::delete_remote(name) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
@@ -129,6 +135,9 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (DIFF, sub_matches) => {
                 remote_diff(sub_matches).await;
             }
+            (DOWNLOAD, sub_matches) => {
+                remote_download(sub_matches).await;
+            }
             (LS, sub_matches) => {
                 remote_ls(sub_matches).await;
             }
@@ -140,6 +149,21 @@ pub async fn remote(sub_matches: &ArgMatches) {
         dispatch::list_remotes_verbose().expect("Unable to list remotes.");
     } else {
         dispatch::list_remotes().expect("Unable to list remotes.");
+    }
+}
+
+async fn remote_download(sub_matches: &ArgMatches) {
+    let path = sub_matches
+        .value_of("path")
+        .map(PathBuf::from)
+        .expect("Must supply path");
+
+    // Make `oxen remote download $path` work
+    match dispatch::remote_download(&path).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
     }
 }
 
@@ -269,7 +293,7 @@ pub async fn log(sub_matches: &ArgMatches) {
     }
 }
 
-fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::df::DFOpts {
+fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
     let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack") {
         let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
         Some(values)
@@ -280,7 +304,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
     // CSV is easier from the CLI, but JSON is easier from API, so default to CSV here.
     let content_type = sub_matches.value_of("content-type").unwrap_or("csv");
 
-    liboxen::df::DFOpts {
+    liboxen::opts::DFOpts {
         output: sub_matches.value_of("output").map(std::path::PathBuf::from),
         delimiter: sub_matches.value_of("delimiter").map(String::from),
         slice: sub_matches.value_of("slice").map(String::from),
@@ -320,7 +344,6 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
         sort_by: sub_matches.value_of("sort").map(String::from),
         unique: sub_matches.value_of("unique").map(String::from),
         content_type: ContentType::from_str(content_type).unwrap(),
-        is_remote,
         should_randomize: sub_matches.is_present("randomize"),
         should_reverse: sub_matches.is_present("reverse"),
     }
@@ -328,8 +351,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches, is_remote: bool) -> liboxen::d
 
 async fn remote_df(sub_matches: &ArgMatches) {
     let path = sub_matches.value_of("DF_SPEC").expect("required");
-    let is_remote = true;
-    let opts = parse_df_sub_matches(sub_matches, is_remote);
+    let opts = parse_df_sub_matches(sub_matches);
 
     match dispatch::remote_df(path, opts).await {
         Ok(_) => {}
@@ -340,8 +362,7 @@ async fn remote_df(sub_matches: &ArgMatches) {
 }
 
 pub fn df(sub_matches: &ArgMatches) {
-    let is_remote = false;
-    let opts = parse_df_sub_matches(sub_matches, is_remote);
+    let opts = parse_df_sub_matches(sub_matches);
     let path = sub_matches.value_of("DF_SPEC").expect("required");
     if sub_matches.is_present("schema") || sub_matches.is_present("schema_flat") {
         match dispatch::df_schema(path, sub_matches.is_present("schema_flat"), opts) {
@@ -703,12 +724,12 @@ pub async fn commit(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn migrate(sub_matches: &ArgMatches) {
+pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
     let path_str = sub_matches.value_of("PATH").expect("required");
     let path = Path::new(path_str);
 
     if sub_matches.is_present("all") {
-        match command::migrate_all_repos(path).await {
+        match command::commit_cache::compute_cache_on_all_repos(path).await {
             Ok(_) => {}
             Err(err) => {
                 println!("Err: {err}")
@@ -718,7 +739,7 @@ pub async fn migrate(sub_matches: &ArgMatches) {
         let committish = sub_matches.value_of("COMMITTISH").map(String::from);
 
         match LocalRepository::new(path) {
-            Ok(repo) => match command::migrate_repo(&repo, committish).await {
+            Ok(repo) => match command::commit_cache::compute_cache(&repo, committish).await {
                 Ok(_) => {}
                 Err(err) => {
                     println!("Err: {err}")

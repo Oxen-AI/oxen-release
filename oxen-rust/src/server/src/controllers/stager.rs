@@ -7,15 +7,16 @@ use crate::params::{
     parse_resource, path_param,
 };
 
-use liboxen::compute::commit_cacher;
-use liboxen::df::{tabular, DFOpts};
+use liboxen::core::cache::commit_cacher;
+use liboxen::core::df::tabular;
+use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
-use liboxen::index::mod_stager;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitBody, CommitEntry, ContentType, LocalRepository,
     ObjectID, Schema,
 };
+use liboxen::opts::DFOpts;
 use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
@@ -24,7 +25,7 @@ use liboxen::view::remote_staged_status::{
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrame, RemoteStagedStatusResponse, StatusMessage,
 };
-use liboxen::{api, constants, index, util};
+use liboxen::{api, constants, core::index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
 use std::io::Write;
@@ -83,7 +84,7 @@ pub async fn diff_file(
     );
 
     let entry =
-        api::local::entries::get_entry_for_commit(&repo, &resource.commit, &resource.file_path)?
+        api::local::entries::get_commit_entry(&repo, &resource.commit, &resource.file_path)?
             .ok_or(OxenHttpError::NotFound)?;
 
     Ok(df_mods_response(
@@ -176,8 +177,8 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         OxenError::committish_not_found(branch.commit_id.to_owned().into()),
     )?;
 
-    let entry = api::local::entries::get_entry_for_commit(&repo, &commit, &resource.file_path)?
-        .ok_or(OxenError::file_does_not_exist(resource.file_path))?;
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path))?;
 
     let new_mod = NewMod {
         content_type,
@@ -186,7 +187,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         data,
     };
 
-    let row = liboxen::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
+    let row = liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
 
     Ok(HttpResponse::Ok().json(StagedFileModResponse {
         status: String::from(STATUS_SUCCESS),
@@ -223,7 +224,7 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
-            match util::resource::parse_resource(&repo, &resource) {
+            match api::local::resource::parse_resource(&repo, &resource) {
                 Ok(Some((_, branch_name, file_name))) => {
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
@@ -275,7 +276,8 @@ fn delete_mod(
     file: &Path,
     uuid: String,
 ) -> Result<HttpResponse, Error> {
-    match liboxen::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid) {
+    match liboxen::core::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid)
+    {
         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),
@@ -304,94 +306,42 @@ fn delete_mod(
     }
 }
 
-pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
 
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
-
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let user_id = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, directory))) => {
-                match api::local::branches::get_by_name(&repo, &branch_name) {
-                    Ok(Some(branch)) => {
-                        log::debug!(
-                            "stager::stage file branch_name [{}] in directory {:?}",
-                            branch_name,
-                            directory
-                        );
 
-                        let branch_repo =
-                            index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
-                        let files =
-                            save_parts(&repo, &branch, user_id, &directory, payload).await?;
-                        let mut ret_files = vec![];
-                        for file in files.iter() {
-                            log::debug!("stager::stage file {:?}", file);
-                            match index::remote_dir_stager::stage_file(
-                                &repo,
-                                &branch_repo,
-                                &branch,
-                                user_id,
-                                file,
-                            ) {
-                                Ok(file_path) => {
-                                    log::debug!(
-                                        "stager::stage ✅ success! staged file {:?}",
-                                        file_path
-                                    );
-                                    ret_files.push(file_path);
-                                }
-                                Err(err) => {
-                                    log::error!("unable to stage file {:?}. Err: {}", file, err);
-                                    return Ok(HttpResponse::InternalServerError()
-                                        .json(StatusMessage::internal_server_error()));
-                                }
-                            }
-                        }
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-                        Ok(HttpResponse::Ok().json(FilePathsResponse {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_CREATED),
-                            paths: ret_files,
-                        }))
-                    }
-                    Ok(None) => {
-                        log::debug!("stager::stage could not find branch {:?}", branch_name);
-                        Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                    }
-                    Err(err) => {
-                        log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
-                        Ok(HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error()))
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("stager::stage could not find parse resource {:?}", resource);
-                Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-            }
-            Err(err) => {
-                log::error!("unable to parse resource {:?}. Err: {}", resource, err);
-                Ok(
-                    HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()),
-                )
-            }
-        },
-        Ok(None) => {
-            log::debug!("stager::stage could not find repo with name {}", repo_name);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(err) => {
-            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+    log::debug!(
+        "stager::stage file repo {resource} -> staged repo path {:?}",
+        repo.path
+    );
+
+    let files = save_parts(&repo, &branch, &user_id, &resource.file_path, payload).await?;
+    let mut ret_files = vec![];
+
+    for file in files.iter() {
+        log::debug!("stager::stage file {:?}", file);
+        let file_path =
+            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &user_id, file)?;
+        log::debug!("stager::stage ✅ success! staged file {:?}", file_path);
+        ret_files.push(file_path);
     }
+    Ok(HttpResponse::Ok().json(FilePathsResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_CREATED),
+        paths: ret_files,
+    }))
 }
 
 pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Error> {
@@ -506,7 +456,7 @@ pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
                 clear_staged_modifications_on_branch(&repo, &branch_name, user_id, &file_name)
             }
@@ -543,7 +493,7 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     );
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
-        Ok(Some(repo)) => match util::resource::parse_resource(&repo, &resource) {
+        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
             Ok(Some((_, branch_name, file_name))) => {
                 delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
             }

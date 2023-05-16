@@ -1,13 +1,22 @@
-// use std::error;
+//! Errors for the oxen library
+//!
+//! Enumeration for all errors that can occur in the oxen library
+//!
+
 use derive_more::{Display, Error};
-use std::fmt;
 use std::fmt::Debug;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::model::RepositoryNew;
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
+use crate::model::{Remote, RepositoryNew};
+
+pub mod path_buf_error;
+pub mod string_error;
+
+pub use crate::error::path_buf_error::PathBufError;
+pub use crate::error::string_error::StringError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
@@ -19,55 +28,40 @@ pub const EMAIL_AND_NAME_NOT_FOUND: &str =
 pub const AUTH_TOKEN_NOT_FOUND: &str =
     "oxen authentication token not found, obtain one from your administrator and configure with:\n\noxen config --auth <HOST> <TOKEN>\n";
 
-#[derive(Debug)]
-pub struct StringError(String);
-
-impl From<&str> for StringError {
-    fn from(s: &str) -> Self {
-        StringError(s.to_string())
-    }
-}
-
-impl From<String> for StringError {
-    fn from(s: String) -> Self {
-        StringError(s)
-    }
-}
-
-impl std::fmt::Display for StringError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::error::Error for StringError {}
-
-#[derive(Debug)]
-pub struct PathBufError(PathBuf);
-
-impl From<&Path> for PathBufError {
-    fn from(p: &Path) -> Self {
-        PathBufError(p.to_path_buf())
-    }
-}
-
-impl From<PathBuf> for PathBufError {
-    fn from(p: PathBuf) -> Self {
-        PathBufError(p)
-    }
-}
-
-impl std::fmt::Display for PathBufError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0.to_string_lossy())
-    }
-}
-
-impl std::error::Error for PathBufError {}
-
 #[derive(Debug, Display, Error)]
 pub enum OxenError {
-    // Other Library Errors
+    /// Internal Oxen Errors
+    // User
+    UserConfigNotFound(Box<StringError>),
+
+    // Repo
+    RepoNotFound(Box<RepositoryNew>),
+    RepoAlreadyExists(Box<RepositoryNew>),
+
+    // Remotes
+    RemoteRepoNotFound(Box<Remote>),
+
+    // Branches/Commits
+    BranchNotFound(Box<StringError>),
+    CommittishNotFound(Box<StringError>),
+    RootCommitDoesNotMatch(Box<Commit>),
+    NothingToCommit(StringError),
+
+    // Resources (paths, uris, etc.)
+    ResourceNotFound(StringError),
+    PathDoesNotExist(Box<PathBufError>),
+    ParsedResourceNotFound(Box<PathBufError>),
+
+    // Entry
+    CommitEntryNotFound(StringError),
+
+    // Schema
+    InvalidSchema(Box<Schema>),
+
+    // Generic
+    ParsingError(Box<StringError>),
+
+    // External Library Errors
     IO(io::Error),
     Authentication(StringError),
     TomlSer(toml::ser::Error),
@@ -79,17 +73,6 @@ pub enum OxenError {
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
     ENV(std::env::VarError),
-
-    // Internal Oxen Errors
-    UserConfigNotFound(Box<StringError>),
-    RepoNotFound(Box<RepositoryNew>),
-    ParsedResourceNotFound(Box<PathBufError>),
-    BranchNotFound(Box<StringError>),
-    RepoAlreadyExists(Box<RepositoryNew>),
-    CommittishNotFound(Box<StringError>),
-    RootCommitDoesNotMatch(Box<Commit>),
-    InvalidSchema(Box<Schema>),
-    ParsingError(Box<StringError>),
 
     // Fallback
     Basic(StringError),
@@ -110,6 +93,24 @@ impl OxenError {
 
     pub fn repo_not_found(repo: RepositoryNew) -> Self {
         OxenError::RepoNotFound(Box::new(repo))
+    }
+
+    pub fn remote_not_set(name: &str) -> Self {
+        OxenError::basic_str(
+            format!("Remote not set, you can set a remote by running:\n\noxen config --set-remote origin {} <url>\n", name)
+        )
+    }
+
+    pub fn remote_not_found(remote: Remote) -> Self {
+        OxenError::RemoteRepoNotFound(Box::new(remote))
+    }
+
+    pub fn resource_not_found(value: impl AsRef<str>) -> Self {
+        OxenError::ResourceNotFound(StringError::from(value.as_ref()))
+    }
+
+    pub fn path_does_not_exist(path: PathBuf) -> Self {
+        OxenError::PathDoesNotExist(Box::new(path.into()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {
@@ -149,14 +150,12 @@ impl OxenError {
         OxenError::basic_str(HEAD_NOT_FOUND)
     }
 
-    pub fn must_be_on_valid_branch() -> OxenError {
-        OxenError::basic_str("Repository is in a detached HEAD state, checkout a valid branch to continue.\n\n  oxen checkout <branch>\n")
+    pub fn home_dir_not_found() -> OxenError {
+        OxenError::basic_str("Home directory not found")
     }
 
-    pub fn remote_not_set() -> OxenError {
-        OxenError::basic_str(
-            "Remote not set, you can set a remote by running:\n\noxen config --set-remote origin <name> <url>\n",
-        )
+    pub fn must_be_on_valid_branch() -> OxenError {
+        OxenError::basic_str("Repository is in a detached HEAD state, checkout a valid branch to continue.\n\n  oxen checkout <branch>\n")
     }
 
     pub fn no_schemas_found() -> OxenError {
@@ -214,8 +213,31 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
-        let err = format!("File does not exist: {:?}", path.as_ref());
+    pub fn entry_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
+        let err = format!("Entry does not exist: {:?}", path.as_ref());
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!("File does not exist: {:?} error {:?}", path.as_ref(), error);
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_create_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!(
+            "Could not create file: {:?} error {:?}",
+            path.as_ref(),
+            error
+        );
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_metadata_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!(
+            "Could not get file metadata: {:?} error {:?}",
+            path.as_ref(),
+            error
+        );
         OxenError::basic_str(err)
     }
 
@@ -240,16 +262,16 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
+    pub fn entry_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
         path: P,
         commit_id: S,
     ) -> OxenError {
         let err = format!(
-            "File {:?} does not exist in commit {}",
+            "Entry {:?} does not exist in commit {}",
             path.as_ref(),
             commit_id.as_ref()
         );
-        OxenError::basic_str(err)
+        OxenError::CommitEntryNotFound(err.into())
     }
 
     pub fn file_has_no_parent<T: AsRef<Path>>(path: T) -> OxenError {
@@ -257,7 +279,7 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_has_no_file_name<T: AsRef<Path>>(path: T) -> OxenError {
+    pub fn file_has_no_name<T: AsRef<Path>>(path: T) -> OxenError {
         let err = format!("File has no file_name: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }

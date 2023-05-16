@@ -1,13 +1,13 @@
 [package]
 name = "Oxen"
-version = "0.5.3"
-edition = "2018"
+version = "0.6.0"
+edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version large machine learning datasets written in Rust."
 homepage = "https://oxen.ai"
 repository = "https://github.com/Oxen-AI/Oxen"
 readme = "README.md"
-keywords = ["machine learning", "AI", "version control"]
+keywords = ["machine-learning", "AI", "version-control"]
 categories = ["command-line-utilities", "science", "multimedia", "database", "computer-vision"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -49,19 +49,19 @@ indicatif = "0.17.1"
 ignore = "0.4"
 itertools = "0.10.5"
 jsonwebtoken = "8"
-jwalk = "0.6.0"
+jwalk = "0.8.1"
 lazy_static = "1.4.0"
 log = "0.4.17"
 minus = { version = "5.3.0", features = ["static_output", "search"] }
 nom = "7.1.1"
 num_cpus = "1.13.1"
 pluralizer = "0.3.1"
-polars = { version = "0.27.2", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
+polars = { version = "0.28.0", features = ["lazy", "parquet", "csv-file", "json", "ipc", "dtype-struct"] }
 rand = "0.8.5"
 rand_core = "0.5"
-rayon = "1.5.1"
+rayon = "1.7.0"
 reqwest = { version = "0.11.16", features = ["multipart", "json", "gzip", "stream"] }
-rocksdb = { version = "0.20.1", default-features = false, features = ["lz4"] }
+rocksdb = { version = "0.20.1", default-features = false, features = ["lz4", "snappy", "zstd", "zlib"] }
 rpassword = "6.0"
 sanitize-filename = "0.4.0"
 serde = { version = "1.0.136", features = ["derive"] }
@@ -72,11 +72,12 @@ signal-hook = "0.3.13"
 simdutf8 = "0.1.4"
 sysinfo = "0.28.1"
 tar = "0.4.38"
+tempfile = "3.5.0"
 threadpool = "1.8.1"
 thread_local = "1.1.4"
 time = { version = "0.3.20", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
-tokio-util = "0.7.4"
+tokio-util = "0.7.8"
 toml = "0.5.8"
 unicode-truncate = "0.2.0"
 url = "2.2.2"

@@ -1,28 +1,29 @@
 use clap::{arg, Arg, Command};
 
-pub const INIT: &str = "init";
-pub const CONFIG: &str = "config";
-pub const CREATE_REMOTE: &str = "create-remote";
-pub const REMOTE: &str = "remote";
-pub const STATUS: &str = "status";
-pub const LOG: &str = "log";
-pub const DF: &str = "df";
-pub const SCHEMAS: &str = "schemas";
 pub const ADD: &str = "add";
-pub const RM: &str = "rm";
-pub const COMMIT: &str = "commit";
-pub const RESTORE: &str = "restore";
 pub const BRANCH: &str = "branch";
 pub const CHECKOUT: &str = "checkout";
-pub const MERGE: &str = "merge";
 pub const CLONE: &str = "clone";
-pub const PUSH: &str = "push";
-pub const PULL: &str = "pull";
+pub const COMMIT_CACHE: &str = "commit-cache";
+pub const COMMIT: &str = "commit";
+pub const CONFIG: &str = "config";
+pub const CREATE_REMOTE: &str = "create-remote";
+pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
-pub const MIGRATE: &str = "migrate";
-pub const LS: &str = "ls";
+pub const DOWNLOAD: &str = "download";
+pub const INIT: &str = "init";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
+pub const LOG: &str = "log";
+pub const LS: &str = "ls";
+pub const MERGE: &str = "merge";
+pub const PULL: &str = "pull";
+pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
+pub const REMOTE: &str = "remote";
+pub const RESTORE: &str = "restore";
+pub const RM: &str = "rm";
+pub const SCHEMAS: &str = "schemas";
+pub const STATUS: &str = "status";
 
 pub fn init() -> Command<'static> {
     Command::new(INIT)
@@ -95,7 +96,6 @@ pub fn remote() -> Command<'static> {
     Command::new(REMOTE)
         .about("Interact with a remote repository without cloning everything locally.")
         // The commands that you can run locally mirrored here
-        .subcommand(status())
         .subcommand(
             add()
                 // can specify a path on the remote add command for where the file will be added to
@@ -105,13 +105,15 @@ pub fn remote() -> Command<'static> {
                 .help("Specify a path in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
                 .takes_value(true))
         )
-        .subcommand(rm())
-        .subcommand(restore())
         .subcommand(commit())
-        .subcommand(log())
         .subcommand(df())
         .subcommand(diff())
+        .subcommand(download())
+        .subcommand(log())
         .subcommand(ls())
+        .subcommand(restore())
+        .subcommand(rm())
+        .subcommand(status())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
@@ -357,6 +359,16 @@ pub fn add() -> Command<'static> {
         .arg(Arg::new("files").required(true).min_values(1))
 }
 
+pub fn download() -> Command<'static> {
+    Command::new(DOWNLOAD)
+        .about("Download a specific file from the remote repository")
+        .arg(
+            Arg::new("path")
+                .help("Path to the remote file")
+                .exclusive(true),
+        )
+}
+
 pub fn commit() -> Command<'static> {
     Command::new(COMMIT)
         .about("Commit the staged files to the repository")
@@ -536,18 +548,18 @@ pub fn diff() -> Command<'static> {
         .arg(Arg::new("PATH").required(false))
 }
 
-pub fn migrate() -> Command<'static> {
-    Command::new(MIGRATE)
-        .about("Migrate a repository or set of repositories")
+pub fn commit_cache() -> Command<'static> {
+    Command::new(COMMIT_CACHE)
+        .about("Compute a commit cache a server repository or set of repositories")
         .arg(Arg::new("PATH").required(true))
         .arg(
             Arg::new("all")
                 .long("all")
                 .short('a')
-                .help("Migrate all the oxen repositories in this directory")
+                .help("Compute the cache for all the oxen repositories in this directory")
                 .takes_value(false),
         )
-        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
+        .arg(arg!([COMMITTISH] "The commit or branch id you want to compute the cache for. Defaults to main."))
 }
 
 pub fn read_lines() -> Command<'static> {

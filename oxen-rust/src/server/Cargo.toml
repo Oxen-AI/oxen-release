@@ -1,7 +1,7 @@
 [package]
 name = "oxen-server"
-version = "0.5.3"
-edition = "2018"
+version = "0.6.0"
+edition = "2021"
 
 [dependencies]
 actix-files = "0.6.0"
@@ -26,7 +26,7 @@ liboxen = { path = "../lib" }
 log = "0.4.17"
 rand = "0.8.0"
 rand_core = "0.5"
-rocksdb = { version = "0.20.1", default-features = false, features = ["lz4"] }
+rocksdb = { version = "0.20.1", default-features = false, features = ["lz4", "snappy", "zstd", "zlib"] }
 sanitize-filename = "0.4.0"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.78"
