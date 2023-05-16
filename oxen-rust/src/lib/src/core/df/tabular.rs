@@ -17,6 +17,7 @@ use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
+use qsv_sniffer;
 
 use super::{
     agg::{DFAggFn, DFAggFnType, DFAggregation},
@@ -592,7 +593,7 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
         return Ok(delimiter.as_bytes()[0]);
     }
 
-    match csv_sniffer::Sniffer::new().sniff_path(path) {
+    match qsv_sniffer::Sniffer::new().sniff_path(path) {
         Ok(metadata) => Ok(metadata.dialect.delimiter),
         Err(err) => {
             let err = format!("Error sniffing csv {:?}", err);
@@ -1024,6 +1025,30 @@ mod tests {
             format!("{df}")
         );
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_sniff_empty_rows_carriage_return_csv() -> Result<(), OxenError> {
+        let opts = DFOpts::empty();
+        let df = tabular::read_df("data/test/csvs/empty_rows_carriage_return.csv", opts)?;
+        assert_eq!(df.width(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sniff_delimiter_tabs() -> Result<(), OxenError> {
+        let opts = DFOpts::empty();
+        let df = tabular::read_df("data/test/csvs/tabs.csv", opts)?;
+        assert_eq!(df.width(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn test_sniff_emoji_csv() -> Result<(), OxenError> {
+        let opts = DFOpts::empty();
+        let df = tabular::read_df("data/test/csvs/emojis.csv", opts)?;
+        assert_eq!(df.width(), 2);
         Ok(())
     }
 }
