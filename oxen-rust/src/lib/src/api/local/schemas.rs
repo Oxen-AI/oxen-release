@@ -1,9 +1,8 @@
 use crate::api;
 
+use crate::core::index::SchemaReader;
 use crate::error::OxenError;
-use crate::index::SchemaReader;
 use crate::model::{LocalRepository, Schema};
-use crate::util::resource;
 
 pub fn list(repo: &LocalRepository, commit_id: Option<&str>) -> Result<Vec<Schema>, OxenError> {
     log::debug!("api::local::schemas::list for path {:?}", repo.path);
@@ -16,7 +15,7 @@ pub fn list(repo: &LocalRepository, commit_id: Option<&str>) -> Result<Vec<Schem
             Err(OxenError::commit_id_does_not_exist(commit_id))
         }
     } else {
-        let head_commit = resource::get_head_commit(repo)?;
+        let head_commit = api::local::commits::head_commit(repo)?;
         let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
         schema_reader.list_schemas()
     }

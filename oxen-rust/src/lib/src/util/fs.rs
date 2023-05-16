@@ -1,3 +1,7 @@
+//! Wrapper around std::fs commands to make them easier to use
+//! and eventually abstract away the fs implementation
+//!
+
 use jwalk::WalkDir;
 
 use bytesize;
@@ -11,7 +15,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use sysinfo::{DiskExt, System, SystemExt};
 
-use crate::api;
 use crate::constants;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
@@ -20,9 +23,17 @@ use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::view::health::DiskUsage;
+use crate::{api, util};
 
-pub fn oxen_hidden_dir(repo_path: &Path) -> PathBuf {
-    PathBuf::from(&repo_path).join(Path::new(constants::OXEN_HIDDEN_DIR))
+pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
+    PathBuf::from(repo_path.as_ref()).join(Path::new(constants::OXEN_HIDDEN_DIR))
+}
+
+pub fn oxen_home_dir() -> Result<PathBuf, OxenError> {
+    match dirs::home_dir() {
+        Some(home_dir) => Ok(home_dir.join(constants::OXEN_HIDDEN_DIR)),
+        None => Err(OxenError::home_dir_not_found()),
+    }
 }
 
 pub fn config_filepath(repo_path: &Path) -> PathBuf {
@@ -46,7 +57,7 @@ pub fn version_path_for_commit_id(
     filepath: &Path,
 ) -> Result<PathBuf, OxenError> {
     match api::local::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match api::local::entries::get_entry_for_commit(repo, &commit, filepath)? {
+        Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
             Some(entry) => {
                 let path = version_path(repo, &entry);
                 let arrow_path = path.parent().unwrap().join(DATA_ARROW_FILE);
@@ -56,9 +67,9 @@ pub fn version_path_for_commit_id(
                     Ok(path)
                 }
             }
-            None => Err(OxenError::file_does_not_exist(filepath)),
+            None => Err(OxenError::path_does_not_exist(filepath.to_path_buf())),
         },
-        None => Err(OxenError::commit_id_does_not_exist(commit_id)),
+        None => Err(OxenError::committish_not_found(commit_id.into())),
     }
 }
 
@@ -73,39 +84,43 @@ pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<
     //         log::warn!("TODO: compute size of data file: {:?}", data_file);
     //         return Ok(0);
     //     }
-    //     let meta = std::fs::metadata(&data_file)?;
+    //     let meta = util::fs::metadata(&data_file)?;
     //     Ok(meta.len())
     // } else {
     if !version_path.exists() {
-        return Err(OxenError::file_does_not_exist(version_path));
+        return Err(OxenError::entry_does_not_exist(version_path));
     }
-    let meta = std::fs::metadata(&version_path)?;
+    let meta = util::fs::metadata(&version_path)?;
     Ok(meta.len())
     // }
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
-    version_path_from_hash_and_file(repo, entry.hash.clone(), entry.filename())
+    version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
+}
+
+pub fn version_path_from_dst(dst: impl AsRef<Path>, entry: &CommitEntry) -> PathBuf {
+    version_path_from_hash_and_file(dst, entry.hash.clone(), entry.filename())
 }
 
 pub fn df_version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
-    let version_dir = version_dir_from_hash(repo, entry.hash.clone());
+    let version_dir = version_dir_from_hash(&repo.path, entry.hash.clone());
     version_dir.join(DATA_ARROW_FILE)
 }
 
 pub fn version_path_from_hash_and_file(
-    repo: &LocalRepository,
+    dst: impl AsRef<Path>,
     hash: String,
     filename: PathBuf,
 ) -> PathBuf {
-    let version_dir = version_dir_from_hash(repo, hash);
+    let version_dir = version_dir_from_hash(dst, hash);
     version_dir.join(filename)
 }
 
-pub fn version_dir_from_hash(repo: &LocalRepository, hash: String) -> PathBuf {
+pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
     let topdir = &hash[..2];
     let subdir = &hash[2..];
-    oxen_hidden_dir(&repo.path)
+    oxen_hidden_dir(dst.as_ref())
         .join(constants::VERSIONS_DIR)
         .join(constants::FILES_DIR)
         .join(topdir)
@@ -262,7 +277,7 @@ pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     match std::fs::read_dir(dir) {
         Ok(paths) => {
             for path in paths.flatten() {
-                if std::fs::metadata(path.path()).unwrap().is_file() {
+                if util::fs::metadata(path.path()).unwrap().is_file() {
                     files.push(path.path());
                 }
             }
@@ -317,6 +332,28 @@ pub fn rlist_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
+/// Recursively lists directories in a repo that are not .oxen directories
+pub fn rlist_dirs_in_repo(repo: &LocalRepository) -> Vec<PathBuf> {
+    let dir = &repo.path;
+    let mut dirs: Vec<PathBuf> = vec![];
+    if !dir.is_dir() {
+        return dirs;
+    }
+
+    for entry in WalkDir::new(dir) {
+        match entry {
+            Ok(val) => {
+                let path = val.path();
+                if path.is_dir() && !is_in_oxen_hidden_dir(&path) {
+                    dirs.push(path);
+                }
+            }
+            Err(err) => log::error!("rlist_dirs_in_repo Could not iterate over dir... {err}"),
+        }
+    }
+    dirs
+}
+
 /// Recursively tries to traverse up for an .oxen directory, returns None if not found
 pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     if path.join(".oxen").exists() {
@@ -352,7 +389,26 @@ pub fn copy(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenErro
         Ok(_) => Ok(()),
         Err(err) => {
             if !src.exists() {
-                Err(OxenError::file_does_not_exist(src))
+                Err(OxenError::file_error(src, err))
+            } else {
+                Err(OxenError::file_copy_error(src, dst, err))
+            }
+        }
+    }
+}
+
+/// Wrapper around the std::fs::copy which makes the parent directory of the dst if it doesn't exist
+pub fn copy_mkdir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+    if let Some(parent) = dst.parent() {
+        create_dir_all(parent)?;
+    }
+    match std::fs::copy(src, dst) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            if !src.exists() {
+                Err(OxenError::file_error(src, err))
             } else {
                 Err(OxenError::file_copy_error(src, dst, err))
             }
@@ -379,7 +435,7 @@ pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
         Ok(_) => Ok(()),
         Err(err) => {
             log::error!("{}", err);
-            Err(OxenError::file_does_not_exist(src))
+            Err(OxenError::file_error(src, err))
         }
     }
 }
@@ -391,7 +447,7 @@ pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
         Ok(_) => Ok(()),
         Err(err) => {
             log::error!("{}", err);
-            Err(OxenError::file_does_not_exist(src))
+            Err(OxenError::file_error(src, err))
         }
     }
 }
@@ -403,7 +459,31 @@ pub fn write(src: impl AsRef<Path>, data: impl AsRef<[u8]>) -> Result<(), OxenEr
         Ok(_) => Ok(()),
         Err(err) => {
             log::error!("{}", err);
-            Err(OxenError::file_does_not_exist(src))
+            Err(OxenError::file_error(src, err))
+        }
+    }
+}
+
+/// Wrapper around util::fs::metadata to give us a better error on failure
+pub fn metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, OxenError> {
+    let path = path.as_ref();
+    match std::fs::metadata(path) {
+        Ok(file) => Ok(file),
+        Err(err) => {
+            log::error!("{}", err);
+            Err(OxenError::file_metadata_error(path, err))
+        }
+    }
+}
+
+/// Wrapper around std::fs::File::create to give us a better error on failure
+pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
+    let path = path.as_ref();
+    match std::fs::File::create(path) {
+        Ok(file) => Ok(file),
+        Err(err) => {
+            log::error!("{}", err);
+            Err(OxenError::file_create_error(path, err))
         }
     }
 }
@@ -612,6 +692,7 @@ pub fn rcount_files_in_dir(dir: &Path) -> usize {
                 let path = val.path();
                 // if it's not the hidden oxen dir and is not a directory
                 if !is_in_oxen_hidden_dir(&path) && !path.is_dir() {
+                    // log::debug!("Found file {count}: {:?}", path);
                     count += 1;
                 }
             }
@@ -632,8 +713,12 @@ pub fn is_in_oxen_hidden_dir(path: &Path) -> bool {
     false
 }
 
-pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenError> {
-    let mut mut_path = path.to_path_buf();
+pub fn path_relative_to_dir(
+    path: impl AsRef<Path>,
+    dir: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let dir = dir.as_ref();
+    let mut mut_path = path.as_ref().to_path_buf();
 
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
@@ -655,7 +740,6 @@ pub fn path_relative_to_dir(path: &Path, dir: &Path) -> Result<PathBuf, OxenErro
         result = result.join(component);
     }
 
-    // println!("{:?}", components);
     Ok(result)
 }
 
@@ -788,7 +872,7 @@ mod tests {
             };
             let path = util::fs::version_path(&repo, &entry);
             let versions_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR);
-            let relative_path = util::fs::path_relative_to_dir(&path, &versions_dir)?;
+            let relative_path = util::fs::path_relative_to_dir(path, versions_dir)?;
             assert_eq!(
                 relative_path,
                 Path::new(constants::FILES_DIR)

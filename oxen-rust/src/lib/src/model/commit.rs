@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
-use crate::{error::OxenError, index::CommitReader};
+use crate::core::index::CommitReader;
+use crate::error::OxenError;
 
 use super::{Branch, User};
 

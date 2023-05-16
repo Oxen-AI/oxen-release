@@ -1,6 +1,7 @@
+use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::view::http;
-use crate::{config::UserConfig, view::OxenResponse};
+use crate::view::OxenResponse;
 
 pub use reqwest::Url;
 use reqwest::{header, Client, ClientBuilder, IntoUrl};

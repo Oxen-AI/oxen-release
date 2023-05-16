@@ -4,10 +4,11 @@ use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+use crate::core::df::tabular;
 use crate::{
-    df::{tabular, DFOpts},
     error::OxenError,
     model::{CommitEntry, ContentType, Schema},
+    opts::DFOpts,
 };
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]

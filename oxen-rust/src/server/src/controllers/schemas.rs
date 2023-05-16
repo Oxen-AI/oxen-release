@@ -7,8 +7,6 @@ use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{ListSchemaResponse, StatusMessage};
 use std::path::PathBuf;
 
-use liboxen::util;
-
 pub async fn get(req: HttpRequest) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
 
@@ -20,7 +18,7 @@ pub async fn get(req: HttpRequest) -> HttpResponse {
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
         Ok(Some(repo)) => {
             if let Ok(Some((commit_id, _, filepath))) =
-                util::resource::parse_resource(&repo, &resource)
+                api::local::resource::parse_resource(&repo, &resource)
             {
                 log::debug!(
                     "dir::get commit_id [{}] and filepath {:?}",

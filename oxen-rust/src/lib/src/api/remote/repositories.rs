@@ -1,16 +1,16 @@
 use crate::api;
 use crate::api::remote::client;
-use crate::command;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
 use serde_json::json;
 
+/// Gets remote "origin" that is set on the local repo
 pub async fn get_default_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let remote = repo
         .get_remote(DEFAULT_REMOTE_NAME)
-        .ok_or_else(OxenError::remote_not_set)?;
+        .ok_or(OxenError::remote_not_set(DEFAULT_REMOTE_NAME))?;
     let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
         Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
@@ -25,33 +25,46 @@ pub async fn get_by_remote_repo(
     get_by_remote(&repo.remote).await
 }
 
+pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
+    let repo = get_by_remote_repo(repo).await?;
+    Ok(repo.is_some())
+}
+
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
+    // TODO: run tests on oxen side to see if this is needed
+    log::debug!("api::remote::repositories::get_by_remote({:?})", remote);
+
     let url = api::endpoint::url_from_remote(remote, "")?;
-    log::debug!("api::remote::repositories::get_by_remote({})", url);
+    log::debug!("api::remote::repositories::get_by_remote url: {}", url);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).send().await {
-        if 404 == res.status() {
-            return Ok(None);
-        }
+    match client.get(&url).send().await {
+        Ok(res) => {
+            if 404 == res.status() {
+                return Ok(None);
+            }
 
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("repositories::get_by_remote {}\n {}", url, body);
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("repositories::get_by_remote {}\n {}", url, body);
 
-        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
-            Err(err) => {
-                log::debug!("Err: {}", err);
-                Err(OxenError::basic_str(format!(
-                    "api::repositories::get_by_remote() Could not deserialize repository [{url}]"
-                )))
+            let response: Result<RepositoryResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
+                Err(err) => {
+                    log::debug!("Err: {}", err);
+                    Err(OxenError::basic_str(format!(
+                        "api::repositories::get_by_remote() Could not deserialize repository [{url}]"
+                    )))
+                }
             }
         }
-    } else {
-        Err(OxenError::basic_str(
-            "api::repositories::get_by_remote() Request failed",
-        ))
+        Err(err) => {
+            log::error!("Failed to get remote url {url}\n{err:?}");
+            Err(OxenError::basic_str(format!(
+                "api::repositories::get_by_remote() Request failed at url {url}"
+            )))
+        }
     }
 }
 
@@ -65,27 +78,25 @@ pub async fn create_no_root<S: AsRef<str>>(
     log::debug!("Create remote: {} {} {}", url, namespace, name);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).json(&params).send().await {
-        let body = client::parse_json_body(&url, res).await?;
+    match client.post(&url).json(&params).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
 
-        log::debug!("repositories::create response {}", body);
-        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(RemoteRepository::from_view(
+            log::debug!("repositories::create response {}", body);
+            let response: RepositoryResponse = serde_json::from_str(&body)?;
+            Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
                     url: api::endpoint::remote_url_from_host(host.as_ref(), namespace, name),
                     name: String::from("origin"),
                 },
-            )),
-            Err(err) => {
-                let err = format!("Could not create or find repository [{name}]: {err}\n{body}");
-                Err(OxenError::basic_str(err))
-            }
+            ))
         }
-    } else {
-        let err = format!("Create repository could not connect to {url}. Make sure you have the correct server and that it is running.");
-        Err(OxenError::basic_str(err))
+        Err(err) => {
+            log::error!("Failed to create remote url {url}\n{err:?}");
+            let err = format!("Create repository could not connect to {url}. Make sure you have the correct server and that it is running.");
+            Err(OxenError::basic_str(err))
+        }
     }
 }
 
@@ -96,7 +107,7 @@ pub async fn create<S: AsRef<str>>(
     host: S,
 ) -> Result<RemoteRepository, OxenError> {
     let url = api::endpoint::url_from_host(host.as_ref(), "");
-    let root_commit = command::root_commit(repository)?;
+    let root_commit = api::local::commits::root_commit(repository)?;
     let params = json!({ "name": name, "namespace": namespace, "root_commit": root_commit });
     log::debug!("Create remote: {} {} {}", url, namespace, name);
 
@@ -126,7 +137,7 @@ pub async fn create<S: AsRef<str>>(
 }
 
 pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, OxenError> {
-    let url = api::endpoint::url_from_repo(repository, "")?;
+    let url = repository.api_url()?;
     log::debug!("Deleting repository: {}", url);
 
     let client = client::new_for_url(&url)?;
