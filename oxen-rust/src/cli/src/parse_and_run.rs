@@ -7,9 +7,6 @@
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
-use liboxen::constants::{
-    DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DEFAULT_REMOTE_NAME,
-};
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::ContentType;
 use liboxen::model::LocalRepository;
@@ -20,7 +17,8 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 pub async fn init(sub_matches: &ArgMatches) {
-    let path = sub_matches.value_of("PATH").unwrap_or(".");
+    let default = String::from(".");
+    let path = sub_matches.get_one::<String>("PATH").unwrap_or(&default);
 
     match dispatch::init(path).await {
         Ok(_) => {}
@@ -31,7 +29,7 @@ pub async fn init(sub_matches: &ArgMatches) {
 }
 
 pub fn config(sub_matches: &ArgMatches) {
-    if let Some(remote) = sub_matches.values_of("set-remote") {
+    if let Some(remote) = sub_matches.get_many::<String>("set-remote") {
         if let [name, url] = remote.collect::<Vec<_>>()[..] {
             match dispatch::set_remote(name, url) {
                 Ok(_) => {}
@@ -44,7 +42,7 @@ pub fn config(sub_matches: &ArgMatches) {
         }
     }
 
-    if let Some(name) = sub_matches.value_of("delete-remote") {
+    if let Some(name) = sub_matches.get_one::<String>("delete-remote") {
         match dispatch::delete_remote(name) {
             Ok(_) => {}
             Err(err) => {
@@ -53,7 +51,7 @@ pub fn config(sub_matches: &ArgMatches) {
         }
     }
 
-    if let Some(auth) = sub_matches.values_of("auth-token") {
+    if let Some(auth) = sub_matches.get_many::<String>("auth-token") {
         if let [host, token] = auth.collect::<Vec<_>>()[..] {
             match dispatch::set_auth_token(host, token) {
                 Ok(_) => {}
@@ -66,7 +64,7 @@ pub fn config(sub_matches: &ArgMatches) {
         }
     }
 
-    if let Some(name) = sub_matches.value_of("name") {
+    if let Some(name) = sub_matches.get_one::<String>("name") {
         match dispatch::set_user_name(name) {
             Ok(_) => {}
             Err(err) => {
@@ -75,7 +73,7 @@ pub fn config(sub_matches: &ArgMatches) {
         }
     }
 
-    if let Some(email) = sub_matches.value_of("email") {
+    if let Some(email) = sub_matches.get_one::<String>("email") {
         match dispatch::set_user_email(email) {
             Ok(_) => {}
             Err(err) => {
@@ -84,7 +82,7 @@ pub fn config(sub_matches: &ArgMatches) {
         }
     }
 
-    if let Some(email) = sub_matches.value_of("default-host") {
+    if let Some(email) = sub_matches.get_one::<String>("default-host") {
         match dispatch::set_default_host(email) {
             Ok(_) => {}
             Err(err) => {
@@ -95,9 +93,11 @@ pub fn config(sub_matches: &ArgMatches) {
 }
 
 pub async fn create_remote(sub_matches: &ArgMatches) {
-    let namespace = sub_matches.value_of("NAMESPACE").expect("required");
-    let name = sub_matches.value_of("NAME").expect("required");
-    let host = sub_matches.value_of("HOST").expect("required");
+    let namespace = sub_matches
+        .get_one::<String>("NAMESPACE")
+        .expect("required");
+    let name = sub_matches.get_one::<String>("NAME").expect("required");
+    let host = sub_matches.get_one::<String>("HOST").expect("required");
 
     match dispatch::create_remote(namespace, name, host).await {
         Ok(_) => {}
@@ -145,7 +145,7 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 eprintln!("Invalid subcommand: {command}")
             }
         }
-    } else if sub_matches.is_present("verbose") {
+    } else if sub_matches.get_flag("verbose") {
         dispatch::list_remotes_verbose().expect("Unable to list remotes.");
     } else {
         dispatch::list_remotes().expect("Unable to list remotes.");
@@ -154,12 +154,11 @@ pub async fn remote(sub_matches: &ArgMatches) {
 
 async fn remote_download(sub_matches: &ArgMatches) {
     let path = sub_matches
-        .value_of("path")
-        .map(PathBuf::from)
+        .get_one::<String>("path")
         .expect("Must supply path");
 
     // Make `oxen remote download $path` work
-    match dispatch::remote_download(&path).await {
+    match dispatch::remote_download(path).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -168,8 +167,8 @@ async fn remote_download(sub_matches: &ArgMatches) {
 }
 
 async fn remote_add(sub_matches: &ArgMatches) {
-    let paths: Vec<PathBuf> = sub_matches
-        .values_of("files")
+    let paths = sub_matches
+        .get_many::<String>("files")
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
@@ -177,7 +176,7 @@ async fn remote_add(sub_matches: &ArgMatches) {
     let opts = AddOpts {
         paths,
         is_remote: true,
-        directory: sub_matches.value_of("path").map(PathBuf::from),
+        directory: sub_matches.get_one::<String>("path").map(PathBuf::from),
     };
     match dispatch::add(opts).await {
         Ok(_) => {}
@@ -188,17 +187,17 @@ async fn remote_add(sub_matches: &ArgMatches) {
 }
 
 fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpts {
-    let skip: usize = sub_matches
-        .value_of("skip")
-        .unwrap_or("0")
+    let skip = sub_matches
+        .get_one::<String>("skip")
+        .expect("Must supply skip")
         .parse::<usize>()
-        .expect("Skip must be a valid integer.");
-    let limit: usize = sub_matches
-        .value_of("limit")
-        .unwrap_or("10")
+        .expect("skip must be a valid integer.");
+    let limit = sub_matches
+        .get_one::<String>("limit")
+        .expect("Must supply limit")
         .parse::<usize>()
-        .expect("Limit must be a valid integer.");
-    let print_all = sub_matches.is_present("print_all");
+        .expect("limit must be a valid integer.");
+    let print_all = sub_matches.get_flag("print_all");
 
     StagedDataOpts {
         skip,
@@ -209,7 +208,7 @@ fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpt
 }
 
 async fn remote_status(sub_matches: &ArgMatches) {
-    let directory = sub_matches.value_of("path").map(PathBuf::from);
+    let directory = sub_matches.get_one::<String>("path").map(PathBuf::from);
 
     let is_remote = true;
     let opts = parse_status_args(sub_matches, is_remote);
@@ -222,16 +221,16 @@ async fn remote_status(sub_matches: &ArgMatches) {
 }
 
 fn parse_pagination_args(sub_matches: &ArgMatches) -> PaginateOpts {
-    let page_num: usize = sub_matches
-        .value_of("page")
-        .unwrap_or(format!("{}", DEFAULT_PAGE_NUM).as_str())
+    let page_num = sub_matches
+        .get_one::<String>("page")
+        .expect("Must supply page")
         .parse::<usize>()
-        .expect("Page must be a valid integer.");
-    let page_size: usize = sub_matches
-        .value_of("page-size")
-        .unwrap_or(format!("{}", DEFAULT_PAGE_SIZE).as_str())
+        .expect("page must be a valid integer.");
+    let page_size = sub_matches
+        .get_one::<String>("page-size")
+        .expect("Must supply page-size")
         .parse::<usize>()
-        .expect("Page size must be a valid integer.");
+        .expect("page-size must be a valid integer.");
 
     PaginateOpts {
         page_num,
@@ -241,7 +240,7 @@ fn parse_pagination_args(sub_matches: &ArgMatches) -> PaginateOpts {
 
 async fn remote_ls(sub_matches: &ArgMatches) {
     let opts = parse_pagination_args(sub_matches);
-    let path = sub_matches.value_of("PATH").map(PathBuf::from);
+    let path = sub_matches.get_one::<String>("PATH").map(PathBuf::from);
     match dispatch::remote_ls(path, &opts).await {
         Ok(_) => {}
         Err(err) => {
@@ -251,7 +250,7 @@ async fn remote_ls(sub_matches: &ArgMatches) {
 }
 
 pub async fn status(sub_matches: &ArgMatches) {
-    let directory = sub_matches.value_of("path").map(PathBuf::from);
+    let directory = sub_matches.get_one::<String>("path").map(PathBuf::from);
 
     let is_remote = false;
     let opts = parse_status_args(sub_matches, is_remote);
@@ -264,7 +263,9 @@ pub async fn status(sub_matches: &ArgMatches) {
 }
 
 async fn remote_log(sub_matches: &ArgMatches) {
-    let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+    let committish = sub_matches
+        .get_one::<String>("COMMITTISH")
+        .map(String::from);
 
     let opts = LogOpts {
         committish,
@@ -279,7 +280,9 @@ async fn remote_log(sub_matches: &ArgMatches) {
 }
 
 pub async fn log(sub_matches: &ArgMatches) {
-    let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+    let committish = sub_matches
+        .get_one::<String>("COMMITTISH")
+        .map(String::from);
 
     let opts = LogOpts {
         committish,
@@ -294,63 +297,60 @@ pub async fn log(sub_matches: &ArgMatches) {
 }
 
 fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
-    let vstack: Option<Vec<PathBuf>> = if let Some(vstack) = sub_matches.values_of("vstack") {
-        let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
-        Some(values)
-    } else {
-        None
-    };
+    let vstack: Option<Vec<PathBuf>> =
+        if let Some(vstack) = sub_matches.get_many::<String>("vstack") {
+            let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
+            Some(values)
+        } else {
+            None
+        };
 
     // CSV is easier from the CLI, but JSON is easier from API, so default to CSV here.
-    let content_type = sub_matches.value_of("content-type").unwrap_or("csv");
+    let mut content_type = "csv";
+    let maybe_content_type = sub_matches.get_one::<String>("content-type");
+    if let Some(c) = maybe_content_type {
+        content_type = c;
+    }
 
     liboxen::opts::DFOpts {
-        output: sub_matches.value_of("output").map(std::path::PathBuf::from),
-        delimiter: sub_matches.value_of("delimiter").map(String::from),
-        slice: sub_matches.value_of("slice").map(String::from),
+        output: sub_matches
+            .get_one::<String>("output")
+            .map(std::path::PathBuf::from),
+        delimiter: sub_matches.get_one::<String>("delimiter").map(String::from),
+        slice: sub_matches.get_one::<String>("slice").map(String::from),
         page_size: sub_matches
-            .value_of("page-size")
-            .map(String::from)
-            .unwrap_or_else(|| String::from(""))
-            .parse::<usize>()
-            .ok(),
+            .get_one::<String>("page-size")
+            .map(|x| x.parse::<usize>().expect("page-size must be valid int")),
         page: sub_matches
-            .value_of("page")
-            .map(String::from)
-            .unwrap_or_else(|| String::from(""))
-            .parse::<usize>()
-            .ok(),
+            .get_one::<String>("page")
+            .map(|x| x.parse::<usize>().expect("page must be valid int")),
         head: sub_matches
-            .value_of("head")
-            .map(String::from)
-            .unwrap_or_else(|| String::from(""))
-            .parse::<usize>()
-            .ok(),
+            .get_one::<String>("head")
+            .map(|x| x.parse::<usize>().expect("head must be valid int")),
         tail: sub_matches
-            .value_of("tail")
-            .map(String::from)
-            .unwrap_or_else(|| String::from(""))
-            .parse::<usize>()
-            .ok(),
-        take: sub_matches.value_of("take").map(String::from),
-        columns: sub_matches.value_of("columns").map(String::from),
-        filter: sub_matches.value_of("filter").map(String::from),
-        aggregate: sub_matches.value_of("aggregate").map(String::from),
-        col_at: sub_matches.value_of("col-at").map(String::from),
+            .get_one::<String>("tail")
+            .map(|x| x.parse::<usize>().expect("tail must be valid int")),
+        take: sub_matches.get_one::<String>("take").map(String::from),
+        columns: sub_matches.get_one::<String>("columns").map(String::from),
+        filter: sub_matches.get_one::<String>("filter").map(String::from),
+        aggregate: sub_matches.get_one::<String>("aggregate").map(String::from),
+        col_at: sub_matches.get_one::<String>("col-at").map(String::from),
         vstack,
-        add_col: sub_matches.value_of("add-col").map(String::from),
-        add_row: sub_matches.value_of("add-row").map(String::from),
-        delete_row: sub_matches.value_of("delete-row").map(String::from),
-        sort_by: sub_matches.value_of("sort").map(String::from),
-        unique: sub_matches.value_of("unique").map(String::from),
+        add_col: sub_matches.get_one::<String>("add-col").map(String::from),
+        add_row: sub_matches.get_one::<String>("add-row").map(String::from),
+        delete_row: sub_matches
+            .get_one::<String>("delete-row")
+            .map(String::from),
+        sort_by: sub_matches.get_one::<String>("sort").map(String::from),
+        unique: sub_matches.get_one::<String>("unique").map(String::from),
         content_type: ContentType::from_str(content_type).unwrap(),
-        should_randomize: sub_matches.is_present("randomize"),
-        should_reverse: sub_matches.is_present("reverse"),
+        should_randomize: sub_matches.get_flag("randomize"),
+        should_reverse: sub_matches.get_flag("reverse"),
     }
 }
 
 async fn remote_df(sub_matches: &ArgMatches) {
-    let path = sub_matches.value_of("DF_SPEC").expect("required");
+    let path = sub_matches.get_one::<String>("DF_SPEC").expect("required");
     let opts = parse_df_sub_matches(sub_matches);
 
     match dispatch::remote_df(path, opts).await {
@@ -363,9 +363,9 @@ async fn remote_df(sub_matches: &ArgMatches) {
 
 pub fn df(sub_matches: &ArgMatches) {
     let opts = parse_df_sub_matches(sub_matches);
-    let path = sub_matches.value_of("DF_SPEC").expect("required");
-    if sub_matches.is_present("schema") || sub_matches.is_present("schema_flat") {
-        match dispatch::df_schema(path, sub_matches.is_present("schema_flat"), opts) {
+    let path = sub_matches.get_one::<String>("DF_SPEC").expect("required");
+    if sub_matches.get_flag("schema") || sub_matches.get_flag("schema_flat") {
+        match dispatch::df_schema(path, sub_matches.get_flag("schema_flat"), opts) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
@@ -384,18 +384,18 @@ pub fn df(sub_matches: &ArgMatches) {
 pub fn schemas(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
-            ("list", sub_matches) => {
-                match dispatch::schema_list(sub_matches.is_present("staged")) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
+            ("list", sub_matches) => match dispatch::schema_list(sub_matches.get_flag("staged")) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
                 }
-            }
+            },
             ("show", sub_matches) => {
-                let val = sub_matches.value_of("NAME_OR_HASH").expect("required");
+                let val = sub_matches
+                    .get_one::<String>("NAME_OR_HASH")
+                    .expect("required");
 
-                match dispatch::schema_show(val, sub_matches.is_present("staged")) {
+                match dispatch::schema_show(val, sub_matches.get_flag("staged")) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{err}")
@@ -403,8 +403,8 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 }
             }
             ("name", sub_matches) => {
-                let hash = sub_matches.value_of("HASH").expect("required");
-                let val = sub_matches.value_of("NAME").expect("required");
+                let hash = sub_matches.get_one::<String>("HASH").expect("required");
+                let val = sub_matches.get_one::<String>("NAME").expect("required");
                 match dispatch::schema_name(hash, val) {
                     Ok(_) => {}
                     Err(err) => {
@@ -428,7 +428,7 @@ pub fn schemas(sub_matches: &ArgMatches) {
 
 pub async fn add(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
-        .values_of("files")
+        .get_many::<String>("files")
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
@@ -448,7 +448,7 @@ pub async fn add(sub_matches: &ArgMatches) {
 
 pub async fn remote_rm(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
-        .values_of("files")
+        .get_many::<String>("files")
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
@@ -456,8 +456,8 @@ pub async fn remote_rm(sub_matches: &ArgMatches) {
     let opts = RmOpts {
         // The path will get overwritten for each file that is removed
         path: paths.first().unwrap().to_path_buf(),
-        staged: sub_matches.is_present("staged"),
-        recursive: sub_matches.is_present("recursive"),
+        staged: sub_matches.get_flag("staged"),
+        recursive: sub_matches.get_flag("recursive"),
         remote: true,
     };
 
@@ -471,7 +471,7 @@ pub async fn remote_rm(sub_matches: &ArgMatches) {
 
 pub async fn rm(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
-        .values_of("files")
+        .get_many::<String>("files")
         .expect("Must supply files")
         .map(PathBuf::from)
         .collect();
@@ -479,8 +479,8 @@ pub async fn rm(sub_matches: &ArgMatches) {
     let opts = RmOpts {
         // The path will get overwritten for each file that is removed
         path: paths.first().unwrap().to_path_buf(),
-        staged: sub_matches.is_present("staged"),
-        recursive: sub_matches.is_present("recursive"),
+        staged: sub_matches.get_flag("staged"),
+        recursive: sub_matches.get_flag("recursive"),
         remote: false,
     };
 
@@ -493,12 +493,12 @@ pub async fn rm(sub_matches: &ArgMatches) {
 }
 
 pub async fn remote_restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.value_of("PATH").expect("required");
+    let path = sub_matches.get_one::<String>("PATH").expect("required");
 
     // For now, restore remote just un-stages all the changes done to the file on the remote
     let opts = RestoreOpts {
         path: PathBuf::from(path),
-        staged: sub_matches.is_present("staged"),
+        staged: sub_matches.get_flag("staged"),
         is_remote: true,
         source_ref: None,
     };
@@ -512,19 +512,19 @@ pub async fn remote_restore(sub_matches: &ArgMatches) {
 }
 
 pub async fn restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.value_of("PATH").expect("required");
+    let path = sub_matches.get_one::<String>("PATH").expect("required");
 
-    let opts = if let Some(source) = sub_matches.value_of("source") {
+    let opts = if let Some(source) = sub_matches.get_one::<String>("source") {
         RestoreOpts {
             path: PathBuf::from(path),
-            staged: sub_matches.is_present("staged"),
+            staged: sub_matches.get_flag("staged"),
             is_remote: false,
             source_ref: Some(String::from(source)),
         }
     } else {
         RestoreOpts {
             path: PathBuf::from(path),
-            staged: sub_matches.is_present("staged"),
+            staged: sub_matches.get_flag("staged"),
             is_remote: false,
             source_ref: None,
         }
@@ -539,35 +539,35 @@ pub async fn restore(sub_matches: &ArgMatches) {
 }
 
 pub async fn branch(sub_matches: &ArgMatches) {
-    if sub_matches.is_present("all") {
+    if sub_matches.get_flag("all") {
         if let Err(err) = dispatch::list_all_branches().await {
             eprintln!("{err}")
         }
-    } else if let Some(remote_name) = sub_matches.value_of("remote") {
-        if let Some(branch_name) = sub_matches.value_of("delete") {
+    } else if let Some(remote_name) = sub_matches.get_one::<String>("remote") {
+        if let Some(branch_name) = sub_matches.get_one::<String>("delete") {
             if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name).await {
                 eprintln!("{err}")
             }
         } else if let Err(err) = dispatch::list_remote_branches(remote_name).await {
             eprintln!("{err}")
         }
-    } else if let Some(name) = sub_matches.value_of("name") {
+    } else if let Some(name) = sub_matches.get_one::<String>("name") {
         if let Err(err) = dispatch::create_branch(name) {
             eprintln!("{err}")
         }
-    } else if let Some(name) = sub_matches.value_of("delete") {
+    } else if let Some(name) = sub_matches.get_one::<String>("delete") {
         if let Err(err) = dispatch::delete_branch(name) {
             eprintln!("{err}")
         }
-    } else if let Some(name) = sub_matches.value_of("force-delete") {
+    } else if let Some(name) = sub_matches.get_one::<String>("force-delete") {
         if let Err(err) = dispatch::force_delete_branch(name) {
             eprintln!("{err}")
         }
-    } else if let Some(name) = sub_matches.value_of("move") {
+    } else if let Some(name) = sub_matches.get_one::<String>("move") {
         if let Err(err) = dispatch::rename_current_branch(name) {
             eprintln!("{err}")
         }
-    } else if sub_matches.is_present("show-current") {
+    } else if sub_matches.get_flag("show-current") {
         if let Err(err) = dispatch::show_current_branch() {
             eprintln!("{err}")
         }
@@ -577,18 +577,18 @@ pub async fn branch(sub_matches: &ArgMatches) {
 }
 
 pub async fn checkout(sub_matches: &ArgMatches) {
-    if sub_matches.is_present("create") {
-        let name = sub_matches.value_of("create").expect("required");
+    if sub_matches.get_flag("create") {
+        let name = sub_matches.get_one::<String>("create").expect("required");
         if let Err(err) = dispatch::create_checkout_branch(name) {
             eprintln!("{err}")
         }
-    } else if sub_matches.is_present("theirs") {
-        let name = sub_matches.value_of("name").expect("required");
+    } else if sub_matches.get_flag("theirs") {
+        let name = sub_matches.get_one::<String>("name").expect("required");
         if let Err(err) = dispatch::checkout_theirs(name) {
             eprintln!("{err}")
         }
-    } else if sub_matches.is_present("name") {
-        let name = sub_matches.value_of("name").expect("required");
+    } else if sub_matches.get_flag("name") {
+        let name = sub_matches.get_one::<String>("name").expect("required");
         if let Err(err) = dispatch::checkout(name).await {
             eprintln!("{err}")
         }
@@ -599,8 +599,8 @@ pub async fn checkout(sub_matches: &ArgMatches) {
 
 pub fn merge(sub_matches: &ArgMatches) {
     let branch = sub_matches
-        .value_of("BRANCH")
-        .unwrap_or(DEFAULT_BRANCH_NAME);
+        .get_one::<String>("BRANCH")
+        .expect("Must supply a branch");
     match dispatch::merge(branch) {
         Ok(_) => {}
         Err(err) => {
@@ -611,13 +611,14 @@ pub fn merge(sub_matches: &ArgMatches) {
 
 pub async fn push(sub_matches: &ArgMatches) {
     let remote = sub_matches
-        .value_of("REMOTE")
-        .unwrap_or(DEFAULT_REMOTE_NAME);
-    let branch = sub_matches
-        .value_of("BRANCH")
-        .unwrap_or(DEFAULT_BRANCH_NAME);
+        .get_one::<String>("REMOTE")
+        .expect("Must supply a remote");
 
-    if sub_matches.is_present("delete") {
+    let branch = sub_matches
+        .get_one::<String>("BRANCH")
+        .expect("Must supply a branch");
+
+    if sub_matches.get_flag("delete") {
         println!("Delete remote branch {remote}/{branch}");
     } else {
         match dispatch::push(remote, branch).await {
@@ -631,11 +632,11 @@ pub async fn push(sub_matches: &ArgMatches) {
 
 pub async fn pull(sub_matches: &ArgMatches) {
     let remote = sub_matches
-        .value_of("REMOTE")
-        .unwrap_or(DEFAULT_REMOTE_NAME);
+        .get_one::<String>("REMOTE")
+        .expect("Must supply a remote");
     let branch = sub_matches
-        .value_of("BRANCH")
-        .unwrap_or(DEFAULT_BRANCH_NAME);
+        .get_one::<String>("BRANCH")
+        .expect("Must supply a branch");
     match dispatch::pull(remote, branch).await {
         Ok(_) => {}
         Err(err) => {
@@ -657,9 +658,9 @@ pub async fn diff(sub_matches: &ArgMatches) {
 async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     // First arg is optional
     let file_or_commit_id = sub_matches
-        .value_of("FILE_OR_COMMITTISH")
+        .get_one::<String>("FILE_OR_COMMITTISH")
         .expect("required");
-    let path = sub_matches.value_of("PATH");
+    let path = sub_matches.get_one::<String>("PATH");
     if let Some(path) = path {
         match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {
             Ok(_) => {}
@@ -678,11 +679,12 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
 }
 
 pub async fn clone(sub_matches: &ArgMatches) {
-    let url = sub_matches.value_of("URL").expect("required");
-    let shallow = sub_matches.is_present("shallow");
+    let url = sub_matches.get_one::<String>("URL").expect("required");
+    let shallow = sub_matches.get_flag("shallow");
     let branch = sub_matches
-        .value_of("branch")
-        .unwrap_or(DEFAULT_BRANCH_NAME);
+        .get_one::<String>("branch")
+        .expect("Must supply a branch");
+
     let dst = std::env::current_dir().expect("Could not get current working directory");
 
     let opts = CloneOpts {
@@ -701,7 +703,7 @@ pub async fn clone(sub_matches: &ArgMatches) {
 }
 
 pub async fn remote_commit(sub_matches: &ArgMatches) {
-    let message = sub_matches.value_of("message").expect("required");
+    let message = sub_matches.get_one::<String>("message").expect("required");
 
     let is_remote = true;
     match dispatch::commit(message, is_remote).await {
@@ -713,7 +715,7 @@ pub async fn remote_commit(sub_matches: &ArgMatches) {
 }
 
 pub async fn commit(sub_matches: &ArgMatches) {
-    let message = sub_matches.value_of("message").expect("required");
+    let message = sub_matches.get_one::<String>("message").expect("required");
 
     let is_remote = false;
     match dispatch::commit(message, is_remote).await {
@@ -725,10 +727,10 @@ pub async fn commit(sub_matches: &ArgMatches) {
 }
 
 pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.value_of("PATH").expect("required");
+    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
     let path = Path::new(path_str);
 
-    if sub_matches.is_present("all") {
+    if sub_matches.get_flag("all") {
         match command::commit_cache::compute_cache_on_all_repos(path).await {
             Ok(_) => {}
             Err(err) => {
@@ -736,7 +738,9 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        let committish = sub_matches.value_of("COMMITTISH").map(String::from);
+        let committish = sub_matches
+            .get_one::<String>("COMMITTISH")
+            .map(String::from);
 
         match LocalRepository::new(path) {
             Ok(repo) => match command::commit_cache::compute_cache(&repo, committish).await {
@@ -753,7 +757,7 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
 }
 
 pub fn kvdb_inspect(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.value_of("PATH").expect("required");
+    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
     let path = Path::new(path_str);
     match dispatch::inspect(path) {
         Ok(_) => {}
@@ -764,17 +768,17 @@ pub fn kvdb_inspect(sub_matches: &ArgMatches) {
 }
 
 pub fn read_lines(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.value_of("PATH").expect("required");
-    let start: usize = sub_matches
-        .value_of("START")
-        .unwrap_or("0")
+    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
+    let start = sub_matches
+        .get_one::<String>("START")
+        .expect("Must supply START")
         .parse::<usize>()
-        .unwrap();
-    let length: usize = sub_matches
-        .value_of("LENGTH")
-        .unwrap_or("10")
+        .expect("START must be a valid integer.");
+    let length = sub_matches
+        .get_one::<String>("LENGTH")
+        .expect("Must supply LENGTH")
         .parse::<usize>()
-        .unwrap();
+        .expect("LENGTH must be a valid integer.");
 
     let path = Path::new(path_str);
     let (lines, size) = util::fs::read_lines_paginated_ret_size(path, start, length);
