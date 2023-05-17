@@ -17,7 +17,6 @@ async fn main() {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
-        .allow_invalid_utf8_for_external_subcommands(true)
         .subcommand(cmd_setup::add())
         .subcommand(cmd_setup::branch())
         .subcommand(cmd_setup::checkout())

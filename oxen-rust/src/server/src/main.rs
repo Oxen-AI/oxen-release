@@ -13,8 +13,6 @@ pub mod view;
 
 extern crate log;
 
-// use actix_http::KeepAlive;
-// use std::time;
 use actix_web::middleware::{Condition, Logger};
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
@@ -46,7 +44,6 @@ async fn main() -> std::io::Result<()> {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
-        .allow_invalid_utf8_for_external_subcommands(true)
         .subcommand(
             Command::new("start")
                 .about(START_SERVER_USAGE)
@@ -57,7 +54,7 @@ async fn main() -> std::io::Result<()> {
                         .default_value("0.0.0.0")
                         .default_missing_value("always")
                         .help("What host to bind the server to")
-                        .takes_value(true),
+                        .action(clap::ArgAction::Set),
                 )
                 .arg(
                     Arg::new("port")
@@ -66,14 +63,14 @@ async fn main() -> std::io::Result<()> {
                         .default_value("3000")
                         .default_missing_value("always")
                         .help("What port to bind the server to")
-                        .takes_value(true),
+                        .action(clap::ArgAction::Set),
                 )
                 .arg(
                     Arg::new("auth")
                         .long("auth")
                         .short('a')
                         .help("Start the server with token-based authentication enforced")
-                        .takes_value(false),
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
         .subcommand(
@@ -85,7 +82,7 @@ async fn main() -> std::io::Result<()> {
                         .short('e')
                         .help("Users email address")
                         .required(true)
-                        .takes_value(true),
+                        .action(clap::ArgAction::Set),
                 )
                 .arg(
                     Arg::new("name")
@@ -93,7 +90,7 @@ async fn main() -> std::io::Result<()> {
                         .short('n')
                         .help("Users name that will show up in the commits")
                         .required(true)
-                        .takes_value(true),
+                        .action(clap::ArgAction::Set),
                 )
                 .arg(
                     Arg::new("output")
@@ -102,20 +99,23 @@ async fn main() -> std::io::Result<()> {
                         .default_value("user_config.toml")
                         .default_missing_value("always")
                         .help("Where to write the output config file to give to the user")
-                        .takes_value(true),
+                        .action(clap::ArgAction::Set),
                 ),
         );
     let matches = command.get_matches();
 
     match matches.subcommand() {
         Some(("start", sub_matches)) => {
-            match (sub_matches.value_of("ip"), sub_matches.value_of("port")) {
+            match (
+                sub_matches.get_one::<String>("ip"),
+                sub_matches.get_one::<String>("port"),
+            ) {
                 (Some(host), Some(port)) => {
                     let port: u16 = port.parse::<u16>().expect(INVALID_PORT_MSG);
                     println!("🐂 v{VERSION}");
                     println!("Running on {host}:{port}");
                     println!("Syncing to directory: {sync_dir}");
-                    let enable_auth = sub_matches.is_present("auth");
+                    let enable_auth = sub_matches.get_flag("auth");
 
                     let data = app_data::OxenAppData::from(&sync_dir);
                     HttpServer::new(move || {
@@ -139,7 +139,7 @@ async fn main() -> std::io::Result<()> {
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))
                     })
-                    .bind((host, port))?
+                    .bind((host.to_owned(), port))?
                     .run()
                     .await
                 }
@@ -151,9 +151,9 @@ async fn main() -> std::io::Result<()> {
         }
         Some(("add-user", sub_matches)) => {
             match (
-                sub_matches.value_of("email"),
-                sub_matches.value_of("name"),
-                sub_matches.value_of("output"),
+                sub_matches.get_one::<String>("email"),
+                sub_matches.get_one::<String>("name"),
+                sub_matches.get_one::<String>("output"),
             ) {
                 (Some(email), Some(name), Some(output)) => {
                     let path = Path::new(&sync_dir);

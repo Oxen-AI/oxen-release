@@ -1,8 +1,16 @@
-# Oxen 🐂
+# 🐂 Oxen
 
-Create a world where everyone can contribute to an Artificial General Intelligence.
+Create a world where everyone can contribute to an Artificial General Intelligence, starting with the data.
 
-# In this repository
+# 🌾 What is Oxen?
+
+Oxen at it's core is a data version control library, written in Rust. It's goals are to be fast, reliable, and easy to use. It's designed to be used in a variety of ways, from a simple command line tool, to a remote server to sync to, to integrations into other ecosystems such as [python](https://github.com/Oxen-AI/oxen-release).
+
+# 📚 Documentation
+
+The documentation for liboxen is automatically generated and uploaded to [docs.rs](https://docs.rs/liboxen/latest/liboxen/).
+
+#  In this repository
 
 Library, tools, and server to manage local and remote Oxen repositories.
 
@@ -14,13 +22,19 @@ Includes:
 
 # Build & Run
 
-First, make sure you have Rust version **1.62** installed. You should install the Rust toolchain with rustup: https://www.rust-lang.org/tools/install.
+First, make sure you have latest Rust version installed. You should install the Rust toolchain with rustup: https://www.rust-lang.org/tools/install.
+
+```
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
 If you are a developer and want to learn more about adding code or the overall architecture [start here](docs/dev/AddLibraryCode.md). Otherwise a quick start to make sure everything is working follows.
 
-Build the binaries
+## Build
 
-`cargo build`
+```
+cargo build
+```
 
 If on intel mac, you may need to build with the following
 
@@ -29,61 +43,84 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
+## Run
+
 Generate a config file and token to give user access to the server
 
-`./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml`
+```
+./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+```
 
 Copy the config to the default locations
 
-`mkdir ~/.oxen`
+```
+mkdir ~/.oxen
+```
 
-`mv user_config.toml ~/.oxen/user_config.toml`
+```
+mv user_config.toml ~/.oxen/user_config.toml
+```
 
-`cp ~/.oxen/user_config.toml data/test/config/user_config.toml`
+```
+cp ~/.oxen/user_config.toml data/test/config/user_config.toml
+```
+
+Set where you want the data to be synced to. The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
+
+```
+export SYNC_DIR=/path/to/sync/dir
+```
 
 Run the server
 
-`./target/debug/oxen-server start`
-
-The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
+```
+./target/debug/oxen-server start
+```
 
 To run the server with live reload, first install cargo-watch
 
-`cargo install cargo-watch`
+```
+cargo install cargo-watch
+```
 
 Then run the server like this
 
-`cargo watch -- cargo run --bin oxen-server start`
+```
+cargo watch -- cargo run --bin oxen-server start
+```
 
 # Unit & Integration Tests
 
 Make sure your server is running on the default port and host, then run
 
-Note: tests open up a lot of file handles, so limit num test threads if running everything.
+*Note:* tests open up a lot of file handles, so limit num test threads if running everything.
 
-`cargo test -- --test-threads=3`
+```
+cargo test -- --test-threads=3
+```
 
 To run with all debug output and run a specific test
 
-`env RUST_LOG=warn,liboxen=debug,integration_test=debug cargo test -- --nocapture test_command_push_clone_pull_push`
+```
+env RUST_LOG=warn,liboxen=debug,integration_test=debug cargo test -- --nocapture test_command_push_clone_pull_push
+```
 
 To set a different test host you can set the `OXEN_TEST_HOST` environment variable
 
-`env OXEN_TEST_HOST=0.0.0.0:4000 cargo test`
+```
+env OXEN_TEST_HOST=0.0.0.0:4000 cargo test
+```
 
 # CLI Commands
 
-`oxen init .`
-
-`oxen status`
-
-`oxen add images/`
-
-`oxen status`
-
-`oxen commit -m "added images"`
-
-`oxen push origin main`
+```
+oxen init .
+oxen status
+oxen add images/
+oxen status
+oxen commit -m "added images"
+oxen push origin main
+```
 
 # Oxen Server
 
@@ -98,41 +135,59 @@ Directories with repository names to simply sync data to, same internal file str
 
 Server defaults to localhost 3000
 
-`set SERVER 0.0.0.0:3000`
+```
+set SERVER 0.0.0.0:3000
+```
 
 You can grab your auth token from the config file above (~/.oxen/user_config.toml)
 
-`set TOKEN <YOUR_TOKEN>`
+```
+set TOKEN <YOUR_TOKEN>
+```
 
 ## List Repositories
 
-`curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/repositories"`
+```
+curl -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos"
+```
 
 ## Create Repository
 
-`curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"name": "MyRepo"}' "http://$SERVER/repositories"`
+```
+curl -H "Authorization: Bearer $TOKEN" -X POST -d '{"name": "MyRepo"}' "http://$SERVER/api/repos"
+```
 
 # Docker
 
 Create the docker image
 
-`docker build -t oxen/server:0.1.0 .`
+```
+docker build -t oxen/server:0.6.0 .
+```
 
 Run a container on port 3000 with a local filesystem mounted from /var/oxen/data on the host to /var/oxen/data in the container.
 
-`docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3001 --name oxen oxen/server:0.1.0`
+```
+docker run -d -v /var/oxen/data:/var/oxen/data -p 3000:3001 --name oxen oxen/server:0.6.0
+```
 
 Or use docker compose
 
-`docker-compose up -d reverse-proxy`
+```
+docker-compose up -d reverse-proxy
+```
 
-`docker-compose up -d --scale oxen=4 --no-recreate`
+```
+docker-compose up -d --scale oxen=4 --no-recreate
+```
 
 ## Local File Structure
 
 To inspect any of the key value dbs below
 
-`oxen inspect <PATH_TO_DB>`
+```
+oxen kvdb-inspect <PATH_TO_DB>
+```
 
 ```
 .oxen/
@@ -196,68 +251,8 @@ To inspect any of the key value dbs below
     //       ex) 59E029D4812AEBF0 -> 59/E029D4812AEBF0
     //           72617025710EBB55 -> 72/617025710EBB55
     //
-    // TODO: use best lossless compression type based on file type, fall back to zlib or something for rest
-    // TODO: maybe create watcher program to catch and intercept on write? Is this possible?
     FILE_HASH_DIRS_1/
       COMMIT_ID_1 (dog_1.jpg)
     FILE_HASH_DIRS_2/
       COMMIT_ID_1 (dog_2.jpg)
-```
-
-# Homebrew Release
-
-Preparing the binary
-
-```bash
-cargo build --release
-```
-
-Create a tar archive that we will upload to github releases
-
-```bash
-cd target/release
-tar -czf oxen-mac.tar.gz oxen
-```
-
-Get the sha256 hash of the archive
-
-```bash
-shasum -a 256 oxen-mac.tar.gz
-```
-
-Add release notes and tag in [https://github.com/Oxen-AI/oxen-release](https://github.com/Oxen-AI/oxen-release)
-
-```bash
-$ cd ~/Code/oxen-release/
-$ git add ReleaseNotes.md
-$ git commit -m "add release notes for v0.2.0"
-$ git tag -a v0.2.0 -m "version 0.2.0"
-$ git push origin main
-$ git push origin v0.2.0
-```
-
-Upload the tar.gz to our [releases github repository](https://github.com/Oxen-AI/oxen-release) through the webui [here](https://github.com/Oxen-AI/oxen-release/releases/new)
-
-Make a backup copy in here
-
-```bash
-$ mkdir ~/Code/oxen-release/release/v0.2.0/
-$ cp oxen-mac.tar.gz ~/Code/oxen-release/release/v0.2.0/
-```
-
-Then update our homebrew Formula in this repository [https://github.com/Oxen-AI/homebrew-oxen](https://github.com/Oxen-AI/homebrew-oxen) to point to the correct release.
-
-# Debian Release
-
-```bash
-fpm \
-  -s dir -t deb \
-  -p oxen-server-0.2.0-1-any.deb \
-  --name oxen-server \
-  --version 0.2.0 \
-  --architecture all \
-  --description "Oxen is a command line tool to version and manage large machine learning datasets" \
-  --url "https://oxen.ai" \
-  --maintainer "OxenAI hello@oxen.ai" \
-  oxen-server=/usr/bin/oxen-server
 ```

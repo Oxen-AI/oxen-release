@@ -91,42 +91,20 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn show(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let commit_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
+        .ok_or(OxenError::committish_not_found(commit_id.into()))?;
 
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_id: Option<&str> = req.match_info().get("commit_id");
-    if let (Some(namespace), Some(name), Some(commit_id)) = (namespace, name, commit_id) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => match api::local::commits::get_by_id(&repository, commit_id) {
-                Ok(Some(commit)) => HttpResponse::Ok().json(CommitResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    commit,
-                }),
-                Ok(None) => {
-                    log::debug!("commit_id {} does not exist for repo: {}", commit_id, name);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-                Err(err) => {
-                    log::debug!("Err getting commit_id {}: {}", commit_id, err);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-            },
-            Ok(None) => {
-                log::debug!("404 could not get repo {}", name,);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_id` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: String::from(STATUS_SUCCESS),
+        status_message: String::from(MSG_RESOURCE_FOUND),
+        commit,
+    }))
 }
 
 pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
