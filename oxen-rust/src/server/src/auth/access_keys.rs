@@ -3,12 +3,10 @@ use liboxen::model::User;
 use liboxen::util;
 
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand_core::OsRng;
 use rocksdb::{DBWithThreadMode, LogLevel, MultiThreaded, Options};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::str;
-use x25519_dalek::{EphemeralSecret, PublicKey};
 
 pub const SECRET_KEY_FILENAME: &str = "SECRET_KEY_BASE";
 
@@ -53,10 +51,9 @@ impl AccessKeyManager {
 
         let secret_file = AccessKeyManager::secret_key_path(sync_dir);
         if !secret_file.exists() {
-            // Not really using this in the right context...but fine to generate random hash for now
-            let secret = EphemeralSecret::new(OsRng);
-            let public = PublicKey::from(&secret);
-            let key = hex::encode(public.as_bytes());
+            // Just generating a random UUID for now
+            let secret = uuid::Uuid::new_v4();
+            let key = hex::encode(secret.as_bytes());
             log::debug!("Got secret key: {}", key);
             util::fs::write_to_path(&secret_file, &key)?;
         }
