@@ -91,14 +91,12 @@ pub async fn commit_history(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn show(
-    req: HttpRequest
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
+pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let commit_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let commit = api::local::commits::get_by_id(&repo, &commit_id)?
         .ok_or(OxenError::committish_not_found(commit_id.into()))?;
 
