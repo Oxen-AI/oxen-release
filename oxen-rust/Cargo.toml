@@ -51,7 +51,7 @@ jsonwebtoken = "8"
 jwalk = "0.8.1"
 lazy_static = "1.4.0"
 log = "0.4.17"
-minus = { version = "5.3.0", features = ["static_output", "search"] }
+minus = { version = "5.3.1", features = ["static_output", "search"] }
 nom = "7.1.1"
 num_cpus = "1.13.1"
 pluralizer = "0.3.1"
