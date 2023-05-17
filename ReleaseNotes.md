@@ -1,4 +1,18 @@
 
+# v0.6.0
+
+## Features/Fixes
+* `oxen remote download` now recursively works with directories
+* Fix create branch logic on server side
+* Fix csv parsing with carriage returns
+* Improve APIs
+* Improve internal error handling
+* Improve liboxen crate.io docs
+* Bump rust edition to 2021
+* Bump polars to 0.28.0
+* Code organization
+
+
 # v0.5.3
 
 ## Features/Improvements

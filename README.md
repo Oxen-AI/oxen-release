@@ -1,6 +1,6 @@
 # 🐂 Oxen
 
-Oxen helps you version your datasets like you version your code.
+Oxen makes versioning your datasets as easy as versioning your code.
 
 ```bash
 # The first step for creating any dataset should be `oxen init`
@@ -22,13 +22,13 @@ oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
 
 # ✅ Features
 
-Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](Performance.md) on images, video, audio, text, and more.
+Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md) on images, video, audio, text, and more.
 
 * 🔥 Fast (10-100x faster than existing tools)
 * 🧠 Easy to learn (same commands as git)
 * 🗄️ Index lots of files (millions of images? no problem)
 * 🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
-* 📊 Native DataFrame processing ([oxen df](DataFrames.md) command for data exploration)
+* 📊 Native DataFrame processing ([oxen df](https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md) command for data exploration)
 * 📈 Tracks changes over time (never worry about losing the state of your data)
 * 🤝 Collaborate with your team (sync to an oxen-server)
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
@@ -46,22 +46,10 @@ The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in man
 Watch as we commit hundreds of thousands of images to an Oxen repository in a matter of seconds 🚀
 
 <p align="center">
-    <img src="images/cli-celeba.gif" alt="oxen cli demo" />
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/cli-celeba.gif?raw=true" alt="oxen cli demo" />
 </p>
 
-# 🧑‍💻 OxenHub
-
-The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
-
-With the Hub, enable your team to discover, view, collaborate, and manage your datasets.
-
-<p align="center">
-    <img src="images/CatsVsDogsRepo.png" alt="oxen cats vs dogs repo" style="max-height: 350px;" />
-</p>
-
-Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
-
-# Installation
+# 🐂 CLI Installation
 
 For Mac Users
 
@@ -73,7 +61,29 @@ brew tap Oxen-AI/oxen
 brew install oxen
 ```
 
-For other platforms follow the [installation instructions](Installation.md).
+For other platforms follow the [installation instructions](https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md).
+
+# 🐍 Python Installation
+
+```bash
+$ pip install oxenai
+```
+
+# 📚 Python Documentation
+
+[Python Documentation](https://oxenai.github.io/oxen/)
+
+# 🧑‍💻 OxenHub
+
+The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
+
+With the Hub, enable your team to discover, view, collaborate, and manage your datasets.
+
+<p align="center">
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/CatsVsDogsRepo.png?raw=true" alt="oxen cats vs dogs repo" style="max-height: 350px;" />
+</p>
+
+Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register for early access to the Hub where you can host your datasets.
 
 # Basic Commands
 
@@ -187,7 +197,7 @@ The `restore` command comes in handy if you made some changes locally and you wa
 oxen restore path/to/file.txt
 ```
 
-Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the [restore documentation](commands/Restore.md).
+Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the [restore documentation](https://github.com/Oxen-AI/oxen-release/blob/main/commands/Restore.md).
 
 ## Removing Data
 
@@ -215,18 +225,18 @@ Once data has been committed, a version of it always lives in the .oxen/versions
 
 ## Advanced Features
 
-Oxen has many more advanced features such as [computing diffs](#diff) between tabular data as well as convenient DataFrame manipulation through the [oxen df](DataFrames.md) command.
+Oxen has many more advanced features such as [computing diffs](https://github.com/Oxen-AI/oxen-release#diff) between tabular data as well as convenient DataFrame manipulation through the [oxen df](https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md) command.
 
-Feel free to skip down to the more [advanced features](#data-point-level-version-control).
+Feel free to skip down to the more [advanced features](https://github.com/Oxen-AI/oxen-release#data-frames).
 
 # Sharing Data and Collaboration
 
 There are two ways you can collaborate on your data with Oxen. 
 
-1) Using the [OxenHub](https://www.oxen.ai/register) platform
-2) Self-hosting using the [oxen-server](#setup-an-oxen-server) binary
+1) [Register](https://www.oxen.ai/register) on Oxen
+2) Self-hosting using the [oxen-server](https://github.com/Oxen-AI/oxen-release/blob/main/SelfHosting.md) binary
 
-The easiest route is to sign up for an account on [OxenHub](https://www.oxen.ai/register) and sync your data to a repository there.
+The easiest route is to sign up for an account on Oxen and sync your data to a repository there.
 
 ## Create an account
 
@@ -236,7 +246,7 @@ Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register
 
 From your home page, you can view your repositories and create a new repository.
 
-![repository home page](images/MyRepos.png)
+![repository home page](https://github.com/Oxen-AI/oxen-release/blob/main/images/MyRepos.png?raw=true)
 
 ## Setup Authorization
 
@@ -254,13 +264,13 @@ cat ~/.oxen/user_config.toml
 
 Pick a name and give your repository a description. Repositories can be public for anyone to view, or private just for you and your company.
 
-![repository home page](images/CreateRepository.png)
+![repository home page](https://github.com/Oxen-AI/oxen-release/blob/main/images/CreateRepository.png?raw=true)
 
 ## Push your data
 
 Once you have created a repository, you will see a URL you can push your data to in the format `https://hub.oxen.ai/<username>/<repo_name>`
 
-From the data repository that you [created above](#create-repository) you can simply add the remote and push.
+From the data repository that you [created above](https://github.com/Oxen-AI/oxen-release#create-repository) you can simply add the remote and push.
 
 ```bash
 oxen config --set-remote origin https://hub.oxen.ai/<username>/<repo_name>
@@ -316,11 +326,11 @@ oxen remote add image.png
 oxen remote status
 ```
 
-For more information about remote staging, refer to the [remote staging documentation](RemoteStaging.md).
+For more information about remote staging, refer to the [remote staging documentation](https://github.com/Oxen-AI/oxen-release/blob/main/RemoteStaging.md).
 
 ## Oxen Badges
 
-![example oxen badge](images/ExampleBadge.svg)
+![example oxen badge](https://github.com/Oxen-AI/oxen-release/blob/main/images/ExampleBadge.svg?raw=true)
 
 You can add a badge to your README to show the status of your repository. Badges show a summary of the data in your repository. The badge is generated as a .svg so you can embed badges on other sites like GitHub if your code lives elsewhere.
 
@@ -336,11 +346,11 @@ Simply replace $USERNAME and $REPO_NAME above with your username and repository 
 
 Oxen enables self-hosting with the `oxen-server` binary. You do not get any of the UI features of the hub, but this is a nice option to kick the tires or set up internal infrastructure. Some teams set up a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.
 
-You can read more about self-hosting [here](SelfHosting.md).
+You can read more about [self-hosting here](https://github.com/Oxen-AI/oxen-release/blob/main/SelfHosting.md).
 
 # Diving Deeper
 
-## Data Point Level Version Control
+## Data Frames
 
 Oxen is smart about what file types you are adding. For example, if you track a tabular data file (with an extension `.csv`, `.tsv`, `.parquet`, `.arrow`, `.jsonl`, or `.ndjson`) Oxen will index and keep track of each row of data.
 
@@ -352,9 +362,9 @@ oxen add annotations/train.csv
 oxen commit -m "adding rows and rows of data"
 ```
 
-Under the hood, Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames check out the [data point level version control documentation](DataPointLevelVersionControl.md).
+Under the hood, Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames check out the [data point level version control documentation](https://github.com/Oxen-AI/oxen-release/blob/main/DataPointLevelVersionControl.md).
 
-Oxen also has some [handy command line tooling](DataFrames.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command lets you easily view, modify, slice, and modify the data.
+Oxen also has some [handy command line tooling](https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md) for [Exploratory Data Analysis](https://en.wikipedia.org/wiki/Exploratory_data_analysis) with DataFrames. The `oxen df` command lets you easily view, modify, slice, and modify the data.
 
 ```bash
 oxen df annotations/train.csv
@@ -387,19 +397,19 @@ shape: (10000, 6)
 └─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
 ```
 
-To learn more about what you can do with tabular data in Oxen you can reference the documentation [here](DataFrames.md)
+To learn more about what you can do with tabular data in Oxen you can reference the [documentation here](https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md)
 
 ## Integrating Labeling Tools
 
 For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open-source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow. 
 
-For an example of integrating Oxen into your Label Studio workflow, check out our [Oxen Annotation Documentation](annotation/LabelStudio.md).
+For an example of integrating Oxen into your Label Studio workflow, check out our [Oxen Annotation Documentation](https://github.com/Oxen-AI/oxen-release/blob/main/annotation/LabelStudio.md).
 
 ## Diff
 
 If you want to see the differences between your file and the conflicting file, you can use the `oxen diff` command.
 
-Oxen knows how to compare text files as well as [tabular data](DataFrames.md) between commits. Currently, you must specify the specific path to the file you want to compare the changes.
+Oxen knows how to compare text files as well as [tabular data](https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md) between commits. Currently, you must specify the specific path to the file you want to compare the changes.
 
 If the file is tabular data `oxen diff` will show you the rows that were added or removed.
 
