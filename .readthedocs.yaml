@@ -12,6 +12,7 @@ build:
     python: "3.11"
     rust: "1.64"
   commands:
+    - mkdir -p $READTHEDOCS_OUTPUT/html/
     - cp --recursive oxen/docs/build/* $READTHEDOCS_OUTPUT/html/
     
 
