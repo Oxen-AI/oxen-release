@@ -12,8 +12,7 @@ build:
     python: "3.11"
     rust: "1.64"
   commands:
-    - mkdir -p $READTHEDOCS_OUTPUT/html/
-    - cp --recursive oxen/docs/build/html/* $READTHEDOCS_OUTPUT/html/
+    - cp --recursive oxen/docs/build/html/* $READTHEDOCS_OUTPUT/
     
 
 # Build documentation in the docs/ directory with Sphinx
