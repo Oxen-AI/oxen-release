@@ -1,0 +1,8 @@
+pytest-datadir==1.4.1
+pytest==7.3.1
+ruff==0.0.263
+polars==0.17.11
+m2r2==0.3.3
+sphinx-copybutton==0.5.2
+sphinx_book_theme==1.0.1
+pyarrow==12.0.0
