@@ -577,18 +577,18 @@ pub async fn branch(sub_matches: &ArgMatches) {
 }
 
 pub async fn checkout(sub_matches: &ArgMatches) {
-    if sub_matches.get_flag("create") {
-        let name = sub_matches.get_one::<String>("create").expect("required");
+    if let Some(name) = sub_matches.get_one::<String>("create") {
         if let Err(err) = dispatch::create_checkout_branch(name) {
             eprintln!("{err}")
         }
     } else if sub_matches.get_flag("theirs") {
-        let name = sub_matches.get_one::<String>("name").expect("required");
+        let name = sub_matches
+            .get_one::<String>("name")
+            .expect("name is required");
         if let Err(err) = dispatch::checkout_theirs(name) {
             eprintln!("{err}")
         }
-    } else if sub_matches.get_flag("name") {
-        let name = sub_matches.get_one::<String>("name").expect("required");
+    } else if let Some(name) = sub_matches.get_one::<String>("name") {
         if let Err(err) = dispatch::checkout(name).await {
             eprintln!("{err}")
         }
@@ -619,7 +619,7 @@ pub async fn push(sub_matches: &ArgMatches) {
         .expect("Must supply a branch");
 
     if sub_matches.get_flag("delete") {
-        println!("Delete remote branch {remote}/{branch}");
+        println!("TODO: Delete remote branch {remote}/{branch}");
     } else {
         match dispatch::push(remote, branch).await {
             Ok(_) => {}

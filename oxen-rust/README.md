@@ -10,17 +10,7 @@ Oxen at it's core is a data version control library, written in Rust. It's goals
 
 The documentation for liboxen is automatically generated and uploaded to [docs.rs](https://docs.rs/liboxen/latest/liboxen/).
 
-#  In this repository
-
-Library, tools, and server to manage local and remote Oxen repositories.
-
-Includes:
-
-- `oxen` (command line interface)
-- `oxen-server` (remote server to sync data to)
-- `liboxen` (shared lib between cli and server)
-
-# Build & Run
+# 🔨 Build & Run
 
 First, make sure you have latest Rust version installed. You should install the Rust toolchain with rustup: https://www.rust-lang.org/tools/install.
 
