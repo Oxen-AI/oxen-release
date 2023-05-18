@@ -12,6 +12,24 @@
    :name: getting_started
    :hidden:
 
-   getting_started/command_line.md
+   getting_started/installation.md
+   getting_started/commands.md
    getting_started/python.md
    getting_started/tutorials.md
+
+.. toctree::
+   :maxdepth: 2
+   :caption: 🐍 Python API
+   :name: python_api
+   :hidden:
+
+   references/python/local_repo.rst
+   references/python/remote_repo.rst
+
+.. toctree::
+   :maxdepth: 2
+   :caption: 🦀 Rust API
+   :name: rust_api
+   :hidden:
+
+   references/rust.md

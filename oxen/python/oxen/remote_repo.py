@@ -72,10 +72,20 @@ class RemoteRepo:
         """
         self._repo.delete()
 
-    def checkout(self, revision: str):
+    def checkout(self, revision: str, create=False):
         """
         Switches the remote repo to the specified revision.
+
+        Parameters
+        ----------
+        revision : str
+            The name of the branch or commit id to checkout.
+        create : bool
+            Whether to create a new branch if it doesn't exist. Default: False
         """
+        if create:
+            return self._repo.create_branch(revision)
+
         self._repo.checkout(revision)
 
     def download(self, remote_path: str, local_path: str | None):
@@ -125,7 +135,7 @@ class RemoteRepo:
         Parameters
         ----------
         path: str
-            The directory or file path on the remote that 
+            The directory or file path on the remote that
             will be checked for modifications
         """
         return self._repo.status(path)
@@ -157,7 +167,7 @@ class RemoteRepo:
         """
         Adds a row to the dataframe at the specified path on the remote repo
 
-        Parameters 
+        Parameters
         ----------
         path: str
             Path to the dataframe on the remote repo
@@ -182,12 +192,12 @@ class RemoteRepo:
 
     def create_branch(self, new_branch: str):
         """
-        Return a branch by name on this repo, 
+        Return a branch by name on this repo,
         creating it from the currently checked out branch if it doesn't exist
 
         Parameters
         ----------
         new_branch: str
-            The name to assign to the created branch 
+            The name to assign to the created branch
         """
         return self._repo.create_branch(new_branch)
