@@ -22,4 +22,4 @@ sphinx:
 # Optionally declare the Python requirements required to build your docs
 python:
    install:
-   - requirements: oxen/requirements.txt
+   - requirements: oxen/docs/requirements.txt
