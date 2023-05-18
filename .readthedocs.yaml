@@ -13,6 +13,9 @@ build:
     rust: "1.64"
   jobs:
     pre_install:
+      - bash sudo apt update
+      - bash sudo apt upgrade
+      - sudo apt install curl
       - bash curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Build documentation in the docs/ directory with Sphinx
