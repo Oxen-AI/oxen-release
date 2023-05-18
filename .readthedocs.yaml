@@ -12,11 +12,8 @@ build:
     python: "3.11"
     rust: "1.64"
   jobs:
-    pre_build:
-      - bash apt update
-      - bash apt upgrade
-      - bash apt install curl
-      - bash curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    pre_install:
+      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
