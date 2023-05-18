@@ -13,7 +13,7 @@ build:
     rust: "1.64"
   jobs:
     pre_install:
-      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+      - rustup update
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
