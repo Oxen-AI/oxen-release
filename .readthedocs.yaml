@@ -12,7 +12,7 @@ build:
     python: "3.11"
     rust: "1.64"
   jobs:
-    pre_install:
+    pre_build:
       - bash apt update
       - bash apt upgrade
       - bash apt install curl
