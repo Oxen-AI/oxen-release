@@ -413,13 +413,15 @@ pub fn rm() -> Command {
         .arg(
             Arg::new("staged")
                 .long("staged")
-                .help("Removes the file from the staging area."),
+                .help("Removes the file from the staging area.")
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("recursive")
                 .long("recursive")
                 .short('r')
-                .help("Recursively removes directory."),
+                .help("Recursively removes directory.")
+                .action(clap::ArgAction::SetTrue),
         )
 }
 
