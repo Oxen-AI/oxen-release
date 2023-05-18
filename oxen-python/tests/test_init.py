@@ -1,6 +1,6 @@
 import os
 
-from oxen import Repo
+from oxen import LocalRepo
 
 
 def test_init(empty_local_dir):
@@ -8,7 +8,7 @@ def test_init(empty_local_dir):
     oxen_hidden_dir = os.path.join(empty_local_dir, ".oxen")
     assert not os.path.exists(oxen_hidden_dir)
 
-    repo = Repo(empty_local_dir)
+    repo = LocalRepo(empty_local_dir)
     repo.init()
 
     assert os.path.exists(oxen_hidden_dir)

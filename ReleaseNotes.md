@@ -1,5 +1,5 @@
 
-# v0.6.0
+# v0.6.0+2
 
 ## Features/Fixes
 * `oxen remote download` now recursively works with directories
@@ -9,7 +9,7 @@
 * Improve internal error handling
 * Improve liboxen crate.io docs
 * Bump rust edition to 2021
-* Bump polars to 0.28.0
+* Bump all dependencies to latest
 * Code organization
 
 

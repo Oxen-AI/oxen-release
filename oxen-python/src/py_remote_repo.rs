@@ -8,8 +8,8 @@ use liboxen::{api, command};
 use pyo3::exceptions::PyValueError;
 use std::path::PathBuf;
 
-use crate::branch::PyBranch;
 use crate::error::PyOxenError;
+use crate::py_branch::PyBranch;
 use crate::py_commit::PyCommit;
 
 use crate::py_staged_data::PyStagedData;
@@ -63,6 +63,7 @@ impl PyRemoteRepo {
     fn name(&self) -> &str {
         &self.repo.name
     }
+
     fn revision(&self) -> &str {
         &self.revision
     }
@@ -174,10 +175,7 @@ impl PyRemoteRepo {
             .block_on(async { api::remote::branches::list(&self.repo).await })?;
         Ok(branches
             .iter()
-            .map(|b| PyBranch {
-                name: b.name.clone(),
-                commit_id: b.commit_id.clone(),
-            })
+            .map(|b| PyBranch::new(b.name.clone(), b.commit_id.clone(), false))
             .collect())
     }
 
@@ -208,10 +206,7 @@ impl PyRemoteRepo {
         });
 
         match branch {
-            Ok(Some(branch)) => Ok(PyBranch {
-                name: branch.name,
-                commit_id: branch.commit_id,
-            }),
+            Ok(Some(branch)) => Ok(PyBranch::from(branch)),
             _ => Err(PyValueError::new_err("could not get branch")),
         }
     }
@@ -231,17 +226,14 @@ impl PyRemoteRepo {
         });
 
         match branch {
-            Ok(branch) => Ok(PyBranch {
-                name: branch.name,
-                commit_id: branch.commit_id,
-            }),
+            Ok(branch) => Ok(PyBranch::from(branch)),
             _ => Err(PyValueError::new_err("Could not get or create branch")),
         }
     }
     fn checkout(&mut self, revision: String) -> PyResult<()> {
         let branch = self.get_branch(revision.clone());
         if let Ok(branch) = branch {
-            self.set_revision(branch.name);
+            self.set_revision(branch.name().to_string());
             return Ok(());
         }
 
