@@ -1,0 +1,985 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=e353d410970836974a52" rel="stylesheet" />
+<link href="_static/styles/bootstrap.css?digest=e353d410970836974a52" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=e353d410970836974a52" rel="stylesheet" />
+
+  
+  <link href="_static/vendor/fontawesome/6.1.2/css/all.min.css?digest=e353d410970836974a52" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.1.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.1.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.1.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" href="_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=e353d410970836974a52" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52" />
+
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/clipboard.min.js"></script>
+    <script src="_static/copybutton.js"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'index';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="getting_started/installation.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          name="__primary"
+          id="__primary"/>
+  <label class="overlay overlay-primary" for="__primary"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          name="__secondary"
+          id="__secondary"/>
+  <label class="overlay overlay-secondary" for="__secondary"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+  
+    <nav class="bd-header navbar navbar-expand-lg bd-navbar">
+    </nav>
+  
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+  
+
+<a class="navbar-brand logo" href="#">
+  
+  
+  
+  
+  
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.0</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="getting_started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/commands.html">Command Line Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/python.html">Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/tutorials.html">Tutorials</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="references/python/local_repo.html">Local Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/remote_repo.html">Remote Repo</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="references/rust.html">Rust Documentation</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/index.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+<script>
+document.write(`
+  <button class="theme-switch-button btn btn-sm btn-outline-primary navbar-btn rounded-circle" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="theme-switch" data-mode="light"><i class="fa-solid fa-sun"></i></span>
+    <span class="theme-switch" data-mode="dark"><i class="fa-solid fa-moon"></i></span>
+    <span class="theme-switch" data-mode="auto"><i class="fa-solid fa-circle-half-stroke"></i></span>
+  </button>
+`);
+</script>
+
+<script>
+document.write(`
+  <button class="btn btn-sm navbar-btn search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+  </button>
+`);
+</script>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>🐂 🌾 Oxen</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">🐂 🌾 Oxen</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#features">✅ Features</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#why-the-name-oxen">Why the name Oxen?</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#cli-installation">🐂 CLI Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#python-installation">🐍 Python Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#python-documentation">📚 Python Documentation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">🧑‍💻 OxenHub</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-commands">Basic Commands</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-user">Setup User</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-local-repository">Create Local Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-data">Stage Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-status">View Status</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-changes">Commit Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#log">Log</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reverting-to-commit">Reverting To Commit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-working-directory">Restore Working Directory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#removing-data">Removing Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-features">Advanced Features</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#sharing-data-and-collaboration">Sharing Data and Collaboration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-account">Create an account</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#your-repositories">Your Repositories</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-authorization">Setup Authorization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-repository">Create Remote Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#push-your-data">Push your data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-staging">Remote Staging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-badges">Oxen Badges</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosting">Self Hosting</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#diving-deeper">Diving Deeper</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-frames">Data Frames</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integrating-labeling-tools">Integrating Labeling Tools</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#diff">Diff</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#branching">Branching</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pulling-new-changes">Pulling New Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-the-changes">Merging the changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dealing-with-merge-conflicts">Dealing With Merge Conflicts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#support">Support</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing">Contributing</a><ul class="nav section-nav flex-column">
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article" role="main">
+                  
+  <section id="oxen">
+<h1>🐂 🌾 Oxen<a class="headerlink" href="#oxen" title="Permalink to this heading">#</a></h1>
+<p>Oxen makes versioning your datasets as easy as versioning your code.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># The first step for creating any dataset should be `oxen init`</span>
+
+oxen<span class="w"> </span>init
+oxen<span class="w"> </span>add<span class="w"> </span>images/
+oxen<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Adding my data&quot;</span>
+oxen<span class="w"> </span>config<span class="w"> </span>--set-remote<span class="w"> </span>origin<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBoundingBox
+oxen<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
+</pre></div>
+</div>
+<p>Clone your data faster than ever before.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># The first step in collaborating on a dataset should be `oxen clone`</span>
+
+oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBoundingBox
+</pre></div>
+</div>
+</section>
+<section id="features">
+<h1>✅ Features<a class="headerlink" href="#features" title="Permalink to this heading">#</a></h1>
+<p>Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md">ground up to be fast</a> on images, video, audio, text, and more.</p>
+<ul class="simple">
+<li><p>🔥 Fast (10-100x faster than existing tools)</p></li>
+<li><p>🧠 Easy to learn (same commands as git)</p></li>
+<li><p>🗄️ Index lots of files (millions of images? no problem)</p></li>
+<li><p>🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)</p></li>
+<li><p>📊 Native DataFrame processing (<a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md">oxen df</a> command for data exploration)</p></li>
+<li><p>📈 Tracks changes over time (never worry about losing the state of your data)</p></li>
+<li><p>🤝 Collaborate with your team (sync to an oxen-server)</p></li>
+<li><p>👀 Better data visualization on <a class="reference external" href="https://oxen.ai">OxenHub</a></p></li>
+</ul>
+</section>
+<section id="why-the-name-oxen">
+<h1>Why the name Oxen?<a class="headerlink" href="#why-the-name-oxen" title="Permalink to this heading">#</a></h1>
+<p>“Oxen” 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of the grunt work of your infrastructure so you can focus on the higher-level ML problems that matter to your product.</p>
+</section>
+<section id="overview">
+<h1>Overview<a class="headerlink" href="#overview" title="Permalink to this heading">#</a></h1>
+<p>No need to learn a new paradigm.</p>
+<p>The Oxen Command Line Interface (CLI) mirrors <a class="reference external" href="https://git-scm.com/">git</a> in many ways, so if you are comfortable versioning code with git, it will be straightforward to version your datasets with Oxen.</p>
+<p>Watch as we commit hundreds of thousands of images to an Oxen repository in a matter of seconds 🚀</p>
+<p align="center">
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/cli-celeba.gif?raw=true" alt="oxen cli demo" />
+</p></section>
+<section id="cli-installation">
+<h1>🐂 CLI Installation<a class="headerlink" href="#cli-installation" title="Permalink to this heading">#</a></h1>
+<p>For Mac Users</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>tap<span class="w"> </span>Oxen-AI/oxen
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>install<span class="w"> </span>oxen
+</pre></div>
+</div>
+<p>For other platforms follow the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/oxen/docs/source/getting_started/installation.md">installation instructions</a>.</p>
+</section>
+<section id="python-installation">
+<h1>🐍 Python Installation<a class="headerlink" href="#python-installation" title="Permalink to this heading">#</a></h1>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>oxenai
+</pre></div>
+</div>
+</section>
+<section id="python-documentation">
+<h1>📚 Python Documentation<a class="headerlink" href="#python-documentation" title="Permalink to this heading">#</a></h1>
+<p><a class="reference external" href="https://oxenai.github.io/oxen/">Python Documentation</a></p>
+</section>
+<section id="id2">
+<h1>🧑‍💻 OxenHub<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h1>
+<p>The shift to <a class="reference external" href="https://karpathy.medium.com/software-2-0-a64152b37c35">Software 2.0</a> is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.</p>
+<p>With the Hub, enable your team to discover, view, collaborate, and manage your datasets.</p>
+<p align="center">
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/CatsVsDogsRepo.png?raw=true" alt="oxen cats vs dogs repo" style="max-height: 350px;" />
+</p><p>Visit <a class="reference external" href="https://www.oxen.ai/register">https://www.oxen.ai/register</a> to register for early access to the Hub where you can host your datasets.</p>
+</section>
+<section id="basic-commands">
+<h1>Basic Commands<a class="headerlink" href="#basic-commands" title="Permalink to this heading">#</a></h1>
+<p>Here is a quick overview of common commands translated to Oxen.</p>
+<section id="setup-user">
+<h2>Setup User<a class="headerlink" href="#setup-user" title="Permalink to this heading">#</a></h2>
+<p>For your commit history, you will have to set up your local Oxen user name and email. This is what will show up in <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">log</span></code> or in the OxenHub dashboard for who changed what.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>config<span class="w"> </span>--name<span class="w"> </span><span class="s2">&quot;YOUR_NAME&quot;</span><span class="w"> </span>--email<span class="w"> </span><span class="s2">&quot;YOUR_EMAIL&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="create-local-repository">
+<h2>Create Local Repository<a class="headerlink" href="#create-local-repository" title="Permalink to this heading">#</a></h2>
+<p>First, create a new directory, navigate into it, and perform</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>init
+</pre></div>
+</div>
+</section>
+<section id="stage-data">
+<h2>Stage Data<a class="headerlink" href="#stage-data" title="Permalink to this heading">#</a></h2>
+<p>You can stage changes that you are interested in committing with the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">add</span></code> command and giving a full file path or directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>add<span class="w"> </span>images/
+</pre></div>
+</div>
+</section>
+<section id="view-status">
+<h2>View Status<a class="headerlink" href="#view-status" title="Permalink to this heading">#</a></h2>
+<p>To see what data is tracked, staged, or not yet added to the repository you can use the <code class="docutils literal notranslate"><span class="pre">status</span></code> command.</p>
+<p>Note: since we are dealing with large datasets with many files, <code class="docutils literal notranslate"><span class="pre">status</span></code> rolls up the changes and summarizes them for you.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>status
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">On</span> <span class="n">branch</span> <span class="n">main</span> <span class="o">-&gt;</span> <span class="n">e76dd52a4fc13a6f</span>
+
+<span class="n">Directories</span> <span class="n">to</span> <span class="n">be</span> <span class="n">committed</span>
+  <span class="n">added</span><span class="p">:</span> <span class="n">images</span> <span class="k">with</span> <span class="n">added</span> <span class="mi">8108</span> <span class="n">files</span>
+
+<span class="n">Files</span> <span class="n">to</span> <span class="n">be</span> <span class="n">committed</span><span class="p">:</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000042.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000074.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000109.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000307.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000309.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000394.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000400.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000443.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000490.</span><span class="n">jpg</span>
+  <span class="n">new</span> <span class="n">file</span><span class="p">:</span> <span class="n">images</span><span class="o">/</span><span class="mf">000000000575.</span><span class="n">jpg</span>
+  <span class="o">...</span> <span class="ow">and</span> <span class="mi">8098</span> <span class="n">others</span>
+
+<span class="n">Untracked</span> <span class="n">Directories</span>
+  <span class="p">(</span><span class="n">use</span> <span class="s2">&quot;oxen add &lt;dir&gt;...&quot;</span> <span class="n">to</span> <span class="n">update</span> <span class="n">what</span> <span class="n">will</span> <span class="n">be</span> <span class="n">committed</span><span class="p">)</span>
+  <span class="n">annotations</span><span class="o">/</span> <span class="p">(</span><span class="mi">3</span> <span class="n">items</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can always paginate through the changes with the <code class="docutils literal notranslate"><span class="pre">-s</span></code> (skip) and <code class="docutils literal notranslate"><span class="pre">-l</span></code> (limit) params on the status command. Run <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">status</span> <span class="pre">--help</span></code> for more info.</p>
+</section>
+<section id="commit-changes">
+<h2>Commit Changes<a class="headerlink" href="#commit-changes" title="Permalink to this heading">#</a></h2>
+<p>To commit the changes that are staged with a message you can use</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Some informative commit message&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="log">
+<h2>Log<a class="headerlink" href="#log" title="Permalink to this heading">#</a></h2>
+<p>You can see the history of changes on your current branch by running:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>log
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>commit 6b958e268656b0c5
+
+Author: Ox
+Date:   Fri, 21 Oct 2022 16:08:39 -0700
+
+    adding 10,000 training images
+
+commit e76dd52a4fc13a6f
+
+Author: Ox
+Date:   Fri, 21 Oct 2022 16:05:22 -0700
+
+    Initialized Repo 🐂
+</pre></div>
+</div>
+</section>
+<section id="reverting-to-commit">
+<h2>Reverting To Commit<a class="headerlink" href="#reverting-to-commit" title="Permalink to this heading">#</a></h2>
+<p>If ever you want to change your working directory to a point in your commit history, you can simply supply the commit id from your history to the <code class="docutils literal notranslate"><span class="pre">checkout</span></code> command.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>checkout<span class="w"> </span>COMMIT_ID
+</pre></div>
+</div>
+</section>
+<section id="restore-working-directory">
+<h2>Restore Working Directory<a class="headerlink" href="#restore-working-directory" title="Permalink to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">restore</span></code> command comes in handy if you made some changes locally and you want to revert the changes. This can be used for example if you accidentally delete or modify or stage a file that you did not intend to.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>restore<span class="w"> </span>path/to/file.txt
+</pre></div>
+</div>
+<p>Restore defaults to restoring the files to the current HEAD. For more detailed options, as well as how to unstage files refer to the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/commands/Restore.md">restore documentation</a>.</p>
+</section>
+<section id="removing-data">
+<h2>Removing Data<a class="headerlink" href="#removing-data" title="Permalink to this heading">#</a></h2>
+<p>To stage a file to be removed from the next commit, use the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">rm</span></code> command. Removing data from a commit can be useful if you find errors or simply want to create a smaller subset of data on a separate branch for debugging or testing.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>rm<span class="w"> </span>path/to/file.txt
+</pre></div>
+</div>
+<p>Note: the file must be committed in the history for this to work. If you want to remove a file that has not been committed yet, simple use your /bin/rm command.</p>
+<p>To recursively remove a directory use the <code class="docutils literal notranslate"><span class="pre">-r</span></code> flag.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>rm<span class="w"> </span>-r<span class="w"> </span>path/to/dir
+</pre></div>
+</div>
+<p>If you accidentally staged a file that you do not want to commit, you can also use <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">rm</span></code> with the <code class="docutils literal notranslate"><span class="pre">--staged</span></code> flag to unstage the file or directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>rm<span class="w"> </span>--staged<span class="w"> </span>-r<span class="w"> </span>path/to/dir
+</pre></div>
+</div>
+<p>Once data has been committed, a version of it always lives in the .oxen/versions directory. As of right now there is no way to completely remove it from the repository history, this functionality is in our backlog for sensitive data that was accidentally committed.</p>
+</section>
+<section id="advanced-features">
+<h2>Advanced Features<a class="headerlink" href="#advanced-features" title="Permalink to this heading">#</a></h2>
+<p>Oxen has many more advanced features such as <a class="reference external" href="https://github.com/Oxen-AI/oxen-release#diff">computing diffs</a> between tabular data as well as convenient DataFrame manipulation through the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md">oxen df</a> command.</p>
+<p>Feel free to skip down to the more <a class="reference external" href="https://github.com/Oxen-AI/oxen-release#data-frames">advanced features</a>.</p>
+</section>
+</section>
+<section id="sharing-data-and-collaboration">
+<h1>Sharing Data and Collaboration<a class="headerlink" href="#sharing-data-and-collaboration" title="Permalink to this heading">#</a></h1>
+<p>There are two ways you can collaborate on your data with Oxen.</p>
+<ol class="arabic simple">
+<li><p><a class="reference external" href="https://www.oxen.ai/register">Register</a> on Oxen</p></li>
+<li><p>Self-hosting using the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/SelfHosting.md">oxen-server</a> binary</p></li>
+</ol>
+<p>The easiest route is to sign up for an account on Oxen and sync your data to a repository there.</p>
+<section id="create-an-account">
+<h2>Create an account<a class="headerlink" href="#create-an-account" title="Permalink to this heading">#</a></h2>
+<p>Visit <a class="reference external" href="https://www.oxen.ai/register">https://www.oxen.ai/register</a> to register</p>
+</section>
+<section id="your-repositories">
+<h2>Your Repositories<a class="headerlink" href="#your-repositories" title="Permalink to this heading">#</a></h2>
+<p>From your home page, you can view your repositories and create a new repository.</p>
+<a class="reference external image-reference" href="https://github.com/Oxen-AI/oxen-release/blob/main/images/MyRepos.png?raw=true"><img alt="repository home page" src="https://github.com/Oxen-AI/oxen-release/blob/main/images/MyRepos.png?raw=true" /></a>
+</section>
+<section id="setup-authorization">
+<h2>Setup Authorization<a class="headerlink" href="#setup-authorization" title="Permalink to this heading">#</a></h2>
+<p>You will notice on the side panel you have access to your API Key. In order to push data to your repository you will need to copy this key and set it up in your user config. This saves your key in <code class="docutils literal notranslate"><span class="pre">~/.oxen/user_config.toml</span></code> with one key per host if you ever need to push to multiple hosts.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>config<span class="w"> </span>--auth<span class="w"> </span>hub.oxen.ai<span class="w"> </span>YOUR_API_KEY
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.oxen/user_config.toml
+</pre></div>
+</div>
+</section>
+<section id="create-remote-repository">
+<h2>Create Remote Repository<a class="headerlink" href="#create-remote-repository" title="Permalink to this heading">#</a></h2>
+<p>Pick a name and give your repository a description. Repositories can be public for anyone to view, or private just for you and your company.</p>
+<a class="reference external image-reference" href="https://github.com/Oxen-AI/oxen-release/blob/main/images/CreateRepository.png?raw=true"><img alt="repository home page" src="https://github.com/Oxen-AI/oxen-release/blob/main/images/CreateRepository.png?raw=true" /></a>
+</section>
+<section id="push-your-data">
+<h2>Push your data<a class="headerlink" href="#push-your-data" title="Permalink to this heading">#</a></h2>
+<p>Once you have created a repository, you will see a URL you can push your data to in the format <code class="docutils literal notranslate"><span class="pre">https://hub.oxen.ai/&lt;username&gt;/&lt;repo_name&gt;</span></code></p>
+<p>From the data repository that you <a class="reference external" href="https://github.com/Oxen-AI/oxen-release#create-repository">created above</a> you can simply add the remote and push.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>config<span class="w"> </span>--set-remote<span class="w"> </span>origin<span class="w"> </span>https://hub.oxen.ai/&lt;username&gt;/&lt;repo_name&gt;
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
+</pre></div>
+</div>
+<p>🎉 Congrats! You should now be able to see your data in the hub.</p>
+<p>Now you can set up your training job or another collaborator on your team to use your data by cloning it and pulling the branch you want.</p>
+<p>There is a <code class="docutils literal notranslate"><span class="pre">--shallow</span></code> flag on <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">clone</span></code> to make sure you don’t pull all the data on clone. The default is cloning <code class="docutils literal notranslate"><span class="pre">main</span></code> and all the associated data</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/<span class="nv">$USERNAME</span>/<span class="nv">$REPO_NAME</span><span class="w"> </span>--shallow
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="nv">$REPO_NAME</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>my-branch
+</pre></div>
+</div>
+</section>
+<section id="remote-staging">
+<h2>Remote Staging<a class="headerlink" href="#remote-staging" title="Permalink to this heading">#</a></h2>
+<p>There are times when you do not want to clone the entire repository to make a change. For example, if you have a large dataset and you want to add one annotation, it is very inefficient to clone all the files locally.</p>
+<p>Oxen’s remote staging area helps enable a more efficient workflow. Simply add the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand to the commands you already know how to use locally.</p>
+<p>Let’s walk through an example. Start by shallow cloning a repo and a checkout a specific branch.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/&lt;username&gt;/&lt;repo_name&gt;<span class="w"> </span>--shallow<span class="w"> </span>-b<span class="w"> </span>add-images
+</pre></div>
+</div>
+<p>If you do a quick <code class="docutils literal notranslate"><span class="pre">ls</span></code> you will see that there are no files locally. Never fear, we are in a shallow state and can still interact with the repo remotely.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>status
+</pre></div>
+</div>
+<p>This checks the remote staging area on this branch to see if you have any remote files staged. You can then proceed to <code class="docutils literal notranslate"><span class="pre">add</span></code> and <code class="docutils literal notranslate"><span class="pre">commit</span></code> changes without ever having to clone the entire dataset.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>image.png
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>status
+</pre></div>
+</div>
+<p>For more information about remote staging, refer to the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/RemoteStaging.md">remote staging documentation</a>.</p>
+</section>
+<section id="oxen-badges">
+<h2>Oxen Badges<a class="headerlink" href="#oxen-badges" title="Permalink to this heading">#</a></h2>
+<a class="reference external image-reference" href="https://github.com/Oxen-AI/oxen-release/blob/main/images/ExampleBadge.svg?raw=true"><img alt="example oxen badge" src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ExampleBadge.svg?raw=true" /></a>
+<p>You can add a badge to your README to show the status of your repository. Badges show a summary of the data in your repository. The badge is generated as a .svg so you can embed badges on other sites like GitHub if your code lives elsewhere.</p>
+<p>Example Markdown:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>[![Oxen Badge](https://img.shields.io/endpoint?url=https://hub.oxen.ai/api/repos/$USERNAME/$REPO_NAME/badge &#39;Oxen Badge&#39;)](https://oxen.ai/$USERNAME/$REPO_NAME)
+</pre></div>
+</div>
+<p>Simply replace $USERNAME and $REPO_NAME above with your username and repository name.</p>
+</section>
+<section id="self-hosting">
+<h2>Self Hosting<a class="headerlink" href="#self-hosting" title="Permalink to this heading">#</a></h2>
+<p>Oxen enables self-hosting with the <code class="docutils literal notranslate"><span class="pre">oxen-server</span></code> binary. You do not get any of the UI features of the hub, but this is a nice option to kick the tires or set up internal infrastructure. Some teams set up a server instance in their local network and use it simply as backup and version control, others set it up in the cloud to enable sharing across data centers.</p>
+<p>You can read more about <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/SelfHosting.md">self-hosting here</a>.</p>
+</section>
+</section>
+<section id="diving-deeper">
+<h1>Diving Deeper<a class="headerlink" href="#diving-deeper" title="Permalink to this heading">#</a></h1>
+<section id="data-frames">
+<h2>Data Frames<a class="headerlink" href="#data-frames" title="Permalink to this heading">#</a></h2>
+<p>Oxen is smart about what file types you are adding. For example, if you track a tabular data file (with an extension <code class="docutils literal notranslate"><span class="pre">.csv</span></code>, <code class="docutils literal notranslate"><span class="pre">.tsv</span></code>, <code class="docutils literal notranslate"><span class="pre">.parquet</span></code>, <code class="docutils literal notranslate"><span class="pre">.arrow</span></code>, <code class="docutils literal notranslate"><span class="pre">.jsonl</span></code>, or <code class="docutils literal notranslate"><span class="pre">.ndjson</span></code>) Oxen will index and keep track of each row of data.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>add<span class="w"> </span>annotations/train.csv
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;adding rows and rows of data&quot;</span>
+</pre></div>
+</div>
+<p>Under the hood, Oxen will detect the data schema and hash every row of content. This allows us to build a content addressable DataFrame to track the changes to the rows and columns over time. To learn more about the power of indexing DataFrames check out the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/DataPointLevelVersionControl.md">data point level version control documentation</a>.</p>
+<p>Oxen also has some <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md">handy command line tooling</a> for <a class="reference external" href="https://en.wikipedia.org/wiki/Exploratory_data_analysis">Exploratory Data Analysis</a> with DataFrames. The <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">df</span></code> command lets you easily view, modify, slice, and modify the data.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/train.csv
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>shape: (10000, 6)
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
+│ ---                     ┆ ---   ┆ ---    ┆ ---    ┆ ---    ┆ ---    │
+│ str                     ┆ str   ┆ f64    ┆ f64    ┆ f64    ┆ f64    │
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│ images/000000128154.jpg ┆ cat   ┆ 0.0    ┆ 19.27  ┆ 130.79 ┆ 129.58 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000544590.jpg ┆ cat   ┆ 9.75   ┆ 13.49  ┆ 214.25 ┆ 188.35 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000000581.jpg ┆ dog   ┆ 49.37  ┆ 67.79  ┆ 74.29  ┆ 116.08 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000236841.jpg ┆ cat   ┆ 115.21 ┆ 96.65  ┆ 93.87  ┆ 42.29  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...   ┆ ...    ┆ ...    ┆ ...    ┆ ...    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000257301.jpg ┆ dog   ┆ 84.85  ┆ 161.09 ┆ 33.1   ┆ 51.26  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000130399.jpg ┆ dog   ┆ 51.63  ┆ 157.14 ┆ 53.13  ┆ 29.75  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000215471.jpg ┆ cat   ┆ 126.18 ┆ 71.95  ┆ 36.19  ┆ 47.81  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000251246.jpg ┆ cat   ┆ 58.23  ┆ 13.27  ┆ 90.79  ┆ 97.32  │
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+</pre></div>
+</div>
+<p>To learn more about what you can do with tabular data in Oxen you can reference the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md">documentation here</a></p>
+</section>
+<section id="integrating-labeling-tools">
+<h2>Integrating Labeling Tools<a class="headerlink" href="#integrating-labeling-tools" title="Permalink to this heading">#</a></h2>
+<p>For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open-source tools such as <a class="reference external" href="https://labelstud.io/">Label Studio</a> for labeling data that can integrate with an Oxen workflow.</p>
+<p>For an example of integrating Oxen into your Label Studio workflow, check out our <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/annotation/LabelStudio.md">Oxen Annotation Documentation</a>.</p>
+</section>
+<section id="diff">
+<h2>Diff<a class="headerlink" href="#diff" title="Permalink to this heading">#</a></h2>
+<p>If you want to see the differences between your file and the conflicting file, you can use the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">diff</span></code> command.</p>
+<p>Oxen knows how to compare text files as well as <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md">tabular data</a> between commits. Currently, you must specify the specific path to the file you want to compare the changes.</p>
+<p>If the file is tabular data <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">diff</span></code> will show you the rows that were added or removed.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--add-row<span class="w"> </span><span class="s1">&#39;images/my_cat.jpg,cat,0,0,0,0&#39;</span><span class="w"> </span>-o<span class="w"> </span>annotations/data.csv
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>diff<span class="w"> </span>annotations/data.csv
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Added Rows
+
+╭───────────────────┬───────┬───────┬───────┬───────┬────────╮
+│ file              ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/my_cat.jpg ┆ cat   ┆ 0     ┆ 0     ┆ 0     ┆ 0      │
+╰───────────────────┴───────┴───────┴───────┴───────┴────────╯
+ 1 Rows x 6 Columns
+</pre></div>
+</div>
+<p>If the tabular data schema has changed <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">diff</span></code> will flag and show you the columns that were added.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--add-col<span class="w"> </span><span class="s1">&#39;is_fluffy:unknown:str&#39;</span><span class="w"> </span>-o<span class="w"> </span>annotations/data.csv
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>diff<span class="w"> </span>annotations/data.csv
+
+Added<span class="w"> </span>Cols
+shape:<span class="w"> </span><span class="o">(</span><span class="m">10001</span>,<span class="w"> </span><span class="m">1</span><span class="o">)</span>
+┌───────────┐
+│<span class="w"> </span>is_fluffy<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">       </span>│
+│<span class="w"> </span>str<span class="w">       </span>│
+╞═══════════╡
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>...<span class="w">       </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>unknown<span class="w">   </span>│
+└───────────┘
+
+
+Schema<span class="w"> </span>has<span class="w"> </span>changed
+
+Old
++------+-------+-------+-------+-------+--------+
+<span class="p">|</span><span class="w"> </span>file<span class="w"> </span><span class="p">|</span><span class="w"> </span>label<span class="w"> </span><span class="p">|</span><span class="w"> </span>min_x<span class="w"> </span><span class="p">|</span><span class="w"> </span>min_y<span class="w"> </span><span class="p">|</span><span class="w"> </span>width<span class="w"> </span><span class="p">|</span><span class="w"> </span>height<span class="w"> </span><span class="p">|</span>
+<span class="p">|</span><span class="w"> </span>---<span class="w">  </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">    </span><span class="p">|</span>
+<span class="p">|</span><span class="w"> </span>str<span class="w">  </span><span class="p">|</span><span class="w"> </span>str<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">    </span><span class="p">|</span>
++------+-------+-------+-------+-------+--------+
+
+Current
++------+-------+-------+-------+-------+--------+-----------+
+<span class="p">|</span><span class="w"> </span>file<span class="w"> </span><span class="p">|</span><span class="w"> </span>label<span class="w"> </span><span class="p">|</span><span class="w"> </span>min_x<span class="w"> </span><span class="p">|</span><span class="w"> </span>min_y<span class="w"> </span><span class="p">|</span><span class="w"> </span>width<span class="w"> </span><span class="p">|</span><span class="w"> </span>height<span class="w"> </span><span class="p">|</span><span class="w"> </span>is_fluffy<span class="w"> </span><span class="p">|</span>
+<span class="p">|</span><span class="w"> </span>---<span class="w">  </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">   </span><span class="p">|</span><span class="w"> </span>---<span class="w">    </span><span class="p">|</span><span class="w"> </span>---<span class="w">       </span><span class="p">|</span>
+<span class="p">|</span><span class="w"> </span>str<span class="w">  </span><span class="p">|</span><span class="w"> </span>str<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">   </span><span class="p">|</span><span class="w"> </span>f64<span class="w">    </span><span class="p">|</span><span class="w"> </span>str<span class="w">       </span><span class="p">|</span>
++------+-------+-------+-------+-------+--------+-----------+
+</pre></div>
+</div>
+<p>If the file is any other type of text data, it will simply show you the added and removed lines.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>diff<span class="w"> </span>path/to/file.txt
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span> <span class="n">i</span>
+<span class="o">+</span><span class="n">here</span>
+ <span class="n">am</span> <span class="n">a</span> <span class="n">text</span> <span class="n">file</span> <span class="n">that</span>
+<span class="o">+</span><span class="n">I</span> <span class="n">am</span> <span class="n">modifying</span>
+<span class="o">-</span><span class="n">la</span><span class="o">-</span><span class="n">dee</span><span class="o">-</span><span class="n">da</span>
+<span class="o">+</span><span class="n">la</span><span class="o">-</span><span class="n">doo</span><span class="o">-</span><span class="n">da</span>
+<span class="o">+</span><span class="n">another</span> <span class="n">line</span>
+</pre></div>
+</div>
+</section>
+<section id="branching">
+<h2>Branching<a class="headerlink" href="#branching" title="Permalink to this heading">#</a></h2>
+<p>Branches are used to augment the dataset and run experiments with different subsets, transformations, or extensions of the data. The <code class="docutils literal notranslate"><span class="pre">main</span></code> branch is the default branch when you start an Oxen repository. Use different branches while you run your experiments, and when you are confident in a dataset, merge it back into the <code class="docutils literal notranslate"><span class="pre">main</span></code> branch.</p>
+<p>You can create a new branch with</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>branch_name
+</pre></div>
+</div>
+<p>Switch back to main</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>checkout<span class="w"> </span>main
+</pre></div>
+</div>
+<p>and delete the branch again</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>branch<span class="w"> </span>-d<span class="w"> </span>branch_name
+</pre></div>
+</div>
+<p>If you want to make the branch available to others, make sure to push it to a remote</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>branch_name
+</pre></div>
+</div>
+<p>To see all the available branches you have locally run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>branch<span class="w"> </span>-a
+</pre></div>
+</div>
+</section>
+<section id="pulling-new-changes">
+<h2>Pulling New Changes<a class="headerlink" href="#pulling-new-changes" title="Permalink to this heading">#</a></h2>
+<p>To update your local repository to the latest changes, run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>branch_name
+</pre></div>
+</div>
+<p>Again you can specify the remote and the branch name you would like to pull</p>
+</section>
+<section id="merging-the-changes">
+<h2>Merging the changes<a class="headerlink" href="#merging-the-changes" title="Permalink to this heading">#</a></h2>
+<p>If you feel confident in your changes, you can check out the main branch again, then merge your changes in.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>checkout<span class="w"> </span>main
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>merge<span class="w"> </span>branch_name
+</pre></div>
+</div>
+<p>If there are conflicts, Oxen will flag them and you will need to add and commit the files again in a separate commit. Oxen currently does not add any modifications to your working file, just flags it as conflicting. If you simply want to take your version, just add and commit again.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>add<span class="w"> </span>file/with/conflict.jpg
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;fixing conflict&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="dealing-with-merge-conflicts">
+<h2>Dealing With Merge Conflicts<a class="headerlink" href="#dealing-with-merge-conflicts" title="Permalink to this heading">#</a></h2>
+<p>Oxen currently has three ways to deal with merge conflicts.</p>
+<ol class="arabic simple">
+<li><p>Take the other person’s changes <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">checkout</span> <span class="pre">file/with/conflict.jpg</span> <span class="pre">--theirs</span></code>, then add and commit.</p></li>
+<li><p>Take the changes in your current working directory (simply have to add and commit again)</p></li>
+<li><p>Combine tabular data <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">checkout</span> <span class="pre">file/with/conflict.csv</span> <span class="pre">--combine</span></code></p></li>
+</ol>
+<p>If you use the <code class="docutils literal notranslate"><span class="pre">--combine</span></code> flag, oxen will concatenate the data frames and unique them based on the row values.</p>
+</section>
+<section id="support">
+<h2>Support<a class="headerlink" href="#support" title="Permalink to this heading">#</a></h2>
+<p>If you have any questions, comments, suggestions, or just want to get in contact with the team, feel free to email us at <code class="docutils literal notranslate"><span class="pre">hello&#64;oxen.ai</span></code></p>
+</section>
+<section id="contributing">
+<h2>Contributing<a class="headerlink" href="#contributing" title="Permalink to this heading">#</a></h2>
+<p>This repository contains the documentation and release builds. To contribute to the core code base visit <a class="github reference external" href="https://github.com/Oxen-AI/Oxen">Oxen-AI/Oxen</a></p>
+<div class="toctree-wrapper compound" id="getting-started">
+</div>
+<div class="toctree-wrapper compound" id="python-api">
+</div>
+<div class="toctree-wrapper compound" id="rust-api">
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+                <footer class="bd-footer-article">
+                  
+<div class="footer-article-items footer-article__inner">
+  
+    <div class="footer-article-item"><!-- Previous / next buttons -->
+<div class="prev-next-area">
+    <a class="right-next"
+       href="getting_started/installation.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Installation</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div></div>
+  
+</div>
+
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">🐂 🌾 Oxen</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#features">✅ Features</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#why-the-name-oxen">Why the name Oxen?</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#overview">Overview</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#cli-installation">🐂 CLI Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#python-installation">🐍 Python Installation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#python-documentation">📚 Python Documentation</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">🧑‍💻 OxenHub</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-commands">Basic Commands</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-user">Setup User</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-local-repository">Create Local Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-data">Stage Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-status">View Status</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-changes">Commit Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#log">Log</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reverting-to-commit">Reverting To Commit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#restore-working-directory">Restore Working Directory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#removing-data">Removing Data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#advanced-features">Advanced Features</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#sharing-data-and-collaboration">Sharing Data and Collaboration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-an-account">Create an account</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#your-repositories">Your Repositories</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-authorization">Setup Authorization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-repository">Create Remote Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#push-your-data">Push your data</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-staging">Remote Staging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-badges">Oxen Badges</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosting">Self Hosting</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#diving-deeper">Diving Deeper</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-frames">Data Frames</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#integrating-labeling-tools">Integrating Labeling Tools</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#diff">Diff</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#branching">Branching</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pulling-new-changes">Pulling New Changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-the-changes">Merging the changes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dealing-with-merge-conflicts">Dealing With Merge Conflicts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#support">Support</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing">Contributing</a><ul class="nav section-nav flex-column">
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Greg Schoeninger
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  <p class="copyright">
+    
+      © Copyright 2023, OxenAI.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on May 17, 2023.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="_static/scripts/bootstrap.js?digest=e353d410970836974a52"></script>
+<script src="_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
