@@ -1,4 +1,4 @@
-# 🐂 Oxen
+# 🐂 🌾 Oxen
 
 Oxen makes versioning your datasets as easy as versioning your code.
 
@@ -61,7 +61,7 @@ brew tap Oxen-AI/oxen
 brew install oxen
 ```
 
-For other platforms follow the [installation instructions](https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md).
+For other platforms follow the [installation instructions](https://github.com/Oxen-AI/oxen-release/blob/main/oxen/docs/source/getting_started/installation.md).
 
 # 🐍 Python Installation
 

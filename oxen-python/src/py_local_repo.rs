@@ -1,6 +1,7 @@
 //! Python bindings for the `Repo` struct.
 //!
 
+use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::CloneOpts;
 use pyo3::prelude::*;
@@ -11,16 +12,17 @@ use liboxen::command;
 use std::path::PathBuf;
 
 use crate::error::PyOxenError;
+use crate::py_branch::PyBranch;
 use crate::py_commit::PyCommit;
 use crate::py_staged_data::PyStagedData;
 
 #[pyclass]
-pub struct PyRepo {
+pub struct PyLocalRepo {
     path: PathBuf,
 }
 
 #[pymethods]
-impl PyRepo {
+impl PyLocalRepo {
     #[new]
     #[pyo3(signature = (path))]
     fn py_new(path: PathBuf) -> PyResult<Self> {
@@ -53,8 +55,14 @@ impl PyRepo {
         Ok(())
     }
 
+    fn current_branch(&self) -> Result<Option<PyBranch>, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let branch = api::local::branches::current_branch(&repo)?.map(PyBranch::from);
+        Ok(branch)
+    }
+
     pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
-        let repo = LocalRepository::from_dir(&self.path).unwrap();
+        let repo = LocalRepository::from_dir(&self.path)?;
         command::add(&repo, path).unwrap();
         Ok(())
     }
@@ -69,6 +77,21 @@ impl PyRepo {
         let repo = LocalRepository::from_dir(&self.path)?;
         let commit = command::commit(&repo, message)?;
         Ok(PyCommit { commit })
+    }
+
+    pub fn checkout(&self, revision: &str, create: bool) -> Result<PyBranch, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let branch = if create {
+            api::local::branches::create_checkout(&repo, revision)?
+        } else {
+            pyo3_asyncio::tokio::get_runtime().block_on(async {
+                command::checkout(&repo, revision)
+                    .await?
+                    .ok_or(OxenError::local_branch_not_found(revision))
+            })?
+        };
+
+        Ok(PyBranch::from(branch))
     }
 
     pub fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {

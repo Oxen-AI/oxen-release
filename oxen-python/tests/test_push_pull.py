@@ -1,6 +1,6 @@
 import pytest
 
-from oxen import Repo
+from oxen import LocalRepo
 from oxen.util.fs import rcount_files_in_repo_dir
 
 # Alias the fixtures just to make it a little easier to read
@@ -21,7 +21,7 @@ def test_repo_push_pull(local_repo, remote_repo, empty_local_dir):
     local_repo.push(remote_name)
 
     # Clone the remote repo to a new local repo
-    local_repo_2 = Repo(empty_local_dir)
+    local_repo_2 = LocalRepo(empty_local_dir)
     local_repo_2.clone(remote_repo.url)
 
     # There should be one image in the new local repo

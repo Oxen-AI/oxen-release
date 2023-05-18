@@ -4,7 +4,7 @@ import logging
 import uuid
 import os
 
-from oxen import Repo, RemoteRepo
+from oxen import LocalRepo, RemoteRepo
 
 FORMAT = "%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -43,7 +43,7 @@ def empty_local_dir(shared_datadir):
 
 @pytest.fixture
 def empty_local_repo(empty_local_dir):
-    repo = Repo(empty_local_dir)
+    repo = LocalRepo(empty_local_dir)
     repo.init()
 
     yield repo
@@ -52,7 +52,7 @@ def empty_local_repo(empty_local_dir):
 @pytest.fixture
 def celeba_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "CelebA")
-    repo = Repo(repo_dir)
+    repo = LocalRepo(repo_dir)
     repo.init()
 
     yield repo
@@ -61,7 +61,7 @@ def celeba_local_repo_no_commits(shared_datadir):
 @pytest.fixture
 def chat_bot_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "ChatBot")
-    repo = Repo(repo_dir)
+    repo = LocalRepo(repo_dir)
     repo.init()
 
     yield repo
@@ -70,7 +70,7 @@ def chat_bot_local_repo_no_commits(shared_datadir):
 @pytest.fixture
 def house_prices_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "HousePrices")
-    repo = Repo(repo_dir)
+    repo = LocalRepo(repo_dir)
     repo.init()
 
     yield repo

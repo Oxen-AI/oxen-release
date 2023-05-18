@@ -13,9 +13,9 @@ with open("../../Cargo.toml") as f:
 
 version = data["package"]["version"]
 
-project = '🐂 🌾 Oxen'
-copyright = '2023, OxenAI'
-author = 'Greg Schoeninger'
+project = "🐂 🌾 Oxen"
+copyright = "2023, OxenAI"
+author = "Greg Schoeninger"
 release = version
 
 html_title = project + " " + version
@@ -27,9 +27,13 @@ html_last_updated_fmt = "%b %d, %Y"
 extensions = [
     "m2r2",
     "sphinx_copybutton",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autodoc.typehints",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
 
 
@@ -41,4 +45,4 @@ m2r_parse_relative_links = True
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = "sphinx_book_theme"
-html_static_path = ['_static']
+html_static_path = ["_static"]

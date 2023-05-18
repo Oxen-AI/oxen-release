@@ -2,14 +2,9 @@
 import pandas as pd
 import pytest
 import os
-import glob
-
-from oxen import RemoteRepo
 
 
-def test_remote_df_add_row_success(
-    celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
-):
+def test_remote_df_add_row_success(celeba_remote_repo_one_image_pushed, shared_datadir):
     _, remote_repo = celeba_remote_repo_one_image_pushed
 
     file_path = os.path.join(shared_datadir, "CelebA", "annotations", "train.csv")
@@ -36,12 +31,12 @@ def test_remote_df_add_row_success(
 
 
 def test_remote_df_add_row_invalid_schema(
-    celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
+    celeba_remote_repo_one_image_pushed, shared_datadir
 ):
     _, remote_repo = celeba_remote_repo_one_image_pushed
 
     file_path = os.path.join(shared_datadir, "CelebA", "annotations", "train.csv")
-    df = pd.read_csv(file_path)
+    # df = pd.read_csv(file_path)
 
     new_row = {"gahfile": "images/123456.png", "hair_color": "purple"}
 

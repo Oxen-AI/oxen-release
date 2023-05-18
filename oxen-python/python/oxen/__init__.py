@@ -1,10 +1,12 @@
+"""Core Oxen Functionality"""
+
 # Rust wrappers
-from .oxen import PyRepo, PyStagedData, PyCommit, PyRemoteRepo, PyDataset
+from .oxen import PyLocalRepo, PyStagedData, PyCommit, PyRemoteRepo, PyDataset
 from .oxen import util
 
 # Python classes
 from oxen.dataset import Dataset
-from oxen.repo import Repo
+from oxen.local_repo import LocalRepo
 from oxen.remote_repo import RemoteRepo
 from oxen.dag import DAG
 from oxen.op import Op
@@ -13,15 +15,13 @@ from oxen.op import Op
 __all__ = [
     "Dataset",
     "DAG",
-    "Graph",
     "PyCommit",
     "PyDataset",
     "PyRemoteRepo",
-    "PyRepo",
+    "PyLocalRepo",
     "PyStagedData",
-    "Node",
     "Op",
     "RemoteRepo",
-    "Repo",
+    "LocalRepo",
     "util",
 ]
