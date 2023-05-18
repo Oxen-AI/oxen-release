@@ -1,0 +1,2 @@
+.. automodule:: oxen.RemoteRepo
+   :members:
