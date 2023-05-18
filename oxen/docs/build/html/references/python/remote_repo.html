@@ -262,7 +262,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -278,6 +280,34 @@ document.write(`
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo"><code class="docutils literal notranslate"><span class="pre">RemoteRepo</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.add"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.add()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.add_df_row"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.add_df_row()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.checkout"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.checkout()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.commit"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.commit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.create"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.create_branch"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.create_branch()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.delete"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.delete()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.download"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.download()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.exists"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.exists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.get_branch"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.get_branch()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.list_branches"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.list_branches()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.log"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.log()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.name"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.name</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.namespace"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.namespace</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.remove"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.remove()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.revision"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.revision</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.status"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.status()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.url"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.url</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -289,6 +319,182 @@ document.write(`
                   
   <section id="remote-repo">
 <h1>Remote Repo<a class="headerlink" href="#remote-repo" title="Permalink to this heading">#</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="oxen.RemoteRepo">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxen.</span></span><span class="sig-name descname"><span class="pre">RemoteRepo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'hub.oxen.ai'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">revision</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'main'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo" title="Permalink to this definition">#</a></dt>
+<dd><p>Remote repository object that allows you to interact with a remote oxen repository.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">local_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remote_directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.add" title="Permalink to this definition">#</a></dt>
+<dd><p>Stage a file to the remote staging environment</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – The path to the local file to be staged</p></li>
+<li><p><strong>remote_directory</strong> (<em>str</em>) – The path in the remote repo where the file will be added</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.add_df_row">
+<span class="sig-name descname"><span class="pre">add_df_row</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">row</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.add_df_row" title="Permalink to this definition">#</a></dt>
+<dd><p>Adds a row to the dataframe at the specified path on the remote repo</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<em>str</em>) – Path to the dataframe on the remote repo</p></li>
+<li><p><strong>row</strong> (<em>dict</em>) – A dictionary representing the row to be added to the dataframe,
+where keys are column names and values are the values to be inserted.
+Schema must exactly match DF on remote repo.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.checkout">
+<span class="sig-name descname"><span class="pre">checkout</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">revision</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">create</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.checkout" title="Permalink to this definition">#</a></dt>
+<dd><p>Switches the remote repo to the specified revision.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>revision</strong> (<em>str</em>) – The name of the branch or commit id to checkout.</p></li>
+<li><p><strong>create</strong> (<em>bool</em>) – Whether to create a new branch if it doesn’t exist. Default: False</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.commit">
+<span class="sig-name descname"><span class="pre">commit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.commit" title="Permalink to this definition">#</a></dt>
+<dd><p>Commit the staged data in the remote repo with a message.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>message</strong> (<em>str</em>) – The commit message.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.create">
+<span class="sig-name descname"><span class="pre">create</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.create" title="Permalink to this definition">#</a></dt>
+<dd><p>Will create the repo on the remote server.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.create_branch">
+<span class="sig-name descname"><span class="pre">create_branch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_branch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.create_branch" title="Permalink to this definition">#</a></dt>
+<dd><p>Return a branch by name on this repo,
+creating it from the currently checked out branch if it doesn’t exist</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>new_branch</strong> (<em>str</em>) – The name to assign to the created branch</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.delete">
+<span class="sig-name descname"><span class="pre">delete</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.delete" title="Permalink to this definition">#</a></dt>
+<dd><p>Delete this remote repo from the server.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.download">
+<span class="sig-name descname"><span class="pre">download</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">remote_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.download" title="Permalink to this definition">#</a></dt>
+<dd><p>Download a file or directory from the remote repo.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>remote_path</strong> (<em>str</em>) – The path to the remote file</p></li>
+<li><p><strong>local_path</strong> (<em>str</em><em> | </em><em>None</em>) – The path to the local file. If None, will download to
+the same path as remote_path</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.exists">
+<span class="sig-name descname"><span class="pre">exists</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="headerlink" href="#oxen.RemoteRepo.exists" title="Permalink to this definition">#</a></dt>
+<dd><p>Checks if this remote repo exists on the server.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.get_branch">
+<span class="sig-name descname"><span class="pre">get_branch</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">branch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.get_branch" title="Permalink to this definition">#</a></dt>
+<dd><p>Return a branch by name on this repo, if exists</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>branch</strong> (<em>str</em>) – The name of the branch to return</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.list_branches">
+<span class="sig-name descname"><span class="pre">list_branches</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.list_branches" title="Permalink to this definition">#</a></dt>
+<dd><p>List all branches for a remote repo</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.log">
+<span class="sig-name descname"><span class="pre">log</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.log" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the commit history for a remote repo</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.name">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#oxen.RemoteRepo.name" title="Permalink to this definition">#</a></dt>
+<dd><p>The name of the repo.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.namespace">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">namespace</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#oxen.RemoteRepo.namespace" title="Permalink to this definition">#</a></dt>
+<dd><p>The namespace for the repo.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.remove">
+<span class="sig-name descname"><span class="pre">remove</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.remove" title="Permalink to this definition">#</a></dt>
+<dd><p>Unstage a file from the remote staging environment</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>path</strong> (<em>str</em>) – The path to the file on remote to be removed from staging</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.revision">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">revision</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#oxen.RemoteRepo.revision" title="Permalink to this definition">#</a></dt>
+<dd><p>The branch or commit id for the repo</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.status">
+<span class="sig-name descname"><span class="pre">status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.status" title="Permalink to this definition">#</a></dt>
+<dd><p>Get the status of the remote repo. Returns a StagedData object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>path</strong> (<em>str</em>) – The directory or file path on the remote that
+will be checked for modifications</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.url">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">url</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#oxen.RemoteRepo.url" title="Permalink to this definition">#</a></dt>
+<dd><p>The remote url for the repo.</p>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 
 
@@ -331,6 +537,40 @@ document.write(`
             
             
               
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo"><code class="docutils literal notranslate"><span class="pre">RemoteRepo</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.add"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.add()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.add_df_row"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.add_df_row()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.checkout"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.checkout()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.commit"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.commit()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.create"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.create()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.create_branch"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.create_branch()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.delete"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.delete()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.download"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.download()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.exists"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.exists()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.get_branch"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.get_branch()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.list_branches"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.list_branches()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.log"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.log()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.name"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.name</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.namespace"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.namespace</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.remove"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.remove()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.revision"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.revision</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.status"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.status()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.url"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.url</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
             
           </div>
           <footer class="bd-footer-content">
@@ -358,7 +598,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 17, 2023.
+  Last updated on May 18, 2023.
   <br/>
 </p>
   </div>
