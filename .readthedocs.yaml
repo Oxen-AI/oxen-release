@@ -13,7 +13,7 @@ build:
     rust: "1.64"
   jobs:
     pre_install:
-      - rustup update
+      - rustup install stable
 
 # Build documentation in the docs/ directory with Sphinx
 sphinx:
