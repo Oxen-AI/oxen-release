@@ -7,6 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import toml
+import sys, os
+
+sys.path.insert(0, os.path.abspath('../../python'))
 
 with open("../../Cargo.toml") as f:
     data = toml.load(f)
