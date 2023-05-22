@@ -4,7 +4,7 @@
 //!
 
 use crate::api;
-use crate::core::index::EntryIndexer;
+use crate::core::index::{pusher, EntryIndexer};
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 
@@ -73,8 +73,7 @@ pub async fn push_remote_repo_branch(
     remote_repo: RemoteRepository,
     branch: Branch,
 ) -> Result<RemoteRepository, OxenError> {
-    let indexer = EntryIndexer::new(&local_repo)?;
-    indexer.push_remote_repo(remote_repo, branch).await
+    pusher::push_remote_repo(&local_repo, remote_repo, branch).await
 }
 
 /// Push to a specific remote repository, given a branch name
