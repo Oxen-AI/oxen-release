@@ -14,6 +14,7 @@ pub mod merger;
 pub mod mod_stager;
 pub mod oxenignore;
 pub mod puller;
+pub mod pusher;
 pub mod ref_db_reader;
 pub mod ref_reader;
 pub mod ref_writer;
