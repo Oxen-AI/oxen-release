@@ -214,6 +214,12 @@ mod tests {
                     let result = command::push(&user_b_repo).await;
                     assert!(result.is_err());
 
+                    // Pull should succeed
+                    command::pull(&user_b_repo).await?;
+
+                    // Push should now succeed
+                    command::push(&user_b_repo).await?;
+
                     Ok(user_b_repo_dir_copy)
                 })
                 .await?;
@@ -226,6 +232,4 @@ mod tests {
         })
         .await
     }
-
-    // TODO: deal with merge conflicts on pull
 }

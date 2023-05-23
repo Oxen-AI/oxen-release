@@ -260,8 +260,14 @@ impl EntryIndexer {
             entries.len()
         );
 
+        // TODO: There are two cases:
+        // 1) We are pulling the entries into the versions dir, so that we can check if there are conflicts before unpacking
+        // 2) We are downloading the data into the directory, and just checking for overwrite on pull, stopping the pull
+        //    if we are about to overwrite
         // Pull all the files that are missing
         puller::pull_entries(remote_repo, &entries, &self.repository.path, &|| {
+            
+            // TODO: unpack in versions dir while pulling, so that we can check for merge conflicts
             self.backup_to_versions_dir(commit, &entries).unwrap();
 
             if limit == 0 {
