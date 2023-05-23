@@ -7,6 +7,7 @@ use liboxen::core::cache::commit_cacher::CacherStatusType;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
+use liboxen::view::branch::BranchName;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -340,46 +341,46 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     Ok(buffer)
 }
 
-pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
+pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("Got commit data: {}", body);
 
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let data: Result<Commit, serde_json::Error> = serde_json::from_str(&body);
-    log::debug!("Serialized commit data: {:?}", data);
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
 
-    // name to the repo, should be in url path so okay to unwap
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let commit: Commit = match serde_json::from_str(&body) {
+        Ok(commit) => commit,
+        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
+    };
 
-    match (
-        api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name),
-        data,
-    ) {
-        (Ok(Some(repo)), Ok(commit)) => {
-            // Create Commit from uri params
-            match api::local::commits::create_commit_object(&repo.path, &commit) {
-                Ok(_) => HttpResponse::Ok().json(CommitResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
-                    commit: commit.to_owned(),
-                }),
-                Err(OxenError::RootCommitDoesNotMatch(commit_id)) => {
-                    log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
-                    HttpResponse::InternalServerError().json(StatusMessage::error("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote."))
-                }
-                Err(err) => {
-                    log::error!("Err create_commit: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            }
+    let branch_name: BranchName =
+        match serde_json::from_str(&body) {
+            Ok(name) => name,
+            Err(_) => return Err(OxenHttpError::BadRequest(
+                "Must supply `branch_name` in body. Upgrade CLI to greater than v0.6.1 if failing."
+                    .into(),
+            )),
+        };
+
+    let branch_name = branch_name.branch_name;
+    let branch = api::local::branches::get_by_name(&repository, &branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(branch_name))?;
+
+    // Create Commit from uri params
+    match api::local::commits::create_commit_object(&repository.path, &branch, &commit) {
+        Ok(_) => Ok(HttpResponse::Ok().json(CommitResponse {
+            status: String::from(STATUS_SUCCESS),
+            status_message: String::from(MSG_RESOURCE_CREATED),
+            commit: commit.to_owned(),
+        })),
+        Err(OxenError::RootCommitDoesNotMatch(commit_id)) => {
+            log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
+            Err(OxenHttpError::BadRequest("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote.".into()))
         }
-        (repo_err, commit_err) => {
-            log::error!(
-                "Err api::local::repositories::get_by_name {:?} serialization err {:?}",
-                repo_err,
-                commit_err
-            );
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+        Err(err) => {
+            log::error!("Err create_commit: {}", err);
+            Err(OxenHttpError::InternalServerError)
         }
     }
 }

@@ -6,7 +6,7 @@
 use crate::api;
 use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
 
 use std::path::Path;
@@ -124,7 +124,13 @@ pub fn commit(
     Ok(commit)
 }
 
-pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
+pub fn create_commit_object(
+    repo_dir: &Path,
+    branch: &Branch,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
+
     // Instantiate repo from dir
     let repo = LocalRepository::from_dir(repo_dir)?;
 
@@ -139,7 +145,22 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
     // Check parent ids to make sure they are synced, otherwise we should not add to tree
     for id in commit.parent_ids.iter() {
         if get_by_id_or_branch(&repo, id)?.is_none() {
+            log::error!("We do not have parent commit id: {}", id);
             return Err(OxenError::basic_str("Parent commit not found"));
+        }
+    }
+
+    // Make sure that the branch has not progressed ahead of the commit
+    if let Some(parent) = commit.parent_ids.first() {
+        if parent != &branch.commit_id {
+            log::error!(
+                "parent != &branch.commit_id {} != {}",
+                parent,
+                branch.commit_id
+            );
+            return Err(OxenError::basic_str(
+                "Remote ahead of local, must pull changes.",
+            ));
         }
     }
 
@@ -148,6 +169,7 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
             Ok(_) => {
                 log::debug!("Successfully added commit [{}] to db", commit.id);
+                api::local::branches::update(&repo, &branch.name, &commit.id)?;
             }
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);
@@ -185,7 +207,7 @@ pub async fn list_with_opts(
         let committer = CommitReader::new(repo)?;
 
         let commits = if let Some(committish) = &opts.committish {
-            let commit = api::local::commits::get_by_id_or_branch(repo, committish)?.ok_or(
+            let commit = get_by_id_or_branch(repo, committish)?.ok_or(
                 OxenError::committish_not_found(committish.to_string().into()),
             )?;
             committer.history_from_commit_id(&commit.id)?

@@ -61,7 +61,7 @@ pub async fn push_remote_repo(
 ) -> Result<RemoteRepository, OxenError> {
     // Push unsynced commit db and history dbs
     let commit_reader = CommitReader::new(local_repo)?;
-    let head_commit = commit_reader.get_commit_by_id(branch.commit_id)?.unwrap();
+    let head_commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
 
     // This method will check with server to find out what commits need to be pushed
     // will fill in commits that are not synced
@@ -71,6 +71,7 @@ pub async fn push_remote_repo(
         &remote_repo,
         &head_commit,
         &mut unsynced_commits,
+        &branch,
     )
     .await?;
 
@@ -144,6 +145,7 @@ async fn rpush_missing_commit_objects(
     remote_repo: &RemoteRepository,
     local_commit: &Commit,
     unsynced_commits: &mut VecDeque<UnsyncedCommitEntries>,
+    branch: &Branch,
 ) -> Result<(), OxenError> {
     log::debug!(
         "rpush_missing_commit_objects START, checking local {} -> '{}'",
@@ -197,6 +199,7 @@ async fn rpush_missing_commit_objects(
                     remote_repo,
                     &local_parent,
                     unsynced_commits,
+                    branch,
                 )
                 .await?;
 
@@ -206,6 +209,7 @@ async fn rpush_missing_commit_objects(
                     remote_repo,
                     local_commit,
                     entries_size,
+                    branch.name.to_owned(),
                 )
                 .await?;
 
@@ -233,6 +237,7 @@ async fn rpush_missing_commit_objects(
                     remote_repo,
                     local_commit,
                     0, // No entries
+                    branch.name.to_owned(),
                 )
                 .await?;
                 log::debug!("unsynced_commits.push_back root {:?}", local_commit);
@@ -694,12 +699,14 @@ mod tests {
 
             // Make a few more commits, and then make sure the total count is correct to push
             let head_commit = api::local::commits::head_commit(&repo)?;
+            let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
             pusher::rpush_missing_commit_objects(
                 &repo,
                 &remote_repo,
                 &head_commit,
                 &mut unsynced_commits,
+                &branch,
             )
             .await?;
 
@@ -717,6 +724,7 @@ mod tests {
                 &remote_repo,
                 &head_commit,
                 &mut unsynced_commits,
+                &branch,
             )
             .await?;
 
@@ -736,6 +744,7 @@ mod tests {
                 &remote_repo,
                 &head_commit,
                 &mut unsynced_commits,
+                &branch,
             )
             .await?;
 
