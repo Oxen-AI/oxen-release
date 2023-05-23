@@ -7,7 +7,7 @@ use std::io;
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
     InternalServerError,
-    BadRequest,
+    BadRequest(StringError),
     NotFound,
     AppDataDoesNotExist,
     PathParamDoesNotExist(StringError),
@@ -50,9 +50,8 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::InternalServerError => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
-            OxenHttpError::BadRequest => {
-                HttpResponse::BadRequest().json(StatusMessage::bad_request())
-            }
+            OxenHttpError::BadRequest(desc) => HttpResponse::BadRequest()
+                .json(StatusMessageDescription::bad_request(desc.to_string())),
             OxenHttpError::AppDataDoesNotExist => {
                 log::error!("AppData does not exist");
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
@@ -152,7 +151,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::AppDataDoesNotExist => StatusCode::BAD_REQUEST,
             OxenHttpError::PathParamDoesNotExist(_) => StatusCode::BAD_REQUEST,
-            OxenHttpError::BadRequest => StatusCode::BAD_REQUEST,
+            OxenHttpError::BadRequest(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
