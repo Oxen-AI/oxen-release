@@ -151,17 +151,22 @@ pub fn create_commit_object(
     }
 
     // Make sure that the branch has not progressed ahead of the commit
-    if let Some(parent) = commit.parent_ids.first() {
-        if parent != &branch.commit_id {
-            log::error!(
-                "parent != &branch.commit_id {} != {}",
-                parent,
-                branch.commit_id
-            );
-            return Err(OxenError::basic_str(
-                "Remote ahead of local, must pull changes.",
-            ));
-        }
+    // Meaning the parents of this commit are not the same as the current branch commit id
+    log::debug!("Commit obj has {} parents", commit.parent_ids.len());
+    if !commit.parent_ids.is_empty()
+        && !commit
+            .parent_ids
+            .iter()
+            .any(|parent| parent == &branch.commit_id)
+    {
+        log::error!(
+            "parent != &branch.commit_id {:?} != {}",
+            commit.parent_ids,
+            branch.commit_id
+        );
+        return Err(OxenError::basic_str(
+            "Remote ahead of local, must pull changes.",
+        ));
     }
 
     let result = CommitWriter::new(&repo);

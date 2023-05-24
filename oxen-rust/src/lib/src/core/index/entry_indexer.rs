@@ -3,15 +3,13 @@
 
 use async_recursion::async_recursion;
 
-use filetime::FileTime;
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
-use std::path::Path;
 use std::sync::Arc;
 
 use crate::constants::HISTORY_DIR;
-use crate::core::index::{self, puller};
+use crate::core::index::{self, puller, versioner, Merger};
 use crate::core::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, CommitWriter, RefWriter,
 };
@@ -51,8 +49,9 @@ impl EntryIndexer {
             Err(err) => return Err(err),
         };
 
+        let head_commit = api::local::commits::head_commit(&self.repository)?;
         if let Some(commit) = self.pull_all_commit_objects(&remote_repo, rb).await? {
-            self.pull_all_entries_for_commit(&remote_repo, &commit)
+            self.pull_all_entries_for_commit(&remote_repo, &head_commit, &commit)
                 .await?;
         }
         Ok(())
@@ -61,6 +60,7 @@ impl EntryIndexer {
     pub async fn pull_all_entries_for_commit(
         &self,
         remote_repo: &RemoteRepository,
+        head_commit: &Commit,
         commit: &Commit,
     ) -> Result<(), OxenError> {
         log::debug!(
@@ -69,7 +69,7 @@ impl EntryIndexer {
             commit.message
         );
         let limit: usize = 0; // zero means pull all
-        self.pull_entries_for_commit(remote_repo, commit, limit)
+        self.pull_entries_for_commit(remote_repo, head_commit, commit, limit)
             .await
     }
 
@@ -204,11 +204,12 @@ impl EntryIndexer {
     pub async fn pull_entries_for_commit_with_limit(
         &self,
         remote_repo: &RemoteRepository,
+        head_commit: &Commit,
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
         self.pull_commit_data_objects(remote_repo, commit).await?;
-        self.pull_entries_for_commit(remote_repo, commit, limit)
+        self.pull_entries_for_commit(remote_repo, head_commit, commit, limit)
             .await
     }
 
@@ -234,6 +235,7 @@ impl EntryIndexer {
     pub async fn pull_entries_for_commit(
         &self,
         remote_repo: &RemoteRepository,
+        head_commit: &Commit,
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
@@ -260,14 +262,8 @@ impl EntryIndexer {
             entries.len()
         );
 
-        // TODO: There are two cases:
-        // 1) We are pulling the entries into the versions dir, so that we can check if there are conflicts before unpacking
-        // 2) We are downloading the data into the directory, and just checking for overwrite on pull, stopping the pull
-        //    if we are about to overwrite
-        // Pull all the files that are missing
+        // Pull all the entries and unpack them to the versions dir
         puller::pull_entries(remote_repo, &entries, &self.repository.path, &|| {
-            
-            // TODO: unpack in versions dir while pulling, so that we can check for merge conflicts
             self.backup_to_versions_dir(commit, &entries).unwrap();
 
             if limit == 0 {
@@ -279,6 +275,10 @@ impl EntryIndexer {
 
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
+
+        // Check for merge conflicts
+        let merger = Merger::new(&self.repository)?;
+        merger.merge_commit_into_base(commit, head_commit)?;
 
         Ok(())
     }
@@ -296,37 +296,7 @@ impl EntryIndexer {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path);
-                if self.should_copy_entry(entry, &filepath) {
-                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
-                    let version_path = util::fs::version_path(&self.repository, entry);
-                    match util::fs::copy_mkdir(&filepath, &version_path) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::error!(
-                                "Could not copy {:?} to {:?}: {}",
-                                version_path,
-                                filepath,
-                                err
-                            );
-                        }
-                    }
-
-                    log::debug!(
-                        "{} updating timestamp for {:?}",
-                        current_function!(),
-                        filepath
-                    );
-
-                    match util::fs::metadata(&filepath) {
-                        Ok(metadata) => {
-                            let mtime = FileTime::from_last_modification_time(&metadata);
-                            committer.set_file_timestamps(entry, &mtime).unwrap();
-                        }
-                        Err(err) => {
-                            log::error!("Could not update timestamp for {:?}: {}", filepath, err);
-                        }
-                    }
-                }
+                versioner::backup_file(&self.repository, &committer, entry, filepath).unwrap();
                 bar.inc(1);
             });
         });
@@ -397,17 +367,6 @@ impl EntryIndexer {
 
         Ok(())
     }
-
-    fn should_copy_entry(&self, entry: &CommitEntry, path: &Path) -> bool {
-        !path.exists() || self.path_hash_is_different(entry, path)
-    }
-
-    fn path_hash_is_different(&self, entry: &CommitEntry, path: &Path) -> bool {
-        if let Ok(hash) = util::hasher::hash_file_contents(path) {
-            return hash != entry.hash;
-        }
-        false
-    }
 }
 
 #[cfg(test)]
@@ -448,6 +407,7 @@ mod tests {
 
                 let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
+                let head_commit = api::local::commits::head_commit(&repo)?;
 
                 // Pull a part of the commit
                 let commits = api::local::commits::list(&repo)?;
@@ -455,7 +415,12 @@ mod tests {
                 let page_size = 2;
                 let limit = page_size;
                 indexer
-                    .pull_entries_for_commit_with_limit(&remote_repo, latest_commit, limit)
+                    .pull_entries_for_commit_with_limit(
+                        &remote_repo,
+                        &head_commit,
+                        latest_commit,
+                        limit,
+                    )
                     .await?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
@@ -510,13 +475,19 @@ mod tests {
                 opts.shallow = true;
                 let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
+                let head_commit = api::local::commits::head_commit(&repo)?;
 
                 // Pull a part of the commit
                 let commits = api::local::commits::list(&repo)?;
                 let last_commit = commits.first().unwrap();
                 let limit = 7;
                 indexer
-                    .pull_entries_for_commit_with_limit(&remote_repo, last_commit, limit)
+                    .pull_entries_for_commit_with_limit(
+                        &remote_repo,
+                        &head_commit,
+                        last_commit,
+                        limit,
+                    )
                     .await?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
