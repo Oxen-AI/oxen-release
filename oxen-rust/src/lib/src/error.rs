@@ -40,6 +40,7 @@ pub enum OxenError {
 
     // Remotes
     RemoteRepoNotFound(Box<Remote>),
+    RemoteAheadOfLocal(StringError),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -103,6 +104,12 @@ impl OxenError {
 
     pub fn remote_not_found(remote: Remote) -> Self {
         OxenError::RemoteRepoNotFound(Box::new(remote))
+    }
+
+    pub fn remote_ahead_of_local() -> Self {
+        OxenError::RemoteAheadOfLocal(StringError::from(
+            "Remote ahead of local, must pull changes.",
+        ))
     }
 
     pub fn resource_not_found(value: impl AsRef<str>) -> Self {

@@ -6,7 +6,7 @@
 use crate::api;
 use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, StagedData};
+use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
 
 use std::path::Path;
@@ -126,7 +126,7 @@ pub fn commit(
 
 pub fn create_commit_object(
     repo_dir: &Path,
-    branch: &Branch,
+    branch_name: impl AsRef<str>,
     commit: &Commit,
 ) -> Result<(), OxenError> {
     log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
@@ -150,31 +150,12 @@ pub fn create_commit_object(
         }
     }
 
-    // Make sure that the branch has not progressed ahead of the commit
-    // Meaning the parents of this commit are not the same as the current branch commit id
-    log::debug!("Commit obj has {} parents", commit.parent_ids.len());
-    if !commit.parent_ids.is_empty()
-        && !commit
-            .parent_ids
-            .iter()
-            .any(|parent| parent == &branch.commit_id)
-    {
-        log::error!(
-            "parent != &branch.commit_id {:?} != {}",
-            commit.parent_ids,
-            branch.commit_id
-        );
-        return Err(OxenError::basic_str(
-            "Remote ahead of local, must pull changes.",
-        ));
-    }
-
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
             Ok(_) => {
                 log::debug!("Successfully added commit [{}] to db", commit.id);
-                api::local::branches::update(&repo, &branch.name, &commit.id)?;
+                api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
             }
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);

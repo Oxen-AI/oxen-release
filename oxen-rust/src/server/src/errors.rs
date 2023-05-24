@@ -136,6 +136,12 @@ impl error::ResponseError for OxenHttpError {
                             format!("Parsing error: '{}'", error),
                         ))
                     }
+                    OxenError::RemoteAheadOfLocal(desc) => {
+                        log::error!("Remote ahead of local: {}", desc);
+
+                        HttpResponse::BadRequest()
+                            .json(StatusMessageDescription::bad_request(format!("{}", desc)))
+                    }
                     err => {
                         log::error!("Internal server error: {:?}", err);
                         HttpResponse::InternalServerError()

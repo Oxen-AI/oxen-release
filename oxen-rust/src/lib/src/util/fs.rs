@@ -428,7 +428,7 @@ pub fn file_exists_in_directory(directory: impl AsRef<Path>, file: impl AsRef<Pa
     false
 }
 
-/// Wrapper around the std::fs::create_dir_all command to tell us which file failed to copy
+/// Wrapper around the std::fs::create_dir_all command to tell us which file it failed on
 pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();
     match std::fs::create_dir_all(src) {
@@ -440,7 +440,7 @@ pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     }
 }
 
-/// Wrapper around the std::fs::remove_dir_all command to tell us which file failed to copy
+/// Wrapper around the std::fs::remove_dir_all command to tell us which file it failed on
 pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();
     match std::fs::remove_dir_all(src) {
@@ -452,10 +452,22 @@ pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     }
 }
 
-/// Wrapper around the std::fs::write command to tell us which file failed to copy
+/// Wrapper around the std::fs::write command to tell us which file it failed on
 pub fn write(src: impl AsRef<Path>, data: impl AsRef<[u8]>) -> Result<(), OxenError> {
     let src = src.as_ref();
     match std::fs::write(src, data) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            log::error!("{}", err);
+            Err(OxenError::file_error(src, err))
+        }
+    }
+}
+
+/// Wrapper around the util::fs::remove_file command to tell us which file it failed on
+pub fn remove_file(src: impl AsRef<Path>) -> Result<(), OxenError> {
+    let src = src.as_ref();
+    match std::fs::remove_file(src) {
         Ok(_) => Ok(()),
         Err(err) => {
             log::error!("{}", err);

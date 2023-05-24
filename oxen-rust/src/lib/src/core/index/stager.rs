@@ -1600,7 +1600,7 @@ mod tests {
             status.print_stdout();
 
             // Remove a committed file
-            std::fs::remove_file(&file_to_rm)?;
+            util::fs::remove_file(&file_to_rm)?;
 
             // List removed
             let status = stager.status(&entry_reader)?;
@@ -1638,7 +1638,7 @@ mod tests {
                 .join("one_shot.csv");
 
             // Remove a committed file
-            std::fs::remove_file(&one_shot_file)?;
+            util::fs::remove_file(&one_shot_file)?;
 
             // List removed
             let status = stager.status(&entry_reader)?;
