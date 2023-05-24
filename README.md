@@ -72,7 +72,7 @@ $ pip install oxenai
 All the same APIs that are exposed through the command line are also available in python. 
 
 ```python
-import oxenai as oxen
+import oxen
 
 repo = oxen.LocalRepository("path/to/repo")
 repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
