@@ -435,11 +435,12 @@ impl CommitWriter {
         // Safe to unwrap now.
         let remote = remote.unwrap();
 
+        let head_commit = api::local::commits::head_commit(&self.repository)?;
         match api::remote::repositories::get_by_remote(&remote).await {
             Ok(Some(remote_repo)) => {
                 let indexer = EntryIndexer::new(&self.repository)?;
                 indexer
-                    .pull_all_entries_for_commit(&remote_repo, commit)
+                    .pull_all_entries_for_commit(&remote_repo, &head_commit, commit)
                     .await?;
             }
             Ok(None) => {

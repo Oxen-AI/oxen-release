@@ -10,6 +10,7 @@ pub mod commit_writer;
 pub mod entry_indexer;
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;
+pub mod merge_conflict_writer;
 pub mod merger;
 pub mod mod_stager;
 pub mod oxenignore;
@@ -30,6 +31,7 @@ pub mod schema_writer;
 pub mod staged_dir_entry_db;
 pub mod staged_dir_entry_reader;
 pub mod stager;
+pub mod versioner;
 
 pub use crate::core::index::commit_db_reader::CommitDBReader;
 pub use crate::core::index::commit_dir_entry_reader::CommitDirEntryReader;

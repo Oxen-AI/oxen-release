@@ -69,15 +69,15 @@ mod tests {
                     let new_file_path = user_a_repo.path.join(new_file);
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     command::add(&user_a_repo, &new_file_path)?;
-                    command::commit(&user_a_repo, "Adding first file path.")?;
+                    command::commit(&user_a_repo, "User A changing file.")?;
                     command::push(&user_a_repo).await?;
 
-                    // User B adds a different file and pushes
-                    let different_file = "another_file.txt";
-                    let new_file_path = user_b_repo.path.join(different_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "newer file")?;
+                    // User B changes the same file and pushes
+                    let new_file_path = user_b_repo.path.join(new_file);
+                    let new_file_path =
+                        test::write_txt_file_to_path(new_file_path, "I am user B, try to stop me")?;
                     command::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding second file path.")?;
+                    command::commit(&user_b_repo, "User B changing file.")?;
 
                     // Push should fail
                     let result = command::push(&user_b_repo).await;
@@ -88,7 +88,7 @@ mod tests {
 
                     // Check for merge conflict
                     let status = command::status(&user_b_repo)?;
-                    assert!(status.merge_conflicts.len() > 0);
+                    assert!(!status.merge_conflicts.is_empty());
 
                     // Try to push, fail
 
