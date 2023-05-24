@@ -131,6 +131,12 @@
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Python</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../concepts/remote_staging.html">Remote Staging Workflow</a></li>
+
+
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/python/local_repo.html">Local Repo</a></li>
@@ -287,6 +293,7 @@ document.write(`
                 <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#repositories">Repositories</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-repo">Local Repo</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-repo">Remote Repo</a></li>
 </ul>
 </li>
 </ul>
@@ -328,6 +335,26 @@ document.write(`
 <span class="n">repo</span><span class="o">.</span><span class="n">checkout</span><span class="p">()</span>
 </pre></div>
 </div>
+</section>
+<section id="remote-repo">
+<h3>Remote Repo<a class="headerlink" href="#remote-repo" title="Permalink to this heading">#</a></h3>
+<p>If you don’t want to download the data locally, you can use the <code class="docutils literal notranslate"><span class="pre">RemoteRepo</span></code> class to interact with a remote repository on OxenHub.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">oxen</span>
+
+<span class="n">repo</span> <span class="o">=</span> <span class="n">RemoteRepo</span><span class="p">(</span><span class="s2">&quot;https://hub.oxen.ai/ox/CatDogBBox&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To stage and commit files to a specific version of the data, you can <code class="docutils literal notranslate"><span class="pre">checkout</span></code> an existing branch or create a new one.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">repo</span><span class="o">.</span><span class="n">create_branch</span><span class="p">(</span><span class="s2">&quot;dev&quot;</span><span class="p">)</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">checkout</span><span class="p">(</span><span class="s2">&quot;dev&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can then stage files to the remote repository by specifying the file path and destination directory.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">repo</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;new-cat.png&quot;</span><span class="p">,</span> <span class="s2">&quot;images&quot;</span><span class="p">)</span> <span class="c1"># Stage to images/new-cat.png on remote</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">commit</span><span class="p">(</span><span class="s2">&quot;Adding another training image&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that no “push” command is required here, since the above code creates a commit directly on the remote branch.</p>
 </section>
 </section>
 </section>
@@ -382,6 +409,7 @@ document.write(`
     <ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#repositories">Repositories</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-repo">Local Repo</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-repo">Remote Repo</a></li>
 </ul>
 </li>
 </ul>
@@ -416,7 +444,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 17, 2023.
+  Last updated on May 24, 2023.
   <br/>
 </p>
   </div>
