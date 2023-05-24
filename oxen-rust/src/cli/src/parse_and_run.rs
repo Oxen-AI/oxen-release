@@ -581,11 +581,26 @@ pub async fn checkout(sub_matches: &ArgMatches) {
         if let Err(err) = dispatch::create_checkout_branch(name) {
             eprintln!("{err}")
         }
+    } else if sub_matches.get_flag("ours") {
+        let name = sub_matches.get_one::<String>("name");
+
+        if name.is_none() {
+            eprintln!("Err: Usage `oxen checkout --ours <name>`");
+            return;
+        }
+
+        if let Err(err) = dispatch::checkout_ours(name.unwrap()) {
+            eprintln!("{err}")
+        }
     } else if sub_matches.get_flag("theirs") {
-        let name = sub_matches
-            .get_one::<String>("name")
-            .expect("name is required");
-        if let Err(err) = dispatch::checkout_theirs(name) {
+        let name = sub_matches.get_one::<String>("name");
+
+        if name.is_none() {
+            eprintln!("Err: Usage `oxen checkout --theirs <name>`");
+            return;
+        }
+
+        if let Err(err) = dispatch::checkout_theirs(name.unwrap()) {
             eprintln!("{err}")
         }
     } else if let Some(name) = sub_matches.get_one::<String>("name") {

@@ -501,9 +501,15 @@ pub fn checkout() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("ours")
+                .long("ours")
+                .help("Checkout the content of the base branch and take it as the working directories version. Will overwrite your working file.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("theirs")
                 .long("theirs")
-                .help("Checkout the content of the conflicting branch and take it as your data. Will overwrite your working file.")
+                .help("Checkout the content of the merge branch and take it as the working directories version. Will overwrite your working file.")
                 .action(clap::ArgAction::SetTrue),
         )
 }
