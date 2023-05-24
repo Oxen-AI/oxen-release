@@ -89,12 +89,7 @@ mod tests {
                     // Check for merge conflict
                     let status = command::status(&user_b_repo)?;
                     assert!(!status.merge_conflicts.is_empty());
-
-                    // Try to push, fail
-
-                    // Fix merge conflict
-
-                    // Push success
+                    status.print_stdout();
 
                     Ok(user_b_repo_dir_copy)
                 })
