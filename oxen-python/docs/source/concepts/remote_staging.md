@@ -1,4 +1,4 @@
-# Oxen Remote Workflow
+# Remote Staging Workflow
 
 Oxen has the concept of a "remote staging area" to enable easy data collection and labeling workflows. There are two main types of data you might want to stage.
 
