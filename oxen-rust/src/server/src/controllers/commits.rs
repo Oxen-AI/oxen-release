@@ -354,7 +354,7 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
 
-    let branch_name: BranchName =
+    let bn: BranchName =
         match serde_json::from_str(&body) {
             Ok(name) => name,
             Err(_) => return Err(OxenHttpError::BadRequest(
@@ -363,12 +363,8 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
             )),
         };
 
-    let branch_name = branch_name.branch_name;
-    let branch = api::local::branches::get_by_name(&repository, &branch_name)?
-        .ok_or(OxenError::remote_branch_not_found(branch_name))?;
-
     // Create Commit from uri params
-    match api::local::commits::create_commit_object(&repository.path, &branch, &commit) {
+    match api::local::commits::create_commit_object(&repository.path, bn.branch_name, &commit) {
         Ok(_) => Ok(HttpResponse::Ok().json(CommitResponse {
             status: String::from(STATUS_SUCCESS),
             status_message: String::from(MSG_RESOURCE_CREATED),

@@ -61,7 +61,14 @@ pub async fn push_remote_repo(
 ) -> Result<RemoteRepository, OxenError> {
     // Push unsynced commit db and history dbs
     let commit_reader = CommitReader::new(local_repo)?;
-    let head_commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
+    let head_commit = commit_reader
+        .get_commit_by_id(&branch.commit_id)?
+        .ok_or(OxenError::must_be_on_valid_branch())?;
+
+    // Make sure the remote branch is not ahead of the local branch
+    if remote_is_ahead_of_local(&remote_repo, &commit_reader, &branch).await? {
+        return Err(OxenError::remote_ahead_of_local());
+    }
 
     // This method will check with server to find out what commits need to be pushed
     // will fill in commits that are not synced
@@ -107,6 +114,23 @@ pub async fn push_remote_repo(
     );
 
     Ok(remote_repo)
+}
+
+async fn remote_is_ahead_of_local(
+    remote_repo: &RemoteRepository,
+    reader: &CommitReader,
+    branch: &Branch,
+) -> Result<bool, OxenError> {
+    // Make sure that the branch has not progressed ahead of the commit
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
+
+    if remote_branch.is_none() {
+        // If the remote branch does not exist then it is not ahead
+        return Ok(false);
+    }
+
+    // Meaning we do not have the remote branch commit in our history
+    Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
 }
 
 async fn poll_until_synced(

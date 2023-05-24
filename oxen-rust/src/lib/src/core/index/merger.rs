@@ -341,7 +341,9 @@ impl Merger {
                 log::debug!("Removing Base Entry: {:?}", base_entry.path);
 
                 let path = self.repository.path.join(&base_entry.path);
-                std::fs::remove_file(path)?;
+                if path.exists() {
+                    util::fs::remove_file(path)?;
+                }
             }
         }
 
@@ -636,7 +638,7 @@ mod tests {
 
             // Remove the file
             let world_file = repo.path.join("world.txt");
-            std::fs::remove_file(&world_file)?;
+            util::fs::remove_file(&world_file)?;
 
             // Commit the removal
             command::add(&repo, &world_file)?;

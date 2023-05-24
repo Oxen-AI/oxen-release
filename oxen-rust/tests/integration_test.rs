@@ -248,7 +248,7 @@ fn test_command_restore_removed_file_from_head() -> Result<(), OxenError> {
         command::commit(&repo, "My message")?;
 
         // Remove the file from disk
-        std::fs::remove_file(&hello_file)?;
+        util::fs::remove_file(&hello_file)?;
 
         // Check that it doesn't exist, then it does after we restore it
         assert!(!hello_file.exists());
@@ -815,7 +815,7 @@ fn test_command_add_removed_file() -> Result<(), OxenError> {
         command::commit(&repo, "Adding labels file")?;
 
         // Delete the file
-        std::fs::remove_file(&file_to_remove)?;
+        util::fs::remove_file(&file_to_remove)?;
 
         // We should recognize it as missing now
         let status = command::status(&repo)?;
@@ -846,7 +846,7 @@ async fn test_command_restore_removed_file_from_branch_with_commits_between(
         api::local::branches::create_checkout(&repo, "remove-labels")?;
 
         // Delete the file
-        std::fs::remove_file(&file_to_remove)?;
+        util::fs::remove_file(&file_to_remove)?;
 
         // We should recognize it as missing now
         let status = command::status(&repo)?;
@@ -1349,7 +1349,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             println!("----BEFORE-----");
             // Remove a file, add, commit, push the change
-            std::fs::remove_file(&send_it_back_file_path)?;
+            util::fs::remove_file(&send_it_back_file_path)?;
             command::add(&cloned_repo, &send_it_back_file_path)?;
             command::commit(&cloned_repo, "Removing the send it back file")?;
             command::push(&cloned_repo).await?;
@@ -1421,7 +1421,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             assert_eq!(pulled_content, changed_content);
 
             // Delete the file in the og filepath
-            std::fs::remove_file(&filepath)?;
+            util::fs::remove_file(&filepath)?;
 
             // Stage & Commit & Push the removal
             command::add(&repo, &filepath)?;
@@ -2400,7 +2400,7 @@ fn test_restore_directory() -> Result<(), OxenError> {
         let bbox_path = repo.path.join(bbox_file);
 
         let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
-        std::fs::remove_file(&bbox_path)?;
+        util::fs::remove_file(&bbox_path)?;
 
         // Modify another file
         let readme_file = annotations_dir.join("README.md");
@@ -2439,7 +2439,7 @@ fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
         let bbox_path = repo.path.join(&bbox_file);
 
         let og_contents = util::fs::read_from_path(&bbox_path)?;
-        std::fs::remove_file(&bbox_path)?;
+        util::fs::remove_file(&bbox_path)?;
 
         command::restore(
             &repo,
@@ -2559,7 +2559,7 @@ fn test_restore_data_frame_with_duplicates() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "adding data with duplicates")?;
 
         // Remove
-        std::fs::remove_file(&ann_path)?;
+        util::fs::remove_file(&ann_path)?;
 
         // Restore from commit
         command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
@@ -2591,7 +2591,7 @@ fn test_restore_bounding_box_data_frame() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "adding data with duplicates")?;
 
         // Remove
-        std::fs::remove_file(&ann_path)?;
+        util::fs::remove_file(&ann_path)?;
 
         // Restore from commit
         command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
@@ -3024,7 +3024,7 @@ async fn test_status_rm_regular_file() -> Result<(), OxenError> {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
-        std::fs::remove_file(og_file)?;
+        util::fs::remove_file(og_file)?;
 
         let status = command::status(&repo)?;
         status.print_stdout();
@@ -3053,7 +3053,7 @@ async fn test_status_rm_directory_file() -> Result<(), OxenError> {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
-        std::fs::remove_file(og_file)?;
+        util::fs::remove_file(og_file)?;
 
         let status = command::status(&repo)?;
         status.print_stdout();

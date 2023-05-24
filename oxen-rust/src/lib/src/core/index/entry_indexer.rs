@@ -276,7 +276,7 @@ impl EntryIndexer {
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(commit)?;
 
-        // Check for merge conflicts
+        // If the branches have diverged, we need to merge the commit into the base
         let merger = Merger::new(&self.repository)?;
         merger.merge_commit_into_base(commit, head_commit)?;
 
@@ -342,7 +342,7 @@ impl EntryIndexer {
                                 // If we don't have the file in the commit, remove it
                                 if !commit_reader.has_file(path) {
                                     let full_path = repository.path.join(short_path);
-                                    if std::fs::remove_file(full_path).is_ok() {
+                                    if util::fs::remove_file(full_path).is_ok() {
                                         dir_entry.client_state = Some(true);
                                     }
                                 }
