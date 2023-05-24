@@ -91,6 +91,15 @@ mod tests {
                     assert!(!status.merge_conflicts.is_empty());
                     status.print_stdout();
 
+                    // Checkout your version and add the changes
+                    command::checkout_ours(&user_b_repo, new_file)?;
+                    command::add(&user_b_repo, &new_file_path)?;
+                    // Commit the changes
+                    command::commit(&user_b_repo, "Taking my changes")?;
+
+                    // Push should succeed
+                    command::push(&user_b_repo).await?;
+
                     Ok(user_b_repo_dir_copy)
                 })
                 .await?;

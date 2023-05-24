@@ -108,7 +108,7 @@ impl OxenError {
 
     pub fn remote_ahead_of_local() -> Self {
         OxenError::RemoteAheadOfLocal(StringError::from(
-            "Remote ahead of local, must pull changes.",
+            "\nRemote ahead of local, must pull changes. To fix run:\n\n  oxen pull\n",
         ))
     }
 

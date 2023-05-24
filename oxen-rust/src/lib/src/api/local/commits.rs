@@ -142,14 +142,6 @@ pub fn create_commit_object(
         }
     }
 
-    // Check parent ids to make sure they are synced, otherwise we should not add to tree
-    for id in commit.parent_ids.iter() {
-        if get_by_id_or_branch(&repo, id)?.is_none() {
-            log::error!("We do not have parent commit id: {}", id);
-            return Err(OxenError::basic_str("Parent commit not found"));
-        }
-    }
-
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
