@@ -69,9 +69,33 @@ For other platforms follow the [installation instructions](https://github.com/Ox
 $ pip install oxenai
 ```
 
+All the same APIs that are exposed through the command line are also available in python. 
+
+```python
+import oxenai as oxen
+
+repo = oxen.LocalRepository("path/to/repo")
+repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
+
+repo.add("new-cat.png")
+repo.commit("Adding a new cat")
+
+repo.push()
+```
+
 # 📚 Python Documentation
 
-[Python Documentation](https://oxenai.github.io/oxen/)
+[Python Documentation](https://docs.oxen.ai)
+
+To build and view the documentation locally, run the following from the "oxen/docs" directory: 
+
+```bash
+$ make html
+```
+
+Then open `oxen/docs/build/html/index.html` in your browser.
+
+To contribute to the docs, make any changes in the `oxen/docs/source` directory, build using the instructions above, and `commit` and `push` the new `source` and `build` directories.
 
 # 🧑‍💻 OxenHub
 
