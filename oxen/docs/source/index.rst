@@ -14,9 +14,16 @@
 
    getting_started/installation.md
    getting_started/commands.md
-   getting_started/remote_staging.md
    getting_started/python.md
    getting_started/tutorials.md
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Concepts
+   :name: concepts
+   :hidden:
+
+   concepts/remote_staging.md
 
 .. toctree::
    :maxdepth: 2
