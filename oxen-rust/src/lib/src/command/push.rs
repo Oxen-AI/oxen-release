@@ -218,7 +218,6 @@ mod tests {
                     command::pull(&user_b_repo).await?;
 
                     // Push should now succeed
-                    // TODO: this is failing, but the pull should update the latest commit on merge, because there are no conflicts.
                     command::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)

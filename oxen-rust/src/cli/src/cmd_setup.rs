@@ -243,16 +243,12 @@ pub fn df() -> Command {
             Arg::new("head")
                 .long("head")
                 .help("Grab the first N entries of the data frame.")
-                .default_value("10")
-                .default_missing_value("10")
                 .action(clap::ArgAction::Set),
         )
         .arg(
             Arg::new("tail")
                 .long("tail")
                 .help("Grab the last N entries of the data frame.")
-                .default_value("10")
-                .default_missing_value("10")
                 .action(clap::ArgAction::Set),
         )
         .arg(
