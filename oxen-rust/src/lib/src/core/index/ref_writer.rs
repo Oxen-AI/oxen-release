@@ -339,4 +339,15 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_cannot_checkout_branch_with_spaces_in_name() -> Result<(), OxenError> {
+        test::run_referencer_test(|referencer| {
+            let og_name = "my name";
+            let result = referencer.create_branch(og_name, "1234");
+            assert!(result.is_err());
+
+            Ok(())
+        })
+    }
 }
