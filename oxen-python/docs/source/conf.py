@@ -37,6 +37,7 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = []
 
+copybutton_prompt_text = "$ "
 
 source_suffix = [".md", ".rst"]
 

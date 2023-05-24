@@ -127,7 +127,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="getting_started/installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/commands.html">Command Line Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="getting_started/remote_staging.html">Oxen Remote Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/remote_staging.html">Remote Staging Workflow</a></li>
 
 
 <li class="toctree-l1"><a class="reference internal" href="getting_started/python.html">Python</a></li>
@@ -406,10 +406,28 @@ oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>oxenai
 </pre></div>
 </div>
+<p>All the same APIs that are exposed through the command line are also available in python.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">oxenai</span> <span class="k">as</span> <span class="nn">oxen</span>
+
+<span class="n">repo</span> <span class="o">=</span> <span class="n">oxen</span><span class="o">.</span><span class="n">LocalRepository</span><span class="p">(</span><span class="s2">&quot;path/to/repo&quot;</span><span class="p">)</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="s2">&quot;https://hub.oxen.ai/ox/CatDogBBox&quot;</span><span class="p">)</span>
+
+<span class="n">repo</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;new-cat.png&quot;</span><span class="p">)</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">commit</span><span class="p">(</span><span class="s2">&quot;Adding a new cat&quot;</span><span class="p">)</span>
+
+<span class="n">repo</span><span class="o">.</span><span class="n">push</span><span class="p">()</span>
+</pre></div>
+</div>
 </section>
 <section id="python-documentation">
 <h1>📚 Python Documentation<a class="headerlink" href="#python-documentation" title="Permalink to this heading">#</a></h1>
-<p><a class="reference external" href="https://oxenai.github.io/oxen/">Python Documentation</a></p>
+<p><a class="reference external" href="https://docs.oxen.ai">Python Documentation</a></p>
+<p>To build and view the documentation locally, run the following from the “oxen/docs” directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>make<span class="w"> </span>html
+</pre></div>
+</div>
+<p>Then open <code class="docutils literal notranslate"><span class="pre">oxen/docs/build/html/index.html</span></code> in your browser.</p>
+<p>To contribute to the docs, make any changes in the <code class="docutils literal notranslate"><span class="pre">oxen/docs/source</span></code> directory, build using the instructions above, and <code class="docutils literal notranslate"><span class="pre">commit</span></code> and <code class="docutils literal notranslate"><span class="pre">push</span></code> the new <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">build</span></code> directories.</p>
 </section>
 <section id="id2">
 <h1>🧑‍💻 OxenHub<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h1>
