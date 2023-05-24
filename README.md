@@ -83,7 +83,7 @@ repo.commit("Adding a new cat")
 repo.push()
 ```
 
-# 📚 Documentation
+# 📚 Python Documentation
 
 [Python Documentation](https://docs.oxen.ai)
 
