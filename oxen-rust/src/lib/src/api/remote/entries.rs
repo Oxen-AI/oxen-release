@@ -255,7 +255,7 @@ pub async fn download_large_entry(
                 match combined_file.write_all(&buffer) {
                     Ok(_) => {
                         log::debug!("Unpack successful! {:?}", local_path);
-                        std::fs::remove_file(tmp_file)?;
+                        util::fs::remove_file(tmp_file)?;
                     }
                     Err(err) => {
                         log::error!("Could not write all data to disk {:?}", err);

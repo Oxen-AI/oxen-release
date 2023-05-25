@@ -927,7 +927,7 @@ pub fn modify_txt_file<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBu
 
     // Overwrite
     if path.exists() {
-        std::fs::remove_file(path)?;
+        util::fs::remove_file(path)?;
     }
 
     let path = write_txt_file_to_path(path, contents)?;

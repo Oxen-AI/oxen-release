@@ -46,6 +46,7 @@ pub struct Commit {
     pub timestamp: OffsetDateTime,
 }
 
+// TODO: is there a way to derive all these values...and just add one new?
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommitWithSize {
     pub id: String,
@@ -56,6 +57,20 @@ pub struct CommitWithSize {
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
+}
+
+// TODO: is there a way to derive all these values...and just add one new?
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CommitWithBranchName {
+    pub id: String,
+    pub parent_ids: Vec<String>,
+    pub message: String,
+    pub author: String,
+    pub email: String,
+    #[serde(with = "time::serde::rfc3339")]
+    pub timestamp: OffsetDateTime,
+    pub size: u64,
+    pub branch_name: String,
 }
 
 // Hash on the id field so we can quickly look up
@@ -132,6 +147,21 @@ impl CommitWithSize {
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
             size,
+        }
+    }
+}
+
+impl CommitWithBranchName {
+    pub fn from_commit(commit: &Commit, size: u64, branch_name: String) -> CommitWithBranchName {
+        CommitWithBranchName {
+            id: commit.id.to_owned(),
+            parent_ids: commit.parent_ids.to_owned(),
+            message: commit.message.to_owned(),
+            author: commit.author.to_owned(),
+            email: commit.email.to_owned(),
+            timestamp: commit.timestamp.to_owned(),
+            size,
+            branch_name,
         }
     }
 }

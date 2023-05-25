@@ -7,6 +7,7 @@ use liboxen::core::cache::commit_cacher::CacherStatusType;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
+use liboxen::view::branch::BranchName;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -290,19 +291,37 @@ pub async fn create(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let data: Result<Commit, serde_json::Error> = serde_json::from_str(&body);
-    let commit = data.map_err(|_err| OxenHttpError::BadRequest)?;
-    log::debug!("Serialized commit data: {:?}", commit);
+    let commit: Commit = match serde_json::from_str(&body) {
+        Ok(commit) => commit,
+        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
+    };
 
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let bn: BranchName =
+        match serde_json::from_str(&body) {
+            Ok(name) => name,
+            Err(_) => return Err(OxenHttpError::BadRequest(
+                "Must supply `branch_name` in body. Upgrade CLI to greater than v0.6.1 if failing."
+                    .into(),
+            )),
+        };
 
     // Create Commit from uri params
-    api::local::commits::create_commit_object(&repo.path, &commit)?;
-    Ok(HttpResponse::Ok().json(CommitResponse {
-        status: StatusMessage::resource_created(),
-        commit,
-    }))
+    match api::local::commits::create_commit_object(&repository.path, bn.branch_name, &commit) {
+        Ok(_) => Ok(HttpResponse::Ok().json(CommitResponse {
+            status: StatusMessage::resource_created(),
+            commit: commit.to_owned(),
+        })),
+        Err(OxenError::RootCommitDoesNotMatch(commit_id)) => {
+            log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
+            Err(OxenHttpError::BadRequest("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote.".into()))
+        }
+        Err(err) => {
+            log::error!("Err create_commit: {}", err);
+            Err(OxenHttpError::InternalServerError)
+        }
+    }
 }
 
 /// Controller to upload large chunks of data that will be combined at the end

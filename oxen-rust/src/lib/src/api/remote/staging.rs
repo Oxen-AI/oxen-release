@@ -376,8 +376,7 @@ mod tests {
             api::local::branches::create_checkout(&local_repo, branch_name)?;
             let remote = test::repo_remote_url_from(&local_repo.dirname());
             command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-            command::push_remote_branch(&local_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
-                .await?;
+            command::push(&local_repo).await?;
 
             // client can decide what to use for id
             let identifier = UserConfig::identifier()?;

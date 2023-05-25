@@ -285,7 +285,7 @@ impl LocalRepository {
         if shallow {
             util::fs::write_to_path(&shallow_flag_path, "true")?;
         } else if shallow_flag_path.exists() {
-            std::fs::remove_file(&shallow_flag_path)?;
+            util::fs::remove_file(&shallow_flag_path)?;
         }
         Ok(())
     }
@@ -305,6 +305,7 @@ mod tests {
     use crate::model::{LocalRepository, RepositoryNew};
     use crate::opts::CloneOpts;
     use crate::test;
+    use crate::util;
 
     use std::path::Path;
 
@@ -401,7 +402,7 @@ mod tests {
         orig_repo.save(final_path)?;
 
         let _repo = LocalRepository::from_cfg(final_path)?;
-        std::fs::remove_file(final_path)?;
+        util::fs::remove_file(final_path)?;
 
         Ok(())
     }

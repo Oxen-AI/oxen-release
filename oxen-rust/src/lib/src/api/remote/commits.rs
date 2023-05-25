@@ -1,7 +1,7 @@
 use crate::api::remote::client;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
-use crate::model::commit::CommitWithSize;
+use crate::model::commit::CommitWithBranchName;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
@@ -203,6 +203,7 @@ pub async fn post_commit_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     unsynced_entries_size: u64,
+    branch_name: String,
 ) -> Result<(), OxenError> {
     // Compute the size of the commit
     let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
@@ -211,7 +212,7 @@ pub async fn post_commit_to_server(
     let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + unsynced_entries_size;
 
     // First create commit on server with size
-    let commit_w_size = CommitWithSize::from_commit(commit, size);
+    let commit_w_size = CommitWithBranchName::from_commit(commit, size, branch_name);
     create_commit_obj_on_server(remote_repo, &commit_w_size).await?;
 
     // Then zip up and send the history db
@@ -249,7 +250,7 @@ pub async fn post_commit_to_server(
 
 async fn create_commit_obj_on_server(
     remote_repo: &RemoteRepository,
-    commit: &CommitWithSize,
+    commit: &CommitWithBranchName,
 ) -> Result<CommitResponse, OxenError> {
     let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
     log::debug!("create_commit_obj_on_server {}\n{:?}", url, commit);
@@ -550,6 +551,7 @@ mod tests {
                 &local_repo,
                 "Adding annotations data dir, which has two levels",
             )?;
+            let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Post commit
             let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
@@ -558,6 +560,7 @@ mod tests {
                 &remote_repo,
                 &commit,
                 entries_size,
+                branch.name.clone(),
             )
             .await?;
 
@@ -623,6 +626,7 @@ mod tests {
                 &local_repo,
                 "Adding annotations data dir, which has two levels",
             )?;
+            let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Post commit but not the actual files
             let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
@@ -631,6 +635,7 @@ mod tests {
                 &remote_repo,
                 &commit,
                 entries_size,
+                branch.name.clone(),
             )
             .await?;
 
