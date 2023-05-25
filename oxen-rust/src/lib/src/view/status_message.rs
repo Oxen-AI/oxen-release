@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 pub struct StatusMessage {
     pub status: String,
     pub status_message: String,
-    pub oxen_version: String,
+    pub oxen_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StatusMessageDescription {
     pub status: String,
     pub status_message: String,
-    pub oxen_version: String,
+    pub oxen_version: Option<String>,
     pub status_description: String,
 }
 
@@ -31,7 +31,7 @@ impl StatusMessageDescription {
         StatusMessageDescription {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_RESOURCE_NOT_FOUND),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
             status_description: String::from(description.as_ref()),
         }
     }
@@ -40,7 +40,7 @@ impl StatusMessageDescription {
         StatusMessageDescription {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_BAD_REQUEST),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
             status_description: String::from(description.as_ref()),
         }
     }
@@ -51,7 +51,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_SUCCESS),
             status_message: String::from(msg),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -59,7 +59,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(msg.as_ref()),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -67,7 +67,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_BAD_REQUEST),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -75,7 +75,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_SUCCESS),
             status_message: String::from(view::http::MSG_RESOURCE_FOUND),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -83,7 +83,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_RESOURCE_NOT_FOUND),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -91,7 +91,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_SUCCESS),
             status_message: String::from(view::http::MSG_RESOURCE_CREATED),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -99,7 +99,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_SUCCESS),
             status_message: String::from(view::http::MSG_RESOURCE_UPDATED),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -107,7 +107,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_SUCCESS),
             status_message: String::from(view::http::MSG_RESOURCE_DELETED),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -115,7 +115,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_INTERNAL_SERVER_ERROR),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 
@@ -123,7 +123,7 @@ impl StatusMessage {
         StatusMessage {
             status: String::from(view::http::STATUS_ERROR),
             status_message: String::from(view::http::MSG_NOT_IMPLEMENTED),
-            oxen_version: OXEN_VERSION.to_string(),
+            oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
 }
