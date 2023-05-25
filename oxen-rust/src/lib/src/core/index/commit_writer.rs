@@ -473,7 +473,9 @@ impl CommitWriter {
         for dir in candidate_dirs_to_rm.iter() {
             let full_dir = self.repository.path.join(dir);
             // println!("set_working_repo_to_commit_id remove dis dir {:?}", full_dir);
-            util::fs::remove_dir_all(full_dir)?;
+            if full_dir.exists() {
+                util::fs::remove_dir_all(full_dir)?;
+            }
         }
 
         log::debug!("Setting working directory to {}", commit.id);
@@ -634,7 +636,9 @@ impl CommitWriter {
                     } else {
                         // sorry, we don't know you, bye
                         log::debug!("set_working_repo_to_commit_id see ya 💀 {:?}", full_path);
-                        util::fs::remove_file(full_path)?;
+                        if full_path.exists() {
+                            util::fs::remove_file(full_path)?;
+                        }
                     }
                 }
                 bar.inc(1);

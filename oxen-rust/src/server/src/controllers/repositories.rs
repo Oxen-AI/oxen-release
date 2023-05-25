@@ -6,6 +6,7 @@ use crate::params::{app_data, path_param};
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::util;
+use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::repository::DataTypeView;
 use liboxen::view::repository::RepositoryStatsResponse;
 use liboxen::view::repository::RepositoryStatsView;
@@ -50,7 +51,8 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     // Return the repository view
     Ok(HttpResponse::Ok().json(RepositoryResponse {
-        status: StatusMessage::resource_found(),
+        status: STATUS_SUCCESS.to_string(),
+        status_message: MSG_RESOURCE_FOUND.to_string(),
         repository: RepositoryView { namespace, name },
     }))
 }
@@ -103,7 +105,8 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     match data {
         Ok(data) => match api::local::repositories::create_empty(&app_data.path, data.to_owned()) {
             Ok(_) => HttpResponse::Ok().json(RepositoryResponse {
-                status: StatusMessage::resource_found(),
+                status: STATUS_SUCCESS.to_string(),
+                status_message: MSG_RESOURCE_FOUND.to_string(),
                 repository: RepositoryView {
                     namespace: data.namespace.clone(),
                     name: data.name,
@@ -318,7 +321,7 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
-        assert_eq!(repo_response.status.status, STATUS_SUCCESS);
+        assert_eq!(repo_response.status, STATUS_SUCCESS);
         assert_eq!(repo_response.repository.name, name);
 
         // cleanup
@@ -353,7 +356,7 @@ mod tests {
         let text = std::str::from_utf8(&body).unwrap();
 
         let repo_response: RepositoryResponse = serde_json::from_str(text)?;
-        assert_eq!(repo_response.status.status, STATUS_SUCCESS);
+        assert_eq!(repo_response.status, STATUS_SUCCESS);
         assert_eq!(repo_response.repository.name, repo_new.name);
 
         // cleanup
