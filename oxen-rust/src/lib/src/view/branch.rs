@@ -1,10 +1,12 @@
 use crate::model::Branch;
 use serde::{Deserialize, Serialize};
 
+use super::StatusMessage;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BranchResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub branch: Branch,
 }
 
@@ -26,7 +28,7 @@ pub struct BranchUpdate {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListBranchesResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub branches: Vec<Branch>,
 }

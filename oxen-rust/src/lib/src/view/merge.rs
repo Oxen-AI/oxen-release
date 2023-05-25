@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::StatusMessage;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MergeConflictFile {
     pub path: String,
@@ -7,8 +9,8 @@ pub struct MergeConflictFile {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MergeableResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub is_mergeable: bool,
     pub conflicts: Vec<MergeConflictFile>,
 }

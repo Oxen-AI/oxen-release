@@ -187,12 +187,14 @@ impl OxenError {
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
-        OxenError::basic_str(err)
+        log::warn!("{}", err);
+        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
     }
 
     pub fn local_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Local branch '{}' not found", name.as_ref());
-        OxenError::basic_str(err)
+        log::warn!("{}", err);
+        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
     }
 
     pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {

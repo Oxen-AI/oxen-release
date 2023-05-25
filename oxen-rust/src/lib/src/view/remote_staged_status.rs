@@ -9,19 +9,19 @@ use crate::{
     util,
 };
 
-use super::{JsonDataFrame, PaginatedDirEntries};
+use super::{JsonDataFrame, PaginatedDirEntries, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct StagedFileModResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub modification: ModEntry,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ListStagedFileModResponseRaw {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub data_type: String,
     pub modifications: Vec<ModEntry>,
     pub page_number: usize,
@@ -39,8 +39,8 @@ pub struct RemoteStagedStatus {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RemoteStagedStatusResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub staged: RemoteStagedStatus,
 }
 
@@ -52,8 +52,8 @@ pub struct StagedDFModifications {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ListStagedFileModResponseDF {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub data_type: String,
     pub modifications: StagedDFModifications,
 }
@@ -127,6 +127,7 @@ impl RemoteStagedStatus {
         let (paginated, total_pages) = util::paginate(entries, page_number, page_size);
 
         PaginatedDirEntries {
+            status: StatusMessage::resource_found(),
             entries: paginated,
             page_number,
             page_size,

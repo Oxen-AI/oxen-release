@@ -7,9 +7,7 @@ use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
-use crate::view::{
-    CommitParentsResponse, CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage,
-};
+use crate::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
 
 use std::path::{Path, PathBuf};
 use std::str;
@@ -165,10 +163,9 @@ pub async fn get_remote_parent(
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
         let body = client::parse_json_body(&url, res).await?;
-        let response: Result<CommitParentsResponse, serde_json::Error> =
-            serde_json::from_str(&body);
+        let response: Result<ListCommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
-            Ok(j_res) => Ok(j_res.parents),
+            Ok(j_res) => Ok(j_res.commits),
             Err(err) => Err(OxenError::basic_str(format!(
                 "get_remote_parent() Could not deserialize response [{err}]\n{body}"
             ))),

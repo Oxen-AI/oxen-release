@@ -6,7 +6,6 @@ use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::merge::{MergeConflictFile, MergeableResponse};
 use liboxen::view::StatusMessage;
 
@@ -41,8 +40,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     // Create response object
     let response = MergeableResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
+        status: StatusMessage::resource_found(),
         is_mergeable,
         conflicts,
     };
