@@ -12,8 +12,8 @@ pub struct RepositoryView {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RepositoryResponse {
-    #[serde(flatten)]
-    pub status: StatusMessage,
+    pub status: String,
+    pub status_message: String,
     pub repository: RepositoryView,
 }
 

@@ -1,7 +1,6 @@
+use crate::constants::OXEN_VERSION;
 use crate::view;
 use serde::{Deserialize, Serialize};
-
-const OXEN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StatusMessage {

@@ -6,10 +6,10 @@ use crate::view::OxenResponse;
 pub use reqwest::Url;
 use reqwest::{header, Client, ClientBuilder, IntoUrl};
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = crate::constants::OXEN_VERSION;
 const USER_AGENT: &str = "Oxen";
 
-fn get_host_from_url<U: IntoUrl>(url: U) -> Result<String, OxenError> {
+pub fn get_host_from_url<U: IntoUrl>(url: U) -> Result<String, OxenError> {
     let parsed_url = url.into_url()?;
     let mut host_str = parsed_url.host_str().unwrap_or_default().to_string();
     if let Some(port) = parsed_url.port() {
