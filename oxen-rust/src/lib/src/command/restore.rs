@@ -36,7 +36,7 @@ use crate::opts::RestoreOpts;
 /// let commit = command::commit(&repo, "My commit message")?.unwrap();
 ///
 /// // Remove the file from disk
-/// std::fs::remove_file(hello_path)?;
+/// util::fs::remove_file(hello_path)?;
 ///
 /// // Restore the file
 /// command::restore(&repo, RestoreOpts::from_path_ref(hello_name, commit.id))?;

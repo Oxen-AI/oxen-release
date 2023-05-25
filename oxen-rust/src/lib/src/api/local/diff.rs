@@ -396,6 +396,7 @@ mod tests {
     use crate::model::entry::diff_entry::DiffEntryStatus;
     use crate::opts::RmOpts;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_list_diff_entries_add_multiple() -> Result<(), OxenError> {
@@ -467,7 +468,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let base_commit = api::local::commits::head_commit(&repo)?;
 
             // Remove the file
-            std::fs::remove_file(bbox_file)?;
+            util::fs::remove_file(bbox_file)?;
 
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;

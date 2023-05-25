@@ -111,10 +111,10 @@ fn restore_regular(
     let working_path = repo.path.join(path);
     let parent = working_path.parent().unwrap();
     if !parent.exists() {
-        std::fs::create_dir_all(parent)?;
+        util::fs::create_dir_all(parent)?;
     }
 
-    log::debug!("Restore file: {:?}", entry.path);
+    log::debug!("Restore file: {:?} from {:?}", entry.path, version_path);
     util::fs::copy(version_path, working_path)?;
     Ok(())
 }

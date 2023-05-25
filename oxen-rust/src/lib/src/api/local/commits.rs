@@ -124,7 +124,13 @@ pub fn commit(
     Ok(commit)
 }
 
-pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), OxenError> {
+pub fn create_commit_object(
+    repo_dir: &Path,
+    branch_name: impl AsRef<str>,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
+
     // Instantiate repo from dir
     let repo = LocalRepository::from_dir(repo_dir)?;
 
@@ -136,18 +142,12 @@ pub fn create_commit_object(repo_dir: &Path, commit: &Commit) -> Result<(), Oxen
         }
     }
 
-    // Check parent ids to make sure they are synced, otherwise we should not add to tree
-    for id in commit.parent_ids.iter() {
-        if get_by_id_or_branch(&repo, id)?.is_none() {
-            return Err(OxenError::basic_str("Parent commit not found"));
-        }
-    }
-
     let result = CommitWriter::new(&repo);
     match result {
         Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
             Ok(_) => {
                 log::debug!("Successfully added commit [{}] to db", commit.id);
+                api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
             }
             Err(err) => {
                 log::error!("Error adding commit to db: {:?}", err);
@@ -185,7 +185,7 @@ pub async fn list_with_opts(
         let committer = CommitReader::new(repo)?;
 
         let commits = if let Some(committish) = &opts.committish {
-            let commit = api::local::commits::get_by_id_or_branch(repo, committish)?.ok_or(
+            let commit = get_by_id_or_branch(repo, committish)?.ok_or(
                 OxenError::committish_not_found(committish.to_string().into()),
             )?;
             committer.history_from_commit_id(&commit.id)?

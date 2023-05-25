@@ -103,7 +103,7 @@ pub async fn update(
     let repository = get_repo(&app_data.path, namespace, name)?;
 
     let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
-    let data = data.map_err(|_| OxenHttpError::BadRequest)?;
+    let data = data.map_err(|err| OxenHttpError::BadRequest(format!("{:?}", err).into()))?;
 
     let branch = api::local::branches::update(&repository, &branch_name, &data.commit_id)?;
 

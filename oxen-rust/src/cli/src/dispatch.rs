@@ -528,6 +528,13 @@ pub fn checkout_theirs(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn checkout_ours(path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::checkout_ours(&repository, path)?;
+    Ok(())
+}
+
 pub fn create_checkout_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

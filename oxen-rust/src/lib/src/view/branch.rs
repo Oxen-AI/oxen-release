@@ -16,6 +16,11 @@ pub struct BranchNew {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct BranchName {
+    pub branch_name: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct BranchNewFromExisting {
     pub new_name: String,
     pub from_name: String,
