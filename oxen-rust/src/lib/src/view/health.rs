@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
+use super::StatusMessage;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HealthResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub disk_usage: DiskUsage,
 }
 

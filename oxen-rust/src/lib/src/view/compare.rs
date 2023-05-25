@@ -2,10 +2,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{Commit, DiffEntry};
 
+use super::StatusMessage;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub base_commit: Commit,
     pub head_commit: Commit,
     pub entries: Vec<DiffEntry>,

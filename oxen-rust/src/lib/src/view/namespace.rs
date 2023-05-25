@@ -1,6 +1,8 @@
 use crate::model::Namespace;
 use serde::{Deserialize, Serialize};
 
+use super::StatusMessage;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NamespaceView {
     pub name: String,
@@ -8,14 +10,14 @@ pub struct NamespaceView {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListNamespacesResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub namespaces: Vec<NamespaceView>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NamespaceResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub namespace: Namespace,
 }

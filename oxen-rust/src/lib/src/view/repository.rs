@@ -1,6 +1,8 @@
 use crate::model::RemoteRepository;
 use serde::{Deserialize, Serialize};
 
+use super::StatusMessage;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RepositoryView {
     pub namespace: String,
@@ -10,9 +12,16 @@ pub struct RepositoryView {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RepositoryResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub repository: RepositoryView,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RepositoryStatsResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub repository: RepositoryStatsView,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -29,16 +38,9 @@ pub struct RepositoryStatsView {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RepositoryStatsResponse {
-    pub status: String,
-    pub status_message: String,
-    pub repository: RepositoryStatsView,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct ListRepositoryResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub repositories: Vec<RepositoryView>,
 }
 

@@ -1,4 +1,3 @@
-use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
@@ -6,93 +5,42 @@ use crate::params::{app_data, path_param};
 use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::api;
-use liboxen::view::http::{
-    MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED,
-    STATUS_SUCCESS,
-};
+use liboxen::error::OxenError;
 use liboxen::view::{
     BranchNewFromExisting, BranchResponse, BranchUpdate, ListBranchesResponse, StatusMessage,
 };
 
-pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let name: &str = req.match_info().get("repo_name").unwrap();
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-        Ok(Some(repository)) => match api::local::branches::list(&repository) {
-            Ok(branches) => {
-                let view = ListBranchesResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    branches,
-                };
-                HttpResponse::Ok().json(view)
-            }
-            Err(err) => {
-                log::error!("Unable to list branches. Err: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::debug!(
-                "404 api::local::branches::index could not get repo {}",
-                name,
-            );
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!(
-                "Err api::local::branches::index could not get repo {} {:?}",
-                name,
-                err
-            );
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+
+    let branches = api::local::branches::list(&repo)?;
+
+    let view = ListBranchesResponse {
+        status: StatusMessage::resource_found(),
+        branches,
+    };
+    Ok(HttpResponse::Ok().json(view))
 }
 
-pub async fn show(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
 
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let branch_name: Option<&str> = req.match_info().get("branch_name");
-    if let (Some(namespace), Some(name), Some(branch_name)) = (namespace, name, branch_name) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => {
-                match api::local::branches::get_by_name(&repository, branch_name) {
-                    Ok(Some(branch)) => HttpResponse::Ok().json(BranchResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
-                        branch,
-                    }),
-                    Ok(None) => {
-                        log::debug!(
-                            "branch_name {} does not exist for repo: {}",
-                            branch_name,
-                            name
-                        );
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                    Err(err) => {
-                        log::debug!("Err getting branch_name {}: {}", branch_name, err);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("404 api::local::branches::show could not get repo {}", name,);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::debug!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::NotFound().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `branch_name` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let branch = api::local::branches::get_by_name(&repository, &branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
+
+    let view = BranchResponse {
+        status: StatusMessage::resource_created(),
+        branch,
+    };
+
+    Ok(HttpResponse::Ok().json(view))
 }
 
 pub async fn create_from_or_get(
@@ -110,8 +58,7 @@ pub async fn create_from_or_get(
     let maybe_new_branch = api::local::branches::get_by_name(&repo, &data.new_name)?;
     if let Some(branch) = maybe_new_branch {
         let view = BranchResponse {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_FOUND),
+            status: StatusMessage::resource_found(),
             branch,
         };
         return Ok(HttpResponse::Ok().json(view));
@@ -123,114 +70,47 @@ pub async fn create_from_or_get(
     let new_branch = api::local::branches::create(&repo, &data.new_name, &from_branch.commit_id)?;
 
     Ok(HttpResponse::Ok().json(BranchResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_CREATED),
+        status: StatusMessage::resource_created(),
         branch: new_branch,
     }))
 }
 
-pub async fn delete(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
 
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let branch_name: Option<&str> = req.match_info().get("branch_name");
-    if let (Some(name), Some(namespace), Some(branch_name)) = (name, namespace, branch_name) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => {
-                match api::local::branches::get_by_name(&repository, branch_name) {
-                    Ok(Some(branch)) => {
-                        match api::local::branches::force_delete(&repository, branch_name) {
-                            Ok(_) => HttpResponse::Ok().json(BranchResponse {
-                                status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_DELETED),
-                                branch,
-                            }),
-                            Err(err) => {
-                                log::error!("Delete could not delete branch: {}", err);
-                                HttpResponse::InternalServerError()
-                                    .json(StatusMessage::internal_server_error())
-                            }
-                        }
-                    }
-                    Ok(None) => {
-                        log::debug!(
-                            "branch_name {} does not exist for repo: {}",
-                            branch_name,
-                            name
-                        );
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                    Err(err) => {
-                        log::debug!("Err getting branch_name {}: {}", branch_name, err);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("404 Could not find repo: {}", name);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Delete could not find repo: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Neet to supply `name`, `namespace`, and `branch` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let branch = api::local::branches::get_by_name(&repository, &branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
+
+    api::local::branches::force_delete(&repository, &branch.name)?;
+    Ok(HttpResponse::Ok().json(BranchResponse {
+        status: StatusMessage::resource_deleted(),
+        branch,
+    }))
 }
 
-pub async fn update(req: HttpRequest, body: String) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let branch_name: Option<&str> = req.match_info().get("branch_name");
-    let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
+pub async fn update(
+    req: HttpRequest,
+    body: String,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
 
-    if let (Some(namespace), Some(name), Some(branch_name)) = (namespace, name, branch_name) {
-        match data {
-            Ok(data) => match api::local::repositories::get_by_namespace_and_name(
-                &app_data.path,
-                namespace,
-                name,
-            ) {
-                Ok(Some(repo)) => {
-                    match api::local::branches::update(&repo, branch_name, &data.commit_id) {
-                        Ok(branch) => HttpResponse::Ok().json(BranchResponse {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_UPDATED),
-                            branch,
-                        }),
-                        Err(err) => {
-                            log::debug!("Error updating branch {}: {}", branch_name, err);
-                            HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error())
-                        }
-                    }
-                }
-                Ok(None) => {
-                    log::debug!(
-                        "404 api::local::branches::update could not get repo {}",
-                        name,
-                    );
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-                Err(err) => {
-                    log::debug!("Could not find repo [{}]: {}", name, err);
-                    HttpResponse::NotFound().json(StatusMessage::internal_server_error())
-                }
-            },
-            Err(err) => {
-                log::debug!("Could not parse body: {}", err);
-                HttpResponse::BadRequest().json(StatusMessage::error("Invalid body."))
-            }
-        }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `branch_name` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
+    let data = data.map_err(|_| OxenHttpError::BadRequest)?;
+
+    let branch = api::local::branches::update(&repository, &branch_name, &data.commit_id)?;
+
+    Ok(HttpResponse::Ok().json(BranchResponse {
+        status: StatusMessage::resource_updated(),
+        branch,
+    }))
 }
 
 #[cfg(test)]
@@ -259,12 +139,12 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
-        let resp = controllers::branches::index(req).await;
+        let resp = controllers::branches::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListBranchesResponse = serde_json::from_str(text)?;
-        assert_eq!(list.status, STATUS_SUCCESS);
+        assert_eq!(list.status.status, STATUS_SUCCESS);
         // Should have main branch initialized
         assert_eq!(list.branches.len(), 1);
         assert_eq!(list.branches.first().unwrap().name, DEFAULT_BRANCH_NAME);
@@ -288,7 +168,7 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
-        let resp = controllers::branches::index(req).await;
+        let resp = controllers::branches::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
@@ -322,7 +202,7 @@ mod tests {
             branch_name,
         );
 
-        let resp = controllers::branches::show(req).await;
+        let resp = controllers::branches::show(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
@@ -360,7 +240,7 @@ mod tests {
         let text = std::str::from_utf8(&body).unwrap();
 
         let repo_response: BranchResponse = serde_json::from_str(text)?;
-        assert_eq!(repo_response.status, STATUS_SUCCESS);
+        assert_eq!(repo_response.status.status, STATUS_SUCCESS);
         assert_eq!(repo_response.branch.name, "My-Branch-Name");
 
         // cleanup

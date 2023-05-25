@@ -12,10 +12,8 @@ use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
 use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
 use liboxen::view::http::STATUS_ERROR;
-use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{
-    CommitParentsResponse, CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage,
-};
+use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -101,8 +99,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         .ok_or(OxenError::committish_not_found(commit_id.into()))?;
 
     Ok(HttpResponse::Ok().json(CommitResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
+        status: StatusMessage::resource_found(),
         commit,
     }))
 }
@@ -199,45 +196,18 @@ pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     Ok(response)
 }
 
-pub async fn parents(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
+pub async fn parents(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let commit_or_branch = path_param(&req, "commit_or_branch")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
 
-    if let (Some(namespace), Some(name), Some(commit_or_branch)) =
-        (namespace, name, commit_or_branch)
-    {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => match p_get_parents(&repository, commit_or_branch) {
-                Ok(parents) => HttpResponse::Ok().json(CommitParentsResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
-                    parents,
-                }),
-                Err(err) => {
-                    log::debug!(
-                        "Error finding parent for commit {} in repo {}\nErr: {}",
-                        commit_or_branch,
-                        name,
-                        err
-                    );
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-            },
-            Ok(None) => {
-                log::debug!("404 could not get repo {}", name,);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::debug!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let parents = p_get_parents(&repository, &commit_or_branch)?;
+    Ok(HttpResponse::Ok().json(ListCommitResponse {
+        status: StatusMessage::resource_found(),
+        commits: parents,
+    }))
 }
 
 fn p_get_parents(
@@ -267,49 +237,20 @@ fn p_index_commit_or_branch_history(
 }
 
 // TODO: cleanup, and allow for downloading of sub-dirs
-pub async fn download_commit_db(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
+pub async fn download_commit_db(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let commit_or_branch = path_param(&req, "commit_or_branch")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
 
-    if let (Some(namespace), Some(name), Some(commit_or_branch)) =
-        (namespace, name, commit_or_branch)
-    {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => {
-                match api::local::commits::get_by_id_or_branch(&repository, commit_or_branch) {
-                    Ok(Some(commit)) => match compress_commit(&repository, &commit) {
-                        Ok(buffer) => HttpResponse::Ok().body(buffer),
-                        Err(err) => {
-                            log::error!("Error compressing commit: [{}] Err: {}", name, err);
-                            HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error())
-                        }
-                    },
-                    Ok(None) => {
-                        log::debug!("Could not find commit [{}]", name);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                    Err(err) => {
-                        log::error!("Error finding commit: [{}] Err: {}", name, err);
-                        HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                    }
-                }
-            }
-            Ok(None) => {
-                log::debug!("404 could not get repo {}", name,);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not find repo [{}]: {}", name, err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let commit = api::local::commits::get_by_id_or_branch(&repository, &commit_or_branch)?
+        .ok_or(OxenError::committish_not_found(commit_or_branch.into()))?;
+
+    let buffer = compress_commit(&repository, &commit)?;
+    Ok(HttpResponse::Ok().body(buffer))
 }
 
 // Allow downloading of sub-dirs for efficiency
@@ -340,48 +281,28 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     Ok(buffer)
 }
 
-pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
+pub async fn create(
+    req: HttpRequest,
+    body: String,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     log::debug!("Got commit data: {}", body);
 
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+
     let data: Result<Commit, serde_json::Error> = serde_json::from_str(&body);
-    log::debug!("Serialized commit data: {:?}", data);
+    let commit = data.map_err(|_err| OxenHttpError::BadRequest)?;
+    log::debug!("Serialized commit data: {:?}", commit);
 
-    // name to the repo, should be in url path so okay to unwap
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    match (
-        api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name),
-        data,
-    ) {
-        (Ok(Some(repo)), Ok(commit)) => {
-            // Create Commit from uri params
-            match api::local::commits::create_commit_object(&repo.path, &commit) {
-                Ok(_) => HttpResponse::Ok().json(CommitResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_CREATED),
-                    commit: commit.to_owned(),
-                }),
-                Err(OxenError::RootCommitDoesNotMatch(commit_id)) => {
-                    log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
-                    HttpResponse::InternalServerError().json(StatusMessage::error("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote."))
-                }
-                Err(err) => {
-                    log::error!("Err create_commit: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            }
-        }
-        (repo_err, commit_err) => {
-            log::error!(
-                "Err api::local::repositories::get_by_name {:?} serialization err {:?}",
-                repo_err,
-                commit_err
-            );
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    // Create Commit from uri params
+    api::local::commits::create_commit_object(&repo.path, &commit)?;
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_created(),
+        commit,
+    }))
 }
 
 /// Controller to upload large chunks of data that will be combined at the end
@@ -389,109 +310,84 @@ pub async fn upload_chunk(
     req: HttpRequest,
     mut chunk: web::Payload,                   // the chunk of the file body,
     query: web::Query<ChunkedDataUploadQuery>, // gives the file
-) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    // name to the repo, should be in url path so okay to unwrap
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let commit_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
 
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => {
-            match api::local::commits::get_by_id(&repo, commit_id) {
-                Ok(Some(commit)) => {
-                    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-                    let id = query.hash.clone();
-                    let size = query.total_size;
-                    let chunk_num = query.chunk_num;
-                    let total_chunks = query.total_chunks;
+    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
+        .ok_or(OxenError::committish_not_found(commit_id.into()))?;
 
-                    log::debug!("upload_raw got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}");
+    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+    let id = query.hash.clone();
+    let size = query.total_size;
+    let chunk_num = query.chunk_num;
+    let total_chunks = query.total_chunks;
 
-                    // Create a tmp dir for this upload
-                    let tmp_dir = hidden_dir.join("tmp").join("chunked").join(id);
-                    let chunk_file = tmp_dir.join(format!("chunk_{chunk_num:016}"));
+    log::debug!(
+        "upload_raw got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
+    );
 
-                    // mkdir if !exists
-                    if !tmp_dir.exists() {
-                        if let Err(err) = std::fs::create_dir_all(&tmp_dir) {
-                            log::error!("Could not complete chunk upload, mkdir failed: {:?}", err);
-                            return Ok(HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error()));
-                        }
-                    }
+    // Create a tmp dir for this upload
+    let tmp_dir = hidden_dir.join("tmp").join("chunked").join(id);
+    let chunk_file = tmp_dir.join(format!("chunk_{chunk_num:016}"));
 
-                    // Read bytes from body
-                    let mut bytes = web::BytesMut::new();
-                    while let Some(item) = chunk.next().await {
-                        bytes.extend_from_slice(&item.unwrap());
-                    }
+    // mkdir if !exists
+    if !tmp_dir.exists() {
+        if let Err(err) = std::fs::create_dir_all(&tmp_dir) {
+            log::error!("Could not complete chunk upload, mkdir failed: {:?}", err);
+            return Ok(
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            );
+        }
+    }
 
-                    // Write to tmp file
-                    log::debug!("upload_raw writing file {:?}", chunk_file);
-                    match std::fs::File::create(&chunk_file) {
-                        Ok(mut f) => {
-                            match f.write_all(&bytes) {
-                                Ok(_) => {
-                                    // Successfully wrote chunk
-                                    log::debug!(
-                                        "upload_raw successfully wrote chunk {:?}",
-                                        chunk_file
-                                    );
+    // Read bytes from body
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = chunk.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
 
-                                    check_if_upload_complete_and_unpack(
-                                        hidden_dir,
-                                        tmp_dir,
-                                        total_chunks,
-                                        size,
-                                        query.is_compressed,
-                                        query.filename.to_owned(),
-                                    );
+    // Write to tmp file
+    log::debug!("upload_raw writing file {:?}", chunk_file);
+    match std::fs::File::create(&chunk_file) {
+        Ok(mut f) => {
+            match f.write_all(&bytes) {
+                Ok(_) => {
+                    // Successfully wrote chunk
+                    log::debug!("upload_raw successfully wrote chunk {:?}", chunk_file);
 
-                                    Ok(HttpResponse::Ok().json(CommitResponse {
-                                        status: String::from(STATUS_SUCCESS),
-                                        status_message: String::from(MSG_RESOURCE_CREATED),
-                                        commit: commit.to_owned(),
-                                    }))
-                                }
-                                Err(err) => {
-                                    log::error!(
-                                        "Could not complete chunk upload, file create failed: {:?}",
-                                        err
-                                    );
-                                    Ok(HttpResponse::InternalServerError()
-                                        .json(StatusMessage::internal_server_error()))
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            log::error!(
-                                "Could not complete chunk upload, file create failed: {:?}",
-                                err
-                            );
-                            Ok(HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error()))
-                        }
-                    }
-                }
-                Ok(None) => {
-                    log::error!("Could not find commit [{}]", commit_id);
-                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+                    check_if_upload_complete_and_unpack(
+                        hidden_dir,
+                        tmp_dir,
+                        total_chunks,
+                        size,
+                        query.is_compressed,
+                        query.filename.to_owned(),
+                    );
+
+                    Ok(HttpResponse::Ok().json(CommitResponse {
+                        status: StatusMessage::resource_created(),
+                        commit: commit.to_owned(),
+                    }))
                 }
                 Err(err) => {
-                    log::error!("Error finding commit [{}]: {}", commit_id, err);
+                    log::error!(
+                        "Could not complete chunk upload, file create failed: {:?}",
+                        err
+                    );
                     Ok(HttpResponse::InternalServerError()
                         .json(StatusMessage::internal_server_error()))
                 }
             }
         }
-        Ok(None) => {
-            log::debug!("404 could not get repo {}", repo_name,);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(repo_err) => {
-            log::error!("Err get_by_name: {}", repo_err);
+        Err(err) => {
+            log::error!(
+                "Could not complete chunk upload, file create failed: {:?}",
+                err
+            );
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
     }
@@ -590,69 +486,44 @@ fn check_if_upload_complete_and_unpack(
 pub async fn upload(
     req: HttpRequest,
     mut body: web::Payload, // the actual file body
-) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    // name to the repo, should be in url path so okay to unwrap
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let commit_id: &str = req.match_info().get("commit_id").unwrap();
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let commit_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
 
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => {
-            match api::local::commits::get_by_id(&repo, commit_id) {
-                Ok(Some(commit)) => {
-                    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
+    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
+        .ok_or(OxenError::committish_not_found(commit_id.to_owned().into()))?;
+    let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
-                    // Read bytes from body
-                    let mut bytes = web::BytesMut::new();
-                    while let Some(item) = body.next().await {
-                        bytes.extend_from_slice(&item.unwrap());
-                    }
-
-                    // Compute total size as u64
-                    let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
-                    log::debug!(
-                        "Got compressed data for commit {} -> {}",
-                        commit_id,
-                        ByteSize::b(total_size)
-                    );
-
-                    // Unpack in background thread because could take awhile
-                    // std::thread::spawn(move || {
-                    // Get tar.gz bytes for history/COMMIT_ID data
-                    log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
-                    // Unpack tarball to our hidden dir
-                    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-                    unpack_entry_tarball(&hidden_dir, &mut archive);
-                    // });
-
-                    Ok(HttpResponse::Ok().json(CommitResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_CREATED),
-                        commit: commit.to_owned(),
-                    }))
-                }
-                Ok(None) => {
-                    log::error!("Could not find commit [{}]", commit_id);
-                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                }
-                Err(err) => {
-                    log::error!("Error finding commit [{}]: {}", commit_id, err);
-                    Ok(HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()))
-                }
-            }
-        }
-        Ok(None) => {
-            log::debug!("404 could not get repo {}", repo_name,);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(repo_err) => {
-            log::error!("Err get_by_name: {}", repo_err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
+    // Read bytes from body
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
     }
+
+    // Compute total size as u64
+    let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    log::debug!(
+        "Got compressed data for commit {} -> {}",
+        commit_id,
+        ByteSize::b(total_size)
+    );
+
+    // Unpack in background thread because could take awhile
+    // std::thread::spawn(move || {
+    // Get tar.gz bytes for history/COMMIT_ID data
+    log::debug!("Decompressing {} bytes to {:?}", bytes.len(), hidden_dir);
+    // Unpack tarball to our hidden dir
+    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+    unpack_entry_tarball(&hidden_dir, &mut archive);
+    // });
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_created(),
+        commit: commit.to_owned(),
+    }))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing
@@ -690,10 +561,7 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
                         }
                     });
 
-                    Ok(HttpResponse::Ok().json(StatusMessage {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
-                    }))
+                    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
                 Ok(None) => {
                     log::error!("Could not find commit [{}]", commit_id);

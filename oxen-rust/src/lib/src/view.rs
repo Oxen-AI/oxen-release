@@ -39,8 +39,7 @@ pub use crate::view::entry::{
 };
 
 pub use crate::view::commit::{
-    CommitParentsResponse, CommitResponse, CommitStatsResponse, ListCommitResponse,
-    PaginatedCommits,
+    CommitResponse, CommitStatsResponse, ListCommitResponse, PaginatedCommits,
 };
 
 pub use crate::view::branch::{

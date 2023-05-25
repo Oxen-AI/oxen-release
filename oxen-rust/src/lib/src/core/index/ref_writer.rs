@@ -107,6 +107,8 @@ impl RefWriter {
     }
 
     pub fn set_branch_commit_id(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
+        log::debug!("self.refs_db.path {:?}", self.refs_db.path());
+        log::debug!("self.refs_db.put {} -> {}", name, commit_id);
         self.refs_db.put(name, commit_id)?;
         Ok(())
     }

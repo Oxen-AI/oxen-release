@@ -3,7 +3,6 @@ use crate::app_data::OxenAppData;
 use liboxen::api;
 
 use actix_web::{HttpRequest, HttpResponse};
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{ListSchemaResponse, StatusMessage};
 use std::path::PathBuf;
 
@@ -29,8 +28,7 @@ pub async fn get(req: HttpRequest) -> HttpResponse {
                 match api::local::schemas::list(&repo, Some(&commit_id)) {
                     Ok(schemas) => {
                         let response = ListSchemaResponse {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_FOUND),
+                            status: StatusMessage::resource_found(),
                             schemas,
                         };
                         HttpResponse::Ok().json(response)

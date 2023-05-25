@@ -73,7 +73,6 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::SerdeError(_) => {
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
             }
-
             OxenHttpError::InternalOxenError(error) => {
                 // Catch specific OxenError's and return the appropriate response
                 match error {
