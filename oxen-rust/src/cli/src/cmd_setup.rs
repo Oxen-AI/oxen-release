@@ -436,6 +436,7 @@ pub fn restore() -> Command {
             Arg::new("staged")
                 .long("staged")
                 .help("Restore content in staging area. By default, if --staged is given, the contents are restored from HEAD. Use --source to restore from a different commit.")
+                .action(clap::ArgAction::SetTrue),
         )
 }
 
