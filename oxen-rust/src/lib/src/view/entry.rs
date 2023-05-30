@@ -4,19 +4,19 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use super::StatusMessage;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EntryResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub entry: CommitEntry,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct RemoteEntryResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub entry: RemoteEntry,
 }
 
@@ -37,8 +37,8 @@ impl ResourceVersion {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedEntries {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub entries: Vec<RemoteEntry>,
     pub page_size: usize,
     pub page_number: usize,
@@ -48,6 +48,8 @@ pub struct PaginatedEntries {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntries {
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub entries: Vec<DirEntry>,
     pub resource: Option<ResourceVersion>,
     pub page_size: usize,
@@ -74,6 +76,7 @@ impl PaginatedDirEntries {
 
         let (paginated, total_pages) = util::paginate(entries, page_num, page_size);
         PaginatedDirEntries {
+            status: StatusMessage::resource_found(),
             entries: paginated,
             resource,
             page_size,
@@ -86,8 +89,8 @@ impl PaginatedDirEntries {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntriesResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub entries: Vec<DirEntry>,
     pub resource: Option<ResourceVersion>,
     pub page_size: usize,
@@ -99,8 +102,7 @@ pub struct PaginatedDirEntriesResponse {
 impl PaginatedDirEntriesResponse {
     pub fn ok_from(paginated: PaginatedDirEntries) -> Self {
         Self {
-            status: STATUS_SUCCESS.to_string(),
-            status_message: MSG_RESOURCE_FOUND.to_string(),
+            status: StatusMessage::resource_found(),
             entries: paginated.entries,
             resource: paginated.resource,
             page_size: paginated.page_size,

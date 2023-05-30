@@ -17,7 +17,7 @@ use liboxen::model::{
     ObjectID, Schema,
 };
 use liboxen::opts::DFOpts;
-use liboxen::view::http::{MSG_RESOURCE_CREATED, MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
     ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
@@ -56,14 +56,14 @@ pub async fn status_dir(
         liboxen::current_function!()
     );
 
-    Ok(get_dir_status_for_branch(
+    get_dir_status_for_branch(
         &repo,
         &resource.branch.ok_or(OxenHttpError::NotFound)?.name,
         &identifier,
         &resource.file_path,
         page_num,
         page_size,
-    ))
+    )
 }
 
 pub async fn diff_file(
@@ -190,8 +190,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     let row = liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
 
     Ok(HttpResponse::Ok().json(StagedFileModResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_CREATED),
+        status: StatusMessage::resource_created(),
         modification: row,
     }))
 }
@@ -279,8 +278,7 @@ fn delete_mod(
     match liboxen::core::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid)
     {
         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_CREATED),
+            status: StatusMessage::resource_deleted(),
             modification: entry,
         })),
         Err(OxenError::Basic(err)) => {
@@ -338,8 +336,7 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
         ret_files.push(file_path);
     }
     Ok(HttpResponse::Ok().json(FilePathsResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_CREATED),
+        status: StatusMessage::resource_created(),
         paths: ret_files,
     }))
 }
@@ -408,8 +405,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
                         });
 
                         Ok(HttpResponse::Ok().json(CommitResponse {
-                            status: String::from(STATUS_SUCCESS),
-                            status_message: String::from(MSG_RESOURCE_CREATED),
+                            status: StatusMessage::resource_created(),
                             commit: ret_commit,
                         }))
                     }
@@ -627,8 +623,7 @@ fn df_mods_response(
             };
 
             let response = ListStagedFileModResponseDF {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_FOUND),
+                status: StatusMessage::resource_found(),
                 data_type: String::from("tabular"),
                 modifications: StagedDFModifications { added_rows: df },
             };
@@ -653,64 +648,32 @@ fn get_dir_status_for_branch(
     directory: &Path,
     page_num: usize,
     page_size: usize,
-) -> HttpResponse {
-    match api::local::branches::get_by_name(repo, branch_name) {
-        Ok(Some(branch)) => {
-            let branch_repo = match index::remote_dir_stager::init_or_get(repo, &branch, user_id) {
-                Ok(repo) => repo,
-                Err(err) => {
-                    log::error!("Error getting branch repo for branch {:?} -> {err}", branch);
-                    return HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error());
-                }
-            };
-            log::debug!(
-                "GOT BRANCH REPO {:?} and DIR {:?}",
-                branch_repo.path,
-                directory
-            );
-            match index::remote_dir_stager::list_staged_data(
-                repo,
-                &branch_repo,
-                &branch,
-                user_id,
-                directory,
-            ) {
-                Ok(staged) => {
-                    staged.print_stdout();
-                    let full_path =
-                        index::remote_dir_stager::branch_staging_dir(repo, &branch, user_id);
-                    let branch_repo = LocalRepository::new(&full_path).unwrap();
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let branch = api::local::branches::get_by_name(repo, branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(branch_name))?;
 
-                    let response = RemoteStagedStatusResponse {
-                        status: STATUS_SUCCESS.to_string(),
-                        status_message: MSG_RESOURCE_FOUND.to_string(),
-                        staged: RemoteStagedStatus::from_staged(
-                            &branch_repo,
-                            &staged,
-                            page_num,
-                            page_size,
-                        ),
-                    };
-                    HttpResponse::Ok().json(response)
-                }
-                Err(err) => {
-                    log::error!(
-                        "Error getting staged data for branch {} {}",
-                        branch_name,
-                        err
-                    );
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            }
-        }
-        Ok(None) => {
-            log::error!("unable to find branch {}", branch_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting branch by name {branch_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    let branch_repo = index::remote_dir_stager::init_or_get(repo, &branch, user_id)?;
+
+    log::debug!(
+        "GOT BRANCH REPO {:?} and DIR {:?}",
+        branch_repo.path,
+        directory
+    );
+    let staged = index::remote_dir_stager::list_staged_data(
+        repo,
+        &branch_repo,
+        &branch,
+        user_id,
+        directory,
+    )?;
+
+    staged.print_stdout();
+    let full_path = index::remote_dir_stager::branch_staging_dir(repo, &branch, user_id);
+    let branch_repo = LocalRepository::new(&full_path).unwrap();
+
+    let response = RemoteStagedStatusResponse {
+        status: StatusMessage::resource_found(),
+        staged: RemoteStagedStatus::from_staged(&branch_repo, &staged, page_num, page_size),
+    };
+    Ok(HttpResponse::Ok().json(response))
 }

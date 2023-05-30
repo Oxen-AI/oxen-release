@@ -4,9 +4,9 @@
 //!
 
 use crate::api;
-use crate::core::index::{CommitReader, CommitWriter, RefReader, RefWriter};
+use crate::core::index::{CommitReader, CommitWriter, EntryIndexer, RefReader, RefWriter};
 use crate::error::OxenError;
-use crate::model::{Branch, LocalRepository};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch};
 
 /// List all the local branches within a repo
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
@@ -159,16 +159,61 @@ pub fn is_checked_out(repo: &LocalRepository, name: &str) -> bool {
 }
 
 pub async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    let branch = api::local::branches::get_by_name(repo, name)?
+        .ok_or(OxenError::local_branch_not_found(name))?;
+    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?
+        .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
+
+    // Sync changes if needed
+    maybe_pull_missing_entries(repo, &commit).await?;
+
     let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_branch(name).await
+    commit_writer.set_working_repo_to_commit(&commit).await
+}
+
+async fn maybe_pull_missing_entries(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    // If we don't have a remote, there are not missing entries, so return
+    let rb = RemoteBranch::default();
+    let remote = repo.get_remote(&rb.remote);
+    if remote.is_none() {
+        log::debug!("No remote, no missing entries to fetch");
+        return Ok(());
+    }
+
+    // Safe to unwrap now.
+    let remote = remote.unwrap();
+
+    let head_commit = api::local::commits::head_commit(repo)?;
+    match api::remote::repositories::get_by_remote(&remote).await {
+        Ok(Some(remote_repo)) => {
+            let indexer = EntryIndexer::new(repo)?;
+            indexer
+                .pull_all_entries_for_commit(&remote_repo, &head_commit, commit)
+                .await?;
+        }
+        Ok(None) => {
+            log::debug!("No remote repo found, no entries to fetch");
+        }
+        Err(err) => {
+            log::error!("Error getting remote repo: {}", err);
+        }
+    };
+
+    Ok(())
 }
 
 pub async fn set_working_commit_id(
     repo: &LocalRepository,
     commit_id: &str,
 ) -> Result<(), OxenError> {
+    let commit = api::local::commits::get_by_id(repo, commit_id)?
+        .ok_or(OxenError::commit_id_does_not_exist(commit_id))?;
+
     let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_commit_id(commit_id).await
+    commit_writer.set_working_repo_to_commit(&commit).await
 }
 
 pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {

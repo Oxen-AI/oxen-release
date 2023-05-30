@@ -259,7 +259,7 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        let mut committed_dirs = entry_reader.list_committed_dirs()?;
+        let mut committed_dirs = entry_reader.list_dirs()?;
         if dir.is_relative() && dir != self.repository.path {
             committed_dirs.retain(|path| path.starts_with(dir))
         }
@@ -1600,7 +1600,7 @@ mod tests {
             status.print_stdout();
 
             // Remove a committed file
-            std::fs::remove_file(&file_to_rm)?;
+            util::fs::remove_file(&file_to_rm)?;
 
             // List removed
             let status = stager.status(&entry_reader)?;
@@ -1638,7 +1638,7 @@ mod tests {
                 .join("one_shot.csv");
 
             // Remove a committed file
-            std::fs::remove_file(&one_shot_file)?;
+            util::fs::remove_file(&one_shot_file)?;
 
             // List removed
             let status = stager.status(&entry_reader)?;

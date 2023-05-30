@@ -11,6 +11,7 @@ use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
+use crate::util;
 
 use super::CommitEntryReader;
 use super::Stager;
@@ -67,7 +68,7 @@ async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     log::debug!("REMOVING DIRECTORY: {full_path:?}");
     if full_path.exists() {
         // user might have removed dir manually before using `oxen rm`
-        std::fs::remove_dir_all(&full_path)?;
+        util::fs::remove_dir_all(&full_path)?;
     }
 
     // Stage all the removed files
@@ -126,7 +127,7 @@ fn rm_file(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     log::debug!("REMOVING FILE: {full_path:?}");
     if full_path.exists() {
         // user might have removed file manually before using `oxen rm`
-        std::fs::remove_file(&full_path)?;
+        util::fs::remove_file(&full_path)?;
     }
 
     // Stage the removed file

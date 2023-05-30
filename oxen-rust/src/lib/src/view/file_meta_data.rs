@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::entry::ResourceVersion;
+use super::{entry::ResourceVersion, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FileMetaData {
@@ -13,14 +13,14 @@ pub struct FileMetaData {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FileMetaDataResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub meta: FileMetaData,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct FilePathsResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub paths: Vec<PathBuf>,
 }

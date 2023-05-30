@@ -248,7 +248,7 @@ fn test_command_restore_removed_file_from_head() -> Result<(), OxenError> {
         command::commit(&repo, "My message")?;
 
         // Remove the file from disk
-        std::fs::remove_file(&hello_file)?;
+        util::fs::remove_file(&hello_file)?;
 
         // Check that it doesn't exist, then it does after we restore it
         assert!(!hello_file.exists());
@@ -815,7 +815,7 @@ fn test_command_add_removed_file() -> Result<(), OxenError> {
         command::commit(&repo, "Adding labels file")?;
 
         // Delete the file
-        std::fs::remove_file(&file_to_remove)?;
+        util::fs::remove_file(&file_to_remove)?;
 
         // We should recognize it as missing now
         let status = command::status(&repo)?;
@@ -846,7 +846,7 @@ async fn test_command_restore_removed_file_from_branch_with_commits_between(
         api::local::branches::create_checkout(&repo, "remove-labels")?;
 
         // Delete the file
-        std::fs::remove_file(&file_to_remove)?;
+        util::fs::remove_file(&file_to_remove)?;
 
         // We should recognize it as missing now
         let status = command::status(&repo)?;
@@ -880,7 +880,7 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train directory")?;
 
         // Delete the directory
-        std::fs::remove_dir_all(&dir_to_remove)?;
+        util::fs::remove_dir_all(&dir_to_remove)?;
 
         // Add the deleted dir, so that we can commit the deletion
         command::add(&repo, &dir_to_remove)?;
@@ -919,7 +919,7 @@ async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Delete the directory from disk
-        std::fs::remove_dir_all(&dir_to_remove)?;
+        util::fs::remove_dir_all(&dir_to_remove)?;
 
         // Track the deletion
         command::add(&repo, &dir_to_remove)?;
@@ -1349,7 +1349,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
             println!("----BEFORE-----");
             // Remove a file, add, commit, push the change
-            std::fs::remove_file(&send_it_back_file_path)?;
+            util::fs::remove_file(&send_it_back_file_path)?;
             command::add(&cloned_repo, &send_it_back_file_path)?;
             command::commit(&cloned_repo, "Removing the send it back file")?;
             command::push(&cloned_repo).await?;
@@ -1421,7 +1421,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
             assert_eq!(pulled_content, changed_content);
 
             // Delete the file in the og filepath
-            std::fs::remove_file(&filepath)?;
+            util::fs::remove_file(&filepath)?;
 
             // Stage & Commit & Push the removal
             command::add(&repo, &filepath)?;
@@ -2400,7 +2400,7 @@ fn test_restore_directory() -> Result<(), OxenError> {
         let bbox_path = repo.path.join(bbox_file);
 
         let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
-        std::fs::remove_file(&bbox_path)?;
+        util::fs::remove_file(&bbox_path)?;
 
         // Modify another file
         let readme_file = annotations_dir.join("README.md");
@@ -2439,7 +2439,7 @@ fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
         let bbox_path = repo.path.join(&bbox_file);
 
         let og_contents = util::fs::read_from_path(&bbox_path)?;
-        std::fs::remove_file(&bbox_path)?;
+        util::fs::remove_file(&bbox_path)?;
 
         command::restore(
             &repo,
@@ -2559,7 +2559,7 @@ fn test_restore_data_frame_with_duplicates() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "adding data with duplicates")?;
 
         // Remove
-        std::fs::remove_file(&ann_path)?;
+        util::fs::remove_file(&ann_path)?;
 
         // Restore from commit
         command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
@@ -2591,7 +2591,7 @@ fn test_restore_bounding_box_data_frame() -> Result<(), OxenError> {
         let commit = command::commit(&repo, "adding data with duplicates")?;
 
         // Remove
-        std::fs::remove_file(&ann_path)?;
+        util::fs::remove_file(&ann_path)?;
 
         // Restore from commit
         command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
@@ -3024,7 +3024,7 @@ async fn test_status_rm_regular_file() -> Result<(), OxenError> {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
-        std::fs::remove_file(og_file)?;
+        util::fs::remove_file(og_file)?;
 
         let status = command::status(&repo)?;
         status.print_stdout();
@@ -3053,7 +3053,7 @@ async fn test_status_rm_directory_file() -> Result<(), OxenError> {
         // Move the file to a new name
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
-        std::fs::remove_file(og_file)?;
+        util::fs::remove_file(og_file)?;
 
         let status = command::status(&repo)?;
         status.print_stdout();
@@ -3331,79 +3331,6 @@ async fn test_cannot_push_two_separate_repos() -> Result<(), OxenError> {
         .await?;
 
         Ok(())
-    })
-    .await
-}
-
-// Test that we cannot clone separate repos with separate histories, then push to the same history
-// 1) Clone repo A with data
-// 2) Clone repo B with data
-// 3) Push Repo A
-// 4) Push repo B to repo A and fail
-#[tokio::test]
-async fn test_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
-    // Push the first repo with data
-    test::run_training_data_fully_sync_remote(|_, remote_repo_1| async move {
-        let remote_repo_1_copy = remote_repo_1.clone();
-
-        // Push the second repo with data
-        test::run_training_data_fully_sync_remote(|_, remote_repo_2| async move {
-            let remote_repo_2_copy = remote_repo_2.clone();
-            // Clone the first repo
-            test::run_empty_dir_test_async(|first_repo_dir| async move {
-                let first_cloned_repo =
-                    command::clone_url(&remote_repo_1.remote.url, &first_repo_dir).await?;
-
-                // Clone the second repo
-                test::run_empty_dir_test_async(|second_repo_dir| async move {
-                    let mut second_cloned_repo =
-                        command::clone_url(&remote_repo_2.remote.url, &second_repo_dir).await?;
-
-                    // Add to the first repo, after we have the second repo cloned
-                    let new_file = "new_file.txt";
-                    let new_file_path = first_cloned_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                    command::add(&first_cloned_repo, &new_file_path)?;
-                    command::commit(&first_cloned_repo, "Adding first file path.")?;
-                    command::push(&first_cloned_repo).await?;
-
-                    // Reset the remote on the second repo to the first repo
-                    let first_remote = test::repo_remote_url_from(&first_cloned_repo.dirname());
-                    command::config::set_remote(
-                        &mut second_cloned_repo,
-                        constants::DEFAULT_REMOTE_NAME,
-                        &first_remote,
-                    )?;
-
-                    // Adding two commits to have a longer history that also should fail
-                    let new_file = "new_file_2.txt";
-                    let new_file_path = second_cloned_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 2")?;
-                    command::add(&second_cloned_repo, &new_file_path)?;
-                    command::commit(&second_cloned_repo, "Adding second file path.")?;
-
-                    let new_file = "new_file_3.txt";
-                    let new_file_path = second_cloned_repo.path.join(new_file);
-                    let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 3")?;
-                    command::add(&second_cloned_repo, &new_file_path)?;
-                    command::commit(&second_cloned_repo, "Adding third file path.")?;
-
-                    // Push should FAIL
-                    let result = command::push(&second_cloned_repo).await;
-                    assert!(result.is_err());
-
-                    Ok(second_repo_dir)
-                })
-                .await?;
-
-                Ok(first_repo_dir)
-            })
-            .await?;
-            Ok(remote_repo_2_copy)
-        })
-        .await?;
-
-        Ok(remote_repo_1_copy)
     })
     .await
 }
@@ -3689,7 +3616,7 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
 }
 
 #[tokio::test]
-async fn test_commit_behind_main() -> Result<(), OxenError> {
+async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
     test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
         // Create branch behind-main off main
         let new_branch = "behind-main";

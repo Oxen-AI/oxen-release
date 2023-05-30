@@ -5,14 +5,12 @@ pub mod cmd_setup;
 pub mod dispatch;
 pub mod parse_and_run;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 #[tokio::main]
 async fn main() {
     env_logger::init_from_env(Env::default());
 
     let command = Command::new("oxen")
-        .version(VERSION)
+        .version(liboxen::constants::OXEN_VERSION)
         .about("🐂 is a machine learning dataset management toolchain")
         .subcommand_required(true)
         .arg_required_else_help(true)

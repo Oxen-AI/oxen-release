@@ -1,5 +1,5 @@
 use crate::api;
-use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::constants::MERGE_DIR;
 use crate::core::db;
 use crate::core::index::{
     oxenignore, CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
@@ -14,7 +14,11 @@ use rocksdb::DB;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use super::restore;
+use super::{merge_conflict_writer, restore};
+
+pub fn db_path(repo: &LocalRepository) -> PathBuf {
+    util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR))
+}
 
 // This is a struct to find the commits we want to merge
 pub struct MergeCommits {
@@ -35,8 +39,9 @@ pub struct Merger {
 }
 
 impl Merger {
+    /// Create a new merger
     pub fn new(repo: &LocalRepository) -> Result<Merger, OxenError> {
-        let db_path = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR));
+        let db_path = db_path(repo);
         log::debug!("Merger::new() DB {:?}", db_path);
         let opts = db::opts::default();
         Ok(Merger {
@@ -115,7 +120,7 @@ impl Merger {
     }
 
     /// Merge into the current branch, returns the merge commit if successful, and None if there is conflicts
-    pub fn merge<S: AsRef<str>>(&self, branch_name: S) -> Result<Option<Commit>, OxenError> {
+    pub fn merge(&self, branch_name: impl AsRef<str>) -> Result<Option<Commit>, OxenError> {
         let branch_name = branch_name.as_ref();
         let commit_reader = CommitReader::new(&self.repository)?;
 
@@ -132,7 +137,7 @@ impl Merger {
             merge: merge_commit,
         };
 
-        self.merge_commits(&merge_branch.name, &merge_commits)
+        self.merge_commits(&merge_commits)
     }
 
     /// Merge a branch into a base branch, returns the merge commit if successful, and None if there is conflicts
@@ -145,6 +150,7 @@ impl Merger {
             "merge_into_base merge {} into {}",
             merge_branch, base_branch
         );
+
         if merge_branch.commit_id == base_branch.commit_id {
             // If the merge branch is the same as the base branch, there is nothing to merge
             return Ok(None);
@@ -161,15 +167,27 @@ impl Merger {
             merge: merge_commit,
         };
 
-        self.merge_commits(&merge_branch.name, &merge_commits)
+        self.merge_commits(&merge_commits)
     }
 
-    fn merge_commits(
+    pub fn merge_commit_into_base(
         &self,
-        branch_name: impl AsRef<str>,
-        merge_commits: &MergeCommits,
+        merge_commit: &Commit,
+        base_commit: &Commit,
     ) -> Result<Option<Commit>, OxenError> {
-        let branch_name = branch_name.as_ref();
+        let commit_reader = CommitReader::new(&self.repository)?;
+
+        let lca = self.p_lowest_common_ancestor(&commit_reader, base_commit, merge_commit)?;
+        let merge_commits = MergeCommits {
+            lca,
+            base: base_commit.to_owned(),
+            merge: merge_commit.to_owned(),
+        };
+
+        self.merge_commits(&merge_commits)
+    }
+
+    fn merge_commits(&self, merge_commits: &MergeCommits) -> Result<Option<Commit>, OxenError> {
         // User output
         println!(
             "Updating {} -> {}",
@@ -193,14 +211,26 @@ impl Merger {
             let commit = self.fast_forward_merge(&merge_commits.base, &merge_commits.merge)?;
             Ok(Some(commit))
         } else {
-            log::debug!("Three way merge! {}", branch_name);
+            log::debug!(
+                "Three way merge! {} -> {}",
+                merge_commits.base.id,
+                merge_commits.merge.id
+            );
 
             let conflicts = self.find_merge_conflicts(merge_commits)?;
+            log::debug!("Got {} conflicts", conflicts.len());
+
             if conflicts.is_empty() {
-                let commit = self.create_merge_commit(branch_name, merge_commits)?;
+                let commit = self.create_merge_commit(merge_commits)?;
                 Ok(Some(commit))
             } else {
-                self.write_conflicts_to_disk(merge_commits, &conflicts)?;
+                merge_conflict_writer::write_conflicts_to_disk(
+                    &self.repository,
+                    &self.merge_db,
+                    &merge_commits.merge,
+                    &merge_commits.base,
+                    &conflicts,
+                )?;
                 Ok(None)
             }
         }
@@ -217,34 +247,7 @@ impl Merger {
         Ok(())
     }
 
-    fn write_conflicts_to_disk(
-        &self,
-        merge_commits: &MergeCommits,
-        conflicts: &[MergeConflict],
-    ) -> Result<(), OxenError> {
-        // Write two files which are the merge commit and head commit so that we can make these parents later
-        let hidden_dir = util::fs::oxen_hidden_dir(&self.repository.path);
-        let merge_head_path = hidden_dir.join(MERGE_HEAD_FILE);
-        let orig_head_path = hidden_dir.join(ORIG_HEAD_FILE);
-        util::fs::write_to_path(&merge_head_path, &merge_commits.merge.id)?;
-        util::fs::write_to_path(&orig_head_path, &merge_commits.base.id)?;
-
-        for conflict in conflicts.iter() {
-            let key = conflict.base_entry.path.to_str().unwrap();
-            let key_bytes = key.as_bytes();
-            let val_json = serde_json::to_string(&conflict)?;
-
-            self.merge_db.put(key_bytes, val_json.as_bytes())?;
-        }
-
-        Ok(())
-    }
-
-    fn create_merge_commit<S: AsRef<str>>(
-        &self,
-        branch_name: S,
-        merge_commits: &MergeCommits,
-    ) -> Result<Commit, OxenError> {
+    fn create_merge_commit(&self, merge_commits: &MergeCommits) -> Result<Commit, OxenError> {
         let repo = &self.repository;
 
         // Stage changes
@@ -254,7 +257,10 @@ impl Merger {
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &ignore)?;
 
-        let commit_msg = format!("Merge branch '{}'", branch_name.as_ref());
+        let commit_msg = format!(
+            "Merge commit {} into {}",
+            merge_commits.merge.id, merge_commits.base.id
+        );
 
         log::debug!("create_merge_commit {}", commit_msg);
 
@@ -335,7 +341,9 @@ impl Merger {
                 log::debug!("Removing Base Entry: {:?}", base_entry.path);
 
                 let path = self.repository.path.join(&base_entry.path);
-                std::fs::remove_file(path)?;
+                if path.exists() {
+                    util::fs::remove_file(path)?;
+                }
             }
         }
 
@@ -445,6 +453,8 @@ impl Merger {
 
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
+            log::debug!("Considering entry {}", merge_entries.len());
+
             // Check if the entry exists in all 3 commits
             if let Some(base_entry) = base_entries.get(merge_entry) {
                 if let Some(lca_entry) = lca_entries.get(merge_entry) {
@@ -460,10 +470,6 @@ impl Merger {
                         self.update_entry(merge_entry)?;
                     }
 
-                    // TODO: IS THIS CORRECT? Feels like we need to do something...
-                    // If Merge and LCA are the same, but base is different, take base
-                    // Since we are already on base, this means do nothing
-
                     // If all three are different, mark as conflict
                     if base_entry.hash != lca_entry.hash
                         && lca_entry.hash != merge_entry.hash
@@ -475,7 +481,16 @@ impl Merger {
                             merge_entry: merge_entry.to_owned(),
                         });
                     }
-                } // merge entry doesn't exist in LCA, which is fine, we will catch it in base
+                } else {
+                    // merge entry doesn't exist in LCA, so just check if it's different from base
+                    if base_entry.hash != merge_entry.hash {
+                        conflicts.push(MergeConflict {
+                            lca_entry: base_entry.to_owned(),
+                            base_entry: base_entry.to_owned(),
+                            merge_entry: merge_entry.to_owned(),
+                        });
+                    }
+                }
             } else {
                 // merge entry does not exist in base, so create it
                 self.update_entry(merge_entry)?;
@@ -623,7 +638,7 @@ mod tests {
 
             // Remove the file
             let world_file = repo.path.join("world.txt");
-            std::fs::remove_file(&world_file)?;
+            util::fs::remove_file(&world_file)?;
 
             // Commit the removal
             command::add(&repo, &world_file)?;

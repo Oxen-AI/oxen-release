@@ -25,7 +25,7 @@ pub struct StagedDirEntryDB<T: ThreadMode> {
 }
 
 pub fn staging_dir(repo: &LocalRepository, dir: &Path) -> PathBuf {
-    log::debug!("StagedDirEntryDB got repo path {:?}", repo.path);
+    // log::debug!("StagedDirEntryDB got repo path {:?}", repo.path);
     util::fs::oxen_hidden_dir(&repo.path)
         .join(Path::new(STAGED_DIR))
         .join("files")
@@ -55,10 +55,10 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
         dir: &Path,
         read_only: bool,
     ) -> Result<StagedDirEntryDB<T>, OxenError> {
-        log::debug!("StagedDirEntryDB got dir {:?}", dir);
+        // log::debug!("StagedDirEntryDB got dir {:?}", dir);
         let db_path = staging_dir(repository, dir);
 
-        log::debug!("StagedDirEntryDB db_path {:?}", db_path);
+        // log::debug!("StagedDirEntryDB db_path {:?}", db_path);
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
         }

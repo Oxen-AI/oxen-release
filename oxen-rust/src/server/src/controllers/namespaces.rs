@@ -1,7 +1,6 @@
 use crate::app_data::OxenAppData;
 
 use liboxen::api;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::{ListNamespacesResponse, NamespaceResponse, NamespaceView, StatusMessage};
 
 use actix_web::{HttpRequest, HttpResponse};
@@ -15,8 +14,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
         .collect();
 
     let view = ListNamespacesResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
+        status: StatusMessage::resource_found(),
         namespaces,
     };
 
@@ -30,8 +28,7 @@ pub async fn show(req: HttpRequest) -> HttpResponse {
     if let Some(namespace) = namespace {
         match api::local::namespaces::get(&app_data.path, namespace) {
             Ok(Some(namespace)) => HttpResponse::Ok().json(NamespaceResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_FOUND),
+                status: StatusMessage::resource_found(),
                 namespace,
             }),
 

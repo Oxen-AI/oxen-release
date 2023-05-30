@@ -4,8 +4,7 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::error::OxenError;
 use liboxen::util;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::EntryMetaDataResponse;
+use liboxen::view::{EntryMetaDataResponse, StatusMessage};
 use liboxen::{api, current_function};
 
 use actix_files::NamedFile;
@@ -62,8 +61,7 @@ pub async fn meta_data(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
 
     let entry = api::local::entries::get_dir_entry(&repo, &resource.commit, &resource.file_path)?;
     let meta = EntryMetaDataResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
+        status: StatusMessage::resource_found(),
         entry,
     };
     Ok(HttpResponse::Ok().json(meta))

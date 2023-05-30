@@ -8,6 +8,8 @@ use std::io::Cursor;
 use crate::core::df::tabular;
 use crate::{model::Schema, opts::DFOpts};
 
+use super::StatusMessage;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataSize {
     pub height: usize,
@@ -30,8 +32,8 @@ pub struct JsonDataFrame {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JsonDataFrameSliceResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub df: JsonDataFrame,
     pub full_size: JsonDataSize,
     pub page_number: usize,

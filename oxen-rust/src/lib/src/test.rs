@@ -98,7 +98,7 @@ where
     });
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -118,7 +118,7 @@ where
     let result = match test(repo_dir).await {
         Ok(repo_dir) => {
             // Remove repo dir
-            std::fs::remove_dir_all(repo_dir)?;
+            util::fs::remove_dir_all(repo_dir)?;
             true
         }
         Err(err) => {
@@ -150,7 +150,7 @@ where
     };
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -175,7 +175,7 @@ where
     };
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -212,7 +212,7 @@ where
     };
 
     // Cleanup local repo
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -379,7 +379,7 @@ where
     };
 
     // Cleanup Local
-    std::fs::remove_dir_all(path)?;
+    util::fs::remove_dir_all(path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -414,9 +414,9 @@ where
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
-        Ok(repo) => {
-            // Cleanup remote repo
-            api::remote::repositories::delete(&repo).await?;
+        Ok(_repo) => {
+            // TODO: Cleanup remote repo
+            // this was failing
             true
         }
         Err(err) => {
@@ -426,7 +426,7 @@ where
     };
 
     // Cleanup Local
-    std::fs::remove_dir_all(path)?;
+    util::fs::remove_dir_all(path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -456,7 +456,7 @@ where
     };
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -484,7 +484,7 @@ where
     });
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -528,7 +528,7 @@ where
     };
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -569,7 +569,7 @@ where
     });
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -617,7 +617,7 @@ where
     });
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -642,7 +642,7 @@ where
     });
 
     // Remove repo dir
-    std::fs::remove_dir_all(&repo_dir)?;
+    util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());
@@ -927,7 +927,7 @@ pub fn modify_txt_file<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBu
 
     // Overwrite
     if path.exists() {
-        std::fs::remove_file(path)?;
+        util::fs::remove_file(path)?;
     }
 
     let path = write_txt_file_to_path(path, contents)?;

@@ -1,6 +1,7 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::config::UserConfig;
+use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
@@ -21,25 +22,45 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use time::format_description;
 
+fn get_host_or_default() -> Result<String, OxenError> {
+    let config = UserConfig::get_or_create()?;
+    Ok(config
+        .default_host
+        .unwrap_or(constants::DEFAULT_HOST.to_string()))
+}
+
+fn get_host_from_repo(repo: &LocalRepository) -> Result<String, OxenError> {
+    if let Some(remote) = repo.remote() {
+        let host = api::remote::client::get_host_from_url(remote.url)?;
+        return Ok(host);
+    }
+    get_host_or_default()
+}
+
+pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError> {
+    // Do the version check in the dispatch because it's only really the CLI that needs to do it
+    match api::remote::version::get_remote_version(host.as_ref()).await {
+        Ok(remote_version) => {
+            let local_version: &str = constants::OXEN_VERSION;
+
+            if remote_version != local_version {
+                let warning = format!("Warning: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n").yellow();
+                eprintln!("{warning}");
+            }
+        }
+        Err(err) => {
+            eprintln!("Err checking remote version: {err}")
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn init(path: &str) -> Result<(), OxenError> {
     let directory = std::fs::canonicalize(PathBuf::from(&path))?;
 
-    // Do the version check in the dispatch because it's only really the CLI that needs to do it
-    let config = UserConfig::get_or_create()?;
-    if let Some(host) = config.default_host {
-        match api::remote::version::get_remote_version(&host).await {
-            Ok(remote_version) => {
-                let local_version: &str = env!("CARGO_PKG_VERSION");
-
-                if remote_version != local_version {
-                    println!("There is a newer Oxen version 🐂 {remote_version}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n\n");
-                }
-            }
-            Err(err) => {
-                eprintln!("Err checking remote version: {err}")
-            }
-        }
-    }
+    let host = get_host_or_default()?;
+    check_remote_version(host).await?;
 
     command::init(&directory)?;
     println!("🐂 repository initialized at: {directory:?}");
@@ -47,6 +68,9 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
 }
 
 pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
+    let host = api::remote::client::get_host_from_url(&opts.url)?;
+    check_remote_version(host).await?;
+
     command::clone(opts).await?;
     Ok(())
 }
@@ -206,6 +230,9 @@ pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    let host = get_host_from_repo(&repository)?;
+    check_remote_version(host).await?;
+
     command::push_remote_branch(&repository, remote, branch).await?;
     Ok(())
 }
@@ -213,6 +240,9 @@ pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
 pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let host = get_host_from_repo(&repository)?;
+    check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch).await?;
     Ok(())
@@ -333,6 +363,9 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    let host = get_host_from_repo(&repository)?;
+    check_remote_version(host).await?;
+
     let directory = directory.unwrap_or(PathBuf::from("."));
 
     if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
@@ -367,6 +400,10 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let host = get_host_from_repo(&repository)?;
+    check_remote_version(host).await?;
+
     let directory = directory.unwrap_or(PathBuf::from("."));
     let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
     let branch = api::local::branches::current_branch(&repository)?
@@ -398,6 +435,9 @@ pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
 pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    let host = get_host_from_repo(&repo)?;
+    check_remote_version(host).await?;
 
     command::remote::df(&repo, input, opts).await?;
     Ok(())
@@ -496,6 +536,10 @@ pub fn delete_branch(name: &str) -> Result<(), OxenError> {
 pub async fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let host = get_host_from_repo(&repository)?;
+    check_remote_version(host).await?;
+
     api::remote::branches::delete_remote(&repository, remote_name, branch_name).await?;
     Ok(())
 }
@@ -528,6 +572,13 @@ pub fn checkout_theirs(path: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub fn checkout_ours(path: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::checkout_ours(&repository, path)?;
+    Ok(())
+}
+
 pub fn create_checkout_branch(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -555,6 +606,9 @@ pub fn list_branches() -> Result<(), OxenError> {
 pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    let host = get_host_from_repo(&repo)?;
+    check_remote_version(host).await?;
 
     let remote = repo
         .get_remote(name)

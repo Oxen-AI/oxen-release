@@ -74,8 +74,8 @@ impl CommitEntryReader {
         CommitEntryReader::new(repository, &commit)
     }
 
-    pub fn list_committed_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
-        log::debug!("CommitEntryReader::list_committed_dirs()");
+    pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
+        log::debug!("CommitEntryReader::list_dirs()");
         path_db::list_paths(&self.dir_db, Path::new(""))
     }
 
@@ -85,7 +85,7 @@ impl CommitEntryReader {
 
     pub fn num_entries(&self) -> Result<usize, OxenError> {
         let mut count = 0;
-        for dir in self.list_committed_dirs()? {
+        for dir in self.list_dirs()? {
             let commit_entry_dir =
                 CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
             count += commit_entry_dir.num_entries();
@@ -95,7 +95,7 @@ impl CommitEntryReader {
 
     pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
-        for dir in self.list_committed_dirs()? {
+        for dir in self.list_dirs()? {
             let commit_dir =
                 CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
             let mut files = commit_dir.list_files()?;
@@ -107,7 +107,7 @@ impl CommitEntryReader {
     /// List entries in a vector when we need ordering
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
-        for dir in self.list_committed_dirs()? {
+        for dir in self.list_dirs()? {
             let commit_dir =
                 CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
             let mut files = commit_dir.list_entries()?;
@@ -119,7 +119,7 @@ impl CommitEntryReader {
     /// List entries in a set for quick lookup
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
         let mut paths: HashSet<CommitEntry> = HashSet::new();
-        for dir in self.list_committed_dirs()? {
+        for dir in self.list_dirs()? {
             let commit_dir =
                 CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
             let files = commit_dir.list_entries_set()?;
@@ -153,7 +153,7 @@ impl CommitEntryReader {
         log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
         let mut entries = vec![];
         // This lists all the committed dirs
-        let dirs = self.list_committed_dirs()?;
+        let dirs = self.list_dirs()?;
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
             // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);

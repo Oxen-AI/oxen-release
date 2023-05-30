@@ -243,16 +243,12 @@ pub fn df() -> Command {
             Arg::new("head")
                 .long("head")
                 .help("Grab the first N entries of the data frame.")
-                .default_value("10")
-                .default_missing_value("10")
                 .action(clap::ArgAction::Set),
         )
         .arg(
             Arg::new("tail")
                 .long("tail")
                 .help("Grab the last N entries of the data frame.")
-                .default_value("10")
-                .default_missing_value("10")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -440,6 +436,7 @@ pub fn restore() -> Command {
             Arg::new("staged")
                 .long("staged")
                 .help("Restore content in staging area. By default, if --staged is given, the contents are restored from HEAD. Use --source to restore from a different commit.")
+                .action(clap::ArgAction::SetTrue),
         )
 }
 
@@ -505,9 +502,15 @@ pub fn checkout() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("ours")
+                .long("ours")
+                .help("Checkout the content of the base branch and take it as the working directories version. Will overwrite your working file.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("theirs")
                 .long("theirs")
-                .help("Checkout the content of the conflicting branch and take it as your data. Will overwrite your working file.")
+                .help("Checkout the content of the merge branch and take it as the working directories version. Will overwrite your working file.")
                 .action(clap::ArgAction::SetTrue),
         )
 }
