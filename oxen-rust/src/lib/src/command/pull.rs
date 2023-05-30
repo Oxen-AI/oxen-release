@@ -112,4 +112,67 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_pull_does_not_overwrite_local_files() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_empty_sync_repo_test(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.clone();
+                let user_a_repo =
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+
+                // Clone Repo to User B
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
+                    let user_b_repo =
+                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+
+                    // Add file_1 and file_2 to user A repo
+                    let file_1 = "file_1.txt";
+                    test::write_txt_file_to_path(user_a_repo.path.join(file_1), "File 1")?;
+                    let file_2 = "file_2.txt";
+                    test::write_txt_file_to_path(user_a_repo.path.join(file_2), "File 2")?;
+
+                    command::add(&user_a_repo, user_a_repo.path.join(file_1))?;
+                    command::add(&user_a_repo, user_a_repo.path.join(file_2))?;
+
+                    command::commit(&user_a_repo, "Adding file_1 and file_2")?;
+
+                    // Push
+                    command::push(&user_a_repo).await?;
+
+                    // Add file_3 to user B repo
+                    let file_3 = "file_3.txt";
+                    test::write_txt_file_to_path(user_b_repo.path.join(file_3), "File 3")?;
+                    command::add(&user_b_repo, user_b_repo.path.join(file_3))?;
+                    command::commit(&user_b_repo, "Adding file_3")?;
+
+                    // Push should fail, we are behind
+                    let result = command::push(&user_b_repo).await;
+                    assert!(result.is_err());
+
+                    // Pull changes
+                    command::pull(&user_b_repo).await?;
+
+                    // Make sure we now have all three files
+                    assert!(user_b_repo.path.join(file_1).exists());
+                    assert!(user_b_repo.path.join(file_2).exists());
+                    assert!(user_b_repo.path.join(file_3).exists());
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
 }

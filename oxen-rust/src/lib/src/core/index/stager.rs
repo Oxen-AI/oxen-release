@@ -259,7 +259,7 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        let mut committed_dirs = entry_reader.list_committed_dirs()?;
+        let mut committed_dirs = entry_reader.list_dirs()?;
         if dir.is_relative() && dir != self.repository.path {
             committed_dirs.retain(|path| path.starts_with(dir))
         }

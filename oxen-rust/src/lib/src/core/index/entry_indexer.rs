@@ -69,7 +69,7 @@ impl EntryIndexer {
             commit.message
         );
         let limit: usize = 0; // zero means pull all
-        self.pull_entries_for_commit(remote_repo, head_commit, commit, limit)
+        self.pull_entries_for_commit(remote_repo, head_commit, commit.clone(), limit)
             .await
     }
 
@@ -209,7 +209,7 @@ impl EntryIndexer {
         limit: usize,
     ) -> Result<(), OxenError> {
         self.pull_commit_data_objects(remote_repo, commit).await?;
-        self.pull_entries_for_commit(remote_repo, head_commit, commit, limit)
+        self.pull_entries_for_commit(remote_repo, head_commit, commit.clone(), limit)
             .await
     }
 
@@ -236,7 +236,7 @@ impl EntryIndexer {
         &self,
         remote_repo: &RemoteRepository,
         head_commit: &Commit,
-        commit: &Commit,
+        mut commit: Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
         log::debug!(
@@ -245,7 +245,7 @@ impl EntryIndexer {
             commit.message
         );
 
-        if index::commit_sync_status::commit_is_synced(&self.repository, commit) {
+        if index::commit_sync_status::commit_is_synced(&self.repository, &commit) {
             log::debug!(
                 "🐂 commit {} -> '{}' is already synced",
                 commit.id,
@@ -254,7 +254,7 @@ impl EntryIndexer {
             return Ok(());
         }
 
-        let entries = self.read_pulled_commit_entries(commit, limit)?;
+        let entries = self.read_pulled_commit_entries(&commit, limit)?;
         log::debug!(
             "🐂 pull_entries_for_commit_id commit_id {} limit {} entries.len() {}",
             commit.id,
@@ -264,21 +264,25 @@ impl EntryIndexer {
 
         // Pull all the entries and unpack them to the versions dir
         puller::pull_entries(remote_repo, &entries, &self.repository.path, &|| {
-            self.backup_to_versions_dir(commit, &entries).unwrap();
+            self.backup_to_versions_dir(&commit, &entries).unwrap();
 
             if limit == 0 {
                 // limit == 0 means we pulled everything, so mark it as complete
-                self.pull_complete(commit).unwrap();
+                self.pull_complete(&commit).unwrap();
             }
         })
         .await?;
 
-        // Cleanup files that shouldn't be there
-        self.cleanup_removed_entries(commit)?;
+        // TODO Do we add a flag for if this pull is a merge somehow...?
 
         // If the branches have diverged, we need to merge the commit into the base
         let merger = Merger::new(&self.repository)?;
-        merger.merge_commit_into_base(commit, head_commit)?;
+        if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
+            commit = merge_commit;
+        }
+
+        // Cleanup files that shouldn't be there
+        self.cleanup_removed_entries(&commit)?;
 
         Ok(())
     }
@@ -319,6 +323,12 @@ impl EntryIndexer {
     }
 
     fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
+        log::debug!(
+            "{} commit {} -> {}",
+            current_function!(),
+            commit.id,
+            commit.message
+        );
         let repository = self.repository.clone();
         let commit = commit.clone();
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
@@ -332,6 +342,12 @@ impl EntryIndexer {
                     .par_iter_mut()
                     .for_each(|dir_entry_result| {
                         if let Ok(dir_entry) = dir_entry_result {
+                            log::debug!(
+                                "{} considering entry {:?}",
+                                current_function!(),
+                                dir_entry
+                            );
+
                             if !dir_entry.file_type.is_dir() {
                                 let short_path = util::fs::path_relative_to_dir(
                                     dir_entry.path(),
@@ -341,6 +357,12 @@ impl EntryIndexer {
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
                                 if !commit_reader.has_file(path) {
+                                    log::debug!(
+                                        "{} commit reader does not have file {:?}",
+                                        current_function!(),
+                                        path
+                                    );
+
                                     let full_path = repository.path.join(short_path);
                                     if util::fs::remove_file(full_path).is_ok() {
                                         dir_entry.client_state = Some(true);
