@@ -52,7 +52,7 @@ pub fn dir_entry_from_dir(
     let mut latest_commit = Some(commit.to_owned());
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
-    let dirs = entry_reader.list_committed_dirs()?;
+    let dirs = entry_reader.list_dirs()?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
@@ -160,7 +160,7 @@ pub fn list_directory(
     let commit_reader = CommitReader::new(repo)?;
 
     let mut dir_paths: Vec<DirEntry> = vec![];
-    for dir in entry_reader.list_committed_dirs()? {
+    for dir in entry_reader.list_dirs()? {
         // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
         if let Some(parent) = dir.parent() {
             if parent == directory || (parent == Path::new("") && directory == Path::new("./")) {

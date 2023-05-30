@@ -56,7 +56,7 @@ fn restore_dir(
     commit: &Commit,
     dir_reader: &CommitEntryReader,
 ) -> Result<(), OxenError> {
-    let dirs = dir_reader.list_committed_dirs()?;
+    let dirs = dir_reader.list_dirs()?;
     for dir in dirs {
         if dir.starts_with(path) {
             let reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
