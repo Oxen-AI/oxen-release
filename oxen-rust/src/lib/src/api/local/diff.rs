@@ -288,7 +288,17 @@ pub fn list_diff_entries(
     // We want to find all the entries that are added, modified, removed HEAD but not in BASE
 
     // Read the entries from the base commit and the head commit
+    log::debug!(
+        "Reading entries from head commit {} -> {}",
+        head_commit.id,
+        head_commit.message
+    );
     let head_entries = read_entries_from_commit(repo, head_commit)?;
+    log::debug!(
+        "Reading entries from base commit {} -> {}",
+        head_commit.id,
+        head_commit.message
+    );
     let base_entries = read_entries_from_commit(repo, base_commit)?;
 
     let mut diff_entries: Vec<DiffEntry> = vec![];
@@ -354,8 +364,6 @@ fn collect_modified_entries(
         head_entries.len()
     );
     for head_entry in head_entries {
-        // log::debug!("collect_modified_entries considering {:?}", head_entry.path);
-
         // HEAD entry *is* in BASE
         if let Some(base_entry) = base_entries.get(head_entry) {
             // log::debug!(

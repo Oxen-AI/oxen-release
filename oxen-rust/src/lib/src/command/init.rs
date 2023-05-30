@@ -20,7 +20,7 @@ use crate::{api, constants, util};
 /// let base_dir = Path::new("/tmp/repo_dir_init");
 /// command::init(base_dir)?;
 /// assert!(base_dir.join(".oxen").exists());
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -35,7 +35,7 @@ pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
     match p_init(path) {
         Ok(result) => Ok(result),
         Err(error) => {
-            std::fs::remove_dir_all(hidden_dir)?;
+            util::fs::remove_dir_all(hidden_dir)?;
             Err(error)
         }
     }

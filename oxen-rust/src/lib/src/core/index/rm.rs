@@ -68,7 +68,7 @@ async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     log::debug!("REMOVING DIRECTORY: {full_path:?}");
     if full_path.exists() {
         // user might have removed dir manually before using `oxen rm`
-        std::fs::remove_dir_all(&full_path)?;
+        util::fs::remove_dir_all(&full_path)?;
     }
 
     // Stage all the removed files

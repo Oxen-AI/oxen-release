@@ -99,7 +99,7 @@ mod tests {
         assert_eq!(entries_resp.total_entries, num_entries);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }

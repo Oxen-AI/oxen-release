@@ -34,7 +34,7 @@ use crate::model::{Commit, LocalRepository};
 /// // Commit staged
 /// command::commit(&repo, "My commit message")?;
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```

@@ -440,7 +440,7 @@ pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     }
 }
 
-/// Wrapper around the std::fs::remove_dir_all command to tell us which file it failed on
+/// Wrapper around the util::fs::remove_dir_all command to tell us which file it failed on
 pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();
     match std::fs::remove_dir_all(src) {
@@ -730,9 +730,10 @@ pub fn path_relative_to_dir(
     path: impl AsRef<Path>,
     dir: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
     let dir = dir.as_ref();
-    let mut mut_path = path.as_ref().to_path_buf();
 
+    let mut mut_path = path.to_path_buf();
     let mut components: Vec<PathBuf> = vec![];
     while mut_path.parent().is_some() {
         // println!("Comparing {:?} => {:?} => {:?}", path, mut_path.parent(), dir);

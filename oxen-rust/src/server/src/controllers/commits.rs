@@ -496,7 +496,7 @@ fn check_if_upload_complete_and_unpack(
         }
 
         // Cleanup tmp files
-        std::fs::remove_dir_all(tmp_dir).unwrap();
+        util::fs::remove_dir_all(tmp_dir).unwrap();
         // });
     }
 }
@@ -680,7 +680,7 @@ mod tests {
         assert_eq!(list.commits.len(), 1);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -711,7 +711,7 @@ mod tests {
         assert_eq!(list.commits.len(), 3);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(list.commits.len(), 3);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -801,7 +801,7 @@ mod tests {
         assert_eq!(list.commits.len(), 2);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -884,8 +884,8 @@ mod tests {
         );
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
-        std::fs::remove_dir_all(commit_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(commit_dir)?;
 
         Ok(())
     }

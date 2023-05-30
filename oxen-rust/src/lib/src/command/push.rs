@@ -42,7 +42,7 @@ use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 /// // Push the file
 /// command::push(&repo).await;
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # api::remote::repositories::delete(&remote_repo).await?;
 /// # Ok(())
 /// # }

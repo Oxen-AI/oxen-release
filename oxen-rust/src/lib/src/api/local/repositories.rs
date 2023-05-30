@@ -202,7 +202,7 @@ pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
     }
 
     log::debug!("Deleting repo directory: {:?}", repo);
-    std::fs::remove_dir_all(&repo.path)?;
+    util::fs::remove_dir_all(&repo.path)?;
     Ok(repo)
 }
 

@@ -251,6 +251,7 @@ mod tests {
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepositoryNew};
+    use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
@@ -275,7 +276,7 @@ mod tests {
         assert_eq!(list.repositories.len(), 0);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -298,7 +299,7 @@ mod tests {
         assert_eq!(list.repositories.len(), 2);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -325,7 +326,7 @@ mod tests {
         assert_eq!(repo_response.repository.name, name);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -360,7 +361,7 @@ mod tests {
         assert_eq!(repo_response.repository.name, repo_new.name);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }

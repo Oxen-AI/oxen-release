@@ -31,7 +31,7 @@ use crate::{api, error::OxenError, model::LocalRepository};
 /// // Stage the file
 /// command::add(&repo, &hello_file)?;
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```

@@ -114,7 +114,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_pull_does_not_overwrite_local_files() -> Result<(), OxenError> {
+    async fn test_pull_does_not_remove_local_files() -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_empty_sync_repo_test(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
