@@ -41,7 +41,7 @@ use crate::opts::RestoreOpts;
 /// // Restore the file
 /// command::restore(&repo, RestoreOpts::from_path_ref(hello_name, commit.id))?;
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```

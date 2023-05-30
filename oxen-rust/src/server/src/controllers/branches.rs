@@ -123,6 +123,7 @@ mod tests {
     use liboxen::api;
     use liboxen::constants::DEFAULT_BRANCH_NAME;
     use liboxen::error::OxenError;
+    use liboxen::util;
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{BranchNewFromExisting, BranchResponse, ListBranchesResponse};
 
@@ -150,7 +151,7 @@ mod tests {
         assert_eq!(list.branches.first().unwrap().name, DEFAULT_BRANCH_NAME);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -177,7 +178,7 @@ mod tests {
         assert_eq!(list.branches.len(), 3);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -210,7 +211,7 @@ mod tests {
         assert_eq!(branch_resp.branch.name, branch_name);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -244,7 +245,7 @@ mod tests {
         assert_eq!(repo_response.branch.name, "My-Branch-Name");
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }

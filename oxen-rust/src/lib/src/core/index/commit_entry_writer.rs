@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::CommitEntryReader;
+use super::{CommitDirEntryReader, CommitEntryReader};
 
 // type Vec2DStr = Vec<Vec<String>>;
 
@@ -104,14 +104,20 @@ impl CommitEntryWriter {
             let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, &dir)?;
             path_db::put(&self.dir_db, &dir, &0)?;
 
-            let entries = reader.list_directory(&dir)?;
+            let dir_reader = CommitDirEntryReader::new(&self.repository, &reader.commit_id, &dir)?;
+            let entries = dir_reader.list_entries()?;
+            log::debug!(
+                "write_entries_from_reader got {} entries for dir {:?}",
+                entries.len(),
+                dir
+            );
 
             // Commit entries data
             entries.par_iter().for_each(|entry| {
                 log::debug!("copy entry {:?} -> {:?}", dir, entry.path);
 
-                // Write to db & backup
-                match self.add_commit_entry(&entry.path, &writer, entry.clone()) {
+                // Write to db
+                match writer.add_commit_entry(entry) {
                     Ok(_) => {}
                     Err(err) => {
                         log::error!("write_entries_from_reader {err:?}");

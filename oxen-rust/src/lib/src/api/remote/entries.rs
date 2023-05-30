@@ -272,7 +272,7 @@ pub async fn download_large_entry(
 
     if should_cleanup {
         log::error!("Cleaning up tmp dir {:?}", tmp_dir);
-        std::fs::remove_dir_all(tmp_dir)?;
+        util::fs::remove_dir_all(tmp_dir)?;
         return Err(OxenError::basic_str("Could not write all data to disk"));
     }
 

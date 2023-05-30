@@ -334,7 +334,21 @@ impl EntryIndexer {
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
+                log::debug!(
+                    "cleanup_removed_entries checking parent dir {:?} for repo {:?}",
+                    parent,
+                    repository.path
+                );
+
                 let parent = util::fs::path_relative_to_dir(parent, &repository.path).unwrap();
+
+                log::debug!(
+                    "cleanup_removed_entries got parent dir {:?} for commit {} -> '{}'",
+                    parent,
+                    commit.id,
+                    commit.message
+                );
+
                 let commit_reader =
                     CommitDirEntryReader::new(&repository, &commit.id, &parent).unwrap();
 

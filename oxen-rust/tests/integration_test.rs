@@ -880,7 +880,7 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
         command::commit(&repo, "Adding train directory")?;
 
         // Delete the directory
-        std::fs::remove_dir_all(&dir_to_remove)?;
+        util::fs::remove_dir_all(&dir_to_remove)?;
 
         // Add the deleted dir, so that we can commit the deletion
         command::add(&repo, &dir_to_remove)?;
@@ -919,7 +919,7 @@ async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         api::local::branches::create_checkout(&repo, branch_name)?;
 
         // Delete the directory from disk
-        std::fs::remove_dir_all(&dir_to_remove)?;
+        util::fs::remove_dir_all(&dir_to_remove)?;
 
         // Track the deletion
         command::add(&repo, &dir_to_remove)?;

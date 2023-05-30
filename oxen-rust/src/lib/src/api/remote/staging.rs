@@ -706,6 +706,8 @@ mod tests {
             assert!(remote_commit.is_some());
             assert_eq!(commit.id, remote_commit.unwrap().id);
 
+            println!("DONE!!");
+
             Ok(remote_repo)
         })
         .await
