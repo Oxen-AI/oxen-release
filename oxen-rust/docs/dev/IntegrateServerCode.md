@@ -126,7 +126,7 @@ async fn test_branches_index_multiple_branches() -> Result<(), OxenError> {
     assert!(branches.iter().any(|b| b.name == "main"));
 
     // cleanup directories
-    std::fs::remove_dir_all(sync_dir)?;
+    util::fs::remove_dir_all(sync_dir)?;
 
     Ok(())
 }
