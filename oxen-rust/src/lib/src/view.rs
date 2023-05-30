@@ -17,7 +17,6 @@ pub mod remote_staged_status;
 pub mod repository;
 pub mod schema;
 pub mod status_message;
-pub mod version;
 
 pub use crate::view::compare::CompareResponse;
 pub use crate::view::file_meta_data::{FileMetaData, FileMetaDataResponse, FilePathsResponse};
@@ -39,8 +38,7 @@ pub use crate::view::entry::{
 };
 
 pub use crate::view::commit::{
-    CommitParentsResponse, CommitResponse, CommitStatsResponse, ListCommitResponse,
-    PaginatedCommits,
+    CommitResponse, CommitStatsResponse, ListCommitResponse, PaginatedCommits,
 };
 
 pub use crate::view::branch::{
@@ -51,7 +49,6 @@ pub use crate::view::entry_meta_data::EntryMetaDataResponse;
 
 pub use crate::view::health::HealthResponse;
 pub use crate::view::oxen_response::OxenResponse;
-pub use crate::view::version::VersionResponse;
 
 pub use crate::view::remote_staged_status::{
     ListStagedFileModResponseDF, ListStagedFileModResponseRaw, RemoteStagedStatus,

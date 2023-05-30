@@ -40,6 +40,7 @@ pub enum OxenError {
 
     // Remotes
     RemoteRepoNotFound(Box<Remote>),
+    RemoteAheadOfLocal(StringError),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -103,6 +104,12 @@ impl OxenError {
 
     pub fn remote_not_found(remote: Remote) -> Self {
         OxenError::RemoteRepoNotFound(Box::new(remote))
+    }
+
+    pub fn remote_ahead_of_local() -> Self {
+        OxenError::RemoteAheadOfLocal(StringError::from(
+            "\nRemote ahead of local, must pull changes. To fix run:\n\n  oxen pull\n",
+        ))
     }
 
     pub fn resource_not_found(value: impl AsRef<str>) -> Self {
@@ -187,12 +194,14 @@ impl OxenError {
 
     pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
-        OxenError::basic_str(err)
+        log::warn!("{}", err);
+        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
     }
 
     pub fn local_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
         let err = format!("Local branch '{}' not found", name.as_ref());
-        OxenError::basic_str(err)
+        log::warn!("{}", err);
+        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
     }
 
     pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {

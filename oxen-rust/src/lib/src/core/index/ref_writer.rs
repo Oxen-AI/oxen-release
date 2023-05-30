@@ -19,10 +19,6 @@ impl RefWriter {
         let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(REFS_DIR));
         let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(HEAD_FILE));
         log::debug!("RefWriter::new() refs_dir: {}", refs_dir.display());
-        log::debug!(
-            "RefWriter::new() head_filename: {}",
-            head_filename.display()
-        );
 
         let opts = db::opts::default();
         Ok(RefWriter {
@@ -107,6 +103,8 @@ impl RefWriter {
     }
 
     pub fn set_branch_commit_id(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
+        log::debug!("self.refs_db.path {:?}", self.refs_db.path());
+        log::debug!("self.refs_db.put {} -> {}", name, commit_id);
         self.refs_db.put(name, commit_id)?;
         Ok(())
     }

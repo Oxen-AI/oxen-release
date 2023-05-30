@@ -3,6 +3,7 @@ use crate::app_data::OxenAppData;
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::util;
 
 use env_logger::Env;
 use serde::Serialize;
@@ -51,7 +52,7 @@ where
     });
 
     // Remove repo dir
-    std::fs::remove_dir_all(&sync_dir)?;
+    util::fs::remove_dir_all(&sync_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());

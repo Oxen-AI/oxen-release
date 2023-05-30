@@ -1,14 +1,12 @@
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::path_param;
+use crate::params::{app_data, path_param};
 
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::util;
-use liboxen::view::http::{
-    MSG_RESOURCE_CREATED, MSG_RESOURCE_DELETED, MSG_RESOURCE_FOUND, STATUS_SUCCESS,
-};
+use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::repository::DataTypeView;
 use liboxen::view::repository::RepositoryStatsResponse;
 use liboxen::view::repository::RepositoryStatsView;
@@ -20,31 +18,25 @@ use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
 use std::path::{Path, PathBuf};
 
-pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: Option<&str> = req.match_info().get("namespace");
+pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
 
-    if let Some(namespace) = namespace {
-        let namespace_path = &app_data.path.join(namespace);
+    let namespace_path = &app_data.path.join(&namespace);
 
-        let repos: Vec<RepositoryView> =
-            api::local::repositories::list_repos_in_namespace(namespace_path)
-                .iter()
-                .map(|repo| RepositoryView {
-                    name: repo.dirname(),
-                    namespace: namespace.to_string(),
-                })
-                .collect();
-        let view = ListRepositoryResponse {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_FOUND),
-            repositories: repos,
-        };
-        HttpResponse::Ok().json(view)
-    } else {
-        let msg = "Could not find `namespace` param...";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let repos: Vec<RepositoryView> =
+        api::local::repositories::list_repos_in_namespace(namespace_path)
+            .iter()
+            .map(|repo| RepositoryView {
+                name: repo.dirname(),
+                namespace: namespace.to_string(),
+            })
+            .collect();
+    let view = ListRepositoryResponse {
+        status: StatusMessage::resource_found(),
+        repositories: repos,
+    };
+    Ok(HttpResponse::Ok().json(view))
 }
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -59,8 +51,8 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     // Return the repository view
     Ok(HttpResponse::Ok().json(RepositoryResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
+        status: STATUS_SUCCESS.to_string(),
+        status_message: MSG_RESOURCE_FOUND.to_string(),
         repository: RepositoryView { namespace, name },
     }))
 }
@@ -84,8 +76,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
                     })
                     .collect();
                 HttpResponse::Ok().json(RepositoryStatsResponse {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_FOUND),
+                    status: StatusMessage::resource_found(),
                     repository: RepositoryStatsView {
                         data_size: stats.data_size,
                         data_types,
@@ -114,8 +105,8 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     match data {
         Ok(data) => match api::local::repositories::create_empty(&app_data.path, data.to_owned()) {
             Ok(_) => HttpResponse::Ok().json(RepositoryResponse {
-                status: String::from(STATUS_SUCCESS),
-                status_message: String::from(MSG_RESOURCE_CREATED),
+                status: STATUS_SUCCESS.to_string(),
+                status_message: MSG_RESOURCE_FOUND.to_string(),
                 repository: RepositoryView {
                     namespace: data.namespace.clone(),
                     name: data.name,
@@ -149,10 +140,7 @@ pub async fn delete(req: HttpRequest) -> HttpResponse {
     if let (Some(name), Some(namespace)) = (name, namespace) {
         match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repository)) => match api::local::repositories::delete(repository) {
-                Ok(_) => HttpResponse::Ok().json(StatusMessage {
-                    status: String::from(STATUS_SUCCESS),
-                    status_message: String::from(MSG_RESOURCE_DELETED),
-                }),
+                Ok(_) => HttpResponse::Ok().json(StatusMessage::resource_deleted()),
                 Err(err) => {
                     log::error!("Error deleting repository: {}", err);
                     HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -263,6 +251,7 @@ mod tests {
     use liboxen::constants;
     use liboxen::error::OxenError;
     use liboxen::model::{Commit, RepositoryNew};
+    use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
@@ -279,7 +268,7 @@ mod tests {
         let uri = format!("/api/repos/{namespace}");
         let req = test::namespace_request(&sync_dir, &uri, namespace);
 
-        let resp = controllers::repositories::index(req).await;
+        let resp = controllers::repositories::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
@@ -287,7 +276,7 @@ mod tests {
         assert_eq!(list.repositories.len(), 0);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -302,7 +291,7 @@ mod tests {
 
         let uri = format!("/api/repos/{namespace}");
         let req = test::namespace_request(&sync_dir, &uri, namespace);
-        let resp = controllers::repositories::index(req).await;
+        let resp = controllers::repositories::index(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
@@ -310,7 +299,7 @@ mod tests {
         assert_eq!(list.repositories.len(), 2);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -337,7 +326,7 @@ mod tests {
         assert_eq!(repo_response.repository.name, name);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }
@@ -372,7 +361,7 @@ mod tests {
         assert_eq!(repo_response.repository.name, repo_new.name);
 
         // cleanup
-        std::fs::remove_dir_all(sync_dir)?;
+        util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
     }

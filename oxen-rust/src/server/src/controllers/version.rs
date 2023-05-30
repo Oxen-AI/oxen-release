@@ -1,25 +1,18 @@
 use crate::app_data::OxenAppData;
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::api;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::{StatusMessage, VersionResponse};
+use liboxen::view::StatusMessage;
 use serde::Serialize;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 pub async fn index(_req: HttpRequest) -> HttpResponse {
-    let response = VersionResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
-        oxen_version: String::from(VERSION),
-    };
+    let response = StatusMessage::resource_found();
     HttpResponse::Ok().json(response)
 }
 
 #[derive(Serialize, Debug)]
 struct ResolveResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub repository_api_url: String,
 }
 
@@ -34,8 +27,7 @@ pub async fn resolve(req: HttpRequest) -> HttpResponse {
                 Ok(url) => {
                     log::debug!("resolved repo URL: {}", url);
                     HttpResponse::Ok().json(ResolveResponse {
-                        status: String::from(STATUS_SUCCESS),
-                        status_message: String::from(MSG_RESOURCE_FOUND),
+                        status: StatusMessage::resource_found(),
                         repository_api_url: url.to_string(),
                     })
                 }

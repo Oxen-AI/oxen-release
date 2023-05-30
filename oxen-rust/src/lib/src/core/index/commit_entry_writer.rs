@@ -1,3 +1,4 @@
+use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::db::path_db;
@@ -16,6 +17,8 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+use super::{CommitDirEntryReader, CommitEntryReader};
 
 // type Vec2DStr = Vec<Vec<String>>;
 
@@ -47,11 +50,7 @@ impl CommitEntryWriter {
         log::debug!("CommitEntryWriter::new() commit_id: {}", commit.id);
         let db_path = CommitEntryWriter::commit_dir_db(&repository.path, &commit.id);
         if !db_path.exists() {
-            CommitEntryWriter::create_db_dir_for_commit_id(
-                repository,
-                &commit.id,
-                commit.parent_ids.get(0),
-            )?;
+            util::fs::create_dir_all(&db_path)?;
         }
 
         let opts = db::opts::default();
@@ -62,51 +61,72 @@ impl CommitEntryWriter {
         })
     }
 
-    fn create_db_dir_for_commit_id(
+    pub fn copy_parent_dbs(
+        &self,
         repo: &LocalRepository,
-        commit_id: &str,
-        parent_id: Option<&String>,
-    ) -> Result<PathBuf, OxenError> {
-        // either copy over parent db as a starting point, or start new
-        match parent_id {
-            Some(parent_id) => {
-                log::debug!(
-                    "CommitEntryWriter::create_db_dir_for_commit_id have parent_id {}",
-                    parent_id
-                );
-                // We have a parent, we have to copy over last db, and continue
-                let parent_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, parent_id);
-                let current_commit_db_path = CommitEntryWriter::commit_dir(&repo.path, commit_id);
-                log::debug!(
-                    "COPY DB from {:?} => {:?}",
-                    parent_commit_db_path,
-                    current_commit_db_path
-                );
-
-                util::fs::copy_dir_all(&parent_commit_db_path, &current_commit_db_path)?;
-                // return current commit path, so we can add to it
-                Ok(current_commit_db_path)
-            }
-            _ => {
-                log::debug!(
-                    "CommitEntryWriter::create_db_dir_for_commit_id does not have parent id",
-                );
-                // We are creating initial commit, no parent
-                let commit_db_path = CommitEntryWriter::commit_dir_db(&repo.path, commit_id);
-                if !commit_db_path.exists() {
-                    std::fs::create_dir_all(&commit_db_path)?;
-                }
-
-                let ref_writer = RefWriter::new(repo)?;
-                // Set head to default name -> first commit
-                ref_writer.create_branch(DEFAULT_BRANCH_NAME, commit_id)?;
-                // Make sure head is pointing to that branch
-                ref_writer.set_head(DEFAULT_BRANCH_NAME);
-
-                // return current commit path, so we can insert into it
-                Ok(commit_db_path)
-            }
+        parent_ids: &Vec<String>,
+    ) -> Result<(), OxenError> {
+        if parent_ids.is_empty() {
+            // We are creating initial commit, no parent
+            let ref_writer = RefWriter::new(repo)?;
+            // Set head to default name -> first commit
+            ref_writer.create_branch(DEFAULT_BRANCH_NAME, &self.commit.id)?;
+            // Make sure head is pointing to that branch
+            ref_writer.set_head(DEFAULT_BRANCH_NAME);
         }
+
+        // merge parent dbs
+        log::debug!(
+            "copy_parent_dbs {} -> '{}'",
+            self.commit.id,
+            self.commit.message
+        );
+        for parent_id in parent_ids {
+            let parent_commit = api::local::commits::get_by_id(repo, parent_id)?
+                .ok_or(OxenError::committish_not_found(parent_id.to_owned().into()))?;
+            log::debug!(
+                "copy parent {} -> '{}'",
+                parent_commit.id,
+                parent_commit.message
+            );
+
+            let reader = CommitEntryReader::new(repo, &parent_commit)?;
+            self.write_entries_from_reader(&reader)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_entries_from_reader(&self, reader: &CommitEntryReader) -> Result<(), OxenError> {
+        let dirs = reader.list_dirs()?;
+        for dir in dirs {
+            // Write entries per dir
+            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, &dir)?;
+            path_db::put(&self.dir_db, &dir, &0)?;
+
+            let dir_reader = CommitDirEntryReader::new(&self.repository, &reader.commit_id, &dir)?;
+            let entries = dir_reader.list_entries()?;
+            log::debug!(
+                "write_entries_from_reader got {} entries for dir {:?}",
+                entries.len(),
+                dir
+            );
+
+            // Commit entries data
+            entries.par_iter().for_each(|entry| {
+                log::debug!("copy entry {:?} -> {:?}", dir, entry.path);
+
+                // Write to db
+                match writer.add_commit_entry(entry) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::error!("write_entries_from_reader {err:?}");
+                    }
+                }
+            });
+        }
+
+        Ok(())
     }
 
     pub fn set_file_timestamps(
@@ -213,6 +233,7 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
+        self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
         self.commit_schemas(commit, &staged_data.added_schemas)
     }

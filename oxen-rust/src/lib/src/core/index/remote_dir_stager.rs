@@ -117,12 +117,12 @@ pub fn init_local_repo_staging_dir(
         log::debug!("Copying {dir} dir {oxen_dir:?} -> {staging_dir:?}");
         if oxen_dir.is_dir() {
             if should_clear {
-                std::fs::remove_dir_all(&staging_dir)?;
+                util::fs::remove_dir_all(&staging_dir)?;
             }
             util::fs::copy_dir_all(oxen_dir, staging_dir)?;
         } else {
             if should_clear {
-                std::fs::remove_file(&staging_dir)?;
+                util::fs::remove_file(&staging_dir)?;
             }
             util::fs::copy(oxen_dir, staging_dir)?;
         }
@@ -166,7 +166,7 @@ pub fn delete_file(branch_repo: &LocalRepository, filepath: &Path) -> Result<(),
     let stager = Stager::new(branch_repo)?;
     stager.remove_staged_file(filepath)?;
     let full_path = branch_repo.path.join(filepath);
-    match std::fs::remove_file(&full_path) {
+    match util::fs::remove_file(&full_path) {
         Ok(_) => Ok(()),
         Err(e) => {
             log::error!("Error deleting file {full_path:?} -> {e:?}");
@@ -211,7 +211,7 @@ pub fn commit_staged(
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
     log::debug!("commit_staged cleaning up staging dir: {:?}", staging_dir);
-    match std::fs::remove_dir_all(&staging_dir) {
+    match util::fs::remove_dir_all(&staging_dir) {
         Ok(_) => log::debug!("commit_staged: removed staging dir: {:?}", staging_dir),
         Err(e) => log::error!("commit_staged: error removing staging dir: {:?}", e),
     }

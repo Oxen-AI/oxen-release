@@ -33,7 +33,7 @@ use crate::model::{LocalRepository, StagedData};
 /// let status = command::status(&repo)?;
 /// assert!(status.is_clean());
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -61,7 +61,7 @@ use crate::model::{LocalRepository, StagedData};
 /// let status = command::status(&repo)?;
 /// assert_eq!(status.untracked_files.len(), 1);
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -101,7 +101,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// let status = command::status(&repo)?;
 /// assert_eq!(status.untracked_files.len(), 1);
 ///
-/// # std::fs::remove_dir_all(base_dir)?;
+/// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```

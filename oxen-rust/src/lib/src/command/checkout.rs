@@ -47,7 +47,7 @@ pub async fn checkout<S: AsRef<str>>(
 
 /// # Checkout a file and take their changes
 /// This overwrites the current file with the changes in the branch we are merging in
-pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
+pub fn checkout_theirs(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
     let merger = MergeConflictReader::new(repo)?;
     let conflicts = merger.list_conflicts()?;
     log::debug!(
@@ -65,6 +65,32 @@ pub fn checkout_theirs<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resul
         command::restore(
             repo,
             RestoreOpts::from_path_ref(path, conflict.merge_entry.commit_id.clone()),
+        )
+    } else {
+        Err(OxenError::could_not_find_merge_conflict(path))
+    }
+}
+
+/// # Checkout a file and take our changes
+/// This overwrites the current file with the changes we had in our current branch
+pub fn checkout_ours(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let merger = MergeConflictReader::new(repo)?;
+    let conflicts = merger.list_conflicts()?;
+    log::debug!(
+        "checkout_ours {:?} conflicts.len() {}",
+        path.as_ref(),
+        conflicts.len()
+    );
+
+    // find the path that matches in the conflict, throw error if !found
+    if let Some(conflict) = conflicts
+        .iter()
+        .find(|c| c.merge_entry.path == path.as_ref())
+    {
+        // Lookup the file for the base commit entry and copy it over
+        command::restore(
+            repo,
+            RestoreOpts::from_path_ref(path, conflict.base_entry.commit_id.clone()),
         )
     } else {
         Err(OxenError::could_not_find_merge_conflict(path))

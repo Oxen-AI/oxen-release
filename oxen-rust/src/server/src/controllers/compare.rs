@@ -1,85 +1,54 @@
-use crate::app_data::OxenAppData;
+use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::error::OxenError;
 use liboxen::view::{CompareResponse, StatusMessage};
 use liboxen::{api, constants, util};
 
 use super::entries::PageNumQuery;
-use crate::params::{parse_base_head, resolve_base_head};
+use crate::helpers::get_repo;
+use crate::params::{app_data, parse_base_head, path_param, resolve_base_head_branches};
 
-pub async fn show(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let name: &str = req.match_info().get("repo_name").unwrap();
-    let base_head: &str = req.match_info().get("base_head").unwrap();
+pub async fn show(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let base_head = path_param(&req, "base_head")?;
 
+    // Get the repository or return error
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    // Page size and number
     let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-        Ok(Some(repository)) => match parse_base_head(base_head) {
-            Ok((base, head)) => match resolve_base_head(&repository, &base, &head) {
-                Ok((Some(base_commit), Some(head_commit))) => {
-                    match api::local::diff::list_diff_entries(
-                        &repository,
-                        &base_commit,
-                        &head_commit,
-                    ) {
-                        Ok(entries) => {
-                            let total_entries = entries.len();
-                            let (paginated, total_pages) = util::paginate(entries, page, page_size);
-                            let view = CompareResponse {
-                                status: String::from(STATUS_SUCCESS),
-                                status_message: String::from(MSG_RESOURCE_FOUND),
-                                base_commit,
-                                head_commit,
-                                page_size,
-                                total_entries,
-                                page_number: page,
-                                total_pages,
-                                entries: paginated,
-                            };
-                            HttpResponse::Ok().json(view)
-                        }
-                        Err(err) => {
-                            log::error!("Unable to list diff entries. Err: {}", err);
-                            HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error())
-                        }
-                    }
-                }
-                Ok((_, _)) => {
-                    log::error!(
-                        "Unable to resolve commits. Base or head not found {}",
-                        base_head
-                    );
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-                }
-                Err(err) => {
-                    log::error!("Unable to resolve commits. Err: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            },
-            Err(err) => {
-                log::error!("Unable to list branches. Err: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::debug!(
-                "404 api::local::branches::index could not get repo {}",
-                name,
-            );
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!(
-                "Err api::local::branches::index could not get repo {} {:?}",
-                name,
-                err
-            );
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    // Parse the base and head from the base..head string
+    let (base, head) = parse_base_head(&base_head)?;
+    let (base_branch, head_branch) = resolve_base_head_branches(&repository, &base, &head)?;
+    let base = base_branch.ok_or(OxenError::committish_not_found(base.into()))?;
+    let head = head_branch.ok_or(OxenError::committish_not_found(head.into()))?;
+
+    let base_commit = api::local::commits::get_by_id(&repository, &base.commit_id)?
+        .ok_or(OxenError::committish_not_found(base.commit_id.into()))?;
+    let head_commit = api::local::commits::get_by_id(&repository, &head.commit_id)?
+        .ok_or(OxenError::committish_not_found(head.commit_id.into()))?;
+
+    let entries = api::local::diff::list_diff_entries(&repository, &base_commit, &head_commit)?;
+
+    let total_entries = entries.len();
+    let (paginated, total_pages) = util::paginate(entries, page, page_size);
+    let view = CompareResponse {
+        status: StatusMessage::resource_found(),
+        base_commit,
+        head_commit,
+        page_size,
+        total_entries,
+        page_number: page,
+        total_pages,
+        entries: paginated,
+    };
+    Ok(HttpResponse::Ok().json(view))
 }

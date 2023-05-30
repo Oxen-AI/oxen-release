@@ -1,6 +1,9 @@
 //! Constants used throughout the codebase
 //!
 
+/// Rust library version
+pub const OXEN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";

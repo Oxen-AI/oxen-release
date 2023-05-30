@@ -1,40 +1,33 @@
 use crate::model::{Commit, CommitStats};
-use crate::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use serde::{Deserialize, Serialize};
+
+use super::StatusMessage;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CommitResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub commit: Commit,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct CommitParentsResponse {
-    pub status: String,
-    pub status_message: String,
-    pub parents: Vec<Commit>,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct CommitStatsResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub stats: CommitStats,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct ListCommitResponse {
-    pub status: String,
-    pub status_message: String,
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub commits: Vec<Commit>,
 }
 
 impl ListCommitResponse {
     pub fn success(commits: Vec<Commit>) -> ListCommitResponse {
         ListCommitResponse {
-            status: String::from(STATUS_SUCCESS),
-            status_message: String::from(MSG_RESOURCE_FOUND),
+            status: StatusMessage::resource_found(),
             commits,
         }
     }
@@ -42,6 +35,8 @@ impl ListCommitResponse {
 
 #[derive(Deserialize, Debug)]
 pub struct PaginatedCommits {
+    #[serde(flatten)]
+    pub status: StatusMessage,
     pub entries: Vec<Commit>,
     pub page_size: usize,
     pub page_number: usize,

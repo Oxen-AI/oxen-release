@@ -20,7 +20,7 @@ use clap::{Arg, Command};
 use env_logger::Env;
 use std::path::Path;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
 const ADD_USER_USAGE: &str =
     "Usage: `oxen-server add-user -e <email> -n <name> -o user_config.toml`";

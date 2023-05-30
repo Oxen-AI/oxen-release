@@ -8,9 +8,8 @@ use liboxen::{constants, current_function};
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
 use liboxen::opts::DFOpts;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::json_data_frame::JsonDataSize;
-use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse};
+use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
 
 use liboxen::util;
 
@@ -47,8 +46,7 @@ pub async fn get(
     let total_pages = (df.height() as f64 / page_size as f64).ceil() as usize;
 
     let response = JsonDataFrameSliceResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
+        status: StatusMessage::resource_found(),
         full_size: JsonDataSize {
             width: df.width(),
             height: df.height(),
