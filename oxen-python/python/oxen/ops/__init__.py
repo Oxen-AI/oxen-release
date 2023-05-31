@@ -14,4 +14,5 @@ __all__ = [
     "ReadDF",
     "ReadText",
     "StrColTemplate",
+    "ReadImageDir"
 ]
