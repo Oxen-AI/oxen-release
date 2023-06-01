@@ -77,7 +77,7 @@ fn resolve_remote_add_file_path(
     opts: &AddOpts,
 ) -> Result<(PathBuf, PathBuf), OxenError> {
     let path = path.as_ref();
-    match std::fs::canonicalize(path) {
+    match dunce::canonicalize(path) {
         Ok(path) => {
             if util::fs::file_exists_in_directory(&repo.path, &path) {
                 // Path is in the repo, so we get the remote directory from the repo path
