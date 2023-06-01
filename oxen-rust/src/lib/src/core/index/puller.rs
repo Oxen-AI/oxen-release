@@ -287,7 +287,7 @@ fn version_paths_from_entries(
         let version_path = util::fs::path_relative_to_dir(&version_path, &dst).unwrap();
 
         content_ids.push((
-            String::from(version_path.to_str().unwrap()),
+            String::from(version_path.to_str().unwrap()).replace("\\", "/"),
             entry.path.to_owned(),
         ));
     }
