@@ -225,8 +225,6 @@ pub async fn download_large_entry(
         bar.inc(chunk_size);
     }
 
-    bar.finish();
-
     // Once all downloaded, recombine file and delete temp dir
     log::debug!("Unpack to {:?}", local_path);
 
