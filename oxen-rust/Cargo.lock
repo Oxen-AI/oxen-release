@@ -2786,6 +2786,7 @@ version = "0.6.2"
 dependencies = [
  "clap",
  "colored",
+ "dunce",
  "env_logger",
  "liboxen",
  "minus",
