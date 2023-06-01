@@ -68,6 +68,7 @@ impl CommitReader {
             head_commit_id,
             &mut commits,
         )?;
+
         let mut commits: Vec<Commit> = commits.into_iter().collect();
         commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         Ok(commits)

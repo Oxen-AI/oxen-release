@@ -72,7 +72,8 @@ impl Merger {
         base_commit: &Commit,
         merge_commit: &Commit,
     ) -> Result<bool, OxenError> {
-        let lca = self.p_lowest_common_ancestor(commit_reader, base_commit, merge_commit)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(commit_reader, base_commit, merge_commit)?;
         let merge_commits = MergeCommits {
             lca,
             base: base_commit.clone(),
@@ -84,7 +85,8 @@ impl Merger {
             return Ok(true);
         }
 
-        let conflicts = self.find_merge_conflicts(&merge_commits)?;
+        let write_to_disk = false;
+        let conflicts = self.find_merge_conflicts(&merge_commits, write_to_disk)?;
         Ok(conflicts.is_empty())
     }
 
@@ -100,19 +102,40 @@ impl Merger {
         self.list_conflicts_between_commits(commit_reader, &base_commit, &merge_commit)
     }
 
+    pub fn list_commits_between_branches(
+        &self,
+        reader: &CommitReader,
+        base_branch: &Branch,
+        head_branch: &Branch,
+    ) -> Result<Vec<Commit>, OxenError> {
+        log::debug!(
+            "list_commits_between_branches() base: {:?} head: {:?}",
+            base_branch,
+            head_branch
+        );
+        let base_commit = Commit::from_branch(reader, base_branch)?;
+        let head_commit = Commit::from_branch(reader, head_branch)?;
+
+        let lca = self.lowest_common_ancestor_from_commits(reader, &base_commit, &head_commit)?;
+
+        reader.history_from_base_to_head(&lca.id, &head_commit.id)
+    }
+
     pub fn list_conflicts_between_commits(
         &self,
         commit_reader: &CommitReader,
         base_commit: &Commit,
         merge_commit: &Commit,
     ) -> Result<Vec<PathBuf>, OxenError> {
-        let lca = self.p_lowest_common_ancestor(commit_reader, base_commit, merge_commit)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(commit_reader, base_commit, merge_commit)?;
         let merge_commits = MergeCommits {
             lca,
             base: base_commit.clone(),
             merge: merge_commit.clone(),
         };
-        let conflicts = self.find_merge_conflicts(&merge_commits)?;
+        let write_to_disk = false;
+        let conflicts = self.find_merge_conflicts(&merge_commits, write_to_disk)?;
         Ok(conflicts
             .iter()
             .map(|c| c.base_entry.path.to_owned())
@@ -130,7 +153,8 @@ impl Merger {
         let base_commit = commit_reader.head_commit()?;
         let merge_commit = Commit::from_branch(&commit_reader, &merge_branch)?;
 
-        let lca = self.p_lowest_common_ancestor(&commit_reader, &base_commit, &merge_commit)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(&commit_reader, &base_commit, &merge_commit)?;
         let merge_commits = MergeCommits {
             lca,
             base: base_commit,
@@ -160,7 +184,8 @@ impl Merger {
         let base_commit = Commit::from_branch(&commit_reader, base_branch)?;
         let merge_commit = Commit::from_branch(&commit_reader, merge_branch)?;
 
-        let lca = self.p_lowest_common_ancestor(&commit_reader, &base_commit, &merge_commit)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(&commit_reader, &base_commit, &merge_commit)?;
         let merge_commits = MergeCommits {
             lca,
             base: base_commit,
@@ -177,7 +202,8 @@ impl Merger {
     ) -> Result<Option<Commit>, OxenError> {
         let commit_reader = CommitReader::new(&self.repository)?;
 
-        let lca = self.p_lowest_common_ancestor(&commit_reader, base_commit, merge_commit)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(&commit_reader, base_commit, merge_commit)?;
         let merge_commits = MergeCommits {
             lca,
             base: base_commit.to_owned(),
@@ -217,7 +243,8 @@ impl Merger {
                 merge_commits.merge.id
             );
 
-            let conflicts = self.find_merge_conflicts(merge_commits)?;
+            let write_to_disk = true;
+            let conflicts = self.find_merge_conflicts(merge_commits, write_to_disk)?;
             log::debug!("Got {} conflicts", conflicts.len());
 
             if conflicts.is_empty() {
@@ -301,7 +328,7 @@ impl Merger {
             .get_commit_by_id(&merge_commit_id)?
             .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
 
-        let lca = self.p_lowest_common_ancestor(&commit_reader, &base, &merge)?;
+        let lca = self.lowest_common_ancestor_from_commits(&commit_reader, &base, &merge)?;
 
         Ok(MergeCommits { lca, base, merge })
     }
@@ -376,10 +403,10 @@ impl Merger {
             .get_commit_by_id(&merge_commit_id)?
             .ok_or_else(|| OxenError::commit_db_corrupted(&merge_commit_id))?;
 
-        self.p_lowest_common_ancestor(&commit_reader, &base_commit, &merge_commit)
+        self.lowest_common_ancestor_from_commits(&commit_reader, &base_commit, &merge_commit)
     }
 
-    fn p_lowest_common_ancestor(
+    pub fn lowest_common_ancestor_from_commits(
         &self,
         commit_reader: &CommitReader,
         base_commit: &Commit,
@@ -411,6 +438,7 @@ impl Merger {
     fn find_merge_conflicts(
         &self,
         merge_commits: &MergeCommits,
+        write_to_disk: bool,
     ) -> Result<Vec<MergeConflict>, OxenError> {
         /*
         https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
@@ -453,20 +481,20 @@ impl Merger {
 
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
-            log::debug!("Considering entry {}", merge_entries.len());
+            // log::debug!("Considering entry {}", merge_entries.len());
 
             // Check if the entry exists in all 3 commits
             if let Some(base_entry) = base_entries.get(merge_entry) {
                 if let Some(lca_entry) = lca_entries.get(merge_entry) {
                     // If Base and LCA are the same but Merge is different, take merge
-                    log::debug!(
-                        "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
-                        merge_entry.path,
-                        base_entry.hash,
-                        lca_entry.hash,
-                        merge_entry.hash
-                    );
-                    if base_entry.hash == lca_entry.hash {
+                    // log::debug!(
+                    //     "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
+                    //     merge_entry.path,
+                    //     base_entry.hash,
+                    //     lca_entry.hash,
+                    //     merge_entry.hash
+                    // );
+                    if base_entry.hash == lca_entry.hash && write_to_disk {
                         self.update_entry(merge_entry)?;
                     }
 
@@ -491,7 +519,7 @@ impl Merger {
                         });
                     }
                 }
-            } else {
+            } else if write_to_disk {
                 // merge entry does not exist in base, so create it
                 self.update_entry(merge_entry)?;
             }
