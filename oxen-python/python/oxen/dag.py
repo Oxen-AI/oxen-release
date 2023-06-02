@@ -16,11 +16,11 @@ class DAG:
         for output_node in self.outputs:
             _dfs(output_node)
 
-        results = []
+        desired_output_ids = [node.id for node in self.outputs]
+        results = [None] * len(self.outputs)
         for node in outputs:
-            # print(f"node {node}")
             result = node.run()
-            if node in self.outputs:
-                results.append(result)
+            if node.id in desired_output_ids:
+                results[desired_output_ids.index(node.id)] = result
 
         return results

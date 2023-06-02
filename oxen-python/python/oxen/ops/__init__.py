@@ -5,6 +5,9 @@ from .identity import Identity
 from .read_df import ReadDF
 from .read_text import ReadText
 from .str_col_template import StrColTemplate
+from .read_image_dir import ReadImageDir
+from .encode_labels import EncodeLabels
+from .create_label_map import CreateLabelMap
 
 # Names of public modules we want to expose
 __all__ = [
@@ -14,5 +17,7 @@ __all__ = [
     "ReadDF",
     "ReadText",
     "StrColTemplate",
-    "ReadImageDir"
+    "ReadImageDir",
+    "EncodeLabels",
+    "CreateLabelMap",
 ]

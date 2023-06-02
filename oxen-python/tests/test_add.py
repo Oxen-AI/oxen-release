@@ -15,7 +15,9 @@ def test_add(shared_datadir):
     added_files = staged_data.added_files()
     added_files.sort()
 
-    assert added_files == [
+    assert set(added_file) == {
         "annotations/test.csv",
         "annotations/train.csv",
-    ]
+        "annotations/labels.txt"
+    }
+    
