@@ -1,7 +1,11 @@
+import uuid
+
+
 class Op:
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
+        self.id = uuid.uuid4()
         self.input = None
         self.name = self.__class__.__name__
 
