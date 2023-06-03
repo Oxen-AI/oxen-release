@@ -657,12 +657,24 @@ pub fn repo_cfg_file() -> &'static Path {
     Path::new("data/test/config/repo_config.toml")
 }
 
-pub fn test_jpeg_file() -> &'static Path {
+pub fn test_img_file() -> &'static Path {
     Path::new("data/test/images/dwight_vince.jpeg")
 }
 
-pub fn test_jpeg_file_with_name(name: &str) -> PathBuf {
+pub fn test_img_file_with_name(name: &str) -> PathBuf {
     PathBuf::from(&format!("data/test/images/{name}"))
+}
+
+pub fn test_text_file_with_name(name: &str) -> PathBuf {
+    PathBuf::from(&format!("data/test/text/{name}"))
+}
+
+pub fn test_video_file_with_name(name: &str) -> PathBuf {
+    PathBuf::from(&format!("data/test/video/{name}"))
+}
+
+pub fn test_audio_file_with_name(name: &str) -> PathBuf {
+    PathBuf::from(&format!("data/test/audio/{name}"))
 }
 
 pub fn test_200k_csv() -> &'static Path {

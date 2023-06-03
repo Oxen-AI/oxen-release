@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
-        DirEntry, LocalRepository, ModEntry, StagedData, StagedEntry, SummarizedStagedDirStats,
+        entry::metadata_entry::MetaData, LocalRepository, MetaDataEntry, ModEntry, StagedData,
+        StagedEntry, SummarizedStagedDirStats,
     },
     util,
 };
@@ -65,10 +66,10 @@ impl RemoteStagedStatus {
         page_num: usize,
         page_size: usize,
     ) -> RemoteStagedStatus {
-        let added_entries: Vec<DirEntry> =
-            RemoteStagedStatus::added_to_dir_entry(repo, &staged.added_files);
-        let modified_entries: Vec<DirEntry> =
-            RemoteStagedStatus::modified_to_dir_entry(repo, &staged.modified_files);
+        let added_entries: Vec<MetaDataEntry> =
+            RemoteStagedStatus::added_to_meta_entry(repo, &staged.added_files);
+        let modified_entries: Vec<MetaDataEntry> =
+            RemoteStagedStatus::modified_to_meta_entry(repo, &staged.modified_files);
 
         let added_paginated =
             RemoteStagedStatus::paginate_entries(added_entries, page_num, page_size);
@@ -82,21 +83,21 @@ impl RemoteStagedStatus {
         }
     }
 
-    fn added_to_dir_entry(
+    fn added_to_meta_entry(
         repo: &LocalRepository,
         entries: &HashMap<PathBuf, StagedEntry>,
-    ) -> Vec<DirEntry> {
-        RemoteStagedStatus::iter_to_dir_entry(repo, entries.keys())
+    ) -> Vec<MetaDataEntry> {
+        RemoteStagedStatus::iter_to_meta_entry(repo, entries.keys())
     }
 
-    fn modified_to_dir_entry(repo: &LocalRepository, entries: &[PathBuf]) -> Vec<DirEntry> {
-        RemoteStagedStatus::iter_to_dir_entry(repo, entries.iter())
+    fn modified_to_meta_entry(repo: &LocalRepository, entries: &[PathBuf]) -> Vec<MetaDataEntry> {
+        RemoteStagedStatus::iter_to_meta_entry(repo, entries.iter())
     }
 
-    fn iter_to_dir_entry<'a, I: Iterator<Item = &'a PathBuf>>(
+    fn iter_to_meta_entry<'a, I: Iterator<Item = &'a PathBuf>>(
         repo: &LocalRepository,
         entries: I,
-    ) -> Vec<DirEntry> {
+    ) -> Vec<MetaDataEntry> {
         entries
             .map(|path| {
                 let full_path = repo.path.join(path);
@@ -106,20 +107,30 @@ impl RemoteStagedStatus {
                 };
                 let path_str = path.to_string_lossy().to_string();
 
-                DirEntry {
+                panic!("TODO: implement metadata entry for remote_staged_status");
+                MetaDataEntry {
                     filename: path_str,
                     is_dir: false,
                     size: len,
                     latest_commit: None,
-                    datatype: util::fs::file_datatype(&full_path),
+                    data_type: util::fs::file_datatype(&full_path),
+                    mime_type: util::fs::file_mime_type(&full_path),
+                    extension: util::fs::file_extension(&full_path),
                     resource: None, // not committed so does not have a resource
+                    meta: MetaData {
+                        text: None,
+                        image: None,
+                        video: None,
+                        audio: None,
+                        tabular: None,
+                    },
                 }
             })
             .collect()
     }
 
     fn paginate_entries(
-        entries: Vec<DirEntry>,
+        entries: Vec<MetaDataEntry>,
         page_number: usize,
         page_size: usize,
     ) -> PaginatedDirEntries {

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::model::EntryDataType;
 use crate::view::entry::ResourceVersion;
 use crate::{
     model::{CommitEntry, LocalRepository},
@@ -16,7 +17,7 @@ pub enum DiffEntryStatus {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
     pub status: DiffEntryStatus,
-    pub datatype: String,
+    pub data_type: EntryDataType,
     pub filename: String,
     pub is_dir: bool,
     pub size: u64,
@@ -43,7 +44,7 @@ impl DiffEntry {
 
         DiffEntry {
             status,
-            datatype: util::fs::file_datatype(&version_path),
+            data_type: util::fs::file_datatype(&version_path),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
             is_dir: version_path.is_dir(),
             size: current_entry.num_bytes,

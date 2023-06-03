@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::DirEntry;
+use crate::model::MetaDataEntry;
 
 use super::StatusMessage;
 
@@ -8,5 +8,5 @@ use super::StatusMessage;
 pub struct EntryMetaDataResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub entry: DirEntry,
+    pub entry: MetaDataEntry,
 }
