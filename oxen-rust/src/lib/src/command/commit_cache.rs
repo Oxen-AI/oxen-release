@@ -1,6 +1,7 @@
 //! # oxen commit-cache
 //!
-//! Compute the cache for a commits
+//! Compute the cache for a commits, used from the CLI for migrations on commits that
+//! were created before the cache was introduced.
 //!
 
 use std::path::Path;

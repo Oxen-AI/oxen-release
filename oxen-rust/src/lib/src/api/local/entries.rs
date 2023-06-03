@@ -1,29 +1,31 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
+use crate::constants::DIR;
 use crate::error::OxenError;
+use crate::model::entry::metadata_entry::MetaData;
 use crate::util;
 use crate::view::entry::ResourceVersion;
 use rayon::prelude::*;
 
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
-use crate::model::{Commit, CommitEntry, DirEntry, LocalRepository};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetaDataEntry};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-/// Get the directory entry for a given path in a commit.
+/// Get the entry for a given path in a commit.
 /// Could be a file or a directory.
-pub fn get_dir_entry(
+pub fn get_meta_entry(
     repo: &LocalRepository,
     commit: &Commit,
     path: &Path,
-) -> Result<DirEntry, OxenError> {
+) -> Result<MetaDataEntry, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
     // Check if the path is a dir
     if entry_reader.has_dir(path) {
-        dir_entry_from_dir(repo, commit, path, &commit_reader, &commit.id)
+        meta_entry_from_dir(repo, commit, path, &commit_reader, &commit.id)
     } else {
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
@@ -31,19 +33,19 @@ pub fn get_dir_entry(
         let entry = dir_entry_reader
             .get_entry(base_name)?
             .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
-        dir_entry_from_commit_entry(repo, &entry, &commit_reader, &commit.id)
+        meta_entry_from_commit_entry(repo, &entry, &commit_reader, &commit.id)
     }
 }
 
 /// Get a DirEntry summing up the size of all files in a directory
 /// and finding the latest commit within the directory
-pub fn dir_entry_from_dir(
+pub fn meta_entry_from_dir(
     repo: &LocalRepository,
     commit: &Commit,
     path: &Path,
     commit_reader: &CommitReader,
     revision: &str,
-) -> Result<DirEntry, OxenError> {
+) -> Result<MetaDataEntry, OxenError> {
     let commit = commit_reader.get_commit_by_id(&commit.id)?.unwrap();
     let entry_reader = CommitEntryReader::new(repo, &commit)?;
 
@@ -77,26 +79,36 @@ pub fn dir_entry_from_dir(
         }
     }
 
+    panic!("TODO: implement metadata entry for meta_entry_from_dir");
     let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-    return Ok(DirEntry {
+    return Ok(MetaDataEntry {
         filename: String::from(base_name.to_string_lossy()),
         is_dir: true,
         size: total_size,
         latest_commit,
-        datatype: String::from("dir"),
+        data_type: EntryDataType::Dir,
+        mime_type: util::fs::file_mime_type(path),
+        extension: util::fs::file_extension(path),
         resource: Some(ResourceVersion {
             version: revision.to_string(),
             path: String::from(path.to_string_lossy()),
         }),
+        meta: MetaData {
+            text: None,
+            image: None,
+            video: None,
+            audio: None,
+            tabular: None,
+        },
     });
 }
 
-pub fn dir_entry_from_commit_entry(
+pub fn meta_entry_from_commit_entry(
     repo: &LocalRepository,
     entry: &CommitEntry,
     commit_reader: &CommitReader,
     revision: &str,
-) -> Result<DirEntry, OxenError> {
+) -> Result<MetaDataEntry, OxenError> {
     let size = util::fs::version_file_size(repo, entry)?;
     let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
 
@@ -104,17 +116,28 @@ pub fn dir_entry_from_commit_entry(
         .path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
+    panic!("TODO: implement metadata entry for meta_entry_from_commit_entry");
+
     let version_path = util::fs::version_path(repo, entry);
-    return Ok(DirEntry {
+    return Ok(MetaDataEntry {
         filename: String::from(base_name.to_string_lossy()),
         is_dir: false,
         size,
         latest_commit: Some(latest_commit),
-        datatype: util::fs::file_datatype(&version_path),
+        data_type: util::fs::file_datatype(&version_path),
+        mime_type: util::fs::file_mime_type(&version_path),
+        extension: util::fs::file_extension(&version_path),
         resource: Some(ResourceVersion {
             version: revision.to_string(),
             path: String::from(entry.path.to_string_lossy()),
         }),
+        meta: MetaData {
+            text: None,
+            image: None,
+            video: None,
+            audio: None,
+            tabular: None,
+        },
     });
 }
 
@@ -148,6 +171,7 @@ pub fn list_page(
     reader.list_entry_page(*page, *page_size)
 }
 
+/// List all files in a directory given a specific commit
 pub fn list_directory(
     repo: &LocalRepository,
     commit: &Commit,
@@ -159,12 +183,12 @@ pub fn list_directory(
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
 
-    let mut dir_paths: Vec<DirEntry> = vec![];
+    let mut dir_paths: Vec<MetaDataEntry> = vec![];
     for dir in entry_reader.list_dirs()? {
         // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
         if let Some(parent) = dir.parent() {
             if parent == directory || (parent == Path::new("") && directory == Path::new("./")) {
-                dir_paths.push(dir_entry_from_dir(
+                dir_paths.push(meta_entry_from_dir(
                     repo,
                     commit,
                     &dir,
@@ -176,11 +200,11 @@ pub fn list_directory(
     }
     log::debug!("list_directory got dir_paths {}", dir_paths.len());
 
-    let mut file_paths: Vec<DirEntry> = vec![];
+    let mut file_paths: Vec<MetaDataEntry> = vec![];
     let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory)?;
     let total = dir_entry_reader.num_entries() + dir_paths.len();
     for entry in dir_entry_reader.list_entries()? {
-        file_paths.push(dir_entry_from_commit_entry(
+        file_paths.push(meta_entry_from_commit_entry(
             repo,
             &entry,
             &commit_reader,
@@ -209,11 +233,13 @@ pub fn list_directory(
     ))
 }
 
+/// Given a list of entries, compute the total in bytes size of all entries.
 pub fn compute_entries_size(entries: &[CommitEntry]) -> Result<u64, OxenError> {
     let total_size: u64 = entries.into_par_iter().map(|e| e.num_bytes).sum();
     Ok(total_size)
 }
 
+/// Given a list of entries, group them by their parent directory.
 pub fn group_entries_to_parent_dirs(entries: &[CommitEntry]) -> HashMap<PathBuf, Vec<CommitEntry>> {
     let mut results: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
 
@@ -308,13 +334,13 @@ mod tests {
     }
 
     #[test]
-    fn test_get_dir_entry_dir() -> Result<(), OxenError> {
+    fn test_get_meta_entry_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
             let path = Path::new("annotations").join("train");
-            let entry = api::local::entries::get_dir_entry(&repo, commit, &path)?;
+            let entry = api::local::entries::get_meta_entry(&repo, commit, &path)?;
 
             assert!(entry.is_dir);
             assert_eq!(entry.filename, "train");
@@ -325,13 +351,13 @@ mod tests {
     }
 
     #[test]
-    fn test_get_dir_entry_file() -> Result<(), OxenError> {
+    fn test_get_meta_entry_file() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
             let path = test::test_nlp_classification_csv();
-            let entry = api::local::entries::get_dir_entry(&repo, commit, path)?;
+            let entry = api::local::entries::get_meta_entry(&repo, commit, path)?;
 
             assert!(!entry.is_dir);
             assert_eq!(entry.filename, "test.tsv");

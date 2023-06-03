@@ -4,6 +4,7 @@
 use std::collections::HashMap;
 
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
+use crate::core::cache::cacher_status::{CacherStatus, CacherStatusType};
 use crate::core::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -12,44 +13,7 @@ use crate::util;
 use super::cachers::content_validator;
 use lazy_static::lazy_static;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum CacherStatusType {
-    Pending,
-    Failed,
-    Success,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct CacherStatus {
-    pub status: CacherStatusType,
-    pub status_message: String,
-}
-
-impl CacherStatus {
-    pub fn pending() -> CacherStatus {
-        CacherStatus {
-            status: CacherStatusType::Pending,
-            status_message: String::from(""),
-        }
-    }
-
-    pub fn success() -> CacherStatus {
-        CacherStatus {
-            status: CacherStatusType::Success,
-            status_message: String::from(""),
-        }
-    }
-
-    pub fn failed(msg: &str) -> CacherStatus {
-        CacherStatus {
-            status: CacherStatusType::Failed,
-            status_message: String::from(msg),
-        }
-    }
-}
 
 type CommitCacher = fn(&LocalRepository, &Commit) -> Result<(), OxenError>;
 

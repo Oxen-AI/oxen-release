@@ -255,16 +255,12 @@ pub fn df() -> Command {
             Arg::new("page")
                 .long("page")
                 .help("Page number when paginating through the data frame. Default page = 1")
-                .default_value("1")
-                .default_missing_value("1")
                 .action(clap::ArgAction::Set),
         )
         .arg(
             Arg::new("page-size")
                 .long("page-size")
                 .help("Paginated through the data frame. Default page-size = 10")
-                .default_value("10")
-                .default_missing_value("10")
                 .action(clap::ArgAction::Set),
         )
         .arg(

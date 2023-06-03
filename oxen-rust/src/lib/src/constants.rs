@@ -92,3 +92,12 @@ pub const NUM_HTTP_RETRIES: u64 = 6;
 pub const DEFAULT_PAGE_SIZE: usize = 10;
 /// Pagination page number of 1
 pub const DEFAULT_PAGE_NUM: usize = 1;
+
+/// Data Types
+pub const TEXT: &str = "text";
+pub const IMAGE: &str = "image";
+pub const VIDEO: &str = "video";
+pub const AUDIO: &str = "audio";
+pub const TABULAR: &str = "tabular";
+pub const BINARY: &str = "binary";
+pub const DIR: &str = "dir";

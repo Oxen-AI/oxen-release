@@ -62,6 +62,9 @@ pub enum OxenError {
     // Generic
     ParsingError(Box<StringError>),
 
+    // Metadata
+    ImageMetaDataParseError(StringError),
+
     // External Library Errors
     IO(io::Error),
     Authentication(StringError),
@@ -118,6 +121,10 @@ impl OxenError {
 
     pub fn path_does_not_exist(path: PathBuf) -> Self {
         OxenError::PathDoesNotExist(Box::new(path.into()))
+    }
+
+    pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
+        OxenError::ImageMetaDataParseError(StringError::from(s.as_ref()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {
