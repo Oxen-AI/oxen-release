@@ -1,55 +1,64 @@
-# 🐂 + 🐍
+# 🐂 🐍 Oxen Python Interface 
 
-Oxen Python Interface
+The Oxen python interface makes it easy to integrate Oxen datasets directly into machine learning dataloaders or other data pipelines.
+
+## Repositories
+
+There are two types of repositories one can interact with, a `LocalRepo` and a `RemoteRepo`.
 
 
-## Build and Run
+## Local Repo
 
-From the root of this repo, navigate to the oxen directory
+To fully clone all the data to your local machine, you can use the `LocalRepo` class.
 
-```bash
-cd oxen
+```python
+import oxen
+
+repo = LocalRepo("path/to/repository")
+repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
 ```
 
-Install requirements
+If there is a specific version of your data you want to access, you can specify the `branch` when cloning.
 
-```bash
-pip install -r requirements.txt
+```python
+repo.clone("https://hub.oxen.ai/ox/CatDogBBox", branch="my-pets")
 ```
 
-Then use `maturin` to build the Rust native module and deploy it in the current virtualenv.
+Once you have a repository locally, you can perform the same operations you might via the command line, through the python api.
 
-```bash
-maturin develop
+For example, you can checkout a branch, add a file, commit, and push the data to the same remote you cloned it from.
+
+```python
+import oxen
+
+repo = LocalRepo("path/to/repository")
+repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
+repo.checkout()
 ```
 
-## Run Tests
+## Remote Repo
 
-```bash
-pytest -s tests/
+If you don't want to download the data locally, you can use the `RemoteRepo` class to interact with a remote repository on OxenHub.
+
+```python
+import oxen 
+
+repo = RemoteRepo("https://hub.oxen.ai/ox/CatDogBBox")
 ```
 
-## Code Quality
+To stage and commit files to a specific version of the data, you can `checkout` an existing branch or create a new one.
 
-### Formatting
-
-```bash
-black .
+```python
+repo.create_branch("dev")
+repo.checkout("dev")
 ```
 
-### Linting
+You can then stage files to the remote repository by specifying the file path and destination directory.
 
-```bash
-ruff .
+```python
+repo.add("new-cat.png", "images") # Stage to images/new-cat.png on remote
+repo.commit("Adding another training image")
 ```
 
-## Adding Modules 🦀 -> 🐍
-
-1. Create a test file in `tests/` that imports the module and tests it.
-2. Implement or extend the rust wrappers in `src/py_*.rs`
-3. Make sure the rust module is linked `src/lib.rs`
-4. Add the module to `python/oxen/__init__.py`
-5. If there is another python layer that needs to be added, or python docs that we want to generate, use `python/oxen/repo.py` as a reference for how it can interact with the rust modules.
-6. Run the tests end to end, to make sure you didn't leave out any steps.
-
+Note that no "push" command is required here, since the above code creates a commit directly on the remote branch.
 
