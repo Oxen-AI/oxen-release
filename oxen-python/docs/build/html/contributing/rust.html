@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Installation &#8212; 🐂 🌾 Oxen 0.1.0</title>
+    <title>Rust Development &#8212; 🐂 🌾 Oxen 0.1.0</title>
   
   
   
@@ -43,11 +43,10 @@
     <script src="../_static/clipboard.min.js"></script>
     <script src="../_static/copybutton.js"></script>
     <script src="../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'getting_started/installation';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'contributing/rust';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Command Line Interface" href="commands.html" />
-    <link rel="prev" title="🐂 🌾 Oxen" href="../index.html" />
+    <link rel="prev" title="Python Development" href="python.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -124,14 +123,14 @@
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
-        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
-<ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="commands.html">Command Line Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="python.html">Python</a></li>
-<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">👨‍🍳 Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/commands.html">Command Line Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/python.html">Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/tutorials.html">Tutorials</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🤓 Concepts</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../concepts/data_frames.html">Data Frames</a></li>
 
@@ -148,6 +147,13 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/rust.html">Rust Documentation</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🧑‍💻 Contributing</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="documentation.html">Writing Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python.html">Python Development</a></li>
+
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Rust Development</a></li>
 </ul>
 
     </div>
@@ -202,7 +208,7 @@
       
       
       
-      <li><a href="../_sources/getting_started/installation.md" target="_blank"
+      <li><a href="../_sources/contributing/rust.md" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -284,7 +290,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Installation</h1>
+    <h1>Rust Development</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -294,21 +300,7 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cli-install">CLI Install</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mac">Mac</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ubuntu-latest">Ubuntu Latest</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ubuntu-20-04">Ubuntu 20.04</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#windows">Windows</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#server-install">Server Install</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Mac</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#docker">Docker</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Ubuntu Latest</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Ubuntu 20.04</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Windows</a></li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 </ul>
             </nav>
         </div>
@@ -320,95 +312,12 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article" role="main">
                   
-  <section id="installation">
-<h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">#</a></h1>
-<section id="cli-install">
-<h2>CLI Install<a class="headerlink" href="#cli-install" title="Permalink to this heading">#</a></h2>
-<p>The Oxen client can be installed via <a class="reference external" href="https://brew.sh/">homebrew</a> or by downloading the relevant binaries for Linux or Windows.</p>
-<p>You can find the source code for the client <a class="reference external" href="https://github.com/Oxen-AI/Oxen">here</a> and can also build for source for your platform. The continuous integration pipeline will build binaries for each release in <a class="reference external" href="https://github.com/Oxen-AI/Oxen">this repository</a>.</p>
-<section id="mac">
-<h3>Mac<a class="headerlink" href="#mac" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>tap<span class="w"> </span>Oxen-AI/oxen
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>install<span class="w"> </span>oxen
-</pre></div>
-</div>
-</section>
-<section id="ubuntu-latest">
-<h3>Ubuntu Latest<a class="headerlink" href="#ubuntu-latest" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen-ubuntu-latest-0.6.0+2.deb
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </span>oxen-ubuntu-latest-0.6.0+2.deb
-</pre></div>
-</div>
-</section>
-<section id="ubuntu-20-04">
-<h3>Ubuntu 20.04<a class="headerlink" href="#ubuntu-20-04" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen-ubuntu-20.04-0.6.0+2.deb
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </span>oxen-ubuntu-20.04-0.6.0+2.deb
-</pre></div>
-</div>
-</section>
-<section id="windows">
-<h3>Windows<a class="headerlink" href="#windows" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen.exe
-</pre></div>
-</div>
-</section>
-</section>
-<section id="server-install">
-<h2>Server Install<a class="headerlink" href="#server-install" title="Permalink to this heading">#</a></h2>
-<p>The Oxen server binary can be deployed where ever you want to store and backup your data. It is an HTTP server that the client communicates with to enable collaboration.</p>
-<section id="id1">
-<h3>Mac<a class="headerlink" href="#id1" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>tap<span class="w"> </span>Oxen-AI/oxen-server
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>install<span class="w"> </span>oxen-server
-</pre></div>
-</div>
-</section>
-<section id="docker">
-<h3>Docker<a class="headerlink" href="#docker" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen-server-docker-0.6.0+2.tar
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>load<span class="w"> </span>&lt;<span class="w"> </span>oxen-server-docker-0.6.0+2.tar
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>-v<span class="w"> </span>/var/oxen/data:/var/oxen/data<span class="w"> </span>-p<span class="w"> </span><span class="m">80</span>:3001<span class="w"> </span>oxen/oxen-server:latest
-</pre></div>
-</div>
-</section>
-<section id="id2">
-<h3>Ubuntu Latest<a class="headerlink" href="#id2" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen-server-ubuntu-latest-0.6.0+2.deb
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </span>oxen-server-ubuntu-latest-0.6.0+2.deb
-</pre></div>
-</div>
-</section>
-<section id="id3">
-<h3>Ubuntu 20.04<a class="headerlink" href="#id3" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen-server-ubuntu-20.04-0.6.0+2.deb
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dpkg<span class="w"> </span>-i<span class="w"> </span>oxen-server-ubuntu-20.04-0.6.0+2.deb
-</pre></div>
-</div>
-</section>
-<section id="id4">
-<h3>Windows<a class="headerlink" href="#id4" title="Permalink to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wget<span class="w"> </span>https://github.com/Oxen-AI/Oxen/releases/download/v0.6.0+2/oxen-server.exe
-</pre></div>
-</div>
-<p>To get up and running using the client and server, you can follow the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release">getting started docs</a>.</p>
-</section>
+  <section id="rust-development">
+<h1>Rust Development<a class="headerlink" href="#rust-development" title="Permalink to this heading">#</a></h1>
+<p>TODO: describe rust code organization, concepts, and how to contribute</p>
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Permalink to this heading">#</a></h2>
+<p>TODO: link to rust docs</p>
 </section>
 </section>
 
@@ -425,22 +334,13 @@ document.write(`
     <div class="footer-article-item"><!-- Previous / next buttons -->
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../index.html"
+       href="python.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">🐂 🌾 Oxen</p>
+        <p class="prev-next-title">Python Development</p>
       </div>
-    </a>
-    <a class="right-next"
-       href="commands.html"
-       title="next page">
-      <div class="prev-next-info">
-        <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Command Line Interface</p>
-      </div>
-      <i class="fa-solid fa-angle-right"></i>
     </a>
 </div></div>
   
@@ -460,21 +360,7 @@ document.write(`
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cli-install">CLI Install</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mac">Mac</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ubuntu-latest">Ubuntu Latest</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ubuntu-20-04">Ubuntu 20.04</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#windows">Windows</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#server-install">Server Install</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">Mac</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#docker">Docker</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Ubuntu Latest</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">Ubuntu 20.04</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Windows</a></li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#documentation">Documentation</a></li>
 </ul>
   </nav></div>
 
@@ -507,7 +393,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 30, 2023.
+  Last updated on Jun 06, 2023.
   <br/>
 </p>
   </div>
