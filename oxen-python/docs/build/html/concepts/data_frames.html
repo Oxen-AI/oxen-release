@@ -1,0 +1,950 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Data Frames &#8212; 🐂 🌾 Oxen 0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "light";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=e353d410970836974a52" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=e353d410970836974a52" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=e353d410970836974a52" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.1.2/css/all.min.css?digest=e353d410970836974a52" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.1.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.1.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.1.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" href="../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=e353d410970836974a52" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52" />
+
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/sphinx_highlight.js"></script>
+    <script src="../_static/clipboard.min.js"></script>
+    <script src="../_static/copybutton.js"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'concepts/data_frames';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Remote Staging Workflow" href="remote_staging.html" />
+    <link rel="prev" title="Tutorials" href="../getting_started/tutorials.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          name="__primary"
+          id="__primary"/>
+  <label class="overlay overlay-primary" for="__primary"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          name="__secondary"
+          id="__secondary"/>
+  <label class="overlay overlay-secondary" for="__secondary"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+  
+    <nav class="bd-header navbar navbar-expand-lg bd-navbar">
+    </nav>
+  
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.0</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/commands.html">Command Line Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/python.html">Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/tutorials.html">Tutorials</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Data Frames</a></li>
+
+<li class="toctree-l1"><a class="reference internal" href="remote_staging.html">Remote Staging Workflow</a></li>
+
+
+<li class="toctree-l1"><a class="reference internal" href="embedding_search.html">Embedding Search</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../references/python/local_repo.html">Local Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/python/remote_repo.html">Remote Repo</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../references/rust.html">Rust Documentation</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><label class="sidebar-toggle primary-toggle btn btn-sm" for="__primary" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</label></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/concepts/data_frames.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+<script>
+document.write(`
+  <button class="theme-switch-button btn btn-sm btn-outline-primary navbar-btn rounded-circle" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="theme-switch" data-mode="light"><i class="fa-solid fa-sun"></i></span>
+    <span class="theme-switch" data-mode="dark"><i class="fa-solid fa-moon"></i></span>
+    <span class="theme-switch" data-mode="auto"><i class="fa-solid fa-circle-half-stroke"></i></span>
+  </button>
+`);
+</script>
+
+<script>
+document.write(`
+  <button class="btn btn-sm navbar-btn search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+  </button>
+`);
+</script>
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Data Frames</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Data Frames</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-df">oxen df</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#useful-commands">Useful Commands</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-data-formats">Output Data Formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-schema">View Schema</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#slice">Slice</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#randomize">Randomize</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-specific-columns">View Specific Columns</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#filter-rows">Filter Rows</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#concatenate-vstack">Concatenate (vstack)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#take-indices">Take Indices</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-column">Add Column</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-row">Add Row</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#aggregate">Aggregate</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unique">Unique</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sort">Sort</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reverse">Reverse</a></li>
+</ul>
+</li>
+</ul>
+
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article" role="main">
+                  
+  <section id="data-frames">
+<h1>Data Frames<a class="headerlink" href="#data-frames" title="Permalink to this heading">#</a></h1>
+<p>As a data scientist or machine learning engineer we deal with a lot of tabular data. Whether it is csv, parquet, or line delimited json, it is useful to store your training data in data frames that we can filter, aggregate, slice and dice.</p>
+<p>To follow along with the examples below feel free to grab to grab the example data from our public <a class="reference external" href="https://www.oxen.ai/ox/CatDogBoundingBox">CatDogBoundingBox</a> repository.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>http://hub.oxen.ai/ox/CatDogBoundingBox
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>CatDogBoundingBox
+</pre></div>
+</div>
+<section id="oxen-df">
+<h2>oxen df<a class="headerlink" href="#oxen-df" title="Permalink to this heading">#</a></h2>
+<p>Oxen has a convenient <code class="docutils literal notranslate"><span class="pre">df</span></code> (short for “DataFrame”) command to deal with tabular data. This example data has 10,000 rows and 6 columns of bounding boxes around cats or dogs. The shape hint at the top of the output can be useful for making sure you are transforming the data correctly.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>shape: (10000, 6)
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
+│ ---                     ┆ ---   ┆ ---    ┆ ---    ┆ ---    ┆ ---    │
+│ str                     ┆ str   ┆ f64    ┆ f64    ┆ f64    ┆ f64    │
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│ images/000000128154.jpg ┆ cat   ┆ 0.0    ┆ 19.27  ┆ 130.79 ┆ 129.58 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000544590.jpg ┆ cat   ┆ 9.75   ┆ 13.49  ┆ 214.25 ┆ 188.35 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000000581.jpg ┆ dog   ┆ 49.37  ┆ 67.79  ┆ 74.29  ┆ 116.08 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000236841.jpg ┆ cat   ┆ 115.21 ┆ 96.65  ┆ 93.87  ┆ 42.29  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...   ┆ ...    ┆ ...    ┆ ...    ┆ ...    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000257301.jpg ┆ dog   ┆ 84.85  ┆ 161.09 ┆ 33.1   ┆ 51.26  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000130399.jpg ┆ dog   ┆ 51.63  ┆ 157.14 ┆ 53.13  ┆ 29.75  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000215471.jpg ┆ cat   ┆ 126.18 ┆ 71.95  ┆ 36.19  ┆ 47.81  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000251246.jpg ┆ cat   ┆ 58.23  ┆ 13.27  ┆ 90.79  ┆ 97.32  │
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+</pre></div>
+</div>
+<p>Oxen uses a powerful <a class="reference external" href="https://pola-rs.github.io/polars-book/user-guide/introduction.html">DataFrame library</a> under the hood, and uses the <a class="reference external" href="https://arrow.apache.org/">Apache Arrow</a> data format to provide powerful cross application functionality. A lot of time and effort can be saved by transforming the data on the command line before writing a single line of application specific code or even opening a python repl or Juptyer notebook.</p>
+</section>
+</section>
+<section id="useful-commands">
+<h1>Useful Commands<a class="headerlink" href="#useful-commands" title="Permalink to this heading">#</a></h1>
+<p>There are many ways you might want to view, transform, and filter your data on the command line before committing to the version of the dataset.</p>
+<p>To quickly see all the options on the <code class="docutils literal notranslate"><span class="pre">df</span></code> command you can run <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">df</span> <span class="pre">--help</span></code>.</p>
+<section id="output-data-formats">
+<h2>Output Data Formats<a class="headerlink" href="#output-data-formats" title="Permalink to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">--output</span></code> option is handy for quickly transforming data files between data formats on disk. Some formats like parquet and arrow are more efficient for data different <a class="reference external" href="https://towardsdatascience.com/apache-arrow-read-dataframe-with-zero-memory-69634092b1a">tasks</a>, but are not human readable like tsv or csv. Data format is always a trade off you’ll have to decide on for your application.</p>
+<p>Oxen currently supports these file extensions: <code class="docutils literal notranslate"><span class="pre">csv</span></code>, <code class="docutils literal notranslate"><span class="pre">tsv</span></code>, <code class="docutils literal notranslate"><span class="pre">parquet</span></code>, <code class="docutils literal notranslate"><span class="pre">arrow</span></code>, <code class="docutils literal notranslate"><span class="pre">json</span></code>, <code class="docutils literal notranslate"><span class="pre">jsonl</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>-o<span class="w"> </span>annotations/data.parquet
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>shape: (10000, 6)
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
+│ ---                     ┆ ---   ┆ ---    ┆ ---    ┆ ---    ┆ ---    │
+│ str                     ┆ str   ┆ f64    ┆ f64    ┆ f64    ┆ f64    │
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│ images/000000128154.jpg ┆ cat   ┆ 0.0    ┆ 19.27  ┆ 130.79 ┆ 129.58 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000544590.jpg ┆ cat   ┆ 9.75   ┆ 13.49  ┆ 214.25 ┆ 188.35 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000000581.jpg ┆ dog   ┆ 49.37  ┆ 67.79  ┆ 74.29  ┆ 116.08 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000236841.jpg ┆ cat   ┆ 115.21 ┆ 96.65  ┆ 93.87  ┆ 42.29  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...   ┆ ...    ┆ ...    ┆ ...    ┆ ...    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000257301.jpg ┆ dog   ┆ 84.85  ┆ 161.09 ┆ 33.1   ┆ 51.26  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000130399.jpg ┆ dog   ┆ 51.63  ┆ 157.14 ┆ 53.13  ┆ 29.75  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000215471.jpg ┆ cat   ┆ 126.18 ┆ 71.95  ┆ 36.19  ┆ 47.81  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000251246.jpg ┆ cat   ┆ 58.23  ┆ 13.27  ┆ 90.79  ┆ 97.32  │
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+
+Writing &quot;annotations/data.parquet&quot;
+</pre></div>
+</div>
+</section>
+<section id="view-schema">
+<h2>View Schema<a class="headerlink" href="#view-schema" title="Permalink to this heading">#</a></h2>
+<p>Sometimes a DataFrame will have many columns and the default command collapses them so they are hard to see. You can use the <code class="docutils literal notranslate"><span class="pre">--schema</span></code> flag to just display the schema of this data frame. Note this is an exclusive flag.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/train.csv<span class="w"> </span>--schema
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">+--------+-------+</span>
+<span class="o">|</span> <span class="n">column</span> <span class="o">|</span> <span class="n">dtype</span> <span class="o">|</span>
+<span class="o">+================+</span>
+<span class="o">|</span> <span class="n">file</span>   <span class="o">|</span> <span class="nb">str</span>   <span class="o">|</span>
+<span class="o">|--------+-------|</span>
+<span class="o">|</span> <span class="n">label</span>  <span class="o">|</span> <span class="nb">str</span>   <span class="o">|</span>
+<span class="o">|--------+-------|</span>
+<span class="o">|</span> <span class="n">min_x</span>  <span class="o">|</span> <span class="n">f64</span>   <span class="o">|</span>
+<span class="o">|--------+-------|</span>
+<span class="o">|</span> <span class="n">min_y</span>  <span class="o">|</span> <span class="n">f64</span>   <span class="o">|</span>
+<span class="o">|--------+-------|</span>
+<span class="o">|</span> <span class="n">width</span>  <span class="o">|</span> <span class="n">f64</span>   <span class="o">|</span>
+<span class="o">|--------+-------|</span>
+<span class="o">|</span> <span class="n">height</span> <span class="o">|</span> <span class="n">f64</span>   <span class="o">|</span>
+<span class="o">+--------+-------+</span>
+</pre></div>
+</div>
+</section>
+<section id="slice">
+<h2>Slice<a class="headerlink" href="#slice" title="Permalink to this heading">#</a></h2>
+<p>Say you want to take a subset of the datafile and save it in another data file. You can do this with the <code class="docutils literal notranslate"><span class="pre">--slice</span></code> option. This can be handy when creating train, test, and validation sets. The two numbers represent the start and end indices you want to slice into.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--slice<span class="w"> </span><span class="s1">&#39;0..9000&#39;</span><span class="w"> </span>-o<span class="w"> </span>annotations/train.parquet
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>shape: (9000, 6)
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
+│ ---                     ┆ ---   ┆ ---    ┆ ---    ┆ ---    ┆ ---    │
+│ str                     ┆ str   ┆ f64    ┆ f64    ┆ f64    ┆ f64    │
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│ images/000000128154.jpg ┆ cat   ┆ 0.0    ┆ 19.27  ┆ 130.79 ┆ 129.58 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000544590.jpg ┆ cat   ┆ 9.75   ┆ 13.49  ┆ 214.25 ┆ 188.35 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000000581.jpg ┆ dog   ┆ 49.37  ┆ 67.79  ┆ 74.29  ┆ 116.08 │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000236841.jpg ┆ cat   ┆ 115.21 ┆ 96.65  ┆ 93.87  ┆ 42.29  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...   ┆ ...    ┆ ...    ┆ ...    ┆ ...    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000431980.jpg ┆ dog   ┆ 98.3   ┆ 110.46 ┆ 42.69  ┆ 26.64  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000071025.jpg ┆ cat   ┆ 55.33  ┆ 105.45 ┆ 160.15 ┆ 73.57  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000518015.jpg ┆ cat   ┆ 43.72  ┆ 4.34   ┆ 72.98  ┆ 129.1  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000171435.jpg ┆ dog   ┆ 22.86  ┆ 100.03 ┆ 125.55 ┆ 41.61  │
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+</pre></div>
+</div>
+</section>
+<section id="randomize">
+<h2>Randomize<a class="headerlink" href="#randomize" title="Permalink to this heading">#</a></h2>
+<p>Often you will want to randomize data before splitting into train and test sets, or even just to peek at different data values.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--randomize
+
+shape:<span class="w"> </span><span class="o">(</span><span class="m">10000</span>,<span class="w"> </span><span class="m">6</span><span class="o">)</span>
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│<span class="w"> </span>file<span class="w">                    </span>┆<span class="w"> </span>label<span class="w"> </span>┆<span class="w"> </span>min_x<span class="w">  </span>┆<span class="w"> </span>min_y<span class="w">  </span>┆<span class="w"> </span>width<span class="w">  </span>┆<span class="w"> </span>height<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">                     </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>│
+│<span class="w"> </span>str<span class="w">                     </span>┆<span class="w"> </span>str<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>│
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│<span class="w"> </span>images/000000335955.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">28</span>.98<span class="w">  </span>┆<span class="w"> </span><span class="m">88</span>.35<span class="w">  </span>┆<span class="w"> </span><span class="m">39</span>.22<span class="w">  </span>┆<span class="w"> </span><span class="m">84</span>.05<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000082475.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">0</span>.6<span class="w">    </span>┆<span class="w"> </span><span class="m">23</span>.08<span class="w">  </span>┆<span class="w"> </span><span class="m">200</span>.92<span class="w"> </span>┆<span class="w"> </span><span class="m">198</span>.2<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000515777.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">109</span>.83<span class="w"> </span>┆<span class="w"> </span><span class="m">124</span>.28<span class="w"> </span>┆<span class="w"> </span><span class="m">58</span>.89<span class="w">  </span>┆<span class="w"> </span><span class="m">93</span>.94<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000176089.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">106</span>.62<span class="w"> </span>┆<span class="w"> </span><span class="m">86</span>.23<span class="w">  </span>┆<span class="w"> </span><span class="m">56</span>.53<span class="w">  </span>┆<span class="w"> </span><span class="m">54</span>.44<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>...<span class="w">                     </span>┆<span class="w"> </span>...<span class="w">   </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000401308.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">21</span>.12<span class="w">  </span>┆<span class="w"> </span><span class="m">0</span>.81<span class="w">   </span>┆<span class="w"> </span><span class="m">202</span>.42<span class="w"> </span>┆<span class="w"> </span><span class="m">221</span>.75<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000105030.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">11</span>.62<span class="w">  </span>┆<span class="w"> </span><span class="m">95</span>.38<span class="w">  </span>┆<span class="w"> </span><span class="m">60</span>.21<span class="w">  </span>┆<span class="w"> </span><span class="m">120</span>.43<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000514890.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">36</span>.76<span class="w">  </span>┆<span class="w"> </span><span class="m">99</span>.58<span class="w">  </span>┆<span class="w"> </span><span class="m">12</span>.27<span class="w">  </span>┆<span class="w"> </span><span class="m">11</span>.18<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000519218.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">71</span>.24<span class="w">  </span>┆<span class="w"> </span><span class="m">58</span>.51<span class="w">  </span>┆<span class="w"> </span><span class="m">8</span>.57<span class="w">   </span>┆<span class="w"> </span><span class="m">22</span>.26<span class="w">  </span>│
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+</pre></div>
+</div>
+</section>
+<section id="view-specific-columns">
+<h2>View Specific Columns<a class="headerlink" href="#view-specific-columns" title="Permalink to this heading">#</a></h2>
+<p>Maybe you have many columns, and only need to work with a few. You can specify column names in a comma separated list with <code class="docutils literal notranslate"><span class="pre">--columns</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--columns<span class="w"> </span><span class="s1">&#39;file,label&#39;</span>
+
+shape:<span class="w"> </span><span class="o">(</span><span class="m">10000</span>,<span class="w"> </span><span class="m">2</span><span class="o">)</span>
+┌─────────────────────────┬───────┐
+│<span class="w"> </span>file<span class="w">                    </span>┆<span class="w"> </span>label<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">                     </span>┆<span class="w"> </span>---<span class="w">   </span>│
+│<span class="w"> </span>str<span class="w">                     </span>┆<span class="w"> </span>str<span class="w">   </span>│
+╞═════════════════════════╪═══════╡
+│<span class="w"> </span>images/000000128154.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000544590.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000000581.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000236841.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>...<span class="w">                     </span>┆<span class="w"> </span>...<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000257301.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000130399.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000215471.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000251246.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>│
+└─────────────────────────┴───────┘
+</pre></div>
+</div>
+</section>
+<section id="filter-rows">
+<h2>Filter Rows<a class="headerlink" href="#filter-rows" title="Permalink to this heading">#</a></h2>
+<p>Oxen has some powerful filter commands built into the CLI. You can quickly filter data down based on a expression involving a column name, an operation, and a row value.</p>
+<p>Supported filter operations: ==, !=, &gt;, &lt;, &lt;= , &gt;=</p>
+<p>Supported logical operations: &amp;&amp;, ||</p>
+<p>Supported row dtypes: str, i32, i64, f32, f64</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--filter<span class="w"> </span><span class="s1">&#39;label == dog &amp;&amp; height &gt;= 200&#39;</span>
+
+shape:<span class="w"> </span><span class="o">(</span><span class="m">5356</span>,<span class="w"> </span><span class="m">6</span><span class="o">)</span>
+┌─────────────────────────┬───────┬────────┬────────┬───────┬────────┐
+│<span class="w"> </span>file<span class="w">                    </span>┆<span class="w"> </span>label<span class="w"> </span>┆<span class="w"> </span>min_x<span class="w">  </span>┆<span class="w"> </span>min_y<span class="w">  </span>┆<span class="w"> </span>width<span class="w"> </span>┆<span class="w"> </span>height<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">                     </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">    </span>│
+│<span class="w"> </span>str<span class="w">                     </span>┆<span class="w"> </span>str<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">    </span>│
+╞═════════════════════════╪═══════╪════════╪════════╪═══════╪════════╡
+│<span class="w"> </span>images/000000000581.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">49</span>.37<span class="w">  </span>┆<span class="w"> </span><span class="m">67</span>.79<span class="w">  </span>┆<span class="w"> </span><span class="m">74</span>.29<span class="w"> </span>┆<span class="w"> </span><span class="m">216</span>.08<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000001360.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">101</span>.56<span class="w"> </span>┆<span class="w"> </span><span class="m">178</span>.2<span class="w">  </span>┆<span class="w"> </span><span class="m">35</span>.22<span class="w"> </span>┆<span class="w"> </span><span class="m">238</span>.34<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000362567.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">90</span>.96<span class="w">  </span>┆<span class="w"> </span><span class="m">36</span>.65<span class="w">  </span>┆<span class="w"> </span><span class="m">86</span>.2<span class="w">  </span>┆<span class="w"> </span><span class="m">285</span>.08<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000201969.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">167</span>.24<span class="w"> </span>┆<span class="w"> </span><span class="m">73</span>.99<span class="w">  </span>┆<span class="w"> </span><span class="m">37</span>.0<span class="w">  </span>┆<span class="w"> </span><span class="m">264</span>.94<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>...<span class="w">                     </span>┆<span class="w"> </span>...<span class="w">   </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">   </span>┆<span class="w"> </span>...<span class="w">    </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000237419.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">49</span>.64<span class="w">  </span>┆<span class="w"> </span><span class="m">104</span>.53<span class="w"> </span>┆<span class="w"> </span><span class="m">31</span>.31<span class="w"> </span>┆<span class="w"> </span><span class="m">248</span>.88<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000314708.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">47</span>.17<span class="w">  </span>┆<span class="w"> </span><span class="m">138</span>.18<span class="w"> </span>┆<span class="w"> </span><span class="m">54</span>.72<span class="w"> </span>┆<span class="w"> </span><span class="m">359</span>.55<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000257301.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">84</span>.85<span class="w">  </span>┆<span class="w"> </span><span class="m">161</span>.09<span class="w"> </span>┆<span class="w"> </span><span class="m">33</span>.1<span class="w">  </span>┆<span class="w"> </span><span class="m">251</span>.26<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000130399.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">51</span>.63<span class="w">  </span>┆<span class="w"> </span><span class="m">157</span>.14<span class="w"> </span>┆<span class="w"> </span><span class="m">53</span>.13<span class="w"> </span>┆<span class="w"> </span><span class="m">229</span>.75<span class="w"> </span>│
+└─────────────────────────┴───────┴────────┴────────┴───────┴────────┘
+</pre></div>
+</div>
+</section>
+<section id="concatenate-vstack">
+<h2>Concatenate (vstack)<a class="headerlink" href="#concatenate-vstack" title="Permalink to this heading">#</a></h2>
+<p>Maybe you have filtered down data, and want to stack the data back into a single frame. The <code class="docutils literal notranslate"><span class="pre">--vstack</span></code> option takes a variable length list of files you would like to concatenate.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--filter<span class="w"> </span><span class="s1">&#39;label=dog&#39;</span><span class="w"> </span>-o<span class="w"> </span>/tmp/dogs.parquet
+$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--filter<span class="w"> </span><span class="s1">&#39;label=cat&#39;</span><span class="w"> </span>-o<span class="w"> </span>/tmp/cats.parquet
+$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>/tmp/cats.parquet<span class="w"> </span>--vstack<span class="w"> </span>/tmp/dogs.parquet<span class="w"> </span>-o<span class="w"> </span>annotations/data.parquet
+</pre></div>
+</div>
+</section>
+<section id="take-indices">
+<h2>Take Indices<a class="headerlink" href="#take-indices" title="Permalink to this heading">#</a></h2>
+<p>Sometimes you have a specific row or set of rows of data you would like to look at. This is where the <code class="docutils literal notranslate"><span class="pre">--take</span></code> option comes in handy.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--take<span class="w"> </span><span class="s1">&#39;1,13,42&#39;</span>
+
+shape:<span class="w"> </span><span class="o">(</span><span class="m">3</span>,<span class="w"> </span><span class="m">6</span><span class="o">)</span>
+┌─────────────────────────┬───────┬───────┬───────┬────────┬────────┐
+│<span class="w"> </span>file<span class="w">                    </span>┆<span class="w"> </span>label<span class="w"> </span>┆<span class="w"> </span>min_x<span class="w"> </span>┆<span class="w"> </span>min_y<span class="w"> </span>┆<span class="w"> </span>width<span class="w">  </span>┆<span class="w"> </span>height<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">                     </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>│
+│<span class="w"> </span>str<span class="w">                     </span>┆<span class="w"> </span>str<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>│
+╞═════════════════════════╪═══════╪═══════╪═══════╪════════╪════════╡
+│<span class="w"> </span>images/000000544590.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">9</span>.75<span class="w">  </span>┆<span class="w"> </span><span class="m">13</span>.49<span class="w"> </span>┆<span class="w"> </span><span class="m">214</span>.25<span class="w"> </span>┆<span class="w"> </span><span class="m">188</span>.35<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000279829.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">30</span>.01<span class="w"> </span>┆<span class="w"> </span><span class="m">13</span>.58<span class="w"> </span>┆<span class="w"> </span><span class="m">82</span>.51<span class="w">  </span>┆<span class="w"> </span><span class="m">176</span>.39<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000209289.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">72</span>.75<span class="w"> </span>┆<span class="w"> </span><span class="m">42</span>.06<span class="w"> </span>┆<span class="w"> </span><span class="m">111</span>.52<span class="w"> </span>┆<span class="w"> </span><span class="m">153</span>.09<span class="w"> </span>│
+└─────────────────────────┴───────┴───────┴───────┴────────┴────────┘
+</pre></div>
+</div>
+</section>
+<section id="add-column">
+<h2>Add Column<a class="headerlink" href="#add-column" title="Permalink to this heading">#</a></h2>
+<p>Your data might not match the schema of a data frame you want to combine with, in this case you may need to add a column to match the schema. You can do this and project default values with <code class="docutils literal notranslate"><span class="pre">--add-col</span> <span class="pre">'col:val:dtype'</span></code></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--add-col<span class="w"> </span><span class="s1">&#39;is_cute:unknown:str&#39;</span>
+
+shape:<span class="w"> </span><span class="o">(</span><span class="m">10000</span>,<span class="w"> </span><span class="m">7</span><span class="o">)</span>
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┬─────────┐
+│<span class="w"> </span>file<span class="w">                    </span>┆<span class="w"> </span>label<span class="w"> </span>┆<span class="w"> </span>min_x<span class="w">  </span>┆<span class="w"> </span>min_y<span class="w">  </span>┆<span class="w"> </span>width<span class="w">  </span>┆<span class="w"> </span>height<span class="w"> </span>┆<span class="w"> </span>is_cute<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">                     </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">     </span>│
+│<span class="w"> </span>str<span class="w">                     </span>┆<span class="w"> </span>str<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>str<span class="w">     </span>│
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╪═════════╡
+│<span class="w"> </span>images/000000128154.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">0</span>.0<span class="w">    </span>┆<span class="w"> </span><span class="m">19</span>.27<span class="w">  </span>┆<span class="w"> </span><span class="m">130</span>.79<span class="w"> </span>┆<span class="w"> </span><span class="m">129</span>.58<span class="w"> </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000544590.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">9</span>.75<span class="w">   </span>┆<span class="w"> </span><span class="m">13</span>.49<span class="w">  </span>┆<span class="w"> </span><span class="m">214</span>.25<span class="w"> </span>┆<span class="w"> </span><span class="m">188</span>.35<span class="w"> </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000000581.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">49</span>.37<span class="w">  </span>┆<span class="w"> </span><span class="m">67</span>.79<span class="w">  </span>┆<span class="w"> </span><span class="m">74</span>.29<span class="w">  </span>┆<span class="w"> </span><span class="m">116</span>.08<span class="w"> </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000236841.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">115</span>.21<span class="w"> </span>┆<span class="w"> </span><span class="m">96</span>.65<span class="w">  </span>┆<span class="w"> </span><span class="m">93</span>.87<span class="w">  </span>┆<span class="w"> </span><span class="m">42</span>.29<span class="w">  </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>...<span class="w">                     </span>┆<span class="w"> </span>...<span class="w">   </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">     </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000257301.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">84</span>.85<span class="w">  </span>┆<span class="w"> </span><span class="m">161</span>.09<span class="w"> </span>┆<span class="w"> </span><span class="m">33</span>.1<span class="w">   </span>┆<span class="w"> </span><span class="m">51</span>.26<span class="w">  </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000130399.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">51</span>.63<span class="w">  </span>┆<span class="w"> </span><span class="m">157</span>.14<span class="w"> </span>┆<span class="w"> </span><span class="m">53</span>.13<span class="w">  </span>┆<span class="w"> </span><span class="m">29</span>.75<span class="w">  </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000215471.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">126</span>.18<span class="w"> </span>┆<span class="w"> </span><span class="m">71</span>.95<span class="w">  </span>┆<span class="w"> </span><span class="m">36</span>.19<span class="w">  </span>┆<span class="w"> </span><span class="m">47</span>.81<span class="w">  </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000251246.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">58</span>.23<span class="w">  </span>┆<span class="w"> </span><span class="m">13</span>.27<span class="w">  </span>┆<span class="w"> </span><span class="m">90</span>.79<span class="w">  </span>┆<span class="w"> </span><span class="m">97</span>.32<span class="w">  </span>┆<span class="w"> </span>unknown<span class="w"> </span>│
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┴─────────┘
+</pre></div>
+</div>
+</section>
+<section id="add-row">
+<h2>Add Row<a class="headerlink" href="#add-row" title="Permalink to this heading">#</a></h2>
+<p>Sometimes it can be a pain to append data to a data file without writing code to do so. The <code class="docutils literal notranslate"><span class="pre">--add-row</span></code> option makes it as easy as a comma separated list and automatically parses the data to the correct dtypes.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>df<span class="w"> </span>annotations/data.csv<span class="w"> </span>--add-row<span class="w"> </span><span class="s1">&#39;images/my_cat.jpg,cat,0,0,0,0&#39;</span>
+
+shape:<span class="w"> </span><span class="o">(</span><span class="m">10001</span>,<span class="w"> </span><span class="m">6</span><span class="o">)</span>
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│<span class="w"> </span>file<span class="w">                    </span>┆<span class="w"> </span>label<span class="w"> </span>┆<span class="w"> </span>min_x<span class="w">  </span>┆<span class="w"> </span>min_y<span class="w">  </span>┆<span class="w"> </span>width<span class="w">  </span>┆<span class="w"> </span>height<span class="w"> </span>│
+│<span class="w"> </span>---<span class="w">                     </span>┆<span class="w"> </span>---<span class="w">   </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>┆<span class="w"> </span>---<span class="w">    </span>│
+│<span class="w"> </span>str<span class="w">                     </span>┆<span class="w"> </span>str<span class="w">   </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>┆<span class="w"> </span>f64<span class="w">    </span>│
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│<span class="w"> </span>images/000000128154.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">0</span>.0<span class="w">    </span>┆<span class="w"> </span><span class="m">19</span>.27<span class="w">  </span>┆<span class="w"> </span><span class="m">130</span>.79<span class="w"> </span>┆<span class="w"> </span><span class="m">129</span>.58<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000544590.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">9</span>.75<span class="w">   </span>┆<span class="w"> </span><span class="m">13</span>.49<span class="w">  </span>┆<span class="w"> </span><span class="m">214</span>.25<span class="w"> </span>┆<span class="w"> </span><span class="m">188</span>.35<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000000581.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">49</span>.37<span class="w">  </span>┆<span class="w"> </span><span class="m">67</span>.79<span class="w">  </span>┆<span class="w"> </span><span class="m">74</span>.29<span class="w">  </span>┆<span class="w"> </span><span class="m">116</span>.08<span class="w"> </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000236841.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">115</span>.21<span class="w"> </span>┆<span class="w"> </span><span class="m">96</span>.65<span class="w">  </span>┆<span class="w"> </span><span class="m">93</span>.87<span class="w">  </span>┆<span class="w"> </span><span class="m">42</span>.29<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>...<span class="w">                     </span>┆<span class="w"> </span>...<span class="w">   </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>┆<span class="w"> </span>...<span class="w">    </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000130399.jpg<span class="w"> </span>┆<span class="w"> </span>dog<span class="w">   </span>┆<span class="w"> </span><span class="m">51</span>.63<span class="w">  </span>┆<span class="w"> </span><span class="m">157</span>.14<span class="w"> </span>┆<span class="w"> </span><span class="m">53</span>.13<span class="w">  </span>┆<span class="w"> </span><span class="m">29</span>.75<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000215471.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">126</span>.18<span class="w"> </span>┆<span class="w"> </span><span class="m">71</span>.95<span class="w">  </span>┆<span class="w"> </span><span class="m">36</span>.19<span class="w">  </span>┆<span class="w"> </span><span class="m">47</span>.81<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/000000251246.jpg<span class="w"> </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">58</span>.23<span class="w">  </span>┆<span class="w"> </span><span class="m">13</span>.27<span class="w">  </span>┆<span class="w"> </span><span class="m">90</span>.79<span class="w">  </span>┆<span class="w"> </span><span class="m">97</span>.32<span class="w">  </span>│
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│<span class="w"> </span>images/my_cat.jpg<span class="w">       </span>┆<span class="w"> </span>cat<span class="w">   </span>┆<span class="w"> </span><span class="m">0</span>.0<span class="w">    </span>┆<span class="w"> </span><span class="m">0</span>.0<span class="w">    </span>┆<span class="w"> </span><span class="m">0</span>.0<span class="w">    </span>┆<span class="w"> </span><span class="m">0</span>.0<span class="w">    </span>│
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+</pre></div>
+</div>
+</section>
+<section id="aggregate">
+<h2>Aggregate<a class="headerlink" href="#aggregate" title="Permalink to this heading">#</a></h2>
+<p>Oxen DataFrame aggregations can be helpful to quickly get statistics about your data. You can save these statistics to disk and commit them to track stats about your data over time.</p>
+<p>The format for an aggregation query is similar to a lambda function. The inputs to the function are the column name(s) you want to group by. The outputs are functions you want to run over the grouped results.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">(</span><span class="s1">&#39;col_0&#39;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="s1">&#39;col_1&#39;</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="s1">&#39;col_2&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>This simple example aggregation query would be if you wanted to find a distribution of labels in a dataset.</p>
+<p>For example in our cats vs dogs dataset you can group by the <code class="docutils literal notranslate"><span class="pre">'label'</span></code> column, and then run the <code class="docutils literal notranslate"><span class="pre">count()</span></code> function value over all the values in the <code class="docutils literal notranslate"><span class="pre">'file'</span></code> column.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ oxen df annotations/train.csv -a &quot;(&#39;label&#39;) -&gt; (count(&#39;file&#39;))&quot;
+
+shape: (2, 2)
+┌───────┬───────────────┐
+│ label ┆ count(&#39;file&#39;) │
+│ ---   ┆ ---           │
+│ str   ┆ u32           │
+╞═══════╪═══════════════╡
+│ cat   ┆ 4140          │
+├╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ dog   ┆ 4860          │
+└───────┴───────────────┘
+</pre></div>
+</div>
+<p>You can specify multiple functions in the output. For example if you wanted the unique file count as well as the raw count you can add the <code class="docutils literal notranslate"><span class="pre">n_unique()</span></code> function.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ oxen df annotations/train.csv -a &quot;(&#39;label&#39;) -&gt; (count(&#39;file&#39;), n_unique(&#39;file&#39;))&quot;
+
+shape: (2, 3)
+┌───────┬───────────────┬──────────────────┐
+│ label ┆ count(&#39;file&#39;) ┆ n_unique(&#39;file&#39;) │
+│ ---   ┆ ---           ┆ ---              │
+│ str   ┆ u32           ┆ u32              │
+╞═══════╪═══════════════╪══════════════════╡
+│ dog   ┆ 4860          ┆ 3798             │
+├╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ cat   ┆ 4140          ┆ 3525             │
+└───────┴───────────────┴──────────────────┘
+</pre></div>
+</div>
+<p>Here is a list of supported output aggregation functions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">list</span></code> aggregate column values into a list</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">count</span></code> count the aggregated values</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">n_unique</span></code> unique count of the aggregated values</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">min</span></code> minimum value of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">max</span></code> maximum value of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">arg_min</span></code> index of minimum value in the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">arg_max</span></code> index of maximum value in the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">mean</span></code> mean value of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">median</span></code> median value of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">std</span></code> standard deviation of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">var</span></code> variance of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">first</span></code> first value of the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">last</span></code> last value in the group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">head</span></code> first 5 values of group</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tail</span></code> last 5 values of the group</p></li>
+</ul>
+</section>
+<section id="unique">
+<h2>Unique<a class="headerlink" href="#unique" title="Permalink to this heading">#</a></h2>
+<p>Oxen can efficiently compute all the unique values given a column name, or comma separated list of column names.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ oxen df annotations/train.csv --unique &quot;file&quot;
+$ oxen df annotations/train.csv -u &quot;file,label&quot;
+</pre></div>
+</div>
+</section>
+<section id="sort">
+<h2>Sort<a class="headerlink" href="#sort" title="Permalink to this heading">#</a></h2>
+<p>Sorting can be achieved with the <code class="docutils literal notranslate"><span class="pre">sort</span></code> flag. For example you may want to find the largest bounding boxes by sorting on the height column.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>oxen df annotations/train.csv --sort &quot;height&quot;
+
+shape: (9000, 6)
+┌─────────────────────────┬───────┬────────┬────────┬────────┬────────┐
+│ file                    ┆ label ┆ min_x  ┆ min_y  ┆ width  ┆ height │
+│ ---                     ┆ ---   ┆ ---    ┆ ---    ┆ ---    ┆ ---    │
+│ str                     ┆ str   ┆ f64    ┆ f64    ┆ f64    ┆ f64    │
+╞═════════════════════════╪═══════╪════════╪════════╪════════╪════════╡
+│ images/000000580919.jpg ┆ dog   ┆ 61.28  ┆ 88.31  ┆ 2.71   ┆ 1.83   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000577310.jpg ┆ dog   ┆ 132.25 ┆ 193.86 ┆ 3.28   ┆ 1.95   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000393384.jpg ┆ dog   ┆ 138.85 ┆ 89.89  ┆ 1.25   ┆ 2.11   │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000477398.jpg ┆ dog   ┆ 185.11 ┆ 195.93 ┆ 2.51   ┆ 2.6    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...   ┆ ...    ┆ ...    ┆ ...    ┆ ...    │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000069205.jpg ┆ dog   ┆ 0.0    ┆ 0.0    ┆ 224.0  ┆ 224.0  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000554737.jpg ┆ cat   ┆ 0.0    ┆ 0.0    ┆ 224.0  ┆ 224.0  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000213819.jpg ┆ cat   ┆ 8.32   ┆ 0.0    ┆ 207.77 ┆ 224.0  │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌┤
+│ images/000000397212.jpg ┆ cat   ┆ 0.36   ┆ 0.0    ┆ 115.5  ┆ 224.0  │
+└─────────────────────────┴───────┴────────┴────────┴────────┴────────┘
+</pre></div>
+</div>
+<p>Sort is also useful in the context of aggregations. When aggregating up statistics they do not come back in a guaranteed order. If you want to see which files have the most labels, you can group the output if an aggregation <code class="docutils literal notranslate"><span class="pre">count()</span></code> function.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ oxen df annotations/train.csv -a &quot;(&#39;file&#39;) -&gt; (list(&#39;label&#39;), count(&#39;label&#39;))&quot; --sort &quot;count(&#39;label&#39;)&quot;
+
+shape: (7128, 3)
+┌─────────────────────────┬───────────────────────────┬────────────────┐
+│ file                    ┆ list(&#39;label&#39;)             ┆ count(&#39;label&#39;) │
+│ ---                     ┆ ---                       ┆ ---            │
+│ str                     ┆ list[str]                 ┆ u32            │
+╞═════════════════════════╪═══════════════════════════╪════════════════╡
+│ images/000000060202.jpg ┆ [&quot;dog&quot;]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000518156.jpg ┆ [&quot;cat&quot;]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000347879.jpg ┆ [&quot;cat&quot;]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000290136.jpg ┆ [&quot;dog&quot;]                   ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...                       ┆ ...            │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000398285.jpg ┆ [&quot;dog&quot;, &quot;dog&quot;, ... &quot;dog&quot;] ┆ 14             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000244933.jpg ┆ [&quot;cat&quot;, &quot;cat&quot;, ... &quot;cat&quot;] ┆ 17             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000016950.jpg ┆ [&quot;dog&quot;, &quot;dog&quot;, ... &quot;dog&quot;] ┆ 19             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000315555.jpg ┆ [&quot;dog&quot;, &quot;dog&quot;, ... &quot;dog&quot;] ┆ 19             │
+└─────────────────────────┴───────────────────────────┴────────────────┘
+</pre></div>
+</div>
+</section>
+<section id="reverse">
+<h2>Reverse<a class="headerlink" href="#reverse" title="Permalink to this heading">#</a></h2>
+<p>You can also reverse the order of a data table. By default <code class="docutils literal notranslate"><span class="pre">--sort</span></code> sorts in ascending order, but can be reversed with the <code class="docutils literal notranslate"><span class="pre">--reverse</span></code> flag.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>oxen df annotations/train.csv -a &quot;(&#39;file&#39;) -&gt; (count(&#39;label&#39;))&quot; --sort &quot;count(&#39;label&#39;)&quot; --reverse
+
+shape: (7128, 2)
+┌─────────────────────────┬────────────────┐
+│ file                    ┆ count(&#39;label&#39;) │
+│ ---                     ┆ ---            │
+│ str                     ┆ u32            │
+╞═════════════════════════╪════════════════╡
+│ images/000000315555.jpg ┆ 19             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000016950.jpg ┆ 19             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000244933.jpg ┆ 17             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000092869.jpg ┆ 14             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ ...                     ┆ ...            │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000038827.jpg ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000470862.jpg ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000292101.jpg ┆ 1              │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ images/000000345432.jpg ┆ 1              │
+└─────────────────────────┴────────────────┘
+</pre></div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+                <footer class="bd-footer-article">
+                  
+<div class="footer-article-items footer-article__inner">
+  
+    <div class="footer-article-item"><!-- Previous / next buttons -->
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../getting_started/tutorials.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Tutorials</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="remote_staging.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Remote Staging Workflow</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div></div>
+  
+</div>
+
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Data Frames</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-df">oxen df</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#useful-commands">Useful Commands</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-data-formats">Output Data Formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-schema">View Schema</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#slice">Slice</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#randomize">Randomize</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-specific-columns">View Specific Columns</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#filter-rows">Filter Rows</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#concatenate-vstack">Concatenate (vstack)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#take-indices">Take Indices</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-column">Add Column</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-row">Add Row</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#aggregate">Aggregate</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#unique">Unique</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sort">Sort</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reverse">Reverse</a></li>
+</ul>
+</li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Greg Schoeninger
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  <p class="copyright">
+    
+      © Copyright 2023, OxenAI.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on May 30, 2023.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=e353d410970836974a52"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
