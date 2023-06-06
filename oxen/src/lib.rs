@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 pub mod error;
 pub mod py_branch;
 
+pub mod auth;
 pub mod py_commit;
 pub mod py_dataset;
 pub mod py_local_repo;
@@ -45,5 +46,11 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     util_module.add_function(wrap_pyfunction!(util::read_df, util_module)?)?;
     m.add_submodule(util_module)?;
 
+    // Auth Module
+    let auth_module = PyModule::new(py, "auth")?;
+    auth_module.add_function(wrap_pyfunction!(auth::get_oxen_home_dir, auth_module)?)?;
+    auth_module.add_function(wrap_pyfunction!(auth::add_host_auth, auth_module)?)?;
+    auth_module.add_function(wrap_pyfunction!(auth::create_user_config, auth_module)?)?;
+    m.add_submodule(auth_module)?;
     Ok(())
 }
