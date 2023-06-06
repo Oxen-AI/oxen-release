@@ -8,7 +8,7 @@
 
 .. toctree::
    :maxdepth: 2
-   :caption: Getting Started
+   :caption: 👨‍🍳 Getting Started
    :name: getting_started
    :hidden:
 
@@ -19,11 +19,13 @@
 
 .. toctree::
    :maxdepth: 2
-   :caption: Concepts
+   :caption: 🤓 Concepts
    :name: concepts
    :hidden:
 
+   concepts/data_frames.md
    concepts/remote_staging.md
+   concepts/embedding_search.md
 
 .. toctree::
    :maxdepth: 2
@@ -41,3 +43,13 @@
    :hidden:
 
    references/rust.md
+
+.. toctree::
+   :maxdepth: 2
+   :caption: 🧑‍💻 Contributing
+   :name: contributing
+   :hidden:
+
+   contributing/documentation.md
+   contributing/python.md
+   contributing/rust.md

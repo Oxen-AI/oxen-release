@@ -83,20 +83,6 @@ repo.commit("Adding a new cat")
 repo.push()
 ```
 
-# 📚 Python Documentation
-
-[Python Documentation](https://docs.oxen.ai)
-
-To build and view the documentation locally, run the following from the "oxen/docs" directory: 
-
-```bash
-$ make html
-```
-
-Then open `oxen/docs/build/html/index.html` in your browser.
-
-To contribute to the docs, make any changes in the `oxen/docs/source` directory, build using the instructions above, and `commit` and `push` the new `source` and `build` directories.
-
 # 🧑‍💻 OxenHub
 
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
