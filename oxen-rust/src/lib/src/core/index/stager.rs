@@ -653,7 +653,7 @@ impl Stager {
         // println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
         let bar = ProgressBar::new(size);
-        dir_paths.par_iter().for_each(|(parent, paths)| {
+        dir_paths.iter().for_each(|(parent, paths)| {
             // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
 
             let staged_db: StagedDirEntryDB<MultiThreaded> =

@@ -561,7 +561,8 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
                     // Kick off processing in background thread because could take awhile
                     std::thread::spawn(move || {
                         log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                        match commit_cacher::run_all(&repo, &commit) {
+                        let force = false;
+                        match commit_cacher::run_all(&repo, &commit, force) {
                             Ok(_) => {
                                 log::debug!(
                                     "Success processing commit {:?} on repo {:?}",

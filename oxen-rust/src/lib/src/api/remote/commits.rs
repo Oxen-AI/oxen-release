@@ -651,7 +651,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_remote_commits() -> Result<(), OxenError> {
+    async fn test_list_remote_commits_all() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
             let mut local_repo = local_repo;
             let commit_history = api::local::commits::list(&local_repo)?;

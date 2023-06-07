@@ -3629,7 +3629,7 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
         // assert_eq!(branch.name, branch_name);
 
         // Advance head on main branch, leave behind-main behind
-        let path = test::test_jpeg_file().to_path_buf();
+        let path = test::test_img_file().to_path_buf();
         let result =
             api::remote::staging::add_file(&remote_repo, main_branch, &identifier, main_path, path)
                 .await;
@@ -3658,7 +3658,7 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
                 .await?;
 
         // Add file at images/folder to behind-main, committed to main
-        let image_path = test::test_jpeg_file().to_path_buf();
+        let image_path = test::test_img_file().to_path_buf();
         let result = api::remote::staging::add_file(
             &remote_repo,
             new_branch,

@@ -107,13 +107,12 @@ impl RemoteStagedStatus {
                 };
                 let path_str = path.to_string_lossy().to_string();
 
-                panic!("TODO: implement metadata entry for remote_staged_status");
                 MetaDataEntry {
                     filename: path_str,
                     is_dir: false,
                     size: len,
                     latest_commit: None,
-                    data_type: util::fs::file_datatype(&full_path),
+                    data_type: util::fs::file_data_type(&full_path),
                     mime_type: util::fs::file_mime_type(&full_path),
                     extension: util::fs::file_extension(&full_path),
                     resource: None, // not committed so does not have a resource

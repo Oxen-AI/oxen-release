@@ -74,7 +74,8 @@ impl PaginatedDirEntries {
             total
         );
 
-        let (paginated, total_pages) = util::paginate(entries, page_num, page_size);
+        let (paginated, total_pages) =
+            util::paginate_with_total(entries, page_num, page_size, total);
         PaginatedDirEntries {
             status: StatusMessage::resource_found(),
             entries: paginated,

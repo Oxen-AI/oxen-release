@@ -44,7 +44,7 @@ impl DiffEntry {
 
         DiffEntry {
             status,
-            data_type: util::fs::file_datatype(&version_path),
+            data_type: util::fs::file_data_type(&version_path),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
             is_dir: version_path.is_dir(),
             size: current_entry.num_bytes,

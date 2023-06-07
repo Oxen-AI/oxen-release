@@ -29,6 +29,8 @@ pub const FILES_DIR: &str = "files";
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
+/// prefix for the stats dir
+pub const STATS_DIR: &str = "stats";
 /// prefix for the staged dirs
 pub const STAGED_DIR: &str = "staged";
 /// prefix for the sync status dirs to tell if commits are synced locally

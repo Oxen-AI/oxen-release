@@ -606,6 +606,13 @@ pub fn commit_cache() -> Command {
                 .help("Compute the cache for all the oxen repositories in this directory")
                 .action(clap::ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("force")
+                .long("force")
+                .short('f')
+                .help("Force recompute the cache even if it already exists.")
+                .action(clap::ArgAction::SetTrue),
+        )
         .arg(arg!([COMMITTISH] "The commit or branch id you want to compute the cache for. Defaults to main."))
 }
 

@@ -745,8 +745,10 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
     let path_str = sub_matches.get_one::<String>("PATH").expect("required");
     let path = Path::new(path_str);
 
+    let force = sub_matches.get_flag("force");
+
     if sub_matches.get_flag("all") {
-        match command::commit_cache::compute_cache_on_all_repos(path).await {
+        match command::commit_cache::compute_cache_on_all_repos(path, force).await {
             Ok(_) => {}
             Err(err) => {
                 println!("Err: {err}")
@@ -758,12 +760,14 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
             .map(String::from);
 
         match LocalRepository::new(path) {
-            Ok(repo) => match command::commit_cache::compute_cache(&repo, committish).await {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("Err: {err}")
+            Ok(repo) => {
+                match command::commit_cache::compute_cache(&repo, committish, force).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        println!("Err: {err}")
+                    }
                 }
-            },
+            }
             Err(err) => {
                 println!("Err: {err}")
             }

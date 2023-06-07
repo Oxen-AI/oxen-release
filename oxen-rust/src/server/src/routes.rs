@@ -154,7 +154,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- Entry (returns meta data for a file or a dir) ----- //
         .route(
-            "/{namespace}/{repo_name}/entry/{resource:.*}",
+            "/{namespace}/{repo_name}/meta/{resource:.*}",
             web::get().to(controllers::file::meta_data),
         )
         .route(
