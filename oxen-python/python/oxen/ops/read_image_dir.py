@@ -21,7 +21,7 @@ class ReadImageDir(oxen.Op):
         image_data = []
         prefix = args[0]
         for path in tqdm(args[1]):
-            img = cv2.imread(f"{prefix}/{path}")
+            img = cv2.imread(f"{prefix}/{path}", cv2.IMREAD_UNCHANGED)
             image_data.append(img)
         return np.array(image_data)
 
