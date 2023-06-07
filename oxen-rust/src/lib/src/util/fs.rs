@@ -16,15 +16,10 @@ use std::path::PathBuf;
 use sysinfo::{DiskExt, System, SystemExt};
 
 use crate::constants;
-use crate::constants::AUDIO;
-use crate::constants::BINARY;
+use crate::constants::CACHE_DIR;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
 use crate::constants::HISTORY_DIR;
-use crate::constants::IMAGE;
-use crate::constants::TABULAR;
-use crate::constants::TEXT;
-use crate::constants::VIDEO;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
@@ -54,6 +49,7 @@ pub fn commit_content_is_valid_path(repo: &LocalRepository, commit: &Commit) -> 
     oxen_hidden_dir(&repo.path)
         .join(HISTORY_DIR)
         .join(&commit.id)
+        .join(CACHE_DIR)
         .join(CONTENT_IS_VALID)
 }
 
@@ -633,7 +629,7 @@ pub fn datatype_from_mimetype(path: &Path, mimetype: &str) -> EntryDataType {
     }
 }
 
-pub fn file_datatype(path: &Path) -> EntryDataType {
+pub fn file_data_type(path: &Path) -> EntryDataType {
     let mimetype = file_mime_type(path);
     datatype_from_mimetype(path, mimetype.as_str())
 }
@@ -997,7 +993,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             assert_eq!(
                 EntryDataType::Tabular,
-                util::fs::file_datatype(
+                util::fs::file_data_type(
                     &repo
                         .path
                         .join("annotations")
@@ -1007,7 +1003,7 @@ mod tests {
             );
             assert_eq!(
                 EntryDataType::Text,
-                util::fs::file_datatype(
+                util::fs::file_data_type(
                     &repo
                         .path
                         .join("annotations")
@@ -1021,14 +1017,14 @@ mod tests {
             util::fs::copy("data/test/text/test_id.txt", &test_id_file)?;
             util::fs::copy("data/test/text/test_id.txt", &test_id_file_no_ext)?;
 
-            assert_eq!(EntryDataType::Text, util::fs::file_datatype(&test_id_file));
+            assert_eq!(EntryDataType::Text, util::fs::file_data_type(&test_id_file));
             assert_eq!(
                 EntryDataType::Text,
-                util::fs::file_datatype(&test_id_file_no_ext)
+                util::fs::file_data_type(&test_id_file_no_ext)
             );
             assert_eq!(
                 EntryDataType::Image,
-                util::fs::file_datatype(&repo.path.join("test").join("1.jpg"))
+                util::fs::file_data_type(&repo.path.join("test").join("1.jpg"))
             );
 
             Ok(())

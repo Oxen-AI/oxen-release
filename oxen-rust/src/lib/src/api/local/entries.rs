@@ -1,16 +1,16 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
-use crate::constants::DIR;
 use crate::error::OxenError;
 use crate::model::entry::metadata_entry::MetaData;
 use crate::util;
 use crate::view::entry::ResourceVersion;
 use rayon::prelude::*;
 
+use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetaDataEntry};
-use crate::view::PaginatedDirEntries;
+use crate::view::{PaginatedDirEntries, StatusMessage};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -47,39 +47,19 @@ pub fn meta_entry_from_dir(
     revision: &str,
 ) -> Result<MetaDataEntry, OxenError> {
     let commit = commit_reader.get_commit_by_id(&commit.id)?.unwrap();
-    let entry_reader = CommitEntryReader::new(repo, &commit)?;
 
-    // Find latest commit within dir and compute recursive size
-    let commits: HashMap<String, Commit> = HashMap::new();
-    let mut latest_commit = Some(commit.to_owned());
-    let mut total_size: u64 = 0;
-    // This lists all the committed dirs
-    let dirs = entry_reader.list_dirs()?;
-    for dir in dirs {
-        // Have to make sure we are in a subset of the dir (not really a tree structure)
-        if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
-            for entry in entry_reader.list_entries()? {
-                total_size += entry.num_bytes;
+    // We cache the latest commit and size for each file in the directory after commit
+    let latest_commit_path =
+        core::cache::cachers::repo_size::dir_latest_commit_path(&repo, &commit, &path);
+    let latest_commit_id = util::fs::read_from_path(&latest_commit_path)?;
+    let latest_commit = commit_reader.get_commit_by_id(&latest_commit_id)?;
 
-                let commit = if commits.contains_key(&entry.commit_id) {
-                    Some(commits[&entry.commit_id].clone())
-                } else {
-                    commit_reader.get_commit_by_id(&entry.commit_id)?
-                };
+    let total_size_path = core::cache::cachers::repo_size::dir_size_path(&repo, &commit, &path);
+    let total_size_str = util::fs::read_from_path(&total_size_path)?;
+    let total_size = total_size_str
+        .parse::<u64>()
+        .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?;
 
-                if latest_commit.is_none() {
-                    latest_commit = commit.clone();
-                }
-
-                if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
-                    latest_commit = commit.clone();
-                }
-            }
-        }
-    }
-
-    panic!("TODO: implement metadata entry for meta_entry_from_dir");
     let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
     return Ok(MetaDataEntry {
         filename: String::from(base_name.to_string_lossy()),
@@ -116,7 +96,6 @@ pub fn meta_entry_from_commit_entry(
         .path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
-    panic!("TODO: implement metadata entry for meta_entry_from_commit_entry");
 
     let version_path = util::fs::version_path(repo, entry);
     return Ok(MetaDataEntry {
@@ -124,7 +103,7 @@ pub fn meta_entry_from_commit_entry(
         is_dir: false,
         size,
         latest_commit: Some(latest_commit),
-        data_type: util::fs::file_datatype(&version_path),
+        data_type: util::fs::file_data_type(&version_path),
         mime_type: util::fs::file_mime_type(&version_path),
         extension: util::fs::file_extension(&version_path),
         resource: Some(ResourceVersion {
@@ -171,7 +150,8 @@ pub fn list_page(
     reader.list_entry_page(*page, *page_size)
 }
 
-/// List all files in a directory given a specific commit
+/// List all files and directories in a directory given a specific commit
+// This is wayyyy more complicated that it needs to be because we have these two separate dbs....
 pub fn list_directory(
     repo: &LocalRepository,
     commit: &Commit,
@@ -183,6 +163,7 @@ pub fn list_directory(
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
 
+    // List the directories first, then the files
     let mut dir_paths: Vec<MetaDataEntry> = vec![];
     for dir in entry_reader.list_dirs()? {
         // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
@@ -200,10 +181,14 @@ pub fn list_directory(
     }
     log::debug!("list_directory got dir_paths {}", dir_paths.len());
 
+    // Once we know how many directories we have we can calculate the offset for the files
     let mut file_paths: Vec<MetaDataEntry> = vec![];
     let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory)?;
+    log::debug!("list_directory counting entries...");
     let total = dir_entry_reader.num_entries() + dir_paths.len();
-    for entry in dir_entry_reader.list_entries()? {
+    log::debug!("list_directory got {} total entries", total);
+    let offset = dir_paths.len();
+    for entry in dir_entry_reader.list_entry_page_with_offset(page, page_size, offset)? {
         file_paths.push(meta_entry_from_commit_entry(
             repo,
             &entry,
@@ -211,26 +196,51 @@ pub fn list_directory(
             revision,
         )?)
     }
-    log::debug!("list_directory got file_paths {}", dir_paths.len());
+    log::debug!("list_directory got file_paths {}", file_paths.len());
 
-    // Combine all paths, starting with dirs
-    dir_paths.append(&mut file_paths);
+    let total_pages = (total as f64 / page_size as f64).ceil() as usize;
+
+    // Combine all paths, starting with dirs if there are enough, else just files
+    let start_page = if page == 0 { 0 } else { page - 1 };
+    let start_idx = start_page * page_size;
+    log::debug!(
+        "list_directory start_idx {start_idx} page_size {page_size} dir_paths.len() {}",
+        dir_paths.len()
+    );
+    let mut entries = if dir_paths.len() < start_idx {
+        file_paths
+    } else {
+        dir_paths.append(&mut file_paths);
+        dir_paths
+    };
+
+    if entries.len() >= page_size {
+        entries = entries[0..page_size].to_vec();
+    }
 
     log::debug!(
-        "list_directory {:?} page {} page_size {} total {}",
+        "list_directory {:?} page {} page_size {} total {} total_pages {}",
         directory,
         page,
         page_size,
         total,
+        total_pages,
     );
 
     let resource = Some(ResourceVersion {
         path: directory.to_str().unwrap().to_string(),
         version: revision.to_string(),
     });
-    Ok(PaginatedDirEntries::from_entries(
-        dir_paths, resource, page, page_size, total,
-    ))
+
+    Ok(PaginatedDirEntries {
+        status: StatusMessage::resource_found(),
+        entries,
+        resource,
+        page_size,
+        page_number: page,
+        total_pages,
+        total_entries: total,
+    })
 }
 
 /// Given a list of entries, compute the total in bytes size of all entries.
@@ -261,6 +271,7 @@ mod tests {
 
     use crate::api;
     use crate::command;
+    use crate::core;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -483,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_train_directory_exactly_ten() -> Result<(), OxenError> {
+    fn test_list_train_directory_1_exactly_ten() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Create 8 directories
             for n in 0..8 {
@@ -506,6 +517,10 @@ mod tests {
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
+
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
 
             let page_number = 1;
             let page_size = 10;
@@ -551,6 +566,10 @@ mod tests {
             command::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
+
             let page_number = 2;
             let page_size = 10;
 
@@ -595,6 +614,10 @@ mod tests {
             command::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
+
             let page_number = 1;
             let page_size = 10;
 
@@ -608,6 +631,7 @@ mod tests {
             )?;
             assert_eq!(paginated.total_entries, 9);
             assert_eq!(paginated.total_pages, 1);
+            assert_eq!(paginated.entries.len(), 9);
 
             Ok(())
         })
@@ -638,6 +662,10 @@ mod tests {
             command::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
+
             let page_number = 1;
             let page_size = 10;
 
@@ -651,6 +679,152 @@ mod tests {
             )?;
             assert_eq!(paginated.total_entries, 11);
             assert_eq!(paginated.total_pages, 2);
+            assert_eq!(paginated.entries.len(), page_size);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_train_directory_many_dirs_many_files() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create many directories
+            let num_dirs = 32;
+            for n in 0..num_dirs {
+                let dirname = format!("dir_{}", n);
+                let dir_path = repo.path.join(dirname);
+                util::fs::create_dir_all(&dir_path)?;
+                let filename = "data.txt";
+                let filepath = dir_path.join(filename);
+                util::fs::write(&filepath, format!("Hi {}", n))?;
+            }
+
+            // Create many files
+            let num_files = 45;
+            for n in 0..num_files {
+                let filename = format!("file_{}.txt", n);
+                let filepath = repo.path.join(filename);
+                util::fs::write(filepath, format!("helloooo {}", n))?;
+            }
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?;
+
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
+
+            let page_number = 1;
+            let page_size = 10;
+
+            let paginated = api::local::entries::list_directory(
+                &repo,
+                &commit,
+                Path::new("."),
+                &commit.id,
+                page_number,
+                page_size,
+            )?;
+            assert_eq!(paginated.total_entries, num_dirs + num_files);
+            assert_eq!(paginated.total_pages, 8);
+            assert_eq!(paginated.entries.len(), page_size);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_train_directory_one_dir_many_files_page_2() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create one directory
+            let dir_path = repo.path.join("lonely_dir");
+            util::fs::create_dir_all(&dir_path)?;
+            let filename = "data.txt";
+            let filepath = dir_path.join(filename);
+            util::fs::write(&filepath, format!("All the lonely directories"))?;
+
+            // Create many files
+            let num_files = 45;
+            for n in 0..num_files {
+                let filename = format!("file_{}.txt", n);
+                let filepath = repo.path.join(filename);
+                util::fs::write(filepath, format!("helloooo {}", n))?;
+            }
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?;
+
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
+
+            let page_number = 2;
+            let page_size = 10;
+
+            let paginated = api::local::entries::list_directory(
+                &repo,
+                &commit,
+                Path::new("."),
+                &commit.id,
+                page_number,
+                page_size,
+            )?;
+
+            assert_eq!(paginated.total_entries, num_files + 1);
+            assert_eq!(paginated.total_pages, 5);
+            assert_eq!(paginated.entries.len(), page_size);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_train_directory_many_dir_some_files_page_2() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Create many directories
+            let num_dirs = 9;
+            for n in 0..num_dirs {
+                let dirname = format!("dir_{}", n);
+                let dir_path = repo.path.join(dirname);
+                util::fs::create_dir_all(&dir_path)?;
+                let filename = "data.txt";
+                let filepath = dir_path.join(filename);
+                util::fs::write(&filepath, format!("Hi {}", n))?;
+            }
+
+            // Create many files
+            let num_files = 8;
+            for n in 0..num_files {
+                let filename = format!("file_{}.txt", n);
+                let filepath = repo.path.join(filename);
+                util::fs::write(filepath, format!("helloooo {}", n))?;
+            }
+
+            // Add and commit all the dirs and files
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?;
+
+            // Run the compute cache
+            let force = true;
+            core::cache::commit_cacher::run_all(&repo, &commit, force)?;
+
+            let page_number = 2;
+            let page_size = 10;
+
+            let paginated = api::local::entries::list_directory(
+                &repo,
+                &commit,
+                Path::new("."),
+                &commit.id,
+                page_number,
+                page_size,
+            )?;
+
+            assert_eq!(paginated.total_entries, num_files + num_dirs);
+            assert_eq!(paginated.total_pages, 2);
+            assert_eq!(paginated.entries.len(), 7);
 
             Ok(())
         })

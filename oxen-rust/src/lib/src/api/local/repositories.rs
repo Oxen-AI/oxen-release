@@ -71,7 +71,7 @@ pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
                 for entry in entries {
                     data_size += entry.num_bytes;
                     let full_path = repo.path.join(&entry.path);
-                    let data_type = util::fs::file_datatype(&full_path);
+                    let data_type = util::fs::file_data_type(&full_path);
                     let data_type_stat = DataTypeStat {
                         data_size: entry.num_bytes,
                         data_type: data_type.to_owned(),

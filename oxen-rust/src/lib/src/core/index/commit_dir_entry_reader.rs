@@ -23,6 +23,13 @@ pub struct CommitDirEntryReader {
 impl CommitDirEntryReader {
     /// .oxen/history/commit_id/files/path/to/dir
     pub fn db_dir(base_path: &Path, commit_id: &str, dir: &Path) -> PathBuf {
+        if dir == Path::new("") || dir == Path::new("./") {
+            return util::fs::oxen_hidden_dir(base_path)
+                .join(HISTORY_DIR)
+                .join(commit_id)
+                .join(FILES_DIR);
+        }
+
         util::fs::oxen_hidden_dir(base_path)
             .join(HISTORY_DIR)
             .join(commit_id)
@@ -107,5 +114,14 @@ impl CommitDirEntryReader {
         page_size: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
         path_db::list_entry_page(&self.db, page, page_size)
+    }
+
+    pub fn list_entry_page_with_offset(
+        &self,
+        page: usize,
+        page_size: usize,
+        offset: usize,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        path_db::list_entry_page_with_offset(&self.db, page, page_size, offset)
     }
 }

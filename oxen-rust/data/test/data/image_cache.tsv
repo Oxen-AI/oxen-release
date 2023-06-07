@@ -1,0 +1,2 @@
+path	imagemagick.width	imagemagick.height	openai.embedding	opencv.boundingbox	custom_class.img_class
+file.png	224	350	[0.1, 0.2]	[10,12,30,40]	cat

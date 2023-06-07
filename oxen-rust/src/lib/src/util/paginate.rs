@@ -1,6 +1,16 @@
 /// Returns a vector of entries and the total number of pages.
 pub fn paginate<T: Clone>(entries: Vec<T>, page: usize, page_size: usize) -> (Vec<T>, usize) {
-    let total_entries = entries.len();
+    let total = entries.len();
+    paginate_with_total(entries, page, page_size, total)
+}
+
+/// Returns a vector of entries and the total number of pages.
+pub fn paginate_with_total<T: Clone>(
+    entries: Vec<T>,
+    page: usize,
+    page_size: usize,
+    total_entries: usize,
+) -> (Vec<T>, usize) {
     let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
     log::debug!(
         "paginate entries page: {} size: {} total: {} total_pages: {}",

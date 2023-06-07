@@ -14,6 +14,9 @@ pub enum ImgColorSpace {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetaDataText {
     pub num_lines: usize,
+    // pub num_words: usize,
+    // pub num_chars: usize,
+    // pub num_whitespace: usize,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -26,11 +29,11 @@ pub struct MetaDataImage {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetaDataVideo {
+    pub num_seconds: f64,
     pub width: usize,
     pub height: usize,
     pub color_space: ImgColorSpace, // RGB, RGBA, etc.
-    pub num_seconds: f64,
-    pub format: String, // mp4, etc.
+    pub format: String,             // mp4, etc.
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

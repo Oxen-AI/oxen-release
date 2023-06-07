@@ -37,6 +37,16 @@ impl CommitReader {
         })
     }
 
+    /// Returns all the commit objects in a repo, in no particular order
+    pub fn list_all(&self) -> Result<Vec<Commit>, OxenError> {
+        CommitDBReader::list_all(&self.db)
+    }
+
+    /// Return the latest commit by timestamp
+    pub fn latest_commit(&self) -> Result<Commit, OxenError> {
+        CommitDBReader::latest_commit(&self.db)
+    }
+
     /// Return the head commit
     pub fn head_commit(&self) -> Result<Commit, OxenError> {
         CommitDBReader::head_commit(&self.repository, &self.db)
