@@ -74,6 +74,9 @@ jobs:
       matrix:
         # target: [x86_64, aarch64]
         target: [x86_64]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_${{ matrix.xcode }}.app/Contents/Developer
+      CPLUS_INCLUDE_PATH: /Applications/Xcode_${{ matrix.xcode }}.app/ContentsDeveloper/CommandLineTools/usr/include/c++/v1/
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
