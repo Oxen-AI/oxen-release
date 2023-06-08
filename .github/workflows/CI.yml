@@ -100,7 +100,7 @@ jobs:
       - name: Install dependencies
         run: pip install maturin pygithub
       - name: Build package macOS
-        run: cd oxen && maturin build --release --no-sdist --find-interpreter
+        run: cd oxen && maturin build --release --out dist --find-interpreter
       # - name: Build wheels
       #   uses: PyO3/maturin-action@v1
       #   with:
