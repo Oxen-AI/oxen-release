@@ -69,7 +69,7 @@ jobs:
   #         path: dist
 
   macos:
-    runs-on: macos-latest
+    runs-on: macos-12
     strategy:
       matrix:
         # target: [x86_64, aarch64]
@@ -105,7 +105,7 @@ jobs:
       - name: Build package macOS
         # env:
         #   CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
-        run: cd oxen && maturin build --out dist --find-interpreter
+        run: cd oxen && maturin build --release --out dist --find-interpreter
       # - name: Build wheels
       #   uses: PyO3/maturin-action@v1
       #   with:
