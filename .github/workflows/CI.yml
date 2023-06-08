@@ -36,6 +36,7 @@ jobs:
           args: --release --out dist --find-interpreter
           sccache: 'true'
           manylinux: auto
+          working-directory: oxen
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -59,6 +60,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter
           sccache: 'true'
+          working-directory: oxen
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -81,6 +83,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter
           sccache: 'true'
+          working-directory: oxen
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -96,6 +99,7 @@ jobs:
         with:
           command: sdist
           args: --out dist
+          working-directory: oxen
       - name: Upload sdist
         uses: actions/upload-artifact@v3
         with:
@@ -118,3 +122,4 @@ jobs:
         with:
           command: upload
           args: --skip-existing *
+          working-directory: oxen
