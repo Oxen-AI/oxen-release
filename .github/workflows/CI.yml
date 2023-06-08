@@ -75,23 +75,12 @@ jobs:
         # target: [x86_64, aarch64]
         target: [x86_64]
     env:
-      DEVELOPER_DIR: /Applications/Xcode_14.3.app/Contents/Developer
-      CPLUS_INCLUDE_PATH: /Applications/Xcode_14.3.app/ContentsDeveloper/CommandLineTools/usr/include/c++/v1/
+      CPLUS_INCLUDE_PATH: /Library/Developer/CommandLineTools/usr/include/c++/v1/
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Setup Cpp
-        uses: aminya/setup-cpp@v1
-        with:
-          compiler: ${{ matrix.compiler }}
-          vcvarsall: ${{ contains(matrix.os, 'windows') }}
-          cmake: true
-          ninja: true
-          vcpkg: true
-          cppcheck: true
-          clangtidy: true
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
