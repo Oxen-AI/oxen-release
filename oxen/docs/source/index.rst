@@ -35,6 +35,7 @@
 
    references/python/local_repo.rst
    references/python/remote_repo.rst
+   references/python/data_loaders.md
 
 .. toctree::
    :maxdepth: 2
