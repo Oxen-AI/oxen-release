@@ -74,20 +74,40 @@ jobs:
       matrix:
         # target: [x86_64, aarch64]
         target: [x86_64]
-    env:
-      CPLUS_INCLUDE_PATH: /Library/Developer/CommandLineTools/usr/include/c++/v1/
+    # env:
+    #   CPLUS_INCLUDE_PATH: /Library/Developer/CommandLineTools/usr/include/c++/v1/
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-cargo-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-          working-directory: oxen
+          toolchain: stable
+          profile: minimal
+          default: true
+      - name: Install dependencies
+        run: pip install maturin pygithub
+      - name: Build package macOS
+        run: cd oxen && maturin build --release --no-sdist --find-interpreter
+      # - name: Build wheels
+      #   uses: PyO3/maturin-action@v1
+      #   with:
+      #     target: ${{ matrix.target }}
+      #     args: --release --out dist --find-interpreter
+      #     sccache: 'true'
+      #     working-directory: oxen
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
