@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Python &#8212; 🐂 🌾 Oxen 0.1.0</title>
+    <title>Python &#8212; 🐂 🌾 Oxen 0.1.4</title>
   
   
   
@@ -119,19 +119,19 @@
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.0</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.4</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
-        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">👨‍🍳 Getting Started</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="commands.html">Command Line Interface</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Python</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🤓 Concepts</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../concepts/data_frames.html">Data Frames</a></li>
 
@@ -148,6 +148,13 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/rust.html">Rust Documentation</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">🧑‍💻 Contributing</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../contributing/documentation.html">Writing Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../contributing/python.html">Python Development</a></li>
+
+<li class="toctree-l1"><a class="reference internal" href="../contributing/rust.html">Rust Development</a></li>
 </ul>
 
     </div>
@@ -294,6 +301,7 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#authentication">Authentication</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#repositories">Repositories</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-repo">Local Repo</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-repo">Remote Repo</a></li>
@@ -313,6 +321,31 @@ document.write(`
   <section id="python">
 <h1>Python<a class="headerlink" href="#python" title="Permalink to this heading">#</a></h1>
 <p>The Oxen python interface makes it easy to integrate Oxen datasets directly into machine learning dataloaders or other data pipelines.</p>
+<section id="authentication">
+<h2>Authentication<a class="headerlink" href="#authentication" title="Permalink to this heading">#</a></h2>
+<p>Generate a user config file to set your name and email for commits.</p>
+<p>First, create a <code class="docutils literal notranslate"><span class="pre">.oxen</span></code> directory in your home directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Mac/Linux</span>
+mkdir<span class="w"> </span>~/.oxen
+
+<span class="c1"># Windows</span>
+<span class="nb">cd</span><span class="w"> </span>%userprofile%
+mkdir<span class="w"> </span>.oxen
+</pre></div>
+</div>
+<p>Then run the following to create a user config file in the new directory.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">oxen</span>
+
+<span class="n">oxen</span><span class="o">.</span><span class="n">auth</span><span class="o">.</span><span class="n">create_user_config</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;Ox&quot;</span><span class="p">,</span> <span class="n">email</span><span class="o">=</span><span class="s2">&quot;hello@oxen.ai&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>To contribute to an OxenHub repository, run the following to add your OxenHub API key to your user config.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">oxen</span>
+
+<span class="n">oxen</span><span class="o">.</span><span class="n">auth</span><span class="o">.</span><span class="n">add_host_auth</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s2">&quot;hub.oxen.ai&quot;</span><span class="p">,</span> <span class="n">token</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">YOUR_API_KEY</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
 <section id="repositories">
 <h2>Repositories<a class="headerlink" href="#repositories" title="Permalink to this heading">#</a></h2>
 <p>There are two types of repositories one can interact with, a <code class="docutils literal notranslate"><span class="pre">LocalRepo</span></code> and a <code class="docutils literal notranslate"><span class="pre">RemoteRepo</span></code>.</p>
@@ -410,6 +443,7 @@ document.write(`
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#authentication">Authentication</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#repositories">Repositories</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-repo">Local Repo</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-repo">Remote Repo</a></li>
@@ -447,7 +481,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 30, 2023.
+  Last updated on Jun 08, 2023.
   <br/>
 </p>
   </div>
