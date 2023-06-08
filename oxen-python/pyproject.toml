@@ -11,12 +11,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-
-
-[tool.maturin]
-python-source = "python"
-features = ["pyo3/extension-module"]
-requires-dist = [
+dependencies = [
     "pandas==2.0.1", 
     "polars==0.17.11",
     "pyarrow==12.0.0",
@@ -25,4 +20,10 @@ requires-dist = [
     "tqdm==4.65.0",
     "toml==0.10.2",
 ]
+
+
+
+[tool.maturin]
+python-source = "python"
+features = ["pyo3/extension-module"]
 
