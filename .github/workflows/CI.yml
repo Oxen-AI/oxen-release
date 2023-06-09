@@ -111,7 +111,7 @@ jobs:
         run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> ${GITHUB_ENV}
         if: runner.os == 'Windows'
       - name: Install dependencies
-        run: pip install maturin pygithub
+        run: pip install maturin[patchelf] pygithub
       - name: Build package Linux
         env:
           PY_VERSION: ${{ matrix.python.name }}
