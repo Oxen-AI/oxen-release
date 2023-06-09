@@ -30,36 +30,44 @@ pub async fn get(
         resource
     );
 
-    let mut opts = DFOpts::empty();
-    log::debug!("Initial opts {:?}", opts);
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-
     let version_path =
         util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
     log::debug!("Reading version file {:?}", version_path);
-    let df = tabular::read_df(&version_path, opts)?;
-    log::debug!("Read df {:?}", df);
+
+    // Have to read full df to get the full size
+    let df = tabular::read_df(&version_path, DFOpts::empty())?;
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+
+    log::debug!("Full df {:?}", df);
+
+    let full_height = df.height();
+    let full_width = df.width();
 
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
     let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
-    let total_pages = (df.height() as f64 / page_size as f64).ceil() as usize;
+    let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
 
     let start = if page <= 0 { 0 } else { page_size * (page - 1) };
     let end = page_size * page;
-    let mut sliced_df = tabular::slice_df(df.clone(), start, end)?;
+
+    opts.slice = Some(format!("{}..{}", start, end));
+    let mut sliced_df = tabular::transform(df, opts)?;
+    log::debug!("Sliced df {:?}", sliced_df);
 
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
         full_size: JsonDataSize {
-            width: df.width(),
-            height: df.height(),
+            width: full_width,
+            height: full_height,
         },
         df: JsonDataFrame::from_df(&mut sliced_df),
         page_number: page,
         page_size,
         total_pages,
-        total_entries: df.height(),
+        total_entries: full_height,
     };
     Ok(HttpResponse::Ok().json(response))
 }
