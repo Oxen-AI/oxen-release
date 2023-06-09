@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+      - name: Install dependencies
+        run: sudo apt-get install pkg-config libssl-dev
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -91,10 +93,12 @@ jobs:
           directory: ${{ runner.temp }}/llvm
       - name: Set LIBCLANG_PATH
         run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> ${GITHUB_ENV}
+      - name: Install dependencies
+        run: pip install maturin pygithub
       - name: Build package Windows
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
-        run: maturin build --release --out dist --interpreter ${env:PY_LOCATION}\python.exe
+        run: cd oxen && maturin build --release --out dist --interpreter ${env:PY_LOCATION}\python.exe
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -161,12 +165,12 @@ jobs:
           PY_LOCATION: ${{ env.pythonLocation }}
           CXXFLAGS: "-fno-aligned-allocation"
           CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
-        run: maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'x86_64-apple-darwin'
       - name: Build package macOS arm64
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
-        run: maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'aarch64-apple-darwin'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
