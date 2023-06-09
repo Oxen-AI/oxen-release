@@ -30,13 +30,17 @@ pub async fn df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let (mut df, size) = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
+        let val = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
+        let mut df = val.df.to_df();
         if let Some(output) = output {
             println!("Writing {output:?}");
             tabular::write_df(&mut df, output)?;
         }
 
-        println!("Full shape: ({}, {})\n", size.height, size.width);
+        println!(
+            "Full shape: ({}, {})\n",
+            val.full_size.height, val.full_size.width
+        );
         println!("Slice {df:?}");
         Ok(df)
     }
