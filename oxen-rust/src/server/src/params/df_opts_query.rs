@@ -28,9 +28,6 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
             // Return what they asked for
             filter_ops.slice = Some(slice);
         }
-    } else {
-        // No slice val supplied, only return first 10
-        filter_ops.slice = Some(String::from("0..10"));
     }
 
     // we are already filtering the hidden columns

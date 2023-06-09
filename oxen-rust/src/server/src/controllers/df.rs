@@ -37,7 +37,7 @@ pub async fn get(
     let version_path =
         util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
     log::debug!("Reading version file {:?}", version_path);
-    let mut df = tabular::read_df(&version_path, opts)?;
+    let df = tabular::read_df(&version_path, opts)?;
     log::debug!("Read df {:?}", df);
 
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
@@ -45,13 +45,17 @@ pub async fn get(
 
     let total_pages = (df.height() as f64 / page_size as f64).ceil() as usize;
 
+    let start = if page <= 0 { 0 } else { page_size * (page - 1) };
+    let end = page_size * page;
+    let mut sliced_df = tabular::slice_df(df.clone(), start, end)?;
+
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
         full_size: JsonDataSize {
             width: df.width(),
             height: df.height(),
         },
-        df: JsonDataFrame::from_df(&mut df),
+        df: JsonDataFrame::from_df(&mut sliced_df),
         page_number: page,
         page_size,
         total_pages,

@@ -473,6 +473,14 @@ fn tail(df: LazyFrame, height: usize, opts: &DFOpts) -> LazyFrame {
     }
 }
 
+pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, OxenError> {
+    let mut opts = DFOpts::empty();
+    opts.slice = Some(format!("{}..{}", start, end));
+    let df = df.lazy();
+    let df = slice(df, &opts);
+    Ok(df.collect().expect(COLLECT_ERROR))
+}
+
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts.slice);
     if opts.page.is_some() || opts.page_size.is_some() {
