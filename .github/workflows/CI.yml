@@ -111,7 +111,12 @@ jobs:
         run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> ${GITHUB_ENV}
         if: runner.os == 'Windows'
       - name: Install dependencies
+        run: pip install maturin pygithub
+        if: matrix.platform.rust-target != 'x86_64-unknown-linux-gnu'
+      - name: Install dependencies
+        # Only need patch elf on linux
         run: pip install maturin[patchelf] pygithub
+        if: matrix.platform.rust-target == 'x86_64-unknown-linux-gnu'
       - name: Build package Linux
         env:
           PY_VERSION: ${{ matrix.python.name }}
