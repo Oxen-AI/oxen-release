@@ -146,7 +146,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: wheels
-          path: dist
+          path: oxen/dist
 
   # sdist:
   #   runs-on: ubuntu-latest
