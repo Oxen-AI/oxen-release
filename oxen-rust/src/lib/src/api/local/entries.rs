@@ -46,19 +46,27 @@ pub fn meta_entry_from_dir(
     commit_reader: &CommitReader,
     revision: &str,
 ) -> Result<MetaDataEntry, OxenError> {
-    let commit = commit_reader.get_commit_by_id(&commit.id)?.unwrap();
-
     // We cache the latest commit and size for each file in the directory after commit
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(&repo, &commit, &path);
-    let latest_commit_id = util::fs::read_from_path(&latest_commit_path)?;
-    let latest_commit = commit_reader.get_commit_by_id(&latest_commit_id)?;
+    let latest_commit = match util::fs::read_from_path(&latest_commit_path) {
+        Ok(id) => commit_reader.get_commit_by_id(&id)?,
+        Err(_) => {
+            // cache failed, go compute it
+            compute_latest_commit(repo, &commit, path, commit_reader)?
+        }
+    };
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(&repo, &commit, &path);
-    let total_size_str = util::fs::read_from_path(&total_size_path)?;
-    let total_size = total_size_str
-        .parse::<u64>()
-        .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?;
+    let total_size = match util::fs::read_from_path(&total_size_path) {
+        Ok(total_size_str) => total_size_str
+            .parse::<u64>()
+            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
+        Err(_) => {
+            // cache failed, go compute it
+            compute_dir_size(repo, &commit, path)?
+        }
+    };
 
     let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
     return Ok(MetaDataEntry {
@@ -81,6 +89,62 @@ pub fn meta_entry_from_dir(
             tabular: None,
         },
     });
+}
+
+fn compute_latest_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: &Path,
+    commit_reader: &CommitReader,
+) -> Result<Option<Commit>, OxenError> {
+    let entry_reader = CommitEntryReader::new(repo, &commit)?;
+    let commits: HashMap<String, Commit> = HashMap::new();
+    let mut latest_commit = Some(commit.to_owned());
+    // This lists all the committed dirs
+    let dirs = entry_reader.list_dirs()?;
+    for dir in dirs {
+        // Have to make sure we are in a subset of the dir (not really a tree structure)
+        if dir.starts_with(path) {
+            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            for entry in entry_reader.list_entries()? {
+                let commit = if commits.contains_key(&entry.commit_id) {
+                    Some(commits[&entry.commit_id].clone())
+                } else {
+                    commit_reader.get_commit_by_id(&entry.commit_id)?
+                };
+
+                if latest_commit.is_none() {
+                    latest_commit = commit.clone();
+                }
+
+                if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
+                    latest_commit = commit.clone();
+                }
+            }
+        }
+    }
+    Ok(latest_commit)
+}
+
+fn compute_dir_size(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: &Path,
+) -> Result<u64, OxenError> {
+    let entry_reader = CommitEntryReader::new(repo, &commit)?;
+    let mut total_size: u64 = 0;
+    // This lists all the committed dirs
+    let dirs = entry_reader.list_dirs()?;
+    for dir in dirs {
+        // Have to make sure we are in a subset of the dir (not really a tree structure)
+        if dir.starts_with(path) {
+            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            for entry in entry_reader.list_entries()? {
+                total_size += entry.num_bytes;
+            }
+        }
+    }
+    Ok(total_size)
 }
 
 pub fn meta_entry_from_commit_entry(

@@ -22,14 +22,14 @@ use std::sync::Arc;
 
 /// Get a entry metadata from the remote repository
 /// given a path and a branch or commit id
-pub async fn get_entry(
+pub async fn get_meta(
     remote_repo: &RemoteRepository,
     path: impl AsRef<Path>,
     revision: impl AsRef<str>,
 ) -> Result<MetaDataEntry, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
-    let uri = format!("/entry/{}/{}", revision, path);
+    let uri = format!("/meta/{}/{}", revision, path);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -49,7 +49,7 @@ pub async fn download_entry(
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
-    let entry = get_entry(remote_repo, &remote_path, &revision).await?;
+    let entry = get_meta(remote_repo, &remote_path, &revision).await?;
     let remote_path = remote_path.as_ref();
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
@@ -497,7 +497,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations").join("README.md");
             let revision = DEFAULT_BRANCH_NAME;
-            let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
+            let entry = api::remote::entries::get_meta(&remote_repo, path, revision).await?;
 
             assert_eq!(entry.filename, "README.md");
             assert!(!entry.is_dir);
@@ -515,7 +515,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = "train";
             let revision = DEFAULT_BRANCH_NAME;
-            let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
+            let entry = api::remote::entries::get_meta(&remote_repo, path, revision).await?;
 
             assert_eq!(entry.filename, path);
             assert!(entry.is_dir);
