@@ -47,12 +47,12 @@ jobs:
           #   rust-target: "x86_64-unknown-linux-gnu",
           #   name: "Linux x64"
           # },
-          {
-            os: "ubuntu-latest",
-            python-architecture: "x64",
-            rust-target: "x86_64-unknown-linux-gnu",
-            name: "Linux sdist"
-          },
+          # {
+          #   os: "ubuntu-latest",
+          #   python-architecture: "x64",
+          #   rust-target: "x86_64-unknown-linux-gnu",
+          #   name: "Linux sdist"
+          # },
           {
             os: "macos-13",
             python-architecture: "x64",
@@ -170,7 +170,10 @@ jobs:
     if: "startsWith(github.ref, 'refs/tags/')"
     needs: [build]
     steps:
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
       - uses: actions/download-artifact@v3
+        id: download
         with:
           name: wheels
       - name: Publish to PyPI
@@ -180,3 +183,12 @@ jobs:
         with:
           command: upload
           args: --skip-existing *
+      - name: List downloaded wheels
+        run: echo ${{steps.download.outputs.download-path}} && ls -R ${{steps.download.outputs.download-path}}
+      - name: Upload wheels to release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{steps.download.outputs.download-path}}
+          asset_name: wheels
+          tag: ${{ github.ref }}
