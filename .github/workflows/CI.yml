@@ -143,7 +143,7 @@ jobs:
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
         # This one does not have --sdist because we do it in Ubuntu Latest
-        run: cd oxen && maturin build --release --out dist --sdist --interpreter ${PY_LOCATION}/bin/python
+        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
         # run: cd oxen && docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release --out dist
         if: matrix.platform.name == 'Ubuntu 20.04'
       - name: Build linux package sdist
@@ -195,8 +195,11 @@ jobs:
           args: --skip-existing *
       - name: List downloaded wheels
         run: echo ${{steps.download.outputs.download-path}} && ls -R ${{steps.download.outputs.download-path}}
+      - name: Move assets into a directory
+        # Do this before zipping unless we will get file changed as we read it error
+        run: mkdir wheels ; mv ${{steps.download.outputs.download-path}}/* wheels/
       - name: Create tarball with wheels
-        run: tar -czvf wheels.tar.gz ${{steps.download.outputs.download-path}}
+        run: tar -czvf wheels.tar.gz wheels/
       - name: Upload wheels to release
         uses: svenstaro/upload-release-action@v2
         with:
