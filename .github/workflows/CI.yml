@@ -19,38 +19,24 @@ permissions:
   contents: read
 
 jobs:
-  linux:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [x86_64]
-        # target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      - name: Install dependencies
-        run: sudo apt-get install pkg-config libssl-dev
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
-          sccache: 'true'
-          manylinux: auto
-          working-directory: oxen
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-
-  windows:
-    runs-on: windows-latest
+  build:
+    name: "Build on ${{ matrix.platform.name }} with Python ${{ matrix.python.version }}"
+    runs-on: ${{ matrix.platform.os }}
     strategy:
       matrix:
         python: [
+          # {
+          #   name: "cp37-cp37m",
+          #   version: "3.7"
+          # },
+          # {
+          #   name: "cp38-cp38",
+          #   version: "3.8"
+          # },
+          # {
+          #   name: "cp39-cp39",
+          #   version: "3.9"
+          # },
           {
             name: "cp310-cp310",
             version: "3.10"
@@ -58,6 +44,24 @@ jobs:
         ]
         rust: [stable]
         platform: [
+          {
+            os: "ubuntu-latest",
+            python-architecture: "x64",
+            rust-target: "x86_64-unknown-linux-gnu",
+            name: "Linux x64"
+          },
+          {
+            os: "macos-13",
+            python-architecture: "x64",
+            rust-target: "aarch64-apple-darwin",
+            name: "macOS arm64"
+          },
+          {
+            os: "macos-13",
+            python-architecture: "x64",
+            rust-target: "x86_64-apple-darwin",
+            name: "macOS x64"
+          },
           {
             os: "windows-latest",
             python-architecture: "x86",
@@ -71,8 +75,20 @@ jobs:
             name: "Windows x64"
           },
         ]
+      fail-fast: false
+    env:
+      CARGO_BUILD_TARGET: ${{ matrix.platform.rust-target }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.platform.python-architecture }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.platform.python-architecture }}-cargo-${{ matrix.rust }}-
       - name: Install Python
         uses: actions/setup-python@v2
         with:
@@ -93,106 +109,233 @@ jobs:
           directory: ${{ runner.temp }}/llvm
       - name: Set LIBCLANG_PATH
         run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> ${GITHUB_ENV}
+        if: runner.os == 'Windows'
       - name: Install dependencies
         run: pip install maturin pygithub
-      - name: Build package Windows
+      - name: Build package Linux
         env:
-          PY_LOCATION: ${{ env.pythonLocation }}
-        run: cd oxen && maturin build --release --out dist --interpreter ${env:PY_LOCATION}\python.exe
-      - name: Upload wheels
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
-
-  macos:
-    runs-on: macos-13
-    strategy:
-      matrix:
-        python: [
-          {
-            name: "cp310-cp310",
-            version: "3.10"
-          },
-        ]
-        rust: [stable]
-        platform: [
-          {
-            os: "macos-13",
-            python-architecture: "x64",
-            rust-target: "aarch64-apple-darwin",
-            name: "macOS arm64"
-          },
-          {
-            os: "macos-13",
-            python-architecture: "x64",
-            rust-target: "x86_64-apple-darwin",
-            name: "macOS x64"
-          },
-        ]
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ matrix.platform.python-architecture }}-cargo-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.platform.python-architecture }}-cargo-
-      - name: Install Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python.version }}
-          architecture: ${{ matrix.platform.python-architecture }}
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          default: true
-      - name: Install CLang
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "15.0"
-          directory: ${{ runner.temp }}/llvm
-      - name: Install dependencies
-        run: pip install maturin pygithub
+          PY_VERSION: ${{ matrix.python.name }}
+        run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
+        if: runner.os == 'Linux'
       - name: Build package macOS x86
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
           CXXFLAGS: "-fno-aligned-allocation"
           CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
-        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+        run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'x86_64-apple-darwin'
       - name: Build package macOS arm64
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
-        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+        run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'aarch64-apple-darwin'
+      - name: Build package Windows
+        env:
+          PY_LOCATION: ${{ env.pythonLocation }}
+        run: cd oxen && maturin build --out dist --release --interpreter ${env:PY_LOCATION}\python.exe
+        if: runner.os == 'Windows'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
           name: wheels
           path: dist
+  # linux:
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       python: [
+  #        {
+  #           name: "cp310-cp310",
+  #           version: "3.10"
+  #         },
+  #       ]
+  #       rust: [stable]
+  #       platform: [
+  #         {
+  #           os: "ubuntu-latest",
+  #           python-architecture: "x64",
+  #           rust-target: "x86_64-unknown-linux-gnu",
+  #           name: "Linux x64"
+  #         },
+  #       ]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Install Python
+  #       uses: actions/setup-python@v2
+  #       with:
+  #         python-version: ${{ matrix.python.version }}
+  #         architecture: ${{ matrix.platform.python-architecture }}
+  #     - name: Install Rust
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: ${{ matrix.rust }}
+  #         target: ${{ matrix.platform.rust-target }}
+  #         default: true
+  #         profile: minimal
+  #         override: true
+  #     - name: Install ssl
+  #       run: sudo apt-get install pkg-config libssl-dev
+  #     - name: Install maturin
+  #       run: pip install maturin pygithub
+  #     - name: Build package Linux
+  #       env:
+  #         PY_VERSION: ${{ matrix.python.name }}
+  #       run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: dist
 
-  sdist:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: --out dist
-          working-directory: oxen
-      - name: Upload sdist
-        uses: actions/upload-artifact@v3
-        with:
-          name: wheels
-          path: dist
+  # windows:
+  #   runs-on: windows-latest
+  #   strategy:
+  #     matrix:
+  #       python: [
+  #         {
+  #           name: "cp310-cp310",
+  #           version: "3.10"
+  #         },
+  #       ]
+  #       rust: [stable]
+  #       platform: [
+  #         {
+  #           os: "windows-latest",
+  #           python-architecture: "x86",
+  #           rust-target: "i686-pc-windows-msvc",
+  #           name: "Windows x86"
+  #         },
+  #         {
+  #           os: "windows-latest",
+  #           python-architecture: "x64",
+  #           rust-target: "x86_64-pc-windows-msvc",
+  #           name: "Windows x64"
+  #         },
+  #       ]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Install Python
+  #       uses: actions/setup-python@v2
+  #       with:
+  #         python-version: ${{ matrix.python.version }}
+  #         architecture: ${{ matrix.platform.python-architecture }}
+  #     - name: Install Rust
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: ${{ matrix.rust }}
+  #         target: ${{ matrix.platform.rust-target }}
+  #         default: true
+  #         profile: minimal
+  #         override: true
+  #     - name: Install CLang
+  #       uses: KyleMayes/install-llvm-action@v1
+  #       with:
+  #         version: "15.0"
+  #         directory: ${{ runner.temp }}/llvm
+  #     - name: Set LIBCLANG_PATH
+  #       run: echo "LIBCLANG_PATH=$((gcm clang).source -replace "clang.exe")" >> ${GITHUB_ENV}
+  #     - name: Install dependencies
+  #       run: pip install maturin pygithub
+  #     - name: Build package Windows
+  #       env:
+  #         PY_LOCATION: ${{ env.pythonLocation }}
+  #       run: cd oxen && maturin build --release --out dist --interpreter ${env:PY_LOCATION}\python.exe
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: dist
+
+  # macos:
+  #   runs-on: macos-13
+  #   strategy:
+  #     matrix:
+  #       python: [
+  #         {
+  #           name: "cp310-cp310",
+  #           version: "3.10"
+  #         },
+  #       ]
+  #       rust: [stable]
+  #       platform: [
+  #         {
+  #           os: "macos-13",
+  #           python-architecture: "x64",
+  #           rust-target: "aarch64-apple-darwin",
+  #           name: "macOS arm64"
+  #         },
+  #         {
+  #           os: "macos-13",
+  #           python-architecture: "x64",
+  #           rust-target: "x86_64-apple-darwin",
+  #           name: "macOS x64"
+  #         },
+  #       ]
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: actions/cache@v3
+  #       with:
+  #         path: |
+  #           ~/.cargo/bin/
+  #           ~/.cargo/registry
+  #           ~/.cargo/git
+  #           target
+  #         key: ${{ runner.os }}-${{ matrix.platform.python-architecture }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-${{ matrix.platform.python-architecture }}-cargo-
+  #     - name: Install Python
+  #       uses: actions/setup-python@v2
+  #       with:
+  #         python-version: ${{ matrix.python.version }}
+  #         architecture: ${{ matrix.platform.python-architecture }}
+  #     - name: Install Rust
+  #       uses: actions-rs/toolchain@v1
+  #       with:
+  #         toolchain: ${{ matrix.rust }}
+  #         target: ${{ matrix.platform.rust-target }}
+  #         default: true
+  #         profile: minimal
+  #         override: true
+  #     - name: Install CLang
+  #       uses: KyleMayes/install-llvm-action@v1
+  #       with:
+  #         version: "15.0"
+  #         directory: ${{ runner.temp }}/llvm
+  #     - name: Install dependencies
+  #       run: pip install maturin pygithub
+  #     - name: Build package macOS x86
+  #       env:
+  #         PY_LOCATION: ${{ env.pythonLocation }}
+  #         CXXFLAGS: "-fno-aligned-allocation"
+  #         CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
+  #       run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+  #       if: matrix.platform.rust-target == 'x86_64-apple-darwin'
+  #     - name: Build package macOS arm64
+  #       env:
+  #         PY_LOCATION: ${{ env.pythonLocation }}
+  #       run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+  #       if: matrix.platform.rust-target == 'aarch64-apple-darwin'
+  #     - name: Upload wheels
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: dist
+
+  # sdist:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - name: Build sdist
+  #       uses: PyO3/maturin-action@v1
+  #       with:
+  #         command: sdist
+  #         args: --out dist
+  #         working-directory: oxen
+  #     - name: Upload sdist
+  #       uses: actions/upload-artifact@v3
+  #       with:
+  #         name: wheels
+  #         path: dist
 
   # release:
   #   name: Release
