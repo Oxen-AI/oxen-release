@@ -2,7 +2,6 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetaDataText;
 use crate::util;
 
 use serde::{Deserialize, Serialize};
@@ -15,11 +14,9 @@ pub struct WordCountText {
 
 /// Detects the text metadata for the given file.
 pub fn run(path: &Path) -> Result<serde_json::Value, OxenError> {
-    let text = util::fs::read_from_path(path)?;
-    let count = words_count::count(text);
-    let num_lines = count.cjk;
+    let num_lines = util::fs::count_lines(&path)?;
 
-    let metadata = MetaDataText { num_lines };
+    let metadata = WordCountText { num_lines };
 
     Ok(serde_json::to_value(metadata)?)
 }
