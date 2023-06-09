@@ -38,17 +38,17 @@ jobs:
         ]
         rust: [stable]
         platform: [
-          # {
-          #   os: "ubuntu-latest",
-          #   python-architecture: "x64",
-          #   rust-target: "x86_64-unknown-linux-gnu",
-          #   name: "Linux x64"
-          # },
+          {
+            os: "ubuntu-20.04",
+            python-architecture: "x64",
+            rust-target: "x86_64-unknown-linux-gnu",
+            name: "Ubuntu 20.04"
+          },
           {
             os: "ubuntu-latest",
             python-architecture: "x64",
             rust-target: "x86_64-unknown-linux-gnu",
-            name: "Linux sdist"
+            name: "Ubuntu Latest"
           },
           {
             os: "macos-13",
@@ -134,11 +134,18 @@ jobs:
           PY_LOCATION: ${{ env.pythonLocation }}
         run: cd oxen && maturin build --out dist --release --interpreter ${env:PY_LOCATION}\python.exe
         if: runner.os == 'Windows'
-      - name: Build package sdist
+      - name: Build Ubuntu 20.04
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
+        # This one does not have --sdist because we do it in Ubuntu Latest
+        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+        if: matrix.platform.name == 'Ubuntu 20.04'
+      - name: Build linux package sdist
+        env:
+          PY_LOCATION: ${{ env.pythonLocation }}
+        # This packages up the source with --sdist
         run: cd oxen && maturin build --release --out dist --sdist --interpreter ${PY_LOCATION}/bin/python
-        if: matrix.platform.name == 'Linux sdist'
+        if: matrix.platform.name == 'Ubuntu Latest'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:
@@ -182,10 +189,13 @@ jobs:
           args: --skip-existing *
       - name: List downloaded wheels
         run: echo ${{steps.download.outputs.download-path}} && ls -R ${{steps.download.outputs.download-path}}
+      - name: Create tarball with wheels
+        run: tar -czvf wheels.tar.gz ${{steps.download.outputs.download-path}}
       - name: Upload wheels to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{steps.download.outputs.download-path}}
-          asset_name: wheels
+          file: wheels.tar.gz
+          asset_name: wheels.tar.gz
           tag: ${{ github.ref }}
+          release_name: "🐍 Release ${{ github.ref }}"
