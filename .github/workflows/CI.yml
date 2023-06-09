@@ -9,11 +9,8 @@ on:
   push:
     branches:
       - main
-      - master
     tags:
       - '*'
-  pull_request:
-  workflow_dispatch:
 
 jobs:
   build:
@@ -47,12 +44,12 @@ jobs:
           #   rust-target: "x86_64-unknown-linux-gnu",
           #   name: "Linux x64"
           # },
-          # {
-          #   os: "ubuntu-latest",
-          #   python-architecture: "x64",
-          #   rust-target: "x86_64-unknown-linux-gnu",
-          #   name: "Linux sdist"
-          # },
+          {
+            os: "ubuntu-latest",
+            python-architecture: "x64",
+            rust-target: "x86_64-unknown-linux-gnu",
+            name: "Linux sdist"
+          },
           {
             os: "macos-13",
             python-architecture: "x64",
@@ -140,7 +137,7 @@ jobs:
       - name: Build package sdist
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
-        run: cd oxen && maturin build --out dist
+        run: cd oxen && maturin build --release --out dist --sdist --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.name == 'Linux sdist'
       - name: Upload wheels
         uses: actions/upload-artifact@v3
