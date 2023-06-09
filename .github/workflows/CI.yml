@@ -197,7 +197,7 @@ jobs:
         run: echo ${{steps.download.outputs.download-path}} && ls -R ${{steps.download.outputs.download-path}}
       - name: Move assets into a directory
         # Do this before zipping unless we will get file changed as we read it error
-        run: mkdir wheels ; mv ${{steps.download.outputs.download-path}}/* wheels/
+        run: mkdir wheels ; mv ${{steps.download.outputs.download-path}}/oxenai* wheels/
       - name: Create tarball with wheels
         run: tar -czvf wheels.tar.gz wheels/
       - name: Upload wheels to release
