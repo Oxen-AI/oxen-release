@@ -180,4 +180,3 @@ jobs:
         with:
           command: upload
           args: --skip-existing *
-          working-directory: oxen
