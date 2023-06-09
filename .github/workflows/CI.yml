@@ -65,12 +65,12 @@ jobs:
             rust-target: "x86_64-apple-darwin",
             name: "macOS x64"
           },
-          {
-            os: "windows-latest",
-            python-architecture: "x86",
-            rust-target: "i686-pc-windows-msvc",
-            name: "Windows x86"
-          },
+          # {
+          #   os: "windows-latest",
+          #   python-architecture: "x86",
+          #   rust-target: "i686-pc-windows-msvc",
+          #   name: "Windows x86"
+          # },
           {
             os: "windows-latest",
             python-architecture: "x64",
