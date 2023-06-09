@@ -247,6 +247,9 @@ mod tests {
             // delete
             api::remote::repositories::delete(&repository).await?;
 
+            // We delete in a background thread, so give it a second
+            std::thread::sleep(std::time::Duration::from_secs(1));
+
             let result = api::remote::repositories::get_by_remote_repo(&repository).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
