@@ -138,7 +138,7 @@ jobs:
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
         # This one does not have --sdist because we do it in Ubuntu Latest
-        run: cd oxen && maturin build --release --out dist --interpreter ${PY_LOCATION}/bin/python
+        run: cd oxen && maturin build --release --out dist --sdist --interpreter ${PY_LOCATION}/bin/python
         # run: cd oxen && docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release --out dist
         if: matrix.platform.name == 'Ubuntu 20.04'
       - name: Build linux package sdist
