@@ -62,7 +62,8 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
 }
 
 fn builder() -> ClientBuilder {
-    Client::builder().user_agent(format!("{USER_AGENT}/{VERSION}"))
+    Client::builder()
+        .user_agent(format!("{USER_AGENT}/{VERSION}"))
 }
 
 /// Performs an extra parse to validate that the response is success

@@ -3,7 +3,7 @@ FROM rust:1.69.0 as builder
 USER root
 RUN apt-get update
 RUN apt-get install -y apt-utils
-RUN apt-get install -y libclang-dev
+RUN apt-get install -y libclang-dev libavutil-dev libavcodec-dev libavformat-dev libavdevice-dev libavfilter-dev libavresample-dev libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config
 RUN cargo install cargo-build-deps
 
 # create an empty project to install dependencies
