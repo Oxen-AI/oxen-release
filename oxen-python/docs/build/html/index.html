@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.0</title>
+    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.16</title>
   
   
   
@@ -118,7 +118,7 @@
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.0</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.16</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
@@ -143,6 +143,12 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="references/python/local_repo.html">Local Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/python/remote_repo.html">Remote Repo</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="references/python/data_loaders/index.html">Data Loaders</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/image_loader.html">Image Classification Loader</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/chat_loader.html">Chatbot Loader</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/regression_loader.html">Regression Loader</a></li>
+</ul>
+</li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -421,7 +427,7 @@ oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/
 <p>All the same APIs that are exposed through the command line are also available in python.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">oxen</span>
 
-<span class="n">repo</span> <span class="o">=</span> <span class="n">oxen</span><span class="o">.</span><span class="n">LocalRepository</span><span class="p">(</span><span class="s2">&quot;path/to/repo&quot;</span><span class="p">)</span>
+<span class="n">repo</span> <span class="o">=</span> <span class="n">oxen</span><span class="o">.</span><span class="n">LocalRepo</span><span class="p">(</span><span class="s2">&quot;path/to/repo&quot;</span><span class="p">)</span>
 <span class="n">repo</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="s2">&quot;https://hub.oxen.ai/ox/CatDogBBox&quot;</span><span class="p">)</span>
 
 <span class="n">repo</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s2">&quot;new-cat.png&quot;</span><span class="p">)</span>
@@ -984,7 +990,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 06, 2023.
+  Last updated on Jun 12, 2023.
   <br/>
 </p>
   </div>

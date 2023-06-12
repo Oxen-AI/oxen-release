@@ -2,6 +2,39 @@
 
 The Oxen python interface makes it easy to integrate Oxen datasets directly into machine learning dataloaders or other data pipelines.
 
+## Authentication
+
+Generate a user config file to set your name and email for commits.
+
+First, create a `.oxen` directory in your home directory.
+
+```bash
+# Mac/Linux
+mkdir ~/.oxen
+
+# Windows
+cd %userprofile%
+mkdir .oxen
+```
+
+Then run the following to create a user config file in the new directory.
+
+```python
+import oxen
+
+oxen.auth.create_user_config(name="Ox", email="hello@oxen.ai")
+```
+
+To contribute to an OxenHub repository, run the following to add your OxenHub API key to your user config. 
+
+```python
+import oxen
+
+oxen.auth.add_host_auth(host="hub.oxen.ai", token=f"{YOUR_API_KEY}")
+```
+
+
+
 ## Repositories
 
 There are two types of repositories one can interact with, a `LocalRepo` and a `RemoteRepo`.
