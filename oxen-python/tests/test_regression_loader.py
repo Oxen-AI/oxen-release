@@ -2,7 +2,7 @@ from oxen.loaders import RegressionLoader
 import os
 
 
-def test_chat_loader(house_prices_local_repo_no_commits):
+def test_regression_loader(house_prices_local_repo_no_commits):
     repo = house_prices_local_repo_no_commits
     data_file = os.path.join(repo.path, "prices.csv")
 
