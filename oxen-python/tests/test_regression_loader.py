@@ -10,9 +10,14 @@ def test_chat_loader(house_prices_local_repo_no_commits):
     result = loader.run()
     assert len(result) == 2
 
-    # is a series
-    assert result[0].len() == 5
-
     # is a dataframe
-    assert result[1].height == 5
-    assert result[1].width == 3
+    assert result[0].height == 5
+    assert result[0].width == 3
+
+
+    # is a series
+    assert result[1].len() == 5
+
+
+    print(result[0])
+    print(result[1])
