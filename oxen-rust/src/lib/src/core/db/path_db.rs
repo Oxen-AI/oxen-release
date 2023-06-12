@@ -252,7 +252,7 @@ where
     log::debug!("list_entry_page_with_offset(1) page: {page}, page_size: {page_size}, offset: {offset} start_idx: {start_idx} start_page: {start_page}");
 
     if start_idx >= offset {
-        start_idx = start_idx - offset;
+        start_idx -= offset;
     }
     log::debug!("list_entry_page_with_offset(2) page: {page}, page_size: {page_size}, offset: {offset} start_idx: {start_idx} start_page: {start_page}");
 

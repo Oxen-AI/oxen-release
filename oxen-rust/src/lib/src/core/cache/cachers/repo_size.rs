@@ -51,16 +51,16 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     );
 
     // List directories in the repo, and cache all of their entry sizes
-    let reader = CommitEntryReader::new(&repo, &commit)?;
-    let commit_reader = CommitReader::new(&repo)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
+    let commit_reader = CommitReader::new(repo)?;
     let dirs = reader.list_dirs()?;
     log::debug!("Computing size of {} dirs", dirs.len());
     for dir in dirs {
-        let dir_reader = CommitDirEntryReader::new(&repo, &commit.id, &dir)?;
+        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
         let entries = dir_reader.list_entries()?;
         let size = api::local::entries::compute_entries_size(&entries)?;
         let size_str = size.to_string();
-        let size_path = dir_size_path(&repo, &commit, &dir);
+        let size_path = dir_size_path(repo, commit, &dir);
         log::debug!("Writing dir size {} to {:?}", size_str, size_path);
         // create parent directory if not exists
         if let Some(parent) = size_path.parent() {
@@ -88,7 +88,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             }
         }
 
-        let latest_commit_path = dir_latest_commit_path(&repo, &commit, &dir);
+        let latest_commit_path = dir_latest_commit_path(repo, commit, &dir);
         log::debug!(
             "Writing latest commit {} to {:?}",
             latest_commit.as_ref().unwrap().id,

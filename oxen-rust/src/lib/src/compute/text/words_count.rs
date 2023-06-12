@@ -14,7 +14,7 @@ pub struct WordCountText {
 
 /// Detects the text metadata for the given file.
 pub fn run(path: &Path) -> Result<serde_json::Value, OxenError> {
-    let num_lines = util::fs::count_lines(&path)?;
+    let num_lines = util::fs::count_lines(path)?;
 
     let metadata = WordCountText { num_lines };
 

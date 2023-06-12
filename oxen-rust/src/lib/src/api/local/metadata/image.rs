@@ -72,7 +72,7 @@ mod tests {
     fn test_get_metadata_img_rgb() {
         let file = test::test_img_file_with_name("cat_1.jpg");
 
-        let data = api::local::metadata::compute_metadata(&file).unwrap();
+        let data = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/jpeg");
@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn test_get_metadata_img_rgba() {
         let file = test::test_img_file_with_name("cat_rgba.png");
-        let data = api::local::metadata::compute_metadata(&file).unwrap();
+        let data = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/png");
@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn test_get_metadata_img_png_no_ext() {
         let file = test::test_img_file_with_name("cat_no_ext");
-        let data = api::local::metadata::compute_metadata(&file).unwrap();
+        let data = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/png");
@@ -119,7 +119,7 @@ mod tests {
     fn test_get_metadata_img_grayscale() {
         let file = test::test_img_file_with_name("cat_grayscale.jpg");
 
-        let data = api::local::metadata::compute_metadata(&file).unwrap();
+        let data = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/jpeg");
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_get_metadata_img_mnist() {
         let file = test::test_img_file_with_name("mnist_7.png");
-        let data = api::local::metadata::compute_metadata(&file).unwrap();
+        let data = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/png");

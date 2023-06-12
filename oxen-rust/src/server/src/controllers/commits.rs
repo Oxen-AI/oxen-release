@@ -610,7 +610,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
     match archive.entries() {
         Ok(entries) => {
             for file in entries {
-
                 if let Ok(mut file) = file {
                     // Why hash now? To make sure everything synced properly
                     // When we want to check is_synced, it is expensive to rehash everything

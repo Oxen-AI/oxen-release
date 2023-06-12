@@ -227,7 +227,7 @@ fn p_count_lines<R: std::io::Read>(handle: R) -> Result<usize, std::io::Error> {
             if buf.is_empty() {
                 break;
             }
-            count += bytecount::count(&buf, b'\n');
+            count += bytecount::count(buf, b'\n');
             buf.len()
         };
         reader.consume(len);
