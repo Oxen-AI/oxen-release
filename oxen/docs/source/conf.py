@@ -26,6 +26,7 @@ html_last_updated_fmt = "%b %d, %Y"
 
 extensions = [
     "m2r2",
+    # "myst_parser",
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinx.ext.autodoc.typehints",

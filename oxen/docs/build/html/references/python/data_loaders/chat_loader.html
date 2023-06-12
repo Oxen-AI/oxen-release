@@ -312,6 +312,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ChatLoader.run"><code class="docutils literal notranslate"><span class="pre">ChatLoader.run()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 </ul>
             </nav>
         </div>
@@ -349,7 +350,8 @@ with “prompt” and “response” columns</p></li>
 <span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.ChatLoader.run" title="Permalink to this definition">#</a></dt>
 <dd><dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>outputs[0]</strong> – DataFrame with columns containing the templatized prompt (“prompt”) and response (“response”)</p>
+<dd class="field-odd"><p><strong>outputs[0]</strong> – DataFrame with columns containing the templatized prompt (“prompt”)
+and response (“response”)</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p>pl.DataFrame</p>
@@ -359,6 +361,25 @@ with “prompt” and “response” columns</p></li>
 
 </dd></dl>
 
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">oxen</span> <span class="kn">import</span> <span class="n">LocalRepo</span>
+<span class="kn">from</span> <span class="nn">oxen.loaders</span> <span class="kn">import</span> <span class="n">ChatLoader</span>
+
+<span class="n">repo</span> <span class="o">=</span> <span class="n">LocalRepo</span><span class="p">()</span>
+
+<span class="c1"># Demo data for supervised image classification</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="s2">&quot;https://hub.oxen.ai/ba/dataloader-chat&quot;</span><span class="p">)</span>
+
+<span class="n">loader</span> <span class="o">=</span> <span class="n">ChatLoader</span><span class="p">(</span>
+    <span class="n">prompt_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/prompt.txt&quot;</span><span class="p">,</span>
+    <span class="n">data_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/examples.tsv&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="p">[</span><span class="n">chat_df</span><span class="p">]</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
 </section>
 
 
@@ -414,6 +435,7 @@ with “prompt” and “response” columns</p></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ChatLoader.run"><code class="docutils literal notranslate"><span class="pre">ChatLoader.run()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 </ul>
   </nav></div>
 

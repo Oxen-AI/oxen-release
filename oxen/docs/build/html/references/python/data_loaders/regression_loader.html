@@ -312,6 +312,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.RegressionLoader.run"><code class="docutils literal notranslate"><span class="pre">RegressionLoader.run()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 </ul>
             </nav>
         </div>
@@ -331,11 +332,13 @@ document.write(`
 <dd><dl class="py method">
 <dt class="sig sig-object py" id="oxen.loaders.RegressionLoader.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_names</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.RegressionLoader.__init__" title="Permalink to this definition">#</a></dt>
-<dd><p>Extracts and formats relevant features and labels from a tabular dataset for use in regression tasks.</p>
+<dd><p>Extracts and formats relevant features and labels
+from a tabular dataset for use in regression tasks.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>data_file</strong> (<em>str</em>) – Path to a tabular file containing the input features and prediction target for a regression task</p></li>
+<li><p><strong>data_file</strong> (<em>str</em>) – Path to a tabular file containing the input features
+and prediction target for a regression task</p></li>
 <li><p><strong>pred_nam</strong> (<em>str</em>) – Column name in data_file containing the prediction target</p></li>
 <li><p><strong>f_names</strong> (<em>list</em>) – List of column names in data_file containing the input features</p></li>
 </ul>
@@ -359,6 +362,26 @@ document.write(`
 
 </dd></dl>
 
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">oxen</span> <span class="kn">import</span> <span class="n">LocalRepo</span>
+<span class="kn">from</span> <span class="nn">oxen.loaders</span> <span class="kn">import</span> <span class="n">RegressionLoader</span>
+
+<span class="n">repo</span> <span class="o">=</span> <span class="n">LocalRepo</span><span class="p">()</span>
+
+<span class="c1"># Demo data for supervised image classification</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="s2">&quot;https://hub.oxen.ai/ba/dataloader-regression&quot;</span><span class="p">)</span>
+
+<span class="n">loader</span> <span class="o">=</span> <span class="n">RegressionLoader</span><span class="p">(</span>
+    <span class="n">data_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/prices.csv&quot;</span><span class="p">,</span>
+    <span class="n">pred_name</span> <span class="o">=</span> <span class="s2">&quot;price&quot;</span><span class="p">,</span>
+    <span class="n">f_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;sqft&quot;</span><span class="p">,</span> <span class="s2">&quot;num_bed&quot;</span><span class="p">,</span> <span class="s2">&quot;num_bath&quot;</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="n">X</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
 </section>
 
 
@@ -414,6 +437,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.RegressionLoader.run"><code class="docutils literal notranslate"><span class="pre">RegressionLoader.run()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 </ul>
   </nav></div>
 
