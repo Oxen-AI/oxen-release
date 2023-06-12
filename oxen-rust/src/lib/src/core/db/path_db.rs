@@ -235,3 +235,52 @@ where
     }
     Ok(paths)
 }
+
+/// List the entries given an offset, page, and page_size
+pub fn list_entry_page_with_offset<T: ThreadMode, D>(
+    db: &DBWithThreadMode<T>,
+    page: usize,
+    page_size: usize,
+    offset: usize,
+) -> Result<Vec<D>, OxenError>
+where
+    D: de::DeserializeOwned,
+{
+    // Ugh this is so hacky...should be using a real database for the entries.
+    let start_page = if page == 0 { 0 } else { page - 1 };
+    let mut start_idx = start_page * page_size;
+    log::debug!("list_entry_page_with_offset(1) page: {page}, page_size: {page_size}, offset: {offset} start_idx: {start_idx} start_page: {start_page}");
+
+    if start_idx >= offset {
+        start_idx -= offset;
+    }
+    log::debug!("list_entry_page_with_offset(2) page: {page}, page_size: {page_size}, offset: {offset} start_idx: {start_idx} start_page: {start_page}");
+
+    // The iterator doesn't technically have a skip method as far as I can tell
+    // so we are just going to manually do it
+    let mut paths: Vec<D> = vec![];
+    let iter = db.iterator(IteratorMode::Start);
+    // Do not go negative, and start from 0
+    for (entry_i, item) in iter.enumerate() {
+        match item {
+            Ok((_, value)) => {
+                // limit to page_size
+                if paths.len() >= page_size {
+                    break;
+                }
+
+                // only grab values after start_idx based on page and page_size
+                if entry_i >= start_idx {
+                    let entry: D = serde_json::from_str(str::from_utf8(&value)?)?;
+                    paths.push(entry);
+                }
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
+    }
+    Ok(paths)
+}

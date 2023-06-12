@@ -1,10 +1,12 @@
+use crate::model::EntryDataType;
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataTypeStat {
-    pub data_type: String,
+    pub data_type: EntryDataType,
     pub data_size: u64,
     pub file_count: usize,
 }
@@ -12,5 +14,5 @@ pub struct DataTypeStat {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct RepoStats {
     pub data_size: u64,
-    pub data_types: HashMap<String, DataTypeStat>,
+    pub data_types: HashMap<EntryDataType, DataTypeStat>,
 }

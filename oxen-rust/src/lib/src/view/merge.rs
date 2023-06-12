@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::model::Commit;
+
 use super::StatusMessage;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -8,9 +10,16 @@ pub struct MergeConflictFile {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Mergeable {
+    pub is_mergeable: bool,
+    pub conflicts: Vec<MergeConflictFile>,
+    pub commits: Vec<Commit>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MergeableResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub is_mergeable: bool,
-    pub conflicts: Vec<MergeConflictFile>,
+    #[serde(flatten)]
+    pub mergeable: Mergeable,
 }

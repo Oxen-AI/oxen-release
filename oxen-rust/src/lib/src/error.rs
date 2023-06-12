@@ -62,6 +62,9 @@ pub enum OxenError {
     // Generic
     ParsingError(Box<StringError>),
 
+    // Metadata
+    ImageMetaDataParseError(StringError),
+
     // External Library Errors
     IO(io::Error),
     Authentication(StringError),
@@ -73,6 +76,7 @@ pub enum OxenError {
     HTTP(reqwest::Error),
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
+    // DUCKDB(duckdb::Error),
     ENV(std::env::VarError),
 
     // Fallback
@@ -118,6 +122,10 @@ impl OxenError {
 
     pub fn path_does_not_exist(path: PathBuf) -> Self {
         OxenError::PathDoesNotExist(Box::new(path.into()))
+    }
+
+    pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
+        OxenError::ImageMetaDataParseError(StringError::from(s.as_ref()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {
@@ -417,6 +425,12 @@ impl From<rocksdb::Error> for OxenError {
         OxenError::DB(error)
     }
 }
+
+// impl From<duckdb::Error> for OxenError {
+//     fn from(error: duckdb::Error) -> Self {
+//         OxenError::DUCKDB(error)
+//     }
+// }
 
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {

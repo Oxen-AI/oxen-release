@@ -59,7 +59,7 @@ pub async fn meta_data(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         latest_commit.message
     );
 
-    let entry = api::local::entries::get_dir_entry(&repo, &resource.commit, &resource.file_path)?;
+    let entry = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let meta = EntryMetaDataResponse {
         status: StatusMessage::resource_found(),
         entry,

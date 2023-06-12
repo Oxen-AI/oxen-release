@@ -1,3 +1,4 @@
+use crate::core::db::str_json_db;
 use crate::core::index::RefReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -9,6 +10,36 @@ use std::str;
 pub struct CommitDBReader {}
 
 impl CommitDBReader {
+    /// Return the latest commit by timestamp
+    pub fn latest_commit(db: &DBWithThreadMode<MultiThreaded>) -> Result<Commit, OxenError> {
+        let commits: Vec<Commit> = str_json_db::list_vals(db)?;
+        log::debug!("Looking for latest commit in path: {:?}", db.path());
+        log::debug!("Finding latest commit from {} commits", commits.len());
+        let mut latest_commit: Option<Commit> = None;
+        for commit in commits.iter() {
+            if latest_commit.is_none() {
+                latest_commit = Some(commit.clone());
+            } else {
+                let latest_commit_timestamp = latest_commit.as_ref().unwrap().timestamp;
+                if commit.timestamp > latest_commit_timestamp {
+                    latest_commit = Some(commit.clone());
+                }
+            }
+        }
+
+        if latest_commit.is_none() {
+            return Err(OxenError::basic_str("no commits found"));
+        }
+
+        Ok(latest_commit.unwrap())
+    }
+
+    /// List all the commits for the repo
+    pub fn list_all(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<Commit>, OxenError> {
+        let commits: Vec<Commit> = str_json_db::list_vals(db)?;
+        Ok(commits)
+    }
+
     pub fn head_commit(
         repo: &LocalRepository,
         db: &DBWithThreadMode<MultiThreaded>,

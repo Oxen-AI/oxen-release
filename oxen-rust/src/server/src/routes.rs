@@ -79,8 +79,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- Compare ----- //
         .route(
-            "/{namespace}/{repo_name}/compare/{base_head:.*}",
+            "/{namespace}/{repo_name}/compare/stats/{base_head:.*}",
             web::get().to(controllers::compare::show),
+        )
+        .route(
+            "/{namespace}/{repo_name}/compare/commits/{base_head:.*}",
+            web::get().to(controllers::compare::commits),
+        )
+        .route(
+            "/{namespace}/{repo_name}/compare/entities/{base_head:.*}",
+            web::get().to(controllers::compare::entities),
         )
         // ----- Merge ----- //
         // GET merge to test if merge is possible
@@ -146,7 +154,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- Entry (returns meta data for a file or a dir) ----- //
         .route(
-            "/{namespace}/{repo_name}/entry/{resource:.*}",
+            "/{namespace}/{repo_name}/meta/{resource:.*}",
             web::get().to(controllers::file::meta_data),
         )
         .route(

@@ -385,7 +385,8 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
                         // Start computing data about the commit in the background thread
                         std::thread::spawn(move || {
                             log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                            match commit_cacher::run_all(&repo, &commit) {
+                            let force = false;
+                            match commit_cacher::run_all(&repo, &commit, force) {
                                 Ok(_) => {
                                     log::debug!(
                                         "Success processing commit {:?} on repo {:?}",

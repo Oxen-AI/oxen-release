@@ -159,7 +159,7 @@ async fn poll_until_synced(
                 return Err(err);
             }
         }
-        std::thread::sleep(std::time::Duration::from_millis(750));
+        std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
 

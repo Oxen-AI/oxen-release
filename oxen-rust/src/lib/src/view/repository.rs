@@ -1,4 +1,4 @@
-use crate::model::RemoteRepository;
+use crate::model::{EntryDataType, RemoteRepository};
 use serde::{Deserialize, Serialize};
 
 use super::StatusMessage;
@@ -26,7 +26,7 @@ pub struct RepositoryStatsResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataTypeView {
-    pub data_type: String,
+    pub data_type: EntryDataType,
     pub data_size: u64,
     pub file_count: usize,
 }

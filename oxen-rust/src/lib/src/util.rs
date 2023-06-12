@@ -9,7 +9,7 @@ pub mod read_progress;
 pub mod str;
 
 pub use crate::util::read_progress::ReadProgress;
-pub use paginate::paginate;
+pub use paginate::{paginate, paginate_with_total};
 
 pub mod oxen_date_format {
     use chrono::{DateTime, Local};
