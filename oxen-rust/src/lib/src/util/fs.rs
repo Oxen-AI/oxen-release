@@ -137,7 +137,7 @@ pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
                 "util::fs::read_from_path could not open: {}",
                 path.display()
             );
-            log::error!("{}", err);
+            log::warn!("{}", err);
             Err(OxenError::basic_str(&err))
         }
     }

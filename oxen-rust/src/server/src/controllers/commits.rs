@@ -610,6 +610,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
     match archive.entries() {
         Ok(entries) => {
             for file in entries {
+
                 if let Ok(mut file) = file {
                     // Why hash now? To make sure everything synced properly
                     // When we want to check is_synced, it is expensive to rehash everything
@@ -620,6 +621,9 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     let full_path = hidden_dir.join(&path);
                     let hash_dir = full_path.parent().unwrap();
                     let hash_file = hash_dir.join(HASH_FILE);
+
+                    // log::debug!("unpack_entry_tarball unpacking entry {:?} to {:?}", path, full_path);
+
                     if path.starts_with("versions/files/") {
                         let hash = util::hasher::hash_file_contents(&full_path).unwrap();
                         util::fs::write_to_path(&hash_file, &hash)
