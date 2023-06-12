@@ -312,6 +312,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader.run"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader.run()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 </ul>
             </nav>
         </div>
@@ -328,7 +329,8 @@ document.write(`
 <dl class="py class">
 <dt class="sig sig-object py" id="oxen.loaders.ImageClassificationLoader">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxen.loaders.</span></span><span class="sig-name descname"><span class="pre">ImageClassificationLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">imagery_root_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'path'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'label'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.ImageClassificationLoader" title="Permalink to this definition">#</a></dt>
-<dd><p>Prepares data from an Oxen repository for use in supervised image classification tasks.</p>
+<dd><p>Prepares data from an Oxen repository for use
+in supervised image classification tasks.</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="oxen.loaders.ImageClassificationLoader.__init__">
 <span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">imagery_root_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'path'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'label'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.ImageClassificationLoader.__init__" title="Permalink to this definition">#</a></dt>
@@ -336,9 +338,12 @@ document.write(`
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>imagery_root_dir</strong> (<em>str</em>) – Directory relative to which the image paths in the CSV file are specified.</p></li>
-<li><p><strong>label_file</strong> (<em>str</em>) – Path to a text file containing a line-separated list of canonical labels for the dataset.</p></li>
-<li><p><strong>df_file</strong> (<em>str</em>) – Path to a tabular file containing the image paths and associate labels (and any additional metadata).</p></li>
+<li><p><strong>imagery_root_dir</strong> (<em>str</em>) – Directory relative to which the image paths
+in the DataFrame file are specified.</p></li>
+<li><p><strong>label_file</strong> (<em>str</em>) – Path to a text file containing a line-separated
+list of canonical labels for the dataset.</p></li>
+<li><p><strong>df_file</strong> (<em>str</em>) – Path to a tabular file containing the image paths
+and associate labels (and any additional metadata).</p></li>
 <li><p><strong>path_name</strong> (<em>str</em>) – Column name in df_file containing the image paths</p></li>
 <li><p><strong>label_name</strong> (<em>str</em>) – Column name in df_file containing the image labels</p></li>
 </ul>
@@ -363,6 +368,28 @@ document.write(`
 
 </dd></dl>
 
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">oxen</span> <span class="kn">import</span> <span class="n">LocalRepo</span>
+<span class="kn">from</span> <span class="nn">oxen.loaders</span> <span class="kn">import</span> <span class="n">ImageClassificationLoader</span>
+
+<span class="n">repo</span> <span class="o">=</span> <span class="n">LocalRepo</span><span class="p">()</span>
+
+<span class="c1"># Demo data for supervised image classification</span>
+<span class="n">repo</span><span class="o">.</span><span class="n">clone</span><span class="p">(</span><span class="s2">&quot;https://hub.oxen.ai/ba/dataloader-images&quot;</span><span class="p">)</span>
+
+<span class="n">loader</span> <span class="o">=</span> <span class="n">ImageClassificationLoader</span><span class="p">(</span>
+    <span class="n">imagery_root_dir</span> <span class="o">=</span> <span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="p">,</span>
+    <span class="n">label_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/annotations/labels.txt&quot;</span><span class="p">,</span>
+    <span class="n">df_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/annotations/train.csv&quot;</span><span class="p">,</span>
+    <span class="n">path_name</span> <span class="o">=</span> <span class="s2">&quot;file&quot;</span><span class="p">,</span>
+    <span class="n">label_name</span> <span class="o">=</span> <span class="s2">&quot;hair_color&quot;</span>
+<span class="p">)</span>
+
+<span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">mapper</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
 </section>
 
 
@@ -418,6 +445,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader.run"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader.run()</span></code></a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#usage">Usage</a></li>
 </ul>
   </nav></div>
 
