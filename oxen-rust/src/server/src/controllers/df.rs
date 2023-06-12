@@ -50,7 +50,7 @@ pub async fn get(
 
     let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
 
-    let start = if page <= 0 { 0 } else { page_size * (page - 1) };
+    let start = if page == 0 { 0 } else { page_size * (page - 1) };
     let end = page_size * page;
 
     opts.slice = Some(format!("{}..{}", start, end));

@@ -23,7 +23,7 @@ mod tests {
     #[test]
     fn test_get_metadata_text_readme() {
         let file = test::test_text_file_with_name("README");
-        let metadata = api::local::metadata::compute_metadata(&file).unwrap();
+        let metadata = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(metadata.size, 44);
         assert_eq!(metadata.data_type, EntryDataType::Text);
@@ -35,7 +35,7 @@ mod tests {
     #[test]
     fn test_get_metadata_text_readme_md() {
         let file = test::test_text_file_with_name("README.md");
-        let metadata = api::local::metadata::compute_metadata(&file).unwrap();
+        let metadata = api::local::metadata::compute_metadata(file).unwrap();
 
         assert_eq!(metadata.size, 50);
         assert_eq!(metadata.data_type, EntryDataType::Text);

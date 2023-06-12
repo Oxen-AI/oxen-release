@@ -64,7 +64,7 @@ mod tests {
             std::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_200k_csv();
-            util::fs::copy(&from_file, &csv_file)?;
+            util::fs::copy(from_file, &csv_file)?;
 
             command::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
@@ -111,7 +111,7 @@ mod tests {
             std::fs::create_dir_all(&large_dir)?;
             let csv_file = large_dir.join("test.csv");
             let from_file = test::test_200k_csv();
-            util::fs::copy(&from_file, &csv_file)?;
+            util::fs::copy(from_file, &csv_file)?;
 
             command::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;

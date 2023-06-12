@@ -57,7 +57,7 @@ mod tests {
             command::create_checkout(&local_repo, head)?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
-            let mergability = api::remote::merger::mergability(&remote_repo, &base, &head).await?;
+            let mergability = api::remote::merger::mergability(&remote_repo, base, head).await?;
 
             assert!(mergability.is_mergeable);
             assert_eq!(mergability.commits.len(), 0);
@@ -84,7 +84,7 @@ mod tests {
             command::commit(&local_repo, "adding file 1")?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
-            let mergability = api::remote::merger::mergability(&remote_repo, &base, &head).await?;
+            let mergability = api::remote::merger::mergability(&remote_repo, base, head).await?;
 
             assert!(mergability.is_mergeable);
             assert_eq!(mergability.commits.len(), 0);
@@ -122,9 +122,9 @@ mod tests {
             // Push commits
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
-            let mergability = api::remote::merger::mergability(&remote_repo, &base, &head).await?;
+            let mergability = api::remote::merger::mergability(&remote_repo, base, head).await?;
 
-            assert_eq!(mergability.is_mergeable, true);
+            assert!(mergability.is_mergeable);
             assert_eq!(mergability.commits.len(), 2);
             assert_eq!(mergability.conflicts.len(), 0);
 
@@ -169,9 +169,9 @@ mod tests {
             command::commit(&local_repo, "modifying readme on main")?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
-            let mergability = api::remote::merger::mergability(&remote_repo, &base, &head).await?;
+            let mergability = api::remote::merger::mergability(&remote_repo, base, head).await?;
 
-            assert_eq!(mergability.is_mergeable, false);
+            assert!(!mergability.is_mergeable);
             assert_eq!(mergability.commits.len(), 2);
             assert_eq!(mergability.conflicts.len(), 1);
 

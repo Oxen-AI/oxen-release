@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn test_get_metadata_audio_flac() {
         let file = test::test_audio_file_with_name("121-121726-0005.flac");
-        let metadata = api::local::metadata::compute_metadata(&file).unwrap();
+        let metadata = api::local::metadata::compute_metadata(file).unwrap();
 
         println!("metadata: {:?}", metadata);
 

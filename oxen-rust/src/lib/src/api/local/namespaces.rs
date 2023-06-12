@@ -47,7 +47,7 @@ pub fn get(data_dir: &Path, name: &str) -> Result<Option<Namespace>, OxenError> 
     // Get storage per repo in parallel and sum up
     namespace.storage_usage_gb = repos
         .par_iter()
-        .map(|repo| get_storage_for_repo(repo))
+        .map(get_storage_for_repo)
         .sum::<Result<u64, OxenError>>()? as f64
         / bytesize::GB as f64;
 
@@ -85,7 +85,7 @@ fn get_storage_for_repo(repo: &LocalRepository) -> Result<u64, OxenError> {
                         "api::local::namespaces::get_storage_for_repo error parsing size: {}",
                         e
                     );
-                    return Err(OxenError::basic_str(e.to_string()));
+                    Err(OxenError::basic_str(e.to_string()))
                 }
             }
         }
