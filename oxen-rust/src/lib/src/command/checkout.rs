@@ -45,6 +45,14 @@ pub async fn checkout<S: AsRef<str>>(
     }
 }
 
+/// Create and checkout a branch
+pub fn create_checkout<S: AsRef<str>>(
+    repo: &LocalRepository,
+    value: S,
+) -> Result<Branch, OxenError> {
+    api::local::branches::create_checkout(repo, value.as_ref())
+}
+
 /// # Checkout a file and take their changes
 /// This overwrites the current file with the changes in the branch we are merging in
 pub fn checkout_theirs(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {

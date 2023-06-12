@@ -37,6 +37,16 @@ impl CommitReader {
         })
     }
 
+    /// Returns all the commit objects in a repo, in no particular order
+    pub fn list_all(&self) -> Result<Vec<Commit>, OxenError> {
+        CommitDBReader::list_all(&self.db)
+    }
+
+    /// Return the latest commit by timestamp
+    pub fn latest_commit(&self) -> Result<Commit, OxenError> {
+        CommitDBReader::latest_commit(&self.db)
+    }
+
     /// Return the head commit
     pub fn head_commit(&self) -> Result<Commit, OxenError> {
         CommitDBReader::head_commit(&self.repository, &self.db)
@@ -68,6 +78,7 @@ impl CommitReader {
             head_commit_id,
             &mut commits,
         )?;
+
         let mut commits: Vec<Commit> = commits.into_iter().collect();
         commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         Ok(commits)

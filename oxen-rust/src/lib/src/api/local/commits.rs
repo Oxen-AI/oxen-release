@@ -9,7 +9,14 @@ use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
 
+use rayon::prelude::*;
 use std::path::Path;
+
+// Iterate over commits and get the one with the latest timestamp
+pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let reader = CommitReader::new(repo)?;
+    reader.latest_commit()
+}
 
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let reader = CommitReader::new(repo)?;
@@ -73,16 +80,12 @@ pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit
 pub fn commit_content_size(repo: &LocalRepository, commit: &Commit) -> Result<u64, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     let entries = reader.list_entries()?;
-    compute_entries_size(&entries)
+    Ok(compute_entries_size(&entries))
 }
 
-pub fn compute_entries_size(entries: &[CommitEntry]) -> Result<u64, OxenError> {
-    let mut total_size: u64 = 0;
-
-    for entry in entries.iter() {
-        total_size += entry.num_bytes;
-    }
-    Ok(total_size)
+pub fn compute_entries_size(entries: &[CommitEntry]) -> u64 {
+    // Sum up entry size in parallel using rayon
+    entries.par_iter().map(|entry| entry.num_bytes).sum::<u64>()
 }
 
 pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
@@ -160,10 +163,17 @@ pub fn create_commit_object(
     Ok(())
 }
 
-/// List commits on the current branch
+/// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commits = committer.history_from_head()?;
+    Ok(commits)
+}
+
+/// List commits for the repository in no particular order
+pub fn list_all(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commits = committer.list_all()?;
     Ok(commits)
 }
 

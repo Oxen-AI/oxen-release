@@ -5,6 +5,7 @@ pub mod branches;
 pub mod commits;
 pub mod diff;
 pub mod entries;
+pub mod metadata;
 pub mod namespaces;
 pub mod repositories;
 pub mod resource;

@@ -132,33 +132,20 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     }
 }
 
-pub async fn delete(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
 
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let name: Option<&str> = req.match_info().get("repo_name");
-    if let (Some(name), Some(namespace)) = (name, namespace) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
-            Ok(Some(repository)) => match api::local::repositories::delete(repository) {
-                Ok(_) => HttpResponse::Ok().json(StatusMessage::resource_deleted()),
-                Err(err) => {
-                    log::error!("Error deleting repository: {}", err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            },
-            Ok(None) => {
-                log::debug!("404 Could not find repo: {}", name);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Delete could not find repo: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        }
-    } else {
-        let msg = "Could not find `name` param";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
-    }
+    let repository = get_repo(&app_data.path, &namespace, &name)?;
+
+    // Delete in a background thread because it could take awhile
+    std::thread::spawn(move || match api::local::repositories::delete(repository) {
+        Ok(_) => log::info!("Deleted repo: {}/{}", namespace, name),
+        Err(err) => log::error!("Err deleting repo: {}", err),
+    });
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
 
 pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {

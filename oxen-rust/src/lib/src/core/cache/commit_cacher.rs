@@ -4,60 +4,31 @@
 use std::collections::HashMap;
 
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
+use crate::core::cache::cacher_status::{CacherStatus, CacherStatusType};
 use crate::core::db::{self, str_json_db};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
 
-use super::cachers::content_validator;
+use super::cachers::{
+    content_validator,
+    // content_metadata,
+    repo_size,
+};
 use lazy_static::lazy_static;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub enum CacherStatusType {
-    Pending,
-    Failed,
-    Success,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct CacherStatus {
-    pub status: CacherStatusType,
-    pub status_message: String,
-}
-
-impl CacherStatus {
-    pub fn pending() -> CacherStatus {
-        CacherStatus {
-            status: CacherStatusType::Pending,
-            status_message: String::from(""),
-        }
-    }
-
-    pub fn success() -> CacherStatus {
-        CacherStatus {
-            status: CacherStatusType::Success,
-            status_message: String::from(""),
-        }
-    }
-
-    pub fn failed(msg: &str) -> CacherStatus {
-        CacherStatus {
-            status: CacherStatusType::Failed,
-            status_message: String::from(msg),
-        }
-    }
-}
 
 type CommitCacher = fn(&LocalRepository, &Commit) -> Result<(), OxenError>;
 
 lazy_static! {
     /// These are all the cachers we are going to run in `run_all`
+    /// TODO: make this a config file that users can extend or run their own cachers
     static ref CACHERS: HashMap<String, CommitCacher> = {
         let mut cachers = HashMap::new();
         cachers.insert(String::from("COMMIT_CONTENT_IS_VALID"), content_validator::compute as CommitCacher);
+        cachers.insert(String::from("REPO_SIZE"), repo_size::compute as CommitCacher);
+        // cachers.insert(String::from("COMMIT_METADATA"), content_metadata::compute as CommitCacher);
         // cachers.insert(String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher);
         cachers
     };
@@ -68,6 +39,7 @@ fn cached_status_db_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
         .join(HISTORY_DIR)
         .join(&commit.id)
         .join(CACHE_DIR)
+        .join("status.db")
 }
 
 /// Pick most appropriate status to return given the status's in the db
@@ -133,7 +105,7 @@ pub fn get_all_statuses(
 }
 
 /// Run all the cachers and update their status's as you go
-pub fn run_all(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
+pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
     // Create kvdb of NAME -> STATUS
     let db_path = cached_status_db_path(repo, commit);
     let opts = db::opts::default();
@@ -143,7 +115,7 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     for (name, cacher) in CACHERS.iter() {
         // Skip ones that are already cached successfully
         if let Some(val) = str_json_db::get::<MultiThreaded, &str, CacherStatus>(&db, name)? {
-            if CacherStatusType::Success == val.status {
+            if CacherStatusType::Success == val.status && !force {
                 continue;
             }
         }

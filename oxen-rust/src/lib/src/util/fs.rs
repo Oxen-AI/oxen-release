@@ -16,12 +16,13 @@ use std::path::PathBuf;
 use sysinfo::{DiskExt, System, SystemExt};
 
 use crate::constants;
+use crate::constants::CACHE_DIR;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
 use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::Commit;
-use crate::model::{CommitEntry, LocalRepository};
+use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::view::health::DiskUsage;
 use crate::{api, util};
 
@@ -48,6 +49,7 @@ pub fn commit_content_is_valid_path(repo: &LocalRepository, commit: &Commit) -> 
     oxen_hidden_dir(&repo.path)
         .join(HISTORY_DIR)
         .join(&commit.id)
+        .join(CACHE_DIR)
         .join(CONTENT_IS_VALID)
 }
 
@@ -135,7 +137,7 @@ pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
                 "util::fs::read_from_path could not open: {}",
                 path.display()
             );
-            log::error!("{}", err);
+            log::warn!("{}", err);
             Err(OxenError::basic_str(&err))
         }
     }
@@ -209,6 +211,28 @@ pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
             "Could not read line from file: {file:?}"
         )))
     }
+}
+
+pub fn count_lines(path: impl AsRef<Path>) -> Result<usize, std::io::Error> {
+    let file = File::open(path)?;
+    p_count_lines(file)
+}
+
+fn p_count_lines<R: std::io::Read>(handle: R) -> Result<usize, std::io::Error> {
+    let mut reader = BufReader::with_capacity(1024 * 32, handle);
+    let mut count = 1;
+    loop {
+        let len = {
+            let buf = reader.fill_buf()?;
+            if buf.is_empty() {
+                break;
+            }
+            count += bytecount::count(buf, b'\n');
+            buf.len()
+        };
+        reader.consume(len);
+    }
+    Ok(count)
 }
 
 pub fn read_lines(path: &Path) -> Result<Vec<String>, OxenError> {
@@ -537,21 +561,86 @@ pub fn is_utf8(path: &Path) -> bool {
     }
 }
 
-pub fn file_datatype(path: &Path) -> String {
-    if is_markdown(path) {
-        String::from("markdown")
-    } else if is_image(path) {
-        String::from("image")
-    } else if is_video(path) {
-        String::from("video")
-    } else if is_audio(path) {
-        String::from("audio")
-    } else if is_tabular(path) {
-        String::from("tabular")
-    } else if is_utf8(path) {
-        String::from("text")
-    } else {
-        String::from("unknown")
+pub fn file_mime_type(path: &Path) -> String {
+    match infer::get_from_path(path) {
+        Ok(Some(kind)) => String::from(kind.mime_type()),
+        _ => {
+            if is_markdown(path) {
+                String::from("text/markdown")
+            } else if is_utf8(path) {
+                String::from("text/plain")
+            } else {
+                // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+                // application/octet-stream is the default value for all other cases.
+                // An unknown file type should use this type.
+                // Browsers are particularly careful when manipulating these files to
+                // protect users from software vulnerabilities and possible dangerous behavior.
+                String::from("application/octet-stream")
+            }
+        }
+    }
+}
+
+pub fn datatype_from_mimetype(path: &Path, mimetype: &str) -> EntryDataType {
+    match mimetype {
+        // Image
+        "image/jpeg" => EntryDataType::Image,
+        "image/png" => EntryDataType::Image,
+        "image/gif" => EntryDataType::Image,
+        "image/webp" => EntryDataType::Image,
+        "image/x-canon-cr2" => EntryDataType::Image,
+        "image/tiff" => EntryDataType::Image,
+        "image/bmp" => EntryDataType::Image,
+        "image/heif" => EntryDataType::Image,
+        "image/avif" => EntryDataType::Image,
+
+        // Video
+        "video/mp4" => EntryDataType::Video,
+        "video/x-m4v" => EntryDataType::Video,
+        "video/x-msvideo" => EntryDataType::Video,
+        "video/quicktime" => EntryDataType::Video,
+        "video/mpeg" => EntryDataType::Video,
+        "video/webm" => EntryDataType::Video,
+        "video/x-matroska" => EntryDataType::Video,
+        "video/x-flv" => EntryDataType::Video,
+        "video/x-ms-wmv" => EntryDataType::Video,
+
+        // Audio
+        "audio/midi" => EntryDataType::Audio,
+        "audio/mpeg" => EntryDataType::Audio,
+        "audio/m4a" => EntryDataType::Audio,
+        "audio/ogg" => EntryDataType::Audio,
+        "audio/x-flac" => EntryDataType::Audio,
+        "audio/aac" => EntryDataType::Audio,
+        "audio/x-aiff" => EntryDataType::Audio,
+        "audio/x-dsf" => EntryDataType::Audio,
+        "audio/x-ape" => EntryDataType::Audio,
+
+        _ => {
+            // Catch text and dataframe types from file extension
+            if is_tabular(path) {
+                EntryDataType::Tabular
+            } else if "text/plain" == mimetype || "text/markdown" == mimetype {
+                EntryDataType::Text
+            } else {
+                EntryDataType::Binary
+            }
+        }
+    }
+}
+
+pub fn file_data_type(path: &Path) -> EntryDataType {
+    let mimetype = file_mime_type(path);
+    datatype_from_mimetype(path, mimetype.as_str())
+}
+
+pub fn file_extension(path: &Path) -> String {
+    match path.extension() {
+        Some(extension) => match extension.to_str() {
+            Some(ext) => ext.to_string(),
+            None => "".to_string(),
+        },
+        None => "".to_string(),
     }
 }
 
@@ -801,7 +890,7 @@ pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
 mod tests {
     use crate::constants;
     use crate::error::OxenError;
-    use crate::model::CommitEntry;
+    use crate::model::{CommitEntry, EntryDataType};
     use crate::test;
     use crate::util;
 
@@ -903,8 +992,8 @@ mod tests {
     fn detect_file_type() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             assert_eq!(
-                "tabular",
-                util::fs::file_datatype(
+                EntryDataType::Tabular,
+                util::fs::file_data_type(
                     &repo
                         .path
                         .join("annotations")
@@ -913,8 +1002,8 @@ mod tests {
                 )
             );
             assert_eq!(
-                "text",
-                util::fs::file_datatype(
+                EntryDataType::Text,
+                util::fs::file_data_type(
                     &repo
                         .path
                         .join("annotations")
@@ -928,11 +1017,14 @@ mod tests {
             util::fs::copy("data/test/text/test_id.txt", &test_id_file)?;
             util::fs::copy("data/test/text/test_id.txt", &test_id_file_no_ext)?;
 
-            assert_eq!("text", util::fs::file_datatype(&test_id_file));
-            assert_eq!("text", util::fs::file_datatype(&test_id_file_no_ext));
+            assert_eq!(EntryDataType::Text, util::fs::file_data_type(&test_id_file));
             assert_eq!(
-                "image",
-                util::fs::file_datatype(&repo.path.join("test").join("1.jpg"))
+                EntryDataType::Text,
+                util::fs::file_data_type(&test_id_file_no_ext)
+            );
+            assert_eq!(
+                EntryDataType::Image,
+                util::fs::file_data_type(&repo.path.join("test").join("1.jpg"))
             );
 
             Ok(())

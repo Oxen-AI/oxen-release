@@ -3,6 +3,7 @@ use crate::constants;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
 use crate::model::DataTypeStat;
+use crate::model::EntryDataType;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
@@ -62,7 +63,7 @@ pub fn get_commit_stats_from_id(
 
 pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
     let mut data_size: u64 = 0;
-    let mut data_types: HashMap<String, DataTypeStat> = HashMap::new();
+    let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
 
     match api::local::commits::get_head_commit(repo) {
         Ok(commit) => match api::local::entries::list_all(repo, &commit) {
@@ -70,7 +71,7 @@ pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
                 for entry in entries {
                     data_size += entry.num_bytes;
                     let full_path = repo.path.join(&entry.path);
-                    let data_type = util::fs::file_datatype(&full_path);
+                    let data_type = util::fs::file_data_type(&full_path);
                     let data_type_stat = DataTypeStat {
                         data_size: entry.num_bytes,
                         data_type: data_type.to_owned(),

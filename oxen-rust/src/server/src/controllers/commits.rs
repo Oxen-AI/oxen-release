@@ -1,9 +1,9 @@
 use liboxen::api;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
+use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
-use liboxen::core::cache::commit_cacher::CacherStatusType;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
@@ -561,7 +561,8 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
                     // Kick off processing in background thread because could take awhile
                     std::thread::spawn(move || {
                         log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                        match commit_cacher::run_all(&repo, &commit) {
+                        let force = false;
+                        match commit_cacher::run_all(&repo, &commit, force) {
                             Ok(_) => {
                                 log::debug!(
                                     "Success processing commit {:?} on repo {:?}",
@@ -619,6 +620,9 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     let full_path = hidden_dir.join(&path);
                     let hash_dir = full_path.parent().unwrap();
                     let hash_file = hash_dir.join(HASH_FILE);
+
+                    // log::debug!("unpack_entry_tarball unpacking entry {:?} to {:?}", path, full_path);
+
                     if path.starts_with("versions/files/") {
                         let hash = util::hasher::hash_file_contents(&full_path).unwrap();
                         util::fs::write_to_path(&hash_file, &hash)

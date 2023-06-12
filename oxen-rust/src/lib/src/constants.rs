@@ -29,6 +29,8 @@ pub const FILES_DIR: &str = "files";
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
+/// prefix for the stats dir
+pub const STATS_DIR: &str = "stats";
 /// prefix for the staged dirs
 pub const STAGED_DIR: &str = "staged";
 /// prefix for the sync status dirs to tell if commits are synced locally
@@ -92,3 +94,12 @@ pub const NUM_HTTP_RETRIES: u64 = 6;
 pub const DEFAULT_PAGE_SIZE: usize = 10;
 /// Pagination page number of 1
 pub const DEFAULT_PAGE_NUM: usize = 1;
+
+/// Data Types
+pub const TEXT: &str = "text";
+pub const IMAGE: &str = "image";
+pub const VIDEO: &str = "video";
+pub const AUDIO: &str = "audio";
+pub const TABULAR: &str = "tabular";
+pub const BINARY: &str = "binary";
+pub const DIR: &str = "dir";

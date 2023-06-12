@@ -2,7 +2,7 @@ use crate::api::remote::client;
 use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader};
 use crate::error::OxenError;
-use crate::model::{DirEntry, RemoteRepository};
+use crate::model::{MetaDataEntry, RemoteRepository};
 use crate::view::EntryMetaDataResponse;
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -22,14 +22,14 @@ use std::sync::Arc;
 
 /// Get a entry metadata from the remote repository
 /// given a path and a branch or commit id
-pub async fn get_entry(
+pub async fn get_meta(
     remote_repo: &RemoteRepository,
     path: impl AsRef<Path>,
     revision: impl AsRef<str>,
-) -> Result<DirEntry, OxenError> {
+) -> Result<MetaDataEntry, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
-    let uri = format!("/entry/{}/{}", revision, path);
+    let uri = format!("/meta/{}/{}", revision, path);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -49,7 +49,7 @@ pub async fn download_entry(
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
-    let entry = get_entry(remote_repo, &remote_path, &revision).await?;
+    let entry = get_meta(remote_repo, &remote_path, &revision).await?;
     let remote_path = remote_path.as_ref();
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
@@ -89,7 +89,7 @@ pub async fn download_entry(
 
 pub async fn download_dir(
     remote_repo: &RemoteRepository,
-    entry: &DirEntry,
+    entry: &MetaDataEntry,
     local_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
@@ -117,7 +117,7 @@ pub async fn download_dir(
 
 pub async fn download_file(
     remote_repo: &RemoteRepository,
-    entry: &DirEntry,
+    entry: &MetaDataEntry,
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
@@ -486,6 +486,7 @@ mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::model::EntryDataType;
     use crate::test;
     use crate::{api, util};
 
@@ -496,11 +497,12 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations").join("README.md");
             let revision = DEFAULT_BRANCH_NAME;
-            let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
+            let entry = api::remote::entries::get_meta(&remote_repo, path, revision).await?;
 
             assert_eq!(entry.filename, "README.md");
             assert!(!entry.is_dir);
-            assert_eq!(entry.datatype, "markdown");
+            assert_eq!(entry.data_type, EntryDataType::Text);
+            assert_eq!(entry.mime_type, "text/markdown");
             assert_eq!(entry.resource.unwrap().path, "annotations/README.md");
 
             Ok(remote_repo)
@@ -513,11 +515,11 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = "train";
             let revision = DEFAULT_BRANCH_NAME;
-            let entry = api::remote::entries::get_entry(&remote_repo, path, revision).await?;
+            let entry = api::remote::entries::get_meta(&remote_repo, path, revision).await?;
 
             assert_eq!(entry.filename, path);
             assert!(entry.is_dir);
-            assert_eq!(entry.datatype, "dir");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
             assert!(entry.size > 0);
 
             Ok(remote_repo)

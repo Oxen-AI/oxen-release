@@ -5,7 +5,16 @@ use crate::model::{Commit, DiffEntry};
 use super::StatusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct CompareResponse {
+pub struct CompareCommitsResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub base_commit: Commit,
+    pub head_commit: Commit,
+    pub commits: Vec<Commit>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompareEntriesResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
     pub base_commit: Commit,

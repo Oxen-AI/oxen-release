@@ -6,7 +6,7 @@ use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
-use liboxen::view::merge::{MergeConflictFile, MergeableResponse};
+use liboxen::view::merge::{MergeConflictFile, Mergeable, MergeableResponse};
 use liboxen::view::StatusMessage;
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -38,11 +38,17 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         })
         .collect();
 
+    // Get commits
+    let commits = merger.list_commits_between_branches(&commit_reader, &base, &head)?;
+
     // Create response object
     let response = MergeableResponse {
         status: StatusMessage::resource_found(),
-        is_mergeable,
-        conflicts,
+        mergeable: Mergeable {
+            is_mergeable,
+            conflicts,
+            commits,
+        },
     };
 
     Ok(HttpResponse::Ok().json(response))

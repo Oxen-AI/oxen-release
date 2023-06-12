@@ -255,16 +255,12 @@ pub fn df() -> Command {
             Arg::new("page")
                 .long("page")
                 .help("Page number when paginating through the data frame. Default page = 1")
-                .default_value("1")
-                .default_missing_value("1")
                 .action(clap::ArgAction::Set),
         )
         .arg(
             Arg::new("page-size")
                 .long("page-size")
                 .help("Paginated through the data frame. Default page-size = 10")
-                .default_value("10")
-                .default_missing_value("10")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -608,6 +604,13 @@ pub fn commit_cache() -> Command {
                 .long("all")
                 .short('a')
                 .help("Compute the cache for all the oxen repositories in this directory")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("force")
+                .long("force")
+                .short('f')
+                .help("Force recompute the cache even if it already exists.")
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(arg!([COMMITTISH] "The commit or branch id you want to compute the cache for. Defaults to main."))

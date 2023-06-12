@@ -18,7 +18,7 @@ pub mod repository;
 pub mod schema;
 pub mod status_message;
 
-pub use crate::view::compare::CompareResponse;
+pub use crate::view::compare::CompareEntriesResponse;
 pub use crate::view::file_meta_data::{FileMetaData, FileMetaDataResponse, FilePathsResponse};
 pub use crate::view::status_message::{
     IsValidStatusMessage, StatusMessage, StatusMessageDescription,
