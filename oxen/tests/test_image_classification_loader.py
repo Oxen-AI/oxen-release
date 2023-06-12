@@ -2,10 +2,6 @@ import os
 import pytest
 import torch
 import tensorflow as tf
-from tensorflow import keras
-import oxen
-import numpy as np
-from oxen import Dataset
 from oxen.loaders import ImageClassificationLoader
 from torch.utils.data import TensorDataset, DataLoader
 

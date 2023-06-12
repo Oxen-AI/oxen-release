@@ -13,20 +13,32 @@ from oxen.ops import (
 
 class ImageClassificationLoader:
     """
-    Prepares data from an Oxen repository for use in supervised image classification tasks.
+    Prepares data from an Oxen repository for use 
+    in supervised image classification tasks.
     """
-    def __init__(self, imagery_root_dir, label_file, df_file, path_name="path", label_name="label"):
+
+    def __init__(
+        self,
+        imagery_root_dir,
+        label_file,
+        df_file,
+        path_name="path",
+        label_name="label",
+    ):
         """
         Creates a new ImageClassificationLoader.
 
         Parameters
         ----------
         imagery_root_dir : str
-            Directory relative to which the image paths in the CSV file are specified. 
+            Directory relative to which the image paths 
+            in the DataFrame file are specified. 
         label_file: str
-            Path to a text file containing a line-separated list of canonical labels for the dataset.
+            Path to a text file containing a line-separated 
+            list of canonical labels for the dataset.
         df_file : str
-            Path to a tabular file containing the image paths and associate labels (and any additional metadata).
+            Path to a tabular file containing the image paths 
+            and associate labels (and any additional metadata).
         path_name : str 
             Column name in df_file containing the image paths 
         label_name : str
