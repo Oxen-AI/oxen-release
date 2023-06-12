@@ -8,6 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          ruby ruby-dev rubygems build-essential
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -29,6 +37,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          ruby ruby-dev rubygems build-essential
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -52,6 +68,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          ruby ruby-dev rubygems build-essential
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -75,6 +99,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          ruby ruby-dev rubygems build-essential
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
