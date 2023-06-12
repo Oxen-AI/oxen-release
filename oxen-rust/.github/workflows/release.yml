@@ -281,6 +281,9 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
+      - name: Install dependencies
+        run: brew install pkg-config
+
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -336,6 +339,9 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
+      - name: Install dependencies
+        run: brew install pkg-config
+
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -390,6 +396,9 @@ jobs:
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: brew install pkg-config
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
