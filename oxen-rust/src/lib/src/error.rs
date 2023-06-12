@@ -76,7 +76,7 @@ pub enum OxenError {
     HTTP(reqwest::Error),
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
-    DUCKDB(duckdb::Error),
+    // DUCKDB(duckdb::Error),
     ENV(std::env::VarError),
 
     // Fallback
@@ -426,11 +426,11 @@ impl From<rocksdb::Error> for OxenError {
     }
 }
 
-impl From<duckdb::Error> for OxenError {
-    fn from(error: duckdb::Error) -> Self {
-        OxenError::DUCKDB(error)
-    }
-}
+// impl From<duckdb::Error> for OxenError {
+//     fn from(error: duckdb::Error) -> Self {
+//         OxenError::DUCKDB(error)
+//     }
+// }
 
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {

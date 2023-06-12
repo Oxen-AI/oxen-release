@@ -1,12 +1,12 @@
 //! Computes metadata we can extract from the entry files
 
-use indicatif::ProgressBar;
-use rayon::prelude::*;
+// use indicatif::ProgressBar;
+// use rayon::prelude::*;
 
-use crate::api;
+// use crate::api;
 use crate::constants::CACHE_DIR;
 use crate::constants::{HISTORY_DIR, STATS_DIR};
-use crate::core::index::{CommitDirEntryReader, CommitEntryReader};
+// use crate::core::index::{CommitDirEntryReader, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
@@ -15,10 +15,10 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     log::debug!("Running content_metadata");
 
     log::debug!("computing metadata {} -> {}", commit.id, commit.message);
-    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
+    // let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
 
     // We're going to compute types per directory, and save them into a dataframe
-    let dirs = commit_entry_reader.list_dirs()?;
+    // let dirs = commit_entry_reader.list_dirs()?;
 
     let db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(HISTORY_DIR)
@@ -28,6 +28,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     log::debug!("Creating db path {:?}", db_path);
 
+    /*
     let mut db = duckdb::Connection::open(db_path)?;
     db.execute_batch(
         r"CREATE TABLE IF NOT EXISTS metadata (
@@ -102,5 +103,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         log::debug!("Flushing appender....");
         appender.flush();
     }
+    */
     Ok(())
 }

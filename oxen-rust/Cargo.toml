@@ -32,7 +32,7 @@ chrono = "0.4.22"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
 comfy-table = "6.1.0"
-duckdb = "0.8.0"
+# duckdb = "0.8.0"
 deadqueue = "0.2.4"
 derive_more = "0.99.17"
 difference = "2.0.0"
