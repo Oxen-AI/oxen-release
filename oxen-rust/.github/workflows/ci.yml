@@ -16,6 +16,16 @@ jobs:
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential
+      - name: Install imagemagick
+        run: |
+          export MAGICK_VERSION=7.1 \
+          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+          && cd ImageMagick-${MAGICK_VERSION}* \
+          && ./configure --with-magick-plus-plus=no --with-perl=no \
+          && make \
+          && make install \
+          && cd .. \
+          && rm -r ImageMagick-${MAGICK_VERSION}*
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -45,6 +55,16 @@ jobs:
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential
+      - name: Install imagemagick
+        run: |
+          export MAGICK_VERSION=7.1 \
+          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+          && cd ImageMagick-${MAGICK_VERSION}* \
+          && ./configure --with-magick-plus-plus=no --with-perl=no \
+          && make \
+          && make install \
+          && cd .. \
+          && rm -r ImageMagick-${MAGICK_VERSION}*
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -76,6 +96,16 @@ jobs:
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential
+      - name: Install imagemagick
+        run: |
+          export MAGICK_VERSION=7.1 \
+          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+          && cd ImageMagick-${MAGICK_VERSION}* \
+          && ./configure --with-magick-plus-plus=no --with-perl=no \
+          && make \
+          && make install \
+          && cd .. \
+          && rm -r ImageMagick-${MAGICK_VERSION}*
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -107,6 +137,16 @@ jobs:
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential
+      - name: Install imagemagick
+        run: |
+          export MAGICK_VERSION=7.1 \
+          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+          && cd ImageMagick-${MAGICK_VERSION}* \
+          && ./configure --with-magick-plus-plus=no --with-perl=no \
+          && make \
+          && make install \
+          && cd .. \
+          && rm -r ImageMagick-${MAGICK_VERSION}*
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:

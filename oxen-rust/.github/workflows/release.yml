@@ -46,6 +46,17 @@ jobs:
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
+      - name: Install imagemagick
+        run: |
+          export MAGICK_VERSION=7.1 \
+          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+          && cd ImageMagick-${MAGICK_VERSION}* \
+          && ./configure --with-magick-plus-plus=no --with-perl=no \
+          && make \
+          && make install \
+          && cd .. \
+          && rm -r ImageMagick-${MAGICK_VERSION}*
+
       - name: Build oxen
         run: cargo build --release
 
@@ -139,6 +150,17 @@ jobs:
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
+
+      - name: Install imagemagick
+        run: |
+          export MAGICK_VERSION=7.1 \
+          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+          && cd ImageMagick-${MAGICK_VERSION}* \
+          && ./configure --with-magick-plus-plus=no --with-perl=no \
+          && make \
+          && make install \
+          && cd .. \
+          && rm -r ImageMagick-${MAGICK_VERSION}*
 
       - name: Build oxen
         run: cargo build --release
