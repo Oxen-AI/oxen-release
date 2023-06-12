@@ -2,10 +2,6 @@ import os
 import pytest
 import torch
 import tensorflow as tf
-from tensorflow import keras
-import oxen
-import numpy as np
-from oxen import Dataset
 from oxen.loaders import ImageClassificationLoader
 from torch.utils.data import TensorDataset, DataLoader
 
@@ -21,7 +17,7 @@ def test_image_classification_dataloader_local(
     loader = ImageClassificationLoader(
         imagery_root_dir = repo.path, 
         label_file = label_file,
-        csv_file = train_file, 
+        df_file = train_file, 
         path_name = "file", 
         label_name = "hair_color"
     )
@@ -55,7 +51,7 @@ def test_image_loader_missing_unique_label(
     loader = ImageClassificationLoader(
         imagery_root_dir = repo.path, 
         label_file = label_file,
-        csv_file = train_file, 
+        df_file = train_file, 
         path_name = "file", 
         label_name = "hair_color"
     )

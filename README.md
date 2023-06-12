@@ -74,7 +74,7 @@ All the same APIs that are exposed through the command line are also available i
 ```python
 import oxen
 
-repo = oxen.LocalRepository("path/to/repo")
+repo = oxen.LocalRepo("path/to/repo")
 repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
 
 repo.add("new-cat.png")

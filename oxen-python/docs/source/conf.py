@@ -7,7 +7,6 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import toml
-import sys, os
 
 with open("../../Cargo.toml") as f:
     data = toml.load(f)
@@ -27,6 +26,7 @@ html_last_updated_fmt = "%b %d, %Y"
 
 extensions = [
     "m2r2",
+    # "myst_parser",
     "sphinx_copybutton",
     "sphinx.ext.autodoc",
     "sphinx.ext.autodoc.typehints",

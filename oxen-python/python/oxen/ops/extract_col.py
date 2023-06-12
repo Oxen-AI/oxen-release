@@ -3,7 +3,7 @@ import oxen
 
 class ExtractCol(oxen.Op):
     def __init__(self, *args, **kwargs):
-        '''
+        """
         Extracts a column from a DataFrame.
 
         Args:
@@ -11,7 +11,7 @@ class ExtractCol(oxen.Op):
                 DataFrame to extract column from
             args[1]: str
                 Name of column to extract
-        '''
+        """
         super().__init__(*args, **kwargs)
 
     def call(self, args):

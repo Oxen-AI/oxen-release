@@ -1,5 +1,4 @@
 from oxen import LocalRepo
-import oxen
 from oxen.fs import rcount_files_in_repo
 
 
