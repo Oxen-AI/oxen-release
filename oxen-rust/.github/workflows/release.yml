@@ -53,7 +53,7 @@ jobs:
           && cd ImageMagick-${MAGICK_VERSION}* \
           && ./configure --with-magick-plus-plus=no --with-perl=no \
           && make \
-          && make install \
+          && sudo make install \
           && cd .. \
           && rm -r ImageMagick-${MAGICK_VERSION}*
 
@@ -158,7 +158,7 @@ jobs:
           && cd ImageMagick-${MAGICK_VERSION}* \
           && ./configure --with-magick-plus-plus=no --with-perl=no \
           && make \
-          && make install \
+          && sudo make install \
           && cd .. \
           && rm -r ImageMagick-${MAGICK_VERSION}*
 
