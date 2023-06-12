@@ -11,6 +11,7 @@ from oxen.remote_repo import RemoteRepo
 from oxen.dag import DAG
 from oxen.op import Op
 from oxen import auth
+from oxen import loaders
 
 # Names of public modules we want to expose
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "Op",
     "RemoteRepo",
     "LocalRepo",
+    "loaders",
     "util",
-    "auth"
+    "auth",
 ]
