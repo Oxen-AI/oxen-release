@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Data Loaders &#8212; 🐂 🌾 Oxen 0.1.4</title>
+    <title>Image Classification Loader &#8212; 🐂 🌾 Oxen 0.1.4</title>
   
   
   
@@ -43,9 +43,11 @@
     <script src="../../../_static/clipboard.min.js"></script>
     <script src="../../../_static/copybutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'references/python/data_loaders/data_loaders';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/python/data_loaders/image_loader';</script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Chatbot Loader" href="chat_loader.html" />
+    <link rel="prev" title="Data Loaders" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -139,9 +141,15 @@
 <li class="toctree-l1"><a class="reference internal" href="../../../concepts/embedding_search.html">Embedding Search</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
-<ul class="nav bd-sidenav">
+<ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../local_repo.html">Local Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../remote_repo.html">Remote Repo</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Data Loaders</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Image Classification Loader</a></li>
+<li class="toctree-l2"><a class="reference internal" href="chat_loader.html">Chatbot Loader</a></li>
+<li class="toctree-l2"><a class="reference internal" href="regression_loader.html">Regression Loader</a></li>
+</ul>
+</li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -207,7 +215,7 @@
       
       
       
-      <li><a href="../../../_sources/references/python/data_loaders/data_loaders.md" target="_blank"
+      <li><a href="../../../_sources/references/python/data_loaders/image_loader.rst" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -217,7 +225,7 @@
 <span class="btn__icon-container">
   <i class="fas fa-file"></i>
   </span>
-<span class="btn__text-container">.md</span>
+<span class="btn__text-container">.rst</span>
 </a>
 </li>
       
@@ -276,7 +284,9 @@ document.write(`
   </button>
 `);
 </script>
-
+<label class="sidebar-toggle secondary-toggle btn btn-sm" for="__secondary"title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</label>
 </div></div>
       
     </div>
@@ -287,11 +297,23 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Data Loaders</h1>
+    <h1>Image Classification Loader</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
             
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader.__init__"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader.__init__()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader.run"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader.run()</span></code></a></li>
+</ul>
+</li>
+</ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -301,9 +323,46 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article" role="main">
                   
-  <section id="data-loaders">
-<h1>Data Loaders<a class="headerlink" href="#data-loaders" title="Permalink to this heading">#</a></h1>
-<p>Oxen provides a suite of pre-built data loaders for a variety of common machine learning tasks.</p>
+  <section id="image-classification-loader">
+<h1>Image Classification Loader<a class="headerlink" href="#image-classification-loader" title="Permalink to this heading">#</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="oxen.loaders.ImageClassificationLoader">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">oxen.loaders.</span></span><span class="sig-name descname"><span class="pre">ImageClassificationLoader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">imagery_root_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'path'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'label'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.ImageClassificationLoader" title="Permalink to this definition">#</a></dt>
+<dd><p>Prepares data from an Oxen repository for use in supervised image classification tasks.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.loaders.ImageClassificationLoader.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">imagery_root_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">df_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">path_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'path'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">label_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'label'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.ImageClassificationLoader.__init__" title="Permalink to this definition">#</a></dt>
+<dd><p>Creates a new ImageClassificationLoader.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>imagery_root_dir</strong> (<em>str</em>) – Directory relative to which the image paths in the CSV file are specified.</p></li>
+<li><p><strong>label_file</strong> (<em>str</em>) – Path to a text file containing a line-separated list of canonical labels for the dataset.</p></li>
+<li><p><strong>df_file</strong> (<em>str</em>) – Path to a tabular file containing the image paths and associate labels (and any additional metadata).</p></li>
+<li><p><strong>path_name</strong> (<em>str</em>) – Column name in df_file containing the image paths</p></li>
+<li><p><strong>label_name</strong> (<em>str</em>) – Column name in df_file containing the image labels</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.loaders.ImageClassificationLoader.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#oxen.loaders.ImageClassificationLoader.run" title="Permalink to this definition">#</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>outputs[0] (images)</strong> (<em>np.ndarray</em>) – All images found in the dataset, as a numpy array of shape (n, h, w, c)</p></li>
+<li><p><strong>outputs[1] (labels)</strong> (<em>np.nadarray</em>) – Encoded labels for training, index-matched to the images array</p></li>
+<li><p><strong>outputs[2] (mapper)</strong> (<em>dict</em>) – A dictionary mapping the encoded labels to their canonical names</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </section>
 
 
@@ -318,6 +377,24 @@ document.write(`
   
     <div class="footer-article-item"><!-- Previous / next buttons -->
 <div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Data Loaders</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="chat_loader.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Chatbot Loader</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
 </div></div>
   
 </div>
@@ -327,6 +404,24 @@ document.write(`
             </div>
             
             
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader</span></code></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader.__init__"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader.__init__()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.loaders.ImageClassificationLoader.run"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader.run()</span></code></a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
               
             
           </div>
@@ -355,7 +450,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 08, 2023.
+  Last updated on Jun 12, 2023.
   <br/>
 </p>
   </div>
