@@ -6,12 +6,14 @@ from oxen.ops import Identity, ReadDF, ExtractCol, ConcatSeries
 class RegressionLoader:
     def __init__(self, data_file, pred_name, f_names):
         """
-        Extracts and formats relevant features and labels from a tabular dataset for use in regression tasks.
+        Extracts and formats relevant features and labels 
+        from a tabular dataset for use in regression tasks.
 
         Parameters
         ----------
         data_file : str
-            Path to a tabular file containing the input features and prediction target for a regression task
+            Path to a tabular file containing the input features 
+            and prediction target for a regression task
         pred_nam : str
             Column name in data_file containing the prediction target
         f_names : list

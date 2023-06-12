@@ -7,7 +7,6 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import toml
-import sys, os
 
 with open("../../Cargo.toml") as f:
     data = toml.load(f)

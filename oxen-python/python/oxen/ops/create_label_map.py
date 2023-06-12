@@ -2,7 +2,7 @@ import oxen
 
 
 class CreateLabelMap(oxen.Op):
-    '''
+    """
     Creates a dictionary mapping string labels to integers, 
     based on a canonical line-separated text file of labels. 
 
@@ -11,7 +11,8 @@ class CreateLabelMap(oxen.Op):
             String of line-separated labels
         args[1]: List[str]
             Iterable of labels in data, as a check against unexpected data values
-    '''
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

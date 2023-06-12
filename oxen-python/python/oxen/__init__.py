@@ -25,5 +25,5 @@ __all__ = [
     "RemoteRepo",
     "LocalRepo",
     "util",
-    "auth"
+    "auth",
 ]

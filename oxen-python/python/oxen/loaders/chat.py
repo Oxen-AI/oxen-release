@@ -14,6 +14,7 @@ class ChatLoader:
     """
     Formats / templatizes data from an Oxen repository for use in chatbot training.
     """
+
     def __init__(self, prompt_file, data_file):
         """
         Creates a new ChatLoader.
@@ -46,7 +47,8 @@ class ChatLoader:
         Returns
         --------
         outputs[0] : pl.DataFrame
-            DataFrame with columns containing the templatized prompt ("prompt") and response ("response")
+            DataFrame with columns containing the templatized prompt ("prompt") 
+            and response ("response")
         """
         # Run the graph to get the outputs
         result = self.graph.evaluate()
