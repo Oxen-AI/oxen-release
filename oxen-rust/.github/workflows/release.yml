@@ -46,16 +46,16 @@ jobs:
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
-      - name: Install imagemagick
-        run: |
-          export MAGICK_VERSION=7.1 \
-          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
-          && cd ImageMagick-${MAGICK_VERSION}* \
-          && ./configure --with-magick-plus-plus=no --with-perl=no \
-          && make \
-          && sudo make install \
-          && cd .. \
-          && rm -r ImageMagick-${MAGICK_VERSION}*
+      # - name: Install imagemagick
+      #   run: |
+      #     export MAGICK_VERSION=7.1 \
+      #     && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+      #     && cd ImageMagick-${MAGICK_VERSION}* \
+      #     && ./configure --with-magick-plus-plus=no --with-perl=no \
+      #     && make \
+      #     && sudo make install \
+      #     && cd .. \
+      #     && rm -r ImageMagick-${MAGICK_VERSION}*
 
       - name: Build oxen
         run: cargo build --release
@@ -147,25 +147,24 @@ jobs:
           && sudo apt-get install -y \
           libdbus-1-dev \
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config musl-tools \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
-      - name: Install imagemagick
-        run: |
-          export MAGICK_VERSION=7.1 \
-          && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
-          && cd ImageMagick-${MAGICK_VERSION}* \
-          && ./configure --with-magick-plus-plus=no --with-perl=no \
-          && make \
-          && sudo make install \
-          && cd .. \
-          && rm -r ImageMagick-${MAGICK_VERSION}*
+      # - name: Install imagemagick
+      #   run: |
+      #     export MAGICK_VERSION=7.1 \
+      #     && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
+      #     && cd ImageMagick-${MAGICK_VERSION}* \
+      #     && ./configure --with-magick-plus-plus=no --with-perl=no \
+      #     && make \
+      #     && sudo make install \
+      #     && cd .. \
+      #     && rm -r ImageMagick-${MAGICK_VERSION}*
 
       - name: Build oxen
         run: |
-          rustup target add x86_64-unknown-linux-musl
-          cargo build --target x86_64-unknown-linux-musl --release
+          cargo build --release
 
       - name: Package Oxen Server
         run: |
@@ -225,8 +224,8 @@ jobs:
           default: true
           override: true
 
-      - name: Install ffmpeg
-        run: choco install ffmpeg
+      # - name: Install ffmpeg
+      #   run: choco install ffmpeg
 
       - name: Build
         run: cargo build --release --bins

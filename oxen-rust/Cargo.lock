@@ -47,7 +47,6 @@ dependencies = [
  "jwalk",
  "lazy_static",
  "log",
- "magick_rust",
  "minus",
  "nom",
  "num_cpus",
