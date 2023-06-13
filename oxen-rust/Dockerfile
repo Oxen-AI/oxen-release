@@ -3,13 +3,13 @@ FROM rust:1.70.0 as builder
 USER root
 RUN apt-get update
 RUN apt-get install -y apt-utils
-RUN apt-get install -y libclang-dev libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config
+RUN apt-get install -y clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev libssl-dev pkg-config
 
 RUN apt-get update \
  && apt-get -y install curl build-essential clang cmake pkg-config libjpeg-turbo-progs libpng-dev \
  && rm -rfv /var/lib/apt/lists/*
 
-ENV MAGICK_VERSION 7.1
+# ENV MAGICK_VERSION 7.1
 
 # RUN curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
 #  && cd ImageMagick-${MAGICK_VERSION}* \
