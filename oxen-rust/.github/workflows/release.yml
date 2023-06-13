@@ -225,9 +225,6 @@ jobs:
           default: true
           override: true
 
-      # - name: Install ffmpeg
-      #   run: choco install ffmpeg
-
       - name: Build
         run: cargo build --release --bins
 
@@ -282,7 +279,7 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: brew install pkg-config
+        run: brew install pkg-config ffmpeg imagemagick
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
@@ -340,7 +337,7 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: brew install pkg-config
+        run: brew install pkg-config ffmpeg imagemagick
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
@@ -398,7 +395,7 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: brew install pkg-config
+        run: brew install pkg-config ffmpeg imagemagick
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
