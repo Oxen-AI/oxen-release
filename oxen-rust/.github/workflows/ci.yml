@@ -135,7 +135,7 @@ jobs:
           && sudo apt-get install -y \
           libdbus-1-dev \
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config musl-tools \
           ruby ruby-dev rubygems build-essential
       - name: Install imagemagick
         run: |
@@ -145,6 +145,7 @@ jobs:
           && ./configure --with-magick-plus-plus=no --with-perl=no \
           && make \
           && sudo make install \
+          && sudo ldconfig /usr/local/lib \
           && cd .. \
           && rm -r ImageMagick-${MAGICK_VERSION}*
       - name: Cache Rust dependencies
@@ -156,10 +157,11 @@ jobs:
             ${{ runner.OS }}-build-
       - uses: icepuma/rust-action@32deca3ee074df35b446b23b973b4acda4c4541f
       - run: |
-          cargo build
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --target x86_64-unknown-linux-musl --release
           mkdir /tmp/oxen_sync/
           mkdir data/test/runs
-          ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          ./target/release/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
           cp user_config.toml data/test/config/user_config.toml
-          ./target/debug/oxen-server start &
+          ./target/release/oxen-server start &
           cargo test -- --test-threads=3
