@@ -2,10 +2,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::{
-    // ImgColorSpace, 
-    MetaDataVideo
-};
+use crate::model::entry::metadata_entry::MetaDataVideo;
 
 use std::path::Path;
 // use std::sync::Once;
@@ -53,7 +50,7 @@ pub fn get_metadata(_path: impl AsRef<Path>) -> Result<MetaDataVideo, OxenError>
     //     }
     // }
 
-    let err = format!("Could not get video metadata");
+    let err = "Could not get video metadata".to_string();
     Err(OxenError::basic_str(err))
 }
 

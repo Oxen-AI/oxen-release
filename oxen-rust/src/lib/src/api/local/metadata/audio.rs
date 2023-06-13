@@ -49,7 +49,7 @@ pub fn get_metadata(_path: impl AsRef<Path>) -> Result<MetaDataAudio, OxenError>
     //     }
     // }
 
-    let err = format!("Could not get audio metadata");
+    let err = "Could not get audio metadata".to_string();
     Err(OxenError::basic_str(err))
 }
 
