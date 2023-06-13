@@ -64,10 +64,6 @@ pub fn get_metadata(_path: impl AsRef<Path>) -> Result<MetaDataImage, OxenError>
 
 #[cfg(test)]
 mod tests {
-    
-    
-    
-    
 
     #[test]
     fn test_get_metadata_img_rgb() {
