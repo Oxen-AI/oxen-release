@@ -62,6 +62,7 @@ jobs:
 
       - name: Upload to crates.io
         run: |
+          cd src/lib
           cargo login ${{ secrets.CRATES_IO_TOKEN }}
           cargo publish
 
