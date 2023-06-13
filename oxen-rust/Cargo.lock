@@ -825,7 +825,6 @@ dependencies = [
  "clang-sys",
  "lazy_static",
  "lazycell",
- "log",
  "peeking_take_while",
  "prettyplease",
  "proc-macro2",
@@ -834,7 +833,6 @@ dependencies = [
  "rustc-hash",
  "shlex",
  "syn 2.0.16",
- "which",
 ]
 
 [[package]]
@@ -2350,7 +2348,6 @@ dependencies = [
  "jwalk",
  "lazy_static",
  "log",
- "magick_rust",
  "nom",
  "num_cpus",
  "pluralizer",
@@ -2479,17 +2476,6 @@ checksum = "57d27b317e207b10f69f5e75494119e391a96f48861ae870d1da6edac98ca900"
 dependencies = [
  "cc",
  "libc",
-]
-
-[[package]]
-name = "magick_rust"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cf5e5282afc226caad138bcc3969f62f2460c8df3680d6036878cb5f6c0925c"
-dependencies = [
- "bindgen",
- "libc",
- "pkg-config",
 ]
 
 [[package]]
@@ -4531,17 +4517,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d743fdedc5c64377b5fc2bc036b01c7fd642205a0d96356034ae3404d49eb7fb"
 dependencies = [
  "cc",
-]
-
-[[package]]
-name = "which"
-version = "4.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2441c784c52b289a054b7201fc93253e288f094e2f4be9058343127c4226a269"
-dependencies = [
- "either",
- "libc",
- "once_cell",
 ]
 
 [[package]]
