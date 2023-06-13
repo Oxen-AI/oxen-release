@@ -147,7 +147,7 @@ jobs:
           && sudo apt-get install -y \
           libdbus-1-dev \
           libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config musl-tools \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
@@ -163,7 +163,9 @@ jobs:
           && rm -r ImageMagick-${MAGICK_VERSION}*
 
       - name: Build oxen
-        run: cargo build --release
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --target x86_64-unknown-linux-musl --release
 
       - name: Package Oxen Server
         run: |
@@ -222,6 +224,9 @@ jobs:
           toolchain: stable
           default: true
           override: true
+
+      - name: Install ffmpeg
+        run: choco install ffmpeg
 
       - name: Build
         run: cargo build --release --bins
