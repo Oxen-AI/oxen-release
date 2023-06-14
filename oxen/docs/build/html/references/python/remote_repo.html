@@ -323,6 +323,7 @@ document.write(`
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.name"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.name</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.namespace"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.namespace</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.remove"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.remove()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.restore_df"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.restore_df()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.revision"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.revision</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.status"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.status()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.url"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.url</span></code></a></li>
@@ -491,6 +492,18 @@ the same path as remote_path</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="oxen.RemoteRepo.restore_df">
+<span class="sig-name descname"><span class="pre">restore_df</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.restore_df" title="Permalink to this definition">#</a></dt>
+<dd><p>Unstage any changes to the schema or contents of a dataframe file
+on the remote repo</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>path</strong> (<em>str</em>) – The path to the df on the remote to be restored</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py property">
 <dt class="sig sig-object py" id="oxen.RemoteRepo.revision">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">revision</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></em><a class="headerlink" href="#oxen.RemoteRepo.revision" title="Permalink to this definition">#</a></dt>
@@ -583,6 +596,7 @@ will be checked for modifications</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.name"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.name</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.namespace"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.namespace</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.remove"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.remove()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.restore_df"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.restore_df()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.revision"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.revision</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.status"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.status()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen.RemoteRepo.url"><code class="docutils literal notranslate"><span class="pre">RemoteRepo.url</span></code></a></li>
@@ -620,7 +634,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 12, 2023.
+  Last updated on Jun 14, 2023.
   <br/>
 </p>
   </div>
