@@ -57,7 +57,7 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
 }
 
 pub async fn init(path: &str) -> Result<(), OxenError> {
-    let directory = std::fs::canonicalize(PathBuf::from(&path))?;
+    let directory = dunce::canonicalize(PathBuf::from(&path))?;
 
     let host = get_host_or_default()?;
     check_remote_version(host).await?;

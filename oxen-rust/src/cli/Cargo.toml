@@ -9,6 +9,7 @@ colored = "2.0.0"
 env_logger = "0.10.0"
 liboxen = { path = "../lib" }
 minus = { version = "5.3.1", features = ["static_output", "search"] }
+dunce = "1"
 time = { version = "0.3.20", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 
