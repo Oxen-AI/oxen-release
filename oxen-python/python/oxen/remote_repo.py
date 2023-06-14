@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from oxen import PyRemoteRepo
 
 
@@ -88,7 +89,7 @@ class RemoteRepo:
 
         self._repo.checkout(revision)
 
-    def download(self, remote_path: str, local_path: str | None):
+    def download(self, remote_path: str, local_path: Optional[str]):
         """
         Download a file or directory from the remote repo.
 
@@ -127,6 +128,18 @@ class RemoteRepo:
             The path to the file on remote to be removed from staging
         """
         self._repo.remove(path)
+
+    def restore_df(self, path: str):
+        """
+        Unstage any changes to the schema or contents of a dataframe file
+        on the remote repo
+
+        Parameters
+        ----------
+        path: str
+            The path to the df on the remote to be restored
+        """
+        self._repo.restore_df(path)
 
     def status(self, path: str = ""):
         """
