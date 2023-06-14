@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from oxen import PyRemoteRepo
 
 
@@ -88,7 +89,7 @@ class RemoteRepo:
 
         self._repo.checkout(revision)
 
-    def download(self, remote_path: str, local_path: str | None):
+    def download(self, remote_path: str, local_path: Optional[str]):
         """
         Download a file or directory from the remote repo.
 
