@@ -170,6 +170,14 @@ impl PyRemoteRepo {
         Ok(())
     }
 
+    fn restore_df(&self, path: PathBuf) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            api::remote::staging::restore_df(&self.repo, &self.revision, &user_id, &path).await
+        })?;
+        Ok(())
+    }
+
     fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {
         let branches = pyo3_asyncio::tokio::get_runtime()
             .block_on(async { api::remote::branches::list(&self.repo).await })?;

@@ -129,6 +129,18 @@ class RemoteRepo:
         """
         self._repo.remove(path)
 
+    def restore_df(self, path: str):
+        """
+        Unstage any changes to the schema or contents of a dataframe file
+        on the remote repo
+
+        Parameters
+        ----------
+        path: str
+            The path to the df on the remote to be restored
+        """
+        self._repo.restore_df(path)
+
     def status(self, path: str = ""):
         """
         Get the status of the remote repo. Returns a StagedData object.
