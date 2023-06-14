@@ -41,6 +41,7 @@ import os
 import polars as pl
 from typing import Sequence, Union
 from pathlib import Path
+from typing import Optional
 
 
 class Dataset:
@@ -127,7 +128,7 @@ class Dataset:
         cache_dir = os.path.join(cache_dir, repo.revision)
         return cache_dir
 
-    def _cache_download_path(self, base_dir: str | None) -> str:
+    def _cache_download_path(self, base_dir: Optional[str]) -> str:
         """
         Returns the path to the file given the base dir or defaults to
         the cache directory.
