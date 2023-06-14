@@ -146,9 +146,19 @@ pub async fn remote(sub_matches: &ArgMatches) {
             }
         }
     } else if sub_matches.get_flag("verbose") {
-        dispatch::list_remotes_verbose().expect("Unable to list remotes.");
+        match dispatch::list_remotes_verbose() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
+            }
+        }
     } else {
-        dispatch::list_remotes().expect("Unable to list remotes.");
+        match dispatch::list_remotes() {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
+            }
+        }
     }
 }
 

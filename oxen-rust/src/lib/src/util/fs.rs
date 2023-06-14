@@ -569,6 +569,8 @@ pub fn file_mime_type(path: &Path) -> String {
                 String::from("text/markdown")
             } else if is_utf8(path) {
                 String::from("text/plain")
+            } else if path.is_dir() {
+                String::from("inode/directory")
             } else {
                 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
                 // application/octet-stream is the default value for all other cases.

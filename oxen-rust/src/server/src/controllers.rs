@@ -11,4 +11,5 @@ pub mod namespaces;
 pub mod repositories;
 pub mod schemas;
 pub mod stager;
+pub mod stats;
 pub mod version;
