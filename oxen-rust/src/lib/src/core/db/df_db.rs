@@ -2,6 +2,9 @@
 //!
 
 use crate::error::OxenError;
+use crate::model;
+use crate::model::schema::Field;
+use crate::model::Schema;
 
 use duckdb::arrow::record_batch::RecordBatch;
 use polars::prelude::*;
@@ -15,16 +18,82 @@ pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, Oxen
     Ok(conn)
 }
 
+/// Create a table in a duckdb database based on an oxen schema.
+pub fn create_table_from_schema(
+    conn: &duckdb::Connection,
+    schema: &Schema,
+) -> Result<(), OxenError> {
+    match &schema.name {
+        Some(table_name) => create_table(conn, table_name, &schema.fields),
+        None => Err(OxenError::basic_str("Schema name is required")),
+    }
+}
+
+/// Create a table from a set of oxen fields with data types.
+pub fn create_table(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    fields: &[Field],
+) -> Result<(), OxenError> {
+    let columns: Vec<String> = fields.iter().map(|f| f.to_sql()).collect();
+    let columns = columns.join(" NOT NULL,\n");
+    let sql = format!(
+        "CREATE TABLE IF NOT EXISTS {} (\n{});",
+        table_name.as_ref(),
+        columns
+    );
+    log::debug!("create_table sql: {}", sql);
+    conn.execute(&sql, [])?;
+    Ok(())
+}
+
+/// Get the schema from the table.
+pub fn get_schema(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<Schema, OxenError> {
+    let table_name = table_name.as_ref();
+    let sql = format!(
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}'",
+        table_name
+    );
+    let mut stmt = conn.prepare(&sql)?;
+
+    let mut fields = vec![];
+    let rows = stmt.query_map([], |row| {
+        let column_name: String = row.get(0)?;
+        let data_type: String = row.get(1)?;
+
+        Ok((column_name, data_type))
+    })?;
+
+    for row in rows {
+        let (column_name, data_type) = row?;
+        fields.push(Field {
+            name: column_name,
+            dtype: model::schema::DataType::from_sql(data_type)
+                .as_str()
+                .to_string(),
+        });
+    }
+
+    Ok(Schema::new(table_name, fields))
+}
+
 /// Query number of rows in a table.
-pub fn count(conn: &duckdb::Connection, table: &str) -> Result<usize, OxenError> {
-    let sql = format!("SELECT count(*) FROM {}", table);
+pub fn count(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<usize, OxenError> {
+    let table_name = table_name.as_ref();
+    let sql = format!("SELECT count(*) FROM {}", table_name);
     let mut stmt = conn.prepare(&sql)?;
     let mut rows = stmt.query([])?;
     if let Some(row) = rows.next()? {
         let size: usize = row.get(0)?;
         Ok(size)
     } else {
-        Err(OxenError::basic_str(format!("No rows in table {}", table)))
+        Err(OxenError::basic_str(format!(
+            "No rows in table {}",
+            table_name
+        )))
     }
 }
 
@@ -55,6 +124,8 @@ pub fn select(
 
 #[cfg(test)]
 mod tests {
+    use crate::test;
+
     use super::*;
 
     #[test]
@@ -88,5 +159,38 @@ mod tests {
         assert!(df.height() == limit);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_df_db_create() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|data_dir| {
+            let db_file = data_dir.join("data.db");
+            let conn = get_connection(&db_file)?;
+            // bounding_box -> min_x, min_y, width, height
+            let schema = test::schema_bounding_box();
+            create_table_from_schema(&conn, &schema)?;
+
+            let num_entries = count(&conn, schema.name.unwrap())?;
+            assert_eq!(num_entries, 0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_df_db_get_schema() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|data_dir| {
+            let db_file = data_dir.join("data.db");
+            let conn = get_connection(&db_file)?;
+            // bounding_box -> min_x, min_y, width, height
+            let schema = test::schema_bounding_box();
+            create_table_from_schema(&conn, &schema)?;
+
+            let name = &schema.name.clone().unwrap();
+            let found_schema = get_schema(&conn, &name)?;
+            assert_eq!(found_schema, schema);
+
+            Ok(())
+        })
     }
 }
