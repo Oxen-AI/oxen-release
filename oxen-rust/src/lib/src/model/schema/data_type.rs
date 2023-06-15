@@ -23,8 +23,8 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub fn from_string(s: &str) -> DataType {
-        match s {
+    pub fn from_string(s: impl AsRef<str>) -> DataType {
+        match s.as_ref() {
             "bool" => DataType::Boolean,
             "uint8" => DataType::UInt8,
             "u16" => DataType::UInt16,
@@ -107,6 +107,49 @@ impl DataType {
             polars::prelude::DataType::Utf8 => DataType::String,
             polars::prelude::DataType::Null => DataType::Null,
             _ => DataType::Unknown,
+        }
+    }
+
+    pub fn to_sql(&self) -> &'static str {
+        match self {
+            DataType::Boolean => "BOOL",
+            DataType::UInt8 => "UTINYINT", // unsigned one-byte integer
+            DataType::UInt16 => "USMALLINT", // unsigned two-byte integer
+            DataType::UInt32 => "UINTEGER", // unsigned four-byte integer
+            DataType::UInt64 => "UBIGINT", // unsigned eight-byte integer
+            DataType::Int8 => "TINYINT",   // signed one-byte integer
+            DataType::Int16 => "SMALLINT", // signed two-byte integer
+            DataType::Int32 => "INTEGER",  // signed four-byte integer
+            DataType::Int64 => "BIGINT",   // signed eight-byte integer
+            DataType::Float32 => "FLOAT", // alias for REAL, single precision floating-point number (4 bytes)
+            DataType::Float64 => "DOUBLE", // double-precision floating point number
+            DataType::String => "VARCHAR", // variable-length character string
+            DataType::Date => "DATE",     // calendar date (year, month day)
+            DataType::Time => "TIME",     // time of day (no time zone)
+            DataType::List(_) => panic!("TODO: implement list type for SQL"), // https://duckdb.org/docs/sql/data_types/list
+            DataType::Null => "NULL",                                         // null value
+            DataType::Unknown => panic!("TODO: unknown SQL type"),
+        }
+    }
+
+    pub fn from_sql(s: impl AsRef<str>) -> Self {
+        match s.as_ref() {
+            "BOOL" => DataType::Boolean,
+            "UTINYINT" => DataType::UInt8, // unsigned one-byte integer
+            "USMALLINT" => DataType::UInt16, // unsigned two-byte integer
+            "UINTEGER" => DataType::UInt32, // unsigned four-byte integer
+            "UBIGINT" => DataType::UInt64, // unsigned eight-byte integer
+            "TINYINT" => DataType::Int8,   // signed one-byte integer
+            "SMALLINT" => DataType::Int16, // signed two-byte integer
+            "INTEGER" => DataType::Int32,  // signed four-byte integer
+            "BIGINT" => DataType::Int64,   // signed eight-byte integer
+            "FLOAT" => DataType::Float32, // alias for REAL, single precision floating-point number (4 bytes)
+            "DOUBLE" => DataType::Float64, // double-precision floating point number
+            "VARCHAR" => DataType::String, // variable-length character string
+            "DATE" => DataType::Date,     // calendar date (year, month day)
+            "TIME" => DataType::Time,     // time of day (no time zone)
+            "NULL" => DataType::Null,     // null value
+            _ => panic!("TODO: unknown SQL type"),
         }
     }
 }

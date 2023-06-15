@@ -35,7 +35,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let mut db = duckdb::Connection::open(db_path)?;
     db.execute_batch(
         r"CREATE TABLE IF NOT EXISTS metadata (
-            id INTEGER NOT NULL, -- primary key,
+            id INTEGER NOT NULL,
             hash VARCHAR NOT NULL,
             directory VARCHAR NOT NULL,
             filename VARCHAR NOT NULL,
