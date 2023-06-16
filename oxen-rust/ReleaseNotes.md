@@ -1,3 +1,13 @@
+# v0.6.2
+
+## Features/Fixes
+* Update GET /merge to return commits
+* Delete repo in background thread via API
+* Fix DataFrame size in API
+* Compute repo size on POST commit to server to serve up the size faster
+* Add imagemagick and ffmpeg deps for compute cache
+
+
 # v0.6.1
 
 ## Features/Fixes
