@@ -142,6 +142,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/stats",
             web::get().to(controllers::repositories::stats),
         )
+        .route(
+            "/{namespace}/{repo_name}/stats/{resource:.*}",
+            web::get().to(controllers::stats::get),
+        )
         // ----- Dir ----- //
         .route(
             "/{namespace}/{repo_name}/dir/{resource:.*}",

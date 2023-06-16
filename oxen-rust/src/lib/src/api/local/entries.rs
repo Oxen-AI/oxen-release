@@ -75,7 +75,7 @@ pub fn meta_entry_from_dir(
         size: total_size,
         latest_commit,
         data_type: EntryDataType::Dir,
-        mime_type: util::fs::file_mime_type(path),
+        mime_type: "inode/directory".to_string(),
         extension: util::fs::file_extension(path),
         resource: Some(ResourceVersion {
             version: revision.to_string(),

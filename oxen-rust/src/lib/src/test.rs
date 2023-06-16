@@ -7,6 +7,8 @@ use crate::constants;
 
 use crate::core::index::{RefWriter, Stager};
 use crate::error::OxenError;
+use crate::model::schema::Field;
+use crate::model::Schema;
 use crate::model::{LocalRepository, RemoteRepository};
 
 use crate::opts::RmOpts;
@@ -944,6 +946,32 @@ pub fn modify_txt_file<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBu
 
     let path = write_txt_file_to_path(path, contents)?;
     Ok(path)
+}
+
+pub fn schema_bounding_box() -> Schema {
+    let fields = vec![
+        Field {
+            name: "file".to_string(),
+            dtype: "str".to_string(),
+        },
+        Field {
+            name: "min_x".to_string(),
+            dtype: "f32".to_string(),
+        },
+        Field {
+            name: "min_y".to_string(),
+            dtype: "f32".to_string(),
+        },
+        Field {
+            name: "width".to_string(),
+            dtype: "f32".to_string(),
+        },
+        Field {
+            name: "height".to_string(),
+            dtype: "f32".to_string(),
+        },
+    ];
+    Schema::new("bounding_box", fields)
 }
 
 pub fn add_random_bbox_to_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, OxenError> {

@@ -3,6 +3,7 @@ pub mod commit_dir_entry_reader;
 pub mod commit_dir_entry_writer;
 pub mod commit_entry_reader;
 pub mod commit_entry_writer;
+pub mod commit_metadata_entry_db;
 pub mod commit_reader;
 pub mod commit_sync_status;
 pub mod commit_validator;
