@@ -15,7 +15,7 @@ log = "0.4.17"
 pyo3-log = "0.8.1"
 tokio = { version = "1", features = ["full"] }
 pyo3-polars = "0.3.0"
-liboxen = "0.6.1"
+liboxen = "0.6.2"
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
