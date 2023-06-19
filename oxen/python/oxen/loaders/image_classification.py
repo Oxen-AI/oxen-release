@@ -8,7 +8,7 @@ from oxen.ops import (
     EncodeLabels,
     ReadImageDir,
     ReadText,
-    ResizeImages
+    ResizeImages,
 )
 
 
@@ -26,7 +26,7 @@ class ImageClassificationLoader:
         path_name="path",
         label_name="label",
         resize_to=None,
-        resize_method="crop"
+        resize_method="crop",
     ):
         """
         Creates a new ImageClassificationLoader.

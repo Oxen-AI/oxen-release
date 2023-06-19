@@ -1,5 +1,4 @@
 import oxen
-import numpy as np
 from tqdm import tqdm
 import cv2
 
