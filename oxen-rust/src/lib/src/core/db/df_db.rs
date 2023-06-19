@@ -19,32 +19,33 @@ pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, Oxen
 }
 
 /// Create a table in a duckdb database based on an oxen schema.
-pub fn create_table_from_schema(
+pub fn create_table_if_not_exists(
     conn: &duckdb::Connection,
     schema: &Schema,
-) -> Result<(), OxenError> {
+) -> Result<String, OxenError> {
     match &schema.name {
-        Some(table_name) => create_table(conn, table_name, &schema.fields),
+        Some(table_name) => p_create_table_if_not_exists(conn, table_name, &schema.fields),
         None => Err(OxenError::basic_str("Schema name is required")),
     }
 }
 
 /// Create a table from a set of oxen fields with data types.
-pub fn create_table(
+fn p_create_table_if_not_exists(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     fields: &[Field],
-) -> Result<(), OxenError> {
+) -> Result<String, OxenError> {
+    let table_name = table_name.as_ref();
     let columns: Vec<String> = fields.iter().map(|f| f.to_sql()).collect();
     let columns = columns.join(" NOT NULL,\n");
     let sql = format!(
         "CREATE TABLE IF NOT EXISTS {} (\n{});",
-        table_name.as_ref(),
+        table_name,
         columns
     );
     log::debug!("create_table sql: {}", sql);
     conn.execute(&sql, [])?;
-    Ok(())
+    Ok(table_name.to_owned())
 }
 
 /// Get the schema from the table.
@@ -100,12 +101,14 @@ pub fn count(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<u
 /// Select fields from a table.
 pub fn select(
     conn: &duckdb::Connection,
-    table: &str,
-    fields: &[&str],
+    table_name: impl AsRef<str>,
+    fields: &[String],
     limit: usize,
+    offset: usize,
 ) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
     let fields = fields.join(", ");
-    let sql = format!("SELECT {} FROM {} LIMIT {}", fields, table, limit);
+    let sql = format!("SELECT {} FROM {} LIMIT {} OFFSET {}", fields, table_name, limit, offset);
     log::debug!("select sql: {}", sql);
     let mut stmt = conn.prepare(&sql)?;
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
@@ -151,9 +154,10 @@ mod tests {
             .join("metadata.db");
         let conn = get_connection(&db_file)?;
 
+        let offset = 0;
         let limit = 7;
-        let fields = vec!["filename", "data_type"];
-        let df = select(&conn, "metadata", &fields, limit)?;
+        let fields = vec!["filename".to_string(), "data_type".to_string()];
+        let df = select(&conn, "metadata", &fields, limit, offset)?;
 
         assert!(df.width() == fields.len());
         assert!(df.height() == limit);
@@ -168,7 +172,7 @@ mod tests {
             let conn = get_connection(&db_file)?;
             // bounding_box -> min_x, min_y, width, height
             let schema = test::schema_bounding_box();
-            create_table_from_schema(&conn, &schema)?;
+            create_table_if_not_exists(&conn, &schema)?;
 
             let num_entries = count(&conn, schema.name.unwrap())?;
             assert_eq!(num_entries, 0);
@@ -184,7 +188,7 @@ mod tests {
             let conn = get_connection(&db_file)?;
             // bounding_box -> min_x, min_y, width, height
             let schema = test::schema_bounding_box();
-            create_table_from_schema(&conn, &schema)?;
+            create_table_if_not_exists(&conn, &schema)?;
 
             let name = &schema.name.clone().unwrap();
             let found_schema = get_schema(&conn, &name)?;
