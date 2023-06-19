@@ -1,8 +1,6 @@
 import oxen
 import numpy as np
-from tqdm import tqdm
 import cv2
-
 
 
 class ResizeImages(oxen.Op):
@@ -32,12 +30,12 @@ class ResizeImages(oxen.Op):
         return result.astype(image.dtype)
 
     def pad(self, image, size, inter=cv2.INTER_LINEAR):
-        # Resize largest dimension to target size 
+        # Resize largest dimension to target size
         if image.shape[0] < image.shape[1]:
             resized = self._resize_same_aspect(image, width=size, inter=inter)
         else:
             resized = self._resize_same_aspect(image, height=size, inter=inter)
-        
+
         color = (0, 0, 0)
         result = np.full((size, size, image.shape[2]), color)
 
@@ -46,47 +44,49 @@ class ResizeImages(oxen.Op):
         y_center = (size - old_height) // 2
 
         # copy img image into center of result image
-        result[y_center:y_center+old_height, 
-            x_center:x_center+old_width] = resized
+        result[
+            y_center : y_center + old_height, x_center : x_center + old_width
+        ] = resized
 
         return result.astype(image.dtype)
 
-    def squeeze(self, image, size, inter=cv2.INTER_LINEAR): 
+    def squeeze(self, image, size, inter=cv2.INTER_LINEAR):
         result = cv2.resize(image, (size, size), interpolation=inter)
         return result.astype(image.dtype)
 
-    def _resize_same_aspect(self, image, height=None, width=None, inter=cv2.INTER_LINEAR):
+    def _resize_same_aspect(
+        self, image, height=None, width=None, inter=cv2.INTER_LINEAR
+    ):
         dim = None
         (h, w) = image.shape[:2]
 
         if width is None and height is None:
             return image
-    
-        if width is None: 
+
+        if width is None:
             r = height / float(h)
             dim = (int(w * r), height)
-        else: 
+        else:
             r = width / float(w)
             dim = (width, int(h * r))
-        
+
         result = cv2.resize(image, dim, interpolation=inter)
-        return result    
+        return result
 
     def _center_crop(self, image, out_height, out_width):
         height, width = image.shape[:2]
-        startx = width//2 - out_width//2 
-        starty = height//2 - out_height//2
+        startx = width // 2 - out_width // 2
+        starty = height // 2 - out_height // 2
 
-        if len(image.shape) > 2: 
-            return image[starty:starty+out_height, startx:startx+out_width, :]
+        if len(image.shape) > 2:
+            return image[starty : starty + out_height, startx : startx + out_width, :]
         else:
-            return image[starty:starty+out_height, startx:startx+out_width]
-
+            return image[starty : starty + out_height, startx : startx + out_width]
 
     def call(self, args):
         if args[1] is None:
             return np.array(args[0])
-        
+
         n_channels = args[0][0].shape[2]
         result = np.zeros((len(args[0]), args[1], args[1], n_channels))
 
@@ -98,6 +98,6 @@ class ResizeImages(oxen.Op):
             elif args[2] == "squeeze":
                 modified = self.squeeze(args[0][i], args[1])
             else:
-                raise ValueError("Invalid argument for resizing method. Must be 'crop', 'pad', or 'squeeze'.")
+                raise ValueError(f"Invalid argument {args[2]} for resize_method")
             result[i] = modified
-        return result 
+        return result
