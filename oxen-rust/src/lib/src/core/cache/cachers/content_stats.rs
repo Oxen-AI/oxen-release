@@ -12,4 +12,3 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     Ok(())
 }
-

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
@@ -46,6 +47,12 @@ pub struct Commit {
     pub timestamp: OffsetDateTime,
 }
 
+impl fmt::Display for Commit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} -> '{}'", self.id, self.message)
+    }
+}
+
 // TODO: is there a way to derive all these values...and just add one new?
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommitWithSize {
@@ -83,12 +90,6 @@ impl Eq for Commit {}
 impl Hash for Commit {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
-    }
-}
-
-impl std::fmt::Display for Commit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] '{}'", self.id, self.message)
     }
 }
 

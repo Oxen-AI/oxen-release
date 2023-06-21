@@ -5,12 +5,12 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::{MetadataEntryResponse, JsonDataFrameSliceResponse};
+use crate::view::{JsonDataFrameSliceResponse, MetadataEntryResponse};
 
 use std::path::Path;
 
 /// Get the metadata about a resource from the remote.
-pub async fn get(
+pub async fn get_file(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
@@ -27,7 +27,7 @@ pub async fn get(
 }
 
 /// Get the metadata about a resource from the remote.
-pub async fn get_dir(
+pub async fn list_dir(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
@@ -51,7 +51,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;
-    use crate::view::{MetadataEntryResponse, JsonDataFrameSliceResponse};
+    use crate::view::{JsonDataFrameSliceResponse, MetadataEntryResponse};
 
     use std::path::Path;
 
@@ -60,7 +60,9 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = Path::new("annotations").join("README.md");
             let revision = DEFAULT_BRANCH_NAME;
-            let entry = api::remote::metadata::get(&remote_repo, revision, path).await?.entry;
+            let entry = api::remote::metadata::get_file(&remote_repo, revision, path)
+                .await?
+                .entry;
 
             assert_eq!(entry.filename, "README.md");
             assert!(!entry.is_dir);
@@ -78,7 +80,9 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let path = "train";
             let revision = DEFAULT_BRANCH_NAME;
-            let entry = api::remote::metadata::get(&remote_repo, revision, path).await?.entry;
+            let entry = api::remote::metadata::get_file(&remote_repo, revision, path)
+                .await?
+                .entry;
 
             assert_eq!(entry.filename, path);
             assert!(entry.is_dir);
@@ -97,7 +101,7 @@ mod tests {
             let directory = Path::new("train");
 
             let meta: MetadataEntryResponse =
-                api::remote::metadata::get(&remote_repo, branch, directory).await?;
+                api::remote::metadata::get_file(&remote_repo, branch, directory).await?;
             println!("meta: {:?}", meta);
 
             assert_eq!(meta.entry.mime_type, "inode/directory");
@@ -115,7 +119,7 @@ mod tests {
             let directory = Path::new("train");
 
             let meta: JsonDataFrameSliceResponse =
-                api::remote::metadata::get_dir(&remote_repo, branch, directory).await?;
+                api::remote::metadata::list_dir(&remote_repo, branch, directory).await?;
             println!("meta: {:?}", meta);
 
             let df = meta.df.to_df();
@@ -123,7 +127,6 @@ mod tests {
 
             assert_eq!(meta.full_size.width, 3);
             assert_eq!(meta.full_size.height, 5);
-            
 
             Ok(remote_repo)
         })

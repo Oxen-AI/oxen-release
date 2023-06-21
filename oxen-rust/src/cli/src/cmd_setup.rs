@@ -158,7 +158,28 @@ pub fn status() -> Command {
 pub fn metadata() -> Command {
     Command::new(METADATA)
         .about("View computed metadata given a resource and commit")
-        .arg(Arg::new("path").required(false))
+        .subcommand(
+            Command::new("list")
+                .arg(Arg::new("type").required(true))
+                .arg(Arg::new("path").required(false))
+                .arg(
+                    Arg::new("columns")
+                        .long("columns")
+                        .short('c')
+                        .help("A comma separated set of columns names to look at. Ex file,x,y")
+                        .action(clap::ArgAction::Set),
+                ),
+        )
+        .subcommand(
+            Command::new("aggregate")
+                .arg(
+                    Arg::new("count")
+                        .long("count")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(Arg::new("sum").long("sum").action(clap::ArgAction::SetTrue))
+                .arg(Arg::new("path").required(false)),
+        )
 }
 
 pub fn log() -> Command {

@@ -29,7 +29,7 @@ pub async fn download_entry(
 ) -> Result<(), OxenError> {
     let remote_path = remote_path.as_ref();
 
-    let response = api::remote::metadata::get(remote_repo, &revision, &remote_path).await?;
+    let response = api::remote::metadata::get_file(remote_repo, &revision, &remote_path).await?;
     let entry = response.entry;
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
