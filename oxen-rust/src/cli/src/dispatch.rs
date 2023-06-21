@@ -186,6 +186,30 @@ pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
     Ok(())
 }
 
+pub async fn remote_metadata(path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let local_repo = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    let head_commit = api::local::commits::head_commit(&local_repo)?;
+    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
+    
+    // TODO: should we support sub commands? what's the best CLI interface?
+    // * oxen remote meta dir list train/
+    // * oxen remote meta dir aggregate data_type --count train/
+    // * oxen remote meta dir aggregate num_bytes --sum
+    // * oxen remote meta images list
+    // * oxen remote meta images list --columns width,height
+    // * oxen remote meta images aggregate width,height --mean
+    let response = api::remote::metadata::get_dir(&remote_repo, &head_commit.id, path).await?;
+    let df = response.df.to_df();
+
+    println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
+
+
+    Ok(())
+}
+
 pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

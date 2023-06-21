@@ -63,7 +63,7 @@ pub enum OxenError {
     ParsingError(Box<StringError>),
 
     // Metadata
-    ImageMetaDataParseError(StringError),
+    ImageMetadataParseError(StringError),
 
     // External Library Errors
     IO(io::Error),
@@ -125,7 +125,7 @@ impl OxenError {
     }
 
     pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
-        OxenError::ImageMetaDataParseError(StringError::from(s.as_ref()))
+        OxenError::ImageMetadataParseError(StringError::from(s.as_ref()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {

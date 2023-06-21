@@ -48,7 +48,6 @@ impl Metadata {
     pub fn from_entry(
         repo: &LocalRepository,
         entry: &CommitEntry,
-        commit: &Commit,
         commit_reader: &CommitReader,
     ) -> Self {
         let path = util::fs::version_path(&repo, &entry);
@@ -171,8 +170,11 @@ pub fn index_entries(
     commit: &Commit,
     entries: &[CommitEntry],
 ) -> Result<(), OxenError> {
+    
     let commit_reader = CommitReader::new(repo)?;
     let bar = ProgressBar::new(entries.len() as u64);
+
+    log::debug!("compute metadata for {} entries in commit: {} -> '{}'", entries.len(), commit.id, commit.message);
 
     // Compute the metadata in parallel
     let metas = entries
@@ -180,11 +182,13 @@ pub fn index_entries(
         .map(|entry| {
             // Takes some time to compute from_entry
             bar.inc(1);
-            Metadata::from_entry(repo, entry, commit, &commit_reader)
+            Metadata::from_entry(repo, entry, &commit_reader)
         })
         .collect::<Vec<_>>();
 
     bar.finish();
+
+    log::debug!("done compute metadata for {} entries in commit: {} -> '{}'", entries.len(), commit.id, commit.message);
 
     // Connect to db
     let mut conn = df_db::get_connection(db_path(repo, commit))?;
@@ -197,7 +201,7 @@ pub fn index_entries(
 
     // Write to DB in sequence, since we're using a transaction and duckdb doesn't support concurrent writes
     let bar = ProgressBar::new(metas.len() as u64);
-    metas.iter().enumerate().for_each(|(i, meta)| {
+    metas.iter().for_each(|meta| {
         // TODO: Make this a more generic trait for structs to implement
         let params = meta.to_sql();
         let sql_params = params.as_slice();
@@ -218,7 +222,7 @@ pub fn index_entries(
     Ok(())
 }
 
-pub fn list(
+pub fn select(
     repo: &LocalRepository,
     commit: &Commit,
     offset: usize,
@@ -232,10 +236,22 @@ pub fn list(
     Ok(df)
 }
 
+pub fn full_size(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<(usize, usize), OxenError> {
+    let conn = df_db::get_connection(db_path(repo, commit))?;
+    let s = schema();
+    let table_name = df_db::create_table_if_not_exists(&conn, &s)?;
+    let num_rows = df_db::count(&conn, table_name)?;
+    let num_cols = s.fields.len();
+    Ok((num_rows, num_cols))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::core::index::commit_metadata_db::{self, index_commit};
+    use crate::core::index::commit_metadata_db;
     use crate::error::OxenError;
     use crate::test;
 
@@ -244,10 +260,16 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commit = api::local::commits::get_head_commit(&repo)?;
 
-            index_commit(&repo, &commit)?;
+            commit_metadata_db::index_commit(&repo, &commit)?;
 
-            let schema = commit_metadata_db::schema();
+            let offset = 0;
+            let limit = 10;
+            let df = commit_metadata_db::select(&repo, &commit, offset, limit)?;
+            
+            println!("df:\n{:?}", df);
 
+
+            assert!(false);
 
             Ok(())
         })

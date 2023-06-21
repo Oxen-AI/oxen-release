@@ -2,7 +2,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetaDataAudio;
+use crate::model::entry::metadata_entry::MetadataAudio;
 
 use std::path::Path;
 use std::sync::Once;
@@ -10,7 +10,7 @@ use std::sync::Once;
 static START: Once = Once::new();
 
 /// Detects the audio metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataAudio, OxenError> {
+pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataAudio, OxenError> {
     START.call_once(|| match ffmpeg::init() {
         Ok(_) => {}
         Err(err) => {
@@ -36,7 +36,7 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataAudio, OxenError> 
                 .audio()
                 .map_err(|_| OxenError::basic_str("Could not grab audio decoder"))?;
 
-            Ok(MetaDataAudio {
+            Ok(MetadataAudio {
                 num_seconds: duration,
                 format: "mp3".to_string(), // mp3, etc.
                 num_channels: audio.channels() as usize,

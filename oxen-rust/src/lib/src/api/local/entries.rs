@@ -2,14 +2,14 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetaData;
+use crate::model::entry::metadata_entry::MetadataItem;
 use crate::util;
 use crate::view::entry::ResourceVersion;
 use rayon::prelude::*;
 
 use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetaDataEntry};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
 use crate::view::{PaginatedDirEntries, StatusMessage};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -20,7 +20,7 @@ pub fn get_meta_entry(
     repo: &LocalRepository,
     commit: &Commit,
     path: &Path,
-) -> Result<MetaDataEntry, OxenError> {
+) -> Result<MetadataEntry, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
     // Check if the path is a dir
@@ -45,7 +45,7 @@ pub fn meta_entry_from_dir(
     path: &Path,
     commit_reader: &CommitReader,
     revision: &str,
-) -> Result<MetaDataEntry, OxenError> {
+) -> Result<MetadataEntry, OxenError> {
     // We cache the latest commit and size for each file in the directory after commit
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
@@ -69,7 +69,7 @@ pub fn meta_entry_from_dir(
     };
 
     let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-    return Ok(MetaDataEntry {
+    return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
         is_dir: true,
         size: total_size,
@@ -81,7 +81,7 @@ pub fn meta_entry_from_dir(
             version: revision.to_string(),
             path: String::from(path.to_string_lossy()),
         }),
-        meta: MetaData {
+        meta: MetadataItem {
             text: None,
             image: None,
             video: None,
@@ -152,7 +152,7 @@ pub fn meta_entry_from_commit_entry(
     entry: &CommitEntry,
     commit_reader: &CommitReader,
     revision: &str,
-) -> Result<MetaDataEntry, OxenError> {
+) -> Result<MetadataEntry, OxenError> {
     let size = util::fs::version_file_size(repo, entry)?;
     let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
 
@@ -162,7 +162,7 @@ pub fn meta_entry_from_commit_entry(
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
 
     let version_path = util::fs::version_path(repo, entry);
-    return Ok(MetaDataEntry {
+    return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
         is_dir: false,
         size,
@@ -174,7 +174,7 @@ pub fn meta_entry_from_commit_entry(
             version: revision.to_string(),
             path: String::from(entry.path.to_string_lossy()),
         }),
-        meta: MetaData {
+        meta: MetadataItem {
             text: None,
             image: None,
             video: None,
@@ -228,7 +228,7 @@ pub fn list_directory(
     let commit_reader = CommitReader::new(repo)?;
 
     // List the directories first, then the files
-    let mut dir_paths: Vec<MetaDataEntry> = vec![];
+    let mut dir_paths: Vec<MetadataEntry> = vec![];
     for dir in entry_reader.list_dirs()? {
         // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
         if let Some(parent) = dir.parent() {
@@ -246,7 +246,7 @@ pub fn list_directory(
     log::debug!("list_directory got dir_paths {}", dir_paths.len());
 
     // Once we know how many directories we have we can calculate the offset for the files
-    let mut file_paths: Vec<MetaDataEntry> = vec![];
+    let mut file_paths: Vec<MetadataEntry> = vec![];
     let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory)?;
     log::debug!("list_directory counting entries...");
     let total = dir_entry_reader.num_entries() + dir_paths.len();

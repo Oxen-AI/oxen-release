@@ -10,5 +10,5 @@ pub mod entries;
 pub mod merger;
 pub mod repositories;
 pub mod staging;
-pub mod stats;
+pub mod metadata;
 pub mod version;
