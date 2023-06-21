@@ -8,7 +8,7 @@ pub mod df;
 pub mod dir;
 pub mod entries;
 pub mod merger;
+pub mod metadata;
 pub mod repositories;
 pub mod staging;
-pub mod metadata;
 pub mod version;

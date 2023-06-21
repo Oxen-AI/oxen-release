@@ -17,7 +17,7 @@ pub fn run(path: &Path) -> Result<serde_json::Value, OxenError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::compute::text;
+    use crate::core::metadata::text;
     use crate::model::entry::metadata_entry::MetadataText;
     use crate::test;
 

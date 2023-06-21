@@ -11,6 +11,8 @@ use polars::prelude::*;
 use std::io::Cursor;
 use std::path::Path;
 
+use sql_query_builder as sql;
+
 /// Get a connection to a duckdb database.
 pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, OxenError> {
     let path = path.as_ref();
@@ -45,11 +47,7 @@ fn p_create_table_if_not_exists(
     let table_name = table_name.as_ref();
     let columns: Vec<String> = fields.iter().map(|f| f.to_sql()).collect();
     let columns = columns.join(" NOT NULL,\n");
-    let sql = format!(
-        "CREATE TABLE IF NOT EXISTS {} (\n{});",
-        table_name,
-        columns
-    );
+    let sql = format!("CREATE TABLE IF NOT EXISTS {} (\n{});", table_name, columns);
     log::debug!("create_table sql: {}", sql);
     conn.execute(&sql, [])?;
     Ok(table_name.to_owned())
@@ -106,23 +104,22 @@ pub fn count(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<u
 }
 
 /// Select fields from a table.
-pub fn select(
-    conn: &duckdb::Connection,
-    table_name: impl AsRef<str>,
-    fields: &[String],
-    limit: usize,
-    offset: usize,
-) -> Result<DataFrame, OxenError> {
-    let table_name = table_name.as_ref();
-    let fields = fields.join(", ");
-    let sql = format!("SELECT {} FROM {} LIMIT {} OFFSET {}", fields, table_name, limit, offset);
+pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame, OxenError> {
+    let sql = stmt.as_string();
     log::debug!("select sql: {}", sql);
     let mut stmt = conn.prepare(&sql)?;
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+    log::debug!("got records: {:?}", records.len());
+
+    if records.is_empty() {
+        return Ok(DataFrame::default());
+    }
 
     // Hacky to convert to json and then to polars...but the results from these queries should be small, and
     // if they are bigger, need to look into converting directly from arrow to polars.
     let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
+    log::debug!("got json: {:?}", json);
+
     let json_str = serde_json::to_string(&json).unwrap();
 
     let content = Cursor::new(json_str.as_bytes());
@@ -135,6 +132,7 @@ pub fn select(
 #[cfg(test)]
 mod tests {
     use crate::test;
+    use sql_query_builder as sql;
 
     use super::*;
 
@@ -163,8 +161,15 @@ mod tests {
 
         let offset = 0;
         let limit = 7;
-        let fields = vec!["filename".to_string(), "data_type".to_string()];
-        let df = select(&conn, "metadata", &fields, limit, offset)?;
+        let fields = vec!["filename", "data_type"];
+
+        let stmt = sql::Select::new()
+            .select(&fields.join(", "))
+            .offset(&offset.to_string())
+            .limit(&limit.to_string())
+            .from("metadata");
+
+        let df = select(&conn, &stmt)?;
 
         assert!(df.width() == fields.len());
         assert!(df.height() == limit);

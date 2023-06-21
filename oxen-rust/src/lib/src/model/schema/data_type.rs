@@ -1,3 +1,8 @@
+//! Core oxen data types to convert between Polars and DuckDB DataFrames and Schemas
+//!
+
+use std::fmt;
+
 pub enum DataType {
     Boolean,
     UInt8,
@@ -20,6 +25,12 @@ pub enum DataType {
     // Duration,
     Null,
     Unknown,
+}
+
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 impl DataType {

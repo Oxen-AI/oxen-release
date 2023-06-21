@@ -23,8 +23,8 @@ pub fn run(path: &Path) -> Result<serde_json::Value, OxenError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::compute::text;
-    use crate::compute::text::words_count::WordCountText;
+    use crate::core::metadata::text;
+    use crate::core::metadata::text::words_count::WordCountText;
     use crate::test;
 
     #[test]

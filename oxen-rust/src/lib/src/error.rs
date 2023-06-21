@@ -6,7 +6,7 @@
 use derive_more::{Display, Error};
 use std::fmt::Debug;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
@@ -120,8 +120,8 @@ impl OxenError {
         OxenError::ResourceNotFound(StringError::from(value.as_ref()))
     }
 
-    pub fn path_does_not_exist(path: PathBuf) -> Self {
-        OxenError::PathDoesNotExist(Box::new(path.into()))
+    pub fn path_does_not_exist(path: impl AsRef<Path>) -> Self {
+        OxenError::PathDoesNotExist(Box::new(path.as_ref().into()))
     }
 
     pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
