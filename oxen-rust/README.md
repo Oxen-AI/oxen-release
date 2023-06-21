@@ -211,7 +211,7 @@ oxen kvdb-inspect <PATH_TO_DB>
     COMMIT_HASH_1/
       dirs/ (rocks db of dirnames in commit, similar to staged above, but could include computed metadata)
         key: path/to/dir
-        value: { "count": 1000, "other_meta_data": ? }
+        value: { "count": 1000, "other_metadata": ? }
       files/
         path/
           to/
@@ -219,7 +219,7 @@ oxen kvdb-inspect <PATH_TO_DB>
               key: filename 
               value: {
                 "hash" => "FILE_HASH", (use this to know if a file was different)
-                ... other meta data
+                ... other metadata
               }
 
     COMMIT_HASH_2/

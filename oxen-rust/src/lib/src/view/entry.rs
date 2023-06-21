@@ -1,5 +1,5 @@
 use crate::{
-    model::{CommitEntry, MetaDataEntry, RemoteEntry},
+    model::{CommitEntry, MetadataEntry, RemoteEntry},
     util,
 };
 use serde::{Deserialize, Serialize};
@@ -50,7 +50,7 @@ pub struct PaginatedEntries {
 pub struct PaginatedDirEntries {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub entries: Vec<MetaDataEntry>,
+    pub entries: Vec<MetadataEntry>,
     pub resource: Option<ResourceVersion>,
     pub page_size: usize,
     pub page_number: usize,
@@ -60,7 +60,7 @@ pub struct PaginatedDirEntries {
 
 impl PaginatedDirEntries {
     pub fn from_entries(
-        entries: Vec<MetaDataEntry>,
+        entries: Vec<MetadataEntry>,
         resource: Option<ResourceVersion>,
         page_num: usize,
         page_size: usize,
@@ -92,7 +92,7 @@ impl PaginatedDirEntries {
 pub struct PaginatedDirEntriesResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub entries: Vec<MetaDataEntry>,
+    pub entries: Vec<MetadataEntry>,
     pub resource: Option<ResourceVersion>,
     pub page_size: usize,
     pub page_number: usize,

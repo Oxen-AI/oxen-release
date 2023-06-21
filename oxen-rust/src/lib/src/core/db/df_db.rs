@@ -14,6 +14,13 @@ use std::path::Path;
 /// Get a connection to a duckdb database.
 pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, OxenError> {
     let path = path.as_ref();
+    // Create parent path if not exists
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
     let conn = duckdb::Connection::open(path)?;
     Ok(conn)
 }

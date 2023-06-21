@@ -2,7 +2,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::{ImgColorSpace, MetaDataVideo};
+use crate::model::entry::metadata_entry::{ImgColorSpace, MetadataVideo};
 
 use std::path::Path;
 use std::sync::Once;
@@ -10,7 +10,7 @@ use std::sync::Once;
 static START: Once = Once::new();
 
 /// Detects the video metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataVideo, OxenError> {
+pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError> {
     START.call_once(|| match ffmpeg::init() {
         Ok(_) => {}
         Err(err) => {
@@ -36,7 +36,7 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataVideo, OxenError> 
                 .video()
                 .map_err(|_| OxenError::basic_str("Could not grab video decoder"))?;
 
-            Ok(MetaDataVideo {
+            Ok(MetadataVideo {
                 width: video.width() as usize,
                 height: video.height() as usize,
                 color_space: ffmpg_to_colorspace(&video.format()), // RGB, RGBA, etc.

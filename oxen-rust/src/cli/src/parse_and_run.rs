@@ -4,7 +4,7 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, RESTORE, RM, STATUS};
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, RESTORE, RM, STATUS, METADATA};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::model::staged_data::StagedDataOpts;
@@ -141,6 +141,9 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (LS, sub_matches) => {
                 remote_ls(sub_matches).await;
             }
+            (METADATA, sub_matches) => {
+                remote_metadata(sub_matches).await;
+            }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
             }
@@ -189,6 +192,19 @@ async fn remote_add(sub_matches: &ArgMatches) {
         directory: sub_matches.get_one::<String>("path").map(PathBuf::from),
     };
     match dispatch::add(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
+async fn remote_metadata(sub_matches: &ArgMatches) {
+    let directory = sub_matches.get_one::<String>("path")
+        .map(PathBuf::from)
+        .unwrap_or(PathBuf::from("."));
+
+    match dispatch::remote_metadata(directory).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

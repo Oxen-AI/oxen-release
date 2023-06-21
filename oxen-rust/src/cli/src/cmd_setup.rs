@@ -25,6 +25,7 @@ pub const RESTORE: &str = "restore";
 pub const RM: &str = "rm";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
+pub const METADATA: &str = "metadata";
 
 pub fn init() -> Command {
     Command::new(INIT)
@@ -115,6 +116,7 @@ pub fn remote() -> Command {
         .subcommand(restore())
         .subcommand(rm())
         .subcommand(status())
+        .subcommand(metadata())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
@@ -150,6 +152,12 @@ pub fn status() -> Command {
                 .help("If present, does not truncate the output of status at all.")
                 .action(clap::ArgAction::SetTrue),
         )
+        .arg(Arg::new("path").required(false))
+}
+
+pub fn metadata() -> Command {
+    Command::new(METADATA)
+        .about("View computed metadata given a resource and commit")
         .arg(Arg::new("path").required(false))
 }
 

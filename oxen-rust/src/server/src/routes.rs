@@ -142,10 +142,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/stats",
             web::get().to(controllers::repositories::stats),
         )
-        .route(
-            "/{namespace}/{repo_name}/stats/{resource:.*}",
-            web::get().to(controllers::stats::get),
-        )
         // ----- Dir ----- //
         .route(
             "/{namespace}/{repo_name}/dir/{resource:.*}",
@@ -156,14 +152,23 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/file/{resource:.*}",
             web::get().to(controllers::file::get),
         )
-        // ----- Entry (returns meta data for a file or a dir) ----- //
+        // ----- Chunk (returns a chunk of a file) ----- //
         .route(
-            "/{namespace}/{repo_name}/meta/{resource:.*}",
-            web::get().to(controllers::file::meta_data),
+            "/{namespace}/{repo_name}/chunk/{resource:.*}",
+            web::get().to(controllers::entries::download_chunk),
+        )
+        // ----- Metadata (returns metadata for a file or a dir) ----- //
+        .route(
+            "/{namespace}/{repo_name}/meta/dir/{resource:.*}",
+            web::get().to(controllers::metadata::dir),
         )
         .route(
-            "/{namespace}/{repo_name}/chunk/{resource:.*}", // Download a chunk of a larger versioned file
-            web::get().to(controllers::entries::download_chunk),
+            "/{namespace}/{repo_name}/meta/images/{resource:.*}",
+            web::get().to(controllers::metadata::images),
+        )
+        .route(
+            "/{namespace}/{repo_name}/meta/{resource:.*}",
+            web::get().to(controllers::metadata::file),
         )
         // ----- DataFrame ----- //
         .route(

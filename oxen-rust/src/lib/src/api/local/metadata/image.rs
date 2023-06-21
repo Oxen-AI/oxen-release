@@ -2,18 +2,18 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::{ImgColorSpace, MetaDataImage};
+use crate::model::entry::metadata_entry::{ImgColorSpace, MetadataImage};
 
 use image::GenericImageView;
 use std::path::Path;
 
 /// Detects the image metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataImage, OxenError> {
+pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> {
     match image::open(path) {
         Ok(img) => {
             let (width, height) = img.dimensions();
             let color_space = image_to_colorspace(&img.color());
-            Ok(MetaDataImage {
+            Ok(MetadataImage {
                 width: width as usize,
                 height: height as usize,
                 color_space,
