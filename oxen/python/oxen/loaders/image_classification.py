@@ -8,6 +8,7 @@ from oxen.ops import (
     EncodeLabels,
     ReadImageDir,
     ReadText,
+    ResizeImages,
 )
 
 
@@ -24,6 +25,8 @@ class ImageClassificationLoader:
         df_file,
         path_name="path",
         label_name="label",
+        resize_to=None,
+        resize_method="crop",
     ):
         """
         Creates a new ImageClassificationLoader.
@@ -43,6 +46,15 @@ class ImageClassificationLoader:
             Column name in df_file containing the image paths 
         label_name : str
             Column name in df_file containing the image labels
+        resize_to : int | None
+            Size to which images should be resized (square, in pixels)
+        resize_method : str
+            Method to use for resizing images. One of "crop", "pad", or "squash".
+                crop : resize (preserving aspect) such 
+                       that smaller size = target size, then center crop
+                pad: resize (prserving aspect) such that larger size = target size, 
+                     then pad with zeros equally on all sides
+                squash: resize (not presercing aspect)
         """
         # Define input nodes
         data_frame = ReadDF(input=df_file)
@@ -50,13 +62,17 @@ class ImageClassificationLoader:
         path_name = Identity(input=path_name)
         label_name = Identity(input=label_name)
         imagery_root_dir = Identity(input=imagery_root_dir)
+        resize_to = Identity(input=resize_to)
+        resize_method = Identity(input=resize_method)
 
         # Define intermediate nodes
         paths = ExtractCol()(data_frame, path_name)
         label_text = ExtractCol()(data_frame, label_name)
+        image_list = ReadImageDir()(imagery_root_dir, paths)
 
         # Define output nodes
-        images = ReadImageDir()(imagery_root_dir, paths)
+        images = ResizeImages()(image_list, resize_to, resize_method)
+
         label_map = CreateLabelMap()(label_list, label_text)
         labels = EncodeLabels()(label_text, label_map)
 
