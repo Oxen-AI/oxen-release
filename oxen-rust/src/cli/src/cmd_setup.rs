@@ -172,12 +172,8 @@ pub fn metadata() -> Command {
         )
         .subcommand(
             Command::new("aggregate")
-                .arg(
-                    Arg::new("count")
-                        .long("count")
-                        .action(clap::ArgAction::SetTrue),
-                )
-                .arg(Arg::new("sum").long("sum").action(clap::ArgAction::SetTrue))
+                .arg(Arg::new("type").required(true))
+                .arg(Arg::new("column").required(true))
                 .arg(Arg::new("path").required(false)),
         )
 }

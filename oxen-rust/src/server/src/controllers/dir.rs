@@ -1,7 +1,6 @@
-use crate::controllers::entries::PageNumQuery;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param};
+use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
 
 use liboxen::view::PaginatedDirEntriesResponse;
 use liboxen::{api, constants};

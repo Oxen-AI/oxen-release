@@ -98,7 +98,7 @@ impl CommitEntryReader {
         let path = path.as_ref();
         let parents = path_db::list_paths(&self.dir_db, Path::new(""))?
             .into_iter()
-            .filter(|dir| dir.starts_with(path) && dir != path)
+            .filter(|dir| path == Path::new("") || (dir.starts_with(path) && dir != path))
             .collect();
         Ok(parents)
     }

@@ -43,6 +43,25 @@ pub async fn list_dir(
     Ok(serde_json::from_str(&body)?)
 }
 
+/// Aggregate metadata about a resource from the remote.
+pub async fn agg_dir(
+    remote_repo: &RemoteRepository,
+    revision: impl AsRef<str>,
+    path: impl AsRef<Path>,
+    column: impl AsRef<str>,
+) -> Result<JsonDataFrameSliceResponse, OxenError> {
+    let path = path.as_ref().to_string_lossy();
+    let revision = revision.as_ref();
+    let column = column.as_ref();
+    let uri = format!("/meta/agg/dir/{revision}/{path}?column={column}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let response = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, response).await?;
+    Ok(serde_json::from_str(&body)?)
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -113,7 +132,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_remote_metadata_table() -> Result<(), OxenError> {
+    async fn test_remote_metadata_table_list_dir() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("train");
@@ -127,6 +146,88 @@ mod tests {
 
             assert_eq!(meta.full_size.width, 3);
             assert_eq!(meta.full_size.height, 5);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_remote_metadata_table_agg_dir() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let branch = DEFAULT_BRANCH_NAME;
+            let directory = Path::new("");
+
+            let meta: JsonDataFrameSliceResponse =
+                api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
+                    .await?;
+            println!("meta: {:?}", meta);
+
+            let df = meta.df.to_df();
+            println!("df: {:?}", df);
+
+            /*
+            df: shape: (3, 2)
+            ┌───────────┬───────┐
+            │ data_type ┆ count │
+            │ ---       ┆ ---   │
+            │ str       ┆ i64   │
+            ╞═══════════╪═══════╡
+            │ Tabular   ┆ 7     │
+            │ Image     ┆ 5     │
+            │ Text      ┆ 4     │
+            └───────────┴───────┘
+            */
+
+            assert_eq!(meta.full_size.width, 2);
+            assert_eq!(meta.full_size.height, 3);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_remote_metadata_table_agg_train_dir() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let branch = DEFAULT_BRANCH_NAME;
+            let directory = Path::new("train");
+
+            let meta: JsonDataFrameSliceResponse =
+                api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
+                    .await?;
+            println!("meta: {:?}", meta);
+
+            let df = meta.df.to_df();
+            println!("df: {:?}", df);
+
+            /*
+            df: shape: (1, 2)
+            ┌───────────┬───────┐
+            │ data_type ┆ count │
+            │ ---       ┆ ---   │
+            │ str       ┆ i64   │
+            ╞═══════════╪═══════╡
+            │ Image     ┆ 5     │
+            └───────────┴───────┘
+            */
+
+            assert_eq!(meta.full_size.width, 2);
+            assert_eq!(meta.full_size.height, 1);
+
+            // make sure that there are 5 images in the polars dataframe
+            let df_str = format!("{:?}", df);
+            assert_eq!(
+                df_str,
+                r"shape: (1, 2)
+┌───────────┬───────┐
+│ data_type ┆ count │
+│ ---       ┆ ---   │
+│ str       ┆ i64   │
+╞═══════════╪═══════╡
+│ Image     ┆ 5     │
+└───────────┴───────┘"
+            );
 
             Ok(remote_repo)
         })

@@ -23,7 +23,7 @@ pub struct CommitDirEntryReader {
 impl CommitDirEntryReader {
     /// .oxen/history/commit_id/files/path/to/dir
     pub fn db_dir(base_path: &Path, commit_id: &str, dir: &Path) -> PathBuf {
-        if dir == Path::new("") || dir == Path::new("./") {
+        if dir == Path::new("") {
             return util::fs::oxen_hidden_dir(base_path)
                 .join(HISTORY_DIR)
                 .join(commit_id)

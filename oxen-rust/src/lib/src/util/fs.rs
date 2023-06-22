@@ -583,8 +583,8 @@ pub fn file_mime_type(path: &Path) -> String {
     }
 }
 
-pub fn datatype_from_mimetype(path: &Path, mimetype: &str) -> EntryDataType {
-    match mimetype {
+pub fn datatype_from_mimetype(path: &Path, mime_type: &str) -> EntryDataType {
+    match mime_type {
         // Image
         "image/jpeg" => EntryDataType::Image,
         "image/png" => EntryDataType::Image,
@@ -611,6 +611,7 @@ pub fn datatype_from_mimetype(path: &Path, mimetype: &str) -> EntryDataType {
         "audio/midi" => EntryDataType::Audio,
         "audio/mpeg" => EntryDataType::Audio,
         "audio/m4a" => EntryDataType::Audio,
+        "audio/x-wav" => EntryDataType::Audio,
         "audio/ogg" => EntryDataType::Audio,
         "audio/x-flac" => EntryDataType::Audio,
         "audio/aac" => EntryDataType::Audio,
@@ -618,14 +619,21 @@ pub fn datatype_from_mimetype(path: &Path, mimetype: &str) -> EntryDataType {
         "audio/x-dsf" => EntryDataType::Audio,
         "audio/x-ape" => EntryDataType::Audio,
 
-        _ => {
+        mime_type => {
             // Catch text and dataframe types from file extension
             if is_tabular(path) {
                 EntryDataType::Tabular
-            } else if "text/plain" == mimetype || "text/markdown" == mimetype {
+            } else if "text/plain" == mime_type || "text/markdown" == mime_type {
                 EntryDataType::Text
             } else {
-                EntryDataType::Binary
+                // split on the first half of the mime type to fall back to audio, video, image
+                let mime_type = mime_type.split('/').next().unwrap_or("");
+                match mime_type {
+                    "audio" => EntryDataType::Audio,
+                    "video" => EntryDataType::Video,
+                    "image" => EntryDataType::Image,
+                    _ => EntryDataType::Binary,
+                }
             }
         }
     }

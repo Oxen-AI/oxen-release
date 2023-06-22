@@ -7,6 +7,7 @@
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
+use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
@@ -141,9 +142,12 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (LS, sub_matches) => {
                 remote_ls(sub_matches).await;
             }
-            (METADATA, sub_matches) => {
-                remote_metadata(sub_matches).await;
-            }
+            (METADATA, sub_matches) => match remote_metadata(sub_matches).await {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
+                }
+            },
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
             }
@@ -199,14 +203,14 @@ async fn remote_add(sub_matches: &ArgMatches) {
     }
 }
 
-async fn remote_metadata(sub_matches: &ArgMatches) {
+async fn remote_metadata(sub_matches: &ArgMatches) -> Result<(), OxenError> {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
             ("list", sub_matches) => {
                 remote_metadata_list(sub_matches).await;
             }
             ("aggregate", sub_matches) => {
-                remote_metadata_aggregate(sub_matches).await;
+                remote_metadata_aggregate(sub_matches).await?;
             }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
@@ -220,10 +224,44 @@ async fn remote_metadata(sub_matches: &ArgMatches) {
             }
         }
     }
+    Ok(())
 }
 
-async fn remote_metadata_aggregate(sub_matches: &ArgMatches) {
-    todo!("implement aggregate")
+async fn remote_metadata_aggregate(sub_matches: &ArgMatches) -> Result<(), OxenError> {
+    let directory = sub_matches
+        .get_one::<String>("path")
+        .map(PathBuf::from)
+        .unwrap_or(PathBuf::from("."));
+
+    let column = sub_matches
+        .get_one::<String>("column")
+        .ok_or(OxenError::basic_str("Must supply column"))?;
+
+    match sub_matches.get_one::<String>("type") {
+        Some(data_type) => match data_type.parse::<EntryDataType>() {
+            Ok(EntryDataType::Dir) => {
+                match dispatch::remote_metadata_aggregate_dir(directory, &column).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
+            }
+            Ok(_) => {
+                todo!("implement other types")
+            }
+            Err(err) => {
+                let err = format!("{err:?}");
+                return Err(OxenError::basic_str(&err));
+            }
+        },
+        None => {
+            let err = format!("Must supply type");
+            return Err(OxenError::basic_str(&err));
+        }
+    };
+
+    Ok(())
 }
 
 async fn remote_metadata_list(sub_matches: &ArgMatches) {

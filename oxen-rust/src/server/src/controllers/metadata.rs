@@ -1,6 +1,6 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param};
+use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 
 use liboxen::core;
 use liboxen::error::OxenError;
@@ -10,7 +10,7 @@ use liboxen::view::{
 };
 use liboxen::{api, current_function};
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 
 pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -88,6 +88,57 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         page_size: limit,
         total_pages: 0,
         total_entries: limit,
+    };
+    Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn agg_dir(
+    req: HttpRequest,
+    query: web::Query<AggregateQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    let column = query.column.clone().ok_or(OxenHttpError::BadRequest(
+        "Must supply column query parameter".into(),
+    ))?;
+
+    log::debug!(
+        "{} resource {}/{}",
+        current_function!(),
+        repo_name,
+        resource
+    );
+
+    let latest_commit = api::local::commits::get_by_id(&repo, &resource.commit.id)?.ok_or(
+        OxenError::committish_not_found(resource.commit.id.clone().into()),
+    )?;
+
+    log::debug!(
+        "{} resolve commit {} -> '{}'",
+        current_function!(),
+        latest_commit.id,
+        latest_commit.message
+    );
+
+    let directory = resource.file_path;
+    let mut sliced_df =
+        core::index::commit_metadata_db::aggregate_col(&repo, &latest_commit, &directory, column)?;
+
+    let response = JsonDataFrameSliceResponse {
+        status: StatusMessage::resource_found(),
+        full_size: JsonDataSize {
+            width: sliced_df.width(),
+            height: sliced_df.height(),
+        },
+        df: JsonDataFrame::from_df(&mut sliced_df),
+        page_number: 1,
+        page_size: sliced_df.height(),
+        total_pages: 1,
+        total_entries: sliced_df.height(),
     };
     Ok(HttpResponse::Ok().json(response))
 }
