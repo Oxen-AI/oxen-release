@@ -159,6 +159,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- Metadata (returns metadata for a file or a dir) ----- //
         .route(
+            "/{namespace}/{repo_name}/meta/agg/dir/{resource:.*}",
+            web::get().to(controllers::metadata::agg_dir),
+        )
+        .route(
             "/{namespace}/{repo_name}/meta/dir/{resource:.*}",
             web::get().to(controllers::metadata::dir),
         )

@@ -10,7 +10,14 @@ use actix_web::HttpRequest;
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 
+pub mod aggregate_query;
+pub use aggregate_query::AggregateQuery;
+
+pub mod page_num_query;
+pub use page_num_query::PageNumQuery;
+
 pub mod df_opts_query;
+pub use df_opts_query::DFOptsQuery;
 
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     req.app_data::<OxenAppData>()

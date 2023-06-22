@@ -232,7 +232,7 @@ pub fn list_directory(
     for dir in entry_reader.list_dirs()? {
         // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, search_dir);
         if let Some(parent) = dir.parent() {
-            if parent == directory || (parent == Path::new("") && directory == Path::new("./")) {
+            if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
                 dir_paths.push(meta_entry_from_dir(
                     repo,
                     commit,
@@ -454,7 +454,7 @@ mod tests {
             let paginated = api::local::entries::list_directory(
                 &repo,
                 commit,
-                Path::new("./"),
+                Path::new(""),
                 &commit.id,
                 1,
                 10,

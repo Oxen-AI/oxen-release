@@ -1,6 +1,6 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param};
+use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
 use crate::view::PaginatedLinesResponse;
 
 use liboxen::constants::AVG_CHUNK_SIZE;
@@ -17,12 +17,6 @@ use serde::Deserialize;
 
 use std::fs::File;
 use std::io::prelude::*;
-
-#[derive(Deserialize, Debug)]
-pub struct PageNumQuery {
-    pub page: Option<usize>,
-    pub page_size: Option<usize>,
-}
 
 #[derive(Deserialize, Debug)]
 pub struct ChunkQuery {

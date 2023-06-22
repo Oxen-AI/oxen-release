@@ -77,7 +77,7 @@ pub fn list_paths<T: ThreadMode>(
     db: &DBWithThreadMode<T>,
     base_dir: &Path,
 ) -> Result<Vec<PathBuf>, OxenError> {
-    log::debug!("path_db::list_paths({:?})", base_dir);
+    // log::debug!("path_db::list_paths({:?})", base_dir);
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<PathBuf> = vec![];
     for item in iter {

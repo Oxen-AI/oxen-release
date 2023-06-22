@@ -120,7 +120,9 @@ pub fn aggregate_col(
     column: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     let directory = directory.as_ref();
-    let dirs = CommitEntryReader::new(repo, commit)?.list_dir_children(directory)?;
+    let mut dirs = CommitEntryReader::new(repo, commit)?.list_dir_children(directory)?;
+    dirs.push(directory.to_path_buf());
+
     if dirs.is_empty() {
         return Err(OxenError::path_does_not_exist(directory));
     }
@@ -131,8 +133,6 @@ pub fn aggregate_col(
     let mut combined_df: Option<DataFrame> = None;
     let table_name = s.name.unwrap();
     for dir in dirs {
-        log::debug!("\n--------------PROC DIR {dir:?}-----------------\n");
-
         let conn = df_db::get_connection(db_path(repo, commit, &dir))?;
 
         let stmt = sql::Select::new()
@@ -141,7 +141,7 @@ pub fn aggregate_col(
             .from(&table_name);
 
         let df = df_db::select(&conn, &stmt)?;
-        log::debug!("df for dir {:?}: {:?}", dir, df);
+        // log::debug!("df for dir {:?}: {:?}", dir, df);
 
         if df.is_empty() {
             continue;
@@ -154,14 +154,14 @@ pub fn aggregate_col(
             .collect()
             .unwrap();
 
-        log::debug!("SORTED df for dir {:?}: {:?}", dir, df);
+        // log::debug!("SORTED df for dir {:?}: {:?}", dir, df);
 
         if let Some(cdf) = combined_df {
-            log::debug!("START for dir {:?}: {:?}", dir, cdf);
+            // log::debug!("START for dir {:?}: {:?}", dir, cdf);
 
             let stacked = cdf.vstack(&df).unwrap();
 
-            log::debug!("STACKED for dir {:?}: {:?}", dir, stacked);
+            // log::debug!("STACKED for dir {:?}: {:?}", dir, stacked);
 
             let aggregated = stacked
                 .lazy()
@@ -175,8 +175,8 @@ pub fn aggregate_col(
             combined_df = Some(df);
         }
 
-        log::debug!("AGGREGATED df {:?}", combined_df);
-        log::debug!("\n--------------DONE-----------------\n");
+        // log::debug!("AGGREGATED df {:?}", combined_df);
+        // log::debug!("\n--------------DONE-----------------\n");
     }
 
     Ok(combined_df.unwrap())
@@ -212,7 +212,10 @@ pub fn full_size(
     commit: &Commit,
     directory: impl AsRef<Path>,
 ) -> Result<(usize, usize), OxenError> {
-    let dirs = CommitEntryReader::new(repo, commit)?.list_dir_children(directory)?;
+    let directory = directory.as_ref();
+    let mut dirs = CommitEntryReader::new(repo, commit)?.list_dir_children(directory)?;
+    dirs.push(directory.to_path_buf());
+
     let s = DirMetadataItem::schema();
     let table_name = s.name.unwrap();
     let num_cols = s.fields.len();
