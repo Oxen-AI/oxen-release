@@ -141,9 +141,7 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
     // if they are bigger, need to look into converting directly from arrow to polars.
 
     // Convert to Vec<&RecordBatch>
-    let records: Vec<&RecordBatch> = records
-        .iter()
-        .collect::<Vec<_>>();
+    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
     let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
     log::debug!("got json: {:?}", json);
 

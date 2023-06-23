@@ -41,7 +41,7 @@ dirs = "5.0.1"
 dotenv = "0.15.0"
 dunce = "1"
 env_logger = "0.10.0"
-ffmpeg-next = { version = "6.0.0", features = ["codec", "format"] }
+# ffmpeg-next = { version = "6.0.0", features = ["codec", "format"] }
 filetime = "0.2.16"
 flate2 = "1.0.23"
 fs_extra = "1.2.0"

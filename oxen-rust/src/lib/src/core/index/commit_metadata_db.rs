@@ -118,6 +118,10 @@ pub fn aggregate_col(
     let column = column.as_ref();
 
     let mut combined_df: Option<DataFrame> = None;
+    if dirs.is_empty() {
+        return Ok(DataFrame::default());
+    }
+
     let table_name = s.name.unwrap();
     for dir in dirs {
         let stmt = sql::Select::new()
