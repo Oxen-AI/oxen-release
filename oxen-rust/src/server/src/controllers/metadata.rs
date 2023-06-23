@@ -4,6 +4,7 @@ use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 
 use liboxen::core;
 use liboxen::error::OxenError;
+use liboxen::opts::DFOpts;
 use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
@@ -125,22 +126,35 @@ pub async fn agg_dir(
     );
 
     let directory = resource.file_path;
-    let mut sliced_df =
-        core::index::commit_metadata_db::aggregate_col(&repo, &latest_commit, directory, column)?;
 
-    let response = JsonDataFrameSliceResponse {
-        status: StatusMessage::resource_found(),
-        full_size: JsonDataSize {
-            width: sliced_df.width(),
-            height: sliced_df.height(),
-        },
-        df: JsonDataFrame::from_df(&mut sliced_df),
-        page_number: 1,
-        page_size: sliced_df.height(),
-        total_pages: 1,
-        total_entries: sliced_df.height(),
-    };
-    Ok(HttpResponse::Ok().json(response))
+    let cached_path = core::cache::cachers::content_stats::dir_column_path(
+        &repo,
+        &latest_commit,
+        &directory,
+        &column,
+    );
+    log::debug!("Reading aggregation from cached path: {:?}", cached_path);
+
+    if cached_path.exists() {
+        let mut df = core::df::tabular::read_df(&cached_path, DFOpts::empty())?;
+
+        let response = JsonDataFrameSliceResponse {
+            status: StatusMessage::resource_found(),
+            full_size: JsonDataSize {
+                width: df.width(),
+                height: df.height(),
+            },
+            df: JsonDataFrame::from_df(&mut df),
+            page_number: 1,
+            page_size: df.height(),
+            total_pages: 1,
+            total_entries: df.height(),
+        };
+        Ok(HttpResponse::Ok().json(response))
+    } else {
+        log::error!("Metadata cache not computed for column {}", column);
+        Ok(HttpResponse::BadRequest().json(StatusMessage::resource_not_found()))
+    }
 }
 
 pub async fn images(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
