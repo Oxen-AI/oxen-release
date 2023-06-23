@@ -6,7 +6,7 @@
 use derive_more::{Display, Error};
 use std::fmt::Debug;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
@@ -63,7 +63,7 @@ pub enum OxenError {
     ParsingError(Box<StringError>),
 
     // Metadata
-    ImageMetaDataParseError(StringError),
+    ImageMetadataParseError(StringError),
 
     // External Library Errors
     IO(io::Error),
@@ -76,7 +76,7 @@ pub enum OxenError {
     HTTP(reqwest::Error),
     Encoding(std::str::Utf8Error),
     DB(rocksdb::Error),
-    // DUCKDB(duckdb::Error),
+    DUCKDB(duckdb::Error),
     ENV(std::env::VarError),
 
     // Fallback
@@ -120,12 +120,12 @@ impl OxenError {
         OxenError::ResourceNotFound(StringError::from(value.as_ref()))
     }
 
-    pub fn path_does_not_exist(path: PathBuf) -> Self {
-        OxenError::PathDoesNotExist(Box::new(path.into()))
+    pub fn path_does_not_exist(path: impl AsRef<Path>) -> Self {
+        OxenError::PathDoesNotExist(Box::new(path.as_ref().into()))
     }
 
     pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
-        OxenError::ImageMetaDataParseError(StringError::from(s.as_ref()))
+        OxenError::ImageMetadataParseError(StringError::from(s.as_ref()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {
@@ -426,11 +426,11 @@ impl From<rocksdb::Error> for OxenError {
     }
 }
 
-// impl From<duckdb::Error> for OxenError {
-//     fn from(error: duckdb::Error) -> Self {
-//         OxenError::DUCKDB(error)
-//     }
-// }
+impl From<duckdb::Error> for OxenError {
+    fn from(error: duckdb::Error) -> Self {
+        OxenError::DUCKDB(error)
+    }
+}
 
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {

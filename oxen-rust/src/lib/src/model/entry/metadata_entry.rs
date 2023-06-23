@@ -5,14 +5,27 @@ use crate::view::entry::ResourceVersion;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum ImgColorSpace {
+    // 8-bit
     RGB,
     RGBA,
     Grayscale,
+    GrayscaleAlpha,
+
+    // 16-bit
+    Rgb16,
+    Rgba16,
+    Grayscale16,
+    GrayscaleAlpha16,
+
+    // 32-bit float
+    Rgb32F,
+    Rgba32F,
+
     Unknown,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaDataText {
+pub struct MetadataText {
     pub num_lines: usize,
     // pub num_words: usize,
     // pub num_chars: usize,
@@ -20,15 +33,14 @@ pub struct MetaDataText {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaDataImage {
+pub struct MetadataImage {
     pub width: usize,
     pub height: usize,
     pub color_space: ImgColorSpace, // RGB, RGBA, etc.
-    pub format: String,             // PNG, JPEG, etc.
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaDataVideo {
+pub struct MetadataVideo {
     pub num_seconds: f64,
     pub width: usize,
     pub height: usize,
@@ -37,7 +49,7 @@ pub struct MetaDataVideo {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaDataAudio {
+pub struct MetadataAudio {
     pub num_seconds: f64,
     pub format: String, // mp3, etc.
     pub num_channels: usize,
@@ -45,22 +57,22 @@ pub struct MetaDataAudio {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaDataTabular {
+pub struct MetadataTabular {
     pub width: usize,
     pub height: usize,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaData {
-    pub text: Option<MetaDataText>,
-    pub image: Option<MetaDataImage>,
-    pub video: Option<MetaDataVideo>,
-    pub audio: Option<MetaDataAudio>,
-    pub tabular: Option<MetaDataTabular>,
+pub struct MetadataItem {
+    pub text: Option<MetadataText>,
+    pub image: Option<MetadataImage>,
+    pub video: Option<MetadataVideo>,
+    pub audio: Option<MetadataAudio>,
+    pub tabular: Option<MetadataTabular>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetaDataEntry {
+pub struct MetadataEntry {
     pub filename: String,
     pub is_dir: bool,
     pub latest_commit: Option<Commit>,
@@ -73,6 +85,6 @@ pub struct MetaDataEntry {
     pub mime_type: String,
     // auto detected extension of the file
     pub extension: String,
-    // type specific meta data
-    pub meta: MetaData,
+    // type specific metadata
+    pub meta: MetadataItem,
 }

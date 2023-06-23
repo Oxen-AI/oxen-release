@@ -12,9 +12,8 @@ jobs:
         run: |
           sudo apt-get update \
           && sudo apt-get install -y \
-          libdbus-1-dev \
-          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          libdbus-1-dev libssl-dev \
+          clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
           ruby ruby-dev rubygems build-essential
       # - name: Install imagemagick
       #   run: |
@@ -51,9 +50,8 @@ jobs:
         run: |
           sudo apt-get update \
           && sudo apt-get install -y \
-          libdbus-1-dev \
-          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          libdbus-1-dev libssl-dev \
+          clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
           ruby ruby-dev rubygems build-essential
       # - name: Install imagemagick
       #   run: |
@@ -92,9 +90,8 @@ jobs:
         run: |
           sudo apt-get update \
           && sudo apt-get install -y \
-          libdbus-1-dev \
-          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          libdbus-1-dev libssl-dev \
+          clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
           ruby ruby-dev rubygems build-essential
       # - name: Install imagemagick
       #   run: |
@@ -133,9 +130,8 @@ jobs:
         run: |
           sudo apt-get update \
           && sudo apt-get install -y \
-          libdbus-1-dev \
-          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
-          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          libdbus-1-dev libssl-dev \
+          clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
           ruby ruby-dev rubygems build-essential
       # - name: Install imagemagick
       #   run: |
@@ -157,10 +153,10 @@ jobs:
             ${{ runner.OS }}-build-
       - uses: icepuma/rust-action@32deca3ee074df35b446b23b973b4acda4c4541f
       - run: |
-          cargo build --release
+          cargo build
           mkdir /tmp/oxen_sync/
           mkdir data/test/runs
-          ./target/release/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
           cp user_config.toml data/test/config/user_config.toml
-          ./target/release/oxen-server start &
+          ./target/debug/oxen-server start &
           cargo test -- --test-threads=3

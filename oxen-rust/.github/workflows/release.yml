@@ -6,7 +6,7 @@ on:
 jobs:
   release_ubuntu_latest:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v1
@@ -45,6 +45,8 @@ jobs:
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
+
+      
 
       # - name: Install imagemagick
       #   run: |
@@ -214,9 +216,23 @@ jobs:
   release_windows_latest:
     runs-on: windows-latest
 
+    env:
+      FFMPEG_DOWNLOAD_URL: https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
+
+      - name: Install ffmpeg dependencies
+        run: |
+          $VCINSTALLDIR = $(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath)
+          Add-Content $env:GITHUB_ENV "LIBCLANG_PATH=${VCINSTALLDIR}\VC\Tools\LLVM\x64\bin`n"
+          Invoke-WebRequest "${env:FFMPEG_DOWNLOAD_URL}" -OutFile ffmpeg-release-full-shared.7z
+          7z x ffmpeg-release-full-shared.7z
+          mkdir ffmpeg
+          mv ffmpeg-*/* ffmpeg/
+          Add-Content $env:GITHUB_ENV "FFMPEG_DIR=${pwd}\ffmpeg`n"
+          Add-Content $env:GITHUB_PATH "${pwd}\ffmpeg\bin`n"
 
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
@@ -224,9 +240,6 @@ jobs:
           toolchain: stable
           default: true
           override: true
-
-      # - name: Install ffmpeg
-      #   run: choco install ffmpeg
 
       - name: Build
         run: cargo build --release --bins
@@ -280,6 +293,9 @@ jobs:
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: brew install pkg-config ffmpeg imagemagick
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3
@@ -336,6 +352,9 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
+      - name: Install dependencies
+        run: brew install pkg-config ffmpeg imagemagick
+
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -390,6 +409,9 @@ jobs:
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: brew install pkg-config ffmpeg imagemagick
 
       - name: Cache Rust dependencies
         uses: actions/cache@v3

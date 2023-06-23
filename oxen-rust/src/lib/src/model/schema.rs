@@ -16,7 +16,21 @@ pub struct Schema {
     pub fields: Vec<Field>,
 }
 
+impl PartialEq for Schema {
+    fn eq(&self, other: &Schema) -> bool {
+        self.name == other.name && self.hash == other.hash && self.fields == other.fields
+    }
+}
+
 impl Schema {
+    pub fn new(name: impl AsRef<str>, fields: Vec<Field>) -> Schema {
+        Schema {
+            name: Some(name.as_ref().to_string()),
+            hash: Schema::hash_fields(&fields),
+            fields: fields.to_owned(),
+        }
+    }
+
     pub fn from_fields(fields: Vec<Field>) -> Schema {
         Schema {
             name: None,

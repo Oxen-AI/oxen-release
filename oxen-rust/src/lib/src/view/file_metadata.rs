@@ -5,17 +5,17 @@ use serde::{Deserialize, Serialize};
 use super::{entry::ResourceVersion, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct FileMetaData {
+pub struct FileMetadata {
     pub size: u64,
     pub data_type: String,
     pub resource: ResourceVersion,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct FileMetaDataResponse {
+pub struct FileMetadataResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub meta: FileMetaData,
+    pub meta: FileMetadata,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
