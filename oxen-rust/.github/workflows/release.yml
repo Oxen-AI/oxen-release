@@ -97,16 +97,18 @@ jobs:
             oxen=/usr/bin/oxen
 
       - name: Upload Oxen Server binary to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
           asset_name: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
           tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
           asset_name: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
@@ -198,16 +200,18 @@ jobs:
             oxen=/usr/bin/oxen
 
       - name: Upload Oxen Server binary to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
           asset_name: oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
           tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
           asset_name: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
@@ -245,16 +249,18 @@ jobs:
         run: cargo build --release --bins
 
       - name: Upload oxen.exe windows to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen.exe
           asset_name: oxen.exe
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server.exe windows to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-server.exe
           asset_name: oxen-server.exe
@@ -277,8 +283,9 @@ jobs:
         run: docker save oxen/oxen-server -o oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
 
       - name: Upload docker to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
           asset_name: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
@@ -327,16 +334,18 @@ jobs:
         run: cd target/release && tar -czf oxen-server-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-server-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-server-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
@@ -385,16 +394,18 @@ jobs:
         run: cd target/release && tar -czf oxen-server-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-server-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-server-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
@@ -443,16 +454,18 @@ jobs:
         run: cd target/release && tar -czf oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
-        uses: svenstaro/upload-release-action@v1-release
+        uses: svenstaro/upload-release-action@v2
         with:
+          release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/release/oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
