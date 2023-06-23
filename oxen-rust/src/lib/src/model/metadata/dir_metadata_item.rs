@@ -75,7 +75,7 @@ impl DirMetadataItem {
         entry: &CommitEntry,
         commit_reader: &CommitReader,
     ) -> Self {
-        let path = util::fs::version_path(&repo, &entry);
+        let path = util::fs::version_path(repo, entry);
         let mime_type = util::fs::file_mime_type(&path);
         let data_type = util::fs::datatype_from_mimetype(&path, &mime_type);
 
@@ -102,11 +102,11 @@ impl DirMetadataItem {
             filename: filename.to_string(),
             path: entry_path.to_string(),
             num_bytes: size,
-            commit_id: commit_id,
-            timestamp: timestamp,
-            data_type: data_type,
-            mime_type: mime_type,
-            extension: extension,
+            commit_id,
+            timestamp,
+            data_type,
+            mime_type,
+            extension,
         }
     }
 }

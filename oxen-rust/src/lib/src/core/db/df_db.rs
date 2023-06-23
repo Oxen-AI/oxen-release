@@ -103,6 +103,28 @@ pub fn count(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<u
     }
 }
 
+/// Query number of rows in a table.
+pub fn count_where(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    where_clause: impl AsRef<str>,
+) -> Result<usize, OxenError> {
+    let table_name = table_name.as_ref();
+    let where_clause = where_clause.as_ref();
+    let sql = format!("SELECT count(*) FROM {} WHERE {}", table_name, where_clause);
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([])?;
+    if let Some(row) = rows.next()? {
+        let size: usize = row.get(0)?;
+        Ok(size)
+    } else {
+        Err(OxenError::basic_str(format!(
+            "No rows in table {}",
+            table_name
+        )))
+    }
+}
+
 /// Select fields from a table.
 pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame, OxenError> {
     let sql = stmt.as_string();
@@ -142,7 +164,7 @@ mod tests {
             .join("test")
             .join("db")
             .join("metadata.db");
-        let conn = get_connection(&db_file)?;
+        let conn = get_connection(db_file)?;
 
         let count = count(&conn, "metadata")?;
 
@@ -157,7 +179,7 @@ mod tests {
             .join("test")
             .join("db")
             .join("metadata.db");
-        let conn = get_connection(&db_file)?;
+        let conn = get_connection(db_file)?;
 
         let offset = 0;
         let limit = 7;
@@ -181,7 +203,7 @@ mod tests {
     fn test_df_db_create() -> Result<(), OxenError> {
         test::run_empty_dir_test(|data_dir| {
             let db_file = data_dir.join("data.db");
-            let conn = get_connection(&db_file)?;
+            let conn = get_connection(db_file)?;
             // bounding_box -> min_x, min_y, width, height
             let schema = test::schema_bounding_box();
             create_table_if_not_exists(&conn, &schema)?;
@@ -197,13 +219,13 @@ mod tests {
     fn test_df_db_get_schema() -> Result<(), OxenError> {
         test::run_empty_dir_test(|data_dir| {
             let db_file = data_dir.join("data.db");
-            let conn = get_connection(&db_file)?;
+            let conn = get_connection(db_file)?;
             // bounding_box -> min_x, min_y, width, height
             let schema = test::schema_bounding_box();
             create_table_if_not_exists(&conn, &schema)?;
 
             let name = &schema.name.clone().unwrap();
-            let found_schema = get_schema(&conn, &name)?;
+            let found_schema = get_schema(&conn, name)?;
             assert_eq!(found_schema, schema);
 
             Ok(())

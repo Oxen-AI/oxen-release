@@ -126,7 +126,7 @@ pub async fn agg_dir(
 
     let directory = resource.file_path;
     let mut sliced_df =
-        core::index::commit_metadata_db::aggregate_col(&repo, &latest_commit, &directory, column)?;
+        core::index::commit_metadata_db::aggregate_col(&repo, &latest_commit, directory, column)?;
 
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
