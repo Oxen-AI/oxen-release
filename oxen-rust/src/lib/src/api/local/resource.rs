@@ -64,7 +64,7 @@ pub fn parse_resource(
                     branch_name
                 );
 
-                return Ok(Some((branch.commit_id, branch.name, PathBuf::from("./"))));
+                return Ok(Some((branch.commit_id, branch.name, PathBuf::from(""))));
             } else {
                 return Ok(None);
             }
@@ -155,7 +155,7 @@ pub fn parse_resource_from_path(
                 // );
 
                 let commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
-                file_path = PathBuf::from("./");
+                file_path = PathBuf::from("");
                 return Ok(Some(ParsedResource {
                     commit,
                     branch: Some(branch),
@@ -328,7 +328,7 @@ mod tests {
                 Ok(Some((commit_id, _branch_name, path))) => {
                     println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, commit_id);
-                    assert_eq!(path, Path::new("./"));
+                    assert_eq!(path, Path::new(""));
                 }
                 _ => {
                     panic!("Should return a branch");
@@ -350,7 +350,7 @@ mod tests {
 
             match resource::parse_resource_from_path(&repo, path) {
                 Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new("./"))
+                    assert_eq!(resource.file_path, Path::new(""))
                 }
                 _ => {
                     panic!("Should return a parsed resource");
@@ -372,7 +372,7 @@ mod tests {
 
             match resource::parse_resource_from_path(&repo, path) {
                 Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new("./"))
+                    assert_eq!(resource.file_path, Path::new(""))
                 }
                 _ => {
                     panic!("Should return a parsed resource");

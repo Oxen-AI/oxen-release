@@ -2,7 +2,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetaDataImage;
+use crate::model::entry::metadata_entry::MetadataImage;
 
 // use magick_rust::{magick_wand_genesis, MagickWand};
 
@@ -12,7 +12,7 @@ use std::path::Path;
 // static START: Once = Once::new();
 
 /// Detects the image metadata for the given file.
-pub fn get_image_metadata(_path: impl AsRef<Path>) -> Result<MetaDataImage, OxenError> {
+pub fn get_image_metadata(_path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> {
     // START.call_once(|| {
     //     magick_wand_genesis();
     // });
@@ -37,7 +37,7 @@ pub fn get_image_metadata(_path: impl AsRef<Path>) -> Result<MetaDataImage, Oxen
     //     }
     // };
 
-    // Ok(MetaDataImage {
+    // Ok(MetadataImage {
     //     width: wand.get_image_width(),
     //     height: wand.get_image_height(),
     //     color_space: magick_to_oxen_colorspace(&wand),

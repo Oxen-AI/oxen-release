@@ -10,11 +10,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
 
-use super::cachers::{
-    content_validator,
-    // content_metadata,
-    repo_size,
-};
+use super::cachers::{content_stats, content_validator, repo_size};
 use lazy_static::lazy_static;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::PathBuf;
@@ -28,7 +24,7 @@ lazy_static! {
         let mut cachers = HashMap::new();
         cachers.insert(String::from("COMMIT_CONTENT_IS_VALID"), content_validator::compute as CommitCacher);
         cachers.insert(String::from("REPO_SIZE"), repo_size::compute as CommitCacher);
-        // cachers.insert(String::from("COMMIT_METADATA"), content_metadata::compute as CommitCacher);
+        cachers.insert(String::from("COMMIT_STATS"), content_stats::compute as CommitCacher);
         // cachers.insert(String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher);
         cachers
     };

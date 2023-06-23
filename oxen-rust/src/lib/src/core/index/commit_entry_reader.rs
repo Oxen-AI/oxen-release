@@ -74,9 +74,33 @@ impl CommitEntryReader {
         CommitEntryReader::new(repository, &commit)
     }
 
+    /// Lists all the directories in the commit
     pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
-        log::debug!("CommitEntryReader::list_dirs()");
         path_db::list_paths(&self.dir_db, Path::new(""))
+    }
+
+    /// Lists all the parents of directories that are in the commit dir db
+    pub fn list_dir_parents(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, OxenError> {
+        // A little hacky, we just filter by starts_with because we aren't representing the parents in the db
+        // Shouldn't be a problem unless we have repos with hundreds of thousands of directories?
+        let path = path.as_ref();
+        let parents = path_db::list_paths(&self.dir_db, Path::new(""))?
+            .into_iter()
+            .filter(|base| path.starts_with(base) && base != path)
+            .collect();
+        Ok(parents)
+    }
+
+    /// Lists all the child directories that are in the commit dir db
+    pub fn list_dir_children(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, OxenError> {
+        // A little hacky, we just filter by starts_with because we aren't representing the parents in the db
+        // Shouldn't be a problem unless we have repos with hundreds of thousands of directories?
+        let path = path.as_ref();
+        let parents = path_db::list_paths(&self.dir_db, Path::new(""))?
+            .into_iter()
+            .filter(|dir| path == Path::new("") || (dir.starts_with(path) && dir != path))
+            .collect();
+        Ok(parents)
     }
 
     pub fn has_dir<P: AsRef<Path>>(&self, path: P) -> bool {

@@ -7,9 +7,10 @@ use liboxen::view::compare::CompareCommitsResponse;
 use liboxen::view::{CompareEntriesResponse, StatusMessage};
 use liboxen::{api, constants, util};
 
-use super::entries::PageNumQuery;
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_base_head, path_param, resolve_base_head_branches};
+use crate::params::{
+    app_data, parse_base_head, path_param, resolve_base_head_branches, PageNumQuery,
+};
 
 pub async fn show(
     req: HttpRequest,

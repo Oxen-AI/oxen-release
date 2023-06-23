@@ -3,17 +3,17 @@
 
 use crate::core::df::tabular;
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetaDataTabular;
+use crate::model::entry::metadata_entry::MetadataTabular;
 use crate::opts::DFOpts;
 
 use std::path::Path;
 
 /// Detects the audio metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataTabular, OxenError> {
+pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError> {
     let path = path.as_ref();
     let opts = DFOpts::empty();
     let df = tabular::read_df(path, opts)?;
-    Ok(MetaDataTabular {
+    Ok(MetadataTabular {
         height: df.height(),
         width: df.width(),
     })

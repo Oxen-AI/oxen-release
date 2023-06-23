@@ -25,6 +25,7 @@ pub const RESTORE: &str = "restore";
 pub const RM: &str = "rm";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
+pub const METADATA: &str = "metadata";
 
 pub fn init() -> Command {
     Command::new(INIT)
@@ -115,6 +116,7 @@ pub fn remote() -> Command {
         .subcommand(restore())
         .subcommand(rm())
         .subcommand(status())
+        .subcommand(metadata())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
@@ -151,6 +153,29 @@ pub fn status() -> Command {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(Arg::new("path").required(false))
+}
+
+pub fn metadata() -> Command {
+    Command::new(METADATA)
+        .about("View computed metadata given a resource and commit")
+        .subcommand(
+            Command::new("list")
+                .arg(Arg::new("type").required(true))
+                .arg(Arg::new("path").required(false))
+                .arg(
+                    Arg::new("columns")
+                        .long("columns")
+                        .short('c')
+                        .help("A comma separated set of columns names to look at. Ex file,x,y")
+                        .action(clap::ArgAction::Set),
+                ),
+        )
+        .subcommand(
+            Command::new("aggregate")
+                .arg(Arg::new("type").required(true))
+                .arg(Arg::new("column").required(true))
+                .arg(Arg::new("path").required(false)),
+        )
 }
 
 pub fn log() -> Command {

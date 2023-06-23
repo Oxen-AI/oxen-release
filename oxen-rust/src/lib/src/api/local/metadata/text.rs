@@ -2,16 +2,16 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetaDataText;
+use crate::model::entry::metadata_entry::MetadataText;
 use crate::util;
 
 use std::path::Path;
 
 /// Detects the text metadata for the given file.
-pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetaDataText, OxenError> {
+pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataText, OxenError> {
     let path = path.as_ref();
     let num_lines = util::fs::count_lines(path)?;
-    Ok(MetaDataText { num_lines })
+    Ok(MetadataText { num_lines })
 }
 
 #[cfg(test)]

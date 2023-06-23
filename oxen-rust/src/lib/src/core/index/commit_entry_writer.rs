@@ -152,7 +152,7 @@ impl CommitEntryWriter {
     ) -> Result<(), OxenError> {
         // log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
 
-        // then meta data from the full file path
+        // then metadata from the full file path
         let full_path = origin_path.join(file_path);
 
         // Get last modified time

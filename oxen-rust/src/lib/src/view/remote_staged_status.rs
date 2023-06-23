@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
-        entry::metadata_entry::MetaData, LocalRepository, MetaDataEntry, ModEntry, StagedData,
+        entry::metadata_entry::MetadataItem, LocalRepository, MetadataEntry, ModEntry, StagedData,
         StagedEntry, SummarizedStagedDirStats,
     },
     util,
@@ -66,9 +66,9 @@ impl RemoteStagedStatus {
         page_num: usize,
         page_size: usize,
     ) -> RemoteStagedStatus {
-        let added_entries: Vec<MetaDataEntry> =
+        let added_entries: Vec<MetadataEntry> =
             RemoteStagedStatus::added_to_meta_entry(repo, &staged.added_files);
-        let modified_entries: Vec<MetaDataEntry> =
+        let modified_entries: Vec<MetadataEntry> =
             RemoteStagedStatus::modified_to_meta_entry(repo, &staged.modified_files);
 
         let added_paginated =
@@ -86,18 +86,18 @@ impl RemoteStagedStatus {
     fn added_to_meta_entry(
         repo: &LocalRepository,
         entries: &HashMap<PathBuf, StagedEntry>,
-    ) -> Vec<MetaDataEntry> {
+    ) -> Vec<MetadataEntry> {
         RemoteStagedStatus::iter_to_meta_entry(repo, entries.keys())
     }
 
-    fn modified_to_meta_entry(repo: &LocalRepository, entries: &[PathBuf]) -> Vec<MetaDataEntry> {
+    fn modified_to_meta_entry(repo: &LocalRepository, entries: &[PathBuf]) -> Vec<MetadataEntry> {
         RemoteStagedStatus::iter_to_meta_entry(repo, entries.iter())
     }
 
     fn iter_to_meta_entry<'a, I: Iterator<Item = &'a PathBuf>>(
         repo: &LocalRepository,
         entries: I,
-    ) -> Vec<MetaDataEntry> {
+    ) -> Vec<MetadataEntry> {
         entries
             .map(|path| {
                 let full_path = repo.path.join(path);
@@ -107,7 +107,7 @@ impl RemoteStagedStatus {
                 };
                 let path_str = path.to_string_lossy().to_string();
 
-                MetaDataEntry {
+                MetadataEntry {
                     filename: path_str,
                     is_dir: false,
                     size: len,
@@ -116,7 +116,7 @@ impl RemoteStagedStatus {
                     mime_type: util::fs::file_mime_type(&full_path),
                     extension: util::fs::file_extension(&full_path),
                     resource: None, // not committed so does not have a resource
-                    meta: MetaData {
+                    meta: MetadataItem {
                         text: None,
                         image: None,
                         video: None,
@@ -129,7 +129,7 @@ impl RemoteStagedStatus {
     }
 
     fn paginate_entries(
-        entries: Vec<MetaDataEntry>,
+        entries: Vec<MetadataEntry>,
         page_number: usize,
         page_size: usize,
     ) -> PaginatedDirEntries {

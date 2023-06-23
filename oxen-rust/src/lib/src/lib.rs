@@ -59,13 +59,12 @@
 extern crate approx;
 extern crate bytecount;
 extern crate bytesize;
-// extern crate ffmpeg_next as ffmpeg;
+extern crate ffmpeg_next as ffmpeg;
 extern crate fs_extra;
 extern crate lazy_static;
 
 pub mod api;
 pub mod command;
-pub mod compute;
 pub mod config;
 pub mod constants;
 pub mod core;

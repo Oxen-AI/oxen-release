@@ -5,8 +5,8 @@ pub mod branch;
 pub mod commit;
 pub mod compare;
 pub mod entry;
-pub mod entry_meta_data;
-pub mod file_meta_data;
+pub mod entry_metadata;
+pub mod file_metadata;
 pub mod health;
 pub mod http;
 pub mod json_data_frame;
@@ -19,7 +19,7 @@ pub mod schema;
 pub mod status_message;
 
 pub use crate::view::compare::CompareEntriesResponse;
-pub use crate::view::file_meta_data::{FileMetaData, FileMetaDataResponse, FilePathsResponse};
+pub use crate::view::file_metadata::{FileMetadata, FileMetadataResponse, FilePathsResponse};
 pub use crate::view::status_message::{
     IsValidStatusMessage, StatusMessage, StatusMessageDescription,
 };
@@ -45,7 +45,7 @@ pub use crate::view::branch::{
     BranchNew, BranchNewFromExisting, BranchResponse, BranchUpdate, ListBranchesResponse,
 };
 
-pub use crate::view::entry_meta_data::EntryMetaDataResponse;
+pub use crate::view::entry_metadata::MetadataEntryResponse;
 
 pub use crate::view::health::HealthResponse;
 pub use crate::view::oxen_response::OxenResponse;

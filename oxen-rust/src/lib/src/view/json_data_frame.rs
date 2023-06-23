@@ -10,7 +10,7 @@ use crate::{model::Schema, opts::DFOpts};
 
 use super::StatusMessage;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataSize {
     pub height: usize,
     pub width: usize,
@@ -22,7 +22,7 @@ impl JsonDataSize {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrame {
     pub schema: Schema,
     pub slice_size: JsonDataSize,
@@ -30,7 +30,7 @@ pub struct JsonDataFrame {
     pub data: serde_json::Value,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrameSliceResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
