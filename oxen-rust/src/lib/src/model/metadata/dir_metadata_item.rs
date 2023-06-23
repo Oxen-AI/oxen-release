@@ -79,7 +79,8 @@ impl DirMetadataItem {
         let mime_type = util::fs::file_mime_type(&path);
         let data_type = util::fs::datatype_from_mimetype(&path, &mime_type);
 
-        let size = api::local::metadata::get_file_size(&path).unwrap();
+        // TODO: Handle unwraps more gracefully
+        let size = api::local::metadata::get_file_size(&path).unwrap_or(0);
         let dir = entry
             .path
             .parent()
