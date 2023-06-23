@@ -56,22 +56,16 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let dirs = reader.list_dirs()?;
     log::debug!("Computing size of {} dirs", dirs.len());
     for dir in dirs {
-        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
-        let entries = dir_reader.list_entries()?;
-        let size = api::local::entries::compute_entries_size(&entries)?;
-        let size_str = size.to_string();
-        let size_path = dir_size_path(repo, commit, &dir);
-        log::debug!("Writing dir size {} to {:?}", size_str, size_path);
-        // create parent directory if not exists
-        if let Some(parent) = size_path.parent() {
-            util::fs::create_dir_all(parent)?;
-        }
-        util::fs::write_to_path(&size_path, &size_str)?;
+        // Start with the size of all the entries in this dir
+        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir).unwrap();
+        let entries = dir_reader.list_entries().unwrap();
+        let mut total_size = api::local::entries::compute_entries_size(&entries).unwrap();
 
         // For each dir, find the latest commit that modified it
         let commits: HashMap<String, Commit> = HashMap::new();
         let mut latest_commit: Option<Commit> = Some(commit.clone());
 
+        // TODO: do not copy pasta this code
         for entry in entries {
             let commit = if commits.contains_key(&entry.commit_id) {
                 Some(commits[&entry.commit_id].clone())
@@ -87,6 +81,42 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 latest_commit = commit.clone();
             }
         }
+
+        // Recursively compute the size of the directory children
+        let children = reader.list_dir_children(&dir)?;
+        for child in children {
+            let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &child).unwrap();
+
+            let entries = dir_reader.list_entries().unwrap();
+            let size = api::local::entries::compute_entries_size(&entries).unwrap();
+
+            total_size += size;
+
+            for entry in entries {
+                let commit = if commits.contains_key(&entry.commit_id) {
+                    Some(commits[&entry.commit_id].clone())
+                } else {
+                    commit_reader.get_commit_by_id(&entry.commit_id)?
+                };
+
+                if latest_commit.is_none() {
+                    latest_commit = commit.clone();
+                }
+
+                if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
+                    latest_commit = commit.clone();
+                }
+            }
+        }
+
+        let size_str = total_size.to_string();
+        let size_path = dir_size_path(repo, commit, &dir);
+        log::debug!("Writing dir size {} to {:?}", size_str, size_path);
+        // create parent directory if not exists
+        if let Some(parent) = size_path.parent() {
+            util::fs::create_dir_all(parent)?;
+        }
+        util::fs::write_to_path(&size_path, &size_str)?;
 
         let latest_commit_path = dir_latest_commit_path(repo, commit, &dir);
         log::debug!(

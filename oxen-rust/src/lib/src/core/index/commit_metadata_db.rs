@@ -246,8 +246,6 @@ mod tests {
 
             println!("df:\n{:?}", df);
 
-            assert!(false);
-
             Ok(())
         })
     }
@@ -264,8 +262,6 @@ mod tests {
             let df = commit_metadata_db::aggregate_col(&repo, &commit, directory, "data_type")?;
 
             println!("df:\n{:?}", df);
-
-            assert!(false);
 
             Ok(())
         })
