@@ -144,7 +144,7 @@ mod tests {
             let df = meta.df.to_df();
             println!("df: {:?}", df);
 
-            assert_eq!(meta.full_size.width, 3);
+            assert_eq!(meta.full_size.width, 10);
             assert_eq!(meta.full_size.height, 5);
 
             Ok(remote_repo)

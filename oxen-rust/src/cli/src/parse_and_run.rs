@@ -252,12 +252,12 @@ async fn remote_metadata_aggregate(sub_matches: &ArgMatches) -> Result<(), OxenE
             }
             Err(err) => {
                 let err = format!("{err:?}");
-                return Err(OxenError::basic_str(&err));
+                return Err(OxenError::basic_str(err));
             }
         },
         None => {
-            let err = format!("Must supply type");
-            return Err(OxenError::basic_str(&err));
+            let err = "Must supply type".to_string();
+            return Err(OxenError::basic_str(err));
         }
     };
 
@@ -291,14 +291,12 @@ async fn remote_metadata_list(sub_matches: &ArgMatches) {
             }
             Err(err) => {
                 eprintln!("{err:?}");
-                return;
             }
         },
         None => {
             eprintln!("Must supply type");
-            return;
         }
-    };
+    }
 }
 
 fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpts {

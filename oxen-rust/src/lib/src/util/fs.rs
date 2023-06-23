@@ -69,7 +69,7 @@ pub fn version_path_for_commit_id(
                     Ok(path)
                 }
             }
-            None => Err(OxenError::path_does_not_exist(filepath.to_path_buf())),
+            None => Err(OxenError::path_does_not_exist(filepath)),
         },
         None => Err(OxenError::committish_not_found(commit_id.into())),
     }
