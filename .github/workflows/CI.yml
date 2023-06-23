@@ -113,6 +113,33 @@ jobs:
         # Only need patch elf on linux
         run: pip install maturin[patchelf] pygithub
         if: matrix.platform.rust-target == 'x86_64-unknown-linux-gnu'
+
+      - name: Install dependencies OSX
+        run: brew install pkg-config ffmpeg imagemagick
+        if: matrix.platform.os == 'macos-13'
+
+      - name: Install Deps Linux
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev libssl-dev \
+          clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev pkg-config \
+        if: runner.os == 'Linux'
+
+      - name: Install ffmpeg dependencies windows
+        env:
+          FFMPEG_DOWNLOAD_URL: https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z
+        run: |
+          $VCINSTALLDIR = $(& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath)
+          Add-Content $env:GITHUB_ENV "LIBCLANG_PATH=${VCINSTALLDIR}\VC\Tools\LLVM\x64\bin`n"
+          Invoke-WebRequest "${env:FFMPEG_DOWNLOAD_URL}" -OutFile ffmpeg-release-full-shared.7z
+          7z x ffmpeg-release-full-shared.7z
+          mkdir ffmpeg
+          mv ffmpeg-*/* ffmpeg/
+          Add-Content $env:GITHUB_ENV "FFMPEG_DIR=${pwd}\ffmpeg`n"
+          Add-Content $env:GITHUB_PATH "${pwd}\ffmpeg\bin`n"
+        if: runner.os == 'Windows'
+
       - name: Build package Linux
         env:
           PY_VERSION: ${{ matrix.python.name }}
