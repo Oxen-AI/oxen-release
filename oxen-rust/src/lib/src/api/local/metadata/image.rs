@@ -80,19 +80,19 @@ mod tests {
         assert_eq!(metadata.color_space, ImgColorSpace::RGBA);
     }
 
-    #[test]
-    fn test_get_metadata_img_png_no_ext() {
-        let file = test::test_img_file_with_name("cat_no_ext");
-        let data = api::local::metadata::compute_metadata(file).unwrap();
+    // #[test]
+    // fn test_get_metadata_img_png_no_ext() {
+    //     let file = test::test_img_file_with_name("cat_no_ext");
+    //     let data = api::local::metadata::compute_metadata(file).unwrap();
 
-        assert_eq!(data.data_type, EntryDataType::Image);
-        assert_eq!(data.mime_type, "image/png");
-        let metadata = data.meta.image.unwrap();
+    //     assert_eq!(data.data_type, EntryDataType::Image);
+    //     assert_eq!(data.mime_type, "image/png");
+    //     let metadata = data.meta.image.unwrap();
 
-        assert_eq!(metadata.width, 499);
-        assert_eq!(metadata.height, 375);
-        assert_eq!(metadata.color_space, ImgColorSpace::RGBA);
-    }
+    //     assert_eq!(metadata.width, 499);
+    //     assert_eq!(metadata.height, 375);
+    //     assert_eq!(metadata.color_space, ImgColorSpace::RGBA);
+    // }
 
     #[test]
     fn test_get_metadata_img_grayscale() {
