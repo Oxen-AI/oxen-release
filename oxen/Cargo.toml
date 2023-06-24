@@ -9,13 +9,13 @@ name = "oxen"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.18"
-pyo3-asyncio = { version = "0.18", features = ["attributes", "tokio-runtime"] }
+pyo3 = "0.19"
+pyo3-asyncio = { git = "https://github.com/awestlake87/pyo3-asyncio.git", rev = "2cdf4d7ed932b6d0a3dc2756189bdd17a050e7f7", features = ["attributes", "tokio-runtime"] }
 log = "0.4.17"
 pyo3-log = "0.8.1"
 tokio = { version = "1", features = ["full"] }
-pyo3-polars = "0.3.0"
-liboxen = "0.6.3"
+pyo3-polars = "0.4.1"
+liboxen = "0.6.4"
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
