@@ -53,7 +53,7 @@ jobs:
             name: "macOS arm64"
           },
           {
-            os: "macos-12",
+            os: "macos-13",
             python-architecture: "x64",
             rust-target: "x86_64-apple-darwin",
             name: "macOS x64"
@@ -148,8 +148,8 @@ jobs:
       - name: Build package macOS x86
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
-          CXXFLAGS: "-fno-aligned-allocation"
-          CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
+          CXXFLAGS: "-fno-aligned-allocation -std=c++11"
+          # CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
         run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'x86_64-apple-darwin'
       - name: Build package macOS arm64
