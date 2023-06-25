@@ -53,7 +53,7 @@ jobs:
             name: "macOS arm64"
           },
           {
-            os: "macos-13",
+            os: "macos-13-xl", # try xl?
             python-architecture: "x64",
             rust-target: "x86_64-apple-darwin",
             name: "macOS x64"
@@ -149,8 +149,9 @@ jobs:
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
           CXXFLAGS: "-fno-aligned-allocation -std=c++11"
+          # TECHNICALLY I don't think we've tried this original CPLUS_INCLUDE_PATH in github actions
           # CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
-          CPLUS_INCLUDE_PATH: /Applications/Xcode_14.3.1.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1
+          CPLUS_INCLUDE_PATH: /Applications/Xcode_15.0.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1
         run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'x86_64-apple-darwin'
       - name: Build package macOS arm64
