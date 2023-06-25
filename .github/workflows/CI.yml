@@ -114,9 +114,9 @@ jobs:
         run: pip install maturin[patchelf] pygithub
         if: matrix.platform.rust-target == 'x86_64-unknown-linux-gnu'
 
-      - name: Install dependencies OSX
-        run: brew install pkg-config ffmpeg imagemagick
-        if: matrix.platform.os == 'macos-13'
+      # - name: Install dependencies OSX
+      #   run: brew install pkg-config ffmpeg imagemagick
+      #   if: matrix.platform.os == 'macos-13'
 
       - name: Install Deps Linux
         run: |
