@@ -149,7 +149,7 @@ jobs:
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
           CXXFLAGS: "-fno-aligned-allocation"
-          CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
+          # CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
         run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'x86_64-apple-darwin'
       - name: Build package macOS arm64
