@@ -106,7 +106,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/staging/{identifier}/status/{resource:.*}",
             web::get().to(controllers::stager::status_dir),
         )
+        // STAGING
         // TODO: add GET for downloading the file from the staging area
+        // TODO: implement delete dir from staging to recursively unstage
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/entries/{resource:.*}",
+            web::post().to(controllers::stager::add_file),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/entries/{resource:.*}",
+            web::delete().to(controllers::stager::delete_file),
+        )
+        // END STAGING
+        // DEPRECIATED STAGING
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
             web::post().to(controllers::stager::add_file),
@@ -115,7 +127,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
             web::delete().to(controllers::stager::delete_file),
         )
-        // TODO: delete "dir" from staging to recursively unstage a dir
+        // END DEPRECIATED STAGING
         // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
