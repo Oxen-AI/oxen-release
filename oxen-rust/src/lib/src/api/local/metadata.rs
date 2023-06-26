@@ -16,7 +16,7 @@ pub mod text;
 pub mod video;
 
 /// Returns the metadata given a file path
-pub fn compute_metadata(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
+pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let path = path.as_ref();
     let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
     let size = get_file_size(path)?;
@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn test_get_metadata_audio_flac() {
         let file = test::test_audio_file_with_name("121-121726-0005.flac");
-        let metadata = api::local::metadata::compute_metadata(file).unwrap();
+        let metadata = api::local::metadata::get(file).unwrap();
 
         println!("metadata: {:?}", metadata);
 

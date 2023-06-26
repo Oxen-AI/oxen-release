@@ -72,7 +72,7 @@ pub fn get_metadata(_path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError>
 //     #[test]
 //     fn test_get_metadata_video_mp4() {
 //         let file = test::test_video_file_with_name("basketball.mp4");
-//         let metadata = api::local::metadata::compute_metadata(file).unwrap();
+//         let metadata = api::local::metadata::get(file).unwrap();
 //         println!("metadata: {:?}", metadata);
 
 //         assert_eq!(metadata.size, 23599);
