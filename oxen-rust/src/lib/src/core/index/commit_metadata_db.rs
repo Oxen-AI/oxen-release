@@ -169,6 +169,11 @@ pub fn aggregate_col(
         // log::debug!("\n--------------DONE-----------------\n");
     }
 
+    // Make sure we don't unwrap an empty default
+    if combined_df.is_none() {
+        return Ok(DataFrame::default());
+    }
+
     Ok(combined_df.unwrap())
 }
 
