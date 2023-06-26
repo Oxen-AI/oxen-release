@@ -1,6 +1,7 @@
 import oxen
 import numpy as np
 import cv2
+from tqdm import tqdm
 
 
 class ResizeImages(oxen.Op):
@@ -88,9 +89,12 @@ class ResizeImages(oxen.Op):
             return np.array(args[0])
 
         n_channels = args[0][0].shape[2]
-        result = np.zeros((len(args[0]), args[1], args[1], n_channels))
+        out_dtype = args[0][0].dtype
+        result = np.zeros((len(args[0]), args[1], args[1],
+                            n_channels,), dtype=out_dtype,)
 
-        for i in range(len(args[0])):
+        print("Resizing images...")
+        for i in tqdm(range(len(args[0]))):
             if args[2] == "crop":
                 modified = self.crop(args[0][i], args[1])
             elif args[2] == "pad":
