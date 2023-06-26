@@ -13,6 +13,7 @@ pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
 pub const DOWNLOAD: &str = "download";
 pub const INIT: &str = "init";
+pub const INFO: &str = "info";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const LOG: &str = "log";
 pub const LS: &str = "ls";
@@ -153,6 +154,19 @@ pub fn status() -> Command {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(Arg::new("path").required(false))
+}
+
+pub fn info() -> Command {
+    Command::new(INFO)
+        .about("Get metadata information about a file such as the oxen hash, data type, etc.")
+        .arg(Arg::new("path").required(false))
+        .arg(
+            Arg::new("verbose")
+                .long("verbose")
+                .short('v')
+                .help("If present, will print all the field names.")
+                .action(clap::ArgAction::SetTrue),
+        )
 }
 
 pub fn metadata() -> Command {

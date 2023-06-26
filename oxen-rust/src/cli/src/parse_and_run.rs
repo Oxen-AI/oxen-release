@@ -375,6 +375,25 @@ pub async fn status(sub_matches: &ArgMatches) {
     }
 }
 
+pub fn info(sub_matches: &ArgMatches) {
+    let path = sub_matches.get_one::<String>("path").map(PathBuf::from);
+
+    if path.is_none() {
+        eprintln!("Must supply path.");
+        return;
+    }
+
+    let path = path.unwrap();
+    let verbose = sub_matches.get_flag("verbose");
+
+    match dispatch::info(&path, verbose) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
 async fn remote_log(sub_matches: &ArgMatches) {
     let committish = sub_matches
         .get_one::<String>("COMMITTISH")
