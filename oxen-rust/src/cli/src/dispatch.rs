@@ -416,7 +416,7 @@ pub fn info(path: impl AsRef<Path>, verbose: bool) -> Result<(), OxenError> {
     }
 
     // get file metadata
-    let metadata = api::local::metadata::get(&path)?;
+    let metadata = api::local::metadata::get(path)?;
     let hash = util::hasher::hash_file_contents(path)?;
 
     /*
