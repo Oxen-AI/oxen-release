@@ -20,7 +20,9 @@ class ReadImageDir(oxen.Op):
     def call(self, args):
         image_data = []
         prefix = args[0]
+        print("Reading images...")
         for path in tqdm(args[1]):
             img = cv2.imread(f"{prefix}/{path}", cv2.IMREAD_UNCHANGED)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             image_data.append(img)
         return image_data
