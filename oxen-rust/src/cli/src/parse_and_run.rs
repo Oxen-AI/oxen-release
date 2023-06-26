@@ -386,7 +386,7 @@ pub fn info(sub_matches: &ArgMatches) {
     let path = path.unwrap();
     let verbose = sub_matches.get_flag("verbose");
 
-    match dispatch::info(&path, verbose) {
+    match dispatch::info(path, verbose) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
