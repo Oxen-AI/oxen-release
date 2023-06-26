@@ -420,7 +420,7 @@ pub fn info(path: impl AsRef<Path>, verbose: bool) -> Result<(), OxenError> {
     let hash = util::hasher::hash_file_contents(path)?;
 
     /*
-    path hash size data_type mime_type extension
+    hash size data_type mime_type extension
     */
     if verbose {
         println!("hash\tsize\tdata_type\tmime_type\textension");
