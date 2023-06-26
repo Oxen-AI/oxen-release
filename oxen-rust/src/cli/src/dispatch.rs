@@ -383,7 +383,7 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
         return remote_status(directory, opts).await;
     }
 
-    // Should we let user call this from any directory and look up for parent?
+    // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
@@ -409,8 +409,33 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
     Ok(())
 }
 
+pub fn info(path: impl AsRef<Path>, verbose: bool) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(OxenError::path_does_not_exist(path));
+    }
+
+    // get file metadata
+    let metadata = api::local::metadata::get(path)?;
+    let hash = util::hasher::hash_file_contents(path)?;
+
+    /*
+    hash size data_type mime_type extension
+    */
+    if verbose {
+        println!("hash\tsize\tdata_type\tmime_type\textension");
+    }
+
+    println!(
+        "{}\t{}\t{}\t{}\t{}",
+        hash, metadata.size, metadata.data_type, metadata.mime_type, metadata.extension
+    );
+
+    Ok(())
+}
+
 async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
-    // Should we let user call this from any directory and look up for parent?
+    // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
@@ -447,7 +472,7 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
 }
 
 pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Result<(), OxenError> {
-    // Should we let user call this from any directory and look up for parent?
+    // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 

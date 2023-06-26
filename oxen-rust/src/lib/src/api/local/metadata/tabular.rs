@@ -28,7 +28,7 @@ mod tests {
     #[test]
     fn test_get_metadata_tabular() {
         let file = test::test_text_file_with_name("celeb_a_200k.csv");
-        let metadata = api::local::metadata::compute_metadata(file).unwrap();
+        let metadata = api::local::metadata::get(file).unwrap();
 
         assert_eq!(metadata.size, 9604701);
         assert_eq!(metadata.data_type, EntryDataType::Tabular);
