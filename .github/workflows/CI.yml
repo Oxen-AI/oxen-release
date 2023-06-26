@@ -152,10 +152,9 @@ jobs:
       - name: Build package macOS x86
         env:
           PY_LOCATION: ${{ env.pythonLocation }}
-          CXXFLAGS: "-fno-aligned-allocation -std=c++11"
-          # TECHNICALLY I don't think we've tried this original CPLUS_INCLUDE_PATH in github actions
+          CXXFLAGS: "-fno-aligned-allocation"
+          MACOSX_DEPLOYMENT_TARGET: '13.0'
           # CPLUS_INCLUDE_PATH: ${{ runner.temp }}/llvm/include/c++/v1/
-          CPLUS_INCLUDE_PATH: /Applications/Xcode_14.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1
         run: cd oxen && maturin build --out dist --release --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.rust-target == 'x86_64-apple-darwin'
       - name: Build package macOS arm64
