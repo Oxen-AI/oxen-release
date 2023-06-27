@@ -164,7 +164,13 @@ pub fn info() -> Command {
             Arg::new("verbose")
                 .long("verbose")
                 .short('v')
-                .help("If present, will print all the field names.")
+                .help("If present, will print all the field names when printing as tab separated list.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("json")
+                .long("json")
+                .help("If present, will print the metadata info as json.")
                 .action(clap::ArgAction::SetTrue),
         )
 }

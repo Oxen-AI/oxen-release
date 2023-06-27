@@ -72,6 +72,22 @@ pub struct MetadataItem {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CLIMetadataEntry {
+    pub filename: String,
+    pub last_updated: Option<Commit>,
+    // Hash of the file
+    pub hash: String,
+    // size of the file in bytes
+    pub size: u64,
+    // high level type of "image", "text", "video", "audio", "tabular"
+    pub data_type: EntryDataType,
+    // auto detected mime type of the file (e.g. "image/png")
+    pub mime_type: String,
+    // auto detected extension of the file
+    pub extension: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetadataEntry {
     pub filename: String,
     pub is_dir: bool,
@@ -85,6 +101,4 @@ pub struct MetadataEntry {
     pub mime_type: String,
     // auto detected extension of the file
     pub extension: String,
-    // type specific metadata
-    pub meta: MetadataItem,
 }
