@@ -587,6 +587,25 @@ Oxen currently has three ways to deal with merge conflicts.
 
 If you use the `--combine` flag, oxen will concatenate the data frames and unique them based on the row values.
 
+## Content Hashing and Core Metadata Extraction
+
+Oxen uses some core metadata around the file to be able to version and transfer the data efficiently. Any time a file gets versioned, it's hash is computed and the contents is put into a content addressable filesystem. These files can be found in the hidden `.oxen` directory. For example a file with the hash `7f65e0e4bda0acc99c56ecacbe092141` will be stored in `.oxen/versions/files/7f/65e0e4bda0acc99c56ecacbe092141/` for fast random access given the hash.
+
+To find out more info about a file with the CLI you can use the `oxen info` command. For example:
+
+```bash
+$ oxen info images/test.jpg
+fa42a17de86fa628b7caa8df6ba4d774	83851	image	image/jpeg	jpg
+```
+
+If you want to know the column names of each field, used the -v flag. All fields are separated by a tab so it is easy to pipe into `cut` or other unix style commands.
+
+```bash
+$ oxen info images/test.jpg -v
+hash	size	data_type	mime_type	extension
+fa42a17de86fa628b7caa8df6ba4d774	83851	image	image/jpeg	jpg
+```
+
 ## Support
 
 If you have any questions, comments, suggestions, or just want to get in contact with the team, feel free to email us at `hello@oxen.ai`
