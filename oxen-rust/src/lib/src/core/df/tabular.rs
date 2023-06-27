@@ -720,7 +720,7 @@ pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result
         }
         Err(err) => {
             let error_str = format!("Could not create file {:?}", err);
-            Err(OxenError::basic_str(&error_str))
+            Err(OxenError::basic_str(error_str))
         }
     }
 }

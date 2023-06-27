@@ -68,7 +68,9 @@ pub fn get_file_metadata(
         EntryDataType::Video => Ok(MetadataItem {
             text: None,
             image: None,
-            video: Some(video::get_metadata(path)?),
+            // TODO: figure out better library for video than ffmpeg
+            // video: Some(video::get_metadata(path)?),
+            video: None,
             audio: None,
             tabular: None,
         }),
@@ -76,7 +78,9 @@ pub fn get_file_metadata(
             text: None,
             image: None,
             video: None,
-            audio: Some(audio::get_metadata(path)?),
+            // TODO: figure out better library for audio than ffmpeg
+            // audio: Some(audio::get_metadata(path)?),
+            audio: None,
             tabular: None,
         }),
         EntryDataType::Tabular => Ok(MetadataItem {
