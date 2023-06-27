@@ -43,6 +43,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             log::debug!("Aggregating {column} for commit {commit:?}");
             let mut df = commit_metadata_db::aggregate_col(repo, commit, &dir, column)?;
             let path = dir_column_path(repo, commit, &dir, column);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
             log::debug!("Writing cached df {} to {}", column, path.display());
             tabular::write_df(&mut df, &path)?;
         }

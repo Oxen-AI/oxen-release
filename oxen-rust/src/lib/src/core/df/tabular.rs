@@ -713,9 +713,16 @@ pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result
     let output = output.as_ref();
     let error_str = format!("Could not save tabular data to path: {output:?}");
     log::debug!("Writing file {:?}", output);
-    let f = std::fs::File::create(output).unwrap();
-    ParquetWriter::new(f).finish(df).expect(&error_str);
-    Ok(())
+    match std::fs::File::create(output) {
+        Ok(f) => {
+            ParquetWriter::new(f).finish(df).expect(&error_str);
+            Ok(())
+        }
+        Err(err) => {
+            let error_str = format!("Could not create file {:?}", err);
+            Err(OxenError::basic_str(error_str))
+        }
+    }
 }
 
 pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(), OxenError> {
