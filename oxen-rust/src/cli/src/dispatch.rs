@@ -409,27 +409,48 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
     Ok(())
 }
 
-pub fn info(path: impl AsRef<Path>, verbose: bool) -> Result<(), OxenError> {
+pub fn info(path: impl AsRef<Path>, verbose: bool, output_as_json: bool) -> Result<(), OxenError> {
+    // Look up from the current dir for .oxen directory
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
     let path = path.as_ref();
     if !path.exists() {
+        eprintln!("Path does not exist: {:?}", path);
         return Err(OxenError::path_does_not_exist(path));
     }
 
     // get file metadata
-    let metadata = api::local::metadata::get(path)?;
+    let metadata = api::local::metadata::get_cli(&repository, path)?;
     let hash = util::hasher::hash_file_contents(path)?;
 
-    /*
-    hash size data_type mime_type extension
-    */
-    if verbose {
-        println!("hash\tsize\tdata_type\tmime_type\textension");
-    }
+    if output_as_json {
+        let json = serde_json::to_string(&metadata)?;
+        println!("{}", json);
+    } else {
+        /*
+        hash size data_type mime_type extension last_updated_commit_id
+        */
+        if verbose {
+            println!("hash\tsize\tdata_type\tmime_type\textension\tlast_updated_commit_id");
+        }
 
-    println!(
-        "{}\t{}\t{}\t{}\t{}",
-        hash, metadata.size, metadata.data_type, metadata.mime_type, metadata.extension
-    );
+        let mut last_updated_commit_id = String::from("None");
+        if let Some(commit) = metadata.last_updated {
+            last_updated_commit_id = commit.id;
+        }
+
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}",
+            hash,
+            metadata.size,
+            metadata.data_type,
+            metadata.mime_type,
+            metadata.extension,
+            last_updated_commit_id
+        );
+    }
 
     Ok(())
 }

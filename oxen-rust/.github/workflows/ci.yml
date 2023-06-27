@@ -123,7 +123,8 @@ jobs:
 
   test:
     name: Test Suite
-    runs-on: ubuntu-latest
+    # test suite is too slow on ubuntu-latest, use macos-latest-xl to use more CPU cores
+    runs-on: macos-latest-xl
     steps:
       - uses: actions/checkout@v2
       - name: Install system dependencies

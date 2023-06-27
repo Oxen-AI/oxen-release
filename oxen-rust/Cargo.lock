@@ -3228,6 +3228,7 @@ dependencies = [
  "env_logger",
  "liboxen",
  "minus",
+ "serde_json",
  "time 0.3.22",
  "tokio",
 ]

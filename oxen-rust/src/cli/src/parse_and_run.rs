@@ -385,11 +385,12 @@ pub fn info(sub_matches: &ArgMatches) {
 
     let path = path.unwrap();
     let verbose = sub_matches.get_flag("verbose");
+    let output_as_json = sub_matches.get_flag("json");
 
-    match dispatch::info(path, verbose) {
+    match dispatch::info(path, verbose, output_as_json) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{err}")
+            eprintln!("Error getting info: {err}")
         }
     }
 }
