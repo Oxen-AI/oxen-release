@@ -150,8 +150,8 @@ jobs:
           toolchain: stable
           override: true
 
-      - uses: icepuma/rust-action@32deca3ee074df35b446b23b973b4acda4c4541f
-      - run: |
+      - name: Run Tests
+        run: |
           cargo build
           mkdir /tmp/oxen_sync/
           mkdir data/test/runs
