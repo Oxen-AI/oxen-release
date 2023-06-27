@@ -1,10 +1,12 @@
 //! Helper functions to get metadata from the local filesystem.
 //!
 
+use crate::core::index::commit_entry_reader::CommitEntryReader;
+use crate::core::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
-use crate::model::entry::metadata_entry::MetadataItem;
-use crate::model::MetadataEntry;
+use crate::model::entry::metadata_entry::{CLIMetadataEntry, MetadataItem};
+use crate::model::{Commit, LocalRepository, MetadataEntry};
 use crate::util;
 
 use std::path::Path;
@@ -23,8 +25,6 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, mime_type.as_str());
     let extension = util::fs::file_extension(path);
-    // MetaData based on data_type
-    let meta = get_file_metadata(path, &data_type)?;
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
@@ -35,7 +35,73 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         data_type,
         mime_type,
         extension,
-        meta,
+    })
+}
+
+/// Returns metadata with latest commit information. Less efficient than get().
+pub fn get_cli(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+) -> Result<CLIMetadataEntry, OxenError> {
+    let path = path.as_ref();
+    let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
+    let size = get_file_size(path)?;
+    let hash = util::hasher::hash_file_contents(path)?;
+    let mime_type = util::fs::file_mime_type(path);
+    let data_type = util::fs::datatype_from_mimetype(path, mime_type.as_str());
+    let extension = util::fs::file_extension(path);
+
+    let commit_reader = CommitReader::new(repo)?;
+
+    // Not the most efficient, if there are a ton of commits, but it's the easiest way to get the last updated commit
+    let mut last_updated: Option<Commit> = None;
+    // Sort commits by timestamp
+    let mut commits = commit_reader.list_all()?;
+    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    // Now that we know the commits are sorted, we can iterate through them and find when the file was last updated
+    for commit in commits {
+        let commit_entry_reader = CommitEntryReader::new(repo, &commit)?;
+        match commit_entry_reader.get_entry(path) {
+            Ok(Some(entry)) => {
+                log::debug!(
+                    "considering commit {} for file {} and entry.hash {} current hash {}",
+                    commit,
+                    path.display(),
+                    entry.hash,
+                    hash
+                );
+                if last_updated.is_none() {
+                    last_updated = Some(commit.clone());
+                }
+
+                let latest = last_updated.as_ref().unwrap();
+
+                // make sure the commit is newer than the last one
+                // and that the hash is the same as the current version
+                // if the hash is the same as the current data, this is the latest commit given that file
+                if commit.timestamp >= latest.timestamp && entry.hash == hash {
+                    last_updated = Some(commit);
+                    break;
+                }
+            }
+            Ok(None) => {
+                continue;
+            }
+            Err(err) => {
+                return Err(err);
+            }
+        }
+    }
+
+    Ok(CLIMetadataEntry {
+        filename: base_name.to_string_lossy().to_string(),
+        last_updated,
+        hash,
+        size,
+        data_type,
+        mime_type,
+        extension,
     })
 }
 

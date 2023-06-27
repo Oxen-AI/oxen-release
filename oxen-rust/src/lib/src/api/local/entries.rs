@@ -2,7 +2,6 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataItem;
 use crate::util;
 use crate::view::entry::ResourceVersion;
 use rayon::prelude::*;
@@ -81,13 +80,13 @@ pub fn meta_entry_from_dir(
             version: revision.to_string(),
             path: String::from(path.to_string_lossy()),
         }),
-        meta: MetadataItem {
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        // meta: MetadataItem {
+        //     text: None,
+        //     image: None,
+        //     video: None,
+        //     audio: None,
+        //     tabular: None,
+        // },
     });
 }
 
@@ -174,13 +173,13 @@ pub fn meta_entry_from_commit_entry(
             version: revision.to_string(),
             path: String::from(entry.path.to_string_lossy()),
         }),
-        meta: MetadataItem {
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        // meta: MetadataItem {
+        //     text: None,
+        //     image: None,
+        //     video: None,
+        //     audio: None,
+        //     tabular: None,
+        // },
     });
 }
 
