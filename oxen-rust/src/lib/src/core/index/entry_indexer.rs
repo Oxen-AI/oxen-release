@@ -50,11 +50,15 @@ impl EntryIndexer {
         };
 
         let head_commit = api::local::commits::head_commit(&self.repository)?;
-        if let Some(commit) = self.pull_all_commit_objects(&remote_repo, rb).await? {
+        if let Some(commit) = self.pull_first_commit_object(&remote_repo, rb).await? {
             self.pull_all_entries_for_commit(&remote_repo, &head_commit, &commit)
-                .await?;
+                .await
+        } else {
+            Err(OxenError::basic_str(format!(
+                "Could not pull commit {}",
+                head_commit
+            )))
         }
-        Ok(())
     }
 
     pub async fn pull_all_entries_for_commit(
@@ -70,7 +74,55 @@ impl EntryIndexer {
         );
         let limit: usize = 0; // zero means pull all
         self.pull_entries_for_commit(remote_repo, head_commit, commit.clone(), limit)
-            .await
+            .await?;
+        log::debug!(
+            "DONE! pull_all_entries_for_commit for commit: {} -> {}",
+            commit.id,
+            commit.message
+        );
+        Ok(())
+    }
+
+    pub async fn pull_first_commit_object(
+        &self,
+        remote_repo: &RemoteRepository,
+        rb: &RemoteBranch,
+    ) -> Result<Option<Commit>, OxenError> {
+        let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
+        let remote_branch = api::remote::branches::get_by_name(remote_repo, &rb.branch)
+            .await?
+            .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
+        match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id).await {
+            Ok(Some(commit)) => {
+                log::debug!(
+                    "Oxen pull got remote commit: {} -> '{}'",
+                    commit.id,
+                    commit.message
+                );
+
+                // Make sure this branch points to this commit
+                self.set_branch_name_for_commit(&rb.branch, &commit)?;
+
+                println!("🐂 fetching commit object {}", commit.id);
+                // Sync the commit object
+                self.pull_commit_data_objects(remote_repo, &commit).await?;
+
+                log::debug!(
+                    "pull_commit_object DONE {} -> '{}'",
+                    commit.id,
+                    commit.message
+                );
+                return Ok(Some(commit));
+            }
+            Ok(None) => {
+                eprintln!("oxen pull error: remote head does not exist");
+            }
+            Err(err) => {
+                log::debug!("oxen pull could not get remote head: {}", err);
+            }
+        }
+
+        Ok(None)
     }
 
     pub async fn pull_all_commit_objects(
@@ -157,7 +209,10 @@ impl EntryIndexer {
         match api::remote::commits::get_remote_parent(remote_repo, &commit.id).await {
             Ok(parents) => {
                 if parents.is_empty() {
-                    log::debug!("no parents for commit {}", commit.id);
+                    log::debug!(
+                        "check_parent_and_pull_commit_objects no parents for commit {}",
+                        commit.id
+                    );
                 } else {
                     // Recursively sync the parents
                     for parent in parents.iter() {
@@ -189,8 +244,12 @@ impl EntryIndexer {
         );
 
         // Download the specific commit_db that holds all the entries
-        api::remote::commits::download_commit_db_to_repo(&self.repository, remote_repo, &commit.id)
-            .await?;
+        api::remote::commits::download_commit_entries_db_to_repo(
+            &self.repository,
+            remote_repo,
+            &commit.id,
+        )
+        .await?;
 
         // Get commit and write it to local DB
         let remote_commit = api::remote::commits::get_by_id(remote_repo, &commit.id)
@@ -410,12 +469,60 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
+    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::core::index::EntryIndexer;
     use crate::error::OxenError;
     use crate::model::RemoteBranch;
     use crate::opts::CloneOpts;
     use crate::test;
     use crate::util;
+
+    #[tokio::test]
+    async fn test_indexer_pull_full_commit_history() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+            // Get the commits from the local repo to compare against later
+            let og_commits = api::local::commits::list_all(&repo)?;
+
+            // Set the proper remote
+            let name = repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            let remote_repo = api::remote::repositories::create(
+                &repo,
+                constants::DEFAULT_NAMESPACE,
+                &name,
+                test::test_host(),
+            )
+            .await?;
+
+            command::push(&repo).await?;
+
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                opts.shallow = true;
+
+                let cloned_repo = command::clone(&opts).await?;
+                let indexer = EntryIndexer::new(&cloned_repo)?;
+
+                let rb = RemoteBranch {
+                    remote: DEFAULT_REMOTE_NAME.to_owned(),
+                    branch: DEFAULT_BRANCH_NAME.to_owned(),
+                };
+
+                // Pull all the commit objects
+                indexer.pull_all_commit_objects(&remote_repo, &rb).await?;
+
+                let pulled_commits = api::local::commits::list_all(&repo)?;
+                assert_eq!(pulled_commits.len(), og_commits.len());
+
+                Ok(new_repo_dir)
+            })
+            .await
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_indexer_partial_pull_then_full() -> Result<(), OxenError> {

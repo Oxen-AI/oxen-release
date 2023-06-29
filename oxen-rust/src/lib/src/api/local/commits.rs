@@ -3,65 +3,63 @@
 //! Interact with local commits.
 //!
 
-use crate::api;
 use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
+use crate::view::{PaginatedCommits, StatusMessage};
+use crate::{api, util};
 
 use rayon::prelude::*;
 use std::path::Path;
 
-// Iterate over commits and get the one with the latest timestamp
+/// Iterate over commits and get the one with the latest timestamp
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let reader = CommitReader::new(repo)?;
     reader.latest_commit()
 }
 
+/// The current HEAD commit of the branch you are on
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let reader = CommitReader::new(repo)?;
     reader.head_commit()
 }
 
+/// Get the root commit of a repository
+pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commit = committer.root_commit()?;
+    Ok(commit)
+}
+
+/// Get a commit by it's hash
 pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
     let reader = CommitReader::new(repo)?;
     reader.get_commit_by_id(commit_id)
 }
 
-pub fn get_by_id_or_branch(
+/// Get a commit by it's revision. ie: hash or branch name
+pub fn get_by_revision(
     repo: &LocalRepository,
-    branch_or_commit: &str,
+    revision: &str,
 ) -> Result<Option<Commit>, OxenError> {
     log::debug!(
-        "get_by_id_or_branch checking commit id {} in {:?}",
-        branch_or_commit,
+        "get_by_revision checking commit id {} in {:?}",
+        revision,
         repo.path
     );
     let ref_reader = RefReader::new(repo)?;
-    let commit_id = match ref_reader.get_commit_id_for_branch(branch_or_commit)? {
+    let commit_id = match ref_reader.get_commit_id_for_branch(revision)? {
         Some(branch_commit_id) => branch_commit_id,
-        None => String::from(branch_or_commit),
+        None => String::from(revision),
     };
     log::debug!(
-        "get_by_id_or_branch resolved commit id {} -> {}",
-        branch_or_commit,
+        "get_by_revision resolved commit id {} -> {}",
+        revision,
         commit_id
     );
     let reader = CommitReader::new(repo)?;
     reader.get_commit_by_id(commit_id)
-}
-
-/// Current head commit
-pub fn get_head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let committer = CommitReader::new(repo)?;
-    committer.head_commit()
-}
-
-/// Get the root commit
-pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let committer = CommitReader::new(repo)?;
-    let commit = committer.root_commit()?;
-    Ok(commit)
 }
 
 pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit>, OxenError> {
@@ -195,7 +193,7 @@ pub async fn list_with_opts(
         let committer = CommitReader::new(repo)?;
 
         let commits = if let Some(committish) = &opts.committish {
-            let commit = get_by_id_or_branch(repo, committish)?.ok_or(
+            let commit = get_by_revision(repo, committish)?.ok_or(
                 OxenError::committish_not_found(committish.to_string().into()),
             )?;
             committer.history_from_commit_id(&commit.id)?
@@ -206,13 +204,13 @@ pub async fn list_with_opts(
     }
 }
 
-/// # List the history for a specific branch or commit
-pub fn list_from(repo: &LocalRepository, commit_or_branch: &str) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("log_commit_or_branch_history: {}", commit_or_branch);
+/// List the history for a specific branch or commit (revision)
+pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, OxenError> {
+    log::debug!("list_from: {}", revision);
     let committer = CommitReader::new(repo)?;
-    if commit_or_branch.contains("..") {
+    if revision.contains("..") {
         // This is BASE..HEAD format, and we only want to history from BASE to HEAD
-        let split: Vec<&str> = commit_or_branch.split("..").collect();
+        let split: Vec<&str> = revision.split("..").collect();
         let base = split[0];
         let head = split[1];
         let base_commit_id = match api::local::branches::get_commit_id(repo, base)? {
@@ -224,28 +222,40 @@ pub fn list_from(repo: &LocalRepository, commit_or_branch: &str) -> Result<Vec<C
             None => String::from(head),
         };
         log::debug!(
-            "log_commit_or_branch_history: base_commit_id: {} head_commit_id: {}",
+            "list_from: base_commit_id: {} head_commit_id: {}",
             base_commit_id,
             head_commit_id
         );
         return match committer.history_from_base_to_head(&base_commit_id, &head_commit_id) {
             Ok(commits) => Ok(commits),
-            Err(_) => Err(OxenError::local_commit_or_branch_not_found(
-                commit_or_branch,
-            )),
+            Err(_) => Err(OxenError::local_revision_not_found(revision)),
         };
     }
 
-    let commit_id = match api::local::branches::get_commit_id(repo, commit_or_branch)? {
+    let commit_id = match api::local::branches::get_commit_id(repo, revision)? {
         Some(branch_commit_id) => branch_commit_id,
-        None => String::from(commit_or_branch),
+        None => String::from(revision),
     };
 
-    log::debug!("log_commit_or_branch_history: commit_id: {}", commit_id);
+    log::debug!("list_from: commit_id: {}", commit_id);
     match committer.history_from_commit_id(&commit_id) {
         Ok(commits) => Ok(commits),
-        Err(_) => Err(OxenError::local_commit_or_branch_not_found(
-            commit_or_branch,
-        )),
+        Err(_) => Err(OxenError::local_revision_not_found(revision)),
     }
+}
+
+/// List paginated commits starting from the given revision
+pub fn list_from_paginated(
+    repo: &LocalRepository,
+    revision: &str,
+    page_number: usize,
+    page_size: usize,
+) -> Result<PaginatedCommits, OxenError> {
+    let commits = list_from(repo, revision)?;
+    let (commits, pagination) = util::paginate(commits, page_number, page_size);
+    Ok(PaginatedCommits {
+        status: StatusMessage::resource_found(),
+        commits,
+        pagination,
+    })
 }

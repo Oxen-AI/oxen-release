@@ -1,5 +1,5 @@
 use crate::api::remote::client;
-use crate::constants::HISTORY_DIR;
+use crate::constants::{COMMITS_DIR, HISTORY_DIR};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
@@ -114,16 +114,52 @@ pub async fn commit_is_synced(
     }
 }
 
-pub async fn download_commit_db_to_repo(
+/// Download the database of all the commits in a repository
+pub async fn download_commits_db_to_repo(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+) -> Result<PathBuf, OxenError> {
+    let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
+    download_commits_db_to_path(remote_repo, hidden_dir).await
+}
+
+pub async fn download_commits_db_to_path(
+    remote_repo: &RemoteRepository,
+    dst: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let uri = "/commits_db".to_string();
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("{} downloading from {}", current_function!(), url);
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(url).send().await?;
+
+    let dst = dst.as_ref();
+    let reader = res
+        .bytes_stream()
+        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+        .into_async_read();
+    let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+    let archive = Archive::new(decoder);
+    archive.unpack(dst).await?;
+    log::debug!("{} writing to {:?}", current_function!(), dst);
+
+    // On the server we pack up the data in a directory called "commits", so that is where it gets unpacked to
+    let unpacked_path = dst.join(COMMITS_DIR);
+    Ok(unpacked_path)
+}
+
+/// Download the database of all the entries given a commit
+pub async fn download_commit_entries_db_to_repo(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit_id: &str,
 ) -> Result<PathBuf, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    download_commit_db_to_path(remote_repo, commit_id, hidden_dir).await
+    download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
 }
 
-pub async fn download_commit_db_to_path(
+pub async fn download_commit_entries_db_to_path(
     remote_repo: &RemoteRepository,
     commit_id: &str,
     path: impl AsRef<Path>,
@@ -527,9 +563,13 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
+    use crate::constants::COMMITS_DIR;
     use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::core::db;
+    use crate::core::index::CommitDBReader;
     use crate::error::OxenError;
     use crate::test;
+    use rocksdb::{DBWithThreadMode, MultiThreaded};
 
     use std::thread;
 
@@ -719,6 +759,44 @@ mod tests {
             api::remote::repositories::delete(&remote_repo).await?;
 
             Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_download_commits_db() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            let local_commit_history = api::local::commits::list(&local_repo)?;
+            let remote_clone = remote_repo.clone();
+
+            test::run_empty_dir_test_async(|new_dir| async move {
+                // Download the db
+                let dst = api::remote::commits::download_commits_db_to_path(&remote_repo, &new_dir)
+                    .await?;
+
+                let db_dir = new_dir.join(COMMITS_DIR);
+                assert_eq!(dst, db_dir);
+                assert!(db_dir.exists());
+
+                let opts = db::opts::default();
+                let db: DBWithThreadMode<MultiThreaded> =
+                    DBWithThreadMode::open_for_read_only(&opts, &db_dir, false)?;
+                let commits = CommitDBReader::list_all(&db)?;
+
+                assert_eq!(commits.len(), local_commit_history.len());
+
+                // Then on clone
+                // 1) add a --all flag
+                // 2) first pull the commit db
+                // 3) then add a progress bar if we are doing the full pull as we grab each commit entry db
+                // 4) make sure to fully test --shallow vs regular (one revision) vs --all
+                // 5) document the default, advantage, and differences of each approach.
+
+                Ok(new_dir)
+            })
+            .await?;
+
+            Ok(remote_clone)
         })
         .await
     }

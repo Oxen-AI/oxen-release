@@ -111,7 +111,7 @@ impl LocalRepository {
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let toml = toml::to_string(&self)?;
-        util::fs::write_to_path(path, &toml)?;
+        util::fs::write_to_path(path, toml)?;
         Ok(())
     }
 
@@ -232,7 +232,7 @@ impl LocalRepository {
         // Pull all commit objects, but not entries
         let rb = RemoteBranch::from_branch(branch_name);
         let indexer = EntryIndexer::new(&local_repo)?;
-        match indexer.pull_all_commit_objects(&repo, &rb).await {
+        match indexer.pull_first_commit_object(&repo, &rb).await {
             Ok(_) => {
                 local_repo
                     .maybe_pull_entries(&repo, branch_name, &indexer, shallow)

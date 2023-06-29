@@ -129,7 +129,8 @@ pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
         .join(subdir)
 }
 
-pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
+pub fn read_from_path(path: impl AsRef<Path>) -> Result<String, OxenError> {
+    let path = path.as_ref();
     match std::fs::read_to_string(path) {
         Ok(contents) => Ok(contents),
         Err(_) => {
@@ -143,7 +144,9 @@ pub fn read_from_path(path: &Path) -> Result<String, OxenError> {
     }
 }
 
-pub fn write_to_path(path: &Path, value: &str) -> Result<(), OxenError> {
+pub fn write_to_path(path: impl AsRef<Path>, value: impl AsRef<str>) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let value = value.as_ref();
     match File::create(path) {
         Ok(mut file) => match file.write(value.as_bytes()) {
             Ok(_) => Ok(()),
