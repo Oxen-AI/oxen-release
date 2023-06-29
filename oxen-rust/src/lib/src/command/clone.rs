@@ -23,7 +23,8 @@ pub async fn clone_url(
     dst: impl AsRef<Path>,
 ) -> Result<LocalRepository, OxenError> {
     let shallow = false;
-    _clone(url, dst, shallow).await
+    let all = false;
+    _clone(url, dst, shallow, all).await
 }
 
 pub async fn shallow_clone_url(
@@ -31,18 +32,21 @@ pub async fn shallow_clone_url(
     dst: impl AsRef<Path>,
 ) -> Result<LocalRepository, OxenError> {
     let shallow = true;
-    _clone(url, dst, shallow).await
+    let all = false;
+    _clone(url, dst, shallow, all).await
 }
 
 async fn _clone(
     url: impl AsRef<str>,
     dst: impl AsRef<Path>,
     shallow: bool,
+    all: bool,
 ) -> Result<LocalRepository, OxenError> {
     let opts = CloneOpts {
         url: url.as_ref().to_string(),
         dst: dst.as_ref().to_owned(),
         shallow,
+        all,
         branch: DEFAULT_BRANCH_NAME.to_string(),
     };
     clone(&opts).await

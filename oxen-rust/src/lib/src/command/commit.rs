@@ -21,7 +21,7 @@ use crate::model::{Commit, LocalRepository};
 /// # test::init_test_env();
 ///
 /// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir_commit");
+/// let base_dir = Path::new("repo_dir_commit");
 /// let repo = command::init(base_dir)?;
 ///
 /// // Write file to disk

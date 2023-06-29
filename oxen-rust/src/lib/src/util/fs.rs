@@ -911,19 +911,25 @@ mod tests {
 
     #[test]
     fn file_path_relative_to_dir() -> Result<(), OxenError> {
-        let file = Path::new("data/test/other/file.txt");
-        let dir = Path::new("data/test/");
+        let file = Path::new("data")
+            .join("test")
+            .join("other")
+            .join("file.txt");
+        let dir = Path::new("data").join("test");
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
-        assert_eq!(relative, Path::new("other/file.txt"));
+        assert_eq!(relative, Path::new("other").join("file.txt"));
 
         Ok(())
     }
 
     #[test]
     fn file_path_2_relative_to_dir() -> Result<(), OxenError> {
-        let file = Path::new("data/test/other/file.txt");
-        let dir = Path::new("data/test/other");
+        let file = Path::new("data")
+            .join("test")
+            .join("other")
+            .join("file.txt");
+        let dir = Path::new("data").join("test").join("other");
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
         assert_eq!(relative, Path::new("file.txt"));
@@ -933,8 +939,12 @@ mod tests {
 
     #[test]
     fn file_path_3_relative_to_dir() -> Result<(), OxenError> {
-        let file = Path::new("data/test/runs/54321/file.txt");
-        let dir = Path::new("data/test/runs/54321");
+        let file = Path::new("data")
+            .join("test")
+            .join("runs")
+            .join("54321")
+            .join("file.txt");
+        let dir = Path::new("data").join("test").join("runs").join("54321");
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
         assert_eq!(relative, Path::new("file.txt"));
@@ -944,8 +954,11 @@ mod tests {
 
     #[test]
     fn full_file_path_relative_to_dir() -> Result<(), OxenError> {
-        let file = Path::new("/tmp/data/test/other/file.txt");
-        let dir = Path::new("/tmp/data/test/other");
+        let file = Path::new("data")
+            .join("test")
+            .join("other")
+            .join("file.txt");
+        let dir = Path::new("data").join("test").join("other");
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
         assert_eq!(relative, Path::new("file.txt"));
@@ -955,8 +968,8 @@ mod tests {
 
     #[test]
     fn dir_path_relative_to_dir() -> Result<(), OxenError> {
-        let file = Path::new("data/test/other");
-        let dir = Path::new("data/test/");
+        let file = Path::new("data").join("test").join("other");
+        let dir = Path::new("data").join("test");
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
         assert_eq!(relative, Path::new("other"));
@@ -966,11 +979,11 @@ mod tests {
 
     #[test]
     fn dir_path_relative_to_another_dir() -> Result<(), OxenError> {
-        let file = Path::new("data/test/other/dir");
-        let dir = Path::new("data/test/");
+        let file = Path::new("data").join("test").join("other").join("dir");
+        let dir = Path::new("data").join("test");
 
         let relative = util::fs::path_relative_to_dir(file, dir)?;
-        assert_eq!(relative, Path::new("other/dir"));
+        assert_eq!(relative, Path::new("other").join("dir"));
 
         Ok(())
     }
@@ -1027,8 +1040,20 @@ mod tests {
 
             let test_id_file = repo.path.join("test_id.txt");
             let test_id_file_no_ext = repo.path.join("test_id");
-            util::fs::copy("data/test/text/test_id.txt", &test_id_file)?;
-            util::fs::copy("data/test/text/test_id.txt", &test_id_file_no_ext)?;
+            util::fs::copy(
+                Path::new("data")
+                    .join("test")
+                    .join("text")
+                    .join("test_id.txt"),
+                &test_id_file,
+            )?;
+            util::fs::copy(
+                Path::new("data")
+                    .join("test")
+                    .join("text")
+                    .join("test_id.txt"),
+                &test_id_file_no_ext,
+            )?;
 
             assert_eq!(EntryDataType::Text, util::fs::file_data_type(&test_id_file));
             assert_eq!(

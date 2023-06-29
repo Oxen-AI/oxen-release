@@ -18,7 +18,7 @@ Run the server
 
 `./target/debug/oxen-server start`
 
-The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
+The default sync directory is `./data/` to change it set the SYNC_DIR environment variable to a path.
 
 For example
 

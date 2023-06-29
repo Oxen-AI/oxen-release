@@ -449,7 +449,7 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let path = test::test_nlp_classification_csv();
-            let entry = api::local::entries::get_meta_entry(&repo, commit, path)?;
+            let entry = api::local::entries::get_meta_entry(&repo, commit, &path)?;
 
             assert!(!entry.is_dir);
             assert_eq!(entry.filename, "test.tsv");

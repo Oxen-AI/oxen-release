@@ -55,7 +55,7 @@ mv user_config.toml ~/.oxen/user_config.toml
 cp ~/.oxen/user_config.toml data/test/config/user_config.toml
 ```
 
-Set where you want the data to be synced to. The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
+Set where you want the data to be synced to. The default sync directory is `./data/` to change it set the SYNC_DIR environment variable to a path.
 
 ```
 export SYNC_DIR=/path/to/sync/dir
@@ -116,10 +116,7 @@ oxen push origin main
 
 ## Structure
 
-Directories with repository names to simply sync data to, same internal file structure as your local repo
-
-/tmp/oxen_sync
-/repo_name
+Remote repositories have the same internal structure as local ones, with the caviate that all the data is in the .oxen dir and not duplicated into a "local workspace".
 
 # APIs
 

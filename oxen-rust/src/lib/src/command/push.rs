@@ -21,7 +21,7 @@ use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 /// # async fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 /// // Initialize the repository
-/// let base_dir = Path::new("/tmp/repo_dir_push");
+/// let base_dir = Path::new("repo_dir_push");
 /// let mut repo = command::init(base_dir)?;
 ///
 /// // Write file to disk
