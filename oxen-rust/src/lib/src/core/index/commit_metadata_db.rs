@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_index_metadata_db() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commit = api::local::commits::get_head_commit(&repo)?;
+            let commit = api::local::commits::head_commit(&repo)?;
 
             commit_metadata_db::index_commit(&repo, &commit)?;
 
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn test_aggregate_metadata_db() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commit = api::local::commits::get_head_commit(&repo)?;
+            let commit = api::local::commits::head_commit(&repo)?;
 
             commit_metadata_db::index_commit(&repo, &commit)?;
 

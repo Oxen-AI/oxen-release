@@ -647,8 +647,8 @@ mod tests {
                 command::pull_remote_branch(&cloned_repo, DEFAULT_REMOTE_NAME, "add-data").await?;
 
                 // We should have the commit locally
-                let log = api::local::commits::list(&cloned_repo)?;
-                assert_eq!(log.first().unwrap().id, commit.id);
+                let local_commit = api::local::commits::head_commit(&cloned_repo)?;
+                assert_eq!(local_commit.id, commit.id);
 
                 // The file should exist locally
                 println!("Looking for file at path: {:?}", path);

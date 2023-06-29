@@ -38,12 +38,12 @@ pub fn is_valid(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenErr
 
 fn write_is_valid(repo: &LocalRepository, commit: &Commit, val: &str) -> Result<(), OxenError> {
     let hash_file_path = util::fs::commit_content_is_valid_path(repo, commit);
-    util::fs::write_to_path(&hash_file_path, val)?;
+    util::fs::write_to_path(hash_file_path, val)?;
     Ok(())
 }
 
 fn read_is_valid(repo: &LocalRepository, commit: &Commit) -> Result<String, OxenError> {
     let hash_file_path = util::fs::commit_content_is_valid_path(repo, commit);
-    let value = util::fs::read_from_path(&hash_file_path)?;
+    let value = util::fs::read_from_path(hash_file_path)?;
     Ok(value)
 }
