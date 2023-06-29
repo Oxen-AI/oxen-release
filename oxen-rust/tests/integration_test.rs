@@ -159,7 +159,7 @@ fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenErro
         let initial_len = commits.len();
 
         let labels_path = repo.path.join("labels.txt");
-        util::fs::write_to_path(&labels_path, "changing this guy, but not committing")?;
+        util::fs::write_to_path(labels_path, "changing this guy, but not committing")?;
 
         let result = command::commit(&repo, "Should not work");
         assert!(result.is_err());
@@ -175,7 +175,7 @@ fn test_command_status_has_txt_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello World")?;
+        util::fs::write_to_path(hello_file, "Hello World")?;
 
         // Get status
         let repo_status = command::status(&repo)?;
@@ -1941,7 +1941,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
-            // Get cloned history
+            // Get cloned history, which should fall back to API if not found locally
             let cloned_history = api::local::commits::list(&cloned_repo)?;
 
             // Make sure the histories match
@@ -2420,7 +2420,7 @@ fn test_restore_directory() -> Result<(), OxenError> {
         assert_eq!(og_bbox_contents, restored_contents);
 
         // Make sure the modified file is restored
-        let restored_contents = util::fs::read_from_path(&readme_path)?;
+        let restored_contents = util::fs::read_from_path(readme_path)?;
         assert_eq!(og_readme_contents, restored_contents);
 
         Ok(())
@@ -2499,7 +2499,7 @@ fn test_restore_modified_text_data() -> Result<(), OxenError> {
 
         let og_contents = util::fs::read_from_path(&bbox_path)?;
         let new_contents = format!("{og_contents}\nnew 0");
-        util::fs::write_to_path(&bbox_path, &new_contents)?;
+        util::fs::write_to_path(&bbox_path, new_contents)?;
 
         command::restore(
             &repo,
@@ -3524,7 +3524,7 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
             let mut opts = DFOpts::empty();
             opts.add_row = Some("I am a new row,neutral".to_string());
             opts.content_type = ContentType::Csv;
-            command::remote::df(&cloned_repo, path, opts).await?;
+            command::remote::df(&cloned_repo, &path, opts).await?;
 
             // Local add col
             let full_path = cloned_repo.path.join(path);
@@ -3629,7 +3629,7 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
         // assert_eq!(branch.name, branch_name);
 
         // Advance head on main branch, leave behind-main behind
-        let path = test::test_img_file().to_path_buf();
+        let path = test::test_img_file();
         let result =
             api::remote::staging::add_file(&remote_repo, main_branch, &identifier, main_path, path)
                 .await;
@@ -3658,7 +3658,7 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
                 .await?;
 
         // Add file at images/folder to behind-main, committed to main
-        let image_path = test::test_img_file().to_path_buf();
+        let image_path = test::test_img_file();
         let result = api::remote::staging::add_file(
             &remote_repo,
             new_branch,

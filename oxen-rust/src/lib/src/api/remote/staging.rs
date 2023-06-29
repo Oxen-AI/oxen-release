@@ -455,7 +455,7 @@ mod tests {
 
             let directory_name = "images";
             let identifier = UserConfig::identifier()?;
-            let path = test::test_img_file().to_path_buf();
+            let path = test::test_img_file();
             let result = api::remote::staging::add_file(
                 &remote_repo,
                 branch_name,
@@ -500,7 +500,7 @@ mod tests {
 
             let identifier = UserConfig::identifier()?;
             let directory_name = "images";
-            let path = test::test_img_file().to_path_buf();
+            let path = test::test_img_file();
             let result = api::remote::staging::add_file(
                 &remote_repo,
                 branch_name,
@@ -557,7 +557,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let directory_name = "data";
             let paths = vec![
-                test::test_img_file().to_path_buf(),
+                test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
             let result = api::remote::staging::add_files(
@@ -603,7 +603,7 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let identifier = UserConfig::identifier()?;
-            let file_to_post = test::test_img_file().to_path_buf();
+            let file_to_post = test::test_img_file();
             let directory_name = "data";
             let result = api::remote::staging::add_file(
                 &remote_repo,
@@ -678,7 +678,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let directory_name = "data";
             let paths = vec![
-                test::test_img_file().to_path_buf(),
+                test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
             let result = api::remote::staging::add_files(

@@ -26,7 +26,7 @@ use crate::model::{LocalRepository, StagedData};
 /// # fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 ///
-/// let base_dir = Path::new("/tmp/repo_dir_status_1");
+/// let base_dir = Path::new("repo_dir_status_1");
 /// // Initialize empty repo
 /// let repo = command::init(&base_dir)?;
 /// // Get status on repo
@@ -49,7 +49,7 @@ use crate::model::{LocalRepository, StagedData};
 /// # fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 ///
-/// let base_dir = Path::new("/tmp/repo_dir_status_2");
+/// let base_dir = Path::new("repo_dir_status_2");
 /// // Initialize empty repo
 /// let repo = command::init(&base_dir)?;
 ///
@@ -89,7 +89,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 ///
-/// let base_dir = Path::new("/tmp/repo_dir_status_2");
+/// let base_dir = Path::new("repo_dir_status_2");
 /// // Initialize empty repo
 /// let repo = command::init(&base_dir)?;
 ///

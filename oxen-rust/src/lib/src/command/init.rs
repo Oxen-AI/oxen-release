@@ -17,7 +17,7 @@ use crate::{api, constants, util};
 /// # use liboxen::test;
 /// # fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
-/// let base_dir = Path::new("/tmp/repo_dir_init");
+/// let base_dir = Path::new("repo_dir_init");
 /// command::init(base_dir)?;
 /// assert!(base_dir.join(".oxen").exists());
 /// # util::fs::remove_dir_all(base_dir)?;

@@ -829,6 +829,7 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
 pub async fn clone(sub_matches: &ArgMatches) {
     let url = sub_matches.get_one::<String>("URL").expect("required");
     let shallow = sub_matches.get_flag("shallow");
+    let all = sub_matches.get_flag("all");
     let branch = sub_matches
         .get_one::<String>("branch")
         .expect("Must supply a branch");
@@ -839,6 +840,7 @@ pub async fn clone(sub_matches: &ArgMatches) {
         url: url.to_string(),
         dst,
         shallow,
+        all,
         branch: branch.to_string(),
     };
 

@@ -35,7 +35,7 @@ async fn main() -> std::io::Result<()> {
 
     let sync_dir = match std::env::var("SYNC_DIR") {
         Ok(dir) => dir,
-        Err(_) => String::from("/tmp/oxen_sync"),
+        Err(_) => String::from("data"),
     };
 
     let command = Command::new("oxen-server")
