@@ -230,27 +230,9 @@ impl LocalRepository {
         let rb = RemoteBranch::from_branch(&opts.branch);
         let indexer = EntryIndexer::new(&local_repo)?;
 
-        let pull_result = if opts.all {
-            indexer.pull_all_commit_objects(&repo, &rb).await
-        } else {
-            indexer.pull_first_commit_object(&repo, &rb).await
-        };
-
-        match pull_result {
-            Ok(_) => {
-                local_repo
-                    .maybe_pull_entries(&repo, &opts.branch, &indexer, opts.shallow)
-                    .await?;
-            }
-            Err(_err) => {
-                // if failed to pull commit objects, means repo is empty, so instantiate the local repo
-                eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                api::local::commits::commit_with_no_files(
-                    &local_repo,
-                    constants::INITIAL_COMMIT_MSG,
-                )?;
-            }
-        }
+        local_repo
+            .maybe_pull_entries(&repo, &indexer, &rb, opts)
+            .await?;
 
         Ok(local_repo)
     }
@@ -258,25 +240,25 @@ impl LocalRepository {
     async fn maybe_pull_entries(
         &self,
         repo: &RemoteRepository,
-        branch_name: &str,
         indexer: &EntryIndexer,
-        shallow: bool,
+        rb: &RemoteBranch,
+        opts: &CloneOpts,
     ) -> Result<(), OxenError> {
         // Shallow means we will not pull the actual data until a user tells us to
-        if !shallow {
-            // Pull all entries
-            let rb = RemoteBranch::from_branch(branch_name);
-            indexer.pull(&rb).await?;
-            println!(
-                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
-                repo.remote.url, repo.name, repo.name
-            );
-        } else {
+        if opts.shallow {
+            indexer.pull_first_commit_object(repo, rb).await?;
             self.write_is_shallow(true)?;
 
             println!(
                 "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
-                repo.remote.url, repo.name, repo.name, branch_name
+                repo.remote.url, repo.name, repo.name, opts.branch
+            );
+        } else {
+            // Pull all entries
+            indexer.pull(rb, opts.all).await?;
+            println!(
+                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
+                repo.remote.url, repo.name, repo.name
             );
         }
 

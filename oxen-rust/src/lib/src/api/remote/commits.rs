@@ -1,5 +1,7 @@
 use crate::api::remote::client;
 use crate::constants::{COMMITS_DIR, HISTORY_DIR};
+use crate::core::db;
+use crate::core::index::{CommitDBReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Commit, LocalRepository, RemoteRepository};
@@ -21,6 +23,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 pub struct ChunkParams {
     pub chunk_num: usize,
@@ -119,8 +122,41 @@ pub async fn download_commits_db_to_repo(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
 ) -> Result<PathBuf, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    download_commits_db_to_path(remote_repo, hidden_dir).await
+    // Download to tmp path, then merge with existing commits db
+    let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
+    let new_path = download_commits_db_to_path(remote_repo, tmp_path).await?;
+    log::debug!(
+        "download_commits_db_to_repo downloaded db to {:?}",
+        new_path
+    );
+
+    // Merge with existing commits db
+    let opts = db::opts::default();
+    let new_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_path, false)?;
+    let new_commits = CommitDBReader::list_all(&new_db)?;
+    log::debug!(
+        "download_commits_db_to_repo got {} new commits",
+        new_commits.len()
+    );
+
+    let writer = CommitWriter::new(local_repo)?;
+    for commit in new_commits {
+        if writer.get_commit_by_id(&commit.id)?.is_some() {
+            continue;
+        }
+
+        log::debug!(
+            "download_commits_db_to_repo Adding new commit to db {}",
+            commit
+        );
+        writer.add_commit_to_db(&commit)?;
+    }
+
+    // Remove the tmp db
+    util::fs::remove_dir_all(&new_path)?;
+
+    Ok(writer.commits_db.path().to_path_buf())
 }
 
 pub async fn download_commits_db_to_path(
@@ -141,11 +177,22 @@ pub async fn download_commits_db_to_path(
         .into_async_read();
     let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
     let archive = Archive::new(decoder);
-    archive.unpack(dst).await?;
-    log::debug!("{} writing to {:?}", current_function!(), dst);
 
     // On the server we pack up the data in a directory called "commits", so that is where it gets unpacked to
     let unpacked_path = dst.join(COMMITS_DIR);
+    // If the directory already exists, remove it
+    if unpacked_path.exists() {
+        log::debug!(
+            "{} removing existing {:?}",
+            current_function!(),
+            unpacked_path
+        );
+        util::fs::remove_dir_all(&unpacked_path)?;
+    }
+
+    log::debug!("{} writing to {:?}", current_function!(), dst);
+    archive.unpack(dst).await?;
+
     Ok(unpacked_path)
 }
 
