@@ -63,16 +63,13 @@ impl EntryIndexer {
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit)?;
             }
-            Ok(None) => {
+            _ => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
                 api::local::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )?;
-            }
-            Err(err) => {
-                log::error!("Failed to pull commit objects: {}", err);
             }
         };
 
@@ -178,6 +175,11 @@ impl EntryIndexer {
         }
 
         let total_missing = missing_commits.len();
+        if total_missing == 0 {
+            // Nothing to do
+            println!("Everything up to date.");
+            return Ok(None);
+        }
         println!("🐂 fetching {} commit objects", total_missing);
 
         // Download full commits db
