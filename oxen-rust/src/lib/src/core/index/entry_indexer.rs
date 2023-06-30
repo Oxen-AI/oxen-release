@@ -1,24 +1,23 @@
 //! EntryIndexer is responsible for pushing, pulling and syncing commit entries
 //!
 
-use async_recursion::async_recursion;
-
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::constants::HISTORY_DIR;
+use crate::constants::{self, HISTORY_DIR};
 use crate::core::index::{self, puller, versioner, Merger};
 use crate::core::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, CommitWriter, RefWriter,
+    CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::util;
 use crate::{api, current_function};
 
-use super::pusher;
+use super::{pusher, CommitReader};
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -35,7 +34,7 @@ impl EntryIndexer {
         pusher::push(&self.repository, rb).await
     }
 
-    pub async fn pull(&self, rb: &RemoteBranch) -> Result<(), OxenError> {
+    pub async fn pull(&self, rb: &RemoteBranch, should_pull_all: bool) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
 
         let remote = self
@@ -49,16 +48,35 @@ impl EntryIndexer {
             Err(err) => return Err(err),
         };
 
-        let head_commit = api::local::commits::head_commit(&self.repository)?;
-        if let Some(commit) = self.pull_first_commit_object(&remote_repo, rb).await? {
-            self.pull_all_entries_for_commit(&remote_repo, &head_commit, &commit)
-                .await
+        let pull_result = if should_pull_all {
+            self.pull_all_commit_objects(&remote_repo, rb).await
         } else {
-            Err(OxenError::basic_str(format!(
-                "Could not pull commit {}",
-                head_commit
-            )))
-        }
+            self.pull_first_commit_object(&remote_repo, rb).await
+        };
+
+        match pull_result {
+            Ok(Some(commit)) => {
+                let head_commit = api::local::commits::head_commit(&self.repository)?;
+                self.pull_all_entries_for_commit(&remote_repo, &head_commit, &commit)
+                    .await?;
+
+                // Make sure this branch points to this commit
+                self.set_branch_name_for_commit(&rb.branch, &commit)?;
+            }
+            Ok(None) => {
+                // if no commit objects, means repo is empty, so instantiate the local repo
+                eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
+                api::local::commits::commit_with_no_files(
+                    &self.repository,
+                    constants::INITIAL_COMMIT_MSG,
+                )?;
+            }
+            Err(err) => {
+                log::error!("Failed to pull commit objects: {}", err);
+            }
+        };
+
+        Ok(())
     }
 
     pub async fn pull_all_entries_for_commit(
@@ -92,6 +110,11 @@ impl EntryIndexer {
         let remote_branch = api::remote::branches::get_by_name(remote_repo, &rb.branch)
             .await?
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
+
+        // Download the commits db
+        println!("🐂 fetching commits");
+        api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
+
         match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id).await {
             Ok(Some(commit)) => {
                 log::debug!(
@@ -103,9 +126,8 @@ impl EntryIndexer {
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit)?;
 
-                println!("🐂 fetching commit object {}", commit.id);
-                // Sync the commit object
-                self.pull_commit_data_objects(remote_repo, &commit).await?;
+                // Sync the commit entries objects
+                self.pull_commit_entries_db(remote_repo, &commit).await?;
 
                 log::debug!(
                     "pull_commit_object DONE {} -> '{}'",
@@ -134,6 +156,35 @@ impl EntryIndexer {
         let remote_branch = api::remote::branches::get_by_name(remote_repo, &rb.branch)
             .await?
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
+
+        // list all the remote commits on a branch, so we know how many we have to pull
+        let remote_commits =
+            api::remote::commits::list_commit_history(remote_repo, &remote_branch.commit_id)
+                .await?;
+        // We may not have any commits yet, in the case of a fresh clone
+        let local_commits: Vec<Commit> = match CommitReader::new(&self.repository) {
+            // empty vector if we can't read the commits db
+            Ok(reader) => reader.history_from_head().unwrap_or(Vec::new()),
+            _ => Vec::new(),
+        };
+        let local_commits: HashSet<&Commit> = HashSet::from_iter(local_commits.iter());
+
+        // Figure out how many we are missing
+        let mut missing_commits = Vec::new();
+        for remote_commit in remote_commits {
+            if !local_commits.contains(&remote_commit) {
+                missing_commits.push(remote_commit);
+            }
+        }
+
+        let total_missing = missing_commits.len();
+        println!("🐂 fetching {} commit objects", total_missing);
+
+        // Download full commits db
+        api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
+
+        // Download the missing commit objects
+        let progress_bar = Arc::new(ProgressBar::new(total_missing as u64));
         match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id).await {
             Ok(Some(commit)) => {
                 log::debug!(
@@ -142,12 +193,8 @@ impl EntryIndexer {
                     commit.message
                 );
 
-                // Make sure this branch points to this commit
-                self.set_branch_name_for_commit(&rb.branch, &commit)?;
-
-                println!("🐂 fetching commit objects {}", commit.id);
                 // Sync the commit objects
-                self.rpull_missing_commit_objects(remote_repo, &commit)
+                self.pull_missing_commit_objects(remote_repo, missing_commits, &progress_bar)
                     .await?;
                 log::debug!(
                     "pull_all_commit_objects DONE {} -> '{}'",
@@ -175,73 +222,108 @@ impl EntryIndexer {
     }
 
     /// Just pull the commit db and history dbs that are missing (not the entries)
-    async fn rpull_missing_commit_objects(
+    async fn pull_missing_commit_objects(
         &self,
-        remote_repo: &RemoteRepository,
-        remote_head_commit: &Commit,
+        remote_repository: &RemoteRepository,
+        commits: Vec<Commit>,
+        bar: &Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
-        // See if we have the DB pulled
-        let commit_db_dir = util::fs::oxen_hidden_dir(&self.repository.path)
-            .join(HISTORY_DIR)
-            .join(remote_head_commit.id.clone());
-        if !commit_db_dir.exists() {
-            // We don't have db locally, so pull it
-            log::debug!(
-                "commit db for {} not found, pull from remote",
-                remote_head_commit.id
-            );
-            self.check_parent_and_pull_commit_objects(remote_repo, remote_head_commit)
-                .await?;
+        // TODO: these async task queues are gnarly...abstract away
+        use tokio::time::{sleep, Duration};
+        type PieceOfWork = (LocalRepository, RemoteRepository, Commit, Arc<ProgressBar>);
+        type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+        type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
+        let total_missing = commits.len();
+        log::debug!("Chunking and sending {} larger files", total_missing);
+        let commits: Vec<PieceOfWork> = commits
+            .iter()
+            .map(|c| {
+                (
+                    self.repository.to_owned(),
+                    remote_repository.to_owned(),
+                    c.to_owned(),
+                    bar.to_owned(),
+                )
+            })
+            .collect();
+
+        let queue = Arc::new(TaskQueue::new(total_missing));
+        let finished_queue = Arc::new(FinishedTaskQueue::new(total_missing));
+        for commit in commits.iter() {
+            queue.try_push(commit.to_owned()).unwrap();
+            finished_queue.try_push(false).unwrap();
+        }
+
+        let worker_count: usize = if num_cpus::get() > total_missing {
+            total_missing
         } else {
-            // else we are synced
-            log::debug!("commit db for {} already downloaded", remote_head_commit.id);
-        }
+            num_cpus::get()
+        };
 
-        Ok(())
-    }
-
-    #[async_recursion]
-    async fn check_parent_and_pull_commit_objects(
-        &self,
-        remote_repo: &RemoteRepository,
-        commit: &Commit,
-    ) -> Result<(), OxenError> {
-        match api::remote::commits::get_remote_parent(remote_repo, &commit.id).await {
-            Ok(parents) => {
-                if parents.is_empty() {
-                    log::debug!(
-                        "check_parent_and_pull_commit_objects no parents for commit {}",
-                        commit.id
-                    );
-                } else {
-                    // Recursively sync the parents
-                    for parent in parents.iter() {
-                        self.check_parent_and_pull_commit_objects(remote_repo, parent)
-                            .await?;
-                    }
-                }
-            }
-            Err(err) => {
-                log::warn!("oxen pull could not get commit parents: {}", err);
-            }
-        }
-
-        // Pulls dbs and commit object
-        self.pull_commit_data_objects(remote_repo, commit).await?;
-
-        Ok(())
-    }
-
-    async fn pull_commit_data_objects(
-        &self,
-        remote_repo: &RemoteRepository,
-        commit: &Commit,
-    ) -> Result<(), OxenError> {
         log::debug!(
-            "pull_commit_data_objects {} `{}`",
-            commit.id,
-            commit.message
+            "worker_count {} total_missing {}",
+            worker_count,
+            total_missing
         );
+
+        for worker in 0..worker_count {
+            let queue = queue.clone();
+            let finished_queue = finished_queue.clone();
+            tokio::spawn(async move {
+                loop {
+                    let (repository, remote_repo, commit, bar) = queue.pop().await;
+                    log::debug!("worker[{}] processing task...", worker);
+
+                    // See if we have the DB pulled
+                    let commit_db_dir = util::fs::oxen_hidden_dir(&repository.path)
+                        .join(HISTORY_DIR)
+                        .join(commit.id.clone());
+                    if !commit_db_dir.exists() {
+                        // We don't have db locally, so pull it
+                        log::debug!("commit db for {} not found, pull from remote", commit.id);
+
+                        // Pulls dbs and commit object
+                        match api::remote::commits::download_commit_entries_db_to_repo(
+                            &repository,
+                            &remote_repo,
+                            &commit.id,
+                        )
+                        .await
+                        {
+                            Ok(_) => {
+                                log::debug!("commit db for {} downloaded", commit.id);
+                                bar.inc(1);
+                            }
+                            Err(err) => {
+                                log::debug!("commit db for {} failed: {}", commit.id, err);
+                            }
+                        }
+                    } else {
+                        // else we are synced
+                        log::debug!("commit db for {} already downloaded", commit.id);
+                    }
+
+                    finished_queue.pop().await;
+                }
+            });
+        }
+
+        while finished_queue.len() > 0 {
+            // log::debug!("Before waiting for {} workers to finish...", queue.len());
+            sleep(Duration::from_secs(1)).await;
+        }
+        log::debug!("All commit db downloads tasks done. :-)");
+
+        Ok(())
+    }
+
+    async fn pull_commit_entries_db(
+        &self,
+        remote_repo: &RemoteRepository,
+        commit: &Commit,
+    ) -> Result<(), OxenError> {
+        log::debug!("pull_commit_entries_db {} `{}`", commit.id, commit.message);
 
         // Download the specific commit_db that holds all the entries
         api::remote::commits::download_commit_entries_db_to_repo(
@@ -250,13 +332,7 @@ impl EntryIndexer {
             &commit.id,
         )
         .await?;
-
-        // Get commit and write it to local DB
-        let remote_commit = api::remote::commits::get_by_id(remote_repo, &commit.id)
-            .await?
-            .unwrap();
-        let writer = CommitWriter::new(&self.repository)?;
-        writer.add_commit_to_db(&remote_commit)
+        Ok(())
     }
 
     // For unit testing a half synced commit
@@ -267,7 +343,7 @@ impl EntryIndexer {
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
-        self.pull_commit_data_objects(remote_repo, commit).await?;
+        self.pull_commit_entries_db(remote_repo, commit).await?;
         self.pull_entries_for_commit(remote_repo, head_commit, commit.clone(), limit)
             .await
     }
@@ -571,7 +647,7 @@ mod tests {
 
                 // try to pull the full thing again even though we have only partially pulled some
                 let rb = RemoteBranch::default();
-                indexer.pull(&rb).await?;
+                indexer.pull(&rb, true).await?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);
