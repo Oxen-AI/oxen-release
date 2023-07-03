@@ -56,12 +56,13 @@ impl EntryIndexer {
 
         match pull_result {
             Ok(Some(commit)) => {
+                log::debug!("pull_result: {} -> {}", commit.id, commit.message);
+                // Make sure this branch points to this commit
+                self.set_branch_name_for_commit(&rb.branch, &commit)?;
+
                 let head_commit = api::local::commits::head_commit(&self.repository)?;
                 self.pull_all_entries_for_commit(&remote_repo, &head_commit, &commit)
                     .await?;
-
-                // Make sure this branch points to this commit
-                self.set_branch_name_for_commit(&rb.branch, &commit)?;
             }
             _ => {
                 // if no commit objects, means repo is empty, so instantiate the local repo

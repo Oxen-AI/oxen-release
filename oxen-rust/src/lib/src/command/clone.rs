@@ -40,7 +40,7 @@ pub async fn deep_clone_url(
     url: impl AsRef<str>,
     dst: impl AsRef<Path>,
 ) -> Result<LocalRepository, OxenError> {
-    let shallow = true;
+    let shallow = false;
     let all = true;
     _clone(url, dst, shallow, all).await
 }

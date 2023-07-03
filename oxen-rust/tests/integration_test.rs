@@ -1379,11 +1379,38 @@ async fn test_clone_all() -> Result<(), OxenError> {
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let cloned_repo =
-                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
             // Make sure we have all the commit objects
             let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
             assert_eq!(og_commits.len(), cloned_commits.len());
+
+            // Make sure we set the HEAD file
+            let head_commit = api::local::commits::head_commit(&cloned_repo);
+            assert!(head_commit.is_ok());
+
+            // We remove the test/ directory in one of the commits, so make sure we can go
+            // back in the history to that commit
+            let test_dir_path = cloned_repo.path.join("test");
+            let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+            assert!(commit.is_some());
+            assert!(!test_dir_path.exists());
+
+            // checkout the commit
+            command::checkout(&cloned_repo, &commit.unwrap().id).await?;
+            // Make sure we restored the directory
+            assert!(test_dir_path.exists());
+
+            // list files in test_dir_path
+            let test_dir_files = util::fs::list_files_in_dir(&test_dir_path);
+            println!("test_dir_files: {:?}", test_dir_files.len());
+            for file in test_dir_files.iter() {
+                println!("file: {:?}", file);
+            }
+            assert_eq!(test_dir_files.len(), 2);
+
+            assert!(test_dir_path.join("1.jpg").exists());
+            assert!(test_dir_path.join("2.jpg").exists());
 
             Ok(new_repo_dir)
         })
@@ -1394,6 +1421,56 @@ async fn test_clone_all() -> Result<(), OxenError> {
     .await
 }
 
+// Test the default clone (not --all or --shallow) can revert to files that are not local
+#[tokio::test]
+async fn test_clone_default_revert_deleted() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
+        let og_commits = api::local::commits::list_all(&local_repo)?;
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
+            // Make sure we have all the commit objects
+            let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
+            assert_eq!(og_commits.len(), cloned_commits.len());
+
+            // Make sure we set the HEAD file
+            let head_commit = api::local::commits::head_commit(&cloned_repo);
+            assert!(head_commit.is_ok());
+
+            // We remove the test/ directory in one of the commits, so make sure we can go
+            // back in the history to that commit
+            let test_dir_path = cloned_repo.path.join("test");
+            let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+            assert!(commit.is_some());
+            assert!(!test_dir_path.exists());
+
+            // checkout the commit
+            command::checkout(&cloned_repo, &commit.unwrap().id).await?;
+            // Make sure we restored the directory
+            assert!(test_dir_path.exists());
+
+            // list files in test_dir_path
+            let test_dir_files = util::fs::list_files_in_dir(&test_dir_path);
+            println!("test_dir_files: {:?}", test_dir_files.len());
+            for file in test_dir_files.iter() {
+                println!("file: {:?}", file);
+            }
+            assert_eq!(test_dir_files.len(), 2);
+
+            assert!(test_dir_path.join("1.jpg").exists());
+            assert!(test_dir_path.join("2.jpg").exists());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
 
 // This specific flow broke during a demo
 // * add file *
@@ -1611,7 +1688,10 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 #[tokio::test]
 async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-        let filename = Path::new("nlp").join("classification").join("annotations").join("train.tsv");
+        let filename = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("train.tsv");
         let file_path = repo.path.join(filename);
         let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
         let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
@@ -1635,7 +1715,10 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
-            let filename = Path::new("nlp").join("classification").join("annotations").join("train.tsv");
+            let filename = Path::new("nlp")
+                .join("classification")
+                .join("annotations")
+                .join("train.tsv");
             let file_path = cloned_repo.path.join(&filename);
             let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
             let cloned_contents = util::fs::read_from_path(&file_path)?;

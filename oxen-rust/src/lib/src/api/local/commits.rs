@@ -38,6 +38,30 @@ pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commi
     reader.get_commit_by_id(commit_id)
 }
 
+/// Get a list commits by the commit message
+pub fn get_by_message(
+    repo: &LocalRepository,
+    msg: impl AsRef<str>,
+) -> Result<Vec<Commit>, OxenError> {
+    let commits = list_all(repo)?;
+    let filtered: Vec<Commit> = commits
+        .into_iter()
+        .filter(|commit| commit.message == msg.as_ref())
+        .collect();
+    Ok(filtered)
+}
+
+/// Get the most recent commit by the commit message, starting at the HEAD commit
+pub fn first_by_message(
+    repo: &LocalRepository,
+    msg: impl AsRef<str>,
+) -> Result<Option<Commit>, OxenError> {
+    let committer = CommitReader::new(repo)?;
+    let commits = committer.history_from_head()?;
+    Ok(commits
+        .into_iter().find(|commit| commit.message == msg.as_ref()))
+}
+
 /// Get a commit by it's revision. ie: hash or branch name
 pub fn get_by_revision(
     repo: &LocalRepository,
