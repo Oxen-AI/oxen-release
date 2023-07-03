@@ -767,7 +767,12 @@ pub async fn push(sub_matches: &ArgMatches) {
         .expect("Must supply a branch");
 
     if sub_matches.get_flag("delete") {
-        println!("TODO: Delete remote branch {remote}/{branch}");
+        match dispatch::delete_remote_branch(remote, branch).await {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
+            }
+        }
     } else {
         match dispatch::push(remote, branch).await {
             Ok(_) => {}
