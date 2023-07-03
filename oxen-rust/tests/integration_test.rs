@@ -1369,6 +1369,32 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
     .await
 }
 
+// Test for clone --all that checks to make sure we have all commits, all deleted files, etc
+#[tokio::test]
+async fn test_clone_all() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
+        let og_commits = api::local::commits::list_all(&local_repo)?;
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
+            // Make sure we have all the commit objects
+            let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
+            assert_eq!(og_commits.len(), cloned_commits.len());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
+
+
 // This specific flow broke during a demo
 // * add file *
 // push
@@ -1585,7 +1611,7 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 #[tokio::test]
 async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-        let filename = "nlp/classification/annotations/train.tsv";
+        let filename = Path::new("nlp").join("classification").join("annotations").join("train.tsv");
         let file_path = repo.path.join(filename);
         let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
         let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
@@ -1609,8 +1635,8 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
-            let filename = "nlp/classification/annotations/train.tsv";
-            let file_path = cloned_repo.path.join(filename);
+            let filename = Path::new("nlp").join("classification").join("annotations").join("train.tsv");
+            let file_path = cloned_repo.path.join(&filename);
             let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
             let cloned_contents = util::fs::read_from_path(&file_path)?;
             assert_eq!(og_df.height(), cloned_df.height());

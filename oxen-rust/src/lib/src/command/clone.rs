@@ -36,6 +36,15 @@ pub async fn shallow_clone_url(
     _clone(url, dst, shallow, all).await
 }
 
+pub async fn deep_clone_url(
+    url: impl AsRef<str>,
+    dst: impl AsRef<Path>,
+) -> Result<LocalRepository, OxenError> {
+    let shallow = true;
+    let all = true;
+    _clone(url, dst, shallow, all).await
+}
+
 async fn _clone(
     url: impl AsRef<str>,
     dst: impl AsRef<Path>,
