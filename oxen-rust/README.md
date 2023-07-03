@@ -85,6 +85,12 @@ Make sure your server is running on the default port and host, then run
 
 *Note:* tests open up a lot of file handles, so limit num test threads if running everything.
 
+You an also increase the number of open files your system allows ulimit before running tests:
+
+```
+ulimit -n 10240
+```
+
 ```
 cargo test -- --test-threads=3
 ```

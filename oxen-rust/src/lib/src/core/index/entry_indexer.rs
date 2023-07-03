@@ -5,6 +5,7 @@ use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use std::collections::HashSet;
+use std::path::Path;
 use std::sync::Arc;
 
 use crate::constants::{self, HISTORY_DIR};
@@ -48,21 +49,48 @@ impl EntryIndexer {
             Err(err) => return Err(err),
         };
 
-        let pull_result = if should_pull_all {
-            self.pull_all_commit_objects(&remote_repo, rb).await
+        // original head commit, only applies to pulling commits after initial clone
+        let maybe_head_commit = api::local::commits::head_commit(&self.repository);
+
+        let mut commit = if should_pull_all {
+            self.pull_all(&remote_repo, rb).await?
         } else {
-            self.pull_first_commit_object(&remote_repo, rb).await
+            self.pull_one(&remote_repo, rb).await?
         };
 
-        match pull_result {
+        // TODO Do we add a flag for if this pull is a merge somehow...?
+        // If the branches have diverged, we need to merge the commit into the base
+        if maybe_head_commit.is_ok() {
+            let head_commit = maybe_head_commit.unwrap();
+            if head_commit.id != commit.id {
+                let merger = Merger::new(&self.repository)?;
+                if let Some(merge_commit) = merger.merge_commit_into_base(&commit, &head_commit)? {
+                    commit = merge_commit;
+                }
+            }
+        }
+
+        // Cleanup files that shouldn't be there
+        self.cleanup_removed_entries(&commit)?;
+
+        Ok(())
+    }
+
+    async fn pull_all(
+        &self,
+        remote_repo: &RemoteRepository,
+        rb: &RemoteBranch,
+    ) -> Result<Commit, OxenError> {
+        match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit)?;
 
-                let head_commit = api::local::commits::head_commit(&self.repository)?;
-                self.pull_all_entries_for_commit(&remote_repo, &head_commit, &commit)
-                    .await?;
+                for c in api::local::commits::list_all(&self.repository)? {
+                    self.pull_all_entries_for_commit(remote_repo, &c).await?;
+                }
+                Ok(commit)
             }
             _ => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
@@ -70,17 +98,37 @@ impl EntryIndexer {
                 api::local::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
-                )?;
+                )
             }
-        };
+        }
+    }
 
-        Ok(())
+    async fn pull_one(
+        &self,
+        remote_repo: &RemoteRepository,
+        rb: &RemoteBranch,
+    ) -> Result<Commit, OxenError> {
+        match self.pull_first_commit_object(remote_repo, rb).await {
+            Ok(Some(commit)) => {
+                log::debug!("pull_result: {} -> {}", commit.id, commit.message);
+                self.pull_all_entries_for_commit(remote_repo, &commit)
+                    .await?;
+                Ok(commit)
+            }
+            _ => {
+                // if no commit objects, means repo is empty, so instantiate the local repo
+                eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
+                api::local::commits::commit_with_no_files(
+                    &self.repository,
+                    constants::INITIAL_COMMIT_MSG,
+                )
+            }
+        }
     }
 
     pub async fn pull_all_entries_for_commit(
         &self,
         remote_repo: &RemoteRepository,
-        head_commit: &Commit,
         commit: &Commit,
     ) -> Result<(), OxenError> {
         log::debug!(
@@ -89,7 +137,7 @@ impl EntryIndexer {
             commit.message
         );
         let limit: usize = 0; // zero means pull all
-        self.pull_entries_for_commit(remote_repo, head_commit, commit.clone(), limit)
+        self.pull_entries_for_commit(remote_repo, commit.clone(), limit)
             .await?;
         log::debug!(
             "DONE! pull_all_entries_for_commit for commit: {} -> {}",
@@ -342,12 +390,11 @@ impl EntryIndexer {
     pub async fn pull_entries_for_commit_with_limit(
         &self,
         remote_repo: &RemoteRepository,
-        head_commit: &Commit,
         commit: &Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
         self.pull_commit_entries_db(remote_repo, commit).await?;
-        self.pull_entries_for_commit(remote_repo, head_commit, commit.clone(), limit)
+        self.pull_entries_for_commit(remote_repo, commit.clone(), limit)
             .await
     }
 
@@ -373,8 +420,7 @@ impl EntryIndexer {
     pub async fn pull_entries_for_commit(
         &self,
         remote_repo: &RemoteRepository,
-        head_commit: &Commit,
-        mut commit: Commit,
+        commit: Commit,
         limit: usize,
     ) -> Result<(), OxenError> {
         log::debug!(
@@ -411,17 +457,6 @@ impl EntryIndexer {
         })
         .await?;
 
-        // TODO Do we add a flag for if this pull is a merge somehow...?
-
-        // If the branches have diverged, we need to merge the commit into the base
-        let merger = Merger::new(&self.repository)?;
-        if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
-            commit = merge_commit;
-        }
-
-        // Cleanup files that shouldn't be there
-        self.cleanup_removed_entries(&commit)?;
-
         Ok(())
     }
 
@@ -430,6 +465,9 @@ impl EntryIndexer {
         commit: &Commit,
         entries: &Vec<CommitEntry>,
     ) -> Result<(), OxenError> {
+        if entries.is_empty() {
+            return Ok(());
+        }
         println!("Unpacking...");
         let bar = Arc::new(ProgressBar::new(entries.len() as u64));
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
@@ -461,14 +499,10 @@ impl EntryIndexer {
     }
 
     fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
-        log::debug!(
-            "{} commit {} -> {}",
-            current_function!(),
-            commit.id,
-            commit.message
-        );
+        log::debug!("CLEANUP_REMOVED_ENTRIES commit {}", commit);
         let repository = self.repository.clone();
         let commit = commit.clone();
+        let commit_reader = CommitEntryReader::new(&repository, &commit)?;
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
@@ -487,7 +521,7 @@ impl EntryIndexer {
                     commit.message
                 );
 
-                let commit_reader =
+                let commit_entry_reader =
                     CommitDirEntryReader::new(&repository, &commit.id, &parent).unwrap();
 
                 dir_entry_results
@@ -500,15 +534,20 @@ impl EntryIndexer {
                                 dir_entry
                             );
 
+                            let short_path =
+                                util::fs::path_relative_to_dir(dir_entry.path(), &repository.path)
+                                    .unwrap();
+
+                            log::debug!(
+                                "{} considering short path {:?}",
+                                current_function!(),
+                                short_path
+                            );
+
                             if !dir_entry.file_type.is_dir() {
-                                let short_path = util::fs::path_relative_to_dir(
-                                    dir_entry.path(),
-                                    &repository.path,
-                                )
-                                .unwrap();
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
-                                if !commit_reader.has_file(path) {
+                                if !commit_entry_reader.has_file(path) {
                                     log::debug!(
                                         "{} commit reader does not have file {:?}",
                                         current_function!(),
@@ -517,6 +556,23 @@ impl EntryIndexer {
 
                                     let full_path = repository.path.join(short_path);
                                     if util::fs::remove_file(full_path).is_ok() {
+                                        dir_entry.client_state = Some(true);
+                                    }
+                                }
+                            } else {
+                                // is dir
+                                // make sure we have the dir in the commit and it is a subdir (!= "")
+                                if !commit_reader.has_dir(&short_path)
+                                    && short_path != Path::new("")
+                                {
+                                    log::debug!(
+                                        "{} commit reader does not have dir {:?}",
+                                        current_function!(),
+                                        short_path
+                                    );
+
+                                    let full_path = repository.path.join(short_path);
+                                    if full_path.exists() && util::fs::remove_dir_all(full_path).is_ok() {
                                         dir_entry.client_state = Some(true);
                                     }
                                 }
@@ -629,7 +685,6 @@ mod tests {
 
                 let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
-                let head_commit = api::local::commits::head_commit(&repo)?;
 
                 // Pull a part of the commit
                 let commits = api::local::commits::list(&repo)?;
@@ -637,12 +692,7 @@ mod tests {
                 let page_size = 2;
                 let limit = page_size;
                 indexer
-                    .pull_entries_for_commit_with_limit(
-                        &remote_repo,
-                        &head_commit,
-                        latest_commit,
-                        limit,
-                    )
+                    .pull_entries_for_commit_with_limit(&remote_repo, latest_commit, limit)
                     .await?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
@@ -697,19 +747,13 @@ mod tests {
                 opts.shallow = true;
                 let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
-                let head_commit = api::local::commits::head_commit(&repo)?;
 
                 // Pull a part of the commit
                 let commits = api::local::commits::list(&repo)?;
                 let last_commit = commits.first().unwrap();
                 let limit = 7;
                 indexer
-                    .pull_entries_for_commit_with_limit(
-                        &remote_repo,
-                        &head_commit,
-                        last_commit,
-                        limit,
-                    )
+                    .pull_entries_for_commit_with_limit(&remote_repo, last_commit, limit)
                     .await?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
