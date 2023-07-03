@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
-use crate::core::db;
 use crate::core::db::path_db;
+use crate::core::db::{self, kv_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::schema::Schema;
@@ -140,6 +140,10 @@ impl CommitEntryWriter {
         } else {
             Err(OxenError::file_has_no_parent(&entry.path))
         }
+    }
+
+    pub fn remove_dir(&self, dir: &Path) -> Result<(), OxenError> {
+        path_db::delete(&self.dir_db, dir)
     }
 
     fn add_staged_entry_to_db(
@@ -312,6 +316,12 @@ impl CommitEntryWriter {
                 self.commit_staged_entry(&entry_writer, commit, origin_path, path, entry);
                 bar.inc(1);
             });
+
+            // If we removed all files from the dir, remove it from the dir_db
+            let num_entries = kv_db::count(&entry_writer.db)?;
+            if num_entries == 0 {
+                path_db::delete(&self.dir_db, dir)?;
+            }
         }
         bar.finish();
 

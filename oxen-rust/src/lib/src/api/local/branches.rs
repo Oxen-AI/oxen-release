@@ -186,12 +186,11 @@ async fn maybe_pull_missing_entries(
     // Safe to unwrap now.
     let remote = remote.unwrap();
 
-    let head_commit = api::local::commits::head_commit(repo)?;
     match api::remote::repositories::get_by_remote(&remote).await {
         Ok(Some(remote_repo)) => {
             let indexer = EntryIndexer::new(repo)?;
             indexer
-                .pull_all_entries_for_commit(&remote_repo, &head_commit, commit)
+                .pull_all_entries_for_commit(&remote_repo, commit)
                 .await?;
         }
         Ok(None) => {

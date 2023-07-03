@@ -59,7 +59,8 @@ pub fn first_by_message(
     let committer = CommitReader::new(repo)?;
     let commits = committer.history_from_head()?;
     Ok(commits
-        .into_iter().find(|commit| commit.message == msg.as_ref()))
+        .into_iter()
+        .find(|commit| commit.message == msg.as_ref()))
 }
 
 /// Get a commit by it's revision. ie: hash or branch name

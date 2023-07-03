@@ -184,6 +184,7 @@ mod tests {
 
     use crate::command;
     use crate::core::index::rm;
+    use crate::core::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RmOpts;
@@ -415,6 +416,13 @@ mod tests {
             for (_, staged_entry) in status.added_files.iter() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
+
+            // commit the removal
+            let commit = command::commit(&repo, "removed train dir")?;
+
+            // make sure the train dir is deleted from the commits db
+            let commit_reader = CommitEntryReader::new(&repo, &commit)?;
+            assert!(!commit_reader.has_dir(path));
 
             Ok(())
         })
