@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::constants::{self, HISTORY_DIR};
+use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::index::{self, puller, versioner, Merger};
 use crate::core::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
@@ -72,6 +72,25 @@ impl EntryIndexer {
 
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(&commit)?;
+
+        Ok(())
+    }
+
+    pub async fn pull_commit(&self, commit: &Commit) -> Result<(), OxenError> {
+        // Get the remote, TODO: make this configurable
+        let remote = self
+            .repository
+            .get_remote(DEFAULT_REMOTE_NAME)
+            .ok_or(OxenError::remote_not_set(DEFAULT_REMOTE_NAME))?;
+        let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
+            Ok(Some(repo)) => repo,
+            Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+            Err(err) => return Err(err),
+        };
+
+        self.pull_commit_entries_db(&remote_repo, commit).await?;
+        self.pull_all_entries_for_commit(&remote_repo, commit)
+            .await?;
 
         Ok(())
     }
@@ -572,7 +591,9 @@ impl EntryIndexer {
                                     );
 
                                     let full_path = repository.path.join(short_path);
-                                    if full_path.exists() && util::fs::remove_dir_all(full_path).is_ok() {
+                                    if full_path.exists()
+                                        && util::fs::remove_dir_all(full_path).is_ok()
+                                    {
                                         dir_entry.client_state = Some(true);
                                     }
                                 }

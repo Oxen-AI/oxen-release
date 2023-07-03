@@ -38,7 +38,6 @@ pub async fn checkout<S: AsRef<str>>(
             return Ok(None);
         }
 
-        println!("Checkout commit: {value}");
         api::local::branches::set_working_commit_id(repo, value).await?;
         api::local::branches::set_head(repo, value)?;
         Ok(None)
