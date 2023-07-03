@@ -210,6 +210,7 @@ pub async fn set_working_commit_id(
 ) -> Result<(), OxenError> {
     let commit = api::local::commits::get_by_id(repo, commit_id)?
         .ok_or(OxenError::commit_id_does_not_exist(commit_id))?;
+    println!("Checkout commit: {commit}");
 
     let commit_writer = CommitWriter::new(repo)?;
     commit_writer.set_working_repo_to_commit(&commit).await
