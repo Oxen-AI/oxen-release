@@ -267,7 +267,7 @@ impl LocalRepository {
 
     pub fn write_is_shallow(&self, shallow: bool) -> Result<(), OxenError> {
         let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
-        log::debug!("Write is shallow to path: {shallow_flag_path:?}");
+        log::debug!("Write is shallow [{shallow}] to path: {shallow_flag_path:?}");
         if shallow {
             util::fs::write_to_path(&shallow_flag_path, "true")?;
         } else if shallow_flag_path.exists() {
