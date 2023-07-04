@@ -77,7 +77,7 @@ pub fn resolve_committish(
     committish: &str,
 ) -> Result<Option<Commit>, OxenError> {
     // Lookup commit by id or branch name
-    api::local::commits::get_by_id_or_branch(repo, committish)
+    api::local::commits::get_by_revision(repo, committish)
 }
 
 pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {

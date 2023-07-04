@@ -55,7 +55,7 @@ mv user_config.toml ~/.oxen/user_config.toml
 cp ~/.oxen/user_config.toml data/test/config/user_config.toml
 ```
 
-Set where you want the data to be synced to. The default sync directory is `/tmp/oxen_sync` to change it set the SYNC_DIR environment variable to a path.
+Set where you want the data to be synced to. The default sync directory is `./data/` to change it set the SYNC_DIR environment variable to a path.
 
 ```
 export SYNC_DIR=/path/to/sync/dir
@@ -84,6 +84,12 @@ cargo watch -- cargo run --bin oxen-server start
 Make sure your server is running on the default port and host, then run
 
 *Note:* tests open up a lot of file handles, so limit num test threads if running everything.
+
+You an also increase the number of open files your system allows ulimit before running tests:
+
+```
+ulimit -n 10240
+```
 
 ```
 cargo test -- --test-threads=3
@@ -116,10 +122,7 @@ oxen push origin main
 
 ## Structure
 
-Directories with repository names to simply sync data to, same internal file structure as your local repo
-
-/tmp/oxen_sync
-/repo_name
+Remote repositories have the same internal structure as local ones, with the caviate that all the data is in the .oxen dir and not duplicated into a "local workspace".
 
 # APIs
 

@@ -41,16 +41,15 @@ pub async fn show(
 
     let entries = api::local::diff::list_diff_entries(&repository, &base_commit, &head_commit)?;
 
-    let total_entries = entries.len();
-    let (paginated, total_pages) = util::paginate(entries, page, page_size);
+    let (paginated, pagination) = util::paginate(entries, page, page_size);
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
         base_commit,
         head_commit,
-        page_size,
-        total_entries,
-        page_number: page,
-        total_pages,
+        page_size: pagination.page_size,
+        total_entries: pagination.total_entries,
+        page_number: pagination.page_number,
+        total_pages: pagination.total_pages,
         entries: paginated,
     };
     Ok(HttpResponse::Ok().json(view))
@@ -123,16 +122,15 @@ pub async fn entities(
 
     let entries = api::local::diff::list_diff_entries(&repository, &base_commit, &head_commit)?;
 
-    let total_entries = entries.len();
-    let (paginated, total_pages) = util::paginate(entries, page, page_size);
+    let (paginated, pagination) = util::paginate(entries, page, page_size);
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
         base_commit,
         head_commit,
-        page_size,
-        total_entries,
-        page_number: page,
-        total_pages,
+        page_size: pagination.page_size,
+        total_entries: pagination.total_entries,
+        page_number: pagination.page_number,
+        total_pages: pagination.total_pages,
         entries: paginated,
     };
     Ok(HttpResponse::Ok().json(view))

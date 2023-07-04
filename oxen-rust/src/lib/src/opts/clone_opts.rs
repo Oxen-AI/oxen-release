@@ -8,16 +8,18 @@ pub struct CloneOpts {
     pub dst: PathBuf,
     pub branch: String,
     pub shallow: bool,
+    pub all: bool,
 }
 
 impl CloneOpts {
-    /// Sets branch to DEFAULT_BRANCH_NAME and defaults shallow to false
+    /// Sets `branch` to `DEFAULT_BRANCH_NAME` and defaults `shallow` and `all` to `false`
     pub fn new(url: String, dst: impl AsRef<Path>) -> CloneOpts {
         CloneOpts {
             url,
             dst: dst.as_ref().to_path_buf(),
             branch: DEFAULT_BRANCH_NAME.to_string(),
             shallow: false,
+            all: false,
         }
     }
 }

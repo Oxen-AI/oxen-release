@@ -22,8 +22,11 @@ use std::future::Future;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
-const TEST_RUN_DIR: &str = "data/test/runs";
 pub const DEFAULT_TEST_HOST: &str = "localhost:3000";
+
+pub fn test_run_dir() -> PathBuf {
+    PathBuf::from("data").join("test").join("runs")
+}
 
 pub fn test_host() -> String {
     match std::env::var("OXEN_TEST_HOST") {
@@ -46,18 +49,25 @@ pub fn init_test_env() {
     std::env::set_var("TEST", "true");
 }
 
-fn create_prefixed_dir(base_dir: &str, prefix: &str) -> Result<PathBuf, OxenError> {
-    let repo_name = format!("{}_{}_{}", prefix, base_dir, uuid::Uuid::new_v4());
+fn create_prefixed_dir(
+    base_dir: impl AsRef<Path>,
+    prefix: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let base_dir = base_dir.as_ref();
+    let prefix = prefix.as_ref();
+    let repo_name = prefix
+        .join(base_dir)
+        .join(format!("{}", uuid::Uuid::new_v4()));
     let full_dir = Path::new(base_dir).join(repo_name);
     std::fs::create_dir_all(&full_dir)?;
     Ok(full_dir)
 }
 
-fn create_repo_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
+fn create_repo_dir(base_dir: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     create_prefixed_dir(base_dir, "repo")
 }
 
-fn create_empty_dir(base_dir: &str) -> Result<PathBuf, OxenError> {
+fn create_empty_dir(base_dir: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     create_prefixed_dir(base_dir, "dir")
 }
 
@@ -89,7 +99,7 @@ where
     T: FnOnce(&Path) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    let repo_dir = create_empty_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_empty_dir(test_run_dir())?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(&repo_dir) {
@@ -114,7 +124,7 @@ where
     Fut: Future<Output = Result<PathBuf, OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_empty_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_empty_dir(test_run_dir())?;
 
     // Run test to see if it panic'd
     let result = match test(repo_dir).await {
@@ -140,7 +150,7 @@ where
     T: FnOnce(LocalRepository) -> Result<(), OxenError>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
     let result = match test(repo) {
@@ -165,7 +175,7 @@ where
     Fut: Future<Output = Result<(), OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
     let result = match test(repo).await {
@@ -191,7 +201,7 @@ where
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
 
     let local_repo = command::init(&repo_dir)?;
 
@@ -228,7 +238,7 @@ where
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let local_repo = command::init(&repo_dir)?;
 
     // Write all the training data files
@@ -261,7 +271,7 @@ where
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let mut local_repo = command::init(&repo_dir)?;
 
     // Write all the training data files
@@ -356,7 +366,7 @@ where
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
-    let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
+    let empty_dir = create_empty_dir(test_run_dir())?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
     let local_repo = command::init(&path)?;
@@ -395,7 +405,7 @@ where
     Fut: Future<Output = Result<RemoteRepository, OxenError>>,
 {
     init_test_env();
-    let empty_dir = create_empty_dir(TEST_RUN_DIR)?;
+    let empty_dir = create_empty_dir(test_run_dir())?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
     let mut local_repo = command::init(&path)?;
@@ -442,7 +452,7 @@ where
     Fut: Future<Output = Result<(), OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
     // Write all the files
@@ -471,7 +481,7 @@ where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
     // Write all the files
@@ -502,7 +512,7 @@ where
     Fut: Future<Output = Result<(), OxenError>>,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
     // Write all the files
@@ -543,7 +553,7 @@ where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
     // Write all the files
@@ -603,7 +613,7 @@ where
     T: FnOnce(Stager, LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     log::debug!("BEFORE COMMAND::INIT");
     let repo = command::init(&repo_dir)?;
     log::debug!("AFTER COMMAND::INIT");
@@ -631,7 +641,7 @@ where
     T: FnOnce(RefWriter) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    let repo_dir = create_repo_dir(TEST_RUN_DIR)?;
+    let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
     let referencer = RefWriter::new(&repo)?;
 
@@ -651,40 +661,55 @@ where
     Ok(())
 }
 
-pub fn user_cfg_file() -> &'static Path {
-    Path::new("data/test/config/user_config.toml")
+pub fn user_cfg_file() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("config")
+        .join("user_config.toml")
 }
 
-pub fn repo_cfg_file() -> &'static Path {
-    Path::new("data/test/config/repo_config.toml")
+pub fn repo_cfg_file() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("config")
+        .join("repo_config.toml")
 }
 
-pub fn test_img_file() -> &'static Path {
-    Path::new("data/test/images/dwight_vince.jpeg")
+pub fn test_img_file() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("images")
+        .join("dwight_vince.jpeg")
 }
 
 pub fn test_img_file_with_name(name: &str) -> PathBuf {
-    PathBuf::from(&format!("data/test/images/{name}"))
+    PathBuf::from("data").join("test").join("images").join(name)
 }
 
 pub fn test_text_file_with_name(name: &str) -> PathBuf {
-    PathBuf::from(&format!("data/test/text/{name}"))
+    PathBuf::from("data").join("test").join("text").join(name)
 }
 
 pub fn test_video_file_with_name(name: &str) -> PathBuf {
-    PathBuf::from(&format!("data/test/video/{name}"))
+    PathBuf::from("data").join("test").join("video").join(name)
 }
 
 pub fn test_audio_file_with_name(name: &str) -> PathBuf {
-    PathBuf::from(&format!("data/test/audio/{name}"))
+    PathBuf::from("data").join("test").join("audio").join(name)
 }
 
-pub fn test_200k_csv() -> &'static Path {
-    Path::new("data/test/text/celeb_a_200k.csv")
+pub fn test_200k_csv() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("text")
+        .join("celeb_a_200k.csv")
 }
 
-pub fn test_nlp_classification_csv() -> &'static Path {
-    Path::new("nlp/classification/annotations/test.tsv")
+pub fn test_nlp_classification_csv() -> PathBuf {
+    Path::new("nlp")
+        .join("classification")
+        .join("annotations")
+        .join("test.tsv")
 }
 
 pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
@@ -758,23 +783,38 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     let train_dir = repo_dir.join("train");
     std::fs::create_dir_all(&train_dir)?;
     util::fs::copy(
-        Path::new("data/test/images/dog_1.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_1.jpg"),
         train_dir.join("dog_1.jpg"),
     )?;
     util::fs::copy(
-        Path::new("data/test/images/dog_2.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_2.jpg"),
         train_dir.join("dog_2.jpg"),
     )?;
     util::fs::copy(
-        Path::new("data/test/images/dog_3.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_3.jpg"),
         train_dir.join("dog_3.jpg"),
     )?;
     util::fs::copy(
-        Path::new("data/test/images/cat_1.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("cat_1.jpg"),
         train_dir.join("cat_1.jpg"),
     )?;
     util::fs::copy(
-        Path::new("data/test/images/cat_2.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("cat_2.jpg"),
         train_dir.join("cat_2.jpg"),
     )?;
 
@@ -782,11 +822,17 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     let test_dir = repo_dir.join("test");
     std::fs::create_dir_all(&test_dir)?;
     util::fs::copy(
-        Path::new("data/test/images/dog_4.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_4.jpg"),
         test_dir.join("1.jpg"),
     )?;
     util::fs::copy(
-        Path::new("data/test/images/cat_3.jpg"),
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("cat_3.jpg"),
         test_dir.join("2.jpg"),
     )?;
 
@@ -857,7 +903,10 @@ test/unknown.jpg,unknown,0.0,0.0,0,0
 
     // nlp/classification/annotations/
     // Make sure to add a few duplicate examples for testing
-    let nlp_annotations_dir = repo_dir.join("nlp/classification/annotations");
+    let nlp_annotations_dir = repo_dir
+        .join("nlp")
+        .join("classification")
+        .join("annotations");
     std::fs::create_dir_all(&nlp_annotations_dir)?;
     write_txt_file_to_path(
         nlp_annotations_dir.join("train.tsv"),
@@ -976,7 +1025,7 @@ pub fn schema_bounding_box() -> Schema {
 
 pub fn add_random_bbox_to_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, OxenError> {
     let mut rng = rand::thread_rng();
-    let file_name = format!("train/random_img_{}.jpg", rng.gen_range(0..10));
+    let file_name = format!("random_img_{}.jpg", rng.gen_range(0..10));
     let x: f64 = rng.gen_range(0.0..1000.0);
     let y: f64 = rng.gen_range(0.0..1000.0);
     let w: i64 = rng.gen_range(0..1000);

@@ -19,6 +19,13 @@ pub struct CommitEntryReader {
 }
 
 impl CommitEntryReader {
+    pub fn db_path(base_path: impl AsRef<Path>, commit_id: &str) -> PathBuf {
+        util::fs::oxen_hidden_dir(&base_path)
+            .join(HISTORY_DIR)
+            .join(commit_id)
+            .join(DIRS_DIR)
+    }
+
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
@@ -38,27 +45,24 @@ impl CommitEntryReader {
         base_path: impl AsRef<Path>,
         commit_id: &str,
     ) -> Result<CommitEntryReader, OxenError> {
-        let db_path = util::fs::oxen_hidden_dir(&base_path)
-            .join(HISTORY_DIR)
-            .join(commit_id)
-            .join(DIRS_DIR);
+        let path = Self::db_path(&base_path, commit_id);
         let opts = db::opts::default();
         log::debug!(
             "CommitEntryReader::new_from_commit_id() commit_id: {} path: {:?}",
             commit_id,
-            db_path
+            path
         );
 
-        if !db_path.exists() {
-            std::fs::create_dir_all(&db_path)?;
+        if !path.exists() {
+            std::fs::create_dir_all(&path)?;
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+                DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
         }
 
         Ok(CommitEntryReader {
             base_path: base_path.as_ref().to_owned(),
-            dir_db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
+            dir_db: DBWithThreadMode::open_for_read_only(&opts, &path, true)?,
             commit_id: commit_id.to_owned(),
         })
     }

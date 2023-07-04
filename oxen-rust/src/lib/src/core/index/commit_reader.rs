@@ -7,6 +7,7 @@ use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::str;
 
 use crate::model::LocalRepository;
@@ -17,23 +18,27 @@ pub struct CommitReader {
 }
 
 impl CommitReader {
+    pub fn db_path(repository: &LocalRepository) -> PathBuf {
+        util::fs::oxen_hidden_dir(&repository.path).join(COMMITS_DIR)
+    }
+
     /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository) -> Result<CommitReader, OxenError> {
-        let db_path = util::fs::oxen_hidden_dir(&repository.path).join(COMMITS_DIR);
+        let path = Self::db_path(repository);
         let opts = db::opts::default();
 
-        log::debug!("CommitReader::new db_path: {:?}", db_path);
+        log::debug!("CommitReader::new path: {:?}", path);
 
-        if !db_path.exists() {
-            std::fs::create_dir_all(&db_path)?;
+        if !path.exists() {
+            std::fs::create_dir_all(&path)?;
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+                DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
         }
 
         Ok(CommitReader {
             repository: repository.clone(),
-            db: DBWithThreadMode::open_for_read_only(&opts, &db_path, false)?,
+            db: DBWithThreadMode::open_for_read_only(&opts, &path, false)?,
         })
     }
 
@@ -54,6 +59,7 @@ impl CommitReader {
 
     /// Get the root commit of the db
     pub fn root_commit(&self) -> Result<Commit, OxenError> {
+        // Traverse db to find root commit
         CommitDBReader::root_commit(&self.repository, &self.db)
     }
 

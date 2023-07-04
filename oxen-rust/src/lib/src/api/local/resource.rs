@@ -216,7 +216,7 @@ pub fn maybe_get_commit<S: AsRef<str>>(
 
     match maybe_get_commit_id_from_branch_name(repo, &commit_id_or_branch_name) {
         Ok(Some(commit_id)) => commit_reader.get_commit_by_id(commit_id),
-        Ok(None) => Err(OxenError::local_commit_or_branch_not_found(
+        Ok(None) => Err(OxenError::local_revision_not_found(
             commit_id_or_branch_name.as_ref(),
         )),
         Err(err) => Err(err),
