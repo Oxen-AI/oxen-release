@@ -10,7 +10,7 @@
 //! use liboxen::command;
 //!
 //! // Instantiate a new repo
-//! let repo = command::init("/tmp/test_repo")?;
+//! let repo = command::init("test_repo")?;
 //! // Add a file to the repo
 //! command::add(&repo, "file.txt")?;
 //! // Commit the file
@@ -25,7 +25,7 @@
 //! use liboxen::model::LocalRepository;
 //!
 //! // Create LocalRepository from existing repo
-//! let repo = LocalRepository::new("/tmp/test_repo")?;
+//! let repo = LocalRepository::new("test_repo")?;
 //! // Add a file to the repo
 //! command::add(&repo, "file.txt")?;
 //! // Commit the file
@@ -51,7 +51,7 @@
 //! use liboxen::model::LocalRepository;
 //!
 //! let url = "http://0.0.0.0:3000/ox/test_repo";
-//! let repo_dir = "/tmp/test_repo";
+//! let repo_dir = "test_repo";
 //! let opts = CloneOpts::new(url, &repo_dir);
 //! let repo = command::clone(&opts).await?;
 //! ```

@@ -17,6 +17,12 @@ pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -
     }
 }
 
+/// Count the number of entries in the db
+pub fn count<T: ThreadMode>(db: &DBWithThreadMode<T>) -> Result<usize, OxenError> {
+    let iter = db.iterator(IteratorMode::Start);
+    Ok(iter.count())
+}
+
 /// Remove key from database
 pub fn delete<T: ThreadMode, S: AsRef<str>>(
     db: &DBWithThreadMode<T>,

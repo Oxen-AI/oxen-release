@@ -13,7 +13,7 @@ use std::str;
 /// # CommitDirEntryWriter
 /// We keep a list of all the committed files in a subdirectory directory for fast lookup
 pub struct CommitDirEntryWriter {
-    db: DBWithThreadMode<MultiThreaded>,
+    pub db: DBWithThreadMode<MultiThreaded>,
     pub repository: LocalRepository,
 }
 

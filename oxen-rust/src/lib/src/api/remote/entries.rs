@@ -79,8 +79,12 @@ pub async fn download_dir(
         .join(&remote_repo.namespace)
         .join(&remote_repo.name);
     let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-    api::remote::commits::download_commit_db_to_path(remote_repo, revision, &repo_cache_dir)
-        .await?;
+    api::remote::commits::download_commit_entries_db_to_path(
+        remote_repo,
+        revision,
+        &repo_cache_dir,
+    )
+    .await?;
     // Read the entries from the cache commit db
     let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision)?;
     let entries =
@@ -173,13 +177,16 @@ pub async fn download_large_entry(
     let num_chunks = ((total_size / chunk_size) + 1) as usize;
     let mut chunk_size = chunk_size;
 
-    // Write files to /tmp/oxen/HASH/chunk_0..N
+    // Write files to ~/.oxen/tmp/HASH/chunk_0..N
     let remote_path = remote_path.as_ref();
     let local_path = local_path.as_ref();
     let hash = util::hasher::hash_str(&format!("{:?}_{:?}", remote_path, local_path));
 
-    // TODO: write these to ~/.oxen/tmp?
-    let tmp_dir = Path::new("/tmp").join("oxen").join(&hash);
+    let home_dir = util::fs::oxen_home_dir()?;
+    let tmp_dir = home_dir.join("tmp").join(&hash);
+    if !tmp_dir.exists() {
+        util::fs::create_dir_all(&tmp_dir)?;
+    }
 
     // TODO: We could probably download chunks in parallel too
     for i in 0..num_chunks {

@@ -3,7 +3,7 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::df::tabular;
 use crate::core::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
-    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, RefReader, RefWriter,
+    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -444,7 +444,6 @@ impl CommitWriter {
 
         // Two readers, one for HEAD and one for this current commit
         let head_entry_reader = CommitEntryReader::new_from_head(&self.repository)?;
-        let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
         let head_entries = head_entry_reader.list_files()?;
         log::debug!(
             "set_working_repo_to_commit_id got {} entries in commit",
@@ -458,8 +457,21 @@ impl CommitWriter {
         log::debug!("Setting working directory to {}", commit.id);
         log::debug!("got {} candidate dirs", candidate_dirs_to_rm.len());
 
+        // If we do not have the commit entry db locally, fetch it
+        let path = CommitEntryReader::db_path(&self.repository.path, &commit.id);
+        if !path.exists() {
+            log::debug!(
+                "set_working_repo_to_commit_id: Commit entry db does not exist, fetching..."
+            );
+
+            // Pull the commit entry db and the data objects
+            let indexer = EntryIndexer::new(&self.repository)?;
+            indexer.pull_commit(commit).await?;
+        }
+
         // Iterate over files in current commit db, and make sure the hashes match,
         // if different, copy the correct version over
+        let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
         let commit_entries = commit_entry_reader.list_entries()?;
 
         self.restore_missing_files(&commit.id, &commit_entries, &mut candidate_dirs_to_rm)?;
@@ -472,14 +484,14 @@ impl CommitWriter {
         // Remove un-tracked directories
         for dir in candidate_dirs_to_rm.iter() {
             let full_dir = self.repository.path.join(dir);
-            // println!("set_working_repo_to_commit_id remove dis dir {:?}", full_dir);
+            log::debug!(
+                "set_working_repo_to_commit_id remove dis dir {:?}",
+                full_dir
+            );
             if full_dir.exists() {
                 util::fs::remove_dir_all(full_dir)?;
             }
         }
-
-        log::debug!("Setting working directory to {}", commit.id);
-        log::debug!("got {} candidate dirs", candidate_dirs_to_rm.len());
 
         Ok(())
     }

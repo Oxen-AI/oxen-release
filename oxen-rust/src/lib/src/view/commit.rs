@@ -1,7 +1,7 @@
 use crate::model::{Commit, CommitStats};
 use serde::{Deserialize, Serialize};
 
-use super::StatusMessage;
+use super::{Pagination, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct CommitResponse {
@@ -33,13 +33,11 @@ impl ListCommitResponse {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedCommits {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub entries: Vec<Commit>,
-    pub page_size: usize,
-    pub page_number: usize,
-    pub total_pages: usize,
-    pub total_entries: usize,
+    pub commits: Vec<Commit>,
+    #[serde(flatten)]
+    pub pagination: Pagination,
 }

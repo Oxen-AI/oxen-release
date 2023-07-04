@@ -1,7 +1,4 @@
-use crate::{
-    model::{CommitEntry, MetadataEntry, RemoteEntry},
-    util,
-};
+use crate::model::{CommitEntry, MetadataEntry, RemoteEntry};
 use serde::{Deserialize, Serialize};
 
 use super::StatusMessage;
@@ -56,36 +53,6 @@ pub struct PaginatedDirEntries {
     pub page_number: usize,
     pub total_pages: usize,
     pub total_entries: usize,
-}
-
-impl PaginatedDirEntries {
-    pub fn from_entries(
-        entries: Vec<MetadataEntry>,
-        resource: Option<ResourceVersion>,
-        page_num: usize,
-        page_size: usize,
-        total: usize,
-    ) -> PaginatedDirEntries {
-        log::debug!(
-            "PaginatedDirEntries::from_entries entries.len() {} page_num {} page_size {} total {} ",
-            entries.len(),
-            page_num,
-            page_size,
-            total
-        );
-
-        let (paginated, total_pages) =
-            util::paginate_with_total(entries, page_num, page_size, total);
-        PaginatedDirEntries {
-            status: StatusMessage::resource_found(),
-            entries: paginated,
-            resource,
-            page_size,
-            page_number: page_num,
-            total_pages,
-            total_entries: total,
-        }
-    }
 }
 
 #[derive(Deserialize, Serialize, Debug)]
