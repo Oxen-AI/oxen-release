@@ -3,3 +3,4 @@
 data/test/runs
 data/test/config/user_config.toml
 .vscode
+cli-test/tmp/*
