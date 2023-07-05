@@ -107,9 +107,46 @@ For your commit history, you will have to set up your local Oxen user name and e
 oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
 ```
 
-## Create Local Repository
+## Clone a Remote Repository
 
-First, create a new directory, navigate into it, and perform
+There are a few ways that you can clone an Oxen repository, depending on the level of data transfer you want to incur. The default `oxen clone` with no flags will download the latest commit from the `main` branch.
+
+To fetch the latest commit from a specific branch you can use the `-b` flag.
+
+```bash
+oxen clone https://hub.oxen.ai/ox/CatDogBBox -b my-pets
+```
+
+Downloading all the data may still be a more expensive operation than you need. You can download the minimal metadata to still interact with the remote by using the `--shallow` flag.
+
+```bash
+oxen clone https://hub.oxen.ai/ox/CatDogBBox --shallow -b my-pets
+```
+
+This is especially handy for appending data via the [remote staging area](https://docs.oxen.ai/en/latest/concepts/remote_staging.html). When downloading by using the `--shallow` flag you will notice no data files in your working directory. You can still see the data on the branch on the remote with the `oxen remote` subcommands.
+
+```bash
+# View the remote files
+oxen remote ls
+```
+
+You can also download a subset by using `oxen remote download` to download subsets of directories or files. This is useful if you only need the testing data and not the full training data files and directories.
+
+```bash
+oxen remote download test.csv
+```
+
+Lastly, if you want to clone the entire commit history locally, you can use the `--all` flag. This is handy if you want to pull a full history and push to a new remote, or have a workflow where you need to quickly swap between commits locally. Often for running experiments, training, or testing, all you need is a subset of the data.
+
+```bash
+oxen clone https://hub.oxen.ai/ox/CatDogBBox --all
+```
+
+## Initialize Local Repository
+
+If you do not have a remote dataset, you can initialize one locally.
+
+Similar to git: create a new directory, navigate into it, and perform
 
 ```bash
 oxen init
