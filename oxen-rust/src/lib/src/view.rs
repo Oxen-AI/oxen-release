@@ -13,6 +13,7 @@ pub mod json_data_frame;
 pub mod merge;
 pub mod namespace;
 pub mod oxen_response;
+pub mod pagination;
 pub mod remote_staged_status;
 pub mod repository;
 pub mod schema;
@@ -46,6 +47,8 @@ pub use crate::view::branch::{
 };
 
 pub use crate::view::entry_metadata::MetadataEntryResponse;
+
+pub use crate::view::pagination::Pagination;
 
 pub use crate::view::health::HealthResponse;
 pub use crate::view::oxen_response::OxenResponse;

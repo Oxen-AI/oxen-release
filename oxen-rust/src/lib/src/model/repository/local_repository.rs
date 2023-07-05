@@ -1,6 +1,7 @@
 use crate::api;
 use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
+use crate::constants::REPO_CONFIG_FILENAME;
 use crate::constants::SHALLOW_FLAG;
 use crate::core::index::EntryIndexer;
 use crate::error::OxenError;
@@ -111,7 +112,7 @@ impl LocalRepository {
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
         let toml = toml::to_string(&self)?;
-        util::fs::write_to_path(path, &toml)?;
+        util::fs::write_to_path(path, toml)?;
         Ok(())
     }
 
@@ -123,10 +124,11 @@ impl LocalRepository {
 
     pub async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenError> {
         log::debug!(
-            "clone_remote {} -> {:?} -> shallow? {}",
+            "clone_remote {} -> {:?} -> shallow? {} -> all? {}",
             opts.url,
             opts.dst,
-            opts.shallow
+            opts.shallow,
+            opts.all
         );
 
         let remote = Remote {
@@ -136,8 +138,7 @@ impl LocalRepository {
         let remote_repo = api::remote::repositories::get_by_remote(&remote)
             .await?
             .ok_or_else(|| OxenError::remote_repo_not_found(&opts.url))?;
-        let repo =
-            LocalRepository::clone_repo(remote_repo, &opts.branch, &opts.dst, opts.shallow).await?;
+        let repo = LocalRepository::clone_repo(remote_repo, opts).await?;
         Ok(Some(repo))
     }
 
@@ -200,14 +201,10 @@ impl LocalRepository {
 
     async fn clone_repo(
         repo: RemoteRepository,
-        branch_name: &str,
-        dst: &Path,
-        shallow: bool,
+        opts: &CloneOpts,
     ) -> Result<LocalRepository, OxenError> {
-        // let url = String::from(&repo.url);
-        // let repo_new = RepositoryNew::from_url(&repo.url)?;
         // if directory already exists -> return Err
-        let repo_path = dst.join(&repo.name);
+        let repo_path = opts.dst.join(&repo.name);
         if repo_path.exists() {
             let err = format!("Directory already exists: {}", repo.name);
             return Err(OxenError::basic_str(err));
@@ -220,8 +217,8 @@ impl LocalRepository {
         let oxen_hidden_path = util::fs::oxen_hidden_dir(&repo_path);
         std::fs::create_dir(&oxen_hidden_path)?;
 
-        // save Repository in .oxen directory
-        let repo_config_file = oxen_hidden_path.join(Path::new("config.toml"));
+        // save LocalRepository in .oxen directory
+        let repo_config_file = oxen_hidden_path.join(Path::new(REPO_CONFIG_FILENAME));
         let mut local_repo = LocalRepository::from_remote(repo.clone(), &repo_path)?;
         local_repo.path = repo_path;
         local_repo.set_remote(DEFAULT_REMOTE_NAME, &repo.remote.url);
@@ -230,23 +227,12 @@ impl LocalRepository {
         util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
-        let rb = RemoteBranch::from_branch(branch_name);
+        let rb = RemoteBranch::from_branch(&opts.branch);
         let indexer = EntryIndexer::new(&local_repo)?;
-        match indexer.pull_all_commit_objects(&repo, &rb).await {
-            Ok(_) => {
-                local_repo
-                    .maybe_pull_entries(&repo, branch_name, &indexer, shallow)
-                    .await?;
-            }
-            Err(_err) => {
-                // if failed to pull commit objects, means repo is empty, so instantiate the local repo
-                eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                api::local::commits::commit_with_no_files(
-                    &local_repo,
-                    constants::INITIAL_COMMIT_MSG,
-                )?;
-            }
-        }
+
+        local_repo
+            .maybe_pull_entries(&repo, &indexer, &rb, opts)
+            .await?;
 
         Ok(local_repo)
     }
@@ -254,25 +240,25 @@ impl LocalRepository {
     async fn maybe_pull_entries(
         &self,
         repo: &RemoteRepository,
-        branch_name: &str,
         indexer: &EntryIndexer,
-        shallow: bool,
+        rb: &RemoteBranch,
+        opts: &CloneOpts,
     ) -> Result<(), OxenError> {
         // Shallow means we will not pull the actual data until a user tells us to
-        if !shallow {
-            // Pull all entries
-            let rb = RemoteBranch::from_branch(branch_name);
-            indexer.pull(&rb).await?;
-            println!(
-                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
-                repo.remote.url, repo.name, repo.name
-            );
-        } else {
+        if opts.shallow {
+            indexer.pull_first_commit_object(repo, rb).await?;
             self.write_is_shallow(true)?;
 
             println!(
                 "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
-                repo.remote.url, repo.name, repo.name, branch_name
+                repo.remote.url, repo.name, repo.name, opts.branch
+            );
+        } else {
+            // Pull all entries
+            indexer.pull(rb, opts.all).await?;
+            println!(
+                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
+                repo.remote.url, repo.name, repo.name
             );
         }
 
@@ -281,7 +267,7 @@ impl LocalRepository {
 
     pub fn write_is_shallow(&self, shallow: bool) -> Result<(), OxenError> {
         let shallow_flag_path = util::fs::oxen_hidden_dir(&self.path).join(SHALLOW_FLAG);
-        log::debug!("Write is shallow to path: {shallow_flag_path:?}");
+        log::debug!("Write is shallow [{shallow}] to path: {shallow_flag_path:?}");
         if shallow {
             util::fs::write_to_path(&shallow_flag_path, "true")?;
         } else if shallow_flag_path.exists() {
@@ -389,15 +375,15 @@ mod tests {
     #[test]
     fn test_read_cfg() -> Result<(), OxenError> {
         let path = test::repo_cfg_file();
-        let repo = LocalRepository::from_cfg(path)?;
-        assert_eq!(repo.path, Path::new("/tmp/Mini-Dogs-Vs-Cats"));
+        let repo = LocalRepository::from_cfg(&path)?;
+        assert_eq!(repo.path, Path::new("Mini-Dogs-Vs-Cats"));
         Ok(())
     }
 
     #[test]
     fn test_local_repository_save() -> Result<(), OxenError> {
-        let final_path = Path::new("/tmp/repo_config.toml");
-        let orig_repo = LocalRepository::from_cfg(test::repo_cfg_file())?;
+        let final_path = Path::new("repo_config.toml");
+        let orig_repo = LocalRepository::from_cfg(&test::repo_cfg_file())?;
 
         orig_repo.save(final_path)?;
 

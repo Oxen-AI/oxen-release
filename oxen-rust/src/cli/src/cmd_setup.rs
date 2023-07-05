@@ -571,14 +571,20 @@ pub fn clone() -> Command {
         .arg(
             Arg::new("shallow")
                 .long("shallow")
-                .help("A shallow clone doesn't actually clone the data files, useful if you want to pull a specific branch instead.")
+                .help("A shallow clone doesn't actually clone the data files. Useful if you want to soley interact with the remote.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("all")
+                .long("all")
+                .help("This downloads the full commit history, all the data files, and all the commit databases. Useful if you want to have the entire history locally or push to a new remote.")
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("branch")
                 .long("branch")
                 .short('b')
-                .help("The branch you want to switch to when you clone.")
+                .help("The branch you want to pull to when you clone.")
                 .default_value(DEFAULT_BRANCH_NAME)
                 .default_missing_value(DEFAULT_BRANCH_NAME)
                 .action(clap::ArgAction::Set),

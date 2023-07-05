@@ -767,7 +767,12 @@ pub async fn push(sub_matches: &ArgMatches) {
         .expect("Must supply a branch");
 
     if sub_matches.get_flag("delete") {
-        println!("TODO: Delete remote branch {remote}/{branch}");
+        match dispatch::delete_remote_branch(remote, branch).await {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
+            }
+        }
     } else {
         match dispatch::push(remote, branch).await {
             Ok(_) => {}
@@ -829,6 +834,7 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
 pub async fn clone(sub_matches: &ArgMatches) {
     let url = sub_matches.get_one::<String>("URL").expect("required");
     let shallow = sub_matches.get_flag("shallow");
+    let all = sub_matches.get_flag("all");
     let branch = sub_matches
         .get_one::<String>("branch")
         .expect("Must supply a branch");
@@ -839,6 +845,7 @@ pub async fn clone(sub_matches: &ArgMatches) {
         url: url.to_string(),
         dst,
         shallow,
+        all,
         branch: branch.to_string(),
     };
 

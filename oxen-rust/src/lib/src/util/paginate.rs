@@ -1,5 +1,8 @@
+use crate::view::Pagination;
+
 /// Returns a vector of entries and the total number of pages.
-pub fn paginate<T: Clone>(entries: Vec<T>, page: usize, page_size: usize) -> (Vec<T>, usize) {
+/// Note: does this in memory, so not as efficient as down at the db level, but rocksdb does not support pagination
+pub fn paginate<T: Clone>(entries: Vec<T>, page: usize, page_size: usize) -> (Vec<T>, Pagination) {
     let total = entries.len();
     paginate_with_total(entries, page, page_size, total)
 }
@@ -7,23 +10,23 @@ pub fn paginate<T: Clone>(entries: Vec<T>, page: usize, page_size: usize) -> (Ve
 /// Returns a vector of entries and the total number of pages.
 pub fn paginate_with_total<T: Clone>(
     entries: Vec<T>,
-    page: usize,
+    page_number: usize,
     page_size: usize,
     total_entries: usize,
-) -> (Vec<T>, usize) {
+) -> (Vec<T>, Pagination) {
     let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
     log::debug!(
         "paginate entries page: {} size: {} total: {} total_pages: {}",
-        page,
+        page_number,
         page_size,
         total_entries,
         total_pages,
     );
 
-    let start = if page == 0 {
-        page * page_size
+    let start = if page_number == 0 {
+        page_number * page_size
     } else {
-        (page - 1) * page_size
+        (page_number - 1) * page_size
     };
     let end = start + page_size;
 
@@ -34,11 +37,18 @@ pub fn paginate_with_total<T: Clone>(
         entries.len()
     );
 
+    let pagination = Pagination {
+        page_size,
+        page_number,
+        total_pages,
+        total_entries,
+    };
+
     if start < entries.len() && end > entries.len() {
-        (entries[start..].to_vec(), total_pages)
+        (entries[start..].to_vec(), pagination)
     } else if start < entries.len() && end <= entries.len() {
-        (entries[start..end].to_vec(), total_pages)
+        (entries[start..end].to_vec(), pagination)
     } else {
-        (vec![], total_pages)
+        (vec![], pagination)
     }
 }

@@ -30,16 +30,6 @@ pub fn get_by_namespace_and_name(
     Ok(Some(repo))
 }
 
-pub fn get_head_commit_stats(repo: &LocalRepository) -> Result<CommitStats, OxenError> {
-    let commit = api::local::commits::head_commit(repo)?;
-    let reader = CommitEntryReader::new_from_head(repo)?;
-    Ok(CommitStats {
-        commit,
-        num_entries: reader.num_entries()?,
-        num_synced_files: util::fs::rcount_files_in_dir(&repo.path),
-    })
-}
-
 pub fn get_commit_stats_from_id(
     repo: &LocalRepository,
     commit_id: &str,
@@ -65,7 +55,7 @@ pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
     let mut data_size: u64 = 0;
     let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
 
-    match api::local::commits::get_head_commit(repo) {
+    match api::local::commits::head_commit(repo) {
         Ok(commit) => match api::local::entries::list_all(repo, &commit) {
             Ok(entries) => {
                 for entry in entries {
