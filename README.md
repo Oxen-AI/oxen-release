@@ -111,6 +111,10 @@ oxen config --name "YOUR_NAME" --email "YOUR_EMAIL"
 
 There are a few ways that you can clone an Oxen repository, depending on the level of data transfer you want to incur. The default `oxen clone` with no flags will download the latest commit from the `main` branch.
 
+```bash
+oxen clone https://hub.oxen.ai/ox/CatDogBBox
+```
+
 To fetch the latest commit from a specific branch you can use the `-b` flag.
 
 ```bash
