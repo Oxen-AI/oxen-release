@@ -123,8 +123,7 @@ jobs:
 
   test:
     name: Test Suite
-    # test suite is too slow on ubuntu-latest, use macos-latest-xl to use more CPU cores
-    runs-on: macos-latest-xl
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
       - name: Install dependencies
@@ -152,6 +151,7 @@ jobs:
 
       - name: Run Tests
         run: |
+          ulimit -n 10240
           cargo build
           mkdir /tmp/oxen_sync/
           mkdir data/test/runs
