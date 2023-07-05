@@ -1,0 +1,17 @@
+example_id                                                    | status | run_time               |
+------------------------------------------------------------- | ------ | ---------------------- |
+./spec/spec_remote_hub/remote_hub_add_df_row_spec.rb[1:1]     | passed | 13.75 seconds          |
+./spec/spec_remote_hub/remote_hub_add_image_spec.rb[1:1]      | failed | 12.45 seconds          |
+./spec/spec_remote_hub/remote_hub_deep_clone_spec.rb[1:1]     | failed | 1.26 seconds           |
+./spec/spec_remote_hub/remote_hub_deep_clone_spec.rb[1:2]     | failed | 1.25 seconds           |
+./spec/spec_remote_hub/remote_hub_deep_clone_spec.rb[1:3]     | failed | 1.25 seconds           |
+./spec/spec_remote_hub/remote_hub_remove_image_spec.rb[1:1]   | failed | 11.06 seconds          |
+./spec/spec_remote_hub/remote_hub_shallow_clone_spec.rb[1:1]  | passed | 7.07 seconds           |
+./spec/spec_remote_hub/remote_hub_shallow_clone_spec.rb[1:2]  | failed | 2.78 seconds           |
+./spec/spec_remote_hub/remote_hub_shallow_clone_spec.rb[1:3]  | passed | 8.39 seconds           |
+./spec/spec_remote_hub/remote_hub_standard_clone_spec.rb[1:1] | passed | 7.92 seconds           |
+./spec/spec_remote_hub/remote_hub_standard_clone_spec.rb[1:2] | passed | 2 minutes 51.7 seconds |
+./spec/spec_remote_hub/remote_hub_standard_clone_spec.rb[1:3] | passed | 5 minutes 54 seconds   |
+./spec/spec_remote_hub/remote_hub_status_spec.rb[1:1]         | passed | 3.54 seconds           |
+./spec/spec_remote_hub/remote_hub_status_spec.rb[1:2]         | passed | 3.43 seconds           |
+./spec/spec_remote_hub/remote_hub_status_spec.rb[1:3]         | passed | 3.86 seconds           |
