@@ -25,6 +25,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::create),
         )
         .route(
+            "/{namespace}/{repo_name}/commits_db", // download the database of all the commits and their parents
+            web::get().to(controllers::commits::download_commits_db),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/{commit_id}",
             web::get().to(controllers::commits::show),
         )
@@ -54,7 +58,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         .route(
             "/{namespace}/{repo_name}/commits/{commit_or_branch:.*}/commit_db",
-            web::get().to(controllers::commits::download_commit_db),
+            web::get().to(controllers::commits::download_commit_entries_db),
         )
         // ----- Branches ----- //
         .route(

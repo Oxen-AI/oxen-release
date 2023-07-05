@@ -26,6 +26,11 @@ pub async fn pull_entries(
     }
 
     let missing_entries = get_missing_commit_entries(entries, &dst);
+
+    if missing_entries.is_empty() {
+        return Ok(());
+    }
+
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
     println!(
         "Downloading {} entries with size {}",

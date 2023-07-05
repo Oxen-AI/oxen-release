@@ -186,12 +186,11 @@ async fn maybe_pull_missing_entries(
     // Safe to unwrap now.
     let remote = remote.unwrap();
 
-    let head_commit = api::local::commits::head_commit(repo)?;
     match api::remote::repositories::get_by_remote(&remote).await {
         Ok(Some(remote_repo)) => {
             let indexer = EntryIndexer::new(repo)?;
             indexer
-                .pull_all_entries_for_commit(&remote_repo, &head_commit, commit)
+                .pull_all_entries_for_commit(&remote_repo, commit)
                 .await?;
         }
         Ok(None) => {
@@ -211,6 +210,7 @@ pub async fn set_working_commit_id(
 ) -> Result<(), OxenError> {
     let commit = api::local::commits::get_by_id(repo, commit_id)?
         .ok_or(OxenError::commit_id_does_not_exist(commit_id))?;
+    println!("Checkout commit: {commit}");
 
     let commit_writer = CommitWriter::new(repo)?;
     commit_writer.set_working_repo_to_commit(&commit).await

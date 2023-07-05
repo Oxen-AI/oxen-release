@@ -159,7 +159,7 @@ fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenErro
         let initial_len = commits.len();
 
         let labels_path = repo.path.join("labels.txt");
-        util::fs::write_to_path(&labels_path, "changing this guy, but not committing")?;
+        util::fs::write_to_path(labels_path, "changing this guy, but not committing")?;
 
         let result = command::commit(&repo, "Should not work");
         assert!(result.is_err());
@@ -175,7 +175,7 @@ fn test_command_status_has_txt_file() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         // Write to file
         let hello_file = repo.path.join("hello.txt");
-        util::fs::write_to_path(&hello_file, "Hello World")?;
+        util::fs::write_to_path(hello_file, "Hello World")?;
 
         // Get status
         let repo_status = command::status(&repo)?;
@@ -1369,6 +1369,109 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
     .await
 }
 
+// Test for clone --all that checks to make sure we have all commits, all deleted files, etc
+#[tokio::test]
+async fn test_clone_all() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
+        let og_commits = api::local::commits::list_all(&local_repo)?;
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo =
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
+            // Make sure we have all the commit objects
+            let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
+            assert_eq!(og_commits.len(), cloned_commits.len());
+
+            // Make sure we set the HEAD file
+            let head_commit = api::local::commits::head_commit(&cloned_repo);
+            assert!(head_commit.is_ok());
+
+            // We remove the test/ directory in one of the commits, so make sure we can go
+            // back in the history to that commit
+            let test_dir_path = cloned_repo.path.join("test");
+            let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+            assert!(commit.is_some());
+            assert!(!test_dir_path.exists());
+
+            // checkout the commit
+            command::checkout(&cloned_repo, &commit.unwrap().id).await?;
+            // Make sure we restored the directory
+            assert!(test_dir_path.exists());
+
+            // list files in test_dir_path
+            let test_dir_files = util::fs::list_files_in_dir(&test_dir_path);
+            println!("test_dir_files: {:?}", test_dir_files.len());
+            for file in test_dir_files.iter() {
+                println!("file: {:?}", file);
+            }
+            assert_eq!(test_dir_files.len(), 2);
+
+            assert!(test_dir_path.join("1.jpg").exists());
+            assert!(test_dir_path.join("2.jpg").exists());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
+
+// Test the default clone (not --all or --shallow) can revert to files that are not local
+#[tokio::test]
+async fn test_clone_default_revert_deleted() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
+        let og_commits = api::local::commits::list_all(&local_repo)?;
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
+            // Make sure we have all the commit objects
+            let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
+            assert_eq!(og_commits.len(), cloned_commits.len());
+
+            // Make sure we set the HEAD file
+            let head_commit = api::local::commits::head_commit(&cloned_repo);
+            assert!(head_commit.is_ok());
+
+            // We remove the test/ directory in one of the commits, so make sure we can go
+            // back in the history to that commit
+            let test_dir_path = cloned_repo.path.join("test");
+            let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+            assert!(commit.is_some());
+            assert!(!test_dir_path.exists());
+
+            // checkout the commit
+            command::checkout(&cloned_repo, &commit.unwrap().id).await?;
+            // Make sure we restored the directory
+            assert!(test_dir_path.exists());
+
+            // list files in test_dir_path
+            let test_dir_files = util::fs::list_files_in_dir(&test_dir_path);
+            println!("test_dir_files: {:?}", test_dir_files.len());
+            for file in test_dir_files.iter() {
+                println!("file: {:?}", file);
+            }
+            assert_eq!(test_dir_files.len(), 2);
+
+            assert!(test_dir_path.join("1.jpg").exists());
+            assert!(test_dir_path.join("2.jpg").exists());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
+
 // This specific flow broke during a demo
 // * add file *
 // push
@@ -1585,7 +1688,10 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 #[tokio::test]
 async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-        let filename = "nlp/classification/annotations/train.tsv";
+        let filename = Path::new("nlp")
+            .join("classification")
+            .join("annotations")
+            .join("train.tsv");
         let file_path = repo.path.join(filename);
         let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
         let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
@@ -1609,8 +1715,11 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
-            let filename = "nlp/classification/annotations/train.tsv";
-            let file_path = cloned_repo.path.join(filename);
+            let filename = Path::new("nlp")
+                .join("classification")
+                .join("annotations")
+                .join("train.tsv");
+            let file_path = cloned_repo.path.join(&filename);
             let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
             let cloned_contents = util::fs::read_from_path(&file_path)?;
             assert_eq!(og_df.height(), cloned_df.height());
@@ -1941,7 +2050,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
 
-            // Get cloned history
+            // Get cloned history, which should fall back to API if not found locally
             let cloned_history = api::local::commits::list(&cloned_repo)?;
 
             // Make sure the histories match
@@ -2420,7 +2529,7 @@ fn test_restore_directory() -> Result<(), OxenError> {
         assert_eq!(og_bbox_contents, restored_contents);
 
         // Make sure the modified file is restored
-        let restored_contents = util::fs::read_from_path(&readme_path)?;
+        let restored_contents = util::fs::read_from_path(readme_path)?;
         assert_eq!(og_readme_contents, restored_contents);
 
         Ok(())
@@ -2499,7 +2608,7 @@ fn test_restore_modified_text_data() -> Result<(), OxenError> {
 
         let og_contents = util::fs::read_from_path(&bbox_path)?;
         let new_contents = format!("{og_contents}\nnew 0");
-        util::fs::write_to_path(&bbox_path, &new_contents)?;
+        util::fs::write_to_path(&bbox_path, new_contents)?;
 
         command::restore(
             &repo,
@@ -3524,7 +3633,7 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
             let mut opts = DFOpts::empty();
             opts.add_row = Some("I am a new row,neutral".to_string());
             opts.content_type = ContentType::Csv;
-            command::remote::df(&cloned_repo, path, opts).await?;
+            command::remote::df(&cloned_repo, &path, opts).await?;
 
             // Local add col
             let full_path = cloned_repo.path.join(path);
@@ -3629,7 +3738,7 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
         // assert_eq!(branch.name, branch_name);
 
         // Advance head on main branch, leave behind-main behind
-        let path = test::test_img_file().to_path_buf();
+        let path = test::test_img_file();
         let result =
             api::remote::staging::add_file(&remote_repo, main_branch, &identifier, main_path, path)
                 .await;
@@ -3658,7 +3767,7 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
                 .await?;
 
         // Add file at images/folder to behind-main, committed to main
-        let image_path = test::test_img_file().to_path_buf();
+        let image_path = test::test_img_file();
         let result = api::remote::staging::add_file(
             &remote_repo,
             new_branch,

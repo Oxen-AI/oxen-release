@@ -154,7 +154,7 @@ impl AccessKeyManager {
 
     fn read_secret_key(&self) -> Result<String, OxenError> {
         let path = AccessKeyManager::secret_key_path(&self.sync_dir);
-        util::fs::read_from_path(&path)
+        util::fs::read_from_path(path)
     }
 }
 

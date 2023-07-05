@@ -48,7 +48,7 @@ pub fn meta_entry_from_dir(
     // We cache the latest commit and size for each file in the directory after commit
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
-    let latest_commit = match util::fs::read_from_path(&latest_commit_path) {
+    let latest_commit = match util::fs::read_from_path(latest_commit_path) {
         Ok(id) => commit_reader.get_commit_by_id(id)?,
         Err(_) => {
             // cache failed, go compute it
@@ -57,7 +57,7 @@ pub fn meta_entry_from_dir(
     };
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
-    let total_size = match util::fs::read_from_path(&total_size_path) {
+    let total_size = match util::fs::read_from_path(total_size_path) {
         Ok(total_size_str) => total_size_str
             .parse::<u64>()
             .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
@@ -449,7 +449,7 @@ mod tests {
             let commit = commits.first().unwrap();
 
             let path = test::test_nlp_classification_csv();
-            let entry = api::local::entries::get_meta_entry(&repo, commit, path)?;
+            let entry = api::local::entries::get_meta_entry(&repo, commit, &path)?;
 
             assert!(!entry.is_dir);
             assert_eq!(entry.filename, "test.tsv");
