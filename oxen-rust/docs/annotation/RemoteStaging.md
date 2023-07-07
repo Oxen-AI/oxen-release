@@ -195,13 +195,13 @@ You can also use the HTTP APIs on oxen-server to upload data to a staging area o
 You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.
 
 ```
-curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: multipart/form-data"  -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/dir/add-images/images"
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: multipart/form-data"  -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/entries/$BRANCH_NAME/$DIRECTORY_NAME"
 ```
 
-To view the files that are staged you can simply GET the staged data on the branch `/staging/dir/add-images`
+To view the files that are staged you can simply GET the staged data on the branch `/staging/entries/add-images`
 
 ```
-curl -X GET -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/dir/add-images"
+curl -X GET -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/entries/add-images"
 ```
 
 When you are ready to commit the staged data you can call the `/commit` API with the branch postfix.
