@@ -196,27 +196,25 @@ pub async fn commit_staged(
     log::debug!("commit_staged {}\n{}", url, body);
 
     let client = client::new_for_url(&url)?;
-    match client
+    let res = client
         .post(&url)
         .body(reqwest::Body::from(body))
         .send()
-        .await
-    {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("commit_staged got body: {}", body);
-            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.commit),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "api::staging::commit_staged error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-                ))),
-            }
-        }
-        Err(err) => {
-            let err = format!("api::staging::commit_staged Request failed: {url}\nErr {err:?}");
-            Err(OxenError::basic_str(err))
-        }
+        .await?;
+
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("commit_staged got body: {}", body);
+    let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => {
+            let commit = val.commit;
+            // make sure to call our /complete call to kick off the post-push hooks
+            api::remote::commits::post_push_complete(remote_repo, &commit.id).await?;
+            Ok(commit)
+        },
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::staging::commit_staged error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
     }
 }
 
