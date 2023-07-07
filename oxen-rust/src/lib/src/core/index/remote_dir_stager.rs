@@ -15,8 +15,8 @@ use crate::model::Branch;
 use crate::model::Commit;
 use crate::model::LocalRepository;
 use crate::model::NewCommit;
+use crate::model::NewCommitBody;
 use crate::model::StagedData;
-use crate::model::User;
 use crate::util;
 
 use super::CommitWriter;
@@ -179,9 +179,8 @@ pub fn commit_staged(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
     branch: &Branch,
-    user: &User,
+    new_commit: &NewCommitBody,
     user_id: &str,
-    message: &str,
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_staged started on branch: {}", branch.name);
 
@@ -193,9 +192,9 @@ pub fn commit_staged(
 
     let new_commit = NewCommit {
         parent_ids: vec![branch.commit_id.to_owned()],
-        message: String::from(message),
-        author: user.name.to_owned(),
-        email: user.email.to_owned(),
+        message: new_commit.message.to_owned(),
+        author: new_commit.author.to_owned(),
+        email: new_commit.email.to_owned(),
         timestamp,
     };
     log::debug!("commit_staged: new_commit: {:#?}", &new_commit);
@@ -292,7 +291,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::core::index;
     use crate::error::OxenError;
-    use crate::model::User;
+    use crate::model::NewCommitBody;
     use crate::test;
     use crate::util;
 
@@ -360,18 +359,17 @@ mod tests {
             )?;
 
             let og_commits = api::local::commits::list(&repo)?;
-            let user = User {
-                name: String::from("Test User"),
+            let new_commit = NewCommitBody {
+                author: String::from("Test User"),
                 email: String::from("test@oxen.ai"),
+                message: String::from("I am committing this remote staged data"),
             };
-            let message: &str = "I am committing this remote staged data";
             index::remote_dir_stager::commit_staged(
                 &repo,
                 &branch_repo,
                 &branch,
-                &user,
+                &new_commit,
                 &user_id,
-                message,
             )?;
 
             for commit in og_commits.iter() {

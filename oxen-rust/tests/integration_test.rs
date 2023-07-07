@@ -6,10 +6,9 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
-use liboxen::model::CommitBody;
 use liboxen::model::ContentType;
+use liboxen::model::NewCommitBody;
 use liboxen::model::StagedEntryStatus;
-use liboxen::model::User;
 use liboxen::opts::DFOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
@@ -3744,23 +3743,19 @@ async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
                 .await;
         assert!(result.is_ok());
 
-        let body = CommitBody {
+        let body = NewCommitBody {
             message: "Add to main".to_string(),
-            user: User {
-                name: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            },
+            author: "Test User".to_string(),
+            email: "test@oxen.ai".to_string(),
         };
 
         api::remote::staging::commit_staged(&remote_repo, main_branch, &identifier, &body).await?;
 
         // Make an EMPTY commit to behind-main
-        let body = CommitBody {
+        let body = NewCommitBody {
             message: "Add behind main".to_string(),
-            user: User {
-                name: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            },
+            author: "Test User".to_string(),
+            email: "test@oxen.ai".to_string(),
         };
         let _commit =
             api::remote::staging::commit_staged(&remote_repo, new_branch, &identifier, &body)
