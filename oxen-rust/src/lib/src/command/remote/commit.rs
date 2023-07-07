@@ -6,7 +6,7 @@
 use crate::api;
 use crate::config::UserConfig;
 use crate::error::OxenError;
-use crate::model::{Commit, CommitBody, LocalRepository, User};
+use crate::model::{Commit, LocalRepository, NewCommitBody};
 
 /// Commit changes that are staged on the remote repository on the current
 /// checked out local branch
@@ -19,12 +19,10 @@ pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Comm
 
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     let cfg = UserConfig::get()?;
-    let body = CommitBody {
+    let body = NewCommitBody {
         message: message.to_string(),
-        user: User {
-            name: cfg.name,
-            email: cfg.email,
-        },
+        author: cfg.name,
+        email: cfg.email,
     };
     let user_id = UserConfig::identifier()?;
     let commit =

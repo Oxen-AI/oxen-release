@@ -11,7 +11,7 @@ use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{
-    entry::mod_entry::ModType, Branch, CommitBody, CommitEntry, ContentType, LocalRepository,
+    entry::mod_entry::ModType, Branch, CommitEntry, ContentType, LocalRepository, NewCommitBody,
     ObjectID, Schema,
 };
 use liboxen::opts::DFOpts;
@@ -347,7 +347,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
 
     log::debug!("stager::commit got body: {body}");
 
-    let data: Result<CommitBody, serde_json::Error> = serde_json::from_str(&body);
+    let data: Result<NewCommitBody, serde_json::Error> = serde_json::from_str(&body);
 
     let data = match data {
         Ok(data) => data,
@@ -368,9 +368,8 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
                     &repo,
                     &branch_repo,
                     &branch,
-                    &data.user,
+                    &data,
                     user_id,
-                    &data.message,
                 ) {
                     Ok(commit) => {
                         log::debug!("stager::commit ✅ success! commit {:?}", commit);
