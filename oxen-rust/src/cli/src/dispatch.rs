@@ -81,8 +81,8 @@ pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<()
 
     let remote_repo = api::remote::repositories::create(&repo, namespace, name, host).await?;
     println!(
-        "Remote created for {}\n\noxen config --set-remote origin {}",
-        name, remote_repo.remote.url
+        "Remote created for {}\n\noxen config --set-remote {} {}",
+        name, name, remote_repo.remote.url
     );
 
     Ok(())
