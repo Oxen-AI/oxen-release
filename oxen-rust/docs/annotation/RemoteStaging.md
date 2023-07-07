@@ -207,7 +207,7 @@ curl -X GET -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos/$NAMESPA
 When you are ready to commit the staged data you can call the `/commit` API with the branch postfix.
 
 ```
-curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing committing mooooo-re data", "user": {"name": "Ox", "email": "ox@oxen.ai"}}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/commit/add-images"
+curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing committing mooooo-re data", "author": "Ox", "email": "ox@oxen.ai"}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/commit/add-images"
 ```
 
 # Staging Structured Data
