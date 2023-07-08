@@ -142,7 +142,7 @@ impl LocalRepository {
         Ok(Some(repo))
     }
 
-    pub fn set_remote(&mut self, name: &str, url: &str) {
+    pub fn set_remote(&mut self, name: &str, url: &str) -> Remote {
         self.remote_name = Some(String::from(name));
         let remote = Remote {
             name: String::from(name),
@@ -157,8 +157,9 @@ impl LocalRepository {
             }
         } else {
             // we don't have the key, just push
-            self.remotes.push(remote);
+            self.remotes.push(remote.clone());
         }
+        remote
     }
 
     pub fn delete_remote(&mut self, name: &str) {
