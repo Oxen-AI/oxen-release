@@ -34,6 +34,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
     log::debug!("try_infer_schema_csv delimiter: {:?}", delimiter as char);
     let result = reader
         .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .with_ignore_errors(true)
         .has_header(true)
         .with_delimiter(delimiter)
         .with_encoding(CsvEncoding::LossyUtf8)
@@ -625,7 +626,7 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
             "ndjson" => read_df_jsonl(path),
             "jsonl" => read_df_jsonl(path),
             "json" => read_df_json(path),
-            "csv" => {
+            "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(path, &opts)?;
                 read_df_csv(path, delimiter)
             }
@@ -654,7 +655,7 @@ pub fn scan_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<LazyFrame, Oxen
         Some(extension) => match extension {
             "ndjson" => scan_df_jsonl(path),
             "jsonl" => scan_df_jsonl(path),
-            "csv" => {
+            "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
                 scan_df_csv(path, delimiter)
             }
