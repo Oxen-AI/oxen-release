@@ -8,12 +8,15 @@ use crate::error::OxenError;
 
 use super::{Branch, User};
 
+/// NewCommitBody is used to parse the json into a Commit from the API
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct CommitBody {
+pub struct NewCommitBody {
     pub message: String,
-    pub user: User,
+    pub author: String,
+    pub email: String,
 }
 
+/// NewCommit is to be used when creating a new Commit, but we don't know the id yet because we need to hash the contents
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NewCommit {
     pub parent_ids: Vec<String>,

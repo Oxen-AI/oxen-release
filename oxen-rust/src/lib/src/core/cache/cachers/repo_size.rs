@@ -56,6 +56,8 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let dirs = reader.list_dirs()?;
     log::debug!("Computing size of {} dirs", dirs.len());
     for dir in dirs {
+        // log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
+
         // Start with the size of all the entries in this dir
         let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir).unwrap();
         let entries = dir_reader.list_entries().unwrap();
@@ -63,7 +65,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // For each dir, find the latest commit that modified it
         let commits: HashMap<String, Commit> = HashMap::new();
-        let mut latest_commit: Option<Commit> = Some(commit.clone());
+        let mut latest_commit: Option<Commit> = None;
 
         // TODO: do not copy pasta this code
         for entry in entries {
@@ -74,17 +76,22 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             };
 
             if latest_commit.is_none() {
+                // log::debug!("FOUND LATEST COMMIT PARENT EMPTY {:?} -> {:?}", entry.path, commit);
                 latest_commit = commit.clone();
-            }
-
-            if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
-                latest_commit = commit.clone();
+            } else {
+                // log::debug!("CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}", entry.path, latest_commit.as_ref().unwrap().timestamp, commit.as_ref().unwrap().timestamp);
+                if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
+                    // log::debug!("FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}", entry.path, commit);
+                    latest_commit = commit.clone();
+                }
             }
         }
 
         // Recursively compute the size of the directory children
         let children = reader.list_dir_children(&dir)?;
         for child in children {
+            // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
+
             let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &child).unwrap();
 
             let entries = dir_reader.list_entries().unwrap();
@@ -100,11 +107,13 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 };
 
                 if latest_commit.is_none() {
+                    // log::debug!("FOUND LATEST COMMIT CHILD EMPTY {:?} -> {:?}", entry.path, commit);
                     latest_commit = commit.clone();
-                }
-
-                if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
-                    latest_commit = commit.clone();
+                } else {
+                    if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
+                        // log::debug!("FOUND LATEST COMMIT CHILD TIMESTAMP {:?} -> {:?}", entry.path, commit);
+                        latest_commit = commit.clone();
+                    }
                 }
             }
         }

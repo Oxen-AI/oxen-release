@@ -719,7 +719,7 @@ mod tests {
     };
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::{ModType, NewMod};
-    use crate::model::{ContentType, StagedData};
+    use crate::model::{ContentType, NewCommitBody, StagedData};
     use crate::opts::DFOpts;
     use crate::{api, test, util};
 
@@ -837,14 +837,18 @@ mod tests {
                 content_type: ContentType::Json,
             };
             index::mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+            let new_commit = NewCommitBody {
+                author: user.name.to_owned(),
+                email: user.email,
+                message: "Appending tabular data".to_string(),
+            };
 
             let commit = remote_dir_stager::commit_staged(
                 &repo,
                 &branch_repo,
                 &branch,
-                &user,
+                &new_commit,
                 &identity,
-                "Appending tabular data",
             )?;
 
             // Make sure version file is updated

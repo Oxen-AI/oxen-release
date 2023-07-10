@@ -90,7 +90,7 @@ pub fn create_remote() -> Command {
     Command::new(CREATE_REMOTE)
         .about("Creates a remote repository with the name on the host")
         .arg(arg!(<NAMESPACE> "The namespace you would like to use"))
-        .arg(arg!(<NAME> "The remote host"))
+        .arg(arg!(<NAME> "The remote name"))
         .arg(arg!(<HOST> "The remote host"))
         .arg_required_else_help(true)
 }
