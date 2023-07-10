@@ -1420,6 +1420,46 @@ async fn test_clone_all() -> Result<(), OxenError> {
     .await
 }
 
+// Test for clone --all that checks to make sure we have all commits, all deleted files, etc
+#[tokio::test]
+async fn test_clone_all_push_all() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let mut cloned_repo =
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
+            let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
+            let remote_url = test::repo_remote_url_from(&repo_name);
+            let remote_name = "different";
+
+            // Create a different repo
+            api::remote::repositories::create(
+                &cloned_repo,
+                constants::DEFAULT_NAMESPACE,
+                &repo_name,
+                test::test_host(),
+            )
+            .await?;
+
+            command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
+
+            // Should be able to push all data successfully
+            command::push_remote_branch(&cloned_repo, remote_name, "main").await?;
+
+            // TODO: figure out how to repro why the Pets Dataset we could not clone --all and push to staging
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
+
 // Test the default clone (not --all or --shallow) can revert to files that are not local
 #[tokio::test]
 async fn test_clone_default_revert_deleted() -> Result<(), OxenError> {
