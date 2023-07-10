@@ -168,6 +168,10 @@ pub fn create_empty(
     let local_repo = LocalRepository::new(&repo_dir)?;
     local_repo.save(&config_path)?;
 
+    // Create history dir
+    let history_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::HISTORY_DIR);
+    std::fs::create_dir_all(history_dir)?;
+
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
     {
         // Make go out of scope to release LOCK
