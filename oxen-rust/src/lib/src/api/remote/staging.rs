@@ -2,7 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
-use crate::model::{Commit, CommitBody, DataFrameDiff, ModEntry, ObjectID, RemoteRepository};
+use crate::model::{Commit, DataFrameDiff, ModEntry, NewCommitBody, ObjectID, RemoteRepository};
 use crate::model::{ContentType, Schema};
 use crate::view::{
     CommitResponse, FilePathsResponse, ListStagedFileModResponseDF, RemoteStagedStatus,
@@ -188,7 +188,7 @@ pub async fn commit_staged(
     remote_repo: &RemoteRepository,
     branch_name: &str,
     identifier: &str,
-    commit: &CommitBody,
+    commit: &NewCommitBody,
 ) -> Result<Commit, OxenError> {
     let uri = format!("/staging/{identifier}/commit/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -196,27 +196,25 @@ pub async fn commit_staged(
     log::debug!("commit_staged {}\n{}", url, body);
 
     let client = client::new_for_url(&url)?;
-    match client
+    let res = client
         .post(&url)
         .body(reqwest::Body::from(body))
         .send()
-        .await
-    {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("commit_staged got body: {}", body);
-            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.commit),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "api::staging::commit_staged error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-                ))),
-            }
-        }
-        Err(err) => {
-            let err = format!("api::staging::commit_staged Request failed: {url}\nErr {err:?}");
-            Err(OxenError::basic_str(err))
-        }
+        .await?;
+
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("commit_staged got body: {}", body);
+    let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => {
+            let commit = val.commit;
+            // make sure to call our /complete call to kick off the post-push hooks
+            api::remote::commits::post_push_complete(remote_repo, &commit.id).await?;
+            Ok(commit)
+        },
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::staging::commit_staged error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
     }
 }
 
@@ -362,7 +360,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
-    use crate::model::{CommitBody, User};
+    use crate::model::NewCommitBody;
     use crate::opts::CloneOpts;
     use crate::test;
     use crate::{api, command, constants};
@@ -615,12 +613,10 @@ mod tests {
             .await;
             assert!(result.is_ok());
 
-            let body = CommitBody {
+            let body = NewCommitBody {
                 message: "Add one image".to_string(),
-                user: User {
-                    name: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                },
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
             };
             let commit =
                 api::remote::staging::commit_staged(&remote_repo, branch_name, &identifier, &body)
@@ -691,12 +687,10 @@ mod tests {
             .await;
             assert!(result.is_ok());
 
-            let body = CommitBody {
+            let body = NewCommitBody {
                 message: "Add staged data".to_string(),
-                user: User {
-                    name: "Test User".to_string(),
-                    email: "test@oxen.ai".to_string(),
-                },
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
             };
             let commit =
                 api::remote::staging::commit_staged(&remote_repo, branch_name, &identifier, &body)

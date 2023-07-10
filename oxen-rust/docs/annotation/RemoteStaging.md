@@ -30,8 +30,8 @@ Note: When you do a shallow clone, your local commands will not work until you `
 After you have a shallow clone, then you can create a local branch, and push it to the remote. Every remote branch has a remote staging area that is tied to the branch.
 
 ```bash 
-$ oxen checkout -b add-images
-$ oxen push origin add-images
+$ oxen checkout -b $BRANCH_NAME
+$ oxen push origin $BRANCH_NAME
 ```
 
 ## Check Remote Status
@@ -69,7 +69,7 @@ You can now use the `oxen remote status` command to see the files that are stage
 ```bash
 $ oxen remote status
 
-Checking remote branch add-images -> 6f98e855fbc0fd1
+Checking remote branch $BRANCH_NAME -> 6f98e855fbc0fd1
 
 Directories to be committed
   added: my-images with 1 file
@@ -192,22 +192,22 @@ $ oxen remote restore --staged annotations/train.csv
 
 You can also use the HTTP APIs on oxen-server to upload data to a staging area on the branch. This can be helpful to build directly into labeling workflows instead of interfacing with the CLI.
 
-You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `add-images` and the directory is `annotations`.
+You can specify a branch and a directory you would like to upload the data to in the URI. In the example below the branch is `$BRANCH_NAME` and the directory is `annotations`.
 
 ```
-curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: multipart/form-data"  -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/entries/$BRANCH_NAME/$DIRECTORY_NAME"
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: multipart/form-data"  -F file=@/path/to/image.jpg "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/entries/$BRANCH_NAME/images"
 ```
 
-To view the files that are staged you can simply GET the staged data on the branch `/staging/entries/add-images`
+To view the files that are staged you can simply GET the staged data on the branch `/staging/entries/$BRANCH_NAME`
 
 ```
-curl -X GET -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/entries/add-images"
+curl -X GET -H "Authorization: Bearer $TOKEN" "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/entries/$BRANCH_NAME"
 ```
 
 When you are ready to commit the staged data you can call the `/commit` API with the branch postfix.
 
 ```
-curl -X POST -H 'Content-Type: application/json' -d '{"message": "testing committing mooooo-re data", "user": {"name": "Ox", "email": "ox@oxen.ai"}}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/commit/add-images"
+curl -X POST -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" -d '{"message": "testing committing mooooo-re data", "author": "Ox", "email": "ox@oxen.ai"}' "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/$IDENTITY/commit/$BRANCH_NAME"
 ```
 
 # Staging Structured Data
@@ -239,7 +239,7 @@ $ curl -X POST -H "Authorization: Bearer $TOKEN" -d '{"file": "images/img_1234.j
 To list the raw staged modifications to a file you can use the `/staging/file` API.
 
 ```
-$ curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/file/add-images/annotations.csv" | jq
+$ curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/file/$BRANCH_NAME/annotations.csv" | jq
 
 {
   "status": "success",
@@ -269,7 +269,7 @@ $ curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/file/add-i
 
 To view these changes in DataFrame format you can use the `/staging/diff` API.
 
-curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/diff/add-images/annotations.csv?page=3&page_size=5" | jq
+curl -X GET "http://$SERVER/api/repos/$NAMESPACE/$REPO_NAME/staging/diff/$BRANCH_NAME/annotations.csv?page=3&page_size=5" | jq
 
 ```
 {
