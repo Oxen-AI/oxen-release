@@ -107,7 +107,7 @@ class RemoteRepo:
 
     def add(self, local_path: str, remote_directory: str = ""):
         """
-        Stage a file to the remote staging environment
+        Stage a file to the remote workspace
 
         Parameters
         ----------
@@ -120,7 +120,7 @@ class RemoteRepo:
 
     def remove(self, path: str):
         """
-        Unstage a file from the remote staging environment
+        Unstage a file from the remote workspace
 
         Parameters
         ----------

@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Data Loaders &#8212; 🐂 🌾 Oxen 0.1.19</title>
+    <title>&lt;no title&gt; &#8212; 🐂 🌾 Oxen 0.1.20</title>
   
   
   
@@ -46,7 +46,7 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'references/python/data_loaders/index';</script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
-    <link rel="next" title="Image Classification Loader" href="image_loader.html" />
+    <link rel="next" title="Data Loaders Overview" href="overview.html" />
     <link rel="prev" title="Remote Repo" href="../remote_repo.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -119,7 +119,7 @@
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.19</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.20</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
@@ -135,21 +135,18 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../../concepts/data_frames.html">Data Frames</a></li>
 
-<li class="toctree-l1"><a class="reference internal" href="../../../concepts/remote_staging.html">Remote Staging Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../concepts/remote_workspace.html">Remote Workspaces</a></li>
 
 
-<li class="toctree-l1"><a class="reference internal" href="../../../concepts/embedding_search.html">Embedding Search</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
-<ul class="current nav bd-sidenav">
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../local_repo.html">Local Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../remote_repo.html">Remote Repo</a></li>
-<li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Data Loaders</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="image_loader.html">Image Classification Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="chat_loader.html">Chatbot Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="regression_loader.html">Regression Loader</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Data Loaders Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="image_loader.html">Image Classification Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="chat_loader.html">Chatbot Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="regression_loader.html">Regression Loader</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -297,24 +294,11 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Data Loaders</h1>
+    <h1><no title></h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
             
-            <div>
-                <h2> Contents </h2>
-            </div>
-            <nav aria-label="Page">
-                <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-loaders-with-local-resositories">Using Loaders with Local Resositories</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-custom-loaders">Defining Custom Loaders</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-image-classification-loader">Example: Image Classification Loader</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-loaders">Example loaders</a></li>
-</ul>
-            </nav>
         </div>
     </div>
 </div>
@@ -324,84 +308,16 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article" role="main">
                   
-  <section id="data-loaders">
-<h1>Data Loaders<a class="headerlink" href="#data-loaders" title="Permalink to this heading">#</a></h1>
-<p>Oxen provides a suite of pre-built data loaders for a variety of common machine learning tasks. These loaders make it easy to extract data from local or remote Oxen repositories and convert it into a format that’s ready to use with your favorite machine learning framework.</p>
-<section id="using-loaders-with-local-resositories">
-<h2>Using Loaders with Local Resositories<a class="headerlink" href="#using-loaders-with-local-resositories" title="Permalink to this heading">#</a></h2>
-<p>For the below repo structure…</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">MyRepo</span>
-<span class="o">---</span> <span class="n">images</span><span class="o">/</span>
-<span class="o">------</span> <span class="n">image1</span><span class="o">.</span><span class="n">jpg</span>
-<span class="o">------</span> <span class="o">...</span>
-<span class="o">---</span> <span class="n">labels</span><span class="o">.</span><span class="n">txt</span>
-<span class="o">---</span> <span class="n">train</span><span class="o">.</span><span class="n">csv</span>
-<span class="o">---</span> <span class="n">test</span><span class="o">.</span><span class="n">csv</span>
-</pre></div>
-</div>
-<p>…transform and load data with the following:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">oxen</span>
-
-<span class="n">repo</span> <span class="o">=</span> <span class="n">oxen</span><span class="o">.</span><span class="n">LocalRepo</span><span class="p">(</span><span class="s2">&quot;MyRepo&quot;</span><span class="p">)</span>
-
-<span class="n">train_loader</span> <span class="o">=</span> <span class="n">oxen</span><span class="o">.</span><span class="n">loaders</span><span class="o">.</span><span class="n">ImageClassificationLoader</span><span class="p">(</span>
-    <span class="n">imagery_root_dir</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-    <span class="n">labels_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/labels.txt&quot;</span><span class="p">,</span>
-    <span class="n">df_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/train.csv&quot;</span>
-<span class="p">)</span>
-
-<span class="n">test_loader</span> <span class="o">=</span> <span class="n">oxen</span><span class="o">.</span><span class="n">loaders</span><span class="o">.</span><span class="n">ImageClassificationLoader</span><span class="p">(</span>
-    <span class="n">imagery_root_dir</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-    <span class="n">labels_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/labels.txt&quot;</span><span class="p">,</span>
-    <span class="n">df_file</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">repo</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2">/test.csv&quot;</span>
-<span class="p">)</span>
-
-<span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">label_mapper</span> <span class="o">=</span> <span class="n">train_loader</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
-<span class="n">X_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">test_loader</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
-
-<span class="c1"># X_train: (50000 x 32 x 32 x 3)</span>
-<span class="c1"># y_train: (50000,)</span>
-<span class="c1"># mapper: {&quot;cat&quot;: 0, &quot;dog&quot;: 1, etc...}</span>
-</pre></div>
-</div>
-</section>
-<section id="defining-custom-loaders">
-<h2>Defining Custom Loaders<a class="headerlink" href="#defining-custom-loaders" title="Permalink to this heading">#</a></h2>
-<p>Oxen loaders are constructed as a Directed Acyclic Graph (DAG) of data operations. Each node in the graph inherits <code class="docutils literal notranslate"><span class="pre">oxen.Op</span></code> and defines a <code class="docutils literal notranslate"><span class="pre">call()</span></code> method. The <code class="docutils literal notranslate"><span class="pre">call()</span></code> method is responsible for executing the operation and returning the output.</p>
-<p>These nodes are linked together to form a graph with specified inputs and outputs. The graph is then executed with a run() method, returning the outputs.</p>
-<section id="example-image-classification-loader">
-<h3>Example: Image Classification Loader<a class="headerlink" href="#example-image-classification-loader" title="Permalink to this heading">#</a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">ImageClassificationLoader</span><span class="p">:</span>
-    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">imagery_root_dir</span><span class="p">,</span> <span class="n">label_file</span><span class="p">,</span> <span class="n">df_file</span><span class="p">,</span> <span class="n">path_name</span><span class="p">,</span> <span class="n">label_name</span><span class="p">):</span>
-        <span class="c1"># DEFINE INPUT NODES</span>
-        <span class="n">data_frame</span> <span class="o">=</span> <span class="n">ReadDF</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">df_file</span><span class="p">)</span>
-        <span class="n">label_list</span> <span class="o">=</span> <span class="n">ReadText</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">label_file</span><span class="p">)</span>
-        <span class="n">path_name</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">path_name</span><span class="p">)</span>
-        <span class="n">label_name</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">label_name</span><span class="p">)</span>
-        <span class="n">imagery_root_dir</span> <span class="o">=</span> <span class="n">Identity</span><span class="p">(</span><span class="nb">input</span><span class="o">=</span><span class="n">imagery_root_dir</span><span class="p">)</span>
-
-        <span class="c1"># DEFINE INTERMEDIATE NODES</span>
-        <span class="n">paths</span> <span class="o">=</span> <span class="n">ExtractCol</span><span class="p">()(</span><span class="n">data_frame</span><span class="p">,</span> <span class="n">path_name</span><span class="p">)</span>
-        <span class="n">label_text</span> <span class="o">=</span> <span class="n">ExtractCol</span><span class="p">()(</span><span class="n">data_frame</span><span class="p">,</span> <span class="n">label_name</span><span class="p">)</span>
-
-        <span class="c1"># DEFINE OUTPUT NODES</span>
-        <span class="n">images</span> <span class="o">=</span> <span class="n">ReadImageDir</span><span class="p">()(</span><span class="n">imagery_root_dir</span><span class="p">,</span> <span class="n">paths</span><span class="p">)</span>
-        <span class="n">label_map</span> <span class="o">=</span> <span class="n">CreateLabelMap</span><span class="p">()(</span><span class="n">label_list</span><span class="p">,</span> <span class="n">label_text</span><span class="p">)</span>
-        <span class="n">labels</span> <span class="o">=</span> <span class="n">EncodeLabels</span><span class="p">()(</span><span class="n">label_text</span><span class="p">,</span> <span class="n">label_map</span><span class="p">)</span>
-
-        <span class="c1"># Create and compile the graph</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">DAG</span><span class="p">(</span><span class="n">outputs</span><span class="o">=</span><span class="p">[</span><span class="n">images</span><span class="p">,</span> <span class="n">labels</span><span class="p">,</span> <span class="n">label_map</span><span class="p">])</span>
-
-    <span class="k">def</span> <span class="nf">run</span><span class="p">():</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">evaluate</span><span class="p">()</span>
-</pre></div>
-</div>
-</section>
-</section>
-<section id="example-loaders">
-<h2>Example loaders<a class="headerlink" href="#example-loaders" title="Permalink to this heading">#</a></h2>
-<div class="toctree-wrapper compound" id="id1">
+  <div class="toctree-wrapper compound" id="data-loaders">
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Data Loaders Overview</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#using-loaders-with-local-resositories">Using Loaders with Local Resositories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#defining-custom-loaders">Defining Custom Loaders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#image-classification-loading">Image Classification Loading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#regression-loader">Regression Loader</a></li>
+<li class="toctree-l2"><a class="reference internal" href="overview.html#chat-loader">Chat Loader</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="image_loader.html">Image Classification Loader</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="image_loader.html#oxen.loaders.ImageClassificationLoader"><code class="docutils literal notranslate"><span class="pre">ImageClassificationLoader</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="image_loader.html#usage">Usage</a></li>
@@ -419,8 +335,6 @@ document.write(`
 </li>
 </ul>
 </div>
-</section>
-</section>
 
 
                 </article>
@@ -444,11 +358,11 @@ document.write(`
       </div>
     </a>
     <a class="right-next"
-       href="image_loader.html"
+       href="overview.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Image Classification Loader</p>
+        <p class="prev-next-title">Data Loaders Overview</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -461,25 +375,6 @@ document.write(`
             </div>
             
             
-              
-                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
-
-  <div class="sidebar-secondary-item">
-  <div class="page-toc tocsection onthispage">
-    <i class="fa-solid fa-list"></i> Contents
-  </div>
-  <nav class="bd-toc-nav page-toc">
-    <ul class="visible nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-loaders-with-local-resositories">Using Loaders with Local Resositories</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#defining-custom-loaders">Defining Custom Loaders</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-image-classification-loader">Example: Image Classification Loader</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-loaders">Example loaders</a></li>
-</ul>
-  </nav></div>
-
-</div></div>
               
             
           </div>
@@ -508,7 +403,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 05, 2023.
+  Last updated on Jul 11, 2023.
   <br/>
 </p>
   </div>

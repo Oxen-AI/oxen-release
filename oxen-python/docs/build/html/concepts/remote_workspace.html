@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Remote Staging Workflow &#8212; 🐂 🌾 Oxen 0.1.20</title>
+    <title>Remote Workspaces &#8212; 🐂 🌾 Oxen 0.1.20</title>
   
   
   
@@ -43,10 +43,10 @@
     <script src="../_static/clipboard.min.js"></script>
     <script src="../_static/copybutton.js"></script>
     <script src="../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'concepts/remote_staging';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'concepts/remote_workspace';</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Embedding Search" href="embedding_search.html" />
+    <link rel="next" title="Local Repo" href="../references/python/local_repo.html" />
     <link rel="prev" title="Data Frames" href="data_frames.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -135,21 +135,15 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="data_frames.html">Data Frames</a></li>
 
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Remote Staging Workflow</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Remote Workspaces</a></li>
 
 
-<li class="toctree-l1"><a class="reference internal" href="embedding_search.html">Embedding Search</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/python/local_repo.html">Local Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/python/remote_repo.html">Remote Repo</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="../references/python/data_loaders/index.html">Data Loaders</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="../references/python/data_loaders/image_loader.html">Image Classification Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../references/python/data_loaders/chat_loader.html">Chatbot Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../references/python/data_loaders/regression_loader.html">Regression Loader</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="../references/python/data_loaders_overview.html">Data Loaders</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -215,7 +209,7 @@
       
       
       
-      <li><a href="../_sources/concepts/remote_staging.md" target="_blank"
+      <li><a href="../_sources/concepts/remote_workspace.md" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -297,7 +291,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Remote Staging Workflow</h1>
+    <h1>Remote Workspaces</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -307,7 +301,7 @@ document.write(`
             </div>
             <nav aria-label="Page">
                 <ul class="visible nav section-nav flex-column">
-<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Remote Staging Workflow</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Remote Workspaces</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#staging-files">Staging Files</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shallow-clone">Shallow Clone</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-branch">Create Remote Branch</a></li>
@@ -331,15 +325,15 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article" role="main">
                   
-  <section id="remote-staging-workflow">
-<h1>Remote Staging Workflow<a class="headerlink" href="#remote-staging-workflow" title="Permalink to this heading">#</a></h1>
-<p>Oxen has the concept of a “remote staging area” to enable easy data collection and labeling workflows. There are two main types of data you might want to stage.</p>
+  <section id="remote-workspaces">
+<h1>Remote Workspaces<a class="headerlink" href="#remote-workspaces" title="Permalink to this heading">#</a></h1>
+<p>Oxen has the concept of a “remote workspace” to enable easy data collection and labeling workflows. There are two main types of data you might want to stage.</p>
 <ol class="arabic simple">
 <li><p>Unstructured data files (images, videos, audio, text)</p></li>
 <li><p>Structured annotations (rows for tabular data frames)</p></li>
 </ol>
 <p>Instead of cloning the entire dataset locally (which can take a lot of time, bandwidth, and storage) you can stage data directly on the remote server.</p>
-<p>The commands you are used to working with in your local workspace (<code class="docutils literal notranslate"><span class="pre">status</span></code>, <code class="docutils literal notranslate"><span class="pre">add</span></code>, <code class="docutils literal notranslate"><span class="pre">commit</span></code>, etc…) now work with the remote staging area. Each user’s changes are sand-boxed to their own identity, so when you add to a remote staging workspace, it will not overlap with other users.</p>
+<p>The commands you are used to working with in your local workspace (<code class="docutils literal notranslate"><span class="pre">status</span></code>, <code class="docutils literal notranslate"><span class="pre">add</span></code>, <code class="docutils literal notranslate"><span class="pre">commit</span></code>, etc…) now work with the remote workspace. Each user’s changes are sand-boxed to their own identity, so when you add to a remote workspace, it will not overlap with other users.</p>
 </section>
 <section id="staging-files">
 <h1>Staging Files<a class="headerlink" href="#staging-files" title="Permalink to this heading">#</a></h1>
@@ -356,7 +350,7 @@ $<span class="w"> </span>ls<span class="w"> </span><span class="c1"># note that 
 </section>
 <section id="create-remote-branch">
 <h2>Create Remote Branch<a class="headerlink" href="#create-remote-branch" title="Permalink to this heading">#</a></h2>
-<p>After you have a shallow clone, then you can create a local branch, and push it to the remote. Every remote branch has a remote staging area that is tied to the branch.</p>
+<p>After you have a shallow clone, then you can create a local branch, and push it to the remote. Every remote branch has a remote workspace that is tied to the branch.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>add-images
 $<span class="w"> </span>oxen<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>add-images
 </pre></div>
@@ -364,25 +358,25 @@ $<span class="w"> </span>oxen<span class="w"> </span>push<span class="w"> </span
 </section>
 <section id="check-remote-status">
 <h2>Check Remote Status<a class="headerlink" href="#check-remote-status" title="Permalink to this heading">#</a></h2>
-<p>Now that you have created a remote branch, you can interact with the remote staging area with the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.</p>
+<p>Now that you have created a remote branch, you can interact with the remote workspace with the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>status
 </pre></div>
 </div>
 </section>
 <section id="remote-add-file">
 <h2>Remote Add File<a class="headerlink" href="#remote-add-file" title="Permalink to this heading">#</a></h2>
-<p>To add a file to the remote staging area simply use <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">add</span></code>.</p>
+<p>To add a file to the remote workspace simply use <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">add</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>image.jpg
 </pre></div>
 </div>
 <p>For relative paths, oxen will mirror the directory structure you have locally.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>my-images/<span class="w"> </span><span class="c1"># create local dir</span>
 $<span class="w"> </span>cp<span class="w"> </span>/path/to/image.jpg<span class="w"> </span>my-images/<span class="w"> </span><span class="c1"># add image to local dir</span>
-$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>my-images/image.jpg<span class="w"> </span><span class="c1"># upload image to remote staging area in the my-images/ directory</span>
+$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>my-images/image.jpg<span class="w"> </span><span class="c1"># upload image to the remote workspace in the my-images/ directory</span>
 </pre></div>
 </div>
 <p>For absolute paths to a file, you will also need to specify the path you would like to put it in with the <code class="docutils literal notranslate"><span class="pre">-p</span></code> flag.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>/path/to/image.jpg<span class="w"> </span>-p<span class="w"> </span>my-images<span class="w"> </span><span class="c1"># upload image to remote staging area</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>/path/to/image.jpg<span class="w"> </span>-p<span class="w"> </span>my-images<span class="w"> </span><span class="c1"># upload image to the remote workspace</span>
 </pre></div>
 </div>
 <p>You can now use the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">status</span></code> command to see the files that are staged on the remote branch.</p>
@@ -400,8 +394,8 @@ Files<span class="w"> </span>to<span class="w"> </span>be<span class="w"> </span
 </section>
 <section id="delete-remotely-added-file">
 <h2>Delete Remotely Added File<a class="headerlink" href="#delete-remotely-added-file" title="Permalink to this heading">#</a></h2>
-<p>If you accidentally add file from the remote staging area and want to remove it, no worries, you can unstage it with <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">rm</span></code>.</p>
-<p>(TODO: right now the functionality only operates on staging area regardless of the –staged flag, we might want to allow remote removing of files and directories).</p>
+<p>If you accidentally add file from the remote workspace and want to remove it, no worries, you can unstage it with <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">rm</span></code>.</p>
+<p>(TODO: right now the functionality only operates on workspace regardless of the –staged flag, we might want to allow remote removing of files and directories).</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>rm<span class="w"> </span>--staged<span class="w"> </span>my-images/image.jpg
 </pre></div>
 </div>
@@ -464,7 +458,7 @@ shape:<span class="w"> </span><span class="o">(</span><span class="m">1</span>,<
 └──────────────────────────────────┴──────────────────────┴───────┴───────┴───────┴───────┴────────┘
 </pre></div>
 </div>
-<p>This returns a unique ID for the row that we can use as a handle to interact with the specific row in the remote staging area. To list the added rows on the dataframe you can use the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">diff</span></code> command.</p>
+<p>This returns a unique ID for the row that we can use as a handle to interact with the specific row in the remote workspace. To list the added rows on the dataframe you can use the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">diff</span></code> command.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>remote<span class="w"> </span>diff<span class="w"> </span>annotations/train.csv
 
 Added<span class="w"> </span>Rows
@@ -512,11 +506,11 @@ shape:<span class="w"> </span><span class="o">(</span><span class="m">2</span>,<
       </div>
     </a>
     <a class="right-next"
-       href="embedding_search.html"
+       href="../references/python/local_repo.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Embedding Search</p>
+        <p class="prev-next-title">Local Repo</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -538,7 +532,7 @@ shape:<span class="w"> </span><span class="o">(</span><span class="m">2</span>,<
   </div>
   <nav class="bd-toc-nav page-toc">
     <ul class="visible nav section-nav flex-column">
-<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Remote Staging Workflow</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Remote Workspaces</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#staging-files">Staging Files</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shallow-clone">Shallow Clone</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-branch">Create Remote Branch</a></li>
