@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.19</title>
+    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.20</title>
   
   
   
@@ -118,7 +118,7 @@
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.19</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.20</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
@@ -134,21 +134,18 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="concepts/data_frames.html">Data Frames</a></li>
 
-<li class="toctree-l1"><a class="reference internal" href="concepts/remote_staging.html">Remote Staging Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="concepts/remote_workspace.html">Remote Workspaces</a></li>
 
 
-<li class="toctree-l1"><a class="reference internal" href="concepts/embedding_search.html">Embedding Search</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="references/python/local_repo.html">Local Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/python/remote_repo.html">Remote Repo</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="references/python/data_loaders/index.html">Data Loaders</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/image_loader.html">Image Classification Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/chat_loader.html">Chatbot Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/regression_loader.html">Regression Loader</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/overview.html">Data Loaders Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/image_loader.html">Image Classification Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/chat_loader.html">Chatbot Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/regression_loader.html">Regression Loader</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -333,7 +330,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-authorization">Setup Authorization</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-repository">Create Remote Repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#push-your-data">Push your data</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-staging">Remote Staging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Remote Workspace</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-badges">Oxen Badges</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosting">Self Hosting</a></li>
 </ul>
@@ -471,7 +468,7 @@ oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBBox<span class="w"> </span>--shallow<span class="w"> </span>-b<span class="w"> </span>my-pets
 </pre></div>
 </div>
-<p>This is especially handy for appending data via the <a class="reference external" href="https://docs.oxen.ai/en/latest/concepts/remote_staging.html">remote staging area</a>. When downloading by using the <code class="docutils literal notranslate"><span class="pre">--shallow</span></code> flag you will notice no data files in your working directory. You can still see the data on the branch on the remote with the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommands.</p>
+<p>This is especially handy for appending data via the <a class="reference external" href="https://docs.oxen.ai/en/latest/concepts/remote_workspace.html">remote workspace</a>. When downloading by using the <code class="docutils literal notranslate"><span class="pre">--shallow</span></code> flag you will notice no data files in your working directory. You can still see the data on the branch on the remote with the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommands.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># View the remote files</span>
 oxen<span class="w"> </span>remote<span class="w"> </span>ls
 </pre></div>
@@ -654,10 +651,10 @@ Date:   Fri, 21 Oct 2022 16:05:22 -0700
 </pre></div>
 </div>
 </section>
-<section id="remote-staging">
-<h2>Remote Staging<a class="headerlink" href="#remote-staging" title="Permalink to this heading">#</a></h2>
+<section id="id5">
+<h2>Remote Workspace<a class="headerlink" href="#id5" title="Permalink to this heading">#</a></h2>
 <p>There are times when you do not want to clone the entire repository to make a change. For example, if you have a large dataset and you want to add one annotation, it is very inefficient to clone all the files locally.</p>
-<p>Oxen’s remote staging area helps enable a more efficient workflow. Simply add the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand to the commands you already know how to use locally.</p>
+<p>You can think of Oxen’s remote workspace as mirroring your local workspace, but without all the files downloaded. It should feel like you are interacting locally when really all the action is on the server. Simply add the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand to the commands you already know how to use locally.</p>
 <p>Let’s walk through an example. Start by shallow cloning a repo and a checkout a specific branch.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/&lt;username&gt;/&lt;repo_name&gt;<span class="w"> </span>--shallow<span class="w"> </span>-b<span class="w"> </span>add-images
 </pre></div>
@@ -666,14 +663,14 @@ Date:   Fri, 21 Oct 2022 16:05:22 -0700
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>status
 </pre></div>
 </div>
-<p>This checks the remote staging area on this branch to see if you have any remote files staged. You can then proceed to <code class="docutils literal notranslate"><span class="pre">add</span></code> and <code class="docutils literal notranslate"><span class="pre">commit</span></code> changes without ever having to clone the entire dataset.</p>
+<p>This checks the remote workspace on this branch to see if you have any remote files staged. You can then proceed to <code class="docutils literal notranslate"><span class="pre">add</span></code> and <code class="docutils literal notranslate"><span class="pre">commit</span></code> changes without ever having to clone the entire dataset.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>image.png
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>status
 </pre></div>
 </div>
-<p>For more information about remote staging, refer to the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/RemoteStaging.md">remote staging documentation</a>.</p>
+<p>For more information about Oxen’s remote workspaces, refer to the <a class="reference external" href="https://docs.oxen.ai/en/latest/concepts/remote_workspace.html">remote workspace documentation</a>.</p>
 </section>
 <section id="oxen-badges">
 <h2>Oxen Badges<a class="headerlink" href="#oxen-badges" title="Permalink to this heading">#</a></h2>
@@ -914,7 +911,7 @@ fa42a17de86fa628b7caa8df6ba4d774<span class="w">    </span><span class="m">83851
 </div>
 <div class="toctree-wrapper compound" id="rust-api">
 </div>
-<div class="toctree-wrapper compound" id="id5">
+<div class="toctree-wrapper compound" id="id6">
 </div>
 </section>
 </section>
@@ -985,7 +982,7 @@ fa42a17de86fa628b7caa8df6ba4d774<span class="w">    </span><span class="m">83851
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-authorization">Setup Authorization</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-repository">Create Remote Repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#push-your-data">Push your data</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-staging">Remote Staging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Remote Workspace</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-badges">Oxen Badges</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosting">Self Hosting</a></li>
 </ul>
@@ -1038,7 +1035,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 05, 2023.
+  Last updated on Jul 11, 2023.
   <br/>
 </p>
   </div>

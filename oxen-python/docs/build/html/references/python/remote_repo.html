@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Remote Repo &#8212; 🐂 🌾 Oxen 0.1.19</title>
+    <title>Remote Repo &#8212; 🐂 🌾 Oxen 0.1.20</title>
   
   
   
@@ -46,7 +46,7 @@
     <script>DOCUMENTATION_OPTIONS.pagename = 'references/python/remote_repo';</script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Data Loaders" href="data_loaders/index.html" />
+    <link rel="next" title="Data Loaders" href="data_loaders_overview.html" />
     <link rel="prev" title="Local Repo" href="local_repo.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -119,7 +119,7 @@
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.19</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.20</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
@@ -135,21 +135,15 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../concepts/data_frames.html">Data Frames</a></li>
 
-<li class="toctree-l1"><a class="reference internal" href="../../concepts/remote_staging.html">Remote Staging Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../concepts/remote_workspace.html">Remote Workspaces</a></li>
 
 
-<li class="toctree-l1"><a class="reference internal" href="../../concepts/embedding_search.html">Embedding Search</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="local_repo.html">Local Repo</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Remote Repo</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="data_loaders/index.html">Data Loaders</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="data_loaders/image_loader.html">Image Classification Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="data_loaders/chat_loader.html">Chatbot Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="data_loaders/regression_loader.html">Regression Loader</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="data_loaders_overview.html">Data Loaders</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -349,7 +343,7 @@ document.write(`
 <dl class="py method">
 <dt class="sig sig-object py" id="oxen.RemoteRepo.add">
 <span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">local_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">remote_directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.add" title="Permalink to this definition">#</a></dt>
-<dd><p>Stage a file to the remote staging environment</p>
+<dd><p>Stage a file to the remote workspace</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -484,7 +478,7 @@ the same path as remote_path</p></li>
 <dl class="py method">
 <dt class="sig sig-object py" id="oxen.RemoteRepo.remove">
 <span class="sig-name descname"><span class="pre">remove</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#oxen.RemoteRepo.remove" title="Permalink to this definition">#</a></dt>
-<dd><p>Unstage a file from the remote staging environment</p>
+<dd><p>Unstage a file from the remote workspace</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>path</strong> (<em>str</em>) – The path to the file on remote to be removed from staging</p>
@@ -554,7 +548,7 @@ will be checked for modifications</p>
       </div>
     </a>
     <a class="right-next"
-       href="data_loaders/index.html"
+       href="data_loaders_overview.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
@@ -634,7 +628,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 05, 2023.
+  Last updated on Jul 11, 2023.
   <br/>
 </p>
   </div>

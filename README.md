@@ -127,7 +127,7 @@ Downloading all the data may still be a more expensive operation than you need. 
 oxen clone https://hub.oxen.ai/ox/CatDogBBox --shallow -b my-pets
 ```
 
-This is especially handy for appending data via the [remote staging area](https://docs.oxen.ai/en/latest/concepts/remote_staging.html). When downloading by using the `--shallow` flag you will notice no data files in your working directory. You can still see the data on the branch on the remote with the `oxen remote` subcommands.
+This is especially handy for appending data via the [remote workspace](https://docs.oxen.ai/en/latest/concepts/remote_workspace.html). When downloading by using the `--shallow` flag you will notice no data files in your working directory. You can still see the data on the branch on the remote with the `oxen remote` subcommands.
 
 ```bash
 # View the remote files
@@ -349,11 +349,11 @@ cd $REPO_NAME
 oxen pull origin my-branch
 ```
 
-## Remote Staging
+## Remote Workspace
 
 There are times when you do not want to clone the entire repository to make a change. For example, if you have a large dataset and you want to add one annotation, it is very inefficient to clone all the files locally.
 
-Oxen's remote staging area helps enable a more efficient workflow. Simply add the `oxen remote` subcommand to the commands you already know how to use locally. 
+You can think of Oxen's remote workspace as mirroring your local workspace, but without all the files downloaded. It should feel like you are interacting locally when really all the action is on the server. Simply add the `oxen remote` subcommand to the commands you already know how to use locally. 
 
 Let's walk through an example. Start by shallow cloning a repo and a checkout a specific branch.
 
@@ -367,7 +367,7 @@ If you do a quick `ls` you will see that there are no files locally. Never fear,
 oxen remote status
 ```
 
-This checks the remote staging area on this branch to see if you have any remote files staged. You can then proceed to `add` and `commit` changes without ever having to clone the entire dataset.
+This checks the remote workspace on this branch to see if you have any remote files staged. You can then proceed to `add` and `commit` changes without ever having to clone the entire dataset.
 
 ```bash
 oxen remote add image.png
@@ -377,7 +377,7 @@ oxen remote add image.png
 oxen remote status
 ```
 
-For more information about remote staging, refer to the [remote staging documentation](https://github.com/Oxen-AI/oxen-release/blob/main/RemoteStaging.md).
+For more information about Oxen's remote workspaces, refer to the [remote workspace documentation](https://docs.oxen.ai/en/latest/concepts/remote_workspace.html).
 
 ## Oxen Badges
 
