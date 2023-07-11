@@ -24,8 +24,7 @@
    :hidden:
 
    concepts/data_frames.md
-   concepts/remote_staging.md
-   concepts/embedding_search.md
+   concepts/remote_workspace.md
 
 .. toctree::
    :maxdepth: 2
@@ -35,7 +34,7 @@
 
    references/python/local_repo.rst
    references/python/remote_repo.rst
-   references/python/data_loaders/index
+   references/python/data_loaders/index.rst
 
 .. toctree::
    :maxdepth: 2
