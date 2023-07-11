@@ -2,7 +2,7 @@ use liboxen::model::entry::mod_entry::ModType;
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
-use liboxen::model::{CommitBody, ContentType, Remote, RemoteRepository};
+use liboxen::model::{NewCommitBody, ContentType, Remote, RemoteRepository};
 use liboxen::{api, command};
 
 use pyo3::exceptions::PyValueError;
@@ -139,7 +139,7 @@ impl PyRemoteRepo {
     fn commit(&self, message: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         let user = UserConfig::get()?.to_user();
-        let commit = CommitBody { message, user };
+        let commit = NewCommitBody { message, author: user.name, email: user.email };
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::commit_staged(&self.repo, &self.revision, &user_id, &commit).await
         })?;
