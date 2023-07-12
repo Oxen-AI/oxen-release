@@ -160,6 +160,7 @@ pub fn info() -> Command {
     Command::new(INFO)
         .about("Get metadata information about a file such as the oxen hash, data type, etc.")
         .arg(Arg::new("path").required(false))
+        .arg(Arg::new("revision").required(false))
         .arg(
             Arg::new("verbose")
                 .long("verbose")
@@ -199,9 +200,9 @@ pub fn metadata() -> Command {
 }
 
 pub fn log() -> Command {
-    Command::new(LOG)
-        .about("See log of commits")
-        .arg(arg!([COMMITTISH] "The commit or branch id you want to get history from. Defaults to main."))
+    Command::new(LOG).about("See log of commits").arg(
+        arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."),
+    )
 }
 
 pub fn ls() -> Command {
@@ -641,8 +642,8 @@ pub fn pull() -> Command {
 
 pub fn diff() -> Command {
     Command::new(DIFF)
-        .about("Compare two files against each other or against versions. The first parameter can be one of three things 1) another file 2) a commit hash 3) a branch name. If the first parameter is a committish it will compare the second parameter path to that version of the file.")
-        .arg(Arg::new("FILE_OR_COMMITTISH").required(true))
+        .about("Compare two files against each other or against versions. The first parameter can be one of three things 1) another file 2) a commit hash 3) a branch name. If the first parameter is a revision it will compare the second parameter path to that version of the file.")
+        .arg(Arg::new("FILE_OR_REVISION").required(true))
         .arg(Arg::new("PATH").required(false))
 }
 
@@ -664,7 +665,7 @@ pub fn commit_cache() -> Command {
                 .help("Force recompute the cache even if it already exists.")
                 .action(clap::ArgAction::SetTrue),
         )
-        .arg(arg!([COMMITTISH] "The commit or branch id you want to compute the cache for. Defaults to main."))
+        .arg(arg!([REVISION] "The commit or branch id you want to compute the cache for. Defaults to main."))
 }
 
 pub fn read_lines() -> Command {

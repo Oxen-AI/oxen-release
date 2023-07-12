@@ -111,8 +111,10 @@ impl EntryIndexer {
                 }
                 Ok(commit)
             }
-            _ => {
+            Ok(None) => api::local::commits::head_commit(&self.repository),
+            Err(err) => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
+                log::error!("pull_all error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
                 api::local::commits::commit_with_no_files(
                     &self.repository,
@@ -134,8 +136,10 @@ impl EntryIndexer {
                     .await?;
                 Ok(commit)
             }
-            _ => {
+            Ok(None) => api::local::commits::head_commit(&self.repository),
+            Err(err) => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
+                log::error!("pull_one error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
                 api::local::commits::commit_with_no_files(
                     &self.repository,
@@ -202,10 +206,13 @@ impl EntryIndexer {
                 return Ok(Some(commit));
             }
             Ok(None) => {
-                eprintln!("oxen pull error: remote head does not exist");
+                println!("Everything up to date.");
             }
             Err(err) => {
-                log::debug!("oxen pull could not get remote head: {}", err);
+                log::warn!(
+                    "pull_first_commit_object could not get remote commit: {}",
+                    err
+                );
             }
         }
 
@@ -245,7 +252,6 @@ impl EntryIndexer {
         let total_missing = missing_commits.len();
         if total_missing == 0 {
             // Nothing to do
-            println!("Everything up to date.");
             return Ok(None);
         }
         println!("🐂 fetching {} commit objects", total_missing);
@@ -274,10 +280,13 @@ impl EntryIndexer {
                 return Ok(Some(commit));
             }
             Ok(None) => {
-                eprintln!("oxen pull error: remote head does not exist");
+                log::debug!("pull_all_commit_objects commit does not exist");
             }
             Err(err) => {
-                log::debug!("oxen pull could not get remote head: {}", err);
+                log::warn!(
+                    "pull_all_commit_objects could not get remote commit: {}",
+                    err
+                );
             }
         }
 

@@ -13,13 +13,13 @@ pub async fn download(
     repo: &RemoteRepository,
     remote_path: impl AsRef<Path>,
     local_path: impl AsRef<Path>,
-    committish: impl AsRef<str>,
+    revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     api::remote::entries::download_entry(
         repo,
         remote_path.as_ref(),
         local_path.as_ref(),
-        committish.as_ref(),
+        revision.as_ref(),
     )
     .await
 }
@@ -50,9 +50,9 @@ mod tests {
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let local_path = repo_dir.join("new_name.txt");
-                let committish = DEFAULT_BRANCH_NAME;
+                let revision = DEFAULT_BRANCH_NAME;
 
-                download(&remote_repo, file_path, &local_path, committish).await?;
+                download(&remote_repo, file_path, &local_path, revision).await?;
 
                 assert!(local_path.exists());
                 assert_eq!(util::fs::read_from_path(&local_path)?, file_contents);
@@ -78,9 +78,9 @@ mod tests {
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let dst_path = repo_dir.join("images");
-                let committish = DEFAULT_BRANCH_NAME;
+                let revision = DEFAULT_BRANCH_NAME;
 
-                download(&remote_repo, src_path, &dst_path, committish).await?;
+                download(&remote_repo, src_path, &dst_path, revision).await?;
 
                 assert!(dst_path.exists());
                 let result_dir = &dst_path.join(src_path);

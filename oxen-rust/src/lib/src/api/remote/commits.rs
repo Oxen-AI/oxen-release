@@ -61,9 +61,9 @@ pub async fn get_by_id(
 
 pub async fn list_commit_history(
     remote_repo: &RemoteRepository,
-    committish: &str,
+    revision: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    let uri = format!("/commits/{committish}/history");
+    let uri = format!("/commits/{revision}/history");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -515,6 +515,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
+    let mut last_error = String::from("");
     while total_tries < constants::NUM_HTTP_RETRIES {
         match upload_data_chunk_to_server(
             remote_repo,
@@ -539,12 +540,16 @@ pub async fn upload_data_chunk_to_server_with_retry(
                     sleep_time,
                     err
                 );
+                last_error = format!("{:?}", err);
                 std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
     }
 
-    Err(OxenError::basic_str("Upload chunk retry failed."))
+    Err(OxenError::basic_str(format!(
+        "Upload chunk retry failed. {}",
+        last_error
+    )))
 }
 
 async fn upload_data_chunk_to_server(
@@ -790,12 +795,11 @@ mod tests {
             let head_commit = &commit_history[2];
             let base_commit = &commit_history[5];
 
-            let committish = format!("{}..{}", base_commit.id, head_commit.id);
-            println!("committish: {}", committish);
+            let revision = format!("{}..{}", base_commit.id, head_commit.id);
 
             // List the remote commits
             let remote_commits =
-                api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+                api::remote::commits::list_commit_history(&remote_repo, &revision).await?;
 
             for commit in remote_commits.iter() {
                 println!("got commit: {} -> {}", commit.id, commit.message);

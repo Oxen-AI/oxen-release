@@ -28,7 +28,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     );
 
     let latest_commit = api::local::commits::get_by_id(&repo, &resource.commit.id)?.ok_or(
-        OxenError::committish_not_found(resource.commit.id.clone().into()),
+        OxenError::revision_not_found(resource.commit.id.clone().into()),
     )?;
 
     log::debug!(
@@ -61,7 +61,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     );
 
     let latest_commit = api::local::commits::get_by_id(&repo, &resource.commit.id)?.ok_or(
-        OxenError::committish_not_found(resource.commit.id.clone().into()),
+        OxenError::revision_not_found(resource.commit.id.clone().into()),
     )?;
 
     log::debug!(
@@ -115,7 +115,7 @@ pub async fn agg_dir(
     );
 
     let latest_commit = api::local::commits::get_by_id(&repo, &resource.commit.id)?.ok_or(
-        OxenError::committish_not_found(resource.commit.id.clone().into()),
+        OxenError::revision_not_found(resource.commit.id.clone().into()),
     )?;
 
     log::debug!(
@@ -172,7 +172,7 @@ pub async fn images(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     );
 
     let latest_commit = api::local::commits::get_by_id(&repo, &resource.commit.id)?.ok_or(
-        OxenError::committish_not_found(resource.commit.id.clone().into()),
+        OxenError::revision_not_found(resource.commit.id.clone().into()),
     )?;
 
     log::debug!(

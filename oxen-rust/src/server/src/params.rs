@@ -67,17 +67,17 @@ pub fn resolve_base_head(
     base: &str,
     head: &str,
 ) -> Result<(Option<Commit>, Option<Commit>), OxenError> {
-    let base = resolve_committish(repo, base)?;
-    let head = resolve_committish(repo, head)?;
+    let base = resolve_revision(repo, base)?;
+    let head = resolve_revision(repo, head)?;
     Ok((base, head))
 }
 
-pub fn resolve_committish(
+pub fn resolve_revision(
     repo: &LocalRepository,
-    committish: &str,
+    revision: &str,
 ) -> Result<Option<Commit>, OxenError> {
     // Lookup commit by id or branch name
-    api::local::commits::get_by_revision(repo, committish)
+    api::local::revisions::get(repo, revision)
 }
 
 pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {

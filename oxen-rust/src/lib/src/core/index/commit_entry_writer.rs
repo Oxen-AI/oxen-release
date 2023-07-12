@@ -83,7 +83,7 @@ impl CommitEntryWriter {
         );
         for parent_id in parent_ids {
             let parent_commit = api::local::commits::get_by_id(repo, parent_id)?
-                .ok_or(OxenError::committish_not_found(parent_id.to_owned().into()))?;
+                .ok_or(OxenError::revision_not_found(parent_id.to_owned().into()))?;
             log::debug!(
                 "copy parent {} -> '{}'",
                 parent_commit.id,

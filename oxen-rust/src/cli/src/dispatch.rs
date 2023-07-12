@@ -9,6 +9,7 @@ use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
+use liboxen::opts::InfoOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
@@ -24,9 +25,13 @@ use time::format_description;
 
 fn get_host_or_default() -> Result<String, OxenError> {
     let config = UserConfig::get_or_create()?;
-    Ok(config
-        .default_host
-        .unwrap_or(constants::DEFAULT_HOST.to_string()))
+    let mut default_host = constants::DEFAULT_HOST.to_string();
+    if let Some(host) = config.default_host {
+        if !host.is_empty() {
+            default_host = host;
+        }
+    }
+    Ok(default_host)
 }
 
 fn get_host_from_repo(repo: &LocalRepository) -> Result<String, OxenError> {
@@ -176,7 +181,7 @@ pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
     let local_repo = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    // TODO: pass in committish to download a different version
+    // TODO: pass in revision to download a different version
     let head_commit = api::local::commits::head_commit(&local_repo)?;
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
     let remote_path = path;
@@ -409,30 +414,21 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
     Ok(())
 }
 
-pub fn info(path: impl AsRef<Path>, verbose: bool, output_as_json: bool) -> Result<(), OxenError> {
+pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    let metadata = command::info(&repository, opts.to_owned())?;
 
-    let path = path.as_ref();
-    if !path.exists() {
-        eprintln!("Path does not exist: {:?}", path);
-        return Err(OxenError::path_does_not_exist(path));
-    }
-
-    // get file metadata
-    let metadata = api::local::metadata::get_cli(&repository, path)?;
-    let hash = util::hasher::hash_file_contents(path)?;
-
-    if output_as_json {
+    if opts.output_as_json {
         let json = serde_json::to_string(&metadata)?;
         println!("{}", json);
     } else {
         /*
         hash size data_type mime_type extension last_updated_commit_id
         */
-        if verbose {
+        if opts.verbose {
             println!("hash\tsize\tdata_type\tmime_type\textension\tlast_updated_commit_id");
         }
 
@@ -443,7 +439,7 @@ pub fn info(path: impl AsRef<Path>, verbose: bool, output_as_json: bool) -> Resu
 
         println!(
             "{}\t{}\t{}\t{}\t{}\t{}",
-            hash,
+            metadata.hash,
             metadata.size,
             metadata.data_type,
             metadata.mime_type,

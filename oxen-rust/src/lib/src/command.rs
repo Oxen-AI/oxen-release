@@ -12,6 +12,7 @@ pub mod config;
 pub mod db_inspect;
 pub mod df;
 pub mod diff;
+pub mod info;
 pub mod init;
 pub mod merge;
 pub mod pull;
@@ -30,6 +31,7 @@ pub use crate::command::clone::{clone, clone_url, deep_clone_url, shallow_clone_
 pub use crate::command::commit::commit;
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::diff;
+pub use crate::command::info::info;
 pub use crate::command::init::init;
 pub use crate::command::merge::merge;
 pub use crate::command::pull::{pull, pull_remote_branch};
