@@ -111,7 +111,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                     latest_commit = commit.clone();
                 } else {
                     // log::debug!("CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}", entry.path, latest_commit.as_ref().unwrap().timestamp, commit.as_ref().unwrap().timestamp);
-                    if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
+                    if latest_commit.as_ref().unwrap().timestamp
+                        < commit.as_ref().unwrap().timestamp
+                    {
                         // log::debug!("FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}", entry.path, commit);
                         latest_commit = commit.clone();
                     }

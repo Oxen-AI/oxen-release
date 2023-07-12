@@ -31,13 +31,13 @@ pub async fn show(
     // Parse the base and head from the base..head string
     let (base, head) = parse_base_head(&base_head)?;
     let (base_branch, head_branch) = resolve_base_head_branches(&repository, &base, &head)?;
-    let base = base_branch.ok_or(OxenError::committish_not_found(base.into()))?;
-    let head = head_branch.ok_or(OxenError::committish_not_found(head.into()))?;
+    let base = base_branch.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head = head_branch.ok_or(OxenError::revision_not_found(head.into()))?;
 
     let base_commit = api::local::commits::get_by_id(&repository, &base.commit_id)?
-        .ok_or(OxenError::committish_not_found(base.commit_id.into()))?;
+        .ok_or(OxenError::revision_not_found(base.commit_id.into()))?;
     let head_commit = api::local::commits::get_by_id(&repository, &head.commit_id)?
-        .ok_or(OxenError::committish_not_found(head.commit_id.into()))?;
+        .ok_or(OxenError::revision_not_found(head.commit_id.into()))?;
 
     let entries = api::local::diff::list_diff_entries(&repository, &base_commit, &head_commit)?;
 
@@ -67,14 +67,14 @@ pub async fn commits(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHt
     // Parse the base and head from the base..head string
     let (base, head) = parse_base_head(&base_head)?;
     let (base_branch, head_branch) = resolve_base_head_branches(&repository, &base, &head)?;
-    let base = base_branch.ok_or(OxenError::committish_not_found(base.into()))?;
-    let head = head_branch.ok_or(OxenError::committish_not_found(head.into()))?;
+    let base = base_branch.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head = head_branch.ok_or(OxenError::revision_not_found(head.into()))?;
 
     let base_commit = api::local::commits::get_by_id(&repository, &base.commit_id)?.ok_or(
-        OxenError::committish_not_found(base.to_owned().commit_id.into()),
+        OxenError::revision_not_found(base.to_owned().commit_id.into()),
     )?;
     let head_commit = api::local::commits::get_by_id(&repository, &head.commit_id)?.ok_or(
-        OxenError::committish_not_found(head.to_owned().commit_id.into()),
+        OxenError::revision_not_found(head.to_owned().commit_id.into()),
     )?;
 
     // Check if mergeable
@@ -112,13 +112,13 @@ pub async fn entities(
     // Parse the base and head from the base..head string
     let (base, head) = parse_base_head(&base_head)?;
     let (base_branch, head_branch) = resolve_base_head_branches(&repository, &base, &head)?;
-    let base = base_branch.ok_or(OxenError::committish_not_found(base.into()))?;
-    let head = head_branch.ok_or(OxenError::committish_not_found(head.into()))?;
+    let base = base_branch.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head = head_branch.ok_or(OxenError::revision_not_found(head.into()))?;
 
     let base_commit = api::local::commits::get_by_id(&repository, &base.commit_id)?
-        .ok_or(OxenError::committish_not_found(base.commit_id.into()))?;
+        .ok_or(OxenError::revision_not_found(base.commit_id.into()))?;
     let head_commit = api::local::commits::get_by_id(&repository, &head.commit_id)?
-        .ok_or(OxenError::committish_not_found(head.commit_id.into()))?;
+        .ok_or(OxenError::revision_not_found(head.commit_id.into()))?;
 
     let entries = api::local::diff::list_diff_entries(&repository, &base_commit, &head_commit)?;
 

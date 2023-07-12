@@ -88,7 +88,7 @@ pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
 pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 // Retry and back off of requests N times
 /// Retry and back off of requests N times
-pub const NUM_HTTP_RETRIES: u64 = 6;
+pub const NUM_HTTP_RETRIES: u64 = 10;
 
 /// Pagination page size of 10
 pub const DEFAULT_PAGE_SIZE: usize = 10;

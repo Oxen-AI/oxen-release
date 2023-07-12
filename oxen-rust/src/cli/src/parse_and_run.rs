@@ -11,7 +11,7 @@ use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
-use liboxen::opts::{AddOpts, CloneOpts, LogOpts, PaginateOpts, RmOpts};
+use liboxen::opts::{AddOpts, CloneOpts, InfoOpts, LogOpts, PaginateOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -377,6 +377,7 @@ pub async fn status(sub_matches: &ArgMatches) {
 
 pub fn info(sub_matches: &ArgMatches) {
     let path = sub_matches.get_one::<String>("path").map(PathBuf::from);
+    let revision = sub_matches.get_one::<String>("revision").map(String::from);
 
     if path.is_none() {
         eprintln!("Must supply path.");
@@ -387,7 +388,14 @@ pub fn info(sub_matches: &ArgMatches) {
     let verbose = sub_matches.get_flag("verbose");
     let output_as_json = sub_matches.get_flag("json");
 
-    match dispatch::info(path, verbose, output_as_json) {
+    let opts = InfoOpts {
+        path,
+        revision,
+        verbose,
+        output_as_json,
+    };
+
+    match dispatch::info(opts) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("Error getting info: {err}")
@@ -396,12 +404,10 @@ pub fn info(sub_matches: &ArgMatches) {
 }
 
 async fn remote_log(sub_matches: &ArgMatches) {
-    let committish = sub_matches
-        .get_one::<String>("COMMITTISH")
-        .map(String::from);
+    let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
 
     let opts = LogOpts {
-        committish,
+        revision,
         remote: true,
     };
     match dispatch::log_commits(opts).await {
@@ -413,12 +419,10 @@ async fn remote_log(sub_matches: &ArgMatches) {
 }
 
 pub async fn log(sub_matches: &ArgMatches) {
-    let committish = sub_matches
-        .get_one::<String>("COMMITTISH")
-        .map(String::from);
+    let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
 
     let opts = LogOpts {
-        committish,
+        revision,
         remote: false,
     };
     match dispatch::log_commits(opts).await {
@@ -811,7 +815,7 @@ pub async fn diff(sub_matches: &ArgMatches) {
 async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     // First arg is optional
     let file_or_commit_id = sub_matches
-        .get_one::<String>("FILE_OR_COMMITTISH")
+        .get_one::<String>("FILE_OR_REVISION")
         .expect("required");
     let path = sub_matches.get_one::<String>("PATH");
     if let Some(path) = path {
@@ -895,19 +899,15 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        let committish = sub_matches
-            .get_one::<String>("COMMITTISH")
-            .map(String::from);
+        let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
 
         match LocalRepository::new(path) {
-            Ok(repo) => {
-                match command::commit_cache::compute_cache(&repo, committish, force).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        println!("Err: {err}")
-                    }
+            Ok(repo) => match command::commit_cache::compute_cache(&repo, revision, force).await {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Err: {err}")
                 }
-            }
+            },
             Err(err) => {
                 println!("Err: {err}")
             }

@@ -9,4 +9,5 @@ pub mod metadata;
 pub mod namespaces;
 pub mod repositories;
 pub mod resource;
+pub mod revisions;
 pub mod schemas;

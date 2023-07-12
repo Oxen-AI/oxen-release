@@ -99,7 +99,7 @@ impl error::ResponseError for OxenHttpError {
                             branch
                         )))
                     }
-                    OxenError::CommittishNotFound(commit_id) => {
+                    OxenError::RevisionNotFound(commit_id) => {
                         log::debug!("Not found: {}", commit_id);
 
                         HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
@@ -162,7 +162,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
-                OxenError::CommittishNotFound(_) => StatusCode::NOT_FOUND,
+                OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::InvalidSchema(_) => StatusCode::BAD_REQUEST,
                 OxenError::ParsingError(_) => StatusCode::BAD_REQUEST,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,

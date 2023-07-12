@@ -63,30 +63,6 @@ pub fn first_by_message(
         .find(|commit| commit.message == msg.as_ref()))
 }
 
-/// Get a commit by it's revision. ie: hash or branch name
-pub fn get_by_revision(
-    repo: &LocalRepository,
-    revision: &str,
-) -> Result<Option<Commit>, OxenError> {
-    log::debug!(
-        "get_by_revision checking commit id {} in {:?}",
-        revision,
-        repo.path
-    );
-    let ref_reader = RefReader::new(repo)?;
-    let commit_id = match ref_reader.get_commit_id_for_branch(revision)? {
-        Some(branch_commit_id) => branch_commit_id,
-        None => String::from(revision),
-    };
-    log::debug!(
-        "get_by_revision resolved commit id {} -> {}",
-        revision,
-        commit_id
-    );
-    let reader = CommitReader::new(repo)?;
-    reader.get_commit_by_id(commit_id)
-}
-
 pub fn get_parents(repo: &LocalRepository, commit: &Commit) -> Result<Vec<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
     let mut commits: Vec<Commit> = vec![];
@@ -207,20 +183,19 @@ pub async fn list_with_opts(
 ) -> Result<Vec<Commit>, OxenError> {
     if opts.remote {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-        let committish = if let Some(committish) = &opts.committish {
-            committish.to_owned()
+        let revision = if let Some(revision) = &opts.revision {
+            revision.to_owned()
         } else {
             api::local::branches::current_branch(repo)?.unwrap().name
         };
-        let commits = api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+        let commits = api::remote::commits::list_commit_history(&remote_repo, &revision).await?;
         Ok(commits)
     } else {
         let committer = CommitReader::new(repo)?;
 
-        let commits = if let Some(committish) = &opts.committish {
-            let commit = get_by_revision(repo, committish)?.ok_or(
-                OxenError::committish_not_found(committish.to_string().into()),
-            )?;
+        let commits = if let Some(revision) = &opts.revision {
+            let commit = api::local::revisions::get(repo, revision)?
+                .ok_or(OxenError::revision_not_found(revision.to_string().into()))?;
             committer.history_from_commit_id(&commit.id)?
         } else {
             committer.history_from_head()?
