@@ -67,7 +67,12 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
     );
 
     // Connect to db
-    let mut conn = df_db::get_connection(db_path(repo, commit))?;
+    let path = db_path(repo, commit);
+    // Remove db if it is exists, since we might be recomputing
+    if path.exists() {
+        util::fs::remove_file(&path)?;
+    }
+    let mut conn = df_db::get_connection(path)?;
     let table_name = df_db::create_table_if_not_exists(&conn, &DirMetadataItem::schema())?;
 
     // Create an appender transaction

@@ -314,19 +314,11 @@ pub fn list_directory(
         total_pages,
     );
 
-    let data_types_path = core::cache::cachers::content_stats::dir_column_path(
-        repo,
-        commit,
-        directory,
-        "data_type",
-    );
+    let data_types_path =
+        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "data_type");
 
-    let mime_types_path = core::cache::cachers::content_stats::dir_column_path(
-        repo,
-        commit,
-        directory,
-        "mime_type",
-    );
+    let mime_types_path =
+        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
 
     let metadata = if data_types_path.exists() && mime_types_path.exists() {
         log::debug!(
