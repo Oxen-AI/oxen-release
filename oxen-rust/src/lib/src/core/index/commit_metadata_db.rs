@@ -141,7 +141,7 @@ pub fn aggregate_col(
             .from(&table_name);
 
         let df = df_db::select(&conn, &stmt)?;
-        log::debug!("df for dir {:?}: {:?}", dir, df);
+        // log::debug!("df for dir {:?}: {:?}", dir, df);
 
         if df.is_empty() {
             continue;
@@ -176,8 +176,8 @@ pub fn aggregate_col(
             combined_df = Some(df);
         }
 
-        log::debug!("AGGREGATED df {:?}", combined_df);
-        log::debug!("\n--------------DONE-----------------\n");
+        // log::debug!("AGGREGATED df {:?}", combined_df);
+        // log::debug!("\n--------------DONE-----------------\n");
     }
 
     // Make sure we don't unwrap an empty default

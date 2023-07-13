@@ -47,7 +47,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 std::fs::create_dir_all(parent)?;
             }
             log::debug!("Writing cached df {} to {}", column, path.display());
-            log::debug!("df {}", df);
+            // log::debug!("df {}", df);
             tabular::write_df(&mut df, &path)?;
         }
     }
