@@ -245,10 +245,10 @@ pub fn full_size(
 mod tests {
     use std::path::PathBuf;
 
-    use crate::api;
     use crate::core::index::commit_metadata_db;
     use crate::error::OxenError;
     use crate::test;
+    use crate::{api, command, util};
 
     #[test]
     fn test_index_metadata_db() -> Result<(), OxenError> {
@@ -295,6 +295,47 @@ mod tests {
 │ Image     ┆ 7     │
 │ Tabular   ┆ 7     │
 │ Text      ┆ 4     │
+└───────────┴───────┘"
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_aggregate_metadata_db_just_top_level_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // write ten text files to dir
+            let dir = repo.path.join("train");
+            util::fs::create_dir_all(&dir)?;
+            for i in 0..10 {
+                let path = dir.join(format!("file_{}.txt", i));
+                util::fs::write_to_path(&path, format!("hello world {}", i))?;
+            }
+            command::add(&repo, &dir)?;
+            command::commit(&repo, "adding ten text files")?;
+
+            let commit = api::local::commits::head_commit(&repo)?;
+
+            commit_metadata_db::index_commit(&repo, &commit)?;
+
+            let directory = PathBuf::from("");
+
+            let df = commit_metadata_db::aggregate_col(&repo, &commit, directory, "data_type")?;
+
+            let df_str = format!("{:?}", df);
+            println!("df:\n{:?}", df_str);
+
+            // Add assert here
+            assert_eq!(
+                df_str,
+                r"shape: (1, 2)
+┌───────────┬───────┐
+│ data_type ┆ count │
+│ ---       ┆ ---   │
+│ str       ┆ i64   │
+╞═══════════╪═══════╡
+│ Text      ┆ 10    │
 └───────────┴───────┘"
             );
 
