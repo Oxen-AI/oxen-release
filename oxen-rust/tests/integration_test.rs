@@ -17,8 +17,8 @@ use liboxen::test;
 use liboxen::util;
 
 use futures::future;
+use liboxen::view::{DataTypeCount, MimeTypeCount};
 use polars::prelude::AnyValue;
-use serde_derive::Deserialize;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -3798,21 +3798,10 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
         };
         let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
 
-        #[derive(Deserialize, Debug)]
-        struct DataTypeCount {
-            count: usize,
-            data_type: String,
-        }
-
-        #[derive(Deserialize, Debug)]
-        struct MimeDataTypeCount {
-            count: usize,
-            mime_type: String,
-        }
-
         // serialize into an array of DataTypeCount
+        let metadata = paginated.metadata.unwrap();
         let data_type_counts: Vec<DataTypeCount> =
-            serde_json::from_value(paginated.metadata.unwrap().data_types.data).unwrap();
+            serde_json::from_value(metadata.data_types.data).unwrap();
 
         let data_type_count_text = data_type_counts
             .iter()
@@ -3825,6 +3814,27 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
 
         assert_eq!(data_type_count_text.count, 2);
         assert_eq!(data_type_count_video.count, 1);
+
+        // serialize into an array of MimeDataTypeCount
+        let mine_type_counts: Vec<MimeTypeCount> =
+            serde_json::from_value(metadata.mime_types.data).unwrap();
+
+        let count_markdown = mine_type_counts
+            .iter()
+            .find(|&x| x.mime_type == "text/markdown")
+            .unwrap();
+        let count_video = mine_type_counts
+            .iter()
+            .find(|&x| x.mime_type == "video/mp4")
+            .unwrap();
+        let count_text = mine_type_counts
+            .iter()
+            .find(|&x| x.mime_type == "text/plain")
+            .unwrap();
+
+        assert_eq!(count_markdown.count, 1);
+        assert_eq!(count_video.count, 1);
+        assert_eq!(count_text.count, 1);
 
         Ok(())
     })

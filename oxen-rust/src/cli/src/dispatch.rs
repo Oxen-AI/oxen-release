@@ -5,6 +5,7 @@ use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
+use liboxen::model::EntryDataType;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
@@ -17,10 +18,12 @@ use liboxen::opts::RmOpts;
 use liboxen::util;
 
 use colored::Colorize;
+use liboxen::view::DataTypeCount;
 use minus::Pager;
 use std::env;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use time::format_description;
 
 fn get_host_or_default() -> Result<String, OxenError> {
@@ -505,9 +508,22 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
 
     let entries = command::remote::ls(&remote_repo, &branch, &directory, opts).await?;
     println!(
-        "Displaying page {}/{} of {} total entries\n",
-        opts.page_num, entries.total_pages, entries.total_entries
+        "Displaying {}/{} total entries\n",
+        opts.page_size, entries.total_entries
     );
+
+    let data_type_counts: Vec<DataTypeCount> =
+        serde_json::from_value(entries.metadata.unwrap().data_types.data).unwrap();
+    for data_type_count in data_type_counts {
+        let emoji = EntryDataType::from_str(&data_type_count.data_type)
+            .unwrap()
+            .to_emoji();
+        print!(
+            "{} {} ({})\t",
+            emoji, data_type_count.data_type, data_type_count.count
+        );
+    }
+    print!("\n\n");
 
     for entry in entries.entries {
         if entry.is_dir {
