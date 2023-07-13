@@ -498,7 +498,7 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     let host = get_host_from_repo(&repository)?;
     check_remote_version(host).await?;
 
-    let directory = directory.unwrap_or(PathBuf::from("."));
+    let directory = directory.unwrap_or(PathBuf::from(""));
     let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
     let branch = api::local::branches::current_branch(&repository)?
         .ok_or_else(OxenError::must_be_on_valid_branch)?;

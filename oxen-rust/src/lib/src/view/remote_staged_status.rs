@@ -135,12 +135,12 @@ impl RemoteStagedStatus {
         let (paginated, pagination) = util::paginate(entries, page_number, page_size);
 
         PaginatedDirEntries {
-            status: StatusMessage::resource_found(),
             entries: paginated,
             page_number: pagination.page_number,
             page_size: pagination.page_size,
             total_pages: pagination.total_pages,
             total_entries: pagination.total_entries,
+            metadata: None,
             resource: None,
         }
     }
