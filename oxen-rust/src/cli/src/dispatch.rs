@@ -19,6 +19,7 @@ use liboxen::util;
 
 use colored::Colorize;
 use liboxen::view::DataTypeCount;
+use liboxen::view::PaginatedDirEntries;
 use minus::Pager;
 use std::env;
 use std::fmt::Write;
@@ -507,23 +508,17 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
         .ok_or_else(OxenError::must_be_on_valid_branch)?;
 
     let entries = command::remote::ls(&remote_repo, &branch, &directory, opts).await?;
+    let num_displaying = if opts.page_size > entries.total_entries {
+        entries.total_entries
+    } else {
+        opts.page_size
+    };
     println!(
         "Displaying {}/{} total entries\n",
-        opts.page_size, entries.total_entries
+        num_displaying, entries.total_entries
     );
 
-    let data_type_counts: Vec<DataTypeCount> =
-        serde_json::from_value(entries.metadata.unwrap().data_types.data).unwrap();
-    for data_type_count in data_type_counts {
-        let emoji = EntryDataType::from_str(&data_type_count.data_type)
-            .unwrap()
-            .to_emoji();
-        print!(
-            "{} {} ({})\t",
-            emoji, data_type_count.data_type, data_type_count.count
-        );
-    }
-    print!("\n\n");
+    maybe_display_types(&entries);
 
     for entry in entries.entries {
         if entry.is_dir {
@@ -535,6 +530,41 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     println!();
 
     Ok(())
+}
+
+fn maybe_display_types(entries: &PaginatedDirEntries) {
+    // unwrap entries.metadata or exit function
+    let entries_metadata = match &entries.metadata {
+        Some(entries_metadata) => entries_metadata,
+        None => return,
+    };
+
+    // parse data_type_counts or exit function
+    let data_type_counts = match serde_json::from_value::<Vec<DataTypeCount>>(
+        entries_metadata.data_types.data.clone(),
+    ) {
+        Ok(data_type_counts) => data_type_counts,
+        Err(_) => return,
+    };
+
+    if !data_type_counts.is_empty() {
+        println!();
+        for data_type_count in data_type_counts {
+            if let Ok(edt) = EntryDataType::from_str(&data_type_count.data_type) {
+                let emoji = edt.to_emoji();
+                print!(
+                    "{} {} ({})\t",
+                    emoji, data_type_count.data_type, data_type_count.count
+                );
+            } else {
+                print!(
+                    "{} ({})\t",
+                    data_type_count.data_type, data_type_count.count
+                );
+            }
+        }
+        print!("\n\n");
+    }
 }
 
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {

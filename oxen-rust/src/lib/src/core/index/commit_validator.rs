@@ -51,7 +51,7 @@ fn compute_versions_hash(
             continue;
         }
 
-        let hash = util::hasher::hash_file_contents(&version_path)?;
+        let hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
         // log::debug!("Got hash: {:?} -> {}", entry.path, hash);
 
         hashes.push(SimpleHash { hash })

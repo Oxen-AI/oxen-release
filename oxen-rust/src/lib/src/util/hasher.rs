@@ -43,6 +43,28 @@ where
     format!("{val:x}")
 }
 
+pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
+    // Not sure why some tests were failing....the file didn't get written fast enough
+    // So added this method to retry a few times
+    let mut timeout_len = std::time::Duration::from_millis(100);
+    let mut retries = 0;
+    let total_retries = 5;
+    loop {
+        match hash_file_contents(path) {
+            Ok(hash) => return Ok(hash),
+            Err(err) => {
+                // sleep and try again
+                retries += 1;
+                timeout_len *= retries;
+                std::thread::sleep(timeout_len);
+                if retries > total_retries {
+                    return Err(err);
+                }
+            }
+        }
+    }
+}
+
 pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
     match File::open(path) {
         Ok(file) => {
@@ -59,8 +81,9 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
                 }
             }
         }
-        Err(_) => {
-            let err = format!("util::hasher::hash_file_contents Could not open file {path:?}");
+        Err(err) => {
+            let err =
+                format!("util::hasher::hash_file_contents Could not open file {path:?} {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -82,8 +105,10 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
                 }
             }
         }
-        Err(_) => {
-            let err = format!("util::hasher::hash_file_contents Could not open file {path:?}");
+        Err(err) => {
+            let err = format!(
+                "util::hasher::hash_file_contents_128bit Could not open file {path:?} {err:?}"
+            );
             Err(OxenError::basic_str(err))
         }
     }

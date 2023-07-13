@@ -4,7 +4,7 @@ use crate::core::db;
 use crate::core::index::{CommitDBReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
-use crate::model::{Commit, LocalRepository, RemoteRepository};
+use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -260,14 +260,23 @@ pub async fn get_remote_parent(
 
 pub async fn post_push_complete(
     remote_repo: &RemoteRepository,
-    commit_id: &str,
+    branch: &Branch,
 ) -> Result<(), OxenError> {
-    let uri = format!("/commits/{commit_id}/complete");
+    use serde_json::json;
+
+    let uri = format!("/commits/{}/complete", branch.commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("post_push_complete: {}", url);
+    let body = serde_json::to_string(&json!({
+        "branch": {
+            "name": branch.name,
+            "commit_id": branch.commit_id,
+        }
+    }))
+    .unwrap();
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).send().await {
+    if let Ok(res) = client.post(&url).body(body).send().await {
         let body = client::parse_json_body(&url, res).await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {

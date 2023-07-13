@@ -80,7 +80,13 @@ impl CommitEntryReader {
 
     /// Lists all the directories in the commit
     pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
-        path_db::list_paths(&self.dir_db, Path::new(""))
+        let root = PathBuf::from("");
+        let mut paths = path_db::list_paths(&self.dir_db, &root)?;
+        if !paths.contains(&root) {
+            paths.push(root);
+        }
+        paths.sort();
+        Ok(paths)
     }
 
     /// Lists all the parents of directories that are in the commit dir db

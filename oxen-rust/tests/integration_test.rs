@@ -3842,6 +3842,67 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
 }
 
 #[tokio::test]
+async fn test_remote_ls_return_data_types_just_top_level_dir() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|mut repo| async move {
+        // write text files to dir
+        let dir = repo.path.join("train");
+        util::fs::create_dir_all(&dir)?;
+        let num_files = 33;
+        for i in 0..num_files {
+            let path = dir.join(format!("file_{}.txt", i));
+            util::fs::write_to_path(&path, format!("lol hi {}", i))?;
+        }
+        command::add(&repo, &dir)?;
+        command::commit(&repo, "adding text files")?;
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it real good
+        command::push(&repo).await?;
+
+        // Now list the remote
+        let branch = api::local::branches::current_branch(&repo)?.unwrap();
+        let dir = Path::new("");
+        let opts = PaginateOpts {
+            page_num: 1,
+            page_size: 10,
+        };
+        let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
+
+        // serialize into an array of DataTypeCount
+        let metadata = paginated.metadata.unwrap();
+        let data_type_counts: Vec<DataTypeCount> =
+            serde_json::from_value(metadata.data_types.data).unwrap();
+
+        let data_type_count_text = data_type_counts
+            .iter()
+            .find(|&x| x.data_type == "Text")
+            .unwrap();
+
+        assert_eq!(data_type_count_text.count, num_files);
+
+        // serialize into an array of MimeDataTypeCount
+        let mine_type_counts: Vec<MimeTypeCount> =
+            serde_json::from_value(metadata.mime_types.data).unwrap();
+
+        let count_text = mine_type_counts
+            .iter()
+            .find(|&x| x.mime_type == "text/plain")
+            .unwrap();
+
+        assert_eq!(count_text.count, num_files);
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
 async fn test_commit_remote_staging_behind_main() -> Result<(), OxenError> {
     test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
         // Create branch behind-main off main
