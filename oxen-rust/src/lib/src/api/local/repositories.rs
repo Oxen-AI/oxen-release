@@ -67,7 +67,7 @@ pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
                         data_type: data_type.to_owned(),
                         file_count: 1,
                     };
-                    let mut stat = data_types.entry(data_type).or_insert(data_type_stat);
+                    let stat = data_types.entry(data_type).or_insert(data_type_stat);
                     stat.file_count += 1;
                     stat.data_size += entry.num_bytes;
                 }

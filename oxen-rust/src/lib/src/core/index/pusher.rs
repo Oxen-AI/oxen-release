@@ -91,7 +91,7 @@ pub async fn push_remote_repo(
 
         // recursively check commits against remote head
         // and sync ones that have not been synced
-        rpush_entries(local_repo, &remote_repo, &unsynced_commits).await?;
+        rpush_entries(local_repo, &remote_repo, &branch, &unsynced_commits).await?;
 
         // update the branch after everything else is synced
         log::debug!(
@@ -283,6 +283,7 @@ async fn rpush_missing_commit_objects(
 async fn rpush_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
+    branch: &Branch,
     unsynced_commits: &VecDeque<UnsyncedCommitEntries>,
 ) -> Result<(), OxenError> {
     log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
@@ -297,7 +298,7 @@ async fn rpush_entries(
             commit.message
         );
 
-        push_entries(local_repo, remote_repo, entries, commit).await?;
+        push_entries(local_repo, remote_repo, branch, entries, commit).await?;
     }
     Ok(())
 }
@@ -360,6 +361,7 @@ fn read_unsynced_entries(
 async fn push_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
+    branch: &Branch,
     entries: &[CommitEntry],
     commit: &Commit,
 ) -> Result<(), OxenError> {
@@ -418,7 +420,7 @@ async fn push_entries(
     );
 
     match tokio::join!(large_entries_sync, small_entries_sync) {
-        (Ok(_), Ok(_)) => api::remote::commits::post_push_complete(remote_repo, &commit.id).await,
+        (Ok(_), Ok(_)) => api::remote::commits::post_push_complete(remote_repo, branch).await,
         (Err(err), Ok(_)) => {
             let err = format!("Error syncing large entries: {err}");
             Err(OxenError::basic_str(err))

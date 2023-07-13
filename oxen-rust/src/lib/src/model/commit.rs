@@ -124,7 +124,7 @@ impl Commit {
     pub fn from_branch(commit_reader: &CommitReader, branch: &Branch) -> Result<Commit, OxenError> {
         commit_reader
             .get_commit_by_id(&branch.commit_id)?
-            .ok_or(OxenError::committish_not_found(
+            .ok_or(OxenError::revision_not_found(
                 branch.commit_id.to_string().into(),
             ))
     }

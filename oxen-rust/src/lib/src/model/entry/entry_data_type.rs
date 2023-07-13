@@ -14,11 +14,25 @@ pub enum EntryDataType {
     Binary,
 }
 
+impl EntryDataType {
+    pub fn to_emoji(&self) -> String {
+        match *self {
+            EntryDataType::Dir => "📁".to_string(),
+            EntryDataType::Text => "📄".to_string(),
+            EntryDataType::Image => "📸".to_string(),
+            EntryDataType::Video => "🎥".to_string(),
+            EntryDataType::Audio => "🎵".to_string(),
+            EntryDataType::Tabular => "📊".to_string(),
+            EntryDataType::Binary => "📦".to_string(),
+        }
+    }
+}
+
 impl FromStr for EntryDataType {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+        match s.to_lowercase().as_str() {
             "dir" => Ok(EntryDataType::Dir),
             "text" => Ok(EntryDataType::Text),
             "image" => Ok(EntryDataType::Image),

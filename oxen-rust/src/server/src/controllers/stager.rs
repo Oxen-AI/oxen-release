@@ -170,7 +170,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     );
 
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
-        OxenError::committish_not_found(branch.commit_id.to_owned().into()),
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
     )?;
 
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?

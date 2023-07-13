@@ -4,7 +4,7 @@ use crate::core::db;
 use crate::core::index::{CommitDBReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
-use crate::model::{Commit, LocalRepository, RemoteRepository};
+use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::util::hasher::hash_buffer;
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -61,9 +61,9 @@ pub async fn get_by_id(
 
 pub async fn list_commit_history(
     remote_repo: &RemoteRepository,
-    committish: &str,
+    revision: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    let uri = format!("/commits/{committish}/history");
+    let uri = format!("/commits/{revision}/history");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -260,14 +260,23 @@ pub async fn get_remote_parent(
 
 pub async fn post_push_complete(
     remote_repo: &RemoteRepository,
-    commit_id: &str,
+    branch: &Branch,
 ) -> Result<(), OxenError> {
-    let uri = format!("/commits/{commit_id}/complete");
+    use serde_json::json;
+
+    let uri = format!("/commits/{}/complete", branch.commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("post_push_complete: {}", url);
+    let body = serde_json::to_string(&json!({
+        "branch": {
+            "name": branch.name,
+            "commit_id": branch.commit_id,
+        }
+    }))
+    .unwrap();
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).send().await {
+    if let Ok(res) = client.post(&url).body(body).send().await {
         let body = client::parse_json_body(&url, res).await?;
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -515,6 +524,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
+    let mut last_error = String::from("");
     while total_tries < constants::NUM_HTTP_RETRIES {
         match upload_data_chunk_to_server(
             remote_repo,
@@ -539,12 +549,16 @@ pub async fn upload_data_chunk_to_server_with_retry(
                     sleep_time,
                     err
                 );
+                last_error = format!("{:?}", err);
                 std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
     }
 
-    Err(OxenError::basic_str("Upload chunk retry failed."))
+    Err(OxenError::basic_str(format!(
+        "Upload chunk retry failed. {}",
+        last_error
+    )))
 }
 
 async fn upload_data_chunk_to_server(
@@ -790,12 +804,11 @@ mod tests {
             let head_commit = &commit_history[2];
             let base_commit = &commit_history[5];
 
-            let committish = format!("{}..{}", base_commit.id, head_commit.id);
-            println!("committish: {}", committish);
+            let revision = format!("{}..{}", base_commit.id, head_commit.id);
 
             // List the remote commits
             let remote_commits =
-                api::remote::commits::list_commit_history(&remote_repo, &committish).await?;
+                api::remote::commits::list_commit_history(&remote_repo, &revision).await?;
 
             for commit in remote_commits.iter() {
                 println!("got commit: {} -> {}", commit.id, commit.message);

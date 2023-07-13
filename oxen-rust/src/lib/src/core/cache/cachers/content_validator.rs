@@ -8,6 +8,11 @@ use crate::util;
 pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
     log::debug!("Running compute_and_write_hash");
 
+    // sleep to make sure the commit is fully written to disk
+    // Issue was with a lot of text files in this integration test:
+    //     "test_remote_ls_return_data_types_just_top_level_dir"
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
     log::debug!("computing entry hash {} -> {}", commit.id, commit.message);
     let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
     let entries = commit_entry_reader.list_entries()?;

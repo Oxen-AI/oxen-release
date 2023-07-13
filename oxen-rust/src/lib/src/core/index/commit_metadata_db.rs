@@ -8,6 +8,7 @@ use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
 use rayon::prelude::*;
 use sql_query_builder as sql;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
@@ -66,7 +67,12 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
     );
 
     // Connect to db
-    let mut conn = df_db::get_connection(db_path(repo, commit))?;
+    let path = db_path(repo, commit);
+    // Remove db if it is exists, since we might be recomputing
+    if path.exists() {
+        util::fs::remove_file(&path)?;
+    }
+    let mut conn = df_db::get_connection(path)?;
     let table_name = df_db::create_table_if_not_exists(&conn, &DirMetadataItem::schema())?;
 
     // Create an appender transaction
@@ -108,6 +114,9 @@ pub fn aggregate_col(
     let mut dirs = CommitEntryReader::new(repo, commit)?.list_dir_children(directory)?;
     dirs.push(directory.to_path_buf());
 
+    // make sure they are uniq
+    let dirs: HashSet<&PathBuf> = HashSet::from_iter(dirs.iter());
+
     if dirs.is_empty() {
         return Err(OxenError::path_does_not_exist(directory));
     }
@@ -123,6 +132,7 @@ pub fn aggregate_col(
     }
 
     let table_name = s.name.unwrap();
+    log::debug!("aggregating dirs {:?}", dirs);
     for dir in dirs {
         let stmt = sql::Select::new()
             .select(&format!("{column}, count(*) AS count"))
@@ -158,6 +168,7 @@ pub fn aggregate_col(
                 .groupby([column])
                 .agg([sum("count")])
                 .select(&[col(column), col("count")])
+                .sort(column, Default::default())
                 .collect()
                 .unwrap();
             combined_df = Some(aggregated);
@@ -234,10 +245,10 @@ pub fn full_size(
 mod tests {
     use std::path::PathBuf;
 
-    use crate::api;
     use crate::core::index::commit_metadata_db;
     use crate::error::OxenError;
     use crate::test;
+    use crate::{api, command, util};
 
     #[test]
     fn test_index_metadata_db() -> Result<(), OxenError> {
@@ -270,7 +281,63 @@ mod tests {
 
             let df = commit_metadata_db::aggregate_col(&repo, &commit, directory, "data_type")?;
 
-            println!("df:\n{:?}", df);
+            let df_str = format!("{:?}", df);
+
+            // Add assert here
+            assert_eq!(
+                df_str,
+                r"shape: (3, 2)
+┌───────────┬───────┐
+│ data_type ┆ count │
+│ ---       ┆ ---   │
+│ str       ┆ i64   │
+╞═══════════╪═══════╡
+│ Image     ┆ 7     │
+│ Tabular   ┆ 7     │
+│ Text      ┆ 4     │
+└───────────┴───────┘"
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_aggregate_metadata_db_just_top_level_dir() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // write ten text files to dir
+            let dir = repo.path.join("train");
+            util::fs::create_dir_all(&dir)?;
+            for i in 0..10 {
+                let path = dir.join(format!("file_{}.txt", i));
+                util::fs::write_to_path(&path, format!("hello world {}", i))?;
+            }
+            command::add(&repo, &dir)?;
+            command::commit(&repo, "adding ten text files")?;
+
+            let commit = api::local::commits::head_commit(&repo)?;
+
+            commit_metadata_db::index_commit(&repo, &commit)?;
+
+            let directory = PathBuf::from("");
+
+            let df = commit_metadata_db::aggregate_col(&repo, &commit, directory, "data_type")?;
+
+            let df_str = format!("{:?}", df);
+            println!("df:\n{:?}", df_str);
+
+            // Add assert here
+            assert_eq!(
+                df_str,
+                r"shape: (1, 2)
+┌───────────┬───────┐
+│ data_type ┆ count │
+│ ---       ┆ ---   │
+│ str       ┆ i64   │
+╞═══════════╪═══════╡
+│ Text      ┆ 10    │
+└───────────┴───────┘"
+            );
 
             Ok(())
         })

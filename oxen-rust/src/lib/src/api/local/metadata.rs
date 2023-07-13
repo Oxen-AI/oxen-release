@@ -41,10 +41,14 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
 /// Returns metadata with latest commit information. Less efficient than get().
 pub fn get_cli(
     repo: &LocalRepository,
-    path: impl AsRef<Path>,
+    entry_path: impl AsRef<Path>,
+    data_path: impl AsRef<Path>,
 ) -> Result<CLIMetadataEntry, OxenError> {
-    let path = path.as_ref();
-    let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
+    let path = data_path.as_ref();
+    let entry_path = entry_path.as_ref();
+    let base_name = entry_path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(path))?;
     let size = get_file_size(path)?;
     let hash = util::hasher::hash_file_contents(path)?;
     let mime_type = util::fs::file_mime_type(path);
@@ -61,13 +65,14 @@ pub fn get_cli(
 
     // Now that we know the commits are sorted, we can iterate through them and find when the file was last updated
     for commit in commits {
+        log::debug!("looking for entry in commit {commit}");
         let commit_entry_reader = CommitEntryReader::new(repo, &commit)?;
-        match commit_entry_reader.get_entry(path) {
+        match commit_entry_reader.get_entry(entry_path) {
             Ok(Some(entry)) => {
                 log::debug!(
                     "considering commit {} for file {} and entry.hash {} current hash {}",
                     commit,
-                    path.display(),
+                    entry_path.display(),
                     entry.hash,
                     hash
                 );

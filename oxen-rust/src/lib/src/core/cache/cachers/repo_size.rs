@@ -111,7 +111,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                     latest_commit = commit.clone();
                 } else {
                     // log::debug!("CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}", entry.path, latest_commit.as_ref().unwrap().timestamp, commit.as_ref().unwrap().timestamp);
-                    if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
+                    if latest_commit.as_ref().unwrap().timestamp
+                        < commit.as_ref().unwrap().timestamp
+                    {
                         // log::debug!("FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}", entry.path, commit);
                         latest_commit = commit.clone();
                     }
@@ -129,16 +131,18 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         util::fs::write_to_path(&size_path, &size_str)?;
 
         let latest_commit_path = dir_latest_commit_path(repo, commit, &dir);
-        log::debug!(
-            "Writing latest commit {} to {:?}",
-            latest_commit.as_ref().unwrap().id,
-            latest_commit_path
-        );
-        // create parent directory if not exists
-        if let Some(parent) = latest_commit_path.parent() {
-            util::fs::create_dir_all(parent)?;
+        if let Some(latest_commit) = latest_commit {
+            log::debug!(
+                "Writing latest commit {} to {:?}",
+                latest_commit.id,
+                latest_commit_path
+            );
+            // create parent directory if not exists
+            if let Some(parent) = latest_commit_path.parent() {
+                util::fs::create_dir_all(parent)?;
+            }
+            util::fs::write_to_path(&latest_commit_path, &latest_commit.id)?;
         }
-        util::fs::write_to_path(&latest_commit_path, &latest_commit.unwrap().id)?;
     }
 
     // Cache the full size of the repo

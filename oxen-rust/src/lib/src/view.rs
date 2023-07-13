@@ -4,6 +4,7 @@
 pub mod branch;
 pub mod commit;
 pub mod compare;
+pub mod data_type_count;
 pub mod entry;
 pub mod entry_metadata;
 pub mod file_metadata;
@@ -11,6 +12,7 @@ pub mod health;
 pub mod http;
 pub mod json_data_frame;
 pub mod merge;
+pub mod mime_type_count;
 pub mod namespace;
 pub mod oxen_response;
 pub mod pagination;
@@ -20,7 +22,9 @@ pub mod schema;
 pub mod status_message;
 
 pub use crate::view::compare::CompareEntriesResponse;
+pub use crate::view::data_type_count::DataTypeCount;
 pub use crate::view::file_metadata::{FileMetadata, FileMetadataResponse, FilePathsResponse};
+pub use crate::view::mime_type_count::MimeTypeCount;
 pub use crate::view::status_message::{
     IsValidStatusMessage, StatusMessage, StatusMessageDescription,
 };

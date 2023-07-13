@@ -2,14 +2,15 @@
 //!
 
 use crate::error::OxenError;
+use crate::opts::DFOpts;
 use crate::util;
-use crate::view::entry::ResourceVersion;
+use crate::view::entry::{DirectoryMetadata, ResourceVersion};
 use rayon::prelude::*;
 
 use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
-use crate::view::{PaginatedDirEntries, StatusMessage};
+use crate::view::{JsonDataFrame, PaginatedDirEntries};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -313,10 +314,35 @@ pub fn list_directory(
         total_pages,
     );
 
+    let data_types_path =
+        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "data_type");
+
+    let mime_types_path =
+        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
+
+    let metadata = if data_types_path.exists() && mime_types_path.exists() {
+        log::debug!(
+            "list_directory reading data types from {}",
+            data_types_path.display()
+        );
+        log::debug!(
+            "list_directory reading mime types from {}",
+            mime_types_path.display()
+        );
+        let mut data_type_df = core::df::tabular::read_df(&data_types_path, DFOpts::empty())?;
+        let mut mime_type_df = core::df::tabular::read_df(&mime_types_path, DFOpts::empty())?;
+        Some(DirectoryMetadata {
+            data_types: JsonDataFrame::from_df(&mut data_type_df),
+            mime_types: JsonDataFrame::from_df(&mut mime_type_df),
+        })
+    } else {
+        None
+    };
+
     Ok(PaginatedDirEntries {
-        status: StatusMessage::resource_found(),
         entries,
         resource,
+        metadata,
         page_size,
         page_number: page,
         total_pages,
