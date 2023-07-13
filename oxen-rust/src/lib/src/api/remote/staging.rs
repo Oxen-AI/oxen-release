@@ -2,7 +2,9 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
-use crate::model::{Commit, DataFrameDiff, ModEntry, NewCommitBody, ObjectID, RemoteRepository};
+use crate::model::{
+    Branch, Commit, DataFrameDiff, ModEntry, NewCommitBody, ObjectID, RemoteRepository,
+};
 use crate::model::{ContentType, Schema};
 use crate::view::{
     CommitResponse, FilePathsResponse, ListStagedFileModResponseDF, RemoteStagedStatus,
@@ -209,7 +211,12 @@ pub async fn commit_staged(
         Ok(val) => {
             let commit = val.commit;
             // make sure to call our /complete call to kick off the post-push hooks
-            api::remote::commits::post_push_complete(remote_repo, &commit.id).await?;
+            let branch = Branch {
+                name: branch_name.to_string(),
+                commit_id: commit.id.clone(),
+                is_head: false
+            };
+            api::remote::commits::post_push_complete(remote_repo, &branch).await?;
             Ok(commit)
         },
         Err(err) => Err(OxenError::basic_str(format!(

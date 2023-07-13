@@ -104,7 +104,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let commit = api::local::commits::get_by_id(&repo, &commit_id)?
-        .ok_or(OxenError::committish_not_found(commit_id.into()))?;
+        .ok_or(OxenError::revision_not_found(commit_id.into()))?;
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_found(),
@@ -119,8 +119,8 @@ pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repository = get_repo(&app_data.path, namespace, &repo_name)?;
 
-    let commit = api::local::commits::get_by_revision(&repository, &commit_or_branch)?.ok_or(
-        OxenError::committish_not_found(commit_or_branch.clone().into()),
+    let commit = api::local::revisions::get(&repository, &commit_or_branch)?.ok_or(
+        OxenError::revision_not_found(commit_or_branch.clone().into()),
     )?;
 
     let response = match commit_cacher::get_status(&repository, &commit) {
@@ -222,7 +222,7 @@ fn p_get_parents(
     repository: &LocalRepository,
     commit_or_branch: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    match api::local::commits::get_by_revision(repository, commit_or_branch)? {
+    match api::local::revisions::get(repository, commit_or_branch)? {
         Some(commit) => api::local::commits::get_parents(repository, &commit),
         None => Ok(vec![]),
     }
@@ -292,8 +292,8 @@ pub async fn download_commit_entries_db(
     let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-    let commit = api::local::commits::get_by_revision(&repository, &commit_or_branch)?
-        .ok_or(OxenError::committish_not_found(commit_or_branch.into()))?;
+    let commit = api::local::revisions::get(&repository, &commit_or_branch)?
+        .ok_or(OxenError::revision_not_found(commit_or_branch.into()))?;
 
     let buffer = compress_commit(&repository, &commit)?;
     Ok(HttpResponse::Ok().body(buffer))
@@ -382,7 +382,7 @@ pub async fn upload_chunk(
     let repo = get_repo(&app_data.path, namespace, name)?;
 
     let commit = api::local::commits::get_by_id(&repo, &commit_id)?
-        .ok_or(OxenError::committish_not_found(commit_id.into()))?;
+        .ok_or(OxenError::revision_not_found(commit_id.into()))?;
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let id = query.hash.clone();
@@ -558,7 +558,7 @@ pub async fn upload(
     let repo = get_repo(&app_data.path, namespace, name)?;
 
     let commit = api::local::commits::get_by_id(&repo, &commit_id)?
-        .ok_or(OxenError::committish_not_found(commit_id.to_owned().into()))?;
+        .ok_or(OxenError::revision_not_found(commit_id.to_owned().into()))?;
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
     // Read bytes from body

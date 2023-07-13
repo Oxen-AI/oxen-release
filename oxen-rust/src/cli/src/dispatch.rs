@@ -5,10 +5,12 @@ use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::schema;
+use liboxen::model::EntryDataType;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
+use liboxen::opts::InfoOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
@@ -16,17 +18,24 @@ use liboxen::opts::RmOpts;
 use liboxen::util;
 
 use colored::Colorize;
+use liboxen::view::DataTypeCount;
+use liboxen::view::PaginatedDirEntries;
 use minus::Pager;
 use std::env;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use time::format_description;
 
 fn get_host_or_default() -> Result<String, OxenError> {
     let config = UserConfig::get_or_create()?;
-    Ok(config
-        .default_host
-        .unwrap_or(constants::DEFAULT_HOST.to_string()))
+    let mut default_host = constants::DEFAULT_HOST.to_string();
+    if let Some(host) = config.default_host {
+        if !host.is_empty() {
+            default_host = host;
+        }
+    }
+    Ok(default_host)
 }
 
 fn get_host_from_repo(repo: &LocalRepository) -> Result<String, OxenError> {
@@ -176,7 +185,7 @@ pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
     let local_repo = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    // TODO: pass in committish to download a different version
+    // TODO: pass in revision to download a different version
     let head_commit = api::local::commits::head_commit(&local_repo)?;
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
     let remote_path = path;
@@ -409,30 +418,21 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
     Ok(())
 }
 
-pub fn info(path: impl AsRef<Path>, verbose: bool, output_as_json: bool) -> Result<(), OxenError> {
+pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
     let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    let metadata = command::info(&repository, opts.to_owned())?;
 
-    let path = path.as_ref();
-    if !path.exists() {
-        eprintln!("Path does not exist: {:?}", path);
-        return Err(OxenError::path_does_not_exist(path));
-    }
-
-    // get file metadata
-    let metadata = api::local::metadata::get_cli(&repository, path)?;
-    let hash = util::hasher::hash_file_contents(path)?;
-
-    if output_as_json {
+    if opts.output_as_json {
         let json = serde_json::to_string(&metadata)?;
         println!("{}", json);
     } else {
         /*
         hash size data_type mime_type extension last_updated_commit_id
         */
-        if verbose {
+        if opts.verbose {
             println!("hash\tsize\tdata_type\tmime_type\textension\tlast_updated_commit_id");
         }
 
@@ -443,7 +443,7 @@ pub fn info(path: impl AsRef<Path>, verbose: bool, output_as_json: bool) -> Resu
 
         println!(
             "{}\t{}\t{}\t{}\t{}\t{}",
-            hash,
+            metadata.hash,
             metadata.size,
             metadata.data_type,
             metadata.mime_type,
@@ -502,16 +502,23 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     let host = get_host_from_repo(&repository)?;
     check_remote_version(host).await?;
 
-    let directory = directory.unwrap_or(PathBuf::from("."));
+    let directory = directory.unwrap_or(PathBuf::from(""));
     let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
     let branch = api::local::branches::current_branch(&repository)?
         .ok_or_else(OxenError::must_be_on_valid_branch)?;
 
     let entries = command::remote::ls(&remote_repo, &branch, &directory, opts).await?;
+    let num_displaying = if opts.page_size > entries.total_entries {
+        entries.total_entries
+    } else {
+        opts.page_size
+    };
     println!(
-        "Displaying page {}/{} of {} total entries\n",
-        opts.page_num, entries.total_pages, entries.total_entries
+        "Displaying {}/{} total entries\n",
+        num_displaying, entries.total_entries
     );
+
+    maybe_display_types(&entries);
 
     for entry in entries.entries {
         if entry.is_dir {
@@ -523,6 +530,41 @@ pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Resul
     println!();
 
     Ok(())
+}
+
+fn maybe_display_types(entries: &PaginatedDirEntries) {
+    // unwrap entries.metadata or exit function
+    let entries_metadata = match &entries.metadata {
+        Some(entries_metadata) => entries_metadata,
+        None => return,
+    };
+
+    // parse data_type_counts or exit function
+    let data_type_counts = match serde_json::from_value::<Vec<DataTypeCount>>(
+        entries_metadata.data_types.data.clone(),
+    ) {
+        Ok(data_type_counts) => data_type_counts,
+        Err(_) => return,
+    };
+
+    if !data_type_counts.is_empty() {
+        println!();
+        for data_type_count in data_type_counts {
+            if let Ok(edt) = EntryDataType::from_str(&data_type_count.data_type) {
+                let emoji = edt.to_emoji();
+                print!(
+                    "{} {} ({})\t",
+                    emoji, data_type_count.data_type, data_type_count.count
+                );
+            } else {
+                print!(
+                    "{} ({})\t",
+                    data_type_count.data_type, data_type_count.count
+                );
+            }
+        }
+        print!("\n\n");
+    }
 }
 
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {

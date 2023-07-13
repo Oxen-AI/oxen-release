@@ -21,8 +21,8 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     // Parse the base and head from the base..head string
     let (base, head) = parse_base_head(&base_head)?;
     let (base_commit, head_commit) = resolve_base_head_branches(&repository, &base, &head)?;
-    let base = base_commit.ok_or(OxenError::committish_not_found(base.into()))?;
-    let head = head_commit.ok_or(OxenError::committish_not_found(head.into()))?;
+    let base = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
     // Check if mergeable
     let merger = Merger::new(&repository)?;
@@ -66,8 +66,8 @@ pub async fn merge(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     // Parse the base and head from the base..head string
     let (base, head) = parse_base_head(&base_head)?;
     let (base_commit, head_commit) = resolve_base_head_branches(&repository, &base, &head)?;
-    let base = base_commit.ok_or(OxenError::committish_not_found(base.into()))?;
-    let head = head_commit.ok_or(OxenError::committish_not_found(head.into()))?;
+    let base = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
     // Check if mergeable
     let merger = Merger::new(&repository)?;

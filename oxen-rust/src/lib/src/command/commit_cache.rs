@@ -41,16 +41,16 @@ pub async fn compute_cache_on_all_repos(path: &Path, force: bool) -> Result<(), 
 /// Run the computation cache on all repositories within a directory
 pub async fn compute_cache(
     repo: &LocalRepository,
-    committish: Option<String>,
+    revision: Option<String>,
     force: bool,
 ) -> Result<(), OxenError> {
     println!(
-        "Compute cache for commit given [{committish:?}] on repo {:?}",
+        "Compute cache for commit given [{revision:?}] on repo {:?}",
         repo.path
     );
-    let commits = if let Some(committish) = committish {
+    let commits = if let Some(revision) = revision {
         let opts = LogOpts {
-            committish: Some(committish),
+            revision: Some(revision),
             remote: false,
         };
         api::local::commits::list_with_opts(repo, &opts).await?

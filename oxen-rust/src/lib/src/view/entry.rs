@@ -1,7 +1,7 @@
 use crate::model::{CommitEntry, MetadataEntry, RemoteEntry};
 use serde::{Deserialize, Serialize};
 
-use super::StatusMessage;
+use super::{JsonDataFrame, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EntryResponse {
@@ -44,11 +44,16 @@ pub struct PaginatedEntries {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct DirectoryMetadata {
+    pub data_types: JsonDataFrame,
+    pub mime_types: JsonDataFrame,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntries {
-    #[serde(flatten)]
-    pub status: StatusMessage,
     pub entries: Vec<MetadataEntry>,
     pub resource: Option<ResourceVersion>,
+    pub metadata: Option<DirectoryMetadata>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,
@@ -59,24 +64,15 @@ pub struct PaginatedDirEntries {
 pub struct PaginatedDirEntriesResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub entries: Vec<MetadataEntry>,
-    pub resource: Option<ResourceVersion>,
-    pub page_size: usize,
-    pub page_number: usize,
-    pub total_pages: usize,
-    pub total_entries: usize,
+    #[serde(flatten)]
+    pub entries: PaginatedDirEntries,
 }
 
 impl PaginatedDirEntriesResponse {
     pub fn ok_from(paginated: PaginatedDirEntries) -> Self {
         Self {
             status: StatusMessage::resource_found(),
-            entries: paginated.entries,
-            resource: paginated.resource,
-            page_size: paginated.page_size,
-            page_number: paginated.page_number,
-            total_pages: paginated.total_pages,
-            total_entries: paginated.total_entries,
+            entries: paginated,
         }
     }
 }

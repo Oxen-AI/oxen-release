@@ -1,8 +1,6 @@
 //! This module goes through a repo and caches values on commits that will never change
 //! but are expensive to compute at runtime
 
-use std::collections::HashMap;
-
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
 use crate::core::cache::cacher_status::{CacherStatus, CacherStatusType};
 use crate::core::db::{self, str_json_db};
@@ -20,14 +18,12 @@ type CommitCacher = fn(&LocalRepository, &Commit) -> Result<(), OxenError>;
 lazy_static! {
     /// These are all the cachers we are going to run in `run_all`
     /// TODO: make this a config file that users can extend or run their own cachers
-    static ref CACHERS: HashMap<String, CommitCacher> = {
-        let mut cachers = HashMap::new();
-        cachers.insert(String::from("COMMIT_CONTENT_IS_VALID"), content_validator::compute as CommitCacher);
-        cachers.insert(String::from("REPO_SIZE"), repo_size::compute as CommitCacher);
-        cachers.insert(String::from("COMMIT_STATS"), content_stats::compute as CommitCacher);
-        // cachers.insert(String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher);
-        cachers
-    };
+    static ref CACHERS: Vec<(String, CommitCacher)> = vec![
+        (String::from("COMMIT_CONTENT_IS_VALID"), content_validator::compute as CommitCacher),
+        (String::from("REPO_SIZE"), repo_size::compute as CommitCacher),
+        (String::from("COMMIT_STATS"), content_stats::compute as CommitCacher),
+        // (String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher),
+    ];
 }
 
 fn cached_status_db_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {

@@ -44,7 +44,7 @@ pub enum OxenError {
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
-    CommittishNotFound(Box<StringError>),
+    RevisionNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
     NothingToCommit(StringError),
 
@@ -136,8 +136,8 @@ impl OxenError {
         OxenError::RepoAlreadyExists(Box::new(repo))
     }
 
-    pub fn committish_not_found(value: StringError) -> Self {
-        OxenError::CommittishNotFound(Box::new(value))
+    pub fn revision_not_found(value: StringError) -> Self {
+        OxenError::RevisionNotFound(Box::new(value))
     }
 
     pub fn root_commit_does_not_match(commit: Commit) -> Self {
