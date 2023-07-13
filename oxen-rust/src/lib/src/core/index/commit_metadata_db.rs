@@ -8,6 +8,7 @@ use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
 use rayon::prelude::*;
 use sql_query_builder as sql;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
@@ -108,6 +109,9 @@ pub fn aggregate_col(
     let mut dirs = CommitEntryReader::new(repo, commit)?.list_dir_children(directory)?;
     dirs.push(directory.to_path_buf());
 
+    // make sure they are uniq
+    let dirs: HashSet<&PathBuf> = HashSet::from_iter(dirs.iter());
+
     if dirs.is_empty() {
         return Err(OxenError::path_does_not_exist(directory));
     }
@@ -123,6 +127,7 @@ pub fn aggregate_col(
     }
 
     let table_name = s.name.unwrap();
+    log::debug!("aggregating dirs {:?}", dirs);
     for dir in dirs {
         let stmt = sql::Select::new()
             .select(&format!("{column}, count(*) AS count"))
@@ -131,7 +136,7 @@ pub fn aggregate_col(
             .from(&table_name);
 
         let df = df_db::select(&conn, &stmt)?;
-        // log::debug!("df for dir {:?}: {:?}", dir, df);
+        log::debug!("df for dir {:?}: {:?}", dir, df);
 
         if df.is_empty() {
             continue;
@@ -158,6 +163,7 @@ pub fn aggregate_col(
                 .groupby([column])
                 .agg([sum("count")])
                 .select(&[col(column), col("count")])
+                .sort(column, Default::default())
                 .collect()
                 .unwrap();
             combined_df = Some(aggregated);
@@ -165,8 +171,8 @@ pub fn aggregate_col(
             combined_df = Some(df);
         }
 
-        // log::debug!("AGGREGATED df {:?}", combined_df);
-        // log::debug!("\n--------------DONE-----------------\n");
+        log::debug!("AGGREGATED df {:?}", combined_df);
+        log::debug!("\n--------------DONE-----------------\n");
     }
 
     // Make sure we don't unwrap an empty default
@@ -270,7 +276,22 @@ mod tests {
 
             let df = commit_metadata_db::aggregate_col(&repo, &commit, directory, "data_type")?;
 
-            println!("df:\n{:?}", df);
+            let df_str = format!("{:?}", df);
+
+            // Add assert here
+            assert_eq!(
+                df_str,
+                r"shape: (3, 2)
+┌───────────┬───────┐
+│ data_type ┆ count │
+│ ---       ┆ ---   │
+│ str       ┆ i64   │
+╞═══════════╪═══════╡
+│ Image     ┆ 7     │
+│ Tabular   ┆ 7     │
+│ Text      ┆ 4     │
+└───────────┴───────┘"
+            );
 
             Ok(())
         })

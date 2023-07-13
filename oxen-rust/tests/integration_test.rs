@@ -18,6 +18,7 @@ use liboxen::util;
 
 use futures::future;
 use polars::prelude::AnyValue;
+use serde_derive::Deserialize;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -3757,6 +3758,73 @@ async fn test_remote_ls_ten_items() -> Result<(), OxenError> {
         assert_eq!(paginated.page_number, 1);
         assert_eq!(paginated.page_size, 10);
         assert_eq!(paginated.total_pages, 1);
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|mut repo| async move {
+        // Add one video, one markdown file, and one text file
+        let video_path = test::test_video_file_with_name("basketball.mp4");
+        let markdown_path = test::test_text_file_with_name("README.md");
+        let text_path = test::test_text_file_with_name("hello.txt");
+        util::fs::copy(video_path, repo.path.join("basketball.mp4"))?;
+        util::fs::copy(markdown_path, repo.path.join("README.md"))?;
+        util::fs::copy(text_path, repo.path.join("hello.txt"))?;
+
+        // Add and commit all the dirs and files
+        command::add(&repo, &repo.path)?;
+        command::commit(&repo, "Adding all the data")?;
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it real good
+        command::push(&repo).await?;
+
+        // Now list the remote
+        let branch = api::local::branches::current_branch(&repo)?.unwrap();
+        let dir = Path::new("");
+        let opts = PaginateOpts {
+            page_num: 1,
+            page_size: 10,
+        };
+        let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
+
+        #[derive(Deserialize, Debug)]
+        struct DataTypeCount {
+            count: usize,
+            data_type: String,
+        }
+
+        #[derive(Deserialize, Debug)]
+        struct MimeDataTypeCount {
+            count: usize,
+            mime_type: String,
+        }
+
+        // serialize into an array of DataTypeCount
+        let data_type_counts: Vec<DataTypeCount> =
+            serde_json::from_value(paginated.metadata.unwrap().data_types.data).unwrap();
+
+        let data_type_count_text = data_type_counts
+            .iter()
+            .find(|&x| x.data_type == "Text")
+            .unwrap();
+        let data_type_count_video = data_type_counts
+            .iter()
+            .find(|&x| x.data_type == "Video")
+            .unwrap();
+
+        assert_eq!(data_type_count_text.count, 2);
+        assert_eq!(data_type_count_video.count, 1);
 
         Ok(())
     })
