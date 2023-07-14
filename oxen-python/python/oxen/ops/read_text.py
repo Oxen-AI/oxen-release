@@ -4,7 +4,7 @@ from pathlib import Path
 
 class ReadText(oxen.Op):
     """
-    Reads a text file 
+    Reads a text file
 
     Args:
         args[0] : str

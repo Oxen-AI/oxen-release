@@ -10,7 +10,6 @@ from torch.utils.data import TensorDataset, DataLoader
 def test_image_classification_dataloader_local(
     celeba_local_repo_fully_committed, empty_local_dir
 ):
-
     repo = celeba_local_repo_fully_committed
 
     train_file = os.path.join(repo.path, "annotations", "train.csv")
@@ -24,7 +23,7 @@ def test_image_classification_dataloader_local(
         label_name="hair_color",
     )
     data, labels, mapper = loader.run()
-    
+
     assert data.dtype == np.uint8
 
     assert data.shape == (5, 218, 178, 3), "Data not returned in expected shape"
@@ -82,11 +81,10 @@ def test_image_loader_resize_crop(
         resize_method="crop",
     )
 
-
     data, labels, mapper = loader.run()
 
     assert data.dtype == np.uint8
-    
+
     np.save(tmp_path / "imgs.npy", data)
     assert data.shape == (5, 512, 512, 3), "Data not returned in expected shape"
 
@@ -143,6 +141,7 @@ def test_bad_resize_method(
     label_file = os.path.join(repo.path, "annotations", "labels.txt")
 
     with pytest.raises(ValueError) as e:
+        print(e)
         loader = ImageClassificationLoader(
             imagery_root_dir=repo.path,
             label_file=label_file,

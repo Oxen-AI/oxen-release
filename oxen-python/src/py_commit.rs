@@ -11,6 +11,7 @@ pub struct PyCommit {
 
 #[pymethods]
 impl PyCommit {
+    #[getter]
     pub fn commit_id(&self) -> PyResult<String> {
         Ok(self.commit.id.to_string())
     }
