@@ -6,15 +6,15 @@ from tqdm import tqdm
 
 class ResizeImages(oxen.Op):
     """
-    Resizes a list of images to a common size for use in computer vision tasks. 
+    Resizes a list of images to a common size for use in computer vision tasks.
 
-    Args: 
+    Args:
         args[0]: List[np.ndarray]
             List of images to resize (height, width, channels)
         args[1]: int | None
             Height and width dimension for cropping square images
         args[2]: str
-            Method for resizing images to square size. Options are 
+            Method for resizing images to square size. Options are
             "crop", "pad", and "squeeze".
     """
 
@@ -90,8 +90,15 @@ class ResizeImages(oxen.Op):
 
         n_channels = args[0][0].shape[2]
         out_dtype = args[0][0].dtype
-        result = np.zeros((len(args[0]), args[1], args[1],
-                            n_channels,), dtype=out_dtype,)
+        result = np.zeros(
+            (
+                len(args[0]),
+                args[1],
+                args[1],
+                n_channels,
+            ),
+            dtype=out_dtype,
+        )
 
         print("Resizing images...")
         for i in tqdm(range(len(args[0]))):

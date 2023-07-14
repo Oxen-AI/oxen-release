@@ -5,7 +5,7 @@ import cv2
 
 class ReadImageDir(oxen.Op):
     """
-    Reads in imagery as specified by a DataFrame column of paths. 
+    Reads in imagery as specified by a DataFrame column of paths.
 
     Args:
         args[0] : str

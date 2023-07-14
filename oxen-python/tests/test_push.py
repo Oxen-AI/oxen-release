@@ -1,5 +1,6 @@
 import pytest
 
+
 # Alias the fixtures just to make it a little easier to read
 @pytest.fixture
 def local_repo(celeba_local_repo_one_image_committed):
