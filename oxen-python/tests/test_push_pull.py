@@ -3,6 +3,7 @@ import pytest
 from oxen import LocalRepo
 from oxen.fs import rcount_files_in_repo_dir
 
+
 # Alias the fixtures just to make it a little easier to read
 @pytest.fixture
 def local_repo(celeba_local_repo_one_image_committed):

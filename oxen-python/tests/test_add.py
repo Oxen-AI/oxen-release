@@ -18,6 +18,5 @@ def test_add(shared_datadir):
     assert set(added_files) == {
         "annotations/test.csv",
         "annotations/train.csv",
-        "annotations/labels.txt"
+        "annotations/labels.txt",
     }
-    

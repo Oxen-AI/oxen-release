@@ -3,8 +3,8 @@ import oxen
 
 class CreateLabelMap(oxen.Op):
     """
-    Creates a dictionary mapping string labels to integers, 
-    based on a canonical line-separated text file of labels. 
+    Creates a dictionary mapping string labels to integers,
+    based on a canonical line-separated text file of labels.
 
     Args:
         args[0]: str
