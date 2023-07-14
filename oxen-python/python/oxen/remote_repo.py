@@ -91,7 +91,9 @@ class RemoteRepo:
 
         self._repo.checkout(revision)
 
-    def ls(self, directory: Optional[str]=None, page_num: int=1, page_size: int=100):
+    def ls(
+        self, directory: Optional[str] = None, page_num: int = 1, page_size: int = 100
+    ):
         """
         Lists the contents of a directory in the remote repo.
 
@@ -108,7 +110,6 @@ class RemoteRepo:
             return self._repo.ls("", page_num, page_size)
 
         return self._repo.ls(directory, page_num, page_size)
-
 
     def download(self, remote_path: str, local_path: Optional[str] = None):
         """

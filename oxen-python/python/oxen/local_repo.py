@@ -5,6 +5,7 @@ class LocalRepo:
     """
     Local repository object that allows you to interact with your local oxen repo.
     """
+
     def __init__(self, path: str = ""):
         """
         Create a new Repo object. Use .init() to initialize a new oxen repository,

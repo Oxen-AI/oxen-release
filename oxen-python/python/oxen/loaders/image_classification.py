@@ -14,7 +14,7 @@ from oxen.ops import (
 
 class ImageClassificationLoader:
     """
-    Prepares data from an Oxen repository for use 
+    Prepares data from an Oxen repository for use
     in supervised image classification tasks.
     """
 
@@ -34,25 +34,25 @@ class ImageClassificationLoader:
         Parameters
         ----------
         imagery_root_dir : str
-            Directory relative to which the image paths 
-            in the DataFrame file are specified. 
+            Directory relative to which the image paths
+            in the DataFrame file are specified.
         label_file: str
-            Path to a text file containing a line-separated 
+            Path to a text file containing a line-separated
             list of canonical labels for the dataset.
         df_file : str
-            Path to a tabular file containing the image paths 
+            Path to a tabular file containing the image paths
             and associate labels (and any additional metadata).
-        path_name : str 
-            Column name in df_file containing the image paths 
+        path_name : str
+            Column name in df_file containing the image paths
         label_name : str
             Column name in df_file containing the image labels
         resize_to : int | None
             Size to which images should be resized (square, in pixels)
         resize_method : str
             Method to use for resizing images. One of "crop", "pad", or "squash".
-                crop : resize (preserving aspect) such 
+                crop : resize (preserving aspect) such
                        that smaller size = target size, then center crop
-                pad: resize (prserving aspect) such that larger size = target size, 
+                pad: resize (prserving aspect) such that larger size = target size,
                      then pad with zeros equally on all sides
                 squash: resize (not presercing aspect)
         """
@@ -81,12 +81,12 @@ class ImageClassificationLoader:
 
     def run(self):
         """
-        Returns 
+        Returns
         -------
         outputs[0] (images) : np.ndarray
             All images found in the dataset, as a numpy array of shape (n, h, w, c)
         outputs[1] (labels) : np.nadarray
-            Encoded labels for training, index-matched to the images array 
+            Encoded labels for training, index-matched to the images array
         outputs[2] (mapper) : dict
             A dictionary mapping the encoded labels to their canonical names
         """
