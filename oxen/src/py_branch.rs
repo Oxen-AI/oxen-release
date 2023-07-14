@@ -29,6 +29,14 @@ impl PyBranch {
     pub fn commit_id(&self) -> &str {
         &self._branch.commit_id
     }
+
+    fn __repr__(&self) -> String {
+        format!("Branch(name={}, commit_id={})", self._branch.name, self._branch.commit_id)
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}", self._branch.name)
+    }
 }
 
 impl From<Branch> for PyBranch {
