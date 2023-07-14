@@ -6,8 +6,10 @@ pub mod py_branch;
 pub mod auth;
 pub mod py_commit;
 pub mod py_dataset;
+pub mod py_entry;
 pub mod py_local_repo;
 pub mod py_remote_repo;
+pub mod py_paginated_dir_entries;
 pub mod py_staged_data;
 pub mod util;
 
