@@ -97,7 +97,7 @@ Visit [https://www.oxen.ai/register](https://www.oxen.ai/register) to register f
 
 # Basic Commands
 
-Here is a quick overview of common commands translated to Oxen.
+Here is a quick overview of common Oxen commands. If you are familiar with git, this should be an easy learning curve.
 
 ## Setup User
 
