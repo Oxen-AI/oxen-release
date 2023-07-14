@@ -13,6 +13,7 @@ use crate::py_branch::PyBranch;
 use crate::py_commit::PyCommit;
 
 use crate::py_staged_data::PyStagedData;
+use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 
 #[pyclass]
 pub struct PyRemoteRepo {
@@ -203,6 +204,22 @@ impl PyRemoteRepo {
 
         // Convert remote status to a PyStagedData using the from method
         Ok(PyStagedData::from(remote_status))
+    }
+
+    fn ls(&self, path: PathBuf, page_num: usize, page_size: usize) -> Result<PyPaginatedDirEntries, PyOxenError> {
+        let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            api::remote::dir::list_dir(
+                &self.repo,
+                &self.revision,
+                &path,
+                page_num,
+                page_size,
+            )
+            .await
+        })?;
+
+        // Convert remote status to a PyStagedData using the from method
+        Ok(PyPaginatedDirEntries::from(result))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {
