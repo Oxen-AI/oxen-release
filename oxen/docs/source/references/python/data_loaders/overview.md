@@ -1,4 +1,4 @@
-# Data Loaders
+# Data Loaders Overview
 
 Oxen provides a suite of pre-built data loaders for a variety of common machine learning tasks. These loaders make it easy to extract data from local or remote Oxen repositories and convert it into a format that's ready to use with your favorite machine learning framework.
 
@@ -51,7 +51,7 @@ Oxen loaders are constructed as a Directed Acyclic Graph (DAG) of data operation
 
 These nodes are linked together to form a graph with specified inputs and outputs. The graph is then executed with a run() method, returning the outputs. 
 
-### Example: Image Classification Loader
+### Example: Creating a Image Classification Loader
 
 
 ```python
@@ -82,4 +82,71 @@ class ImageClassificationLoader:
 
 ```
 
-## Example loaders
+## Image Classification Loading
+
+To use the loader we defined above
+
+```python
+
+from oxen import LocalRepo
+from oxen.loaders import ImageClassificationLoader
+
+repo = LocalRepo()
+
+# Demo data for supervised image classification
+repo.clone("https://hub.oxen.ai/ba/dataloader-images")
+
+loader = ImageClassificationLoader(
+    imagery_root_dir = repo.path,
+    label_file = f"{repo.path}/annotations/labels.txt",
+    df_file = f"{repo.path}/annotations/train.csv",
+    path_name = "file",
+    label_name = "hair_color"
+)
+
+X_train, y_train, mapper = loader.run()
+```
+
+## Regression Loader
+
+```python
+
+from oxen import LocalRepo
+from oxen.loaders import RegressionLoader
+
+repo = LocalRepo()
+
+# Demo data for supervised image classification
+repo.clone("https://hub.oxen.ai/ba/dataloader-regression")
+
+loader = RegressionLoader(
+    data_file = f"{repo.path}/prices.csv",
+    pred_name = "price",
+    f_names = ["sqft", "num_bed", "num_bath"]
+)
+
+X, y = loader.run()
+
+```
+
+## Chat Loader
+
+```python
+
+
+from oxen import LocalRepo
+from oxen.loaders import ChatLoader
+
+repo = LocalRepo()
+
+# Demo data for supervised image classification
+repo.clone("https://hub.oxen.ai/ba/dataloader-chat")
+
+loader = ChatLoader(
+    prompt_file = f"{repo.path}/prompt.txt",
+    data_file = f"{repo.path}/examples.tsv", 
+)
+
+[chat_df] = loader.run()
+
+```

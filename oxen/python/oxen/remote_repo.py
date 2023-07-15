@@ -1,4 +1,6 @@
 import json
+import os
+
 from typing import Optional
 from oxen import PyRemoteRepo
 
@@ -89,7 +91,27 @@ class RemoteRepo:
 
         self._repo.checkout(revision)
 
-    def download(self, remote_path: str, local_path: Optional[str]):
+    def ls(
+        self, directory: Optional[str] = None, page_num: int = 1, page_size: int = 100
+    ):
+        """
+        Lists the contents of a directory in the remote repo.
+
+        Parameters
+        ----------
+        directory : str
+            The directory to list. If None, will list the root directory.
+        page_num : int
+            The page number to return. Default: 1
+        page_size : int
+            The number of items to return per page. Default: 100
+        """
+        if directory is None:
+            return self._repo.ls("", page_num, page_size)
+
+        return self._repo.ls(directory, page_num, page_size)
+
+    def download(self, remote_path: str, local_path: Optional[str] = None):
         """
         Download a file or directory from the remote repo.
 
@@ -103,11 +125,16 @@ class RemoteRepo:
         """
         if local_path is None:
             local_path = remote_path
+            # create parent dir if it does not exist
+            directory = os.path.dirname(local_path)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
+
         self._repo.download(remote_path, local_path)
 
     def add(self, local_path: str, remote_directory: str = ""):
         """
-        Stage a file to the remote staging environment
+        Stage a file to the remote workspace
 
         Parameters
         ----------
@@ -120,7 +147,7 @@ class RemoteRepo:
 
     def remove(self, path: str):
         """
-        Unstage a file from the remote staging environment
+        Unstage a file from the remote workspace
 
         Parameters
         ----------
