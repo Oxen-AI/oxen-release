@@ -19,12 +19,12 @@ class ChatLoader:
         """
         Creates a new ChatLoader.
 
-        Parameters 
+        Parameters
         ----------
         prompt_file : str
-            Path to a text file containing a prompt template for the chatbot. 
-        data_file: str 
-            Path to a tabular file containing the chatbot training data, 
+            Path to a text file containing a prompt template for the chatbot.
+        data_file: str
+            Path to a tabular file containing the chatbot training data,
             with "prompt" and "response" columns
         """
         # Define input nodes
@@ -47,7 +47,7 @@ class ChatLoader:
         Returns
         --------
         outputs[0] : pl.DataFrame
-            DataFrame with columns containing the templatized prompt ("prompt") 
+            DataFrame with columns containing the templatized prompt ("prompt")
             and response ("response")
         """
         # Run the graph to get the outputs

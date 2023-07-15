@@ -2,7 +2,7 @@ use liboxen::model::entry::mod_entry::ModType;
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
-use liboxen::model::{CommitBody, ContentType, Remote, RemoteRepository};
+use liboxen::model::{NewCommitBody, ContentType, Remote, RemoteRepository};
 use liboxen::{api, command};
 
 use pyo3::exceptions::PyValueError;
@@ -13,6 +13,7 @@ use crate::py_branch::PyBranch;
 use crate::py_commit::PyCommit;
 
 use crate::py_staged_data::PyStagedData;
+use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 
 #[pyclass]
 pub struct PyRemoteRepo {
@@ -139,7 +140,7 @@ impl PyRemoteRepo {
     fn commit(&self, message: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         let user = UserConfig::get()?.to_user();
-        let commit = CommitBody { message, user };
+        let commit = NewCommitBody { message, author: user.name, email: user.email };
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::commit_staged(&self.repo, &self.revision, &user_id, &commit).await
         })?;
@@ -203,6 +204,22 @@ impl PyRemoteRepo {
 
         // Convert remote status to a PyStagedData using the from method
         Ok(PyStagedData::from(remote_status))
+    }
+
+    fn ls(&self, path: PathBuf, page_num: usize, page_size: usize) -> Result<PyPaginatedDirEntries, PyOxenError> {
+        let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            api::remote::dir::list_dir(
+                &self.repo,
+                &self.revision,
+                &path,
+                page_num,
+                page_size,
+            )
+            .await
+        })?;
+
+        // Convert remote status to a PyStagedData using the from method
+        Ok(PyPaginatedDirEntries::from(result))
     }
 
     fn get_branch(&self, branch_name: String) -> PyResult<PyBranch> {

@@ -3,7 +3,7 @@ import oxen
 
 class ReadDF(oxen.Op):
     """
-    Reads a polars DataFrame from a file. 
+    Reads a polars DataFrame from a file.
 
     Args:
         args[0] : str

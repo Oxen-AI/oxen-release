@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.19</title>
+    <title>🐂 🌾 Oxen &#8212; 🐂 🌾 Oxen 0.1.21</title>
   
   
   
@@ -118,7 +118,7 @@
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.19</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.21</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
@@ -134,21 +134,18 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="concepts/data_frames.html">Data Frames</a></li>
 
-<li class="toctree-l1"><a class="reference internal" href="concepts/remote_staging.html">Remote Staging Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="concepts/remote_workspace.html">Remote Workspaces</a></li>
 
 
-<li class="toctree-l1"><a class="reference internal" href="concepts/embedding_search.html">Embedding Search</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="references/python/local_repo.html">Local Repo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/python/remote_repo.html">Remote Repo</a></li>
-<li class="toctree-l1 has-children"><a class="reference internal" href="references/python/data_loaders/index.html">Data Loaders</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
-<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/image_loader.html">Image Classification Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/chat_loader.html">Chatbot Loader</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/python/data_loaders/regression_loader.html">Regression Loader</a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/overview.html">Data Loaders Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/image_loader.html">Image Classification Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/chat_loader.html">Chatbot Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/python/data_loaders/regression_loader.html">Regression Loader</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
@@ -315,7 +312,8 @@ document.write(`
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">🧑‍💻 OxenHub</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-commands">Basic Commands</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-user">Setup User</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-local-repository">Create Local Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#clone-a-remote-repository">Clone a Remote Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#initialize-local-repository">Initialize Local Repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-data">Stage Data</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-status">View Status</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-changes">Commit Changes</a></li>
@@ -332,7 +330,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-authorization">Setup Authorization</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-repository">Create Remote Repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#push-your-data">Push your data</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-staging">Remote Staging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Remote Workspace</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-badges">Oxen Badges</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosting">Self Hosting</a></li>
 </ul>
@@ -345,6 +343,7 @@ document.write(`
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pulling-new-changes">Pulling New Changes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-the-changes">Merging the changes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dealing-with-merge-conflicts">Dealing With Merge Conflicts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#content-hashing-and-core-metadata-extraction">Content Hashing and Core Metadata Extraction</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#support">Support</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing">Contributing</a><ul class="nav section-nav flex-column">
 </ul>
@@ -447,7 +446,7 @@ oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/
 </section>
 <section id="basic-commands">
 <h1>Basic Commands<a class="headerlink" href="#basic-commands" title="Permalink to this heading">#</a></h1>
-<p>Here is a quick overview of common commands translated to Oxen.</p>
+<p>Here is a quick overview of common Oxen commands. If you are familiar with git, this should be an easy learning curve.</p>
 <section id="setup-user">
 <h2>Setup User<a class="headerlink" href="#setup-user" title="Permalink to this heading">#</a></h2>
 <p>For your commit history, you will have to set up your local Oxen user name and email. This is what will show up in <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">log</span></code> or in the OxenHub dashboard for who changed what.</p>
@@ -455,9 +454,38 @@ oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/
 </pre></div>
 </div>
 </section>
-<section id="create-local-repository">
-<h2>Create Local Repository<a class="headerlink" href="#create-local-repository" title="Permalink to this heading">#</a></h2>
-<p>First, create a new directory, navigate into it, and perform</p>
+<section id="clone-a-remote-repository">
+<h2>Clone a Remote Repository<a class="headerlink" href="#clone-a-remote-repository" title="Permalink to this heading">#</a></h2>
+<p>There are a few ways that you can clone an Oxen repository, depending on the level of data transfer you want to incur. The default <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">clone</span></code> with no flags will download the latest commit from the <code class="docutils literal notranslate"><span class="pre">main</span></code> branch.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBBox
+</pre></div>
+</div>
+<p>To fetch the latest commit from a specific branch you can use the <code class="docutils literal notranslate"><span class="pre">-b</span></code> flag.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBBox<span class="w"> </span>-b<span class="w"> </span>my-pets
+</pre></div>
+</div>
+<p>Downloading all the data may still be a more expensive operation than you need. You can download the minimal metadata to still interact with the remote by using the <code class="docutils literal notranslate"><span class="pre">--shallow</span></code> flag.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBBox<span class="w"> </span>--shallow<span class="w"> </span>-b<span class="w"> </span>my-pets
+</pre></div>
+</div>
+<p>This is especially handy for appending data via the <a class="reference external" href="https://docs.oxen.ai/en/latest/concepts/remote_workspace.html">remote workspace</a>. When downloading by using the <code class="docutils literal notranslate"><span class="pre">--shallow</span></code> flag you will notice no data files in your working directory. You can still see the data on the branch on the remote with the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommands.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># View the remote files</span>
+oxen<span class="w"> </span>remote<span class="w"> </span>ls
+</pre></div>
+</div>
+<p>You can also download a subset by using <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span> <span class="pre">download</span></code> to download subsets of directories or files. This is useful if you only need the testing data and not the full training data files and directories.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>download<span class="w"> </span>test.csv
+</pre></div>
+</div>
+<p>Lastly, if you want to clone the entire commit history locally, you can use the <code class="docutils literal notranslate"><span class="pre">--all</span></code> flag. This is handy if you want to pull a full history and push to a new remote, or have a workflow where you need to quickly swap between commits locally. Often for running experiments, training, or testing, all you need is a subset of the data.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/ox/CatDogBBox<span class="w"> </span>--all
+</pre></div>
+</div>
+</section>
+<section id="initialize-local-repository">
+<h2>Initialize Local Repository<a class="headerlink" href="#initialize-local-repository" title="Permalink to this heading">#</a></h2>
+<p>If you do not have a remote dataset, you can initialize one locally.</p>
+<p>Similar to git: create a new directory, navigate into it, and perform</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>init
 </pre></div>
 </div>
@@ -623,10 +651,10 @@ Date:   Fri, 21 Oct 2022 16:05:22 -0700
 </pre></div>
 </div>
 </section>
-<section id="remote-staging">
-<h2>Remote Staging<a class="headerlink" href="#remote-staging" title="Permalink to this heading">#</a></h2>
+<section id="id5">
+<h2>Remote Workspace<a class="headerlink" href="#id5" title="Permalink to this heading">#</a></h2>
 <p>There are times when you do not want to clone the entire repository to make a change. For example, if you have a large dataset and you want to add one annotation, it is very inefficient to clone all the files locally.</p>
-<p>Oxen’s remote staging area helps enable a more efficient workflow. Simply add the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand to the commands you already know how to use locally.</p>
+<p>You can think of Oxen’s remote workspace as mirroring your local workspace, but without all the files downloaded. It should feel like you are interacting locally when really all the action is on the server. Simply add the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">remote</span></code> subcommand to the commands you already know how to use locally.</p>
 <p>Let’s walk through an example. Start by shallow cloning a repo and a checkout a specific branch.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>clone<span class="w"> </span>https://hub.oxen.ai/&lt;username&gt;/&lt;repo_name&gt;<span class="w"> </span>--shallow<span class="w"> </span>-b<span class="w"> </span>add-images
 </pre></div>
@@ -635,14 +663,14 @@ Date:   Fri, 21 Oct 2022 16:05:22 -0700
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>status
 </pre></div>
 </div>
-<p>This checks the remote staging area on this branch to see if you have any remote files staged. You can then proceed to <code class="docutils literal notranslate"><span class="pre">add</span></code> and <code class="docutils literal notranslate"><span class="pre">commit</span></code> changes without ever having to clone the entire dataset.</p>
+<p>This checks the remote workspace on this branch to see if you have any remote files staged. You can then proceed to <code class="docutils literal notranslate"><span class="pre">add</span></code> and <code class="docutils literal notranslate"><span class="pre">commit</span></code> changes without ever having to clone the entire dataset.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>image.png
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>oxen<span class="w"> </span>remote<span class="w"> </span>status
 </pre></div>
 </div>
-<p>For more information about remote staging, refer to the <a class="reference external" href="https://github.com/Oxen-AI/oxen-release/blob/main/RemoteStaging.md">remote staging documentation</a>.</p>
+<p>For more information about Oxen’s remote workspaces, refer to the <a class="reference external" href="https://docs.oxen.ai/en/latest/concepts/remote_workspace.html">remote workspace documentation</a>.</p>
 </section>
 <section id="oxen-badges">
 <h2>Oxen Badges<a class="headerlink" href="#oxen-badges" title="Permalink to this heading">#</a></h2>
@@ -853,6 +881,21 @@ Current
 </ol>
 <p>If you use the <code class="docutils literal notranslate"><span class="pre">--combine</span></code> flag, oxen will concatenate the data frames and unique them based on the row values.</p>
 </section>
+<section id="content-hashing-and-core-metadata-extraction">
+<h2>Content Hashing and Core Metadata Extraction<a class="headerlink" href="#content-hashing-and-core-metadata-extraction" title="Permalink to this heading">#</a></h2>
+<p>Oxen uses some core metadata around the file to be able to version and transfer the data efficiently. Any time a file gets versioned, it’s hash is computed and the contents is put into a content addressable filesystem. These files can be found in the hidden <code class="docutils literal notranslate"><span class="pre">.oxen</span></code> directory. For example a file with the hash <code class="docutils literal notranslate"><span class="pre">7f65e0e4bda0acc99c56ecacbe092141</span></code> will be stored in <code class="docutils literal notranslate"><span class="pre">.oxen/versions/files/7f/65e0e4bda0acc99c56ecacbe092141/</span></code> for fast random access given the hash.</p>
+<p>To find out more info about a file with the CLI you can use the <code class="docutils literal notranslate"><span class="pre">oxen</span> <span class="pre">info</span></code> command. For example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>info<span class="w"> </span>images/test.jpg
+fa42a17de86fa628b7caa8df6ba4d774<span class="w">    </span><span class="m">83851</span><span class="w">   </span>image<span class="w">   </span>image/jpeg<span class="w">  </span>jpg
+</pre></div>
+</div>
+<p>If you want to know the column names of each field, used the -v flag. All fields are separated by a tab so it is easy to pipe into <code class="docutils literal notranslate"><span class="pre">cut</span></code> or other unix style commands.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>oxen<span class="w"> </span>info<span class="w"> </span>images/test.jpg<span class="w"> </span>-v
+<span class="nb">hash</span><span class="w">    </span>size<span class="w">    </span>data_type<span class="w">   </span>mime_type<span class="w">   </span>extension
+fa42a17de86fa628b7caa8df6ba4d774<span class="w">    </span><span class="m">83851</span><span class="w">   </span>image<span class="w">   </span>image/jpeg<span class="w">  </span>jpg
+</pre></div>
+</div>
+</section>
 <section id="support">
 <h2>Support<a class="headerlink" href="#support" title="Permalink to this heading">#</a></h2>
 <p>If you have any questions, comments, suggestions, or just want to get in contact with the team, feel free to email us at <code class="docutils literal notranslate"><span class="pre">hello&#64;oxen.ai</span></code></p>
@@ -868,7 +911,7 @@ Current
 </div>
 <div class="toctree-wrapper compound" id="rust-api">
 </div>
-<div class="toctree-wrapper compound" id="id5">
+<div class="toctree-wrapper compound" id="id6">
 </div>
 </section>
 </section>
@@ -921,7 +964,8 @@ Current
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">🧑‍💻 OxenHub</a></li>
 <li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-commands">Basic Commands</a><ul class="visible nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-user">Setup User</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-local-repository">Create Local Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#clone-a-remote-repository">Clone a Remote Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#initialize-local-repository">Initialize Local Repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-data">Stage Data</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#view-status">View Status</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#commit-changes">Commit Changes</a></li>
@@ -938,7 +982,7 @@ Current
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup-authorization">Setup Authorization</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#create-remote-repository">Create Remote Repository</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#push-your-data">Push your data</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remote-staging">Remote Staging</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#id5">Remote Workspace</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#oxen-badges">Oxen Badges</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#self-hosting">Self Hosting</a></li>
 </ul>
@@ -951,6 +995,7 @@ Current
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pulling-new-changes">Pulling New Changes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-the-changes">Merging the changes</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dealing-with-merge-conflicts">Dealing With Merge Conflicts</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#content-hashing-and-core-metadata-extraction">Content Hashing and Core Metadata Extraction</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#support">Support</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#contributing">Contributing</a><ul class="nav section-nav flex-column">
 </ul>
@@ -990,7 +1035,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jun 26, 2023.
+  Last updated on Jul 14, 2023.
   <br/>
 </p>
   </div>

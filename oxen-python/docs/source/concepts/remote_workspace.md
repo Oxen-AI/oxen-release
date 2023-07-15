@@ -1,13 +1,13 @@
-# Remote Staging Workflow
+# Remote Workspaces
 
-Oxen has the concept of a "remote staging area" to enable easy data collection and labeling workflows. There are two main types of data you might want to stage.
+Oxen has the concept of a "remote workspace" to enable easy data collection and labeling workflows. There are two main types of data you might want to stage.
 
 1) Unstructured data files (images, videos, audio, text)
 2) Structured annotations (rows for tabular data frames)
 
 Instead of cloning the entire dataset locally (which can take a lot of time, bandwidth, and storage) you can stage data directly on the remote server.
 
-The commands you are used to working with in your local workspace (`status`, `add`, `commit`, etc...) now work with the remote staging area. Each user's changes are sand-boxed to their own identity, so when you add to a remote staging workspace, it will not overlap with other users.
+The commands you are used to working with in your local workspace (`status`, `add`, `commit`, etc...) now work with the remote workspace. Each user's changes are sand-boxed to their own identity, so when you add to a remote workspace, it will not overlap with other users.
 
 # Staging Files
 
@@ -27,7 +27,7 @@ Note: When you do a shallow clone, your local commands will not work until you `
 
 ## Create Remote Branch
 
-After you have a shallow clone, then you can create a local branch, and push it to the remote. Every remote branch has a remote staging area that is tied to the branch.
+After you have a shallow clone, then you can create a local branch, and push it to the remote. Every remote branch has a remote workspace that is tied to the branch.
 
 ```bash 
 $ oxen checkout -b add-images
@@ -36,7 +36,7 @@ $ oxen push origin add-images
 
 ## Check Remote Status
 
-Now that you have created a remote branch, you can interact with the remote staging area with the `oxen remote` subcommand. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.
+Now that you have created a remote branch, you can interact with the remote workspace with the `oxen remote` subcommand. The oxen remote subcommand defaults to checking the current branch you are on but on the remote server.
 
 ```bash
 $ oxen remote status
@@ -44,7 +44,7 @@ $ oxen remote status
 
 ## Remote Add File
 
-To add a file to the remote staging area simply use `oxen remote add`.
+To add a file to the remote workspace simply use `oxen remote add`.
 
 ```bash
 $ oxen remote add image.jpg
@@ -55,13 +55,13 @@ For relative paths, oxen will mirror the directory structure you have locally.
 ```bash
 $ mkdir my-images/ # create local dir
 $ cp /path/to/image.jpg my-images/ # add image to local dir
-$ oxen remote add my-images/image.jpg # upload image to remote staging area in the my-images/ directory
+$ oxen remote add my-images/image.jpg # upload image to the remote workspace in the my-images/ directory
 ```
 
 For absolute paths to a file, you will also need to specify the path you would like to put it in with the `-p` flag.
 
 ```bash
-$ oxen remote add /path/to/image.jpg -p my-images # upload image to remote staging area
+$ oxen remote add /path/to/image.jpg -p my-images # upload image to the remote workspace
 ```
 
 You can now use the `oxen remote status` command to see the files that are staged on the remote branch.
@@ -81,9 +81,9 @@ Files to be committed:
 
 ## Delete Remotely Added File
 
-If you accidentally add file from the remote staging area and want to remove it, no worries, you can unstage it with `oxen remote rm`. 
+If you accidentally add file from the remote workspace and want to remove it, no worries, you can unstage it with `oxen remote rm`. 
 
-(TODO: right now the functionality only operates on staging area regardless of the --staged flag, we might want to allow remote removing of files and directories).
+(TODO: right now the functionality only operates on workspace regardless of the --staged flag, we might want to allow remote removing of files and directories).
 
 ```bash
 $ oxen remote rm --staged my-images/image.jpg
@@ -158,7 +158,7 @@ shape: (1, 7)
 └──────────────────────────────────┴──────────────────────┴───────┴───────┴───────┴───────┴────────┘
 ```
 
-This returns a unique ID for the row that we can use as a handle to interact with the specific row in the remote staging area. To list the added rows on the dataframe you can use the `oxen remote diff` command.
+This returns a unique ID for the row that we can use as a handle to interact with the specific row in the remote workspace. To list the added rows on the dataframe you can use the `oxen remote diff` command.
 
 ```bash
 $ oxen remote diff annotations/train.csv

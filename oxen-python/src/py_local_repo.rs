@@ -38,13 +38,14 @@ impl PyLocalRepo {
         Ok(())
     }
 
-    pub fn clone(&mut self, url: &str, branch: &str, shallow: bool) -> Result<(), PyOxenError> {
+    pub fn clone(&mut self, url: &str, branch: &str, shallow: bool, all: bool) -> Result<(), PyOxenError> {
         let repo = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let opts = CloneOpts {
                 url: url.to_string(),
                 dst: self.path.clone(),
                 branch: branch.to_string(),
                 shallow,
+                all
             };
             command::clone(&opts).await
         })?;

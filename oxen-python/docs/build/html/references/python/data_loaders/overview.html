@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
-    <title>Data Loaders &#8212; 🐂 🌾 Oxen 0.1.20</title>
+    <title>Data Loaders Overview &#8212; 🐂 🌾 Oxen 0.1.21</title>
   
   
   
@@ -19,35 +19,35 @@
   </script>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../_static/styles/theme.css?digest=e353d410970836974a52" rel="stylesheet" />
-<link href="../../_static/styles/bootstrap.css?digest=e353d410970836974a52" rel="stylesheet" />
-<link href="../../_static/styles/pydata-sphinx-theme.css?digest=e353d410970836974a52" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=e353d410970836974a52" rel="stylesheet" />
+<link href="../../../_static/styles/bootstrap.css?digest=e353d410970836974a52" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=e353d410970836974a52" rel="stylesheet" />
 
   
-  <link href="../../_static/vendor/fontawesome/6.1.2/css/all.min.css?digest=e353d410970836974a52" rel="stylesheet" />
-  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.1.2/webfonts/fa-solid-900.woff2" />
-<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.1.2/webfonts/fa-brands-400.woff2" />
-<link rel="preload" as="font" type="font/woff2" crossorigin href="../../_static/vendor/fontawesome/6.1.2/webfonts/fa-regular-400.woff2" />
+  <link href="../../../_static/vendor/fontawesome/6.1.2/css/all.min.css?digest=e353d410970836974a52" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.1.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.1.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.1.2/webfonts/fa-regular-400.woff2" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
-    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
-    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=14f4ca6b54d191a8c7657f6c759bf11a5fb86285" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/copybutton.css" />
   
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=e353d410970836974a52" />
-<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=e353d410970836974a52" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52" />
 
-    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
-    <script src="../../_static/doctools.js"></script>
-    <script src="../../_static/sphinx_highlight.js"></script>
-    <script src="../../_static/clipboard.min.js"></script>
-    <script src="../../_static/copybutton.js"></script>
-    <script src="../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'references/python/data_loaders_overview';</script>
-    <link rel="index" title="Index" href="../../genindex.html" />
-    <link rel="search" title="Search" href="../../search.html" />
-    <link rel="next" title="Rust Documentation" href="../rust.html" />
-    <link rel="prev" title="Remote Repo" href="remote_repo.html" />
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/clipboard.min.js"></script>
+    <script src="../../../_static/copybutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=5a5c038af52cf7bc1a1ec88eea08e6366ee68824"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/python/data_loaders/overview';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Image Classification Loader" href="image_loader.html" />
+    <link rel="prev" title="&lt;no title&gt;" href="index.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -75,7 +75,7 @@
     <div class="search-button__overlay"></div>
     <div class="search-button__search-container">
 <form class="bd-search d-flex align-items-center"
-      action="../../search.html"
+      action="../../../search.html"
       method="get">
   <i class="fa-solid fa-magnifying-glass"></i>
   <input type="search"
@@ -113,48 +113,51 @@
         <div class="sidebar-primary-item">
   
 
-<a class="navbar-brand logo" href="../../index.html">
+<a class="navbar-brand logo" href="../../../index.html">
   
   
   
   
   
-    <p class="title logo__title">🐂 🌾 Oxen 0.1.20</p>
+    <p class="title logo__title">🐂 🌾 Oxen 0.1.21</p>
   
 </a></div>
         <div class="sidebar-primary-item"><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">👨‍🍳 Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../getting_started/installation.html">Installation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../getting_started/commands.html">Command Line Interface</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../getting_started/python.html">Python</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../getting_started/tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/commands.html">Command Line Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/python.html">Python</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started/tutorials.html">Tutorials</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🤓 Concepts</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../concepts/data_frames.html">Data Frames</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../concepts/data_frames.html">Data Frames</a></li>
 
-<li class="toctree-l1"><a class="reference internal" href="../../concepts/remote_workspace.html">Remote Workspaces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../concepts/remote_workspace.html">Remote Workspaces</a></li>
 
 
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🐍 Python API</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="local_repo.html">Local Repo</a></li>
-<li class="toctree-l1"><a class="reference internal" href="remote_repo.html">Remote Repo</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Data Loaders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../local_repo.html">Local Repo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../remote_repo.html">Remote Repo</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Data Loaders Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="image_loader.html">Image Classification Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="chat_loader.html">Chatbot Loader</a></li>
+<li class="toctree-l1"><a class="reference internal" href="regression_loader.html">Regression Loader</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🦀 Rust API</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../rust.html">Rust Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../rust.html">Rust Documentation</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">🧑‍💻 Contributing</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../../contributing/documentation.html">Writing Documentation</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../contributing/python.html">Python Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/documentation.html">Writing Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/python.html">Python Development</a></li>
 
-<li class="toctree-l1"><a class="reference internal" href="../../contributing/rust.html">Rust Development</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/rust.html">Rust Development</a></li>
 </ul>
 
     </div>
@@ -209,7 +212,7 @@
       
       
       
-      <li><a href="../../_sources/references/python/data_loaders_overview.md" target="_blank"
+      <li><a href="../../../_sources/references/python/data_loaders/overview.md" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -291,7 +294,7 @@ document.write(`
               
 
 <div id="jb-print-docs-body" class="onlyprint">
-    <h1>Data Loaders</h1>
+    <h1>Data Loaders Overview</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
@@ -320,8 +323,8 @@ document.write(`
 <div id="searchbox"></div>
                 <article class="bd-article" role="main">
                   
-  <section id="data-loaders">
-<h1>Data Loaders<a class="headerlink" href="#data-loaders" title="Permalink to this heading">#</a></h1>
+  <section id="data-loaders-overview">
+<h1>Data Loaders Overview<a class="headerlink" href="#data-loaders-overview" title="Permalink to this heading">#</a></h1>
 <p>Oxen provides a suite of pre-built data loaders for a variety of common machine learning tasks. These loaders make it easy to extract data from local or remote Oxen repositories and convert it into a format that’s ready to use with your favorite machine learning framework.</p>
 <section id="using-loaders-with-local-resositories">
 <h2>Using Loaders with Local Resositories<a class="headerlink" href="#using-loaders-with-local-resositories" title="Permalink to this heading">#</a></h2>
@@ -471,20 +474,20 @@ document.write(`
     <div class="footer-article-item"><!-- Previous / next buttons -->
 <div class="prev-next-area">
     <a class="left-prev"
-       href="remote_repo.html"
+       href="index.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Remote Repo</p>
+        <p class="prev-next-title">&lt;no title&gt;</p>
       </div>
     </a>
     <a class="right-next"
-       href="../rust.html"
+       href="image_loader.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Rust Documentation</p>
+        <p class="prev-next-title">Image Classification Loader</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -546,7 +549,7 @@ By Greg Schoeninger
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jul 11, 2023.
+  Last updated on Jul 14, 2023.
   <br/>
 </p>
   </div>
@@ -564,8 +567,8 @@ By Greg Schoeninger
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script src="../../_static/scripts/bootstrap.js?digest=e353d410970836974a52"></script>
-<script src="../../_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52"></script>
+  <script src="../../../_static/scripts/bootstrap.js?digest=e353d410970836974a52"></script>
+<script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=e353d410970836974a52"></script>
 
   <footer class="bd-footer">
   </footer>
