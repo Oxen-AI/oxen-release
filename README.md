@@ -15,9 +15,12 @@
   <a href="https://pypi.org/project/oxenai/">
     <img src="https://img.shields.io/pypi/v/oxenai.svg?color=245AF0" alt="PyPi Latest Release"/>
   </a>
+  <br/>
 </div>
 
-## 🐂 🌾 Oxen makes versioning your datasets as easy as versioning your code.
+## 🐂 🌾
+
+Oxen makes versioning your datasets as easy as versioning your code.
 
 ```bash
 oxen init
