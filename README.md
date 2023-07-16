@@ -20,7 +20,7 @@
 
 ## 🐂 🌾
 
-Oxen makes versioning your datasets as easy as versioning your code.
+Oxen makes versioning your datasets as easy as versioning your code. If you are familiar with [git](https://git-scm.com/) you are off to the races with Oxen.
 
 ```bash
 oxen init
@@ -30,10 +30,17 @@ oxen config --set-remote origin https://hub.oxen.ai/ox/CatDogBoundingBox
 oxen push origin main
 ```
 
-Clone your data faster than ever before.
+Integrate via command line, or into your python workflow.
 
-```bash
-oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
+```python
+import oxen
+
+# Add and commit data to a repository, without downloading locally
+repo = oxen.RemoteRepo("ox/CatDogBBox")
+repo.create_branch("add-images")
+repo.checkout("add-images")
+repo.add("/path/to/new-dog.png", "images")
+repo.commit("Adding a new dog")
 ```
 
 # 📚 Developer Documentation
@@ -51,6 +58,7 @@ Oxen was optimized to be fast on structured and unstructured data types. Unlike 
 * 📊 Native DataFrame processing ([oxen df](https://github.com/Oxen-AI/oxen-release/blob/main/DataFrames.md) command for data exploration)
 * 📈 Tracks changes over time (never worry about losing the state of your data)
 * 🤝 Collaborate with your team (sync to an oxen-server)
+* 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
 # Why the name Oxen?
@@ -87,20 +95,6 @@ For other platforms follow the [installation instructions](https://github.com/Ox
 
 ```bash
 $ pip install oxenai
-```
-
-All the same APIs that are exposed through the command line are also available in python. 
-
-```python
-import oxen
-
-repo = oxen.LocalRepo("path/to/repo")
-repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
-
-repo.add("new-cat.png")
-repo.commit("Adding a new cat")
-
-repo.push()
 ```
 
 # 🧑‍💻 OxenHub
