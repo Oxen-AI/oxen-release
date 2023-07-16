@@ -3,10 +3,10 @@
 ![Oxen Logo](/images/oxen-no-margin-black.svg#gh-light-mode-only)
 
 <div align="center">
-  <a href="https://oxen.ai/">
+  <a href="https://docs.oxen.ai/">
     <img src="https://img.shields.io/badge/%F0%9F%93%9A-Documentation-245AF0">
   </a>
-  <a href="https://docs.oxen.ai/">
+  <a href="https://oxen.ai/">
     <img src="https://img.shields.io/badge/%F0%9F%90%82-Web%20Hub-245AF0">
   </a>
   <a href="https://crates.io/crates/liboxen">
