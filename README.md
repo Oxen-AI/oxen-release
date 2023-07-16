@@ -1,10 +1,25 @@
-# 🐂 🌾 Oxen
 
-Oxen makes versioning your datasets as easy as versioning your code.
+![Oxen Logo](/images/oxen-no-margin-white.svg#gh-dark-mode-only)
+![Oxen Logo](/images/oxen-no-margin-black.svg#gh-light-mode-only)
+
+<div align="center">
+  <a href="https://oxen.ai/">
+    <img src="https://img.shields.io/badge/%F0%9F%93%9A-Documentation-245AF0">
+  </a>
+  <a href="https://docs.oxen.ai/">
+    <img src="https://img.shields.io/badge/%F0%9F%90%82-Web%20Hub-245AF0">
+  </a>
+  <a href="https://crates.io/crates/liboxen">
+    <img src="https://img.shields.io/crates/v/liboxen.svg?color=245AF0"/>
+  </a>
+  <a href="https://pypi.org/project/oxenai/">
+    <img src="https://img.shields.io/pypi/v/oxenai.svg?color=245AF0" alt="PyPi Latest Release"/>
+  </a>
+</div>
+
+## 🐂 🌾 Oxen makes versioning your datasets as easy as versioning your code.
 
 ```bash
-# The first step for creating any dataset should be `oxen init`
-
 oxen init
 oxen add images/
 oxen commit -m "Adding my data"
@@ -15,8 +30,6 @@ oxen push origin main
 Clone your data faster than ever before.
 
 ```bash
-# The first step in collaborating on a dataset should be `oxen clone`
-
 oxen clone https://hub.oxen.ai/ox/CatDogBoundingBox
 ```
 
