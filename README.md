@@ -7,7 +7,7 @@
     <img src="https://img.shields.io/badge/%F0%9F%93%9A-Documentation-245AF0">
   </a>
   <a href="https://oxen.ai/">
-    <img src="https://img.shields.io/badge/%F0%9F%90%82-Web%20Hub-245AF0">
+    <img src="https://img.shields.io/badge/%F0%9F%90%82-Oxen%20Hub-245AF0">
   </a>
   <a href="https://crates.io/crates/liboxen">
     <img src="https://img.shields.io/crates/v/liboxen.svg?color=245AF0"/>
