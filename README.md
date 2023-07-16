@@ -18,9 +18,11 @@
   <br/>
 </div>
 
-## 🐂 🌾
+## 🐂 🌾 What is Oxen?
 
-Oxen makes versioning your datasets as easy as versioning your code. If you are familiar with [git](https://git-scm.com/) you are off to the races with Oxen.
+Oxen is a lighting fast unstructured data version control system for machine learning datasets.
+
+No need to learn a new paradigm. If you are familiar with [git](https://git-scm.com/) you are off to the races with Oxen. The difference is Oxen can handle large unstructured data that traditionally would be a pain to version.
 
 ```bash
 oxen init
