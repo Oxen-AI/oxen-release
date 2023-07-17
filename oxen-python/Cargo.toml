@@ -14,8 +14,9 @@ pyo3-asyncio = { git = "https://github.com/awestlake87/pyo3-asyncio.git", rev = 
 log = "0.4.17"
 pyo3-log = "0.8.1"
 tokio = { version = "1", features = ["full"] }
-pyo3-polars = "0.4.1"
-liboxen = "0.7.2"
+pyo3-polars = "0.5.0"
+# liboxen = "0.7.2"
+liboxen = { path="../../rust/Oxen/src/lib" }
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
