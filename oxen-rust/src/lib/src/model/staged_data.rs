@@ -1,6 +1,7 @@
 use colored::{ColoredString, Colorize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::fmt;
 
 use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats};
 
@@ -38,6 +39,19 @@ impl Default for StagedDataOpts {
             print_all: false,
             is_remote: false,
         }
+    }
+}
+
+impl fmt::Display for StagedData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let opts = StagedDataOpts::default();
+        let outputs = self.__collect_outputs(&opts);
+
+        for output in outputs {
+            write!(f, "{}", output)?;
+        }
+
+        Ok(())
     }
 }
 
