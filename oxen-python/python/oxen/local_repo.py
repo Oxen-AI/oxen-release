@@ -59,6 +59,12 @@ class LocalRepo:
         """
         return self._repo.clone(url, branch, shallow, all)
 
+    def branches(self):
+        """
+        List all branches for a repo
+        """
+        return self._repo.list_branches()
+
     def checkout(self, revision: str, create=False):
         """
         Checkout a branch or commit id.
