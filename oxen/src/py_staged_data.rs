@@ -15,12 +15,38 @@ pub struct PyStagedData {
 
 #[pymethods]
 impl PyStagedData {
+    fn __repr__(&self) -> String {
+        format!("PyStagedData(added={}, removed={}, modified={})", self.data.added_files.len(), self.data.removed_files.len(), self.data.modified_files.len())
+    }
+
+    fn __str__(&self) -> String {
+        self.data.to_string()
+    }
+
     pub fn added_files(&self) -> PyResult<Vec<String>> {
         Ok(self
             .data
             .added_files
             .iter()
             .map(|f| String::from(f.0.to_string_lossy()))
+            .collect())
+    }
+
+    pub fn removed_files(&self) -> PyResult<Vec<String>> {
+        Ok(self
+            .data
+            .removed_files
+            .iter()
+            .map(|f| String::from(f.to_string_lossy()))
+            .collect())
+    }
+
+    pub fn modified_files(&self) -> PyResult<Vec<String>> {
+        Ok(self
+            .data
+            .modified_files
+            .iter()
+            .map(|f| String::from(f.to_string_lossy()))
             .collect())
     }
 }

@@ -111,7 +111,7 @@ class RemoteRepo:
 
         return self._repo.ls(directory, page_num, page_size)
 
-    def download(self, remote_path: str, local_path: Optional[str] = None):
+    def download(self, remote_path: str, local_path: Optional[str] = None, revision: str = ""):
         """
         Download a file or directory from the remote repo.
 
@@ -122,6 +122,8 @@ class RemoteRepo:
         local_path : str | None
             The path to the local file. If None, will download to
             the same path as remote_path
+        revision : str
+            The branch or commit id to download. Defaults to `self.revision`
         """
         if local_path is None:
             local_path = remote_path
@@ -130,9 +132,14 @@ class RemoteRepo:
             if directory and not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
 
-        self._repo.download(remote_path, local_path)
+        print(f"GOT REVISION {revision}")
+        print(f"GOT SELF.REVISION {self.revision}")
+        if revision == "":
+            self._repo.download(remote_path, local_path, self.revision)
+        else:
+            self._repo.download(remote_path, local_path, revision)
 
-    def add(self, local_path: str, remote_directory: str = ""):
+    def add(self, local_path: str, directory: str = ""):
         """
         Stage a file to the remote workspace
 
@@ -140,10 +147,10 @@ class RemoteRepo:
         ----------
         path: str
             The path to the local file to be staged
-        remote_directory: str
+        directory: str
             The path in the remote repo where the file will be added
         """
-        self._repo.add(remote_directory, local_path)
+        self._repo.add(directory, local_path)
 
     def remove(self, path: str):
         """
@@ -197,7 +204,7 @@ class RemoteRepo:
         """
         return self._repo.log()
 
-    def list_branches(self):
+    def branches(self):
         """
         List all branches for a remote repo
         """
@@ -230,14 +237,27 @@ class RemoteRepo:
         """
         return self._repo.get_branch(branch)
 
-    def create_branch(self, new_branch: str):
+    def create_branch(self, branch: str):
         """
         Return a branch by name on this repo,
         creating it from the currently checked out branch if it doesn't exist
 
         Parameters
         ----------
-        new_branch: str
+        branch: str
             The name to assign to the created branch
         """
-        return self._repo.create_branch(new_branch)
+        return self._repo.create_branch(branch)
+    
+    def create_checkout_branch(self, branch: str):
+        """
+        Create a new branch from the currently checked out branch,
+        and switch to it
+
+        Parameters
+        ----------
+        branch: str
+            The name to assign to the created branch
+        """
+        self.create_branch(branch)
+        return self.checkout(branch)
