@@ -34,7 +34,8 @@ pub async fn get(
         page_size,
     )?;
 
-    let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
+    let dir = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
+    let view = PaginatedDirEntriesResponse::ok_from(dir, paginated_entries);
     Ok(HttpResponse::Ok().json(view))
 }
 

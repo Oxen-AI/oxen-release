@@ -25,8 +25,10 @@ pub fn get_meta_entry(
     let commit_reader = CommitReader::new(repo)?;
     // Check if the path is a dir
     if entry_reader.has_dir(path) {
+        log::debug!("get_meta_entry found dir: {:?}", path);
         meta_entry_from_dir(repo, commit, path, &commit_reader, &commit.id)
     } else {
+        log::debug!("get_meta_entry has file: {:?}", path);
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
         let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent)?;
@@ -68,7 +70,7 @@ pub fn meta_entry_from_dir(
         }
     };
 
-    let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
+    let base_name = path.file_name().unwrap_or(std::ffi::OsStr::new(""));
     return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
         is_dir: true,
