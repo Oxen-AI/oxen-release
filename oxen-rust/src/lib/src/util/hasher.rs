@@ -46,7 +46,7 @@ where
 pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
     // Not sure why some tests were failing....the file didn't get written fast enough
     // So added this method to retry a few times
-    let mut timeout_len = std::time::Duration::from_millis(100);
+    let mut timeout = 1;
     let mut retries = 0;
     let total_retries = 5;
     loop {
@@ -56,8 +56,8 @@ pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
                 // sleep and try again
                 retries += 1;
                 // exponential backoff
-                timeout_len = timeout_len * timeout_len;
-                std::thread::sleep(timeout_len);
+                timeout = timeout * 2;
+                std::thread::sleep(std::time::Duration::from_secs(timeout));
                 if retries > total_retries {
                     return Err(err);
                 }
