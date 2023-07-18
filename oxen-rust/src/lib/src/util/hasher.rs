@@ -55,7 +55,8 @@ pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
             Err(err) => {
                 // sleep and try again
                 retries += 1;
-                timeout_len *= retries;
+                // exponential backoff
+                timeout_len = timeout_len * timeout_len;
                 std::thread::sleep(timeout_len);
                 if retries > total_retries {
                     return Err(err);
