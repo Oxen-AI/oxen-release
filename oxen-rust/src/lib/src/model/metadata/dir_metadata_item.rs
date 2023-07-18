@@ -89,7 +89,7 @@ impl DirMetadataItem {
         let filename = entry.path.file_name().unwrap().to_str().unwrap();
         let entry_path = entry.path.to_string_lossy();
         let extension = util::fs::file_extension(&path);
-        let data_type = format!("{:?}", data_type);
+        let data_type = format!("{:?}", data_type).to_lowercase();
         let commit_id = entry.commit_id.clone();
         let commit = commit_reader.get_commit_by_id(&commit_id).unwrap().unwrap();
         let timestamp = commit

@@ -92,15 +92,12 @@ pub fn read_df_jsonl<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
 }
 
 pub fn scan_df_jsonl<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
-    Ok(LazyJsonLineReader::new(
-        path.as_ref()
-            .to_str()
-            .expect("Invalid json path.")
-            .to_string(),
+    Ok(
+        LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
+            .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+            .finish()
+            .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())),
     )
-    .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
-    .finish()
-    .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
