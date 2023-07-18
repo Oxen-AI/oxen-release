@@ -95,8 +95,7 @@ pub fn scan_df_jsonl<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
     Ok(LazyJsonLineReader::new(
         path.as_ref()
             .to_str()
-            .expect("Invalid json path.")
-            .to_string(),
+            .expect("Invalid json path."),
     )
     .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
     .finish()
