@@ -66,13 +66,15 @@ pub struct PaginatedDirEntriesResponse {
     pub status: StatusMessage,
     #[serde(flatten)]
     pub entries: PaginatedDirEntries,
+    pub dir: MetadataEntry,
 }
 
 impl PaginatedDirEntriesResponse {
-    pub fn ok_from(paginated: PaginatedDirEntries) -> Self {
+    pub fn ok_from(dir: MetadataEntry, paginated: PaginatedDirEntries) -> Self {
         Self {
             status: StatusMessage::resource_found(),
             entries: paginated,
+            dir,
         }
     }
 }

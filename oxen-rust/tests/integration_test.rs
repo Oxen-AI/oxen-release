@@ -3805,11 +3805,11 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
 
         let data_type_count_text = data_type_counts
             .iter()
-            .find(|&x| x.data_type == "Text")
+            .find(|&x| x.data_type == "text")
             .unwrap();
         let data_type_count_video = data_type_counts
             .iter()
-            .find(|&x| x.data_type == "Video")
+            .find(|&x| x.data_type == "video")
             .unwrap();
 
         assert_eq!(data_type_count_text.count, 2);
@@ -3881,7 +3881,7 @@ async fn test_remote_ls_return_data_types_just_top_level_dir() -> Result<(), Oxe
 
         let data_type_count_text = data_type_counts
             .iter()
-            .find(|&x| x.data_type == "Text")
+            .find(|&x| x.data_type == "text")
             .unwrap();
 
         assert_eq!(data_type_count_text.count, num_files);
