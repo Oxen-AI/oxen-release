@@ -566,6 +566,9 @@ async fn chunk_and_send_large_entries(
     }
     log::debug!("All large file tasks done. :-)");
 
+    // Sleep again to let things sync...hacky
+    sleep(Duration::from_secs(1)).await;
+
     Ok(())
 }
 
@@ -690,6 +693,9 @@ async fn bundle_and_send_small_entries(
         sleep(Duration::from_millis(1)).await;
     }
     log::debug!("All tasks done. :-)");
+
+    // Sleep again to let things sync...hacky
+    sleep(Duration::from_millis(1)).await;
 
     Ok(())
 }

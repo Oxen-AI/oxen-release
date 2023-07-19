@@ -599,10 +599,10 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
         return Ok(delimiter.as_bytes()[0]);
     }
 
-    match qsv_sniffer::Sniffer::new().sniff_path(path) {
+    match qsv_sniffer::Sniffer::new().sniff_path(&path) {
         Ok(metadata) => Ok(metadata.dialect.delimiter),
         Err(err) => {
-            let err = format!("Error sniffing csv {:?}", err);
+            let err = format!("Error sniffing csv {:?} -> {:?}", path.as_ref(), err);
             log::warn!("{}", err);
             Ok(b',')
         }
