@@ -123,7 +123,7 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
                 str_json_db::put(&db, name, &status_success)?;
             }
             Err(err) => {
-                let err = format!("Err: {err}");
+                let err = format!("{err}");
                 log::error!("{}", err);
                 let status_failed = CacherStatus::failed(&err);
                 str_json_db::put(&db, name, &status_failed)?;
