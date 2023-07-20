@@ -129,7 +129,7 @@ impl EntryIndexer {
         remote_repo: &RemoteRepository,
         rb: &RemoteBranch,
     ) -> Result<Commit, OxenError> {
-        match self.pull_first_commit_object(remote_repo, rb).await {
+        match self.pull_most_recent_commit_object(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 self.pull_all_entries_for_commit(remote_repo, &commit)
@@ -170,7 +170,7 @@ impl EntryIndexer {
         Ok(())
     }
 
-    pub async fn pull_first_commit_object(
+    pub async fn pull_most_recent_commit_object(
         &self,
         remote_repo: &RemoteRepository,
         rb: &RemoteBranch,
@@ -210,7 +210,7 @@ impl EntryIndexer {
             }
             Err(err) => {
                 log::warn!(
-                    "pull_first_commit_object could not get remote commit: {}",
+                    "pull_most_recent_commit_object could not get remote commit: {}",
                     err
                 );
             }

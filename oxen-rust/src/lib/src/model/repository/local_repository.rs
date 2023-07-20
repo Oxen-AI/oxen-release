@@ -247,7 +247,7 @@ impl LocalRepository {
     ) -> Result<(), OxenError> {
         // Shallow means we will not pull the actual data until a user tells us to
         if opts.shallow {
-            indexer.pull_first_commit_object(repo, rb).await?;
+            indexer.pull_most_recent_commit_object(repo, rb).await?;
             self.write_is_shallow(true)?;
 
             println!(
