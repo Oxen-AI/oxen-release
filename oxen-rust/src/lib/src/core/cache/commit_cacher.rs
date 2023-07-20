@@ -24,6 +24,8 @@ lazy_static! {
         (String::from("COMMIT_STATS"), content_stats::compute as CommitCacher),
         // (String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher),
     ];
+
+
 }
 
 fn cached_status_db_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
@@ -96,13 +98,34 @@ pub fn get_all_statuses(
     }
 }
 
+// DB connection might be already LOCK'd from get_all_statuses
+fn get_db_connection(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+    let db_path = cached_status_db_path(repo, commit);
+    let opts = db::opts::default();
+    let sleep_time = 100;
+    let mut num_attempts = 5;
+
+    while num_attempts >= 1 {
+        match DBWithThreadMode::open(&opts, dunce::simplified(&db_path)) {
+            Ok(db) => return Ok(db),
+            Err(err) => {
+                // sleep
+                std::thread::sleep(std::time::Duration::from_millis(sleep_time * num_attempts));
+                num_attempts -= 1;
+                log::warn!("Could not open db connection {err:?}")
+            }
+        }
+    }
+    Err(OxenError::basic_str("Could not open db"))
+}
+
 /// Run all the cachers and update their status's as you go
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
     // Create kvdb of NAME -> STATUS
-    let db_path = cached_status_db_path(repo, commit);
-    let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    let db: DBWithThreadMode<MultiThreaded> = get_db_connection(repo, commit)?;
 
     for (name, cacher) in CACHERS.iter() {
         // Skip ones that are already cached successfully
@@ -123,7 +146,7 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
                 str_json_db::put(&db, name, &status_success)?;
             }
             Err(err) => {
-                let err = format!("Err: {err}");
+                let err = format!("{err}");
                 log::error!("{}", err);
                 let status_failed = CacherStatus::failed(&err);
                 str_json_db::put(&db, name, &status_failed)?;

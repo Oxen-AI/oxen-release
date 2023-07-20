@@ -49,7 +49,13 @@ use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
     let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch::default();
+    let mut rb = RemoteBranch::default();
+
+    // Push the currently checked out branch
+    if let Some(current_branch) = api::local::branches::current_branch(repo)? {
+        rb.branch = current_branch.name;
+    }
+
     indexer.push(&rb).await
 }
 

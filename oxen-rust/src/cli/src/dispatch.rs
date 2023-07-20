@@ -353,8 +353,20 @@ fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
     }
 }
 
+pub async fn fetch() -> Result<(), OxenError> {
+    // Look up from the current dir for .oxen directory
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::fetch(&repository).await?;
+    Ok(())
+}
+
 pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
+    // Look up from the current dir for .oxen directory
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let commits = api::local::commits::list_with_opts(&repository, &opts).await?;

@@ -433,6 +433,15 @@ pub async fn log(sub_matches: &ArgMatches) {
     }
 }
 
+pub async fn fetch(_: &ArgMatches) {
+    match dispatch::fetch().await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
 fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
     let vstack: Option<Vec<PathBuf>> =
         if let Some(vstack) = sub_matches.get_many::<String>("vstack") {
