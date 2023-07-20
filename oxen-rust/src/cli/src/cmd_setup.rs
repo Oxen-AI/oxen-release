@@ -12,12 +12,14 @@ pub const CREATE_REMOTE: &str = "create-remote";
 pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
 pub const DOWNLOAD: &str = "download";
-pub const INIT: &str = "init";
 pub const INFO: &str = "info";
+pub const INIT: &str = "init";
+pub const FETCH: &str = "fetch";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const LOG: &str = "log";
 pub const LS: &str = "ls";
 pub const MERGE: &str = "merge";
+pub const METADATA: &str = "metadata";
 pub const PULL: &str = "pull";
 pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
@@ -26,7 +28,6 @@ pub const RESTORE: &str = "restore";
 pub const RM: &str = "rm";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
-pub const METADATA: &str = "metadata";
 
 pub fn init() -> Command {
     Command::new(INIT)
@@ -203,6 +204,10 @@ pub fn log() -> Command {
     Command::new(LOG).about("See log of commits").arg(
         arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."),
     )
+}
+
+pub fn fetch() -> Command {
+    Command::new(FETCH).about("Download objects and refs from the remote repository")
 }
 
 pub fn ls() -> Command {
