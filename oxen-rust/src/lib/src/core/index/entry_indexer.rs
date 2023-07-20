@@ -147,7 +147,7 @@ impl EntryIndexer {
             Ok(None) => api::local::commits::head_commit(&self.repository),
             Err(err) => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
-                log::error!("pull_one error: {}", err);
+                log::debug!("pull_one empty repo: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
                 api::local::commits::commit_with_no_files(
                     &self.repository,
