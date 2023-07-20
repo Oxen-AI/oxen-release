@@ -7,6 +7,7 @@ use crate::core::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::CloneOpts;
+use crate::opts::PullOpts;
 use crate::util;
 use crate::view::RepositoryView;
 
@@ -247,7 +248,9 @@ impl LocalRepository {
     ) -> Result<(), OxenError> {
         // Shallow means we will not pull the actual data until a user tells us to
         if opts.shallow {
-            indexer.pull_most_recent_commit_object(repo, rb).await?;
+            indexer
+                .pull_most_recent_commit_object(repo, rb, true)
+                .await?;
             self.write_is_shallow(true)?;
 
             println!(
@@ -256,7 +259,15 @@ impl LocalRepository {
             );
         } else {
             // Pull all entries
-            indexer.pull(rb, opts.all).await?;
+            indexer
+                .pull(
+                    rb,
+                    PullOpts {
+                        should_pull_all: opts.all,
+                        should_update_head: true,
+                    },
+                )
+                .await?;
             println!(
                 "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
                 repo.remote.url, repo.name, repo.name

@@ -6,6 +6,7 @@
 use crate::core::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
+use crate::opts::PullOpts;
 
 /// Pull a repository's data from default branches origin/main
 /// Defaults defined in
@@ -13,8 +14,15 @@ use crate::model::{LocalRepository, RemoteBranch};
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
-    let should_pull_all = true;
-    indexer.pull(&rb, should_pull_all).await
+    indexer
+        .pull(
+            &rb,
+            PullOpts {
+                should_pull_all: true,
+                should_update_head: true,
+            },
+        )
+        .await
 }
 
 /// Pull a specific remote and branch
@@ -28,8 +36,15 @@ pub async fn pull_remote_branch(
         remote: String::from(remote),
         branch: String::from(branch),
     };
-    let should_pull_all = true;
-    indexer.pull(&rb, should_pull_all).await
+    indexer
+        .pull(
+            &rb,
+            PullOpts {
+                should_pull_all: true,
+                should_update_head: true,
+            },
+        )
+        .await
 }
 
 #[cfg(test)]
