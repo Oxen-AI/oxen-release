@@ -690,12 +690,12 @@ async fn bundle_and_send_small_entries(
     }
     while finished_queue.len() > 0 {
         // log::debug!("Waiting for {} workers to finish...", queue.len());
-        sleep(Duration::from_millis(1)).await;
+        sleep(Duration::from_secs(1)).await;
     }
     log::debug!("All tasks done. :-)");
 
     // Sleep again to let things sync...
-    sleep(Duration::from_millis(1)).await;
+    sleep(Duration::from_secs(1)).await;
 
     Ok(())
 }
