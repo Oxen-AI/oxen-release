@@ -479,10 +479,13 @@ async fn test_push_pull_separate_branch() -> Result<(), OxenError> {
             assert_eq!(cloned_num_files, 5);
 
             // Switch to main branch and pull
-            // command::fetch(&cloned_repo, constants::DEFAULT_REMOTE_NAME).await?;
-            todo!("fetch and continue this test");
+            command::fetch(&cloned_repo).await?;
+            command::checkout(&cloned_repo, "main").await?;
 
-            // api::remote::repositories::delete(&remote_repo).await?;
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            assert_eq!(cloned_num_files, 2);
+
+            api::remote::repositories::delete(&remote_repo).await?;
 
             Ok(new_repo_dir)
         })
