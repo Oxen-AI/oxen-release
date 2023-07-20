@@ -13,7 +13,8 @@ use crate::model::{LocalRepository, RemoteBranch};
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
-    indexer.pull(&rb, true).await
+    let should_pull_all = true;
+    indexer.pull(&rb, should_pull_all).await
 }
 
 /// Pull a specific remote and branch
@@ -27,7 +28,8 @@ pub async fn pull_remote_branch(
         remote: String::from(remote),
         branch: String::from(branch),
     };
-    indexer.pull(&rb, true).await
+    let should_pull_all = true;
+    indexer.pull(&rb, should_pull_all).await
 }
 
 #[cfg(test)]
