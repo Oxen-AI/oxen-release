@@ -409,6 +409,7 @@ User 1: adds data and creates a branch with more data
     oxen add data/3.txt
     oxen add data/4.txt
     oxen add data/5.txt
+    oxen push
 
 User 2: clones just the branch with more data, then switches to main branch and pulls
     oxen clone remote.url -b feature/add-mooooore-data

@@ -55,7 +55,5 @@ pub async fn fetch_remote(
             .await?;
     }
 
-    // TODO: Fetch the branches that already exist
-
     Ok(vec![])
 }
