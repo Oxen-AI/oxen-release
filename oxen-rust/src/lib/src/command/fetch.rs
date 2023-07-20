@@ -51,7 +51,7 @@ pub async fn fetch_remote(
             branch: branch.name.to_owned(),
         };
         indexer
-            .pull_most_recent_commit_object(&remote_repo, &rb)
+            .pull_most_recent_commit_object(&remote_repo, &rb, false)
             .await?;
     }
 

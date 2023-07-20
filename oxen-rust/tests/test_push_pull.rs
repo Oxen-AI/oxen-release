@@ -3,6 +3,7 @@ use std::path::Path;
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::opts::CloneOpts;
 use liboxen::test;
@@ -417,7 +418,7 @@ User 2: clones just the branch with more data, then switches to main branch and 
 
 */
 #[tokio::test]
-async fn test_push_pull_separate_branch() -> Result<(), OxenError> {
+async fn test_push_pull_separate_branch_less_files() -> Result<(), OxenError> {
     test::run_empty_local_repo_test_async(|mut repo| async move {
         // create 5 text files in the repo.path
         for i in 1..6 {
@@ -484,6 +485,85 @@ async fn test_push_pull_separate_branch() -> Result<(), OxenError> {
 
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             assert_eq!(cloned_num_files, 2);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(new_repo_dir)
+        })
+        .await
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_push_pull_separate_branch_more_files() -> Result<(), OxenError> {
+    test::run_empty_local_repo_test_async(|mut repo| async move {
+        // create 5 text files in the repo.path
+        for i in 1..6 {
+            let filename = format!("{}.txt", i);
+            let filepath = repo.path.join(&filename);
+            test::write_txt_file_to_path(&filepath, &filename)?;
+        }
+
+        // add file 1.txt and 2.txt
+        let filepath = repo.path.join("1.txt");
+        command::add(&repo, &filepath)?;
+        let filepath = repo.path.join("2.txt");
+        command::add(&repo, &filepath)?;
+
+        // Commit the files
+        command::commit(&repo, "Adding initial data")?;
+
+        // Set the proper remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // Create a branch to collab on
+        let branch_name = "feature/add-mooooore-data";
+        command::create_checkout(&repo, branch_name)?;
+
+        // Add the rest of the files
+        for i in 3..6 {
+            let filename = format!("{}.txt", i);
+            let filepath = repo.path.join(&filename);
+            command::add(&repo, &filepath)?;
+        }
+
+        // Commit the files
+        command::commit(&repo, "Adding mooooore data")?;
+
+        // Push it
+        command::push(&repo).await?;
+
+        // run another test with a new repo dir that we are going to sync to
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            // Clone the branch
+            let opts = CloneOpts {
+                url: remote_repo.url().to_string(),
+                dst: new_repo_dir.to_owned(),
+                branch: DEFAULT_BRANCH_NAME.to_string(),
+                shallow: false,
+                all: false,
+            };
+            let cloned_repo = command::clone(&opts).await?;
+
+            // Make sure we have all the files from the branch
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            assert_eq!(cloned_num_files, 2);
+
+            // Switch to main branch and pull
+            command::fetch(&cloned_repo).await?;
+
+            command::checkout(&cloned_repo, branch_name).await?;
+
+            let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
+            assert_eq!(cloned_num_files, 5);
 
             api::remote::repositories::delete(&remote_repo).await?;
 

@@ -1,6 +1,7 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::test;
 
@@ -36,6 +37,9 @@ async fn test_fetch_branches() -> Result<(), OxenError> {
 
             let branches = api::local::branches::list(&cloned_repo)?;
             assert_eq!(3, branches.len());
+
+            let current_branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
+            assert_eq!(current_branch.name, DEFAULT_BRANCH_NAME);
 
             api::remote::repositories::delete(&remote_repo).await?;
 

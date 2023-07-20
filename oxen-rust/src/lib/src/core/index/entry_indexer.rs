@@ -15,6 +15,7 @@ use crate::core::index::{
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::opts::PullOpts;
 use crate::util;
 use crate::{api, current_function};
 
@@ -35,7 +36,7 @@ impl EntryIndexer {
         pusher::push(&self.repository, rb).await
     }
 
-    pub async fn pull(&self, rb: &RemoteBranch, should_pull_all: bool) -> Result<(), OxenError> {
+    pub async fn pull(&self, rb: &RemoteBranch, opts: PullOpts) -> Result<(), OxenError> {
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
 
         let remote = self
@@ -52,10 +53,12 @@ impl EntryIndexer {
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = api::local::commits::head_commit(&self.repository);
 
-        let mut commit = if should_pull_all {
-            self.pull_all(&remote_repo, rb).await?
+        let mut commit = if opts.should_pull_all {
+            self.pull_all(&remote_repo, rb, opts.should_update_head)
+                .await?
         } else {
-            self.pull_one(&remote_repo, rb).await?
+            self.pull_one(&remote_repo, rb, opts.should_update_head)
+                .await?
         };
 
         // TODO Do we add a flag for if this pull is a merge somehow...?
@@ -99,12 +102,13 @@ impl EntryIndexer {
         &self,
         remote_repo: &RemoteRepository,
         rb: &RemoteBranch,
+        should_update_head: bool,
     ) -> Result<Commit, OxenError> {
         match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 // Make sure this branch points to this commit
-                self.set_branch_name_for_commit(&rb.branch, &commit)?;
+                self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
                 for c in api::local::commits::list_all(&self.repository)? {
                     self.pull_all_entries_for_commit(remote_repo, &c).await?;
@@ -128,8 +132,12 @@ impl EntryIndexer {
         &self,
         remote_repo: &RemoteRepository,
         rb: &RemoteBranch,
+        should_update_head: bool,
     ) -> Result<Commit, OxenError> {
-        match self.pull_most_recent_commit_object(remote_repo, rb).await {
+        match self
+            .pull_most_recent_commit_object(remote_repo, rb, should_update_head)
+            .await
+        {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 self.pull_all_entries_for_commit(remote_repo, &commit)
@@ -174,6 +182,7 @@ impl EntryIndexer {
         &self,
         remote_repo: &RemoteRepository,
         rb: &RemoteBranch,
+        should_update_head: bool,
     ) -> Result<Option<Commit>, OxenError> {
         let remote_branch_err = format!("Remote branch not found: {}", rb.branch);
         let remote_branch = api::remote::branches::get_by_name(remote_repo, &rb.branch)
@@ -193,7 +202,7 @@ impl EntryIndexer {
                 );
 
                 // Make sure this branch points to this commit
-                self.set_branch_name_for_commit(&rb.branch, &commit)?;
+                self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
                 // Sync the commit entries objects
                 self.pull_commit_entries_db(remote_repo, &commit).await?;
@@ -293,10 +302,17 @@ impl EntryIndexer {
         Ok(None)
     }
 
-    fn set_branch_name_for_commit(&self, name: &str, commit: &Commit) -> Result<(), OxenError> {
+    fn set_branch_name_for_commit(
+        &self,
+        name: &str,
+        commit: &Commit,
+        set_head: bool,
+    ) -> Result<(), OxenError> {
         let ref_writer = RefWriter::new(&self.repository)?;
-        // Make sure head is pointing to that branch
-        ref_writer.set_head(name);
+        if set_head {
+            // Make sure head is pointing to that branch
+            ref_writer.set_head(name);
+        }
         ref_writer.set_branch_commit_id(name, &commit.id)
     }
 
@@ -640,6 +656,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::RemoteBranch;
     use crate::opts::CloneOpts;
+    use crate::opts::PullOpts;
     use crate::test;
     use crate::util;
 
@@ -730,7 +747,15 @@ mod tests {
 
                 // try to pull the full thing again even though we have only partially pulled some
                 let rb = RemoteBranch::default();
-                indexer.pull(&rb, true).await?;
+                indexer
+                    .pull(
+                        &rb,
+                        PullOpts {
+                            should_update_head: true,
+                            should_pull_all: true,
+                        },
+                    )
+                    .await?;
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);
