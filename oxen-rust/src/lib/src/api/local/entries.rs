@@ -23,8 +23,8 @@ pub fn get_meta_entry(
 ) -> Result<MetadataEntry, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
-    // Check if the path is a dir
-    if entry_reader.has_dir(path) {
+    // Check if the path is a dir or is the root
+    if entry_reader.has_dir(path) || path == Path::new("") {
         log::debug!("get_meta_entry found dir: {:?}", path);
         meta_entry_from_dir(repo, commit, path, &commit_reader, &commit.id)
     } else {
