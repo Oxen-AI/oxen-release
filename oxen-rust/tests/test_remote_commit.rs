@@ -86,7 +86,6 @@ async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
             author: "Test User".to_string(),
             email: "test@oxen.ai".to_string(),
         };
-
         api::remote::staging::commit_staged(&remote_repo, main_branch, &identifier, &body).await?;
 
         // Make an EMPTY commit to behind-main
@@ -95,9 +94,7 @@ async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
             author: "Test User".to_string(),
             email: "test@oxen.ai".to_string(),
         };
-        let _commit =
-            api::remote::staging::commit_staged(&remote_repo, new_branch, &identifier, &body)
-                .await?;
+        api::remote::staging::commit_staged(&remote_repo, new_branch, &identifier, &body).await?;
 
         // Add file at images/folder to behind-main, committed to main
         let image_path = test::test_img_file();

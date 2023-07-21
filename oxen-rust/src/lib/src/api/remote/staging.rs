@@ -216,7 +216,7 @@ pub async fn commit_staged(
                 commit_id: commit.id.clone(),
                 is_head: false
             };
-            api::remote::commits::post_push_complete(remote_repo, &branch).await?;
+            api::remote::commits::post_push_complete(remote_repo, &branch, &commit.id).await?;
             Ok(commit)
         },
         Err(err) => Err(OxenError::basic_str(format!(
