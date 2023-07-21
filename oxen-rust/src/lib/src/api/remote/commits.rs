@@ -261,16 +261,18 @@ pub async fn get_remote_parent(
 pub async fn post_push_complete(
     remote_repo: &RemoteRepository,
     branch: &Branch,
+    // we need to pass in the commit id because we might be pushing multiple commits from the same branch
+    commit_id: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     use serde_json::json;
-
-    let uri = format!("/commits/{}/complete", branch.commit_id);
+    let commit_id = commit_id.as_ref();
+    let uri = format!("/commits/{}/complete", commit_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("post_push_complete: {}", url);
     let body = serde_json::to_string(&json!({
         "branch": {
             "name": branch.name,
-            "commit_id": branch.commit_id,
+            "commit_id": commit_id,
         }
     }))
     .unwrap();

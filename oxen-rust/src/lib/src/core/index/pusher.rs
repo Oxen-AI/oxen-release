@@ -420,7 +420,9 @@ async fn push_entries(
     );
 
     match tokio::join!(large_entries_sync, small_entries_sync) {
-        (Ok(_), Ok(_)) => api::remote::commits::post_push_complete(remote_repo, branch).await,
+        (Ok(_), Ok(_)) => {
+            api::remote::commits::post_push_complete(remote_repo, branch, &commit.id).await
+        }
         (Err(err), Ok(_)) => {
             let err = format!("Error syncing large entries: {err}");
             Err(OxenError::basic_str(err))
