@@ -151,6 +151,13 @@ fn get_db_connection(
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
     // Write the LOCK file and delete when we are done processing
     let lock_path = cached_status_lock_path(repo, commit);
+
+    // If the LOCK exists we should not be running this again
+    if lock_path.exists() {
+        log::warn!("run_all LOCK file exists...skipping {:?}", lock_path);
+        return Ok(());
+    }
+
     // Create parent dir if not exists
     if let Some(parent) = lock_path.parent() {
         if !parent.exists() {
