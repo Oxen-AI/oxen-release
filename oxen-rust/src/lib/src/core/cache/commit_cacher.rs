@@ -89,8 +89,13 @@ pub fn get_all_statuses(
     let db_path = cached_status_db_path(repo, commit);
     let lock_path = cached_status_lock_path(repo, commit);
 
-    // Return if db path !exists or is LOCK'd
-    if !db_path.exists() || lock_path.exists() {
+    // Return if db path !exists
+    if !db_path.exists() {
+        return Ok(vec![]);
+    }
+
+    // Return if we are locked because it is processing
+    if lock_path.exists() {
         return Ok(vec![CacherStatus::pending()]);
     }
 
