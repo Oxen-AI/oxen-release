@@ -36,6 +36,14 @@ fn cached_status_db_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
         .join("status.db")
 }
 
+fn cached_status_lock_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {
+    util::fs::oxen_hidden_dir(&repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id)
+        .join(CACHE_DIR)
+        .join("LOCK")
+}
+
 /// Pick most appropriate status to return given the status's in the db
 pub fn get_status(
     repo: &LocalRepository,
@@ -79,12 +87,26 @@ pub fn get_all_statuses(
     commit: &Commit,
 ) -> Result<Vec<CacherStatus>, OxenError> {
     let db_path = cached_status_db_path(repo, commit);
-    // Check if db path exists
+    let lock_path = cached_status_lock_path(repo, commit);
+
+    // Return if db path !exists
     if !db_path.exists() {
         return Ok(vec![]);
     }
+
+    // Return if we are locked because it is processing
+    if lock_path.exists() {
+        return Ok(vec![CacherStatus::pending()]);
+    }
+
+    log::warn!("get_all_statuses Opening db connection {:?}", db_path);
     let opts = db::opts::default();
-    let db = DBWithThreadMode::open(&opts, dunce::simplified(&db_path));
+    let error_if_log_file_exist = false;
+    let db = DBWithThreadMode::open_for_read_only(
+        &opts,
+        dunce::simplified(&db_path),
+        error_if_log_file_exist,
+    );
     match db {
         Ok(db) => {
             let vals = str_json_db::list_vals::<MultiThreaded, CacherStatus>(&db)?;
@@ -113,9 +135,12 @@ fn get_db_connection(
             Ok(db) => return Ok(db),
             Err(err) => {
                 // sleep
-                std::thread::sleep(std::time::Duration::from_millis(sleep_time * num_attempts));
+                let time = sleep_time * num_attempts;
+                log::warn!(
+                    "Could not open db connection sleeping {time}s attempt {num_attempts} {err:?}"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(time));
                 num_attempts -= 1;
-                log::warn!("Could not open db connection {err:?}")
             }
         }
     }
@@ -124,6 +149,24 @@ fn get_db_connection(
 
 /// Run all the cachers and update their status's as you go
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
+    // Write the LOCK file and delete when we are done processing
+    let lock_path = cached_status_lock_path(repo, commit);
+
+    // If the LOCK exists we should not be running this again
+    if lock_path.exists() {
+        log::warn!("run_all LOCK file exists...skipping {:?}", lock_path);
+        return Ok(());
+    }
+
+    // Create parent dir if not exists
+    if let Some(parent) = lock_path.parent() {
+        if !parent.exists() {
+            util::fs::create_dir_all(parent)?;
+        }
+    }
+    log::debug!("run_all Creating lock file {:?}", lock_path);
+    util::fs::write_to_path(&lock_path, "LOCK")?;
+
     // Create kvdb of NAME -> STATUS
     let db: DBWithThreadMode<MultiThreaded> = get_db_connection(repo, commit)?;
 
@@ -153,6 +196,10 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
             }
         }
     }
+
+    // Delete the LOCK file
+    log::debug!("run_all Deleting lock file {:?}", lock_path);
+    util::fs::remove_file(lock_path)?;
 
     Ok(())
 }
