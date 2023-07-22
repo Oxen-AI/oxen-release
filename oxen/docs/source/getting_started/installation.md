@@ -19,27 +19,27 @@ brew install oxen
 ### Ubuntu Latest
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen-ubuntu-latest-0.7.1.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen-ubuntu-latest-0.7.5.deb
 ```
 
 ```bash
-sudo dpkg -i oxen-ubuntu-latest-0.7.1.deb
+sudo dpkg -i oxen-ubuntu-latest-0.7.5.deb
 ```
 
 ### Ubuntu 20.04
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen-ubuntu-20.04-0.7.1.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen-ubuntu-20.04-0.7.5.deb
 ```
 
 ```bash
-sudo dpkg -i oxen-ubuntu-20.04-0.7.1.deb
+sudo dpkg -i oxen-ubuntu-20.04-0.7.5.deb
 ```
 
 ### Windows
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen.exe
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen.exe
 ```
 
 ## Server Install
@@ -59,11 +59,11 @@ brew install oxen-server
 ### Docker
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen-server-docker-0.7.1.tar
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen-server-docker-0.7.5.tar
 ```
 
 ```bash
-docker load < oxen-server-docker-0.7.1.tar
+docker load < oxen-server-docker-0.7.5.tar
 ```
 
 ```bash
@@ -73,27 +73,27 @@ docker run -d -v /var/oxen/data:/var/oxen/data -p 80:3001 oxen/oxen-server:lates
 ### Ubuntu Latest
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen-server-ubuntu-latest-0.7.1.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen-server-ubuntu-latest-0.7.5.deb
 ```
 
 ```bash
-sudo dpkg -i oxen-server-ubuntu-latest-0.7.1.deb
+sudo dpkg -i oxen-server-ubuntu-latest-0.7.5.deb
 ```
 
 ### Ubuntu 20.04
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen-server-ubuntu-20.04-0.7.1.deb
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen-server-ubuntu-20.04-0.7.5.deb
 ```
 
 ```bash
-sudo dpkg -i oxen-server-ubuntu-20.04-0.7.1.deb
+sudo dpkg -i oxen-server-ubuntu-20.04-0.7.5.deb
 ```
 
 ### Windows
 
 ```bash
-wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.1/oxen-server.exe
+wget https://github.com/Oxen-AI/Oxen/releases/download/v0.7.5/oxen-server.exe
 ```
 
 To get up and running using the client and server, you can follow the [getting started docs](https://github.com/Oxen-AI/oxen-release).
