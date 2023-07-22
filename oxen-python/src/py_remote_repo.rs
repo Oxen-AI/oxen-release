@@ -26,8 +26,8 @@ pub struct PyRemoteRepo {
 #[pymethods]
 impl PyRemoteRepo {
     #[new]
-    #[pyo3(signature = (repo, host, revision))]
-    fn py_new(repo: String, host: String, revision: String) -> PyResult<Self> {
+    #[pyo3(signature = (repo, host, revision="main"))]
+    fn py_new(repo: String, host: String, revision: &str) -> PyResult<Self> {
         let (namespace, repo_name) = match repo.split_once('/') {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
@@ -48,8 +48,8 @@ impl PyRemoteRepo {
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
                 },
             },
+            revision: revision.to_string(),
             host,
-            revision,
         })
     }
 
@@ -106,9 +106,13 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn download(&self, remote_path: PathBuf, local_path: PathBuf) -> Result<(), PyOxenError> {
+    fn download(&self, remote_path: PathBuf, local_path: PathBuf, revision: &str) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            command::remote::download(&self.repo, &remote_path, &local_path, &self.revision).await
+            if !revision.is_empty() {
+                command::remote::download(&self.repo, &remote_path, &local_path, revision).await
+            } else {
+                command::remote::download(&self.repo, &remote_path, &local_path, &self.revision).await
+            }
         })?;
 
         Ok(())
