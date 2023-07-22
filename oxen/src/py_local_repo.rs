@@ -104,6 +104,15 @@ impl PyLocalRepo {
             .collect())
     }
 
+    fn list_branches(&self) -> Result<Vec<PyBranch>, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let branches = api::local::branches::list(&repo)?;
+        Ok(branches
+            .iter()
+            .map(|b| PyBranch::new(b.name.clone(), b.commit_id.clone(), false))
+            .collect())
+    }
+
     pub fn set_remote(&self, name: &str, url: &str) -> Result<(), PyOxenError> {
         let mut repo = LocalRepository::from_dir(&self.path)?;
         command::config::set_remote(&mut repo, name, url)?;
