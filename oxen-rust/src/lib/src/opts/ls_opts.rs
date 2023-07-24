@@ -2,18 +2,18 @@ use crate::{error::OxenError, model::RemoteRepository, opts::helpers};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug)]
-pub struct DownloadOpts {
+pub struct ListOpts {
     pub paths: Vec<PathBuf>,
-    pub dst: PathBuf,
     pub host: String,
     pub remote: String,
-    pub branch: Option<String>,
-    pub commit_id: Option<String>,
+    pub branch_name: String,
+    pub page_num: usize,
+    pub page_size: usize,
 }
 
-impl DownloadOpts {
+impl ListOpts {
     /// Looks at branch or commit id and resolves to commit id. Falls back to main branch.
     pub async fn remote_commit_id(&self, repo: &RemoteRepository) -> Result<String, OxenError> {
-        helpers::remote_commit_id(repo, &self.commit_id, &self.branch).await
+        helpers::remote_commit_id(repo, &None, &Some(self.branch_name.to_owned())).await
     }
 }

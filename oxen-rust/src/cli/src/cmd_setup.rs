@@ -213,7 +213,30 @@ pub fn fetch() -> Command {
 pub fn ls() -> Command {
     Command::new(LS)
         .about("List the files in an oxen repo, used for remote repos you do not have locally.")
-        .arg(arg!([PATH] "The path you want to list."))
+        .arg(
+            Arg::new("paths")
+                .required(true)
+                .action(clap::ArgAction::Append),
+        )
+        .arg(
+            Arg::new("host")
+                .long("host")
+                .help("Host to list from, for example: 'hub.oxen.ai'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("Remote to list from, for example: 'origin'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("branch")
+                .long("branch")
+                .short('b')
+                .help("Branch to list from")
+                .action(clap::ArgAction::Set),
+        )
         .arg(
             Arg::new("page")
                 .long("page")

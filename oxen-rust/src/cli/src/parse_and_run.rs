@@ -7,12 +7,14 @@
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
-use liboxen::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
-use liboxen::opts::{AddOpts, CloneOpts, DownloadOpts, InfoOpts, LogOpts, PaginateOpts, RmOpts};
+use liboxen::opts::{
+    AddOpts, CloneOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts,
+};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -171,14 +173,12 @@ pub async fn remote(sub_matches: &ArgMatches) {
 }
 
 async fn remote_download(sub_matches: &ArgMatches) {
-    let paths = sub_matches
-        .get_many::<String>("paths")
-        .expect("Must supply paths")
-        .map(PathBuf::from)
-        .collect();
-
     let opts = DownloadOpts {
-        paths,
+        paths: sub_matches
+            .get_many::<String>("paths")
+            .expect("Must supply paths")
+            .map(PathBuf::from)
+            .collect(),
         dst: sub_matches
             .get_one::<String>("output")
             .map(PathBuf::from)
@@ -355,28 +355,38 @@ async fn remote_status(sub_matches: &ArgMatches) {
     }
 }
 
-fn parse_pagination_args(sub_matches: &ArgMatches) -> PaginateOpts {
-    let page_num = sub_matches
-        .get_one::<String>("page")
-        .expect("Must supply page")
-        .parse::<usize>()
-        .expect("page must be a valid integer.");
-    let page_size = sub_matches
-        .get_one::<String>("page-size")
-        .expect("Must supply page-size")
-        .parse::<usize>()
-        .expect("page-size must be a valid integer.");
-
-    PaginateOpts {
-        page_num,
-        page_size,
-    }
-}
-
 async fn remote_ls(sub_matches: &ArgMatches) {
-    let opts = parse_pagination_args(sub_matches);
-    let path = sub_matches.get_one::<String>("PATH").map(PathBuf::from);
-    match dispatch::remote_ls(path, &opts).await {
+    let opts = ListOpts {
+        paths: sub_matches
+            .get_many::<String>("paths")
+            .expect("Must supply paths")
+            .map(PathBuf::from)
+            .collect(),
+        remote: sub_matches
+            .get_one::<String>("remote")
+            .map(String::from)
+            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
+        host: sub_matches
+            .get_one::<String>("host")
+            .map(String::from)
+            .unwrap_or(DEFAULT_HOST.to_string()),
+        branch_name: sub_matches
+            .get_one::<String>("branch")
+            .map(String::from)
+            .unwrap_or(DEFAULT_BRANCH_NAME.to_string()),
+        page_num: sub_matches
+            .get_one::<String>("page")
+            .expect("Must supply page")
+            .parse::<usize>()
+            .expect("page must be a valid integer."),
+        page_size: sub_matches
+            .get_one::<String>("page-size")
+            .expect("Must supply page-size")
+            .parse::<usize>()
+            .expect("page-size must be a valid integer."),
+    };
+
+    match dispatch::remote_ls(&opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");
