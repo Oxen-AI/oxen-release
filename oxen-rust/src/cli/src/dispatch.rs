@@ -10,6 +10,7 @@ use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
+use liboxen::opts::DownloadOpts;
 use liboxen::opts::InfoOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
@@ -180,17 +181,37 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     Ok(())
 }
 
-pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
+pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
+    let paths = &opts.paths;
+    if paths.is_empty() {
+        return Err(OxenError::basic_str("Must supply a path to download."));
+    }
 
-    // TODO: pass in revision to download a different version
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-    let remote_path = path;
-    let dst_path = local_repo.path;
-    command::remote::download(&remote_repo, remote_path, dst_path, &head_commit.id).await?;
+    // Check if the first path is a valid remote repo
+    let name = paths[0].to_string_lossy();
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_host_remote_name(&opts.host, &opts.remote, name).await?
+    {
+        // Download from the remote without having to have a local repo directory
+        let remote_paths = paths[1..].to_vec();
+        let commit_id = opts.remote_commit_id(&remote_repo).await?;
+        for path in remote_paths {
+            command::remote::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
+        }
+    } else {
+        // We have a --shallow clone, and are just downloading into this directory
+        let repo_dir = env::current_dir().unwrap();
+        let local_repo = LocalRepository::from_dir(&repo_dir)?;
+
+        let head_commit = api::local::commits::head_commit(&local_repo)?;
+        let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
+        let dst_path = local_repo.path.join(opts.dst);
+
+        for remote_path in paths {
+            command::remote::download(&remote_repo, remote_path, &dst_path, &head_commit.id)
+                .await?;
+        }
+    }
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use crate::api;
 use crate::api::remote::client;
-use crate::constants::DEFAULT_REMOTE_NAME;
+use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
@@ -23,6 +23,32 @@ pub async fn get_by_remote_repo(
     repo: &RemoteRepository,
 ) -> Result<Option<RemoteRepository>, OxenError> {
     get_by_remote(&repo.remote).await
+}
+
+/// Attempts to find a repo by name on the remote "origin". For example ox/CatDog
+pub async fn get_by_name_default(
+    name: impl AsRef<str>,
+) -> Result<Option<RemoteRepository>, OxenError> {
+    get_by_host_remote_name(DEFAULT_HOST, DEFAULT_REMOTE_NAME, name).await
+}
+
+pub async fn get_by_host_remote_name(
+    host: impl AsRef<str>,
+    remote: impl AsRef<str>,
+    name: impl AsRef<str>,
+) -> Result<Option<RemoteRepository>, OxenError> {
+    let name = name.as_ref();
+    let url = api::endpoint::remote_url_from_name(host.as_ref(), name);
+    log::debug!(
+        "api::remote::repositories::get_by_host_remote_name({}) remote url: {}",
+        name,
+        url
+    );
+    let remote = Remote {
+        name: String::from(remote.as_ref()),
+        url,
+    };
+    get_by_remote(&remote).await
 }
 
 pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
@@ -87,7 +113,11 @@ pub async fn create_no_root<S: AsRef<str>>(
             Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_host(host.as_ref(), namespace, name),
+                    url: api::endpoint::remote_url_from_namespace_name(
+                        host.as_ref(),
+                        namespace,
+                        name,
+                    ),
                     name: String::from("origin"),
                 },
             ))
@@ -121,7 +151,11 @@ pub async fn create<S: AsRef<str>>(
             Ok(response) => Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_host(host.as_ref(), namespace, name),
+                    url: api::endpoint::remote_url_from_namespace_name(
+                        host.as_ref(),
+                        namespace,
+                        name,
+                    ),
                     name: String::from("origin"),
                 },
             )),

@@ -37,7 +37,11 @@ pub fn test_host() -> String {
 
 pub fn repo_remote_url_from(name: &str) -> String {
     // Tests always point to localhost
-    api::endpoint::remote_url_from_host(test_host().as_str(), constants::DEFAULT_NAMESPACE, name)
+    api::endpoint::remote_url_from_namespace_name(
+        test_host().as_str(),
+        constants::DEFAULT_NAMESPACE,
+        name,
+    )
 }
 
 pub fn init_test_env() {

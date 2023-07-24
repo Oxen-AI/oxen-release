@@ -378,8 +378,8 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("schema_flat")
-                .long("schema_flat")
+            Arg::new("schema-flat")
+                .long("schema-flat")
                 .help("Print the full list of columns and data types within the schema.")
                 .action(clap::ArgAction::SetTrue),
         )
@@ -426,9 +426,42 @@ pub fn download() -> Command {
     Command::new(DOWNLOAD)
         .about("Download a specific file from the remote repository")
         .arg(
-            Arg::new("path")
-                .help("Path to the remote file")
-                .exclusive(true),
+            Arg::new("paths")
+                .required(true)
+                .action(clap::ArgAction::Append),
+        )
+        .arg(
+            Arg::new("output")
+                .long("output")
+                .short('o')
+                .help("Output file to store the downloaded data")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("host")
+                .long("host")
+                .help("Host to download from, for example: 'hub.oxen.ai'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("Remote to download from, for example: 'origin'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("branch")
+                .long("branch")
+                .short('b')
+                .help("Branch to download from")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("commit-id")
+                .long("commit-id")
+                .short('c')
+                .help("Commit to download from, overrides branch")
+                .action(clap::ArgAction::Set),
         )
 }
 
