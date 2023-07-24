@@ -7,11 +7,12 @@
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
+use liboxen::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
-use liboxen::opts::{AddOpts, CloneOpts, InfoOpts, LogOpts, PaginateOpts, RmOpts};
+use liboxen::opts::{AddOpts, CloneOpts, DownloadOpts, InfoOpts, LogOpts, PaginateOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -170,12 +171,33 @@ pub async fn remote(sub_matches: &ArgMatches) {
 }
 
 async fn remote_download(sub_matches: &ArgMatches) {
-    let path = sub_matches
-        .get_one::<String>("path")
-        .expect("Must supply path");
+    let paths = sub_matches
+        .get_many::<String>("paths")
+        .expect("Must supply paths")
+        .map(PathBuf::from)
+        .collect();
+
+    let opts = DownloadOpts {
+        paths,
+        dst: sub_matches
+            .get_one::<String>("output")
+            .map(PathBuf::from)
+            .unwrap_or(PathBuf::from(".")),
+        remote: sub_matches
+            .get_one::<String>("remote")
+            .map(String::from)
+            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
+        host: sub_matches
+            .get_one::<String>("host")
+            .map(String::from)
+            .unwrap_or(DEFAULT_HOST.to_string()),
+        branch: sub_matches.get_one::<String>("branch").map(String::from),
+        commit_id: sub_matches.get_one::<String>("commit-id").map(String::from),
+    };
 
     // Make `oxen remote download $path` work
-    match dispatch::remote_download(path).await {
+    // TODO: pass in Vec<Path> where the first one could be a remote repo like ox/SQuAD
+    match dispatch::remote_download(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -510,8 +532,8 @@ async fn remote_df(sub_matches: &ArgMatches) {
 pub fn df(sub_matches: &ArgMatches) {
     let opts = parse_df_sub_matches(sub_matches);
     let path = sub_matches.get_one::<String>("DF_SPEC").expect("required");
-    if sub_matches.get_flag("schema") || sub_matches.get_flag("schema_flat") {
-        match dispatch::df_schema(path, sub_matches.get_flag("schema_flat"), opts) {
+    if sub_matches.get_flag("schema") || sub_matches.get_flag("schema-flat") {
+        match dispatch::df_schema(path, sub_matches.get_flag("schema-flat"), opts) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
