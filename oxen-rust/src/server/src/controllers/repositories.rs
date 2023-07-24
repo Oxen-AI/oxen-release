@@ -6,7 +6,7 @@ use crate::params::{app_data, path_param};
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::util;
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
 use liboxen::view::repository::DataTypeView;
 use liboxen::view::repository::RepositoryStatsResponse;
 use liboxen::view::repository::RepositoryStatsView;
@@ -146,6 +146,33 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     });
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+}
+
+pub async fn transfer_namespace(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    // Parse body
+    let from_namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let to_namespace = path_param(&req, "new_namespace")?;
+
+    api::local::repositories::transfer_namespace(
+        &app_data.path,
+        &name,
+        &from_namespace,
+        &to_namespace,
+    )?;
+
+    // Return repository view under new namespace
+    Ok(HttpResponse::Ok().json(RepositoryResponse {
+        status: STATUS_SUCCESS.to_string(),
+        status_message: MSG_RESOURCE_UPDATED.to_string(),
+        repository: RepositoryView {
+            namespace: to_namespace,
+            name,
+        },
+    }))
 }
 
 pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
@@ -347,6 +374,42 @@ mod tests {
         assert_eq!(repo_response.status, STATUS_SUCCESS);
         assert_eq!(repo_response.repository.name, repo_new.name);
 
+        // cleanup
+        util::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_controllers_repositories_transfer_namespace() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+        let namespace = "Test-Namespace";
+        let name = "Testing-Name";
+        test::create_local_repo(&sync_dir, namespace, name)?;
+
+        // Create new repo in a namespace so it exists
+        let new_namespace = "New-Namespace";
+        let new_name = "Newbie";
+        test::create_local_repo(&sync_dir, new_namespace, new_name)?;
+
+        let uri = format!("/api/repos/{namespace}/{name}/transfer/{new_namespace}");
+        let req = test::repo_request_with_param(
+            &sync_dir,
+            &uri,
+            namespace,
+            name,
+            "new_namespace",
+            new_namespace,
+        );
+
+        let resp = controllers::repositories::transfer_namespace(req)
+            .await
+            .unwrap();
+
+        log::debug!(
+            "Here's the response to controllers transfer test {:?}",
+            resp
+        );
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
 

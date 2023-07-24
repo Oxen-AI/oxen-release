@@ -142,6 +142,33 @@ pub fn list_repos_in_namespace(namespace_path: &Path) -> Vec<LocalRepository> {
     repos
 }
 
+pub fn transfer_namespace(
+    sync_dir: &Path,
+    repo_name: &str,
+    from_namespace: &str,
+    to_namespace: &str,
+) -> Result<(), OxenError> {
+    log::debug!(
+        "transfer_namespace from: {} to: {}",
+        from_namespace,
+        to_namespace
+    );
+
+    let repo_dir = sync_dir.join(from_namespace).join(repo_name);
+    let new_repo_dir = sync_dir.join(to_namespace).join(repo_name);
+
+    if !repo_dir.exists() {
+        log::debug!("Repo does not exist: {:?}", repo_dir);
+        return Ok(());
+    }
+
+    std::fs::create_dir_all(&new_repo_dir)?;
+
+    std::fs::rename(&repo_dir, &new_repo_dir)?;
+
+    Ok(())
+}
+
 pub fn create_empty(
     sync_dir: &Path,
     new_repo: RepositoryNew,
@@ -341,6 +368,61 @@ mod tests {
             let _repo =
                 api::local::repositories::get_by_namespace_and_name(sync_dir, namespace, name)?
                     .unwrap();
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_local_repository_transfer_namespace() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|sync_dir| {
+            let old_namespace: &str = "test-namespace-old";
+            let new_namespace: &str = "test-namespace-new";
+
+            let old_namespace_dir = sync_dir.join(old_namespace);
+            let new_namespace_dir = sync_dir.join(new_namespace);
+
+            let name = "moving-repo";
+
+            let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
+            let timestamp = OffsetDateTime::now_utc();
+            // Create new namespace
+            std::fs::create_dir_all(&new_namespace_dir)?;
+
+            let repo_new = RepositoryNew {
+                namespace: String::from(old_namespace),
+                name: String::from(name),
+                root_commit: Some(Commit {
+                    id: initial_commit_id,
+                    parent_ids: vec![],
+                    message: String::from(constants::INITIAL_COMMIT_MSG),
+                    author: String::from("Ox"),
+                    email: String::from("ox@oxen.ai"),
+                    timestamp,
+                }),
+            };
+            let _repo = api::local::repositories::create_empty(sync_dir, repo_new)?;
+
+            let old_namespace_repos =
+                api::local::repositories::list_repos_in_namespace(&old_namespace_dir);
+            assert_eq!(old_namespace_repos.len(), 1);
+
+            // Transfer to new namespace
+            api::local::repositories::transfer_namespace(
+                sync_dir,
+                name,
+                old_namespace,
+                new_namespace,
+            )?;
+
+            // Check that the old namespace is empty
+            let old_namespace_repos =
+                api::local::repositories::list_repos_in_namespace(&old_namespace_dir);
+            let new_namespace_repos =
+                api::local::repositories::list_repos_in_namespace(&new_namespace_dir);
+
+            assert_eq!(old_namespace_repos.len(), 0);
+            assert_eq!(new_namespace_repos.len(), 1);
+
             Ok(())
         })
     }
