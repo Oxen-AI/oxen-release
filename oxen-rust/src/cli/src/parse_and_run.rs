@@ -12,9 +12,7 @@ use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
-use liboxen::opts::{
-    AddOpts, CloneOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts,
-};
+use liboxen::opts::{AddOpts, CloneOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
