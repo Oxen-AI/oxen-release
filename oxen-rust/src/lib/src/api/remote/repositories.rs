@@ -157,6 +157,8 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
     }
 }
 
+pub async fn transfer_namespace(repository: )
+
 pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
     log::debug!("api::remote::repositories::resolve_api_url({})", url);
     let client = client::new_for_url(url)?;
