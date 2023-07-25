@@ -46,7 +46,7 @@ pub async fn download_entry(
         }
 
         // * if the dst parent does not exist, we error because cannot copy a directory to a non-existent location
-        if !parent.exists() {
+        if !parent.exists() && parent != Path::new("") {
             return Err(OxenError::basic_str(format!("{:?} does not exist", parent)));
         }
     }

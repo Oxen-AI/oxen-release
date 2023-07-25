@@ -10,7 +10,9 @@ use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
+use liboxen::opts::DownloadOpts;
 use liboxen::opts::InfoOpts;
+use liboxen::opts::ListOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
@@ -53,7 +55,7 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             let local_version: &str = constants::OXEN_VERSION;
 
             if remote_version != local_version {
-                let warning = format!("Warning: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://github.com/Oxen-AI/oxen-release/blob/main/Installation.md for installation instructions.\n").yellow();
+                let warning = format!("Warning: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n").yellow();
                 eprintln!("{warning}");
             }
         }
@@ -180,17 +182,37 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     Ok(())
 }
 
-pub async fn remote_download(path: impl AsRef<Path>) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
+pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
+    let paths = &opts.paths;
+    if paths.is_empty() {
+        return Err(OxenError::basic_str("Must supply a path to download."));
+    }
 
-    // TODO: pass in revision to download a different version
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-    let remote_path = path;
-    let dst_path = local_repo.path;
-    command::remote::download(&remote_repo, remote_path, dst_path, &head_commit.id).await?;
+    // Check if the first path is a valid remote repo
+    let name = paths[0].to_string_lossy();
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_host_remote_name(&opts.host, &opts.remote, name).await?
+    {
+        // Download from the remote without having to have a local repo directory
+        let remote_paths = paths[1..].to_vec();
+        let commit_id = opts.remote_commit_id(&remote_repo).await?;
+        for path in remote_paths {
+            command::remote::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
+        }
+    } else {
+        // We have a --shallow clone, and are just downloading into this directory
+        let repo_dir = env::current_dir().unwrap();
+        let local_repo = LocalRepository::from_dir(&repo_dir)?;
+
+        let head_commit = api::local::commits::head_commit(&local_repo)?;
+        let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
+        let dst_path = local_repo.path.join(opts.dst);
+
+        for remote_path in paths {
+            command::remote::download(&remote_repo, remote_path, &dst_path, &head_commit.id)
+                .await?;
+        }
+    }
 
     Ok(())
 }
@@ -504,22 +526,48 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
     Ok(())
 }
 
-pub async fn remote_ls(directory: Option<PathBuf>, opts: &PaginateOpts) -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
+    let paths = &opts.paths;
+    if paths.is_empty() {
+        return Err(OxenError::basic_str("Must supply a path to download."));
+    }
 
-    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let page_opts = PaginateOpts {
+        page_num: opts.page_num,
+        page_size: opts.page_size,
+    };
 
-    let host = get_host_from_repo(&repository)?;
-    check_remote_version(host).await?;
+    // Check if the first path is a valid remote repo
+    let name = paths[0].to_string_lossy();
+    let entries = if let Some(remote_repo) =
+        api::remote::repositories::get_by_host_remote_name(&opts.host, &opts.remote, name).await?
+    {
+        let branch = api::remote::branches::get_by_name(&remote_repo, &opts.branch_name)
+            .await?
+            .ok_or_else(OxenError::must_be_on_valid_branch)?;
+        let directory = if paths.len() > 1 {
+            paths[1].clone()
+        } else {
+            PathBuf::from("")
+        };
+        command::remote::ls(&remote_repo, &branch, &directory, &page_opts).await?
+    } else {
+        // Look up from the current dir for .oxen directory
+        let current_dir = env::current_dir().unwrap();
+        let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
 
-    let directory = directory.unwrap_or(PathBuf::from(""));
-    let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
-    let branch = api::local::branches::current_branch(&repository)?
-        .ok_or_else(OxenError::must_be_on_valid_branch)?;
+        let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let entries = command::remote::ls(&remote_repo, &branch, &directory, opts).await?;
+        let host = get_host_from_repo(&repository)?;
+        check_remote_version(host).await?;
+
+        let directory = paths[0].clone();
+        let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+        let branch = api::local::branches::current_branch(&repository)?
+            .ok_or_else(OxenError::must_be_on_valid_branch)?;
+        command::remote::ls(&remote_repo, &branch, &directory, &page_opts).await?
+    };
+
     let num_displaying = if opts.page_size > entries.total_entries {
         entries.total_entries
     } else {
