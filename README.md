@@ -18,7 +18,7 @@
   <br/>
 </div>
 
-## 🐂 🌾 What is Oxen?
+# 🐂 🌾 What is Oxen?
 
 Oxen is a lighting fast unstructured data version control system for machine learning datasets.
 
@@ -49,6 +49,18 @@ repo.commit("Adding a new dog")
 
 The latest documentation can be found at [https://docs.oxen.ai](https://docs.oxen.ai).
 
+# ⭐️ Every GitHub Star Gives an Ox it's Wings
+
+No really.
+
+We hooked up the GitHub webhook for stars to an [OxenHub repository](https://www.oxen.ai/ox/FlyingOxen). Using a combination of Oxen's [python library](https://docs.oxen.ai/getting-started/python), [remote workspaces](https://docs.oxen.ai/concepts/remote-workspace), and [Stable Diffusion XL](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl) we generate a unique Ox for each user, and attempt to give them wings.
+
+Go find your own in our [ox/FlyingOxen](https://www.oxen.ai/ox/FlyingOxen) repository.
+
+<p align="center">
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings?raw=true" alt="oxen repo with wings" />
+</p>
+
 # ✅ Features
 
 Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md) on images, video, audio, text, and more.
@@ -62,10 +74,6 @@ Oxen was optimized to be fast on structured and unstructured data types. Unlike 
 * 🤝 Collaborate with your team (sync to an oxen-server)
 * 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
-
-# Why the name Oxen?
-
-"Oxen" 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of the grunt work of your infrastructure so you can focus on the higher-level ML problems that matter to your product.
 
 # Overview
 
@@ -671,3 +679,6 @@ If you have any questions, comments, suggestions, or just want to get in contact
 
 This repository contains the documentation and release builds. To contribute to the core code base visit [https://github.com/Oxen-AI/Oxen](https://github.com/Oxen-AI/Oxen)
 
+# Why the name Oxen?
+
+"Oxen" 🐂 comes from the fact that the tooling will plow, maintain, and version your data like a good farmer tends to their fields 🌾. Let Oxen take care of the grunt work of your infrastructure so you can focus on the higher-level ML problems that matter to your product.
