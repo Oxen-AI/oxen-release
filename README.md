@@ -58,7 +58,7 @@ We hooked up the GitHub webhook for stars to an [OxenHub repository](https://www
 Go find your own in our [ox/FlyingOxen](https://www.oxen.ai/ox/FlyingOxen) repository.
 
 <p align="center">
-    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings?raw=true" alt="oxen repo with wings" />
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings.png?raw=true" alt="oxen repo with wings" />
 </p>
 
 # ✅ Features
