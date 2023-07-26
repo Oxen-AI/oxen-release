@@ -49,7 +49,7 @@ repo.commit("Adding a new dog")
 
 The latest documentation can be found at [https://docs.oxen.ai](https://docs.oxen.ai).
 
-# ⭐️ Every GitHub Star Gives an Ox it's Wings
+### ⭐️ Every GitHub Star Gives an Ox it's Wings
 
 No really.
 
