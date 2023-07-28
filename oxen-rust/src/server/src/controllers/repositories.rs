@@ -10,7 +10,9 @@ use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCE
 use liboxen::view::repository::DataTypeView;
 use liboxen::view::repository::RepositoryStatsResponse;
 use liboxen::view::repository::RepositoryStatsView;
-use liboxen::view::{ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage};
+use liboxen::view::{
+    ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage,
+};
 
 use liboxen::model::{LocalRepository, RepositoryNew};
 
@@ -161,7 +163,7 @@ pub async fn transfer_namespace(
     let from_namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let data: NamespaceView = serde_json::from_str(&body)?;
-    let to_namespace = data.name.to_string();
+    let to_namespace = data.name;
     api::local::repositories::transfer_namespace(
         &app_data.path,
         &name,
@@ -269,11 +271,11 @@ mod tests {
 
     use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{Commit, RepositoryNew, Namespace};
+    use liboxen::model::{Commit, Namespace, RepositoryNew};
     use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{ListRepositoryResponse, RepositoryResponse, NamespaceView};
+    use liboxen::view::{ListRepositoryResponse, NamespaceView, RepositoryResponse};
     use time::OffsetDateTime;
 
     use crate::controllers;
@@ -398,24 +400,16 @@ mod tests {
         test::create_local_repo(&sync_dir, new_namespace, new_name)?;
 
         let uri = format!("/api/repos/{namespace}/{name}/transfer");
-        let req = test::repo_request(
-            &sync_dir,
-            &uri,
-            namespace,
-            name,
-        );
+        let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let params = NamespaceView {
-            name: new_namespace.to_string()
+            name: new_namespace.to_string(),
         };
-        let resp = controllers::repositories::transfer_namespace(req, serde_json::to_string(&params)?)
-            .await
-            .unwrap();
+        let resp =
+            controllers::repositories::transfer_namespace(req, serde_json::to_string(&params)?)
+                .await
+                .unwrap();
 
-        log::debug!(
-            "Here's the response to controllers transfer test {:?}",
-            resp
-        );
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
 
