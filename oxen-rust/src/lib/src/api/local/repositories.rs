@@ -26,7 +26,10 @@ pub fn get_by_namespace_and_name(
         return Ok(None);
     }
 
+    log::debug!("get_by_namespace_and_name repo dir: {:?}", repo_dir);
+
     let repo = LocalRepository::from_dir(&repo_dir)?;
+    log::debug!("get_by_namespace_and_name repo: {:?}", repo);
     Ok(Some(repo))
 }
 
@@ -158,7 +161,10 @@ pub fn transfer_namespace(
     let new_repo_dir = sync_dir.join(to_namespace).join(repo_name);
 
     if !repo_dir.exists() {
-        log::debug!("Repo does not exist: {:?}", repo_dir);
+        log::debug!(
+            "Error while transferring repo: repo does not exist: {:?}",
+            repo_dir
+        );
         return Err(OxenError::repo_not_found(RepositoryNew::new(
             from_namespace,
             repo_name,
@@ -169,13 +175,21 @@ pub fn transfer_namespace(
 
     std::fs::rename(&repo_dir, &new_repo_dir)?;
 
+    // Update path in config
+    let config_path = util::fs::config_filepath(&new_repo_dir);
+    let mut repo = LocalRepository::from_dir(&new_repo_dir)?;
+    repo.path = new_repo_dir;
+    repo.save(&config_path)?;
+
     // Update remote
     let updated_repo = get_by_namespace_and_name(sync_dir, to_namespace, repo_name)?;
+
+    log::debug!("here's the result of the udpated_repo {:?}", updated_repo);
 
     match updated_repo {
         Some(new_repo) => Ok(new_repo),
         None => Err(OxenError::basic_str(
-            "Repository not successfully transferred",
+            "Repository not found after attempted transfer",
         )),
     }
 }
@@ -415,15 +429,25 @@ mod tests {
 
             let old_namespace_repos =
                 api::local::repositories::list_repos_in_namespace(&old_namespace_dir);
+            let new_namespace_repos =
+                api::local::repositories::list_repos_in_namespace(&new_namespace_dir);
+
             assert_eq!(old_namespace_repos.len(), 1);
+            assert_eq!(new_namespace_repos.len(), 0);
 
             // Transfer to new namespace
-            api::local::repositories::transfer_namespace(
+            let updated_repo = api::local::repositories::transfer_namespace(
                 sync_dir,
                 name,
                 old_namespace,
                 new_namespace,
             )?;
+
+            // Log out updated_repo
+            log::debug!("updated_repo: {:?}", updated_repo);
+
+            let new_repo_path = sync_dir.join(new_namespace).join(name);
+            assert_eq!(updated_repo.path, new_repo_path);
 
             // Check that the old namespace is empty
             let old_namespace_repos =

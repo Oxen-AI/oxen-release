@@ -410,6 +410,15 @@ mod tests {
                 .await
                 .unwrap();
 
+        assert_eq!(resp.status(), http::StatusCode::OK);
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let repo_response: RepositoryResponse = serde_json::from_str(text)?;
+
+        assert_eq!(repo_response.status, STATUS_SUCCESS);
+        assert_eq!(repo_response.repository.name, name);
+        assert_eq!(repo_response.repository.namespace, new_namespace);
+
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;
 
