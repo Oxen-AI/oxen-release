@@ -83,16 +83,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- Compare ----- //
         .route(
-            "/{namespace}/{repo_name}/compare/stats/{base_head:.*}",
-            web::get().to(controllers::compare::show),
-        )
-        .route(
             "/{namespace}/{repo_name}/compare/commits/{base_head:.*}",
             web::get().to(controllers::compare::commits),
         )
         .route(
-            "/{namespace}/{repo_name}/compare/entities/{base_head:.*}",
-            web::get().to(controllers::compare::entities),
+            "/{namespace}/{repo_name}/compare/entries/{base_head:.*}",
+            web::get().to(controllers::compare::entries),
         )
         // ----- Merge ----- //
         // GET merge to test if merge is possible
