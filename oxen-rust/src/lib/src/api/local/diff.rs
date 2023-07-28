@@ -4,8 +4,10 @@ use crate::error::OxenError;
 use crate::model::entry::diff_entry::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
+use crate::view::compare::AddRemoveModifyCounts;
 use crate::{constants, util};
 
+use crate::core::index::CommitEntryReader;
 use colored::Colorize;
 use difference::{Changeset, Difference};
 use polars::export::ahash::HashMap;
@@ -13,8 +15,7 @@ use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-use crate::core::index::CommitEntryReader;
+use std::str::FromStr;
 
 pub fn diff(
     repo: &LocalRepository,
@@ -309,6 +310,25 @@ pub fn list_diff_entries(
     Ok(diff_entries)
 }
 
+// TODO: linear scan is not the most efficient way to do this
+pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCounts {
+    let mut added = 0;
+    let mut removed = 0;
+    let mut modified = 0;
+    for entry in entries {
+        match DiffEntryStatus::from_str(&entry.status).unwrap() {
+            DiffEntryStatus::Added => added += 1,
+            DiffEntryStatus::Removed => removed += 1,
+            DiffEntryStatus::Modified => modified += 1,
+        }
+    }
+    AddRemoveModifyCounts {
+        added,
+        removed,
+        modified,
+    }
+}
+
 // Find the entries that are in HEAD but not in BASE
 fn collect_added_entries(
     repo: &LocalRepository,
@@ -420,12 +440,12 @@ mod tests {
 
             command::add(&repo, &hello_file)?;
             command::add(&repo, &world_file)?;
-            let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
+            let head_commit = command::commit(&repo, "Adding two files")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(2, entries.len());
-            assert_eq!(entries[0].status, DiffEntryStatus::Added);
-            assert_eq!(entries[1].status, DiffEntryStatus::Added);
+            assert_eq!(entries[0].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
 
             Ok(())
         })
@@ -458,7 +478,10 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
-            assert_eq!(entries.first().unwrap().status, DiffEntryStatus::Modified);
+            assert_eq!(
+                entries.first().unwrap().status,
+                DiffEntryStatus::Modified.to_string()
+            );
 
             Ok(())
         })
@@ -484,7 +507,49 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
-            assert_eq!(entries.first().unwrap().status, DiffEntryStatus::Removed);
+            assert_eq!(
+                entries.first().unwrap().status,
+                DiffEntryStatus::Removed.to_string()
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_add_remove_modify_counts() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            // Get initial commit
+            let base_commit = api::local::commits::head_commit(&repo)?;
+            // Add two files
+            let hello_file = repo.path.join("Hello.txt");
+            let world_file = repo.path.join("World.txt");
+            test::write_txt_file_to_path(&hello_file, "Hello")?;
+            test::write_txt_file_to_path(&world_file, "World")?;
+
+            command::add(&repo, &hello_file)?;
+            command::add(&repo, &world_file)?;
+            command::commit(&repo, "Removing a row from train bbox data")?;
+
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(&bbox_filename);
+
+            // Remove the file
+            util::fs::remove_file(bbox_file)?;
+
+            let opts = RmOpts::from_path(&bbox_filename);
+            command::rm(&repo, &opts).await?;
+            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+
+            let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            let counts = api::local::diff::get_add_remove_modify_counts(&entries);
+
+            assert_eq!(4, entries.len());
+            assert_eq!(2, counts.added);
+            assert_eq!(1, counts.removed);
 
             Ok(())
         })

@@ -14,9 +14,35 @@ pub enum DiffEntryStatus {
     Removed,
 }
 
+// Downcase the status
+impl std::fmt::Display for DiffEntryStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = match self {
+            DiffEntryStatus::Added => "added",
+            DiffEntryStatus::Modified => "modified",
+            DiffEntryStatus::Removed => "removed",
+        };
+        write!(f, "{}", status)
+    }
+}
+
+// implement from_str for DiffEntryStatus
+impl std::str::FromStr for DiffEntryStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "added" => Ok(DiffEntryStatus::Added),
+            "modified" => Ok(DiffEntryStatus::Modified),
+            "removed" => Ok(DiffEntryStatus::Removed),
+            _ => Err(format!("Could not parse {} as a DiffEntryStatus", s)),
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
-    pub status: DiffEntryStatus,
+    pub status: String,
     pub data_type: EntryDataType,
     pub filename: String,
     pub is_dir: bool,
@@ -43,7 +69,7 @@ impl DiffEntry {
         };
 
         DiffEntry {
-            status,
+            status: status.to_string(),
             data_type: util::fs::file_data_type(&version_path),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
             is_dir: version_path.is_dir(),
