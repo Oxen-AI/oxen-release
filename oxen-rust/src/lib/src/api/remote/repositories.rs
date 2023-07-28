@@ -171,9 +171,6 @@ pub async fn transfer_namespace(
     if let Ok(res) = client.patch(&url).body(params).send().await {
         let body = client::parse_json_body(&url, res).await?;
         let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
-        // Log the response
-        log::debug!("repositories::transfer_namespace body {:?}", body);
-        log::debug!("repositories::transfer_namespace response {:?}", response);
 
         match response {
             Ok(response) => {
