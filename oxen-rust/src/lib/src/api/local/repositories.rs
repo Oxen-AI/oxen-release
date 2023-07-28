@@ -26,10 +26,7 @@ pub fn get_by_namespace_and_name(
         return Ok(None);
     }
 
-    log::debug!("get_by_namespace_and_name repo dir: {:?}", repo_dir);
-
     let repo = LocalRepository::from_dir(&repo_dir)?;
-    log::debug!("get_by_namespace_and_name repo: {:?}", repo);
     Ok(Some(repo))
 }
 
@@ -181,10 +178,7 @@ pub fn transfer_namespace(
     repo.path = new_repo_dir;
     repo.save(&config_path)?;
 
-    // Update remote
     let updated_repo = get_by_namespace_and_name(sync_dir, to_namespace, repo_name)?;
-
-    log::debug!("here's the result of the udpated_repo {:?}", updated_repo);
 
     match updated_repo {
         Some(new_repo) => Ok(new_repo),
