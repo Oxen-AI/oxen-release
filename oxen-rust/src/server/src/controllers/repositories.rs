@@ -154,10 +154,6 @@ pub async fn transfer_namespace(
     req: HttpRequest,
     body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let info = req.match_info();
-    log::debug!("all params are {:?}", info);
-    log::debug!("namespace controller top of funnel body {:?}", body);
-    println!("namespace controller top of funnel body: {:?}", body);
     let app_data = app_data(&req)?;
     // Parse body
     let from_namespace = path_param(&req, "namespace")?;
