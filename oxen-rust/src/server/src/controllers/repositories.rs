@@ -10,7 +10,7 @@ use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCE
 use liboxen::view::repository::DataTypeView;
 use liboxen::view::repository::RepositoryStatsResponse;
 use liboxen::view::repository::RepositoryStatsView;
-use liboxen::view::{ListRepositoryResponse, RepositoryResponse, RepositoryView, StatusMessage};
+use liboxen::view::{ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage};
 
 use liboxen::model::{LocalRepository, RepositoryNew};
 
@@ -150,13 +150,18 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
 
 pub async fn transfer_namespace(
     req: HttpRequest,
+    body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let info = req.match_info();
+    log::debug!("all params are {:?}", info);
+    log::debug!("namespace controller top of funnel body {:?}", body);
+    println!("namespace controller top of funnel body: {:?}", body);
     let app_data = app_data(&req)?;
     // Parse body
     let from_namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
-    let to_namespace = path_param(&req, "new_namespace")?;
-
+    let data: NamespaceView = serde_json::from_str(&body)?;
+    let to_namespace = data.name.to_string();
     api::local::repositories::transfer_namespace(
         &app_data.path,
         &name,
@@ -264,11 +269,11 @@ mod tests {
 
     use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{Commit, RepositoryNew};
+    use liboxen::model::{Commit, RepositoryNew, Namespace};
     use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{ListRepositoryResponse, RepositoryResponse};
+    use liboxen::view::{ListRepositoryResponse, RepositoryResponse, NamespaceView};
     use time::OffsetDateTime;
 
     use crate::controllers;
@@ -392,17 +397,18 @@ mod tests {
         let new_name = "Newbie";
         test::create_local_repo(&sync_dir, new_namespace, new_name)?;
 
-        let uri = format!("/api/repos/{namespace}/{name}/transfer/{new_namespace}");
-        let req = test::repo_request_with_param(
+        let uri = format!("/api/repos/{namespace}/{name}/transfer");
+        let req = test::repo_request(
             &sync_dir,
             &uri,
             namespace,
             name,
-            "new_namespace",
-            new_namespace,
         );
 
-        let resp = controllers::repositories::transfer_namespace(req)
+        let params = NamespaceView {
+            name: new_namespace.to_string()
+        };
+        let resp = controllers::repositories::transfer_namespace(req, serde_json::to_string(&params)?)
             .await
             .unwrap();
 

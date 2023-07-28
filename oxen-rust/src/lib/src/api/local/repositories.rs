@@ -147,7 +147,7 @@ pub fn transfer_namespace(
     repo_name: &str,
     from_namespace: &str,
     to_namespace: &str,
-) -> Result<(), OxenError> {
+) -> Result<LocalRepository, OxenError> {
     log::debug!(
         "transfer_namespace from: {} to: {}",
         from_namespace,
@@ -159,14 +159,19 @@ pub fn transfer_namespace(
 
     if !repo_dir.exists() {
         log::debug!("Repo does not exist: {:?}", repo_dir);
-        return Ok(());
+        return Err(OxenError::repo_not_found(RepositoryNew::new(&from_namespace, &repo_name)));
     }
 
     std::fs::create_dir_all(&new_repo_dir)?;
 
     std::fs::rename(&repo_dir, &new_repo_dir)?;
 
-    Ok(())
+    let updated_repo = get_by_namespace_and_name(sync_dir, to_namespace, repo_name)?;
+
+    match updated_repo {
+        Some(new_repo) => Ok(new_repo),
+        None => Err(OxenError::basic_str("Repository not successfully transferred")),
+    }
 }
 
 pub fn create_empty(
