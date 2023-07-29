@@ -62,7 +62,7 @@ $ oxen schemas
 +------+----------------------------------+-----------------------------------+
 ```
 
-You'll see that each schema has a hash that is generated from the combination of it's field names and data types.
+You'll see that each schema has a hash that is generated from the combination of its field names and data types.
 
 To see a more expanded view of a schema you can run the `schema show` subcommand.
 
