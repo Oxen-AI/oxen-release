@@ -122,7 +122,7 @@ shape: (202599, 41)
 
 The real power is when you stage and commit a DataFrame. Oxen processes and hashes each row and tracks the data schema over time, so that we can detect changes. Instead of seeing line by line changes on a diff, you can tell the individual rows and columns that changed. 
 
-Committing DataFrames is no different than committing any other file. Behind the scenes Oxen works it's magic to track all the changes.
+Committing DataFrames is no different than committing any other file. Behind the scenes Oxen works its magic to track all the changes.
 
 Let's stage and commit the list_attr_celeba.csv file so that we have the original version tracked.
 
