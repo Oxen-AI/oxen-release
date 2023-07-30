@@ -104,8 +104,10 @@ pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> 
     let path = path.as_ref();
     let error_str = format!("Could not read tabular data from path {path:?}");
     let file = File::open(path)?;
-    let df = ParquetReader::new(file).finish().expect(&error_str);
-    Ok(df)
+    match ParquetReader::new(file).finish() {
+        Ok(df) => Ok(df),
+        _ => Err(OxenError::basic_str(error_str)),
+    }
 }
 
 pub fn scan_df_parquet<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {

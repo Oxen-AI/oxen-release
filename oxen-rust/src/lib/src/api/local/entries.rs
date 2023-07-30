@@ -322,22 +322,29 @@ pub fn list_directory(
     let mime_types_path =
         core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
 
-    let metadata = if data_types_path.exists() && mime_types_path.exists() {
-        log::debug!(
-            "list_directory reading data types from {}",
-            data_types_path.display()
-        );
+    log::debug!(
+        "list_directory reading data types from {}",
+        data_types_path.display()
+    );
+    let metadata = if let Ok(mut data_type_df) =
+        core::df::tabular::read_df(&data_types_path, DFOpts::empty())
+    {
         log::debug!(
             "list_directory reading mime types from {}",
             mime_types_path.display()
         );
-        let mut data_type_df = core::df::tabular::read_df(&data_types_path, DFOpts::empty())?;
-        let mut mime_type_df = core::df::tabular::read_df(&mime_types_path, DFOpts::empty())?;
-        Some(DirectoryMetadata {
-            data_types: JsonDataFrame::from_df(&mut data_type_df),
-            mime_types: JsonDataFrame::from_df(&mut mime_type_df),
-        })
+        if let Ok(mut mime_type_df) = core::df::tabular::read_df(&mime_types_path, DFOpts::empty())
+        {
+            Some(DirectoryMetadata {
+                data_types: JsonDataFrame::from_df(&mut data_type_df),
+                mime_types: JsonDataFrame::from_df(&mut mime_type_df),
+            })
+        } else {
+            log::warn!("Unable to read {mime_types_path:?}");
+            None
+        }
     } else {
+        log::warn!("Unable to read {data_types_path:?}");
         None
     };
 
