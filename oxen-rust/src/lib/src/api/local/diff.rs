@@ -302,7 +302,15 @@ pub fn list_diff_entries(
     );
     let base_entries = read_entries_from_commit(repo, base_commit)?;
 
+    let head_dirs = read_dirs_from_commit(repo, head_commit)?;
+    let base_dirs = read_dirs_from_commit(repo, base_commit)?;
+
     let mut diff_entries: Vec<DiffEntry> = vec![];
+    collect_added_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
+    collect_removed_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
+    collect_modified_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
+
+
     collect_added_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
     collect_removed_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
     collect_modified_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
@@ -327,6 +335,85 @@ pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCou
         removed,
         modified,
     }
+}
+
+// Find the directories that are in HEAD but not in BASE
+fn collect_added_directories(
+    repo: &LocalRepository,
+    base_dirs: &HashSet<PathBuf>,
+    base_commit: &Commit,
+    head_dirs: &HashSet<PathBuf>,
+    head_commit: &Commit,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for head_dir in head_dirs {
+        // HEAD entry is *not* in BASE
+        if !base_dirs.contains(head_dir) {
+            diff_entries.push(DiffEntry::from_dir(
+                repo,
+                None,
+                base_commit,
+                Some(head_dir),
+                head_commit,
+                DiffEntryStatus::Added,
+            ));
+        }
+    }
+    Ok(())
+}
+
+// Find the directories that are in HEAD and are in BASE
+fn collect_modified_directories(
+    repo: &LocalRepository,
+    base_dirs: &HashSet<PathBuf>,
+    base_commit: &Commit,
+    head_dirs: &HashSet<PathBuf>,
+    head_commit: &Commit,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for head_dir in head_dirs {
+        // HEAD entry is in BASE
+        if base_dirs.contains(head_dir) {
+            let diff_entry = DiffEntry::from_dir(
+                repo,
+                Some(head_dir),
+                base_commit,
+                Some(head_dir),
+                head_commit,
+                DiffEntryStatus::Modified,
+            );
+
+            if diff_entry.has_changes() {
+                diff_entries.push(diff_entry);
+            }
+        }
+    }
+    Ok(())
+}
+
+// Find the directories that are in BASE but not in HEAD
+fn collect_removed_directories(
+    repo: &LocalRepository,
+    base_dirs: &HashSet<PathBuf>,
+    base_commit: &Commit,
+    head_dirs: &HashSet<PathBuf>,
+    head_commit: &Commit,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for base_dir in base_dirs {
+        // HEAD entry is *not* in BASE
+        if !head_dirs.contains(base_dir) {
+            diff_entries.push(DiffEntry::from_dir(
+                repo,
+                Some(base_dir),
+                base_commit,
+                None,
+                head_commit,
+                DiffEntryStatus::Removed,
+            ));
+        }
+    }
+    Ok(())
 }
 
 // Find the entries that are in HEAD but not in BASE
@@ -403,6 +490,15 @@ fn collect_modified_entries(
         }
     }
     Ok(())
+}
+
+fn read_dirs_from_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<HashSet<PathBuf>, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    let entries = reader.list_dirs()?;
+    Ok(HashSet::from_iter(entries.into_iter()))
 }
 
 fn read_entries_from_commit(
