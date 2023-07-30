@@ -49,7 +49,7 @@ repo.commit("Adding a new dog")
 
 The latest documentation can be found at [https://docs.oxen.ai](https://docs.oxen.ai).
 
-### ⭐️ Every GitHub Star Gives an Ox it's Wings
+### ⭐️ Every GitHub Star Gives an Ox its Wings
 
 No really.
 
@@ -654,7 +654,7 @@ If you use the `--combine` flag, oxen will concatenate the data frames and uniqu
 
 ## Content Hashing and Core Metadata Extraction
 
-Oxen uses some core metadata around the file to be able to version and transfer the data efficiently. Any time a file gets versioned, it's hash is computed and the contents is put into a content addressable filesystem. These files can be found in the hidden `.oxen` directory. For example a file with the hash `7f65e0e4bda0acc99c56ecacbe092141` will be stored in `.oxen/versions/files/7f/65e0e4bda0acc99c56ecacbe092141/` for fast random access given the hash.
+Oxen uses some core metadata around the file to be able to version and transfer the data efficiently. Any time a file gets versioned, its hash is computed and the contents is put into a content addressable filesystem. These files can be found in the hidden `.oxen` directory. For example a file with the hash `7f65e0e4bda0acc99c56ecacbe092141` will be stored in `.oxen/versions/files/7f/65e0e4bda0acc99c56ecacbe092141/` for fast random access given the hash.
 
 To find out more info about a file with the CLI you can use the `oxen info` command. For example:
 
