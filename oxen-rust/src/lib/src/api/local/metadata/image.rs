@@ -2,7 +2,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::{ImgColorSpace, MetadataImage};
+use crate::model::metadata::metadata_image::{ImgColorSpace, MetadataImage};
 
 use image::GenericImageView;
 use std::path::Path;

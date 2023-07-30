@@ -1,8 +1,7 @@
 //! Helper functions to get compute stats on images
 //!
 
-use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataImage;
+use crate::{error::OxenError, model::metadata::metadata_image::MetadataImage};
 
 // use magick_rust::{magick_wand_genesis, MagickWand};
 
