@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api;
 use crate::model::metadata::metadata_image::{ImgColorSpace, MetadataImage};
-use crate::model::{Commit, EntryDataType, LocalRepository, CommitEntry};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository};
 use crate::view::entry::ResourceVersion;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -78,10 +78,11 @@ pub struct MetadataEntry {
 }
 
 impl MetadataEntry {
-    pub fn from_commit_entry(repo: &LocalRepository, entry: Option<&CommitEntry>) -> Option<MetadataEntry> {
-        if entry.is_none() {
-            return None;
-        }
+    pub fn from_commit_entry(
+        repo: &LocalRepository,
+        entry: Option<&CommitEntry>,
+    ) -> Option<MetadataEntry> {
+        entry?;
         match api::local::metadata::from_commit_entry(repo, entry.unwrap()) {
             Ok(metadata) => Some(metadata),
             Err(_) => None,

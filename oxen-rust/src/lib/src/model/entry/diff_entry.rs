@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{EntryDataType, MetadataEntry, Commit};
+use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::view::entry::ResourceVersion;
 use crate::{
     api,
@@ -10,7 +10,7 @@ use crate::{
     util,
 };
 
-use super::diff_entry_changes::{SizeChange, CountChange};
+use super::diff_entry_changes::{CountChange, SizeChange};
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum DiffEntryStatus {
@@ -44,7 +44,6 @@ impl std::str::FromStr for DiffEntryStatus {
         }
     }
 }
-
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
@@ -103,7 +102,7 @@ impl DiffEntry {
             // }
         }
     }
-    
+
     pub fn from_commit_entry(
         repo: &LocalRepository,
         base_entry: Option<&CommitEntry>,
@@ -130,7 +129,7 @@ impl DiffEntry {
         let _size = SizeChange {
             base: 0,
             head: 0,
-            delta: 0
+            delta: 0,
         };
 
         let _file_counts = CountChange {
@@ -170,9 +169,13 @@ impl DiffEntry {
         })
     }
 
-    fn metadata_from_dir(repo: &LocalRepository, dir: Option<&PathBuf>, commit: &Commit) -> Option<MetadataEntry> {
+    fn metadata_from_dir(
+        repo: &LocalRepository,
+        dir: Option<&PathBuf>,
+        commit: &Commit,
+    ) -> Option<MetadataEntry> {
         if let Some(dir) = dir {
-            match api::local::entries::get_meta_entry(&repo, &commit, &dir) {
+            match api::local::entries::get_meta_entry(repo, commit, dir) {
                 Ok(entry) => Some(entry),
                 Err(_) => None,
             }

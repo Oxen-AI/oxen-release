@@ -19,6 +19,20 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// Returns the metadata given a file path
+pub async fn get_entry(
+    remote_repo: &RemoteRepository,
+    remote_path: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+) -> Result<MetadataEntry, OxenError> {
+    let remote_path = remote_path.as_ref();
+
+    let response = api::remote::metadata::get_file(remote_repo, &revision, &remote_path).await?;
+    let entry = response.entry;
+
+    Ok(entry)
+}
+
 /// Pings the remote server first to see if the entry exists
 /// and get the size before downloading
 pub async fn download_entry(
@@ -28,9 +42,7 @@ pub async fn download_entry(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     let remote_path = remote_path.as_ref();
-
-    let response = api::remote::metadata::get_file(remote_repo, &revision, &remote_path).await?;
-    let entry = response.entry;
+    let entry = get_entry(remote_repo, remote_path, &revision).await?;
     let remote_file_name = remote_path.file_name();
     let mut local_path = local_path.as_ref().to_path_buf();
 

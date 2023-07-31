@@ -133,7 +133,7 @@ impl Merger {
             head_commit
         );
 
-        let lca = self.lowest_common_ancestor_from_commits(reader, &base_commit, &head_commit)?;
+        let lca = self.lowest_common_ancestor_from_commits(reader, base_commit, head_commit)?;
 
         reader.history_from_base_to_head(&lca.id, &head_commit.id)
     }
