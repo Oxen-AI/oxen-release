@@ -1,28 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Commit, EntryDataType};
+use crate::api;
+use crate::model::metadata::metadata_image::{ImgColorSpace, MetadataImage};
+use crate::model::{Commit, EntryDataType, LocalRepository, CommitEntry};
 use crate::view::entry::ResourceVersion;
-
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
-pub enum ImgColorSpace {
-    // 8-bit
-    RGB,
-    RGBA,
-    Grayscale,
-    GrayscaleAlpha,
-
-    // 16-bit
-    Rgb16,
-    Rgba16,
-    Grayscale16,
-    GrayscaleAlpha16,
-
-    // 32-bit float
-    Rgb32F,
-    Rgba32F,
-
-    Unknown,
-}
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetadataText {
@@ -30,13 +11,6 @@ pub struct MetadataText {
     // pub num_words: usize,
     // pub num_chars: usize,
     // pub num_whitespace: usize,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataImage {
-    pub width: usize,
-    pub height: usize,
-    pub color_space: ImgColorSpace, // RGB, RGBA, etc.
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -101,4 +75,16 @@ pub struct MetadataEntry {
     pub mime_type: String,
     // auto detected extension of the file
     pub extension: String,
+}
+
+impl MetadataEntry {
+    pub fn from_commit_entry(repo: &LocalRepository, entry: Option<&CommitEntry>) -> Option<MetadataEntry> {
+        if entry.is_none() {
+            return None;
+        }
+        match api::local::metadata::from_commit_entry(repo, entry.unwrap()) {
+            Ok(metadata) => Some(metadata),
+            Err(_) => None,
+        }
+    }
 }

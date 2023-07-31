@@ -121,6 +121,23 @@ impl Merger {
         reader.history_from_base_to_head(&lca.id, &head_commit.id)
     }
 
+    pub fn list_commits_between_commits(
+        &self,
+        reader: &CommitReader,
+        base_commit: &Commit,
+        head_commit: &Commit,
+    ) -> Result<Vec<Commit>, OxenError> {
+        log::debug!(
+            "list_commits_between_commits() base: {:?} head: {:?}",
+            base_commit,
+            head_commit
+        );
+
+        let lca = self.lowest_common_ancestor_from_commits(reader, &base_commit, &head_commit)?;
+
+        reader.history_from_base_to_head(&lca.id, &head_commit.id)
+    }
+
     pub fn list_conflicts_between_commits(
         &self,
         commit_reader: &CommitReader,
