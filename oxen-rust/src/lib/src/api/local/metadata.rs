@@ -6,7 +6,7 @@ use crate::core::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::{CLIMetadataEntry, MetadataItem};
-use crate::model::{Commit, LocalRepository, MetadataEntry, CommitEntry};
+use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};
 use crate::util;
 
 use std::path::Path;
@@ -59,9 +59,15 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     })
 }
 
-pub fn from_commit_entry(repo: &LocalRepository, entry: &CommitEntry) -> Result<MetadataEntry, OxenError> {
+pub fn from_commit_entry(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+) -> Result<MetadataEntry, OxenError> {
     let path = util::fs::version_path(repo, entry);
-    let base_name = entry.path.file_name().ok_or(OxenError::file_has_no_name(&path))?;
+    let base_name = entry
+        .path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(&path))?;
     let size = get_file_size(&path)?;
     let mime_type = util::fs::file_mime_type(&path);
     let data_type = util::fs::datatype_from_mimetype(&path, mime_type.as_str());
