@@ -190,7 +190,7 @@ impl EntryIndexer {
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
 
         // Download the commits db
-        println!("🐂 fetching commits");
+        println!("🐂 fetching commits for branch {}", rb.branch);
         api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
 
         match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id).await {
