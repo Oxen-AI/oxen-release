@@ -306,10 +306,30 @@ pub fn list_diff_entries(
     let base_dirs = read_dirs_from_commit(repo, base_commit)?;
 
     let mut diff_entries: Vec<DiffEntry> = vec![];
-    collect_added_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
-    collect_removed_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
-    collect_modified_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
-
+    collect_added_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut diff_entries,
+    )?;
+    collect_removed_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut diff_entries,
+    )?;
+    collect_modified_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut diff_entries,
+    )?;
 
     collect_added_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
     collect_removed_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
@@ -523,7 +543,7 @@ mod tests {
     use crate::util;
 
     #[test]
-    fn test_list_diff_entries_add_multiple() -> Result<(), OxenError> {
+    fn test_diff_entries_add_multiple() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             // get og commit
             let base_commit = api::local::commits::head_commit(&repo)?;
@@ -539,16 +559,17 @@ mod tests {
             let head_commit = command::commit(&repo, "Adding two files")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
-            assert_eq!(2, entries.len());
-            assert_eq!(entries[0].status, DiffEntryStatus::Added.to_string());
-            assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(3, entries.len());
+            assert_eq!(DiffEntryStatus::Modified.to_string(), entries[0].status); // dir
+            assert_eq!(DiffEntryStatus::Added.to_string(), entries[1].status);
+            assert_eq!(DiffEntryStatus::Added.to_string(), entries[2].status);
 
             Ok(())
         })
     }
 
     #[test]
-    fn test_list_diff_entries_modify_one_tabular() -> Result<(), OxenError> {
+    fn test_diff_entries_modify_one_tabular() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -573,18 +594,19 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
-            assert_eq!(1, entries.len());
-            assert_eq!(
-                entries.first().unwrap().status,
-                DiffEntryStatus::Modified.to_string()
-            );
+
+            // Recursively marks parent dirs as modified
+            assert_eq!(4, entries.len());
+            for entry in entries.iter() {
+                assert_eq!(DiffEntryStatus::Modified.to_string(), entry.status);
+            }
 
             Ok(())
         })
     }
 
     #[tokio::test]
-    async fn test_list_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
+    async fn test_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -602,11 +624,15 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
-            assert_eq!(1, entries.len());
-            assert_eq!(
-                entries.first().unwrap().status,
-                DiffEntryStatus::Removed.to_string()
-            );
+
+            // it currently shows all the parent dirs as being modified
+            assert_eq!(4, entries.len());
+
+            for entry in entries.iter().take(3) {
+                assert_eq!(entry.status, DiffEntryStatus::Modified.to_string());
+            }
+
+            assert_eq!(entries[3].status, DiffEntryStatus::Removed.to_string());
 
             Ok(())
         })
@@ -614,7 +640,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
     }
 
     #[tokio::test]
-    async fn test_get_add_remove_modify_counts() -> Result<(), OxenError> {
+    async fn test_diff_get_add_remove_modify_counts() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
             // Get initial commit
             let base_commit = api::local::commits::head_commit(&repo)?;
@@ -643,7 +669,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             let counts = api::local::diff::get_add_remove_modify_counts(&entries);
 
-            assert_eq!(4, entries.len());
+            assert_eq!(6, entries.len());
             assert_eq!(2, counts.added);
             assert_eq!(1, counts.removed);
 
