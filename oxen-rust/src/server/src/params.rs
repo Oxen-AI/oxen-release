@@ -41,6 +41,7 @@ pub fn parse_resource(
         .ok_or(OxenError::path_does_not_exist(resource).into())
 }
 
+/// Split the base..head string into base and head strings
 pub fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {
     let mut split = base_head.split("..");
     if let (Some(base), Some(head)) = (split.next(), split.next()) {
@@ -62,6 +63,7 @@ pub fn resolve_base_head_branches(
     Ok((base, head))
 }
 
+/// Resolve the commits from the base and head strings (which can be either commit ids or branch names)
 pub fn resolve_base_head(
     repo: &LocalRepository,
     base: &str,

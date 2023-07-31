@@ -4,8 +4,10 @@ use crate::error::OxenError;
 use crate::model::entry::diff_entry::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
+use crate::view::compare::AddRemoveModifyCounts;
 use crate::{constants, util};
 
+use crate::core::index::CommitEntryReader;
 use colored::Colorize;
 use difference::{Changeset, Difference};
 use polars::export::ahash::HashMap;
@@ -13,8 +15,7 @@ use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-use crate::core::index::CommitEntryReader;
+use std::str::FromStr;
 
 pub fn diff(
     repo: &LocalRepository,
@@ -301,12 +302,118 @@ pub fn list_diff_entries(
     );
     let base_entries = read_entries_from_commit(repo, base_commit)?;
 
+    let head_dirs = read_dirs_from_commit(repo, head_commit)?;
+    let base_dirs = read_dirs_from_commit(repo, base_commit)?;
+
     let mut diff_entries: Vec<DiffEntry> = vec![];
+    collect_added_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
+    collect_removed_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
+    collect_modified_directories(repo, &base_dirs, base_commit, &head_dirs, head_commit, &mut diff_entries)?;
+
+
     collect_added_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
     collect_removed_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
     collect_modified_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
 
     Ok(diff_entries)
+}
+
+// TODO: linear scan is not the most efficient way to do this
+pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCounts {
+    let mut added = 0;
+    let mut removed = 0;
+    let mut modified = 0;
+    for entry in entries {
+        match DiffEntryStatus::from_str(&entry.status).unwrap() {
+            DiffEntryStatus::Added => added += 1,
+            DiffEntryStatus::Removed => removed += 1,
+            DiffEntryStatus::Modified => modified += 1,
+        }
+    }
+    AddRemoveModifyCounts {
+        added,
+        removed,
+        modified,
+    }
+}
+
+// Find the directories that are in HEAD but not in BASE
+fn collect_added_directories(
+    repo: &LocalRepository,
+    base_dirs: &HashSet<PathBuf>,
+    base_commit: &Commit,
+    head_dirs: &HashSet<PathBuf>,
+    head_commit: &Commit,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for head_dir in head_dirs {
+        // HEAD entry is *not* in BASE
+        if !base_dirs.contains(head_dir) {
+            diff_entries.push(DiffEntry::from_dir(
+                repo,
+                None,
+                base_commit,
+                Some(head_dir),
+                head_commit,
+                DiffEntryStatus::Added,
+            ));
+        }
+    }
+    Ok(())
+}
+
+// Find the directories that are in HEAD and are in BASE
+fn collect_modified_directories(
+    repo: &LocalRepository,
+    base_dirs: &HashSet<PathBuf>,
+    base_commit: &Commit,
+    head_dirs: &HashSet<PathBuf>,
+    head_commit: &Commit,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for head_dir in head_dirs {
+        // HEAD entry is in BASE
+        if base_dirs.contains(head_dir) {
+            let diff_entry = DiffEntry::from_dir(
+                repo,
+                Some(head_dir),
+                base_commit,
+                Some(head_dir),
+                head_commit,
+                DiffEntryStatus::Modified,
+            );
+
+            if diff_entry.has_changes() {
+                diff_entries.push(diff_entry);
+            }
+        }
+    }
+    Ok(())
+}
+
+// Find the directories that are in BASE but not in HEAD
+fn collect_removed_directories(
+    repo: &LocalRepository,
+    base_dirs: &HashSet<PathBuf>,
+    base_commit: &Commit,
+    head_dirs: &HashSet<PathBuf>,
+    head_commit: &Commit,
+    diff_entries: &mut Vec<DiffEntry>,
+) -> Result<(), OxenError> {
+    for base_dir in base_dirs {
+        // HEAD entry is *not* in BASE
+        if !head_dirs.contains(base_dir) {
+            diff_entries.push(DiffEntry::from_dir(
+                repo,
+                Some(base_dir),
+                base_commit,
+                None,
+                head_commit,
+                DiffEntryStatus::Removed,
+            ));
+        }
+    }
+    Ok(())
 }
 
 // Find the entries that are in HEAD but not in BASE
@@ -385,6 +492,15 @@ fn collect_modified_entries(
     Ok(())
 }
 
+fn read_dirs_from_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<HashSet<PathBuf>, OxenError> {
+    let reader = CommitEntryReader::new(repo, commit)?;
+    let entries = reader.list_dirs()?;
+    Ok(HashSet::from_iter(entries.into_iter()))
+}
+
 fn read_entries_from_commit(
     repo: &LocalRepository,
     commit: &Commit,
@@ -420,12 +536,12 @@ mod tests {
 
             command::add(&repo, &hello_file)?;
             command::add(&repo, &world_file)?;
-            let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
+            let head_commit = command::commit(&repo, "Adding two files")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(2, entries.len());
-            assert_eq!(entries[0].status, DiffEntryStatus::Added);
-            assert_eq!(entries[1].status, DiffEntryStatus::Added);
+            assert_eq!(entries[0].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
 
             Ok(())
         })
@@ -458,7 +574,10 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
-            assert_eq!(entries.first().unwrap().status, DiffEntryStatus::Modified);
+            assert_eq!(
+                entries.first().unwrap().status,
+                DiffEntryStatus::Modified.to_string()
+            );
 
             Ok(())
         })
@@ -484,7 +603,49 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
             assert_eq!(1, entries.len());
-            assert_eq!(entries.first().unwrap().status, DiffEntryStatus::Removed);
+            assert_eq!(
+                entries.first().unwrap().status,
+                DiffEntryStatus::Removed.to_string()
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_get_add_remove_modify_counts() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+            // Get initial commit
+            let base_commit = api::local::commits::head_commit(&repo)?;
+            // Add two files
+            let hello_file = repo.path.join("Hello.txt");
+            let world_file = repo.path.join("World.txt");
+            test::write_txt_file_to_path(&hello_file, "Hello")?;
+            test::write_txt_file_to_path(&world_file, "World")?;
+
+            command::add(&repo, &hello_file)?;
+            command::add(&repo, &world_file)?;
+            command::commit(&repo, "Removing a row from train bbox data")?;
+
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(&bbox_filename);
+
+            // Remove the file
+            util::fs::remove_file(bbox_file)?;
+
+            let opts = RmOpts::from_path(&bbox_filename);
+            command::rm(&repo, &opts).await?;
+            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+
+            let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            let counts = api::local::diff::get_add_remove_modify_counts(&entries);
+
+            assert_eq!(4, entries.len());
+            assert_eq!(2, counts.added);
+            assert_eq!(1, counts.removed);
 
             Ok(())
         })
