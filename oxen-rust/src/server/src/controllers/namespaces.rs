@@ -10,7 +10,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 
     let namespaces: Vec<NamespaceView> = api::local::namespaces::list(&app_data.path)
         .into_iter()
-        .map(|name| NamespaceView { name })
+        .map(|namespace| NamespaceView { namespace })
         .collect();
 
     let view = ListNamespacesResponse {

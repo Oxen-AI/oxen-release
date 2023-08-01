@@ -163,7 +163,7 @@ pub async fn transfer_namespace(
 ) -> Result<RemoteRepository, OxenError> {
     let url = api::endpoint::url_from_repo(repository, "/transfer")?;
     let params = serde_json::to_string(&NamespaceView {
-        name: to_namespace.to_string(),
+        namespace: to_namespace.to_string(),
     })?;
 
     let client = client::new_for_url(&url)?;
