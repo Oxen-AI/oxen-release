@@ -415,7 +415,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_empty_staging_dir_all_data_pushed() -> Result<(), OxenError> {
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
@@ -448,7 +448,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stage_single_file() -> Result<(), OxenError> {
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
@@ -493,7 +493,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rm_staged_file() -> Result<(), OxenError> {
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
@@ -549,7 +549,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stage_multiple_files() -> Result<(), OxenError> {
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-data";
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
@@ -597,7 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_commit_staged_single_file_and_pull() -> Result<(), OxenError> {
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-data";
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
@@ -668,7 +668,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_commit_staged_multiple_files() -> Result<(), OxenError> {
-        test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-data";
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
