@@ -1,5 +1,6 @@
 example_id                                                    | status | run_time             |
 ------------------------------------------------------------- | ------ | -------------------- |
+./spec/spec_local/local_rm_spec.rb[1:1]                       | failed | 7.19 seconds         |
 ./spec/spec_remote_hub/remote_hub_add_df_row_spec.rb[1:1]     | passed | 12 seconds           |
 ./spec/spec_remote_hub/remote_hub_add_image_spec.rb[1:1]      | passed | 8.41 seconds         |
 ./spec/spec_remote_hub/remote_hub_deep_clone_spec.rb[1:1]     | passed | 5.41 seconds         |

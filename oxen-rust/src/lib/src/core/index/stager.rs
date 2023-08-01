@@ -36,6 +36,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::time::Instant;
 
 use super::StagedDirEntryReader;
 
@@ -122,6 +123,8 @@ impl Stager {
         commit_reader: &CommitEntryReader,
         ignore: &Option<Gitignore>,
     ) -> Result<(), OxenError> {
+        // Get start time 
+        let start = std::time::Instant::now();
         if self.repository.is_shallow_clone() {
             return Err(OxenError::repo_is_shallow());
         }
@@ -143,8 +146,13 @@ impl Stager {
             return Ok(());
         }
 
+        // Log time since start
+
         // If it doesn't exist on disk, it might have been removed, and we can't tell if it is a file or dir
         // so we have to check if it is committed, and what the backup version is
+        
+
+
         if !path.exists() {
             let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
             log::debug!(
@@ -164,23 +172,39 @@ impl Stager {
                 relative_path
             );
             if !files_in_dir.is_empty() {
+                // Get new start time
+                let start = std::time::Instant::now();
                 println!("Removing {} files", files_in_dir.len());
-                let pb = ProgressBar::new(files_in_dir.len() as u64);
-                for entry in files_in_dir.iter() {
-                    self.add_removed_file(&entry.path, entry)?;
-                    pb.inc(1);
-                }
-                pb.finish();
+                // let pb = ProgressBar::new(files_in_dir.len() as u64);
+                // for entry in files_in_dir.par_iter() {
+                //     self.add_removed_file(&entry.path, entry)?;
+                //     pb.inc(1);
+                // }
+                files_in_dir.par_iter().for_each(|entry| {
+                    self.add_removed_file(&entry.path, entry).unwrap();
+                    // pb.inc(1);
+                });
+
+                // pb.finish();
 
                 log::debug!(
                     "Stager.add() !path.exists() !files_in_dir.is_empty() {:?}",
                     path
                 );
+                // Log time since start
+                log::debug!("Time elapsed during iter piece {:?}", start.elapsed());
                 return Ok(());
             }
         }
 
+
+        // new start time
+
         log::debug!("Stager.add() is_dir? {} path: {:?}", path.is_dir(), path);
+        // Log time since start
+        log::debug!("Time elapsed during entire add block{:?}", start.elapsed());
+
+        // New start time 
         if path.is_dir() {
             match self.add_dir(path, commit_reader) {
                 Ok(_) => Ok(()),
@@ -188,10 +212,11 @@ impl Stager {
             }
         } else {
             match self.add_file(path, commit_reader) {
-                Ok(_) => Ok(()),
+                Ok(_) => return Ok(()),
                 Err(err) => Err(err),
             }
         }
+
     }
 
     pub fn status(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
@@ -525,7 +550,7 @@ impl Stager {
             let short_path = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Removed)?;
 
-            let staged_dir: StagedDirEntryDB<SingleThreaded> =
+            let staged_dir: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, parent)?;
             staged_dir.add_removed_file(filename, entry)
         } else {
@@ -635,11 +660,14 @@ impl Stager {
     }
 
     pub fn add_dir(&self, dir: &Path, entry_reader: &CommitEntryReader) -> Result<(), OxenError> {
+        let start = Instant::now();
         if !dir.exists() || !dir.is_dir() {
             let err = format!("Cannot stage non-existant dir: {dir:?}");
             return Err(OxenError::basic_str(err));
         }
 
+        // Start time 
+        
         // add the the directory to list of dirs we are tracking so that when we find untracked files
         // they are added to the list
         let short_path = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
@@ -688,6 +716,10 @@ impl Stager {
         });
 
         bar.finish();
+
+        // Log time since start
+        let duration = start.elapsed();
+        log::debug!("Time elapsed during add_dir {:?}", duration);
 
         Ok(())
     }

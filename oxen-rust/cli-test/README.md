@@ -27,3 +27,17 @@ $ bundle exec rspec spec/spec_remote_hub/remote_hub_remove_image_spec.rb
 - Long setup times - will be improved substantially w/ Oxen 0.7.0
 - Redundant setup / teardown steps - need to further investigate ways to create better fixtures in aruba
 - Performance metrics currently only printed to console - TODO create oxen-native report and clean up console output
+
+## Setup for running local tests 
+### CatDogBBox
+
+In fixtures directory: 
+```bash 
+oxen clone https://hub.oxen.ai/ox/CatVsDogBoundingBox
+```
+
+Then from `fixtures` (for testing removals...)
+```bash
+mkdir CatDog-replacement-images
+cp CatVsDogBoundingBox/images/* CatDog-replacement-images
+```
