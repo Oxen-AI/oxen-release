@@ -102,6 +102,7 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
             status: StagedEntryStatus::Removed,
         };
 
+        log::debug!("INTERIOR about to put {:?} as removed into {:?} with entry {:?}", path, self.db, entry);
         path_db::put(&self.db, path, &entry)?;
 
         Ok(entry)
