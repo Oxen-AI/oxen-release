@@ -15,6 +15,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .route(web::get().to(controllers::repositories::show))
                 .route(web::delete().to(controllers::repositories::delete)),
         )
+        .route(
+            "/{namespace}/{repo_name}/transfer",
+            web::patch().to(controllers::repositories::transfer_namespace),
+        )
         // ----- Commits ----- //
         .route(
             "/{namespace}/{repo_name}/commits",

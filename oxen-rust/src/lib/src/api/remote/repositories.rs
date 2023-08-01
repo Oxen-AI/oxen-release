@@ -3,7 +3,7 @@ use crate::api::remote::client;
 use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
-use crate::view::{RepositoryResolveResponse, RepositoryResponse, StatusMessage};
+use crate::view::{NamespaceView, RepositoryResolveResponse, RepositoryResponse, StatusMessage};
 use serde_json::json;
 
 /// Gets remote "origin" that is set on the local repo
@@ -191,6 +191,52 @@ pub async fn delete(repository: &RemoteRepository) -> Result<StatusMessage, Oxen
     }
 }
 
+pub async fn transfer_namespace(
+    repository: &RemoteRepository,
+    to_namespace: &str,
+) -> Result<RemoteRepository, OxenError> {
+    let url = api::endpoint::url_from_repo(repository, "/transfer")?;
+    let params = serde_json::to_string(&NamespaceView {
+        namespace: to_namespace.to_string(),
+    })?;
+
+    let client = client::new_for_url(&url)?;
+
+    if let Ok(res) = client.patch(&url).body(params).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+
+        match response {
+            Ok(response) => {
+                // Update remote to reflect new namespace
+                let host = api::remote::client::get_host_from_url(&repository.remote.url)?;
+                let new_remote_url = api::endpoint::remote_url_from_host(
+                    &host,
+                    &response.repository.namespace,
+                    &repository.name,
+                );
+                let new_remote = Remote {
+                    url: new_remote_url,
+                    name: repository.remote.name.clone(),
+                };
+
+                Ok(RemoteRepository::from_view(
+                    &response.repository,
+                    &new_remote,
+                ))
+            }
+            Err(err) => {
+                let err = format!("Could not transfer repository: {err}\n{body}");
+                Err(OxenError::basic_str(err))
+            }
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::repositories::transfer_namespace() Request failed",
+        ))
+    }
+}
+
 pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
     log::debug!("api::remote::repositories::resolve_api_url({})", url);
     let client = client::new_for_url(url)?;
@@ -287,6 +333,30 @@ mod tests {
             let result = api::remote::repositories::get_by_remote_repo(&repository).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_transfer_remote_repository() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let namespace = constants::DEFAULT_NAMESPACE;
+            let name = local_repo.dirname();
+            let repository =
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
+                    .await?;
+
+            let new_namespace = "new-namespace";
+            let new_repository =
+                api::remote::repositories::transfer_namespace(&repository, new_namespace).await?;
+
+            assert_eq!(new_repository.namespace, new_namespace);
+            assert_eq!(new_repository.name, name);
+
+            // Delete repo - cleanup + check for correct remote namespace transferg
+            api::remote::repositories::delete(&new_repository).await?;
 
             Ok(())
         })

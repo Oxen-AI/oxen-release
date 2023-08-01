@@ -5,7 +5,7 @@ use super::StatusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NamespaceView {
-    pub name: String,
+    pub namespace: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
