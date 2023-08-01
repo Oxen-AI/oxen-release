@@ -172,9 +172,11 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
     let db: DBWithThreadMode<MultiThreaded> = get_db_connection(repo, commit)?;
 
     for (name, cacher) in CACHERS.iter() {
+        log::debug!("run_all running {:?}", name);
         // Skip ones that are already cached successfully
         if let Some(val) = str_json_db::get::<MultiThreaded, &str, CacherStatus>(&db, name)? {
             if CacherStatusType::Success == val.status && !force {
+                log::debug!("run_all skipping {:?}", name);
                 continue;
             }
         }
@@ -188,6 +190,7 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
             Ok(_) => {
                 let status_success = CacherStatus::success();
                 str_json_db::put(&db, name, &status_success)?;
+                log::debug!("run_all done running {:?}", name);
             }
             Err(err) => {
                 let err = format!("{err}");

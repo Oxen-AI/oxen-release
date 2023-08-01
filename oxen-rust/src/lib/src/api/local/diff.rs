@@ -1,7 +1,7 @@
 use crate::core::df::tabular;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
-use crate::model::entry::diff_entry::DiffEntryStatus;
+use crate::model::entry::diff_entry_status::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
@@ -344,6 +344,10 @@ pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCou
     let mut removed = 0;
     let mut modified = 0;
     for entry in entries {
+        if entry.is_dir {
+            continue;
+        }
+
         match DiffEntryStatus::from_str(&entry.status).unwrap() {
             DiffEntryStatus::Added => added += 1,
             DiffEntryStatus::Removed => removed += 1,
@@ -518,7 +522,9 @@ fn read_dirs_from_commit(
 ) -> Result<HashSet<PathBuf>, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     let entries = reader.list_dirs()?;
-    Ok(HashSet::from_iter(entries.into_iter()))
+    Ok(HashSet::from_iter(
+        entries.into_iter().filter(|p| p != Path::new("")),
+    ))
 }
 
 fn read_entries_from_commit(
@@ -537,14 +543,14 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::error::OxenError;
-    use crate::model::entry::diff_entry::DiffEntryStatus;
+    use crate::model::entry::diff_entry_status::DiffEntryStatus;
     use crate::opts::RmOpts;
     use crate::test;
     use crate::util;
 
     #[test]
     fn test_diff_entries_add_multiple() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+        test::run_bounding_box_csv_repo_test_fully_committed(|repo| {
             // get og commit
             let base_commit = api::local::commits::head_commit(&repo)?;
 
@@ -559,10 +565,9 @@ mod tests {
             let head_commit = command::commit(&repo, "Adding two files")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
-            assert_eq!(3, entries.len());
-            assert_eq!(DiffEntryStatus::Modified.to_string(), entries[0].status); // dir
+            assert_eq!(2, entries.len());
+            assert_eq!(DiffEntryStatus::Added.to_string(), entries[0].status);
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[1].status);
-            assert_eq!(DiffEntryStatus::Added.to_string(), entries[2].status);
 
             Ok(())
         })
@@ -570,7 +575,7 @@ mod tests {
 
     #[test]
     fn test_diff_entries_modify_one_tabular() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
+        test::run_bounding_box_csv_repo_test_fully_committed(|repo| {
             let bbox_filename = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -596,7 +601,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
 
             // Recursively marks parent dirs as modified
-            assert_eq!(4, entries.len());
+            assert_eq!(3, entries.len());
             for entry in entries.iter() {
                 assert_eq!(DiffEntryStatus::Modified.to_string(), entry.status);
             }
@@ -607,7 +612,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
     #[tokio::test]
     async fn test_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
             let bbox_filename = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -624,15 +629,15 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
-
-            // it currently shows all the parent dirs as being modified
-            assert_eq!(4, entries.len());
-
-            for entry in entries.iter().take(3) {
-                assert_eq!(entry.status, DiffEntryStatus::Modified.to_string());
+            for entry in entries.iter().enumerate() {
+                println!("entry {}: {:?}", entry.0, entry.1);
             }
 
-            assert_eq!(entries[3].status, DiffEntryStatus::Removed.to_string());
+            // it currently shows all the parent dirs as being modified
+            assert_eq!(3, entries.len());
+
+            assert_eq!(entries[1].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[2].status, DiffEntryStatus::Removed.to_string());
 
             Ok(())
         })
@@ -641,7 +646,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
     #[tokio::test]
     async fn test_diff_get_add_remove_modify_counts() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
             // Get initial commit
             let base_commit = api::local::commits::head_commit(&repo)?;
             // Add two files
@@ -667,9 +672,13 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
             let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            for entry in entries.iter().enumerate() {
+                println!("entry {}: {:?}", entry.0, entry.1);
+            }
+
             let counts = api::local::diff::get_add_remove_modify_counts(&entries);
 
-            assert_eq!(6, entries.len());
+            assert_eq!(5, entries.len());
             assert_eq!(2, counts.added);
             assert_eq!(1, counts.removed);
 
