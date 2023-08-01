@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
-        LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry, SummarizedStagedDirStats,
+        metadata::metadata_entry_type::EntryTypeMetadata, LocalRepository, MetadataEntry, ModEntry,
+        StagedData, StagedEntry, SummarizedStagedDirStats,
     },
     util,
 };
@@ -114,14 +115,16 @@ impl RemoteStagedStatus {
                     data_type: util::fs::file_data_type(&full_path),
                     mime_type: util::fs::file_mime_type(&full_path),
                     extension: util::fs::file_extension(&full_path),
-                    resource: None, // not committed so does not have a resource
-                                    // meta: MetadataItem {
-                                    //     text: None,
-                                    //     image: None,
-                                    //     video: None,
-                                    //     audio: None,
-                                    //     tabular: None,
-                                    // },
+                    // not committed so does not have a resource or meta data computed
+                    resource: None,
+                    metadata: EntryTypeMetadata {
+                        dir: None,
+                        text: None,
+                        image: None,
+                        video: None,
+                        audio: None,
+                        tabular: None,
+                    },
                 }
             })
             .collect()

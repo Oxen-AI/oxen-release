@@ -1,7 +1,7 @@
-use crate::model::{CommitEntry, MetadataEntry, RemoteEntry};
+use crate::model::{metadata::MetadataDir, CommitEntry, MetadataEntry, RemoteEntry};
 use serde::{Deserialize, Serialize};
 
-use super::{JsonDataFrame, StatusMessage};
+use super::StatusMessage;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EntryResponse {
@@ -44,16 +44,10 @@ pub struct PaginatedEntries {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct DirectoryMetadata {
-    pub data_types: JsonDataFrame,
-    pub mime_types: JsonDataFrame,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntries {
     pub entries: Vec<MetadataEntry>,
     pub resource: Option<ResourceVersion>,
-    pub metadata: Option<DirectoryMetadata>,
+    pub metadata: Option<MetadataDir>,
     pub page_size: usize,
     pub page_number: usize,
     pub total_pages: usize,

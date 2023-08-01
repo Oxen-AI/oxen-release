@@ -2,7 +2,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataText;
+use crate::model::metadata::MetadataText;
 use crate::util;
 
 use std::path::Path;
@@ -18,7 +18,7 @@ pub fn run(path: &Path) -> Result<serde_json::Value, OxenError> {
 #[cfg(test)]
 mod tests {
     use crate::core::metadata::text;
-    use crate::model::entry::metadata_entry::MetadataText;
+    use crate::model::metadata::MetadataText;
     use crate::test;
 
     #[test]

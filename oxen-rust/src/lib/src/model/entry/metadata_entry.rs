@@ -1,49 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api;
-use crate::model::metadata::metadata_image::{ImgColorSpace, MetadataImage};
+use crate::model::metadata::metadata_entry_type::EntryTypeMetadata;
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository};
 use crate::view::entry::ResourceVersion;
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataText {
-    pub num_lines: usize,
-    // pub num_words: usize,
-    // pub num_chars: usize,
-    // pub num_whitespace: usize,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataVideo {
-    pub num_seconds: f64,
-    pub width: usize,
-    pub height: usize,
-    pub color_space: ImgColorSpace, // RGB, RGBA, etc.
-    pub format: String,             // mp4, etc.
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataAudio {
-    pub num_seconds: f64,
-    pub format: String, // mp3, etc.
-    pub num_channels: usize,
-    pub sample_rate: usize,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataTabular {
-    pub width: usize,
-    pub height: usize,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct MetadataItem {
-    pub text: Option<MetadataText>,
-    pub image: Option<MetadataImage>,
-    pub video: Option<MetadataVideo>,
-    pub audio: Option<MetadataAudio>,
-    pub tabular: Option<MetadataTabular>,
-}
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CLIMetadataEntry {
@@ -75,6 +35,8 @@ pub struct MetadataEntry {
     pub mime_type: String,
     // auto detected extension of the file
     pub extension: String,
+    // metadata per data tyoe
+    pub metadata: EntryTypeMetadata,
 }
 
 impl MetadataEntry {
