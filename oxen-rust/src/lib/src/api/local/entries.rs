@@ -2,9 +2,11 @@
 //!
 
 use crate::error::OxenError;
+use crate::model::metadata::metadata_entry_type::EntryTypeMetadata;
+use crate::model::metadata::MetadataDir;
 use crate::opts::DFOpts;
-use crate::util;
-use crate::view::entry::{DirectoryMetadata, ResourceVersion};
+use crate::view::entry::ResourceVersion;
+use crate::{api, util};
 use rayon::prelude::*;
 
 use crate::core;
@@ -70,6 +72,8 @@ pub fn meta_entry_from_dir(
         }
     };
 
+    let dir_metadata = api::local::entries::get_dir_entry_metadata(repo, commit, path);
+
     let base_name = path.file_name().unwrap_or(std::ffi::OsStr::new(""));
     return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
@@ -83,13 +87,14 @@ pub fn meta_entry_from_dir(
             version: revision.to_string(),
             path: String::from(path.to_string_lossy()),
         }),
-        // meta: MetadataItem {
-        //     text: None,
-        //     image: None,
-        //     video: None,
-        //     audio: None,
-        //     tabular: None,
-        // },
+        metadata: EntryTypeMetadata {
+            dir: dir_metadata,
+            text: None,
+            image: None,
+            video: None,
+            audio: None,
+            tabular: None,
+        },
     });
 }
 
@@ -176,13 +181,15 @@ pub fn meta_entry_from_commit_entry(
             version: revision.to_string(),
             path: String::from(entry.path.to_string_lossy()),
         }),
-        // meta: MetadataItem {
-        //     text: None,
-        //     image: None,
-        //     video: None,
-        //     audio: None,
-        //     tabular: None,
-        // },
+        // Not applicable for files YET, but we will also compute this metadata
+        metadata: EntryTypeMetadata {
+            dir: None,
+            text: None,
+            image: None,
+            video: None,
+            audio: None,
+            tabular: None,
+        },
     });
 }
 
@@ -316,37 +323,7 @@ pub fn list_directory(
         total_pages,
     );
 
-    let data_types_path =
-        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "data_type");
-
-    let mime_types_path =
-        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
-
-    log::debug!(
-        "list_directory reading data types from {}",
-        data_types_path.display()
-    );
-    let metadata = if let Ok(mut data_type_df) =
-        core::df::tabular::read_df(&data_types_path, DFOpts::empty())
-    {
-        log::debug!(
-            "list_directory reading mime types from {}",
-            mime_types_path.display()
-        );
-        if let Ok(mut mime_type_df) = core::df::tabular::read_df(&mime_types_path, DFOpts::empty())
-        {
-            Some(DirectoryMetadata {
-                data_types: JsonDataFrame::from_df(&mut data_type_df),
-                mime_types: JsonDataFrame::from_df(&mut mime_type_df),
-            })
-        } else {
-            log::warn!("Unable to read {mime_types_path:?}");
-            None
-        }
-    } else {
-        log::warn!("Unable to read {data_types_path:?}");
-        None
-    };
+    let metadata = get_dir_entry_metadata(repo, commit, directory);
 
     Ok(PaginatedDirEntries {
         entries,
@@ -357,6 +334,42 @@ pub fn list_directory(
         total_pages,
         total_entries: total,
     })
+}
+
+pub fn get_dir_entry_metadata(
+    repo: &LocalRepository,
+    commit: &Commit,
+    directory: &Path,
+) -> Option<MetadataDir> {
+    let data_types_path =
+        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "data_type");
+
+    let mime_types_path =
+        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
+
+    log::debug!(
+        "list_directory reading data types from {}",
+        data_types_path.display()
+    );
+    if let Ok(mut data_type_df) = core::df::tabular::read_df(&data_types_path, DFOpts::empty()) {
+        log::debug!(
+            "list_directory reading mime types from {}",
+            mime_types_path.display()
+        );
+        if let Ok(mut mime_type_df) = core::df::tabular::read_df(&mime_types_path, DFOpts::empty())
+        {
+            Some(MetadataDir {
+                data_types: JsonDataFrame::from_df(&mut data_type_df),
+                mime_types: JsonDataFrame::from_df(&mut mime_type_df),
+            })
+        } else {
+            log::warn!("Unable to read {mime_types_path:?}");
+            None
+        }
+    } else {
+        log::warn!("Unable to read {data_types_path:?}");
+        None
+    }
 }
 
 /// Given a list of entries, compute the total in bytes size of all entries.

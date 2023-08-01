@@ -1,7 +1,7 @@
 use crate::core::df::tabular;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
-use crate::model::entry::diff_entry::DiffEntryStatus;
+use crate::model::entry::diff_entry_status::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
@@ -543,7 +543,7 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::error::OxenError;
-    use crate::model::entry::diff_entry::DiffEntryStatus;
+    use crate::model::entry::diff_entry_status::DiffEntryStatus;
     use crate::opts::RmOpts;
     use crate::test;
     use crate::util;

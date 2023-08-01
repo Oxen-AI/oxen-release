@@ -1,8 +1,7 @@
 //! Helper functions to get metadata from audio files.
 //!
 
-use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataAudio;
+use crate::{error::OxenError, model::metadata::MetadataAudio};
 
 use std::path::Path;
 // use std::sync::Once;

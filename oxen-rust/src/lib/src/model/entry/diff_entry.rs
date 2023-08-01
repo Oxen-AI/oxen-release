@@ -11,39 +11,7 @@ use crate::{
 };
 
 use super::diff_entry_changes::{CountChange, SizeChange};
-
-#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
-pub enum DiffEntryStatus {
-    Added,
-    Modified,
-    Removed,
-}
-
-// Downcase the status
-impl std::fmt::Display for DiffEntryStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let status = match self {
-            DiffEntryStatus::Added => "added",
-            DiffEntryStatus::Modified => "modified",
-            DiffEntryStatus::Removed => "removed",
-        };
-        write!(f, "{}", status)
-    }
-}
-
-// implement from_str for DiffEntryStatus
-impl std::str::FromStr for DiffEntryStatus {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "added" => Ok(DiffEntryStatus::Added),
-            "modified" => Ok(DiffEntryStatus::Modified),
-            "removed" => Ok(DiffEntryStatus::Removed),
-            _ => Err(format!("Could not parse {} as a DiffEntryStatus", s)),
-        }
-    }
-}
+use super::diff_entry_status::DiffEntryStatus;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
@@ -52,11 +20,13 @@ pub struct DiffEntry {
     pub filename: String,
     pub is_dir: bool,
     pub size: u64,
+    // Resource
     pub head_resource: Option<ResourceVersion>,
     pub base_resource: Option<ResourceVersion>,
+
+    // Entry
     pub head_entry: Option<MetadataEntry>,
     pub base_entry: Option<MetadataEntry>,
-    // pub diff: DiffEntryChanges
 }
 
 impl DiffEntry {
@@ -96,10 +66,6 @@ impl DiffEntry {
             base_resource: DiffEntry::resource_from_dir(base_dir, base_commit),
             head_entry,
             base_entry,
-            // diff: DiffEntryChanges {
-            //     size,
-            //     file_counts
-            // }
         }
     }
 
@@ -148,10 +114,6 @@ impl DiffEntry {
             base_resource: DiffEntry::resource_from_entry(base_entry),
             head_entry: MetadataEntry::from_commit_entry(repo, head_entry),
             base_entry: MetadataEntry::from_commit_entry(repo, base_entry),
-            // diff: DiffEntryChanges {
-            //     size,
-            //     file_counts
-            // }
         }
     }
 
