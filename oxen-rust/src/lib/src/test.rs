@@ -449,6 +449,53 @@ where
     Ok(())
 }
 
+/// Same as run_remote_repo_test_all_data_pushed but with just one file
+pub async fn run_remote_repo_test_bounding_box_csv_pushed<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let empty_dir = create_empty_dir(test_run_dir())?;
+    let name = format!("repo_{}", uuid::Uuid::new_v4());
+    let path = empty_dir.join(name);
+    let mut local_repo = command::init(&path)?;
+
+    // Write all the files
+    create_bounding_box_csv(&local_repo.path)?;
+    command::add(&local_repo, &local_repo.path)?;
+    command::commit(&local_repo, "Adding bounding box csv")?;
+
+    // Set the proper remote
+    let remote = repo_remote_url_from(&local_repo.dirname());
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+    // Create remote repo
+    let repo = create_remote_repo(&local_repo).await?;
+
+    command::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_repo) => {
+            // TODO: Cleanup remote repo
+            // this was failing
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Cleanup Local
+    util::fs::remove_dir_all(path)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Run a test on a repo with a bunch of filees
 pub async fn run_training_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -507,7 +554,7 @@ where
     Ok(())
 }
 
-/// Run a test on a repo with a bunch of filees
+/// Run a test on a repo with a bunch of files
 pub async fn run_training_data_repo_test_fully_committed_async<T, Fut>(
     test: T,
 ) -> Result<(), OxenError>
@@ -536,6 +583,110 @@ where
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+fn create_bounding_box_csv(repo_path: &Path) -> Result<(), OxenError> {
+    let dir = repo_path.join("annotations").join("train");
+    // Create dir
+    util::fs::create_dir_all(&dir)?;
+
+    // Write all the files
+    write_txt_file_to_path(
+        dir.join("bounding_box.csv"),
+        r#"file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+train/dog_1.jpg,dog,102.5,31.0,386,330
+train/dog_2.jpg,dog,7.0,29.5,246,247
+train/dog_3.jpg,dog,19.0,63.5,376,421
+train/cat_1.jpg,cat,57.0,35.5,304,427
+train/cat_2.jpg,cat,30.5,44.0,333,396
+"#,
+    )?;
+
+    Ok(())
+}
+
+pub async fn run_bounding_box_csv_repo_test_fully_committed_async<T, Fut>(
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    create_bounding_box_csv(&repo.path)?;
+    // Add all the files
+    command::add(&repo, &repo.path)?;
+
+    // Make it easy to find these schemas during testing
+    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schemas::set_name(
+        &repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
+
+    command::commit(&repo, "adding all data baby")?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+/// Run a test on a repo with just a nested annotations/train/bounding_box.csv file
+pub fn run_bounding_box_csv_repo_test_fully_committed<T>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Add all the files
+    create_bounding_box_csv(&repo.path)?;
+    command::add(&repo, &repo.path)?;
+
+    // Make it easy to find these schemas during testing
+    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
+    command::schemas::set_name(
+        &repo,
+        "34a3b58f5471d7ae9580ebcf2582be2f",
+        "text_classification",
+    )?;
+
+    command::commit(&repo, "adding all data baby")?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo) {
         Ok(_) => true,
         Err(err) => {
             eprintln!("Error running test. Err: {err}");
@@ -866,17 +1017,7 @@ train/cat_2.jpg 1
     "#,
     )?;
 
-    write_txt_file_to_path(
-        train_annotations_dir.join("bounding_box.csv"),
-        r#"file,label,min_x,min_y,width,height
-train/dog_1.jpg,dog,101.5,32.0,385,330
-train/dog_1.jpg,dog,102.5,31.0,386,330
-train/dog_2.jpg,dog,7.0,29.5,246,247
-train/dog_3.jpg,dog,19.0,63.5,376,421
-train/cat_1.jpg,cat,57.0,35.5,304,427
-train/cat_2.jpg,cat,30.5,44.0,333,396
-"#,
-    )?;
+    create_bounding_box_csv(repo_dir)?;
 
     write_txt_file_to_path(
         train_annotations_dir.join("one_shot.csv"),

@@ -3,7 +3,7 @@
 
 use crate::core::df::tabular;
 use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataTabular;
+use crate::model::metadata::MetadataTabular;
 use crate::opts::DFOpts;
 
 use std::path::Path;

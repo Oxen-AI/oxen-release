@@ -1,8 +1,7 @@
 //! Helper functions to get metadata from the video files.
 //!
 
-use crate::error::OxenError;
-use crate::model::entry::metadata_entry::MetadataVideo;
+use crate::{error::OxenError, model::metadata::MetadataVideo};
 
 use std::path::Path;
 // use std::sync::Once;

@@ -63,7 +63,7 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
-    test::run_remote_repo_test_all_data_pushed(|remote_repo| async move {
+    test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
         // Create branch behind-main off main
         let new_branch = "behind-main";
         let main_branch = "main";
