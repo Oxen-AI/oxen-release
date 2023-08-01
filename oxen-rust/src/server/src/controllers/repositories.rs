@@ -159,7 +159,7 @@ pub async fn transfer_namespace(
     let from_namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let data: NamespaceView = serde_json::from_str(&body)?;
-    let to_namespace = data.name;
+    let to_namespace = data.namespace;
     api::local::repositories::transfer_namespace(
         &app_data.path,
         &name,
@@ -267,7 +267,7 @@ mod tests {
 
     use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{Commit, Namespace, RepositoryNew};
+    use liboxen::model::{Commit, RepositoryNew};
     use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
@@ -399,7 +399,7 @@ mod tests {
         let req = test::repo_request(&sync_dir, &uri, namespace, name);
 
         let params = NamespaceView {
-            name: new_namespace.to_string(),
+            namespace: new_namespace.to_string(),
         };
         let resp =
             controllers::repositories::transfer_namespace(req, serde_json::to_string(&params)?)
