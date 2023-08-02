@@ -79,16 +79,21 @@ pub async fn entries(
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
-    let entries = api::local::diff::list_diff_entries(&repository, &base_commit, &head_commit)?;
-    // Get add/remove/modify counts
-    let counts = api::local::diff::get_add_remove_modify_counts(&entries);
+    let entries_diff = api::local::diff::list_diff_entries(
+        &repository,
+        &base_commit,
+        &head_commit,
+        page,
+        page_size,
+    )?;
+    let entries = entries_diff.entries;
+    let pagination = entries_diff.pagination;
 
-    let (paginated, pagination) = util::paginate(entries, page, page_size);
     let compare = CompareEntries {
         base_commit,
         head_commit,
-        counts,
-        entries: paginated,
+        counts: entries_diff.counts,
+        entries,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),

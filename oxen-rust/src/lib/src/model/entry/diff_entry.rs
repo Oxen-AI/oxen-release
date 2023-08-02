@@ -71,17 +71,19 @@ impl DiffEntry {
 
     pub fn from_commit_entry(
         repo: &LocalRepository,
-        base_entry: Option<&CommitEntry>,
-        head_entry: Option<&CommitEntry>,
+        base_entry: Option<CommitEntry>,
+        base_commit: &Commit, // pass in commit objects for speed so we don't have to lookup later
+        head_entry: Option<CommitEntry>,
+        head_commit: &Commit,
         status: DiffEntryStatus,
     ) -> DiffEntry {
         // Need to check whether we have the head or base entry to check data about the file
-        let (current_entry, version_path) = if let Some(entry) = head_entry {
-            (entry, util::fs::version_path(repo, head_entry.unwrap()))
+        let (current_entry, version_path) = if let Some(entry) = &head_entry {
+            (entry.clone(), util::fs::version_path(repo, entry))
         } else {
             (
-                base_entry.unwrap(),
-                util::fs::version_path(repo, base_entry.unwrap()),
+                base_entry.clone().unwrap(),
+                util::fs::version_path(repo, &base_entry.clone().unwrap()),
             )
         };
 
@@ -110,14 +112,14 @@ impl DiffEntry {
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
             is_dir: false,
             size: current_entry.num_bytes,
-            head_resource: DiffEntry::resource_from_entry(head_entry),
-            base_resource: DiffEntry::resource_from_entry(base_entry),
-            head_entry: MetadataEntry::from_commit_entry(repo, head_entry),
-            base_entry: MetadataEntry::from_commit_entry(repo, base_entry),
+            head_resource: DiffEntry::resource_from_entry(head_entry.clone()),
+            base_resource: DiffEntry::resource_from_entry(base_entry.clone()),
+            head_entry: MetadataEntry::from_commit_entry(repo, head_entry, head_commit),
+            base_entry: MetadataEntry::from_commit_entry(repo, base_entry, base_commit),
         }
     }
 
-    fn resource_from_entry(entry: Option<&CommitEntry>) -> Option<ResourceVersion> {
+    fn resource_from_entry(entry: Option<CommitEntry>) -> Option<ResourceVersion> {
         entry.map(|entry| ResourceVersion {
             version: entry.commit_id.to_string(),
             path: entry.path.as_os_str().to_str().unwrap().to_string(),

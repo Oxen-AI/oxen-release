@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::core::df::tabular;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
@@ -5,6 +7,7 @@ use crate::model::entry::diff_entry_status::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
+use crate::view::Pagination;
 use crate::{constants, util};
 
 use crate::core::index::CommitEntryReader;
@@ -16,6 +19,23 @@ use polars::prelude::IntoLazy;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+
+pub struct EntriesDiff {
+    pub entries: Vec<DiffEntry>,
+    pub counts: AddRemoveModifyCounts,
+    pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct DiffCommitEntry {
+    pub status: DiffEntryStatus,
+    // path for sorting so we don't have to dive into the optional commit entries
+    pub path: PathBuf,
+
+    // CommitEntry
+    pub head_entry: Option<CommitEntry>,
+    pub base_entry: Option<CommitEntry>,
+}
 
 pub fn diff(
     repo: &LocalRepository,
@@ -275,11 +295,14 @@ fn compute_new_columns(
     })
 }
 
+/// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
 pub fn list_diff_entries(
     repo: &LocalRepository,
     base_commit: &Commit,
     head_commit: &Commit,
-) -> Result<Vec<DiffEntry>, OxenError> {
+    page: usize,
+    page_size: usize,
+) -> Result<EntriesDiff, OxenError> {
     log::debug!(
         "list_diff_entries base_commit: '{}', head_commit: '{}'",
         base_commit.message,
@@ -295,47 +318,131 @@ pub fn list_diff_entries(
         head_commit.message
     );
     let head_entries = read_entries_from_commit(repo, head_commit)?;
+    log::debug!("Got {} head entries", head_entries.len());
     log::debug!(
         "Reading entries from base commit {} -> {}",
         head_commit.id,
         head_commit.message
     );
     let base_entries = read_entries_from_commit(repo, base_commit)?;
+    log::debug!("Got {} base entries", base_entries.len());
 
     let head_dirs = read_dirs_from_commit(repo, head_commit)?;
-    let base_dirs = read_dirs_from_commit(repo, base_commit)?;
+    log::debug!("Got {} head_dirs", head_dirs.len());
 
-    let mut diff_entries: Vec<DiffEntry> = vec![];
+    let base_dirs = read_dirs_from_commit(repo, base_commit)?;
+    log::debug!("Got {} base_dirs", base_dirs.len());
+
+    let mut dir_entries: Vec<DiffEntry> = vec![];
     collect_added_directories(
         repo,
         &base_dirs,
         base_commit,
         &head_dirs,
         head_commit,
-        &mut diff_entries,
+        &mut dir_entries,
     )?;
+    log::debug!("Collected {} added_dirs dir_entries", dir_entries.len());
     collect_removed_directories(
         repo,
         &base_dirs,
         base_commit,
         &head_dirs,
         head_commit,
-        &mut diff_entries,
+        &mut dir_entries,
     )?;
+    log::debug!("Collected {} removed_dirs dir_entries", dir_entries.len());
     collect_modified_directories(
         repo,
         &base_dirs,
         base_commit,
         &head_dirs,
         head_commit,
-        &mut diff_entries,
+        &mut dir_entries,
     )?;
+    dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
+    log::debug!("Collected {} modified_dirs dir_entries", dir_entries.len());
 
-    collect_added_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
-    collect_removed_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
-    collect_modified_entries(repo, &base_entries, &head_entries, &mut diff_entries)?;
+    // the DiffEntry takes a little bit of time to compute, so want to just find the commit entries
+    // then filter them down to the ones we need
+    let mut added_commit_entries: Vec<DiffCommitEntry> = vec![];
+    collect_added_entries(
+        &base_entries,
+        &head_entries,
+        &mut added_commit_entries,
+    )?;
+    log::debug!(
+        "Collected {} collect_added_entries",
+        added_commit_entries.len()
+    );
 
-    Ok(diff_entries)
+    let mut removed_commit_entries: Vec<DiffCommitEntry> = vec![];
+    collect_removed_entries(
+        &base_entries,
+        &head_entries,
+        &mut removed_commit_entries,
+    )?;
+    log::debug!(
+        "Collected {} collect_removed_entries",
+        removed_commit_entries.len()
+    );
+
+    let mut modified_commit_entries: Vec<DiffCommitEntry> = vec![];
+    collect_modified_entries(
+        &base_entries,
+        &head_entries,
+        &mut modified_commit_entries,
+    )?;
+    log::debug!(
+        "Collected {} collect_modified_entries",
+        modified_commit_entries.len()
+    );
+    let counts = AddRemoveModifyCounts {
+        added: added_commit_entries.len(),
+        removed: removed_commit_entries.len(),
+        modified: modified_commit_entries.len(),
+    };
+
+    let mut combined: Vec<_> = added_commit_entries
+        .into_iter()
+        .chain(removed_commit_entries)
+        .chain(modified_commit_entries)
+        .collect();
+    combined.sort_by(|a, b| a.path.cmp(&b.path));
+
+    log::debug!("Got {} combined files", combined.len());
+
+    let (files, pagination) =
+        util::paginate::paginate_files_assuming_dirs(&combined, dir_entries.len(), page, page_size);
+    log::debug!("Got {} initial dirs", dir_entries.len());
+    log::debug!("Got {} files", files.len());
+
+    let diff_entries: Vec<DiffEntry> = files
+        .into_iter()
+        .map(|entry| {
+            DiffEntry::from_commit_entry(
+                repo,
+                entry.base_entry,
+                base_commit,
+                entry.head_entry,
+                head_commit,
+                entry.status,
+            )
+        })
+        .collect();
+
+    let (dirs, _) =
+        util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
+    log::debug!("Got {} filtered dirs", dirs.len());
+    log::debug!("Page num {} Page size {}", page, page_size);
+
+    let all = dirs.into_iter().chain(diff_entries).collect();
+
+    Ok(EntriesDiff {
+        entries: all,
+        counts,
+        pagination,
+    })
 }
 
 // TODO: linear scan is not the most efficient way to do this
@@ -442,41 +549,44 @@ fn collect_removed_directories(
 
 // Find the entries that are in HEAD but not in BASE
 fn collect_added_entries(
-    repo: &LocalRepository,
     base_entries: &HashSet<CommitEntry>,
     head_entries: &HashSet<CommitEntry>,
-    diff_entries: &mut Vec<DiffEntry>,
+    diff_entries: &mut Vec<DiffCommitEntry>,
 ) -> Result<(), OxenError> {
-    for head_entry in head_entries {
+    log::debug!(
+        "Computing difference for add entries head {} base {}",
+        head_entries.len(),
+        base_entries.len()
+    );
+    let diff = head_entries.difference(base_entries);
+    log::debug!("done difference for add entries");
+    for head_entry in diff {
         // HEAD entry is *not* in BASE
-        if !base_entries.contains(head_entry) {
-            diff_entries.push(DiffEntry::from_commit_entry(
-                repo,
-                None,
-                Some(head_entry),
-                DiffEntryStatus::Added,
-            ));
-        }
+        diff_entries.push(DiffCommitEntry {
+            path: head_entry.path.to_owned(),
+            base_entry: None,
+            head_entry: Some(head_entry.to_owned()),
+            status: DiffEntryStatus::Added,
+        });
     }
     Ok(())
 }
 
 // Find the entries that are in BASE but not in HEAD
 fn collect_removed_entries(
-    repo: &LocalRepository,
     base_entries: &HashSet<CommitEntry>,
     head_entries: &HashSet<CommitEntry>,
-    diff_entries: &mut Vec<DiffEntry>,
+    diff_entries: &mut Vec<DiffCommitEntry>,
 ) -> Result<(), OxenError> {
     for base_entry in base_entries {
         // BASE entry is *not* in HEAD
         if !head_entries.contains(base_entry) {
-            diff_entries.push(DiffEntry::from_commit_entry(
-                repo,
-                Some(base_entry),
-                None,
-                DiffEntryStatus::Removed,
-            ));
+            diff_entries.push(DiffCommitEntry {
+                path: base_entry.path.to_owned(),
+                base_entry: Some(base_entry.to_owned()),
+                head_entry: None,
+                status: DiffEntryStatus::Removed,
+            });
         }
     }
     Ok(())
@@ -484,10 +594,9 @@ fn collect_removed_entries(
 
 // Find the entries that are in both base and head, but have different hashes
 fn collect_modified_entries(
-    repo: &LocalRepository,
     base_entries: &HashSet<CommitEntry>,
     head_entries: &HashSet<CommitEntry>,
-    diff_entries: &mut Vec<DiffEntry>,
+    diff_entries: &mut Vec<DiffCommitEntry>,
 ) -> Result<(), OxenError> {
     log::debug!(
         "collect_modified_entries modified entries base.len() {} head.len() {}",
@@ -504,12 +613,12 @@ fn collect_modified_entries(
             // );
             // HEAD entry has a different hash than BASE entry
             if head_entry.hash != base_entry.hash {
-                diff_entries.push(DiffEntry::from_commit_entry(
-                    repo,
-                    Some(base_entry),
-                    Some(head_entry),
-                    DiffEntryStatus::Modified,
-                ));
+                diff_entries.push(DiffCommitEntry {
+                    path: base_entry.path.to_owned(),
+                    base_entry: Some(base_entry.to_owned()),
+                    head_entry: Some(head_entry.to_owned()),
+                    status: DiffEntryStatus::Modified,
+                });
             }
         }
     }
@@ -564,7 +673,9 @@ mod tests {
             command::add(&repo, &world_file)?;
             let head_commit = command::commit(&repo, "Adding two files")?;
 
-            let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            let entries =
+                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = entries.entries;
             assert_eq!(2, entries.len());
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[0].status);
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[1].status);
@@ -598,8 +709,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::add(&repo, bbox_file)?;
             let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
 
-            let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
-
+            let entries =
+                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = entries.entries;
             // Recursively marks parent dirs as modified
             assert_eq!(3, entries.len());
             for entry in entries.iter() {
@@ -628,7 +740,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
-            let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            let entries =
+                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
             }
@@ -671,7 +785,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
-            let entries = api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit)?;
+            let entries =
+                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
             }

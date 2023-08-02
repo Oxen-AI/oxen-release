@@ -1,7 +1,6 @@
 //! Helper functions to get metadata from the local filesystem.
 //!
 
-use crate::api;
 use crate::core::index::commit_entry_reader::CommitEntryReader;
 use crate::core::index::CommitReader;
 use crate::error::OxenError;
@@ -84,6 +83,7 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
 pub fn from_commit_entry(
     repo: &LocalRepository,
     entry: &CommitEntry,
+    commit: &Commit,
 ) -> Result<MetadataEntry, OxenError> {
     let path = util::fs::version_path(repo, entry);
     let base_name = entry
@@ -98,7 +98,7 @@ pub fn from_commit_entry(
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
         is_dir: path.is_dir(),
-        latest_commit: api::local::commits::get_by_id(repo, &entry.commit_id)?,
+        latest_commit: Some(commit.to_owned()),
         resource: None,
         size,
         data_type,

@@ -46,16 +46,16 @@ jobs:
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
-      - name: Install mold linker
-        run: |
-          git clone https://github.com/rui314/mold.git
-          mkdir mold/build
-          cd mold/build
-          git checkout v2.0.0
-          ../install-build-deps.sh
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-          cmake --build . -j $(nproc)
-          sudo cmake --install .
+      # - name: Install mold linker
+      #   run: |
+      #     git clone https://github.com/rui314/mold.git
+      #     mkdir mold/build
+      #     cd mold/build
+      #     git checkout v2.0.0
+      #     ../install-build-deps.sh
+      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+      #     cmake --build . -j $(nproc)
+      #     sudo cmake --install .
 
       # - name: Install imagemagick
       #   run: |
@@ -165,16 +165,16 @@ jobs:
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
-      - name: Install mold linker
-        run: |
-          git clone https://github.com/rui314/mold.git
-          mkdir mold/build
-          cd mold/build
-          git checkout v2.0.0
-          ../install-build-deps.sh
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-          cmake --build . -j $(nproc)
-          sudo cmake --install .
+      # - name: Install mold linker
+      #   run: |
+      #     git clone https://github.com/rui314/mold.git
+      #     mkdir mold/build
+      #     cd mold/build
+      #     git checkout v2.0.0
+      #     ../install-build-deps.sh
+      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+      #     cmake --build . -j $(nproc)
+      #     sudo cmake --install .
 
       # - name: Install imagemagick
       #   run: |
@@ -344,15 +344,15 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install mold linker
-        run: |
-          git clone https://github.com/bluewhalesystems/sold.git
+      # - name: Install mold linker
+      #   run: |
+      #     git clone https://github.com/bluewhalesystems/sold.git
 
-          mkdir sold/build
-          cd sold/build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-          cmake --build . -j $(nproc)
-          sudo cmake --install .
+      #     mkdir sold/build
+      #     cd sold/build
+      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+      #     cmake --build . -j $(nproc)
+      #     sudo cmake --install .
 
       - name: Build oxen for mac
         run: cargo build --release
@@ -414,15 +414,15 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install mold linker
-        run: |
-          git clone https://github.com/bluewhalesystems/sold.git
+      # - name: Install mold linker
+      #   run: |
+      #     git clone https://github.com/bluewhalesystems/sold.git
 
-          mkdir sold/build
-          cd sold/build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-          cmake --build . -j $(nproc)
-          sudo cmake --install .
+      #     mkdir sold/build
+      #     cd sold/build
+      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+      #     cmake --build . -j $(nproc)
+      #     sudo cmake --install .
 
       - name: Build oxen for mac
         run: cargo build --release
@@ -484,15 +484,15 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install mold linker
-        run: |
-          git clone https://github.com/bluewhalesystems/sold.git
+      # - name: Install mold linker
+      #   run: |
+      #     git clone https://github.com/bluewhalesystems/sold.git
 
-          mkdir sold/build
-          cd sold/build
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-          cmake --build . -j $(nproc)
-          sudo cmake --install .
+      #     mkdir sold/build
+      #     cd sold/build
+      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+      #     cmake --build . -j $(nproc)
+      #     sudo cmake --install .
 
       - name: Build oxen for mac
         run: cargo build --release
