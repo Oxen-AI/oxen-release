@@ -33,7 +33,8 @@ RSpec.describe 'Oxen rm local', :type => :aruba do
     
     run_command_and_stop("oxen rm -r images")
     run_command_and_stop("oxen status")
-    expect(last_command_started).to have_output include "Files to be committed"
+    expect(last_command_started).to have_output match %r{.*?Files to be committed:(?:.|\n)*?removed: images/.*}
+
 
     expect(last_command_started).to_not have_output include "images/LOCK"
 
