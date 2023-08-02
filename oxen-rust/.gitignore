@@ -15,7 +15,7 @@ cli-test/tmp/
 cli-test/.env
 
 # rspec failure tracking
-cli-test.rspec_status
+cli-test/.rspec_status
 # Ignore data in fixtures, retain script to generate fixtures through cloning
 cli-test/spec/fixtures/*
 !cli-test/spec/fixtures/create_fixtures.sh

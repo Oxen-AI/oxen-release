@@ -44,13 +44,10 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 }
 
 async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    // Get start time
     let path = opts.path.as_ref();
-
     if opts.staged {
         return remove_staged(repo, opts);
     }
-    // Log time after remove_staged
 
     // We can only use `oxen rm` on directories that are committed
     if !dir_is_committed(repo, path)? {
@@ -68,9 +65,8 @@ async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 
     // Remove the directory from disk
     let full_path = repo.path.join(path);
-    // Take time here
     if full_path.exists() {
-        // user might have removed dir mzanually before using `oxen rm`
+        // user might have removed dir manually before using `oxen rm`
         util::fs::remove_dir_all(&full_path)?;
     }
 
