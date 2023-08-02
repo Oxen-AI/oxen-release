@@ -15,9 +15,13 @@ cli-test/tmp/
 cli-test/.env
 
 # rspec failure tracking
-cli-test.rspec_status
+cli-test/.rspec_status
+# Ignore data in fixtures, retain script to generate fixtures through cloning
+cli-test/spec/fixtures/*
+!cli-test/spec/fixtures/create_fixtures.sh
 
 # Per-project Cargo config
 # We're currently only using this for configuring mold/sold for local
 # development, so we don't want to track those changes
 .cargo/config.toml
+

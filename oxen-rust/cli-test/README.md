@@ -27,3 +27,17 @@ $ bundle exec rspec spec/spec_remote_hub/remote_hub_remove_image_spec.rb
 - Long setup times - will be improved substantially w/ Oxen 0.7.0
 - Redundant setup / teardown steps - need to further investigate ways to create better fixtures in aruba
 - Performance metrics currently only printed to console - TODO create oxen-native report and clean up console output
+
+## Setup for running local tests 
+
+(To avoid re-cloning on every test run for local tests)
+
+Switch to fixtures directory: 
+```bash 
+cd spec/fixtures
+```
+
+Run seed script locally to set up local fixture repos 
+```bash
+source create_fixtures.sh
+```
