@@ -6,11 +6,11 @@ on:
 jobs:
   release_ubuntu_latest:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-      
+
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
@@ -46,7 +46,16 @@ jobs:
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
 
-      
+      - name: Install mold linker
+        run: |
+          git clone https://github.com/rui314/mold.git
+          mkdir mold/build
+          cd mold/build
+          git checkout v2.0.0
+          ../install-build-deps.sh
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+          cmake --build . -j $(nproc)
+          sudo cmake --install .
 
       # - name: Install imagemagick
       #   run: |
@@ -120,7 +129,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
-      
+
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
@@ -155,6 +164,17 @@ jobs:
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
+
+      - name: Install mold linker
+        run: |
+          git clone https://github.com/rui314/mold.git
+          mkdir mold/build
+          cd mold/build
+          git checkout v2.0.0
+          ../install-build-deps.sh
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+          cmake --build . -j $(nproc)
+          sudo cmake --install .
 
       # - name: Install imagemagick
       #   run: |
@@ -324,6 +344,16 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Install mold linker
+        run: |
+          git clone git@github.com:bluewhalesystems/sold.git
+
+          mkdir sold/build
+          cd sold/build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+          cmake --build . -j $(nproc)
+          sudo cmake --install .
+
       - name: Build oxen for mac
         run: cargo build --release
 
@@ -384,6 +414,16 @@ jobs:
           toolchain: stable
           override: true
 
+      - name: Install mold linker
+        run: |
+          git clone git@github.com:bluewhalesystems/sold.git
+
+          mkdir sold/build
+          cd sold/build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+          cmake --build . -j $(nproc)
+          sudo cmake --install .
+
       - name: Build oxen for mac
         run: cargo build --release
 
@@ -443,6 +483,16 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+
+      - name: Install mold linker
+        run: |
+          git clone git@github.com:bluewhalesystems/sold.git
+
+          mkdir sold/build
+          cd sold/build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+          cmake --build . -j $(nproc)
+          sudo cmake --install .
 
       - name: Build oxen for mac
         run: cargo build --release
