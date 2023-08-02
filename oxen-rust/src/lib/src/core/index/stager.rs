@@ -145,7 +145,7 @@ impl Stager {
         }
 
         if !path.exists() {
-            self.add_removed_file_or_dir(path, commit_reader)?;
+            self.process_removed_file_or_dir(path, commit_reader)?;
             return Ok(());
         }
 
@@ -510,7 +510,48 @@ impl Stager {
         }
     }
 
-    fn add_removed_file_or_dir(
+    fn process_removed_file(&self, path: &PathBuf, entry: &CommitEntry) -> Result<(), OxenError> {
+        if let Some(parent) = path.parent() {
+            let staged_dir: StagedDirEntryDB<MultiThreaded> =
+                StagedDirEntryDB::new(&self.repository, parent)?;
+
+            self.add_removed_file(path, entry, &staged_dir)?;
+            Ok(())
+        } else {
+            Err(OxenError::file_has_no_parent(path))
+        }
+    }
+
+    fn process_removed_dir(
+        &self,
+        path: &PathBuf,
+        entries: &Vec<CommitEntry>,
+    ) -> Result<(), OxenError> {
+        log::debug!(
+            "Stager.add() !path.exists() {} files in dir {:?}",
+            entries.len(),
+            path
+        );
+
+        if !entries.is_empty() {
+            let staged_dir: StagedDirEntryDB<MultiThreaded> =
+                StagedDirEntryDB::new(&self.repository, path)?;
+
+            let bar = Arc::new(ProgressBar::new(entries.len() as u64));
+            println!("Removing {} files", entries.len());
+
+            entries.par_iter().for_each(|entry| {
+                self.add_removed_file(&entry.path, entry, &staged_dir)
+                    .unwrap();
+                bar.inc(1);
+            });
+
+            bar.finish();
+        }
+        Ok(())
+    }
+
+    fn process_removed_file_or_dir(
         &self,
         path: &Path,
         commit_reader: &CommitEntryReader,
@@ -523,40 +564,18 @@ impl Stager {
             relative_path
         );
 
-        let staged_dir: StagedDirEntryDB<MultiThreaded> =
-            StagedDirEntryDB::new(&self.repository, &relative_path)?;
-
         // Since entries that are committed are only files.. we will have to have different logic for dirs
+        // process_removed_file and process_removed_dir deal with different logic for staged_dir_entry_db path
+
+        // Is a file
         if let Ok(Some(value)) = commit_reader.get_entry(&relative_path) {
-            self.add_removed_file(&relative_path, &value, &staged_dir)?;
+            self.process_removed_file(&relative_path, &value)?;
             return Ok(());
         }
 
+        // Is a dir
         let files_in_dir = commit_reader.list_directory(&relative_path)?;
-        log::debug!(
-            "Stager.add() !path.exists() {} files in dir {:?}",
-            files_in_dir.len(),
-            relative_path
-        );
-
-        if !files_in_dir.is_empty() {
-            let bar = Arc::new(ProgressBar::new(files_in_dir.len() as u64));
-            println!("Removing {} files", files_in_dir.len());
-            log::debug!("Removing {} files", files_in_dir.len());
-
-            files_in_dir.par_iter().for_each(|entry| {
-                self.add_removed_file(&entry.path, entry, &staged_dir)
-                    .unwrap();
-                bar.inc(1);
-            });
-
-            bar.finish();
-
-            log::debug!(
-                "Stager.add() !path.exists() !files_in_dir.is_empty() {:?}",
-                path
-            );
-        }
+        self.process_removed_dir(&relative_path, &files_in_dir)?;
 
         Ok(())
     }
