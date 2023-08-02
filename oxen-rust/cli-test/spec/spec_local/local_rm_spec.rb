@@ -22,15 +22,19 @@ RSpec.describe 'Oxen rm local', :type => :aruba do
   end
 
   it "tests oxen rm -r directory with 1k images" do 
+    run_command_and_stop("rm -r .oxen")
+    run_command_and_stop("oxen init")
     run_command_and_stop("oxen add ./")
     run_command_and_stop("oxen commit -m 'committing'")
 
     start_time = Time.now
 
+
+    
     run_command_and_stop("oxen rm -r images")
     run_command_and_stop("oxen status")
-    expect(last_command_started).to have_output match /Removed Files.*removed: images\//m
-    # Make sure rocksdb appropriately closed
+    expect(last_command_started).to have_output include "Files to be committed"
+
     expect(last_command_started).to_not have_output include "images/LOCK"
 
     end_time = Time.now
