@@ -33,6 +33,36 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
+### Speed up the build process
+
+You can use
+the [mold](https://github.com/rui314/mold) linker to speed up builds (The
+commercial Mac OS version is [sold](https://github.com/bluewhalesystems/sold)).
+
+Assuming you have purchased a license, you can use the following instructions to
+install sold and configure cargo to use it for building Oxen:
+
+```
+git clone git@github.com:bluewhalesystems/sold.git
+
+mkdir sold/build
+cd sold/build
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
+cmake --build . -j $(nproc)
+sudo cmake --install .
+```
+
+Then create `.cargo/config.toml` in your Oxen repo root with the following
+content:
+
+```
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/ld64.mold"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/ld64.mold"]
+```
+
 ## Run
 
 Generate a config file and token to give user access to the server
