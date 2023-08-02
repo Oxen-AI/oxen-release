@@ -210,7 +210,7 @@ pub async fn transfer_namespace(
             Ok(response) => {
                 // Update remote to reflect new namespace
                 let host = api::remote::client::get_host_from_url(&repository.remote.url)?;
-                let new_remote_url = api::endpoint::remote_url_from_host(
+                let new_remote_url = api::endpoint::remote_url_from_namespace_name(
                     &host,
                     &response.repository.namespace,
                     &repository.name,

@@ -19,6 +19,15 @@ RUN apt-get update \
 #  && cd .. \
 #  && rm -r ImageMagick-${MAGICK_VERSION}*
 
+RUN git clone https://github.com/rui314/mold.git \
+    && mkdir mold/build \
+    && cd mold/build \
+    && git checkout v2.0.0 \
+    && ../install-build-deps.sh \
+    && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ .. \
+    && cmake --build . -j $(nproc) \
+    && cmake --install .
+
 RUN cargo install cargo-build-deps
 
 # create an empty project to install dependencies
