@@ -65,6 +65,7 @@ async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 
     // Remove the directory from disk
     let full_path = repo.path.join(path);
+    log::debug!("REMOVING DIRECTORY: {full_path:?}");
     if full_path.exists() {
         // user might have removed dir manually before using `oxen rm`
         util::fs::remove_dir_all(&full_path)?;
