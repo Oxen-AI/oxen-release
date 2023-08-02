@@ -366,33 +366,21 @@ pub fn list_diff_entries(
     // the DiffEntry takes a little bit of time to compute, so want to just find the commit entries
     // then filter them down to the ones we need
     let mut added_commit_entries: Vec<DiffCommitEntry> = vec![];
-    collect_added_entries(
-        &base_entries,
-        &head_entries,
-        &mut added_commit_entries,
-    )?;
+    collect_added_entries(&base_entries, &head_entries, &mut added_commit_entries)?;
     log::debug!(
         "Collected {} collect_added_entries",
         added_commit_entries.len()
     );
 
     let mut removed_commit_entries: Vec<DiffCommitEntry> = vec![];
-    collect_removed_entries(
-        &base_entries,
-        &head_entries,
-        &mut removed_commit_entries,
-    )?;
+    collect_removed_entries(&base_entries, &head_entries, &mut removed_commit_entries)?;
     log::debug!(
         "Collected {} collect_removed_entries",
         removed_commit_entries.len()
     );
 
     let mut modified_commit_entries: Vec<DiffCommitEntry> = vec![];
-    collect_modified_entries(
-        &base_entries,
-        &head_entries,
-        &mut modified_commit_entries,
-    )?;
+    collect_modified_entries(&base_entries, &head_entries, &mut modified_commit_entries)?;
     log::debug!(
         "Collected {} collect_modified_entries",
         modified_commit_entries.len()
