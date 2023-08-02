@@ -42,10 +42,11 @@ pub struct MetadataEntry {
 impl MetadataEntry {
     pub fn from_commit_entry(
         repo: &LocalRepository,
-        entry: Option<&CommitEntry>,
+        entry: Option<CommitEntry>,
+        commit: &Commit,
     ) -> Option<MetadataEntry> {
-        entry?;
-        match api::local::metadata::from_commit_entry(repo, entry.unwrap()) {
+        entry.as_ref()?;
+        match api::local::metadata::from_commit_entry(repo, &entry.unwrap(), commit) {
             Ok(metadata) => Some(metadata),
             Err(_) => None,
         }
