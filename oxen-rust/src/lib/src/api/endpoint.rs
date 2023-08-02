@@ -11,6 +11,10 @@ pub fn url_from_host(host: &str, uri: &str) -> String {
     format!("http://{host}{API_NAMESPACE}{uri}")
 }
 
+pub fn remote_url_from_host(host: &str, namespace: &str, name: &str) -> String {
+    format!("http://{host}/{namespace}/{name}")
+}
+
 pub fn remote_url_from_namespace_name(host: &str, namespace: &str, name: &str) -> String {
     format!("http://{host}/{namespace}/{name}")
 }
