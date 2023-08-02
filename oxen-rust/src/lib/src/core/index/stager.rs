@@ -547,8 +547,10 @@ impl Stager {
             files_in_dir.par_iter().for_each(|entry| {
                 self.add_removed_file(&entry.path, entry, &staged_dir)
                     .unwrap();
-                bar.inc(1)
+                bar.inc(1);
             });
+
+            bar.finish();
 
             log::debug!(
                 "Stager.add() !path.exists() !files_in_dir.is_empty() {:?}",
