@@ -36,7 +36,7 @@ use crate::{api, error::OxenError, model::LocalRepository};
 /// # }
 /// ```
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    // Get start time 
+    // Get start time
     let stager = Stager::new_with_merge(repo)?;
     let commit = api::local::commits::head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;

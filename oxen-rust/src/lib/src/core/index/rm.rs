@@ -20,17 +20,11 @@ use pluralizer::pluralize;
 use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::{Instant};
 
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    // Get starting timestamp 
-    let start = Instant::now();
     if opts.remote {
         return remove_remote(repo, opts).await;
     }
-    // Log time passed to debug - "after removing remote"
-    let duration = start.elapsed();
-
 
     // Check if it is a directory and -r was provided
     let path = &opts.path;
@@ -50,9 +44,9 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 }
 
 async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    // Get start time 
+    // Get start time
     let path = opts.path.as_ref();
-    
+
     if opts.staged {
         return remove_staged(repo, opts);
     }
@@ -74,21 +68,14 @@ async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 
     // Remove the directory from disk
     let full_path = repo.path.join(path);
-    // Take time here 
-    let start = Instant::now();
+    // Take time here
     if full_path.exists() {
         // user might have removed dir mzanually before using `oxen rm`
         util::fs::remove_dir_all(&full_path)?;
     }
-    // Log time after removing directory
-    let duration = start.elapsed();
 
-    // Check time 
-    let start = Instant::now();
     // Stage all the removed files
     command::add(repo, &full_path)?;
-    // Log time 
-    let duration = start.elapsed();
 
     Ok(())
 }

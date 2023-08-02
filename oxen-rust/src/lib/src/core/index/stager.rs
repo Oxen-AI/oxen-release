@@ -298,8 +298,6 @@ impl Stager {
             }
         }
 
-
-
         // and files that were in commit as candidates
         for entry in root_commit_entry_reader.list_entries()? {
             // log::debug!("adding candidate from commit {:?}", entry.path);
@@ -483,7 +481,12 @@ impl Stager {
         }
     }
 
-    fn add_removed_file(&self, path: &Path, entry: &CommitEntry, staged_dir_db: &StagedDirEntryDB<MultiThreaded>) -> Result<StagedEntry, OxenError> {
+    fn add_removed_file(
+        &self,
+        path: &Path,
+        entry: &CommitEntry,
+        staged_dir_db: &StagedDirEntryDB<MultiThreaded>,
+    ) -> Result<StagedEntry, OxenError> {
         log::debug!("add_removed_file {:?}", path);
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
             log::debug!(
@@ -494,7 +497,11 @@ impl Stager {
 
             // add parent to staged dir db
             let short_path = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
-            log::debug!("about to put {:?} as removed into db {:?}", short_path, self.dir_db);
+            log::debug!(
+                "about to put {:?} as removed into db {:?}",
+                short_path,
+                self.dir_db
+            );
             path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Removed)?;
 
             staged_dir_db.add_removed_file(filename, entry)
@@ -503,7 +510,11 @@ impl Stager {
         }
     }
 
-    fn add_removed_file_or_dir(&self, path: &Path, commit_reader: &CommitEntryReader) -> Result<(), OxenError> {
+    fn add_removed_file_or_dir(
+        &self,
+        path: &Path,
+        commit_reader: &CommitEntryReader,
+    ) -> Result<(), OxenError> {
         // If it doesn't exist on disk, it might have been removed, and we can't tell if it is a file or dir
         // so we have to check if it is committed, and what the backup version is
         let relative_path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
@@ -512,7 +523,8 @@ impl Stager {
             relative_path
         );
 
-        let staged_dir: StagedDirEntryDB<MultiThreaded> = StagedDirEntryDB::new(&self.repository, &path)?;
+        let staged_dir: StagedDirEntryDB<MultiThreaded> =
+            StagedDirEntryDB::new(&self.repository, &relative_path)?;
 
         // Since entries that are committed are only files.. we will have to have different logic for dirs
         if let Ok(Some(value)) = commit_reader.get_entry(&relative_path) {
@@ -526,13 +538,15 @@ impl Stager {
             files_in_dir.len(),
             relative_path
         );
-        
+
         if !files_in_dir.is_empty() {
             let bar = Arc::new(ProgressBar::new(files_in_dir.len() as u64));
             println!("Removing {} files", files_in_dir.len());
-    
+            log::debug!("Removing {} files", files_in_dir.len());
+
             files_in_dir.par_iter().for_each(|entry| {
-                self.add_removed_file(&entry.path, entry, &staged_dir).unwrap();
+                self.add_removed_file(&entry.path, entry, &staged_dir)
+                    .unwrap();
                 bar.inc(1)
             });
 
@@ -541,15 +555,9 @@ impl Stager {
                 path
             );
         }
-        
-        // Remove dir to clean up left behind rocksdb files 
-        drop(staged_dir);
-        std::fs::remove_dir_all(relative_path)?;
 
         Ok(())
     }
-
-
 
     // Returns a map of directories to files to add, and a total count
     // Reads the dirs in parallel to quickly find out what needs to be added
