@@ -346,7 +346,7 @@ jobs:
 
       - name: Install mold linker
         run: |
-          git clone git@github.com:bluewhalesystems/sold.git
+          git clone https://github.com/bluewhalesystems/sold.git
 
           mkdir sold/build
           cd sold/build
@@ -416,7 +416,7 @@ jobs:
 
       - name: Install mold linker
         run: |
-          git clone git@github.com:bluewhalesystems/sold.git
+          git clone https://github.com/bluewhalesystems/sold.git
 
           mkdir sold/build
           cd sold/build
@@ -486,7 +486,7 @@ jobs:
 
       - name: Install mold linker
         run: |
-          git clone git@github.com:bluewhalesystems/sold.git
+          git clone https://github.com/bluewhalesystems/sold.git
 
           mkdir sold/build
           cd sold/build

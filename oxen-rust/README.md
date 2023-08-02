@@ -43,7 +43,7 @@ Assuming you have purchased a license, you can use the following instructions to
 install sold and configure cargo to use it for building Oxen:
 
 ```
-git clone git@github.com:bluewhalesystems/sold.git
+git clone https://github.com/bluewhalesystems/sold.git
 
 mkdir sold/build
 cd sold/build
@@ -249,7 +249,7 @@ oxen kvdb-inspect <PATH_TO_DB>
         path/
           to/
             dir/
-              key: filename 
+              key: filename
               value: {
                 "hash" => "FILE_HASH", (use this to know if a file was different)
                 ... other metadata
