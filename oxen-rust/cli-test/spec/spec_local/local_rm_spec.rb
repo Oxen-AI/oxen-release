@@ -3,8 +3,7 @@ require 'spec_helper'
 
 RSpec.describe 'Oxen rm local', :type => :aruba do
   before(:each) do
-    # aruba.config.allow_absolute_paths = true
-    aruba.config.exit_timeout = 5000000
+    aruba.config.exit_timeout = 500000
     run_command_and_stop('oxen config --name ruby-test --email test@ox.ai')
 
     repo_name = 'test-small-repo'
@@ -22,41 +21,37 @@ RSpec.describe 'Oxen rm local', :type => :aruba do
 
   end
 
-  # Full string
-  it "tests removing 900 images from staging" do 
+  it "tests oxen rm -r directory with 1k images" do 
     run_command_and_stop("oxen add ./")
     run_command_and_stop("oxen commit -m 'committing'")
 
-
     start_time = Time.now
 
-
     run_command_and_stop("oxen rm -r images")
-
     run_command_and_stop("oxen status")
+    expect(last_command_started).to have_output match /Removed Files.*removed: images\//m
+    # Make sure rocksdb appropriately closed
+    expect(last_command_started).to_not have_output include "images/LOCK"
 
     end_time = Time.now
-    puts "Hard remove directory of 900 images: #{end_time - start_time} seconds"
+    puts "oxen rm -r directory of 1k images: #{end_time - start_time} seconds"
     puts all_output
   end 
 
 
-# Full string
-# it "tests removing 900 --staged images" do 
+it "tests removing 1k --staged images" do 
 
-#     run_command_and_stop("oxen add ./")
+    run_command_and_stop("oxen add ./")
 
-#     start_time = Time.now
+    start_time = Time.now
+    run_command_and_stop("oxen rm -r --staged images")
+    run_command_and_stop("oxen status")
 
-#     run_command_and_stop("oxen status")
+    expect(last_command_started).to have_output match /Untracked Directories.*images\//m
 
-#     run_command_and_stop("oxen rm -r --staged images")
-
-#     run_command_and_stop("oxen status")
-
-#     end_time = Time.now
-#     puts "Remove directory of 900 images: #{end_time - start_time} seconds"
-#     puts all_output
-#     end 
+    end_time = Time.now
+    puts "oxen rm --staged directory of 1k images: #{end_time - start_time} seconds"
+    puts all_output
+    end 
 
 end

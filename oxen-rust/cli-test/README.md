@@ -29,15 +29,15 @@ $ bundle exec rspec spec/spec_remote_hub/remote_hub_remove_image_spec.rb
 - Performance metrics currently only printed to console - TODO create oxen-native report and clean up console output
 
 ## Setup for running local tests 
-### CatDogBBox
 
-In fixtures directory: 
+(To avoid re-cloning on every test run for local tests)
+
+Switch to fixtures directory: 
 ```bash 
-oxen clone https://hub.oxen.ai/ox/CatVsDogBoundingBox
+cd spec/fixtures
 ```
 
-Then from `fixtures` (for testing removals...)
+Run seed script locally to set up local fixture repos 
 ```bash
-mkdir CatDog-replacement-images
-cp CatVsDogBoundingBox/images/* CatDog-replacement-images
+source create_fixtures.sh
 ```
