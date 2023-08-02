@@ -36,16 +36,12 @@ use crate::{api, error::OxenError, model::LocalRepository};
 /// # }
 /// ```
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    // Get start time
     let stager = Stager::new_with_merge(repo)?;
     let commit = api::local::commits::head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
     let ignore = oxenignore::create(repo);
-    // Log time since start
-    // Get start time
     log::debug!("---START--- oxen add: {:?}", path.as_ref());
     stager.add(path.as_ref(), &reader, &ignore)?;
     log::debug!("---END--- oxen add: {:?}", path.as_ref());
-    // Get end time and log
     Ok(())
 }
