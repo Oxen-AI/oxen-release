@@ -334,7 +334,7 @@ mod tests {
             PathBuf::from("file3"),
             PathBuf::from("file4"),
         ];
-        let (entries, _) = paginate_dirs_and_files(&dirs, &files, 0, 3);
+        let (entries, _) = paginate_dirs_and_files(&dirs, &files, 1, 3);
         assert_eq!(
             entries,
             vec![
@@ -343,7 +343,7 @@ mod tests {
                 PathBuf::from("dir3")
             ]
         );
-        let (entries, _) = paginate_dirs_and_files(&dirs, &files, 1, 3);
+        let (entries, _) = paginate_dirs_and_files(&dirs, &files, 2, 3);
         assert_eq!(
             entries,
             vec![
@@ -352,7 +352,7 @@ mod tests {
                 PathBuf::from("file2")
             ]
         );
-        let (entries, _) = paginate_dirs_and_files(&dirs, &files, 2, 3);
+        let (entries, _) = paginate_dirs_and_files(&dirs, &files, 3, 3);
         assert_eq!(
             entries,
             vec![PathBuf::from("file3"), PathBuf::from("file4")]
