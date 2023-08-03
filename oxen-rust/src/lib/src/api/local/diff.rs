@@ -738,7 +738,8 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // it currently shows all the parent dirs as being modified
             assert_eq!(3, entries.len());
 
-            assert_eq!(entries[1].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[1].status, DiffEntryStatus::Removed.to_string());
             assert_eq!(entries[2].status, DiffEntryStatus::Removed.to_string());
 
             Ok(())
