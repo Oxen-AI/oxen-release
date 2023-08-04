@@ -1,11 +1,11 @@
 use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
+use liboxen::constants::DIRS_DIR;
+use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
-use liboxen::constants::FILES_DIR;
 use liboxen::constants::SCHEMAS_DIR;
-use liboxen::constants::DIRS_DIR;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
@@ -316,16 +316,16 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
-    // Ignore cache and other dirs, only take what we need 
+    // Ignore cache and other dirs, only take what we need
     let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
 
     for dir in &dirs_to_compress {
-         let full_path = commit_dir.join(dir);
-         let tar_path = tar_subdir.join(dir);
-         if full_path.exists() {
-             tar.append_dir_all(&tar_path, full_path)?;
-         }
-     }
+        let full_path = commit_dir.join(dir);
+        let tar_path = tar_subdir.join(dir);
+        if full_path.exists() {
+            tar.append_dir_all(&tar_path, full_path)?;
+        }
+    }
 
     tar.finish()?;
 
