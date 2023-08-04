@@ -241,12 +241,11 @@ impl LocalRepository {
             println!("🐂 fetching additional remote branches");
             let remote_branches = api::remote::branches::list(&repo).await?;
 
-            // All except the target branch
             let bar = ProgressBar::new(remote_branches.len() as u64 - 1);
 
             for branch in remote_branches {
+                // We've already pulled the target branch in full
                 if branch.name == rb.branch {
-                    // Skip this branch, as it matches the criteria
                     continue;
                 }
 
