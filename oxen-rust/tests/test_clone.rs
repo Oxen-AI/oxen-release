@@ -1,6 +1,7 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::test;
 use liboxen::util;
@@ -9,8 +10,14 @@ use liboxen::util;
 #[tokio::test]
 async fn test_clone_all() -> Result<(), OxenError> {
     test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        // Create additional branch on remote repo before clone
+        let branch_name = "test-branch";
+        api::remote::branches::create_from_or_get(&remote_repo, &branch_name, DEFAULT_BRANCH_NAME)
+            .await?;
+
         let cloned_remote = remote_repo.clone();
         let og_commits = api::local::commits::list_all(&local_repo)?;
+        let og_branches = api::remote::branches::list(&remote_repo).await?;
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -20,6 +27,10 @@ async fn test_clone_all() -> Result<(), OxenError> {
             // Make sure we have all the commit objects
             let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
             assert_eq!(og_commits.len(), cloned_commits.len());
+
+            // Make sure we have all branches
+            let cloned_branches = api::local::branches::list(&cloned_repo)?;
+            assert_eq!(og_branches.len(), cloned_branches.len());
 
             // Make sure we set the HEAD file
             let head_commit = api::local::commits::head_commit(&cloned_repo);
