@@ -10,6 +10,7 @@ use crate::opts::CloneOpts;
 use crate::opts::PullOpts;
 use crate::util;
 use crate::view::RepositoryView;
+use indicatif::ProgressBar;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -236,6 +237,39 @@ impl LocalRepository {
             .maybe_pull_entries(&repo, &indexer, &rb, opts)
             .await?;
 
+        if opts.all {
+            println!("🐂 fetching additional remote branches");
+            let remote_branches = api::remote::branches::list(&repo).await?;
+
+            let bar = ProgressBar::new(remote_branches.len() as u64 - 1);
+
+            for branch in remote_branches {
+                // We've already pulled the target branch in full
+                if branch.name == rb.branch {
+                    continue;
+                }
+
+                let remote_branch = RemoteBranch::from_branch(&branch.name);
+                indexer
+                    .pull_most_recent_commit_object(&repo, &remote_branch, false)
+                    .await?;
+                bar.inc(1);
+            }
+            bar.finish();
+        }
+
+        if opts.shallow {
+            println!(
+                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
+                repo.remote.url, repo.name, repo.name, opts.branch
+            )
+        } else {
+            println!(
+                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
+                repo.remote.url, repo.name, repo.name
+            );
+        }
+
         Ok(local_repo)
     }
 
@@ -252,11 +286,6 @@ impl LocalRepository {
                 .pull_most_recent_commit_object(repo, rb, true)
                 .await?;
             self.write_is_shallow(true)?;
-
-            println!(
-                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
-                repo.remote.url, repo.name, repo.name, opts.branch
-            );
         } else {
             // Pull all entries
             indexer
@@ -268,12 +297,7 @@ impl LocalRepository {
                     },
                 )
                 .await?;
-            println!(
-                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
-                repo.remote.url, repo.name, repo.name
-            );
         }
-
         Ok(())
     }
 
