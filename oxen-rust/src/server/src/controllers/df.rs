@@ -3,12 +3,12 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
+use liboxen::model::DataFrameSize;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
 use liboxen::opts::DFOpts;
-use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
 
 use liboxen::util;
@@ -59,7 +59,7 @@ pub async fn get(
 
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
-        full_size: JsonDataSize {
+        full_size: DataFrameSize {
             width: full_width,
             height: full_height,
         },

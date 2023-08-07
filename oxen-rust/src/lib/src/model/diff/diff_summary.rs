@@ -1,11 +1,12 @@
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Commit, EntryDataType, MetadataEntry};
+use crate::model::diff::tabular_diff_summary::TabularDiffSummary;
+use crate::model::diff::dir_diff_summary::DirDiffSummary;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct DiffSummary {
-    pub data_type: EntryDataType,
-    pub data_frame: Option<DataFrameDiffSummary>,
+#[serde(untagged)]
+pub enum GenericDiffSummary {
+    DirDiffSummary(DirDiffSummary),
+    TabularDiffSummary(TabularDiffSummary)
 }

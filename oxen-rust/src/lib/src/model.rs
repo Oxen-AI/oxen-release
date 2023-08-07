@@ -5,6 +5,7 @@ pub mod base_head;
 pub mod branch;
 pub mod commit;
 pub mod content_type;
+pub mod data_frame_size;
 pub mod diff;
 pub mod entry;
 pub mod merge_conflict;
@@ -50,6 +51,8 @@ pub use crate::model::entry::ContentHashable;
 
 // Metadata
 pub use crate::model::metadata::dir_metadata_item::DirMetadataItem;
+
+pub use crate::model::data_frame_size::DataFrameSize;
 
 pub use crate::model::user::User;
 

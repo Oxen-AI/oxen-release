@@ -4,8 +4,8 @@ use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 
 use liboxen::core;
 use liboxen::error::OxenError;
+use liboxen::model::DataFrameSize;
 use liboxen::opts::DFOpts;
-use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
 };
@@ -80,7 +80,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         core::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
-        full_size: JsonDataSize {
+        full_size: DataFrameSize {
             width: num_cols,
             height: num_rows,
         },
@@ -140,7 +140,7 @@ pub async fn agg_dir(
 
         let response = JsonDataFrameSliceResponse {
             status: StatusMessage::resource_found(),
-            full_size: JsonDataSize {
+            full_size: DataFrameSize {
                 width: df.width(),
                 height: df.height(),
             },
