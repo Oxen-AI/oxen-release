@@ -61,6 +61,21 @@ rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/ld64.mold"]
 
 [target.x86_64-apple-darwin]
 rustflags = ["-C", "link-arg=-fuse-ld=/usr/local/bin/ld64.mold"]
+
+```
+
+**For macOS with Apple Silicon**, you can use the [lld](https://lld.llvm.org/) linker.
+
+```
+brew install llvm
+```
+
+Then create `.cargo/config.toml` in your Oxen repo root with the following:
+
+```
+[target.aarch64-apple-darwin]
+rustflags = [ "-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld", ]
+
 ```
 
 ## Run
