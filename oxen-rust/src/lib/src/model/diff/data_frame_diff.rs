@@ -1,7 +1,7 @@
 use polars::prelude::DataFrame;
 use std::fmt;
 
-use super::Schema;
+use crate::model::Schema;
 
 pub struct DataFrameDiff {
     pub base_schema: Schema,
