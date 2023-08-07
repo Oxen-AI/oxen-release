@@ -16,7 +16,10 @@ use crate::constants::AVG_CHUNK_SIZE;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader, RefReader};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::opts::PrintOpts;
 use crate::{api, util};
+
+const MANY_COMMITS: usize = 5;
 
 pub struct UnsyncedCommitEntries {
     commit: Commit,
@@ -91,6 +94,7 @@ pub async fn push_remote_repo(
 
         // recursively check commits against remote head
         // and sync ones that have not been synced
+
         rpush_entries(local_repo, &remote_repo, &branch, &unsynced_commits).await?;
 
         // update the branch after everything else is synced
@@ -287,19 +291,37 @@ async fn rpush_entries(
     unsynced_commits: &VecDeque<UnsyncedCommitEntries>,
 ) -> Result<(), OxenError> {
     log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
+
+    let print_opts = PrintOpts {
+        verbose: unsynced_commits.len() < MANY_COMMITS,
+    };
+
+    let bar = ProgressBar::new(unsynced_commits.len() as u64);
+    println!("Pushing {} commits...", unsynced_commits.len());
     for unsynced in unsynced_commits.iter() {
         let commit = &unsynced.commit;
         let entries = &unsynced.entries;
 
-        println!(
-            "Pushing commit {} entries: {} -> '{}'",
-            entries.len(),
-            commit.id,
-            commit.message
-        );
-
-        push_entries(local_repo, remote_repo, branch, entries, commit).await?;
+        if print_opts.verbose {
+            println!(
+                "Pushing commit {} entries: {} -> '{}'",
+                entries.len(),
+                commit.id,
+                commit.message
+            );
+        }
+        push_entries(
+            local_repo,
+            remote_repo,
+            branch,
+            entries,
+            commit,
+            &print_opts,
+        )
+        .await?;
+        bar.inc(1);
     }
+    bar.finish();
     Ok(())
 }
 
@@ -364,6 +386,7 @@ async fn push_entries(
     branch: &Branch,
     entries: &[CommitEntry],
     commit: &Commit,
+    print_opts: &PrintOpts,
 ) -> Result<(), OxenError> {
     log::debug!(
         "PUSH ENTRIES {} -> {} -> '{}'",
@@ -372,10 +395,13 @@ async fn push_entries(
         commit.message
     );
 
-    println!("🐂 push computing size...");
+    if print_opts.verbose {
+        println!("🐂 push computing size...");
+    };
+
     let total_size = api::local::entries::compute_entries_size(entries)?;
 
-    if !entries.is_empty() {
+    if !entries.is_empty() && print_opts.verbose {
         println!(
             "Pushing {} files with size {}",
             entries.len(),
@@ -444,6 +470,7 @@ async fn chunk_and_send_large_entries(
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     if entries.is_empty() {
+        log::debug!("No large files to send");
         return Ok(());
     }
 
