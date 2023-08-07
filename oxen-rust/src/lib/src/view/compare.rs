@@ -5,14 +5,14 @@ use crate::view::Pagination;
 
 use super::StatusMessage;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AddRemoveModifyCounts {
     pub added: usize,
     pub removed: usize,
     pub modified: usize,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareCommits {
     pub base_commit: Commit,
     pub head_commit: Commit,

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::core::df::tabular;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
-use crate::model::entry::diff_entry_status::DiffEntryStatus;
+use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
@@ -235,7 +235,8 @@ fn compute_new_rows(
     let removed_rows = tabular::take(versioned_df.lazy(), removed_indices)?;
 
     Ok(DataFrameDiff {
-        base_schema: schema.to_owned(),
+        head_schema: Some(schema.to_owned()),
+        base_schema: Some(schema.to_owned()),
         added_rows: if added_rows.height() > 0 {
             Some(added_rows)
         } else {
@@ -287,7 +288,8 @@ fn compute_new_columns(
     };
 
     Ok(DataFrameDiff {
-        base_schema: versioned_schema.to_owned(),
+        head_schema: Some(versioned_schema.to_owned()),
+        base_schema: Some(versioned_schema.to_owned()),
         added_rows: None,
         removed_rows: None,
         added_cols,
@@ -640,7 +642,7 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::error::OxenError;
-    use crate::model::entry::diff_entry_status::DiffEntryStatus;
+    use crate::model::diff::diff_entry_status::DiffEntryStatus;
     use crate::opts::RmOpts;
     use crate::test;
     use crate::util;

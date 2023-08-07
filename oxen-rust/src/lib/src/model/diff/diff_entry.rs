@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Commit, EntryDataType, MetadataEntry};
+use crate::model::{Commit, EntryDataType, MetadataEntry, DataFrameSize};
+use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
 use crate::{
     api,
@@ -10,8 +11,10 @@ use crate::{
     util,
 };
 
-use super::diff_entry_changes::{CountChange, SizeChange};
 use super::diff_entry_status::DiffEntryStatus;
+use super::diff_summary::GenericDiffSummary;
+use super::dir_diff_summary::DirDiffSummary;
+use super::tabular_diff_summary::TabularDiffSummary;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
@@ -20,6 +23,7 @@ pub struct DiffEntry {
     pub filename: String,
     pub is_dir: bool,
     pub size: u64,
+
     // Resource
     pub head_resource: Option<ResourceVersion>,
     pub base_resource: Option<ResourceVersion>,
@@ -27,6 +31,9 @@ pub struct DiffEntry {
     // Entry
     pub head_entry: Option<MetadataEntry>,
     pub base_entry: Option<MetadataEntry>,
+
+    // Summary
+    pub summary: GenericDiffSummary,
 }
 
 impl DiffEntry {
@@ -56,6 +63,7 @@ impl DiffEntry {
             (base_dir.unwrap(), base_entry.to_owned().unwrap())
         };
 
+        let summary = DiffEntry::diff_summary_from_dir(repo, &base_entry, &head_entry);
         DiffEntry {
             status: status.to_string(),
             data_type: EntryDataType::Dir,
@@ -66,6 +74,7 @@ impl DiffEntry {
             base_resource: DiffEntry::resource_from_dir(base_dir, base_commit),
             head_entry,
             base_entry,
+            summary,
         }
     }
 
@@ -86,36 +95,24 @@ impl DiffEntry {
                 util::fs::version_path(repo, &base_entry.clone().unwrap()),
             )
         };
-
-        // TODO: Compute for dirs and files
-        // TODO: Do we want to just return the two entry objects under base and head
-
-        // FEELS LIKE
-        // 1) We return the base and the head entity, with a type, with metadata per type
-        // 2) We return a "diff" structure, that respects that type, ie text diff, image diff, dir diff, tabular diff, etc
-        // 3) As long as we have that stubbed out, ship the SIZE diff on the dir, and we can extend other types l8r
-        let _size = SizeChange {
-            base: 0,
-            head: 0,
-            delta: 0,
-        };
-
-        let _file_counts = CountChange {
-            added: 0,
-            removed: 0,
-            modified: 0,
-        };
+        let data_type = util::fs::file_data_type(&version_path);
 
         DiffEntry {
             status: status.to_string(),
-            data_type: util::fs::file_data_type(&version_path),
+            data_type: data_type.clone(),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
             is_dir: false,
             size: current_entry.num_bytes,
             head_resource: DiffEntry::resource_from_entry(head_entry.clone()),
             base_resource: DiffEntry::resource_from_entry(base_entry.clone()),
-            head_entry: MetadataEntry::from_commit_entry(repo, head_entry, head_commit),
-            base_entry: MetadataEntry::from_commit_entry(repo, base_entry, base_commit),
+            head_entry: MetadataEntry::from_commit_entry(repo, head_entry.clone(), head_commit),
+            base_entry: MetadataEntry::from_commit_entry(repo, base_entry.clone(), base_commit),
+            summary: DiffEntry::diff_summary_from_file(
+                repo,
+                data_type,
+                &base_entry,
+                &head_entry,
+            )
         }
     }
 
@@ -146,5 +143,38 @@ impl DiffEntry {
         } else {
             None
         }
+    }
+
+    fn diff_summary_from_dir(
+        repo: &LocalRepository,
+        base_dir: &Option<MetadataEntry>,
+        head_dir: &Option<MetadataEntry>,
+    ) -> GenericDiffSummary {
+        GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+            file_counts: AddRemoveModifyCounts {
+                added: 0,
+                removed: 0,
+                modified: 0,
+            }
+        })
+    }
+
+    fn diff_summary_from_file(
+        repo: &LocalRepository,
+        data_type: EntryDataType,
+        base_dir: &Option<CommitEntry>,
+        head_dir: &Option<CommitEntry>,
+    ) -> GenericDiffSummary {
+        GenericDiffSummary::TabularDiffSummary(TabularDiffSummary {
+            base_size: DataFrameSize {
+                width: 0,
+                height: 0,
+            },
+            head_size: DataFrameSize {
+                width: 0,
+                height: 0,
+            },
+            schema_has_changed: false,
+        })
     }
 }

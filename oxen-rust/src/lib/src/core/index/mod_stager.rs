@@ -163,7 +163,8 @@ pub fn list_mods_df(
         }
 
         Ok(DataFrameDiff {
-            base_schema: schema,
+            head_schema: Some(schema.clone()),
+            base_schema: Some(schema),
             added_rows: Some(df),
             removed_rows: None,
             added_cols: None,
