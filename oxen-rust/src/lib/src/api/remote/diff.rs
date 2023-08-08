@@ -106,8 +106,7 @@ mod tests {
             command::commit(&repo, "Adding columns to train.csv")?;
 
             // Push it real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)
-                .await?;
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
             let compare = api::remote::diff::list_diff_entries(
                 &remote_repo,
