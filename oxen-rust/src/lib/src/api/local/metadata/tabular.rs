@@ -8,7 +8,7 @@ use crate::opts::DFOpts;
 
 use std::path::Path;
 
-/// Detects the audio metadata for the given file.
+/// Detects the tabular metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError> {
     let path = path.as_ref();
     let opts = DFOpts::empty();
@@ -22,6 +22,8 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError
 #[cfg(test)]
 mod tests {
     use crate::api;
+    use crate::model::metadata::generic_metadata::GenericMetadata;
+    use crate::model::metadata::MetadataTabular;
     use crate::model::EntryDataType;
     use crate::test;
 
@@ -33,9 +35,13 @@ mod tests {
         assert_eq!(metadata.size, 9604701);
         assert_eq!(metadata.data_type, EntryDataType::Tabular);
         assert_eq!(metadata.mime_type, "text/plain");
-        // assert!(metadata.meta.tabular.is_some());
-        // let meta = metadata.meta.tabular.unwrap();
-        // assert_eq!(meta.width, 11);
-        // assert_eq!(meta.height, 200_000);
+
+        let metadata: MetadataTabular = match metadata.metadata.unwrap() {
+            GenericMetadata::MetadataTabular(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
+
+        assert_eq!(metadata.width, 11);
+        assert_eq!(metadata.height, 200_000);
     }
 }

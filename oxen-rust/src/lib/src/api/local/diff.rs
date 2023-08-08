@@ -43,9 +43,9 @@ pub fn diff(
     compare: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<String, OxenError> {
-    let original_path = get_version_file_from_commit(repo, original, &path)?;
-    let compare_path = get_version_file_from_commit(repo, compare, &path)?;
-    diff_files(original_path, compare_path)
+    let base_path = get_version_file_from_commit(repo, original, &path)?;
+    let head_path = get_version_file_from_commit(repo, compare, &path)?;
+    diff_files(base_path, head_path)
 }
 
 pub fn get_version_file_from_commit(
@@ -130,61 +130,53 @@ pub fn diff_utf8(
 }
 
 pub fn diff_tabular(
-    original_path: impl AsRef<Path>,
-    compare_path: impl AsRef<Path>,
+    base_path: impl AsRef<Path>,
+    head_path: impl AsRef<Path>,
 ) -> Result<DataFrameDiff, OxenError> {
-    let original_path = original_path.as_ref();
-    let compare_path = compare_path.as_ref();
+    let base_path = base_path.as_ref();
+    let head_path = head_path.as_ref();
     // Make sure files exist
-    if !original_path.exists() {
-        return Err(OxenError::entry_does_not_exist(original_path));
+    if !base_path.exists() {
+        return Err(OxenError::entry_does_not_exist(base_path));
     }
 
-    if !compare_path.exists() {
-        return Err(OxenError::entry_does_not_exist(compare_path));
+    if !head_path.exists() {
+        return Err(OxenError::entry_does_not_exist(head_path));
     }
 
     // Read DFs and get schemas
-    let original_df = tabular::read_df(original_path, DFOpts::empty())?;
-    let compare_df = tabular::read_df(compare_path, DFOpts::empty())?;
-    let original_schema = Schema::from_polars(&original_df.schema());
-    let compare_schema = Schema::from_polars(&compare_df.schema());
+    let base_df = tabular::read_df(base_path, DFOpts::empty())?;
+    let head_df = tabular::read_df(head_path, DFOpts::empty())?;
+    let base_schema = Schema::from_polars(&base_df.schema());
+    let head_schema = Schema::from_polars(&head_df.schema());
 
     log::debug!(
-        "Original df {} {original_path:?}\n{original_df:?}",
-        original_schema.hash
+        "Original df {} {base_path:?}\n{base_df:?}",
+        base_schema.hash
     );
-    log::debug!(
-        "Compare df {} {compare_path:?}\n{compare_df:?}",
-        compare_schema.hash
-    );
+    log::debug!("Compare df {} {head_path:?}\n{head_df:?}", head_schema.hash);
 
     // If schemas don't match, figure out which columns are different
-    if original_schema.hash != compare_schema.hash {
-        compute_new_columns(
-            original_path,
-            compare_path,
-            &original_schema,
-            &compare_schema,
-        )
+    if base_schema.hash != head_schema.hash {
+        compute_new_columns_from_paths(base_path, head_path, &base_schema, &head_schema)
     } else {
-        log::debug!("Computing diff for {original_path:?} to {compare_path:?}");
-        compute_new_rows(original_df, compare_df, &original_schema)
+        log::debug!("Computing diff for {base_path:?} to {head_path:?}");
+        compute_new_rows(base_df, head_df, &base_schema)
     }
 }
 
-fn compute_new_rows(
-    original_df: DataFrame,
-    compare_df: DataFrame,
+pub fn compute_new_rows(
+    base_df: DataFrame,
+    head_df: DataFrame,
     schema: &Schema,
 ) -> Result<DataFrameDiff, OxenError> {
     // Hash the rows
-    let versioned_df = tabular::df_hash_rows(original_df)?;
-    let current_df = tabular::df_hash_rows(compare_df)?;
+    let versioned_df = tabular::df_hash_rows(base_df)?;
+    let current_df = tabular::df_hash_rows(head_df)?;
 
     // log::debug!("diff_current got current hashes {}", current_df);
 
-    let current_hash_indices: HashMap<String, u32> = current_df
+    let base_hash_indices: HashMap<String, u32> = current_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
         .utf8()
@@ -194,7 +186,7 @@ fn compute_new_rows(
         .map(|(i, v)| (v.unwrap().to_string(), i as u32))
         .collect();
 
-    let versioned_hash_indices: HashMap<String, u32> = versioned_df
+    let head_hash_indices: HashMap<String, u32> = versioned_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
         .utf8()
@@ -205,17 +197,17 @@ fn compute_new_rows(
         .collect();
 
     // Added is all the row hashes that are in current that are not in other
-    let mut added_indices: Vec<u32> = current_hash_indices
+    let mut added_indices: Vec<u32> = base_hash_indices
         .iter()
-        .filter(|(hash, _indices)| !versioned_hash_indices.contains_key(*hash))
+        .filter(|(hash, _indices)| !head_hash_indices.contains_key(*hash))
         .map(|(_hash, index_pair)| *index_pair)
         .collect();
     added_indices.sort(); // so is deterministic and returned in correct order
 
     // Removed is all the row hashes that are in other that are not in current
-    let mut removed_indices: Vec<u32> = versioned_hash_indices
+    let mut removed_indices: Vec<u32> = head_hash_indices
         .iter()
-        .filter(|(hash, _indices)| !current_hash_indices.contains_key(*hash))
+        .filter(|(hash, _indices)| !base_hash_indices.contains_key(*hash))
         .map(|(_hash, index_pair)| *index_pair)
         .collect();
     removed_indices.sort(); // so is deterministic and returned in correct order
@@ -252,18 +244,18 @@ fn compute_new_rows(
     })
 }
 
-fn compute_new_columns(
-    versioned_path: &Path,
-    current_path: &Path,
-    versioned_schema: &Schema,
-    current_schema: &Schema,
+pub fn compute_new_columns_from_paths(
+    base_path: &Path,
+    head_path: &Path,
+    base_schema: &Schema,
+    head_schema: &Schema,
 ) -> Result<DataFrameDiff, OxenError> {
-    let added_fields = current_schema.added_fields(versioned_schema);
-    let removed_fields = current_schema.removed_fields(versioned_schema);
+    let added_fields = head_schema.added_fields(base_schema);
+    let removed_fields = head_schema.removed_fields(base_schema);
 
     let added_cols = if !added_fields.is_empty() {
         let opts = DFOpts::from_columns(added_fields);
-        let df_added = tabular::read_df(current_path, opts)?;
+        let df_added = tabular::read_df(head_path, opts)?;
         log::debug!("Got added col df: {}", df_added);
         if df_added.width() > 0 {
             Some(df_added)
@@ -276,7 +268,7 @@ fn compute_new_columns(
 
     let removed_cols = if !removed_fields.is_empty() {
         let opts = DFOpts::from_columns(removed_fields);
-        let df_removed = tabular::read_df(versioned_path, opts)?;
+        let df_removed = tabular::read_df(base_path, opts)?;
         log::debug!("Got removed col df: {}", df_removed);
         if df_removed.width() > 0 {
             Some(df_removed)
@@ -288,8 +280,53 @@ fn compute_new_columns(
     };
 
     Ok(DataFrameDiff {
-        head_schema: Some(versioned_schema.to_owned()),
-        base_schema: Some(versioned_schema.to_owned()),
+        head_schema: Some(base_schema.to_owned()),
+        base_schema: Some(base_schema.to_owned()),
+        added_rows: None,
+        removed_rows: None,
+        added_cols,
+        removed_cols,
+    })
+}
+
+pub fn compute_new_columns_from_dfs(
+    base_df: DataFrame,
+    head_df: DataFrame,
+    base_schema: &Schema,
+    head_schema: &Schema,
+) -> Result<DataFrameDiff, OxenError> {
+    let added_fields = head_schema.added_fields(base_schema);
+    let removed_fields = head_schema.removed_fields(base_schema);
+
+    let added_cols = if !added_fields.is_empty() {
+        let opts = DFOpts::from_columns(added_fields);
+        let df_added = tabular::transform(head_df, opts)?;
+        log::debug!("Got added col df: {}", df_added);
+        if df_added.width() > 0 {
+            Some(df_added)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let removed_cols = if !removed_fields.is_empty() {
+        let opts = DFOpts::from_columns(removed_fields);
+        let df_removed = tabular::transform(base_df, opts)?;
+        log::debug!("Got removed col df: {}", df_removed);
+        if df_removed.width() > 0 {
+            Some(df_removed)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok(DataFrameDiff {
+        head_schema: Some(base_schema.to_owned()),
+        base_schema: Some(base_schema.to_owned()),
         added_rows: None,
         removed_rows: None,
         added_cols,

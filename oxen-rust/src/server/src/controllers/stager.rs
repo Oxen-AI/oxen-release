@@ -9,8 +9,8 @@ use liboxen::core::cache::commit_cacher;
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
-use liboxen::model::DataFrameSize;
 use liboxen::model::entry::mod_entry::NewMod;
+use liboxen::model::DataFrameSize;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitEntry, ContentType, LocalRepository, NewCommitBody,
     ObjectID, Schema,

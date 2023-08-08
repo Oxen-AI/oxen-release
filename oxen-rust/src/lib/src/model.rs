@@ -40,8 +40,8 @@ pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry
 pub use crate::model::content_type::ContentType;
-pub use crate::model::entry::commit_entry::CommitEntry;
 pub use crate::model::diff::diff_entry::DiffEntry;
+pub use crate::model::entry::commit_entry::CommitEntry;
 pub use crate::model::entry::entry_data_type::EntryDataType;
 pub use crate::model::entry::metadata_entry::MetadataEntry;
 pub use crate::model::entry::mod_entry::ModEntry;

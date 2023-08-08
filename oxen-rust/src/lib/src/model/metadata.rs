@@ -6,7 +6,7 @@ pub mod metadata_tabular;
 pub mod metadata_text;
 pub mod metadata_video;
 
-pub mod metadata_entry_type;
+pub mod generic_metadata;
 
 pub mod dir_metadata_item;
 

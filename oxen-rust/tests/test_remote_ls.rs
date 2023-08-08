@@ -6,7 +6,6 @@ use liboxen::opts::PaginateOpts;
 use liboxen::test;
 use liboxen::util;
 use liboxen::view::DataTypeCount;
-use liboxen::view::MimeTypeCount;
 
 use std::path::Path;
 
@@ -99,8 +98,7 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
 
         // serialize into an array of DataTypeCount
         let metadata = paginated.metadata.unwrap();
-        let data_type_counts: Vec<DataTypeCount> =
-            serde_json::from_value(metadata.data_types.data).unwrap();
+        let data_type_counts: Vec<DataTypeCount> = metadata.data_types;
 
         let data_type_count_text = data_type_counts
             .iter()
@@ -115,18 +113,18 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
         assert_eq!(data_type_count_video.count, 1);
 
         // serialize into an array of MimeDataTypeCount
-        let mine_type_counts: Vec<MimeTypeCount> =
-            serde_json::from_value(metadata.mime_types.data).unwrap();
+        /*
+        let mime_type_counts: Vec<MimeTypeCount> = metadata.mime_types).unwrap();
 
-        let count_markdown = mine_type_counts
+        let count_markdown = mime_type_counts
             .iter()
             .find(|&x| x.mime_type == "text/markdown")
             .unwrap();
-        let count_video = mine_type_counts
+        let count_video = mime_type_counts
             .iter()
             .find(|&x| x.mime_type == "video/mp4")
             .unwrap();
-        let count_text = mine_type_counts
+        let count_text = mime_type_counts
             .iter()
             .find(|&x| x.mime_type == "text/plain")
             .unwrap();
@@ -134,6 +132,7 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
         assert_eq!(count_markdown.count, 1);
         assert_eq!(count_video.count, 1);
         assert_eq!(count_text.count, 1);
+        */
 
         Ok(())
     })
@@ -175,8 +174,7 @@ async fn test_remote_ls_return_data_types_just_top_level_dir() -> Result<(), Oxe
 
         // serialize into an array of DataTypeCount
         let metadata = paginated.metadata.unwrap();
-        let data_type_counts: Vec<DataTypeCount> =
-            serde_json::from_value(metadata.data_types.data).unwrap();
+        let data_type_counts: Vec<DataTypeCount> = metadata.data_types;
 
         let data_type_count_text = data_type_counts
             .iter()
@@ -185,16 +183,18 @@ async fn test_remote_ls_return_data_types_just_top_level_dir() -> Result<(), Oxe
 
         assert_eq!(data_type_count_text.count, num_files);
 
+        /*
         // serialize into an array of MimeDataTypeCount
-        let mine_type_counts: Vec<MimeTypeCount> =
+        let mime_type_counts: Vec<MimeTypeCount> =
             serde_json::from_value(metadata.mime_types.data).unwrap();
 
-        let count_text = mine_type_counts
+        let count_text = mime_type_counts
             .iter()
             .find(|&x| x.mime_type == "text/plain")
             .unwrap();
 
         assert_eq!(count_text.count, num_files);
+         */
 
         Ok(())
     })

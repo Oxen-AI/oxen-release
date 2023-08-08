@@ -6,7 +6,8 @@ use crate::core::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
-use crate::model::metadata::metadata_entry_type::EntryTypeMetadata;
+use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};
 use crate::util;
 
@@ -37,14 +38,7 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         mime_type,
         extension,
         // Need commit to get this data
-        metadata: EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        metadata: None,
     })
 }
 
@@ -69,14 +63,7 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         mime_type,
         extension,
         // Need commit info to get other metadata
-        metadata: EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        metadata: None,
     })
 }
 
@@ -94,6 +81,7 @@ pub fn from_commit_entry(
     let mime_type = util::fs::file_mime_type(&path);
     let data_type = util::fs::datatype_from_mimetype(&path, mime_type.as_str());
     let extension = util::fs::file_extension(&path);
+    let metadata = get_file_metadata(&path, &data_type)?;
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
@@ -104,14 +92,7 @@ pub fn from_commit_entry(
         data_type,
         mime_type,
         extension,
-        metadata: EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        metadata,
     })
 }
 
@@ -197,68 +178,27 @@ pub fn get_file_size(path: impl AsRef<Path>) -> Result<u64, OxenError> {
 pub fn get_file_metadata(
     path: impl AsRef<Path>,
     data_type: &EntryDataType,
-) -> Result<EntryTypeMetadata, OxenError> {
+) -> Result<Option<GenericMetadata>, OxenError> {
     match data_type {
-        EntryDataType::Dir => Ok(EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        }),
-        EntryDataType::Text => Ok(EntryTypeMetadata {
-            dir: None,
-            text: Some(text::get_metadata(path)?),
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        }),
-        EntryDataType::Image => Ok(EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: Some(image::get_metadata(path)?),
-            video: None,
-            audio: None,
-            tabular: None,
-        }),
-        EntryDataType::Video => Ok(EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            // TODO: figure out better library for video than ffmpeg
-            // video: Some(video::get_metadata(path)?),
-            video: None,
-            audio: None,
-            tabular: None,
-        }),
-        EntryDataType::Audio => Ok(EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            // TODO: figure out better library for audio than ffmpeg
-            // audio: Some(audio::get_metadata(path)?),
-            audio: None,
-            tabular: None,
-        }),
-        EntryDataType::Tabular => Ok(EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: Some(tabular::get_metadata(path)?),
-        }),
-        _ => Ok(EntryTypeMetadata {
-            dir: None,
-            image: None,
-            text: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        }),
+        EntryDataType::Dir => Ok(Some(GenericMetadata::MetadataDir(MetadataDir {
+            data_types: vec![],
+        }))),
+        EntryDataType::Text => Ok(Some(GenericMetadata::MetadataText(text::get_metadata(
+            path,
+        )?))),
+        EntryDataType::Image => Ok(Some(GenericMetadata::MetadataImage(image::get_metadata(
+            path,
+        )?))),
+        EntryDataType::Video => Ok(Some(GenericMetadata::MetadataVideo(video::get_metadata(
+            path,
+        )?))),
+        EntryDataType::Audio => Ok(Some(GenericMetadata::MetadataAudio(audio::get_metadata(
+            path,
+        )?))),
+        EntryDataType::Tabular => Ok(Some(GenericMetadata::MetadataTabular(
+            tabular::get_metadata(path)?,
+        ))),
+        _ => Ok(None),
     }
 }
 
