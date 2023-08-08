@@ -75,9 +75,9 @@ impl TabularDiffSummary {
 
     pub fn maybe_get_size(df: &Option<DataFrame>) -> Option<DataFrameSize> {
         df.as_ref().map(|df| DataFrameSize {
-                height: df.height(),
-                width: df.width(),
-            })
+            height: df.height(),
+            width: df.width(),
+        })
     }
 
     pub fn schema_has_changed(base_df: &Option<DataFrame>, head_df: &Option<DataFrame>) -> bool {

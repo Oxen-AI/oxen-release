@@ -490,7 +490,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download_file_large() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
             let remote_path = Path::new("large_files").join("test.csv");
             let local_path = local_repo.path.join("data.csv");
             let revision = DEFAULT_BRANCH_NAME;
@@ -506,7 +506,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download_file_large_to_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
             let remote_path = Path::new("large_files").join("test.csv");
             let local_path = local_repo.path.join("train_data");
             let revision = DEFAULT_BRANCH_NAME;
@@ -524,7 +524,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download_file_large_to_dir_does_not_exist() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
             let remote_path = Path::new("large_files").join("test.csv");
             let local_path = local_repo.path.join("I_DO_NOT_EXIST").join("put_it_here");
             let revision = DEFAULT_BRANCH_NAME;
@@ -545,7 +545,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download_file_large_to_dir_does_exist() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_select_data_sync_remote("large_files", |local_repo, remote_repo| async move {
             let remote_path = Path::new("large_files").join("test.csv");
             let local_path = local_repo.path.join("I_DO_EXIST");
             util::fs::create_dir_all(&local_path)?;
@@ -568,7 +568,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download_small_file_to_dir_does_exist() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
             let remote_path = Path::new("annotations").join("README.md");
             let local_path = local_repo.path.join("I_DO_EXIST");
             util::fs::create_dir_all(&local_path)?;
@@ -591,7 +591,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_download_dir_different_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
             let remote_path = Path::new("annotations");
             let local_path = local_repo.path.join("data");
             let revision = DEFAULT_BRANCH_NAME;

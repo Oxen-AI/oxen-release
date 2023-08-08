@@ -105,7 +105,7 @@ async fn test_should_not_push_branch_that_does_not_exist() -> Result<(), OxenErr
 
 #[tokio::test]
 async fn test_delete_branch() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
         // Get the original branches
         let og_branches = api::local::branches::list(&repo)?;
         let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -130,7 +130,7 @@ async fn test_delete_branch() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_cannot_delete_branch_you_are_on() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
         let branch_name = "my-branch";
         api::local::branches::create_checkout(&repo, branch_name)?;
 
@@ -161,7 +161,7 @@ fn test_cannot_force_delete_branch_you_are_on() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
         let og_branches = api::local::branches::list(&repo)?;
         let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
@@ -192,7 +192,7 @@ async fn test_cannot_delete_branch_that_is_ahead_of_current() -> Result<(), Oxen
 
 #[tokio::test]
 async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
         let og_branches = api::local::branches::list(&repo)?;
         let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
 

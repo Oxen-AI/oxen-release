@@ -155,7 +155,7 @@ fn test_command_status_has_txt_file() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
         let labels_path = repo.path.join("labels.txt");
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;

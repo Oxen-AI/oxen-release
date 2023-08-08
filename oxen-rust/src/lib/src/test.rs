@@ -334,6 +334,48 @@ where
     Ok(())
 }
 
+pub async fn run_select_data_sync_remote<T, Fut>(data: &str, test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let mut local_repo = command::init(&repo_dir)?;
+
+    // Write all the training data files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Make a few commits before we sync
+    command::add(&local_repo, local_repo.path.join(data))?;
+    command::commit(&local_repo, &format!("Adding {data}"))?;
+
+    // Create remote
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+
+    // Add remote
+    let remote_url = repo_remote_url_from(&local_repo.dirname());
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
+    // Push data
+    command::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(local_repo, remote_repo).await {
+        Ok(_remote_repo) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Test where certain data is synced to the remote
 pub async fn run_subset_of_data_fully_sync_remote<T, Fut>(
     data: &str,
@@ -568,6 +610,75 @@ where
     Ok(())
 }
 
+pub async fn run_select_data_repo_test_no_commits_async<T, Fut>(
+    data: &str,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+pub async fn run_select_data_repo_test_committed_async<T, Fut>(
+    data: &str,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Add all the files
+    command::add(&repo, &repo.path)?;
+    // commit
+    command::commit(&repo, "Adding all data")?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 pub async fn run_empty_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
 where
     T: FnOnce(LocalRepository) -> Fut,
@@ -605,6 +716,33 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
+
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
+pub fn run_select_data_repo_test_no_commits<T>(data: &str, test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write the select files
+    populate_select_training_data(&repo_dir, data)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {

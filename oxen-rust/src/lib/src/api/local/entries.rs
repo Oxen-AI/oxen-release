@@ -405,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_list_all() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+        test::run_select_data_repo_test_no_commits("labels", |repo| {
             // (file already created in helper)
             let file_to_add = repo.path.join("labels.txt");
 
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_count_one_for_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+        test::run_select_data_repo_test_no_commits("labels", |repo| {
             // (file already created in helper)
             let file_to_add = repo.path.join("labels.txt");
 
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_count_many_for_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+        test::run_select_data_repo_test_no_commits("train", |repo| {
             // (files already created in helper)
             let dir_to_add = repo.path.join("train");
             let num_files = util::fs::rcount_files_in_dir(&dir_to_add);
