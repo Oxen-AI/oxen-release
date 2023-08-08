@@ -7,10 +7,10 @@ use std::io::Cursor;
 
 use crate::core::df::tabular;
 use crate::model::DataFrameSize;
+use crate::opts::PaginateOpts;
 use crate::{model::Schema, opts::DFOpts};
 
 use super::StatusMessage;
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrame {
@@ -60,6 +60,35 @@ impl JsonDataFrame {
                 width: df.width(),
             },
             data: JsonDataFrame::json_data(df),
+        }
+    }
+
+    pub fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
+        let full_height = df.height();
+        let full_width = df.width();
+
+        let page_size = opts.page_size;
+        let page = opts.page_num;
+
+        let start = if page == 0 { 0 } else { page_size * (page - 1) };
+        let end = page_size * page;
+
+        let schema = Schema::from_polars(&df.schema());
+        let mut opts = DFOpts::empty();
+        opts.slice = Some(format!("{}..{}", start, end));
+        let mut sliced_df = tabular::transform(df, opts).unwrap();
+
+        JsonDataFrame {
+            schema,
+            slice_size: DataFrameSize {
+                height: sliced_df.height(),
+                width: sliced_df.width(),
+            },
+            full_size: DataFrameSize {
+                height: full_height,
+                width: full_width,
+            },
+            data: JsonDataFrame::json_data(&mut sliced_df),
         }
     }
 

@@ -793,6 +793,14 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
     Ok(df)
 }
 
+pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenError> {
+    let opts = DFOpts::empty();
+    let df = scan_df(input, &opts)?;
+    let schema = df.schema().expect("Could not get schema");
+
+    Ok(crate::model::Schema::from_polars(&schema))
+}
+
 pub fn schema_to_string<P: AsRef<Path>>(
     input: P,
     flatten: bool,
