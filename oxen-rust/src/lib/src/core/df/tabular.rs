@@ -54,7 +54,9 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
 }
 
 pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
-    match CsvReader::from_path(path.as_ref()) {
+    let path = path.as_ref();
+    log::debug!("read_df_csv path: {:?}", path);
+    match CsvReader::from_path(path) {
         Ok(reader) => Ok(try_infer_schema_csv(reader, delimiter)?),
         Err(err) => {
             let err = format!("{CSV_READ_ERROR}: {err:?}");
