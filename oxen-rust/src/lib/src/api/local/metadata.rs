@@ -27,6 +27,7 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, mime_type.as_str());
     let extension = util::fs::file_extension(path);
+    let metadata = get_file_metadata(path, &data_type)?;
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
@@ -37,8 +38,7 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         data_type,
         mime_type,
         extension,
-        // Need commit to get this data
-        metadata: None,
+        metadata,
     })
 }
 
@@ -50,9 +50,9 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
     let mime_type = util::fs::file_mime_type(path);
     let data_type = util::fs::datatype_from_mimetype(path, mime_type.as_str());
     let extension = util::fs::file_extension(path);
+    let metadata = get_file_metadata(path, &data_type)?;
 
     // TODO: how do we get the cached dir info if the entry is a dir?
-
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),
         is_dir: path.is_dir(),
@@ -62,8 +62,7 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         data_type,
         mime_type,
         extension,
-        // Need commit info to get other metadata
-        metadata: None,
+        metadata,
     })
 }
 

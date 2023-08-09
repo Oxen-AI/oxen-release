@@ -213,11 +213,7 @@ pub fn fetch() -> Command {
 pub fn ls() -> Command {
     Command::new(LS)
         .about("List the files in an oxen repo, used for remote repos you do not have locally.")
-        .arg(
-            Arg::new("paths")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
+        .arg(Arg::new("paths").action(clap::ArgAction::Append))
         .arg(
             Arg::new("host")
                 .long("host")
