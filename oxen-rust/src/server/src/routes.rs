@@ -29,6 +29,18 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::create),
         )
         .route(
+            "/{namespace}/{repo_name}/commits/bulk",
+            web::post().to(controllers::commits::create_bulk),
+        )
+        .route(
+            "/{namespace}/{repo_name}/commits/db_status",
+            web::get().to(controllers::commits::commits_db_status),
+        )
+        .route(
+            "/{namespace}/{repo_name}/commits/entries_status",
+            web::get().to(controllers::commits::entries_status),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits_db", // download the database of all the commits and their parents
             web::get().to(controllers::commits::download_commits_db),
         )

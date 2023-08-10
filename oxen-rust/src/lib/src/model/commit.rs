@@ -121,6 +121,17 @@ impl Commit {
         }
     }
 
+    pub fn from_with_branch_name(commit: &CommitWithBranchName) -> Commit {
+        Commit {
+            id: commit.id.to_owned(),
+            parent_ids: commit.parent_ids.to_owned(),
+            message: commit.message.to_owned(),
+            author: commit.author.to_owned(),
+            email: commit.email.to_owned(),
+            timestamp: commit.timestamp.to_owned(),
+        }
+    }
+
     pub fn from_branch(commit_reader: &CommitReader, branch: &Branch) -> Result<Commit, OxenError> {
         commit_reader
             .get_commit_by_id(&branch.commit_id)?

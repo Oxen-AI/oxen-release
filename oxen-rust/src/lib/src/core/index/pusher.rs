@@ -2,7 +2,6 @@
 //!
 
 use crate::api::remote::commits::ChunkParams;
-use async_recursion::async_recursion;
 use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -13,23 +12,25 @@ use std::io::{BufReader, Read};
 use std::sync::Arc;
 
 use crate::constants::AVG_CHUNK_SIZE;
-use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader, RefReader};
+use crate::constants::MANY_COMMITS;
+use crate::core::index::{
+    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
+};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::PrintOpts;
 use crate::{api, util};
 
-const MANY_COMMITS: usize = 5;
-
+// TODONOW - this is now a dupe
 pub struct UnsyncedCommitEntries {
-    commit: Commit,
-    entries: Vec<CommitEntry>,
+    pub commit: Commit,
+    pub entries: Vec<CommitEntry>,
 }
-
 pub async fn push(
     repo: &LocalRepository,
     rb: &RemoteBranch,
 ) -> Result<RemoteRepository, OxenError> {
+    log::debug!("Pushing to remote branch {:?}", rb);
     let ref_reader = RefReader::new(repo)?;
     let branch = ref_reader.get_branch_by_name(&rb.branch)?;
     if branch.is_none() {
@@ -76,26 +77,20 @@ pub async fn push_remote_repo(
     // This method will check with server to find out what commits need to be pushed
     // will fill in commits that are not synced
     let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
-    rpush_missing_commit_objects(
-        local_repo,
-        &remote_repo,
-        &head_commit,
-        &mut unsynced_commits,
-        &branch,
-    )
-    .await?;
+    new_push_missing_commit_objects(local_repo, &remote_repo, &head_commit, &branch).await?;
 
     // If there are any unsynced commits, sync their entries
-    if !unsynced_commits.is_empty() {
-        log::debug!(
-            "Push entries for {} unsynced commits",
-            unsynced_commits.len()
-        );
+    // if !unsynced_commits.is_empty() {
+    //     log::debug!(
+    //         "Push entries for {} unsynced commits",
+    //         unsynced_commits.len()
+    //     );
 
-        // recursively check commits against remote head
-        // and sync ones that have not been synced
+    //     // recursively check commits against remote head
+    //     // and sync ones that have not been synced
 
-        rpush_entries(local_repo, &remote_repo, &branch, &unsynced_commits).await?;
+    //     // Push commit objects for unsynced commits
+    //     rpush_commit_objects(local_repo, &remote_repo, &branch, &unsynced_commits).await?;
 
         // update the branch after everything else is synced
         log::debug!(
@@ -103,14 +98,28 @@ pub async fn push_remote_repo(
             &branch.name,
             &head_commit
         );
-    }
+    //     // Push data for unsynced commits
+    //     rpush_entries(local_repo, &remote_repo, &branch, &unsynced_commits).await?;
 
-    // Update the remote branch name last
-    api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
-    println!(
-        "Updated remote branch {} -> {}",
-        &branch.name, &head_commit.id
-    );
+    //     // update the branch after everything else is synced
+    //     log::debug!(
+    //         "Updating remote branch {:?} to commit {:?}",
+    //         &branch.name,
+    //         &head_commit
+    //     );
+
+    //     // Remotely validate commit
+    //     // This is an async process on the server so good to stall the user here so they don't push again
+    //     // If they did push again before this is finished they would get a still syncing error
+    //     poll_until_synced(&remote_repo, &head_commit).await?;
+    // }
+
+    // // Update the remote branch name last
+    // api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
+    // println!(
+    //     "Updated remote branch {} -> {}",
+    //     &branch.name, &head_commit.id
+    // );
 
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
@@ -167,7 +176,151 @@ async fn poll_until_synced(
     }
 }
 
-#[async_recursion]
+async fn new_push_missing_commit_objects(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    local_commit: &Commit,
+    branch: &Branch,
+) -> Result<(), OxenError> {
+    // TODONOW factor this out
+    // Get the missing commit objects
+
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
+    let mut commits_to_sync: Vec<Commit>;
+    if let Some(remote_branch) = remote_branch {
+        log::debug!(
+            "rpush_missing_commit_objects found remote branch {:?}, calculating missing commits between local and remote heads", remote_branch
+        );
+        let remote_commit = api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id)
+            .await?
+            .unwrap();
+        let commit_reader = CommitReader::new(local_repo)?;
+        let merger = Merger::new(local_repo)?;
+        commits_to_sync =
+            merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
+        // TODONOW what order here?
+    } else {
+        // Branch does not exist on remote yet - get all commits?
+        log::debug!("rpush_missing_commit_objects remote branch does not exist, getting all commits from local head");
+        commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
+    }
+    commits_to_sync.reverse();
+
+    // Convert these to unsynced commit entries
+
+    let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
+    println!(
+        "🐂 Calculating size for {} unsynced commits",
+        commits_to_sync.len()
+    );
+    for commit in &commits_to_sync {
+        // TODONOW delete
+        let print_opts = PrintOpts { verbose: false };
+        if commit.parent_ids.is_empty() {
+            unsynced_commits.push(UnsyncedCommitEntries {
+                commit: commit.to_owned(),
+                entries: vec![],
+            });
+        }
+        for parent_id in commit.parent_ids.iter() {
+            // Handle root?
+            let local_parent = api::local::commits::get_by_id(local_repo, parent_id)?
+                .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
+
+            // TODONOW delete
+            let print_opts = PrintOpts { verbose: true };
+
+            let entries = read_unsynced_entries(local_repo, &local_parent, &commit, &print_opts)?;
+
+            unsynced_commits.push(UnsyncedCommitEntries {
+                commit: commit.to_owned(),
+                entries,
+            })
+        }
+    }
+
+    // Bulk create on server
+    println!(
+        "🐂 Creating {} commit objects on server",
+        unsynced_commits.len()
+    );
+    api::remote::commits::post_commits_to_server(
+        local_repo,
+        remote_repo,
+        &unsynced_commits,
+        branch.name.clone(), // TODONOW maybe change to &str in function sig
+    )
+    .await?;
+
+    log::debug!("made it out the end of creating commit objects on server");
+
+    // TODO NOW weird to send the body
+    println!("🐂 Identifying unsynced commits dbs...");
+    let unsynced_db_commits =
+        api::remote::commits::get_commits_with_unsynced_dbs(remote_repo, commits_to_sync).await?;
+
+    log::debug!(
+        "Got the following result for get_commits_with_unsynced_dbs: {:?}",
+        unsynced_db_commits
+    );
+    println!(
+        "🐂 Pushing {} commit dbs to server",
+        unsynced_db_commits.len()
+    );
+
+    // Now, create on server where not exists
+    rpush_missing_commit_dbs(&local_repo, &remote_repo, unsynced_db_commits, &branch).await?;
+
+    println!("🐂 Identifying commits with unsynced entries...");
+
+    std::thread::sleep(std::time::Duration::from_millis(5000));
+    let unsynced_entries_commits =
+        api::remote::commits::get_commits_with_unsynced_entries(remote_repo).await?;
+    log::debug!(
+        "Got back {:?} unsynced commit entries",
+        unsynced_entries_commits.len()
+    );
+
+    println!(
+        "🐂 Pushing entries for {} commits",
+        unsynced_entries_commits.len()
+    );
+
+    new_push_missing_commit_entries(&local_repo, &remote_repo, &branch, &unsynced_entries_commits,)
+        .await?;
+    // rpush_missing_commit_entries(&local_repo, &remote_repo, unsynced_commits, &branch);
+
+    Ok(())
+}
+
+async fn rpush_missing_commit_dbs(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    unsynced_commits: Vec<Commit>,
+    branch: &Branch,
+) -> Result<(), OxenError> {
+    // TODONOW remove unclear why this is necessary
+    if !unsynced_commits.is_empty() {
+        std::thread::sleep(std::time::Duration::from_millis(5000));
+    }
+
+    // Init progress bar
+    let pb = ProgressBar::new(unsynced_commits.len() as u64);
+    for commit in &unsynced_commits {
+        // TODONOW parallelize
+        api::remote::commits::post_commit_db_to_server(
+            local_repo,
+            remote_repo,
+            &commit,
+            branch.name.clone(),
+        )
+        .await?;
+        pb.inc(1);
+    }
+    pb.finish();
+    Ok(())
+}
+
 async fn rpush_missing_commit_objects(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -175,116 +328,235 @@ async fn rpush_missing_commit_objects(
     unsynced_commits: &mut VecDeque<UnsyncedCommitEntries>,
     branch: &Branch,
 ) -> Result<(), OxenError> {
-    log::debug!(
-        "rpush_missing_commit_objects START, checking local {} -> '{}'",
-        local_commit.id,
-        local_commit.message
+    // Get straight-line distance from remote head to local commit
+    // TODO: Will this always be accurate? How are merge (multi-parent) commits handled here?
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
+
+    let approx_commits_to_sync: Vec<Commit>;
+
+    if let Some(remote_branch) = remote_branch {
+        log::debug!(
+            "rpush_missing_commit_objects found remote branch {:?}, calculating missing commits between local and remote heads", remote_branch
+        );
+        let remote_commit = api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id)
+            .await?
+            .unwrap();
+        let commit_reader = CommitReader::new(local_repo)?;
+        let merger = Merger::new(local_repo)?;
+        approx_commits_to_sync =
+            merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
+    } else {
+        // Branch does not exist on remote yet - get all commits?
+        log::debug!("rpush_missing_commit_objects remote branch does not exist, getting all commits from local head");
+        approx_commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
+    }
+
+    let bar = ProgressBar::new(approx_commits_to_sync.len() as u64);
+    let print_opts = PrintOpts {
+        verbose: approx_commits_to_sync.len() < MANY_COMMITS,
+    };
+
+    println!(
+        "🐂 Calculating diffs for {} unsynced commits",
+        approx_commits_to_sync.len()
     );
 
-    // check if commit exists on remote
-    // if not, push the commit and it's dbs
-    match api::remote::commits::commit_is_synced(remote_repo, &local_commit.id).await {
-        Ok(Some(sync_status)) => {
-            if sync_status.is_valid {
-                // Commit has been synced
-                let commit_reader = CommitReader::new(local_repo)?;
-                let head_commit = commit_reader.head_commit()?;
+    log::debug!("Commits to sync: {:?}", approx_commits_to_sync.len());
 
-                // We have remote commit, stop syncing
+    let mut stack: Vec<Commit> = Vec::new();
+    stack.push(local_commit.clone());
+
+    // Accumulate commits to sync
+    while let Some(local_commit) = stack.pop() {
+        log::debug!(
+            "ipush_missing_commit_objects START, checking local {} -> '{}'",
+            local_commit.id,
+            local_commit.message
+        );
+
+        match api::remote::commits::commit_is_synced(remote_repo, &local_commit.id).await {
+            Ok(Some(sync_status)) => {
+                if sync_status.is_valid {
+                    // Commit has been synced
+                    let commit_reader = CommitReader::new(local_repo)?;
+                    let head_commit = commit_reader.head_commit()?;
+
+                    // We have remote commit, stop syncing
+                    log::debug!(
+                        "ipush_missing_commit_objects STOP, we have remote parent {} -> '{}' head {} -> '{}'",
+                        local_commit.id,
+                        local_commit.message,
+                        head_commit.id,
+                        head_commit.message
+                    );
+                } else if sync_status.is_processing {
+                    // Print that last commit is still processing (or we may be in still caching values on the server)
+                    log::debug!("Commit is still processing on server {}", local_commit.id);
+                } else {
+                    return Err(OxenError::basic_str(sync_status.status_description));
+                }
+            }
+            Ok(None) => {
                 log::debug!(
-                    "rpush_missing_commit_objects STOP, we have remote parent {} -> '{}' head {} -> '{}'",
+                    "ipush_missing_commit_objects CONTINUE Didn't find remote parent: {} -> '{}'",
                     local_commit.id,
-                    local_commit.message,
-                    head_commit.id,
-                    head_commit.message
+                    local_commit.message
                 );
-            } else if sync_status.is_processing {
-                // Print that last commit is still processing (or we may be in still caching values on the server)
-                log::debug!("Commit is still processing on server {}", local_commit.id);
-            } else {
-                return Err(OxenError::basic_str(sync_status.status_description));
-            }
-        }
-        Ok(None) => {
-            log::debug!(
-                "rpush_missing_commit_objects CONTINUE Didn't find remote parent: {} -> '{}'",
-                local_commit.id,
-                local_commit.message
-            );
-            // We don't have remote commit
-            // Recursively find local parent and remote parents
-            for parent_id in local_commit.parent_ids.iter() {
-                // We should have a local parent if the local_commit has parent id
-                let local_parent = api::local::commits::get_by_id(local_repo, parent_id)?
-                    .ok_or_else(|| OxenError::local_parent_link_broken(&local_commit.id))?;
 
-                // Compute the diff from the parent that we are going to sync
-                let entries = read_unsynced_entries(local_repo, &local_parent, local_commit)?;
-                let entries_size = api::local::entries::compute_entries_size(&entries)?;
+                for parent_id in local_commit.parent_ids.iter() {
+                    let local_parent = api::local::commits::get_by_id(local_repo, parent_id)?
+                        .ok_or_else(|| OxenError::local_parent_link_broken(&local_commit.id))?;
 
-                rpush_missing_commit_objects(
-                    local_repo,
-                    remote_repo,
-                    &local_parent,
-                    unsynced_commits,
-                    branch,
-                )
-                .await?;
+                    let entries = read_unsynced_entries(
+                        local_repo,
+                        &local_parent,
+                        &local_commit,
+                        &print_opts,
+                    )?;
 
-                // Unroll and post commits
-                api::remote::commits::post_commit_to_server(
-                    local_repo,
-                    remote_repo,
-                    local_commit,
-                    entries_size,
-                    branch.name.to_owned(),
-                )
-                .await?;
+                    bar.inc(1);
 
+                    unsynced_commits.push_front(UnsyncedCommitEntries {
+                        commit: local_commit.to_owned(),
+                        entries,
+                    });
+
+                    stack.push(local_parent);
+                }
                 log::debug!(
-                    "rpush_missing_commit_objects unsynced_commits.push_back commit -> {:?} parent {:?}",
-                    local_commit.id, local_parent.id
+                    "rpush_missing_commit_objects stop, no more local parents {} -> '{}'",
+                    local_commit.id,
+                    local_commit.message
                 );
 
-                unsynced_commits.push_back(UnsyncedCommitEntries {
-                    commit: local_commit.to_owned(),
-                    entries,
-                });
+                if local_commit.parent_ids.is_empty() {
+                    bar.inc(1);
+                    log::debug!("unsynced_commits.push_back root {:?}", local_commit);
+                    unsynced_commits.push_front(UnsyncedCommitEntries {
+                        commit: local_commit.to_owned(),
+                        entries: vec![],
+                    });
+                }
             }
-
-            log::debug!(
-                "rpush_missing_commit_objects stop, no more local parents {} -> '{}'",
-                local_commit.id,
-                local_commit.message
-            );
-
-            if local_commit.parent_ids.is_empty() {
-                // Create the root commit
-                api::remote::commits::post_commit_to_server(
-                    local_repo,
-                    remote_repo,
-                    local_commit,
-                    0, // No entries
-                    branch.name.to_owned(),
-                )
-                .await?;
-                log::debug!("unsynced_commits.push_back root {:?}", local_commit);
-                unsynced_commits.push_back(UnsyncedCommitEntries {
-                    commit: local_commit.to_owned(),
-                    entries: vec![],
-                });
+            Err(err) => {
+                let err = format!("{err}");
+                return Err(OxenError::basic_str(err));
             }
-        }
-        Err(err) => {
-            let err = format!("{err}");
-            return Err(OxenError::basic_str(err));
         }
     }
 
+    bar.finish();
     Ok(())
 }
 
-async fn rpush_entries(
+async fn rpush_commit_objects(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    branch: &Branch,
+    unsynced_commits: &VecDeque<UnsyncedCommitEntries>,
+) -> Result<(), OxenError> {
+    println!(
+        "Pushing commit objects for {} commits",
+        unsynced_commits.len()
+    );
+
+    let print_opts = PrintOpts {
+        verbose: unsynced_commits.len() < MANY_COMMITS,
+    };
+
+    let bar = ProgressBar::new(unsynced_commits.len() as u64);
+
+    for unsynced in unsynced_commits.iter() {
+        let entries_size = api::local::entries::compute_entries_size(&unsynced.entries)?;
+        // If issues w/ root commit, handle separately
+        api::remote::commits::post_commit_to_server(
+            local_repo,
+            remote_repo,
+            &unsynced.commit,
+            entries_size,
+            branch.name.to_owned(),
+            &print_opts,
+        )
+        .await?;
+        bar.inc(1);
+    }
+    bar.finish();
+    Ok(())
+}
+
+async fn new_push_missing_commit_entries(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    branch: &Branch,
+    unsynced_commits: &Vec<Commit>,
+) -> Result<(), OxenError> {
+    log::debug!("rpush_entries num unsynced {}", unsynced_commits.len());
+
+    let mut unsynced_commit_entries: Vec<UnsyncedCommitEntries> = Vec::new();
+    // Gather our vec unsynced commits into unsyncedcommitentries
+    let print_opts = PrintOpts { verbose: false };
+    for commit in unsynced_commits {
+        // Handle root 
+        if commit.parent_ids.is_empty() {
+            let entries = vec![];
+            unsynced_commit_entries.push(UnsyncedCommitEntries {
+                commit: commit.to_owned(),
+                entries,
+            });
+
+        }
+        for parent_id in &commit.parent_ids {
+            let local_parent = api::local::commits::get_by_id(local_repo, &parent_id)?
+            .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
+
+            let entries = read_unsynced_entries(
+                local_repo,
+                &local_parent,
+                &commit,
+                &print_opts,
+            )?;
+
+            unsynced_commit_entries.push(UnsyncedCommitEntries {
+                commit: commit.to_owned(),
+                entries,
+            });
+        }
+    }
+
+    let print_opts = PrintOpts {
+        verbose: unsynced_commits.len() < MANY_COMMITS,
+    };
+
+    let bar = ProgressBar::new(unsynced_commits.len() as u64);
+    println!("Pushing {} commits...", unsynced_commits.len());
+    for unsynced in unsynced_commit_entries.iter() {
+        let commit = &unsynced.commit;
+        let entries = &unsynced.entries;
+
+        if print_opts.verbose {
+            println!(
+                "Pushing commit {} entries: {} -> '{}'",
+                entries.len(),
+                commit.id,
+                commit.message
+            );
+        }
+        push_entries(
+            local_repo,
+            remote_repo,
+            branch,
+            entries,
+            commit,
+            &print_opts,
+        )
+        .await?;
+        bar.inc(1);
+    }
+    bar.finish();
+    Ok(())
+}
+
+async fn rpush_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     branch: &Branch,
@@ -329,8 +601,11 @@ fn read_unsynced_entries(
     local_repo: &LocalRepository,
     last_commit: &Commit,
     this_commit: &Commit,
+    print_opts: &PrintOpts,
 ) -> Result<Vec<CommitEntry>, OxenError> {
-    println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
+    if print_opts.verbose {
+        println!("Computing delta {} -> {}", last_commit.id, this_commit.id);
+    }
     // Find and compare all entries between this commit and last
     let this_entry_reader = CommitEntryReader::new(local_repo, this_commit)?;
 
