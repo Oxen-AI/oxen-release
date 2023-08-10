@@ -34,10 +34,7 @@ fn p_compute_metadata<R: std::io::Read>(handle: R) -> Result<MetadataText, std::
         };
         reader.consume(len);
     }
-    Ok(MetadataText {
-        num_lines: line_count,
-        num_chars: char_count,
-    })
+    Ok(MetadataText::new(line_count, char_count))
 }
 
 #[cfg(test)]
@@ -62,8 +59,8 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.num_lines, 3);
-        assert_eq!(metadata.num_chars, 44);
+        assert_eq!(metadata.text.num_lines, 3);
+        assert_eq!(metadata.text.num_chars, 44);
     }
 
     #[test]
@@ -80,7 +77,7 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.num_lines, 4);
-        assert_eq!(metadata.num_chars, 50);
+        assert_eq!(metadata.text.num_lines, 4);
+        assert_eq!(metadata.text.num_chars, 50);
     }
 }

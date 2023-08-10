@@ -599,7 +599,7 @@ fn maybe_display_types(entries: &PaginatedDirEntries) {
     };
 
     // parse data_type_counts or exit function
-    let data_type_counts = &entries_metadata.data_types;
+    let data_type_counts = &entries_metadata.dir.data_types;
 
     if !data_type_counts.is_empty() {
         println!();

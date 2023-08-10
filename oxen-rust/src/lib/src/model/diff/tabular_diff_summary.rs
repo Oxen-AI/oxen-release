@@ -8,6 +8,12 @@ use crate::util;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularDiffSummary {
+    pub tabular: TabularDiffSummaryImpl,
+}
+
+// Impl is so that we can wrap the json response in the "tabular" field to make summaries easier to distinguish
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularDiffSummaryImpl {
     pub num_added_rows: usize,
     pub num_added_cols: usize,
     pub num_removed_rows: usize,
@@ -36,11 +42,13 @@ impl TabularDiffSummary {
         let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
 
         TabularDiffSummary {
-            num_added_rows,
-            num_added_cols,
-            num_removed_rows,
-            num_removed_cols,
-            schema_has_changed,
+            tabular: TabularDiffSummaryImpl {
+                num_added_rows,
+                num_added_cols,
+                num_removed_rows,
+                num_removed_cols,
+                schema_has_changed,
+            },
         }
     }
 

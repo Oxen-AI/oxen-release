@@ -13,10 +13,7 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError
     let path = path.as_ref();
     let opts = DFOpts::empty();
     let df = tabular::read_df(path, opts)?;
-    Ok(MetadataTabular {
-        height: df.height(),
-        width: df.width(),
-    })
+    Ok(MetadataTabular::new(df.width(), df.height()))
 }
 
 #[cfg(test)]
@@ -41,7 +38,7 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.width, 11);
-        assert_eq!(metadata.height, 200_000);
+        assert_eq!(metadata.tabular.width, 11);
+        assert_eq!(metadata.tabular.height, 200_000);
     }
 }

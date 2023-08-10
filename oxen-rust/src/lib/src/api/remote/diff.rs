@@ -131,11 +131,11 @@ mod tests {
             let summary = test_csv.diff_summary.as_ref().unwrap();
             match summary {
                 GenericDiffSummary::TabularDiffSummary(summary) => {
-                    assert_eq!(summary.num_added_rows, 1);
-                    assert_eq!(summary.num_removed_rows, 0);
-                    assert_eq!(summary.num_added_cols, 2);
-                    assert_eq!(summary.num_removed_cols, 2);
-                    assert!(summary.schema_has_changed);
+                    assert_eq!(summary.tabular.num_added_rows, 1);
+                    assert_eq!(summary.tabular.num_removed_rows, 0);
+                    assert_eq!(summary.tabular.num_added_cols, 2);
+                    assert_eq!(summary.tabular.num_removed_cols, 2);
+                    assert!(summary.tabular.schema_has_changed);
                 }
                 _ => panic!("Wrong summary type"),
             }
@@ -147,11 +147,11 @@ mod tests {
             let summary = test_csv.diff_summary.as_ref().unwrap();
             match summary {
                 GenericDiffSummary::TabularDiffSummary(summary) => {
-                    assert_eq!(summary.num_added_rows, 0);
-                    assert_eq!(summary.num_removed_rows, 0);
-                    assert_eq!(summary.num_added_cols, 3);
-                    assert_eq!(summary.num_removed_cols, 0);
-                    assert!(summary.schema_has_changed);
+                    assert_eq!(summary.tabular.num_added_rows, 0);
+                    assert_eq!(summary.tabular.num_removed_rows, 0);
+                    assert_eq!(summary.tabular.num_added_cols, 3);
+                    assert_eq!(summary.tabular.num_removed_cols, 0);
+                    assert!(summary.tabular.schema_has_changed);
                 }
                 _ => panic!("Wrong summary type"),
             }
@@ -233,9 +233,9 @@ mod tests {
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
                     // POPULATE THESE
-                    assert_eq!(summary.file_counts.modified, 0);
-                    assert_eq!(summary.file_counts.added, 4);
-                    assert_eq!(summary.file_counts.removed, 0);
+                    assert_eq!(summary.dir.file_counts.modified, 0);
+                    assert_eq!(summary.dir.file_counts.added, 4);
+                    assert_eq!(summary.dir.file_counts.removed, 0);
                 }
                 _ => panic!("Wrong summary type"),
             }
@@ -318,9 +318,9 @@ mod tests {
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
                     // POPULATE THESE
-                    assert_eq!(summary.file_counts.modified, 0);
-                    assert_eq!(summary.file_counts.added, 0);
-                    assert_eq!(summary.file_counts.removed, 3);
+                    assert_eq!(summary.dir.file_counts.modified, 0);
+                    assert_eq!(summary.dir.file_counts.added, 0);
+                    assert_eq!(summary.dir.file_counts.removed, 3);
                 }
                 _ => panic!("Wrong summary type"),
             }
@@ -432,9 +432,9 @@ mod tests {
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
                     // POPULATE THESE
-                    assert_eq!(summary.file_counts.modified, 3);
-                    assert_eq!(summary.file_counts.added, 1);
-                    assert_eq!(summary.file_counts.removed, 1);
+                    assert_eq!(summary.dir.file_counts.modified, 3);
+                    assert_eq!(summary.dir.file_counts.added, 1);
+                    assert_eq!(summary.dir.file_counts.removed, 1);
                 }
                 _ => panic!("Wrong summary type"),
             }

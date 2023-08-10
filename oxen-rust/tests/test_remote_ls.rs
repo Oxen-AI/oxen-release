@@ -98,7 +98,7 @@ async fn test_remote_ls_return_data_types() -> Result<(), OxenError> {
 
         // serialize into an array of DataTypeCount
         let metadata = paginated.metadata.unwrap();
-        let data_type_counts: Vec<DataTypeCount> = metadata.data_types;
+        let data_type_counts: Vec<DataTypeCount> = metadata.dir.data_types;
 
         let data_type_count_text = data_type_counts
             .iter()
@@ -174,7 +174,7 @@ async fn test_remote_ls_return_data_types_just_top_level_dir() -> Result<(), Oxe
 
         // serialize into an array of DataTypeCount
         let metadata = paginated.metadata.unwrap();
-        let data_type_counts: Vec<DataTypeCount> = metadata.data_types;
+        let data_type_counts: Vec<DataTypeCount> = metadata.dir.data_types;
 
         let data_type_count_text = data_type_counts
             .iter()

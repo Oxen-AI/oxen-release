@@ -13,11 +13,11 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> 
         Ok(img) => {
             let (width, height) = img.dimensions();
             let color_space = image_to_colorspace(&img.color());
-            Ok(MetadataImage {
-                width: width as usize,
-                height: height as usize,
+            Ok(MetadataImage::new(
+                width as usize,
+                height as usize,
                 color_space,
-            })
+            ))
         }
         Err(e) => {
             log::error!("Could not get image metadata {:?}", e);
@@ -67,9 +67,9 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.width, 499);
-        assert_eq!(metadata.height, 375);
-        assert_eq!(metadata.color_space, ImgColorSpace::RGB);
+        assert_eq!(metadata.image.width, 499);
+        assert_eq!(metadata.image.height, 375);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
     }
 
     #[test]
@@ -86,9 +86,9 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.width, 499);
-        assert_eq!(metadata.height, 375);
-        assert_eq!(metadata.color_space, ImgColorSpace::RGBA);
+        assert_eq!(metadata.image.width, 499);
+        assert_eq!(metadata.image.height, 375);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::RGBA);
     }
 
     #[test]
@@ -106,9 +106,9 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.width, 499);
-        assert_eq!(metadata.height, 375);
-        assert_eq!(metadata.color_space, ImgColorSpace::Grayscale);
+        assert_eq!(metadata.image.width, 499);
+        assert_eq!(metadata.image.height, 375);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::Grayscale);
     }
 
     #[test]
@@ -125,8 +125,8 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.width, 28);
-        assert_eq!(metadata.height, 28);
-        assert_eq!(metadata.color_space, ImgColorSpace::Grayscale);
+        assert_eq!(metadata.image.width, 28);
+        assert_eq!(metadata.image.height, 28);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::Grayscale);
     }
 }
