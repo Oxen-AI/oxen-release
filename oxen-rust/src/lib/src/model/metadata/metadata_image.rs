@@ -23,7 +23,24 @@ pub enum ImgColorSpace {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetadataImage {
+    pub image: MetadataImageImpl,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct MetadataImageImpl {
     pub width: usize,
     pub height: usize,
     pub color_space: ImgColorSpace, // RGB, RGBA, etc.
+}
+
+impl MetadataImage {
+    pub fn new(width: usize, height: usize, color_space: ImgColorSpace) -> Self {
+        Self {
+            image: MetadataImageImpl {
+                width,
+                height,
+                color_space,
+            },
+        }
+    }
 }

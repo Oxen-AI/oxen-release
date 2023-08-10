@@ -79,7 +79,7 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
         // Get the original branch name
         let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
@@ -119,7 +119,7 @@ async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError
 
 #[tokio::test]
 async fn test_command_commit_second_level_dir_then_revert() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
         // Get the original branch name
         let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
 
@@ -181,7 +181,7 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|repo| async move {
+    test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
         let labels_path = repo.path.join("labels.txt");
         command::add(&repo, &labels_path)?;
         command::commit(&repo, "adding initial labels file")?;

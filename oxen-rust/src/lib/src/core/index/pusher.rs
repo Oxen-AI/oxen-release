@@ -99,11 +99,6 @@ pub async fn push_remote_repo(
             &branch.name,
             &head_commit
         );
-
-        // Remotely validate commit
-        // This is an async process on the server so good to stall the user here so they don't push again
-        // If they did push again before this is finished they would get a still syncing error
-        poll_until_synced(&remote_repo, &head_commit).await?;
     }
 
     // Update the remote branch name last
@@ -112,6 +107,11 @@ pub async fn push_remote_repo(
         "Updated remote branch {} -> {}",
         &branch.name, &head_commit.id
     );
+
+    // Remotely validate commit
+    // This is an async process on the server so good to stall the user here so they don't push again
+    // If they did push again before this is finished they would get a still syncing error
+    poll_until_synced(&remote_repo, &head_commit).await?;
 
     Ok(remote_repo)
 }

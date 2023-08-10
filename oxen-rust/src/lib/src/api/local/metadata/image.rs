@@ -13,11 +13,11 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> 
         Ok(img) => {
             let (width, height) = img.dimensions();
             let color_space = image_to_colorspace(&img.color());
-            Ok(MetadataImage {
-                width: width as usize,
-                height: height as usize,
+            Ok(MetadataImage::new(
+                width as usize,
+                height as usize,
                 color_space,
-            })
+            ))
         }
         Err(e) => {
             log::error!("Could not get image metadata {:?}", e);
@@ -47,7 +47,9 @@ mod tests {
 
     use crate::api;
     use crate::model::entry::entry_data_type::EntryDataType;
-    // use crate::model::entry::metadata_entry::ImgColorSpace;
+    use crate::model::metadata::generic_metadata::GenericMetadata;
+    use crate::model::metadata::metadata_image::ImgColorSpace;
+    use crate::model::metadata::MetadataImage;
     use crate::test;
 
     #[test]
@@ -59,10 +61,15 @@ mod tests {
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/jpeg");
 
-        // let metadata = data.meta.image.unwrap();
-        // assert_eq!(metadata.width, 499);
-        // assert_eq!(metadata.height, 375);
-        // assert_eq!(metadata.color_space, ImgColorSpace::RGB);
+        assert!(data.metadata.is_some());
+        let metadata: MetadataImage = match data.metadata.unwrap() {
+            GenericMetadata::MetadataImage(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
+
+        assert_eq!(metadata.image.width, 499);
+        assert_eq!(metadata.image.height, 375);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
     }
 
     #[test]
@@ -73,26 +80,16 @@ mod tests {
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/png");
 
-        // let metadata = data.meta.image.unwrap();
+        assert!(data.metadata.is_some());
+        let metadata: MetadataImage = match data.metadata.unwrap() {
+            GenericMetadata::MetadataImage(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
 
-        // assert_eq!(metadata.width, 499);
-        // assert_eq!(metadata.height, 375);
-        // assert_eq!(metadata.color_space, ImgColorSpace::RGBA);
+        assert_eq!(metadata.image.width, 499);
+        assert_eq!(metadata.image.height, 375);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::RGBA);
     }
-
-    // #[test]
-    // fn test_get_metadata_img_png_no_ext() {
-    //     let file = test::test_img_file_with_name("cat_no_ext");
-    //     let data = api::local::metadata::get(file).unwrap();
-
-    //     assert_eq!(data.data_type, EntryDataType::Image);
-    //     assert_eq!(data.mime_type, "image/png");
-    //     let metadata = data.meta.image.unwrap();
-
-    //     assert_eq!(metadata.width, 499);
-    //     assert_eq!(metadata.height, 375);
-    //     assert_eq!(metadata.color_space, ImgColorSpace::RGBA);
-    // }
 
     #[test]
     fn test_get_metadata_img_grayscale() {
@@ -103,11 +100,15 @@ mod tests {
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/jpeg");
 
-        // let metadata = data.meta.image.unwrap();
+        assert!(data.metadata.is_some());
+        let metadata: MetadataImage = match data.metadata.unwrap() {
+            GenericMetadata::MetadataImage(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
 
-        // assert_eq!(metadata.width, 499);
-        // assert_eq!(metadata.height, 375);
-        // assert_eq!(metadata.color_space, ImgColorSpace::Grayscale);
+        assert_eq!(metadata.image.width, 499);
+        assert_eq!(metadata.image.height, 375);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::Grayscale);
     }
 
     #[test]
@@ -118,9 +119,14 @@ mod tests {
         assert_eq!(data.data_type, EntryDataType::Image);
         assert_eq!(data.mime_type, "image/png");
 
-        // let metadata = data.meta.image.unwrap();
-        // assert_eq!(metadata.width, 28);
-        // assert_eq!(metadata.height, 28);
-        // assert_eq!(metadata.color_space, ImgColorSpace::Grayscale);
+        assert!(data.metadata.is_some());
+        let metadata: MetadataImage = match data.metadata.unwrap() {
+            GenericMetadata::MetadataImage(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
+
+        assert_eq!(metadata.image.width, 28);
+        assert_eq!(metadata.image.height, 28);
+        assert_eq!(metadata.image.color_space, ImgColorSpace::Grayscale);
     }
 }

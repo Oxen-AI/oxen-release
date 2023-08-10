@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::api;
-use crate::model::metadata::metadata_entry_type::EntryTypeMetadata;
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository};
 use crate::view::entry::ResourceVersion;
 
@@ -36,7 +36,7 @@ pub struct MetadataEntry {
     // auto detected extension of the file
     pub extension: String,
     // metadata per data tyoe
-    pub metadata: EntryTypeMetadata,
+    pub metadata: Option<GenericMetadata>,
 }
 
 impl MetadataEntry {

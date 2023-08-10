@@ -334,6 +334,90 @@ where
     Ok(())
 }
 
+pub async fn run_select_data_sync_remote<T, Fut>(data: &str, test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let mut local_repo = command::init(&repo_dir)?;
+
+    // Write all the training data files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Make a few commits before we sync
+    command::add(&local_repo, local_repo.path.join(data))?;
+    command::commit(&local_repo, &format!("Adding {data}"))?;
+
+    // Create remote
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+
+    // Add remote
+    let remote_url = repo_remote_url_from(&local_repo.dirname());
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
+    // Push data
+    command::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(local_repo, remote_repo).await {
+        Ok(_remote_repo) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+/// Test where certain data is synced to the remote
+pub async fn run_subset_of_data_fully_sync_remote<T, Fut>(
+    data: &str,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let mut local_repo = command::init(&repo_dir)?;
+
+    // Write all the training data files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Create remote
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+
+    // Add remote
+    let remote_url = repo_remote_url_from(&local_repo.dirname());
+    command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
+    // Push data
+    command::push(&local_repo).await?;
+
+    // Run test to see if it panic'd
+    let result = match test(local_repo, remote_repo).await {
+        Ok(_remote_repo) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Test interacting with a remote repo that was created via API, not local repo
 pub async fn run_no_commit_remote_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -526,6 +610,101 @@ where
     Ok(())
 }
 
+pub async fn run_select_data_repo_test_no_commits_async<T, Fut>(
+    data: &str,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+pub async fn run_select_data_repo_test_committed_async<T, Fut>(
+    data: &str,
+    test: T,
+) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write all the files
+    populate_select_training_data(&repo_dir, data)?;
+
+    // Add all the files
+    command::add(&repo, &repo.path)?;
+    // commit
+    command::commit(&repo, "Adding all data")?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+pub async fn run_empty_data_repo_test_no_commits_async<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Run test to see if it panic'd
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Run a test on a repo with a bunch of files
 pub fn run_training_data_repo_test_no_commits<T>(test: T) -> Result<(), OxenError>
 where
@@ -537,6 +716,33 @@ where
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
+
+    // Run test to see if it panic'd
+    let result = std::panic::catch_unwind(|| match test(repo) {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {}", err);
+        }
+    });
+
+    // Remove repo dir
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result.is_ok());
+    Ok(())
+}
+
+pub fn run_select_data_repo_test_no_commits<T>(data: &str, test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Write the select files
+    populate_select_training_data(&repo_dir, data)?;
 
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
@@ -837,6 +1043,10 @@ pub fn test_img_file() -> PathBuf {
         .join("dwight_vince.jpeg")
 }
 
+pub fn test_csv_file_with_name(name: &str) -> PathBuf {
+    PathBuf::from("data").join("test").join("csvs").join(name)
+}
+
 pub fn test_img_file_with_name(name: &str) -> PathBuf {
     PathBuf::from("data").join("test").join("images").join(name)
 }
@@ -865,6 +1075,207 @@ pub fn test_nlp_classification_csv() -> PathBuf {
         .join("classification")
         .join("annotations")
         .join("test.tsv")
+}
+
+pub fn populate_readme(repo_dir: &Path) -> Result<(), OxenError> {
+    write_txt_file_to_path(
+        repo_dir.join("README.md"),
+        r#"
+        # Welcome to the party
+
+        If you are seeing this, you are deep in the test framework, love to see it, keep testing.
+
+        Yes I am biased, dog is label 0, cat is label 1, not alphabetical. Interpret that as you will.
+
+        🐂 💨
+    "#,
+    )?;
+
+    Ok(())
+}
+
+pub fn populate_labels(repo_dir: &Path) -> Result<(), OxenError> {
+    write_txt_file_to_path(
+        repo_dir.join("labels.txt"),
+        r#"
+        dog
+        cat
+    "#,
+    )?;
+
+    Ok(())
+}
+
+pub fn populate_large_files(repo_dir: &Path) -> Result<(), OxenError> {
+    let large_dir = repo_dir.join("large_files");
+    std::fs::create_dir_all(&large_dir)?;
+    let large_file_1 = large_dir.join("test.csv");
+    let from_file = test_200k_csv();
+    util::fs::copy(from_file, large_file_1)?;
+
+    Ok(())
+}
+
+pub fn populate_train_dir(repo_dir: &Path) -> Result<(), OxenError> {
+    let train_dir = repo_dir.join("train");
+    std::fs::create_dir_all(&train_dir)?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_1.jpg"),
+        train_dir.join("dog_1.jpg"),
+    )?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_2.jpg"),
+        train_dir.join("dog_2.jpg"),
+    )?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_3.jpg"),
+        train_dir.join("dog_3.jpg"),
+    )?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("cat_1.jpg"),
+        train_dir.join("cat_1.jpg"),
+    )?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("cat_2.jpg"),
+        train_dir.join("cat_2.jpg"),
+    )?;
+
+    Ok(())
+}
+
+pub fn populate_test_dir(repo_dir: &Path) -> Result<(), OxenError> {
+    let test_dir = repo_dir.join("test");
+    std::fs::create_dir_all(&test_dir)?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("dog_4.jpg"),
+        test_dir.join("1.jpg"),
+    )?;
+    util::fs::copy(
+        Path::new("data")
+            .join("test")
+            .join("images")
+            .join("cat_3.jpg"),
+        test_dir.join("2.jpg"),
+    )?;
+
+    Ok(())
+}
+
+pub fn populate_annotations_dir(repo_dir: &Path) -> Result<(), OxenError> {
+    let annotations_dir = repo_dir.join("annotations");
+    std::fs::create_dir_all(&annotations_dir)?;
+    let annotations_readme_file = annotations_dir.join("README.md");
+    write_txt_file_to_path(
+        annotations_readme_file,
+        r#"
+        # Annotations
+        Some info about our annotations structure....
+        "#,
+    )?;
+
+    // annotations/train/
+    let train_annotations_dir = annotations_dir.join("train");
+    std::fs::create_dir_all(&train_annotations_dir)?;
+    write_txt_file_to_path(
+        train_annotations_dir.join("annotations.txt"),
+        r#"
+train/dog_1.jpg 0
+train/dog_2.jpg 0
+train/dog_3.jpg 0
+train/cat_1.jpg 1
+train/cat_2.jpg 1
+    "#,
+    )?;
+
+    create_bounding_box_csv(repo_dir)?;
+
+    write_txt_file_to_path(
+        train_annotations_dir.join("one_shot.csv"),
+        r#"file,label,min_x,min_y,width,height
+train/dog_1.jpg,dog,101.5,32.0,385,330
+"#,
+    )?;
+
+    write_txt_file_to_path(
+        train_annotations_dir.join("two_shot.csv"),
+        r#"file,label,min_x,min_y,width,height
+train/dog_3.jpg,dog,19.0,63.5,376,421
+train/cat_1.jpg,cat,57.0,35.5,304,427
+"#,
+    )?;
+
+    // annotations/test/
+    let test_annotations_dir = annotations_dir.join("test");
+    std::fs::create_dir_all(&test_annotations_dir)?;
+    write_txt_file_to_path(
+        test_annotations_dir.join("annotations.csv"),
+        r#"file,label,min_x,min_y,width,height
+test/dog_3.jpg,dog,19.0,63.5,376,421
+test/cat_1.jpg,cat,57.0,35.5,304,427
+test/unknown.jpg,unknown,0.0,0.0,0,0
+"#,
+    )?;
+
+    Ok(())
+}
+
+pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
+    // Make sure to add a few duplicate examples for testing
+    let nlp_annotations_dir = repo_dir
+        .join("nlp")
+        .join("classification")
+        .join("annotations");
+    std::fs::create_dir_all(&nlp_annotations_dir)?;
+    write_txt_file_to_path(
+        nlp_annotations_dir.join("train.tsv"),
+        r#"text	label
+My tummy hurts	negative
+I have a headache	negative
+My tummy hurts	negative
+I have a headache	negative
+loving the sunshine	positive
+And another unique one	positive
+My tummy hurts	negative
+loving the sunshine	positive
+I am a lonely example	negative
+I am adding more examples	positive
+One more time	positive
+"#,
+    )?;
+
+    write_txt_file_to_path(
+        nlp_annotations_dir.join("test.tsv"),
+        r#"text	label
+My tummy hurts	negative
+My tummy hurts	negative
+My tummy hurts	negative
+I have a headache	negative
+I have a headache	negative
+loving the sunshine	positive
+loving the sunshine	positive
+I am a lonely example	negative
+I am a great testing example	positive
+    "#,
+    )?;
+    Ok(())
 }
 
 pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError> {
@@ -906,184 +1317,64 @@ pub fn populate_dir_with_training_data(repo_dir: &Path) -> Result<(), OxenError>
     // README.md
 
     // README.md
-    write_txt_file_to_path(
-        repo_dir.join("README.md"),
-        r#"
-        # Welcome to the party
+    populate_readme(repo_dir)?;
 
-        If you are seeing this, you are deep in the test framework, love to see it, keep testing.
+    // labels.txt
+    populate_labels(repo_dir)?;
 
-        Yes I am biased, dog is label 0, cat is label 1, not alphabetical. Interpret that as you will.
-
-        🐂 💨
-    "#,
-    )?;
-
-    write_txt_file_to_path(
-        repo_dir.join("labels.txt"),
-        r#"
-        dog
-        cat
-    "#,
-    )?;
-
-    // large_files
-    let large_dir = repo_dir.join("large_files");
-    std::fs::create_dir_all(&large_dir)?;
-    let large_file_1 = large_dir.join("test.csv");
-    let from_file = test_200k_csv();
-    util::fs::copy(from_file, large_file_1)?;
+    // large_files/test.csv
+    populate_large_files(repo_dir)?;
 
     // train/
-    let train_dir = repo_dir.join("train");
-    std::fs::create_dir_all(&train_dir)?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("dog_1.jpg"),
-        train_dir.join("dog_1.jpg"),
-    )?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("dog_2.jpg"),
-        train_dir.join("dog_2.jpg"),
-    )?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("dog_3.jpg"),
-        train_dir.join("dog_3.jpg"),
-    )?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("cat_1.jpg"),
-        train_dir.join("cat_1.jpg"),
-    )?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("cat_2.jpg"),
-        train_dir.join("cat_2.jpg"),
-    )?;
+    populate_train_dir(repo_dir)?;
 
     // test/
-    let test_dir = repo_dir.join("test");
-    std::fs::create_dir_all(&test_dir)?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("dog_4.jpg"),
-        test_dir.join("1.jpg"),
-    )?;
-    util::fs::copy(
-        Path::new("data")
-            .join("test")
-            .join("images")
-            .join("cat_3.jpg"),
-        test_dir.join("2.jpg"),
-    )?;
+    populate_test_dir(repo_dir)?;
 
-    // annotations/README.md
-    let annotations_dir = repo_dir.join("annotations");
-    std::fs::create_dir_all(&annotations_dir)?;
-    let annotations_readme_file = annotations_dir.join("README.md");
-    write_txt_file_to_path(
-        annotations_readme_file,
-        r#"
-        # Annotations
-        Some info about our annotations structure....
-        "#,
-    )?;
-
-    // annotations/train/
-    let train_annotations_dir = repo_dir.join("annotations").join("train");
-    std::fs::create_dir_all(&train_annotations_dir)?;
-    write_txt_file_to_path(
-        train_annotations_dir.join("annotations.txt"),
-        r#"
-train/dog_1.jpg 0
-train/dog_2.jpg 0
-train/dog_3.jpg 0
-train/cat_1.jpg 1
-train/cat_2.jpg 1
-    "#,
-    )?;
-
-    create_bounding_box_csv(repo_dir)?;
-
-    write_txt_file_to_path(
-        train_annotations_dir.join("one_shot.csv"),
-        r#"file,label,min_x,min_y,width,height
-train/dog_1.jpg,dog,101.5,32.0,385,330
-"#,
-    )?;
-
-    write_txt_file_to_path(
-        train_annotations_dir.join("two_shot.csv"),
-        r#"file,label,min_x,min_y,width,height
-train/dog_3.jpg,dog,19.0,63.5,376,421
-train/cat_1.jpg,cat,57.0,35.5,304,427
-"#,
-    )?;
-
-    // annotations/test/
-    let test_annotations_dir = repo_dir.join("annotations").join("test");
-    std::fs::create_dir_all(&test_annotations_dir)?;
-    write_txt_file_to_path(
-        test_annotations_dir.join("annotations.csv"),
-        r#"file,label,min_x,min_y,width,height
-test/dog_3.jpg,dog,19.0,63.5,376,421
-test/cat_1.jpg,cat,57.0,35.5,304,427
-test/unknown.jpg,unknown,0.0,0.0,0,0
-"#,
-    )?;
+    // annotations/
+    populate_annotations_dir(repo_dir)?;
 
     // nlp/classification/annotations/
-    // Make sure to add a few duplicate examples for testing
-    let nlp_annotations_dir = repo_dir
-        .join("nlp")
-        .join("classification")
-        .join("annotations");
-    std::fs::create_dir_all(&nlp_annotations_dir)?;
-    write_txt_file_to_path(
-        nlp_annotations_dir.join("train.tsv"),
-        r#"text	label
-My tummy hurts	negative
-I have a headache	negative
-My tummy hurts	negative
-I have a headache	negative
-loving the sunshine	positive
-And another unique one	positive
-My tummy hurts	negative
-loving the sunshine	positive
-I am a lonely example	negative
-I am adding more examples	positive
-One more time	positive
-"#,
-    )?;
+    populate_nlp_dir(repo_dir)?;
 
-    write_txt_file_to_path(
-        nlp_annotations_dir.join("test.tsv"),
-        r#"text	label
-My tummy hurts	negative
-My tummy hurts	negative
-My tummy hurts	negative
-I have a headache	negative
-I have a headache	negative
-loving the sunshine	positive
-loving the sunshine	positive
-I am a lonely example	negative
-I am a great testing example	positive
-    "#,
-    )?;
+    Ok(())
+}
+
+pub fn populate_select_training_data(repo_dir: &Path, data: &str) -> Result<(), OxenError> {
+    // README.md
+    if data.contains("README") {
+        populate_readme(repo_dir)?;
+    }
+
+    // labels.txt
+    if data.contains("labels") {
+        populate_labels(repo_dir)?;
+    }
+
+    // large_files/test.csv
+    if data.contains("large_files") {
+        populate_large_files(repo_dir)?;
+    }
+
+    // train/
+    if data.contains("train") {
+        populate_train_dir(repo_dir)?;
+    }
+
+    // test/
+    if data.contains("test") {
+        populate_test_dir(repo_dir)?;
+    }
+
+    // annotations/
+    if data.contains("annotations") {
+        populate_annotations_dir(repo_dir)?;
+    }
+
+    // nlp/classification/annotations/
+    if data.contains("nlp") {
+        populate_nlp_dir(repo_dir)?;
+    }
 
     Ok(())
 }
