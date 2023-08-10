@@ -33,11 +33,11 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError> 
                 .get(0)
                 .ok_or(OxenError::basic_str("Could not get video track"))?;
 
-            Ok(MetadataVideo {
-                width: video.width() as usize,
-                height: video.height() as usize,
-                num_seconds: duration,
-            })
+            Ok(MetadataVideo::new(
+                duration,
+                video.width() as usize,
+                video.height() as usize,
+            ))
         }
         Err(err) => {
             let err = format!("Could not get video metadata {:?}", err);
@@ -71,9 +71,9 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.width, 128);
-        assert_eq!(metadata.height, 176);
-        assert_relative_eq!(metadata.num_seconds, 1.6);
+        assert_eq!(metadata.video.width, 128);
+        assert_eq!(metadata.video.height, 176);
+        assert_relative_eq!(metadata.video.num_seconds, 1.6);
     }
 
     #[test]

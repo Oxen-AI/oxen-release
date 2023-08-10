@@ -363,10 +363,10 @@ pub fn get_dir_entry_metadata(
             })
             .collect();
 
-        Ok(MetadataDir { data_types })
+        Ok(MetadataDir::new(data_types))
     } else {
         log::warn!("Unable to read {data_types_path:?}");
-        Ok(MetadataDir { data_types: vec![] })
+        Ok(MetadataDir::new(vec![]))
     }
 }
 

@@ -6,7 +6,7 @@ use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::PaginateOpts;
 use crate::view::JsonDataFrame;
 
-use super::tabular_diff_summary::TabularDiffSummary;
+use super::tabular_diff_summary::{TabularDiffSummary, TabularDiffSummaryImpl};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularDiff {
@@ -44,11 +44,13 @@ impl TabularDiff {
         let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
 
         let summary = TabularDiffSummary {
-            num_added_rows,
-            num_added_cols,
-            num_removed_rows,
-            num_removed_cols,
-            schema_has_changed,
+            tabular: TabularDiffSummaryImpl {
+                num_added_rows,
+                num_added_cols,
+                num_removed_rows,
+                num_removed_cols,
+                schema_has_changed,
+            },
         };
 
         let base_schema = TabularDiff::maybe_get_schema(&base_df);

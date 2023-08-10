@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
+use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
@@ -167,10 +168,12 @@ impl DiffEntry {
             let num_removed = base_dir_reader.num_entries();
 
             return Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
-                file_counts: AddRemoveModifyCounts {
-                    added: 0,
-                    removed: num_removed,
-                    modified: 0,
+                dir: DirDiffSummaryImpl {
+                    file_counts: AddRemoveModifyCounts {
+                        added: 0,
+                        removed: num_removed,
+                        modified: 0,
+                    },
                 },
             })));
         }
@@ -184,10 +187,12 @@ impl DiffEntry {
             let num_added = head_dir_reader.num_entries();
 
             return Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
-                file_counts: AddRemoveModifyCounts {
-                    added: num_added,
-                    removed: 0,
-                    modified: 0,
+                dir: DirDiffSummaryImpl {
+                    file_counts: AddRemoveModifyCounts {
+                        added: num_added,
+                        removed: 0,
+                        modified: 0,
+                    },
                 },
             })));
         }
@@ -237,10 +242,12 @@ impl DiffEntry {
         }
 
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
-            file_counts: AddRemoveModifyCounts {
-                added: num_added,
-                removed: num_removed,
-                modified: num_modified,
+            dir: DirDiffSummaryImpl {
+                file_counts: AddRemoveModifyCounts {
+                    added: num_added,
+                    removed: num_removed,
+                    modified: num_modified,
+                },
             },
         })))
     }

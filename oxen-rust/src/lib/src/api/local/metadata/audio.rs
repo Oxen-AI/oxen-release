@@ -18,11 +18,11 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataAudio, OxenError> 
                 let rate = properties.sample_rate().unwrap_or(0);
                 let channels = properties.channels().unwrap_or(0);
 
-                Ok(MetadataAudio {
-                    num_seconds: seconds,
-                    num_channels: channels as usize,
-                    sample_rate: rate as usize,
-                })
+                Ok(MetadataAudio::new(
+                    seconds,
+                    channels as usize,
+                    rate as usize,
+                ))
             }
             Err(err) => {
                 log::error!("Could not read audio stream: {}", err);
@@ -62,9 +62,9 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.num_channels, 1);
-        assert_eq!(metadata.sample_rate, 16000);
-        assert_relative_eq!(metadata.num_seconds, 3.1);
+        assert_eq!(metadata.audio.num_channels, 1);
+        assert_eq!(metadata.audio.sample_rate, 16000);
+        assert_relative_eq!(metadata.audio.num_seconds, 3.1);
     }
 
     #[test]
@@ -84,8 +84,8 @@ mod tests {
             _ => panic!("Wrong metadata type"),
         };
 
-        assert_eq!(metadata.num_channels, 1);
-        assert_eq!(metadata.sample_rate, 16000);
-        assert_relative_eq!(metadata.num_seconds, 3.1);
+        assert_eq!(metadata.audio.num_channels, 1);
+        assert_eq!(metadata.audio.sample_rate, 16000);
+        assert_relative_eq!(metadata.audio.num_seconds, 3.1);
     }
 }

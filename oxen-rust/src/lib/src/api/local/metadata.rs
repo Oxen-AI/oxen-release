@@ -179,9 +179,8 @@ pub fn get_file_metadata(
     data_type: &EntryDataType,
 ) -> Result<Option<GenericMetadata>, OxenError> {
     match data_type {
-        EntryDataType::Dir => Ok(Some(GenericMetadata::MetadataDir(MetadataDir {
-            data_types: vec![],
-        }))),
+        // dir should not be passed in here
+        EntryDataType::Dir => Ok(Some(GenericMetadata::MetadataDir(MetadataDir::new(vec![])))),
         EntryDataType::Text => match text::get_metadata(path) {
             Ok(metadata) => Ok(Some(GenericMetadata::MetadataText(metadata))),
             Err(err) => {
