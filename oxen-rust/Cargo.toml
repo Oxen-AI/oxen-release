@@ -60,6 +60,7 @@ lazy_static = "1.4.0"
 lofty = "0.15.0"
 log = "0.4.17"
 # magick_rust = "0.18.0"
+mp4 = "0.14.0"
 minus = { version = "5.3.1", features = ["static_output", "search"] }
 nom = "7.1.1"
 num_cpus = "1.13.1"

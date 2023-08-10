@@ -22,8 +22,8 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError
 #[cfg(test)]
 mod tests {
     use crate::api;
-    // use crate::model::metadata::generic_metadata::GenericMetadata;
-    // use crate::model::metadata::MetadataTabular;
+    use crate::model::metadata::generic_metadata::GenericMetadata;
+    use crate::model::metadata::MetadataTabular;
     use crate::model::EntryDataType;
     use crate::test;
 
@@ -36,12 +36,12 @@ mod tests {
         assert_eq!(metadata.data_type, EntryDataType::Tabular);
         assert_eq!(metadata.mime_type, "text/plain");
 
-        // let metadata: MetadataTabular = match metadata.metadata.unwrap() {
-        //     GenericMetadata::MetadataTabular(metadata) => metadata,
-        //     _ => panic!("Wrong metadata type"),
-        // };
+        let metadata: MetadataTabular = match metadata.metadata.unwrap() {
+            GenericMetadata::MetadataTabular(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
 
-        // assert_eq!(metadata.width, 11);
-        // assert_eq!(metadata.height, 200_000);
+        assert_eq!(metadata.width, 11);
+        assert_eq!(metadata.height, 200_000);
     }
 }
