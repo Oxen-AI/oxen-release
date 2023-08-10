@@ -216,28 +216,6 @@ pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
     }
 }
 
-pub fn count_lines(path: impl AsRef<Path>) -> Result<usize, std::io::Error> {
-    let file = File::open(path)?;
-    p_count_lines(file)
-}
-
-fn p_count_lines<R: std::io::Read>(handle: R) -> Result<usize, std::io::Error> {
-    let mut reader = BufReader::with_capacity(1024 * 32, handle);
-    let mut count = 1;
-    loop {
-        let len = {
-            let buf = reader.fill_buf()?;
-            if buf.is_empty() {
-                break;
-            }
-            count += bytecount::count(buf, b'\n');
-            buf.len()
-        };
-        reader.consume(len);
-    }
-    Ok(count)
-}
-
 pub fn read_lines(path: &Path) -> Result<Vec<String>, OxenError> {
     let file = File::open(path)?;
     Ok(read_lines_file(&file))

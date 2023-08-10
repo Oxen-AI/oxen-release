@@ -14,12 +14,12 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataAudio, OxenError> 
             Ok(tagged_file) => {
                 let properties = tagged_file.properties();
                 let duration = properties.duration();
-                let seconds = duration.as_secs() % 60;
+                let seconds = duration.as_secs_f64();
                 let rate = properties.sample_rate().unwrap_or(0);
                 let channels = properties.channels().unwrap_or(0);
 
                 Ok(MetadataAudio {
-                    num_seconds: seconds as f64,
+                    num_seconds: seconds,
                     num_channels: channels as usize,
                     sample_rate: rate as usize,
                 })
@@ -64,7 +64,7 @@ mod tests {
 
         assert_eq!(metadata.num_channels, 1);
         assert_eq!(metadata.sample_rate, 16000);
-        assert_relative_eq!(metadata.num_seconds, 3.0, epsilon = 0.1);
+        assert_relative_eq!(metadata.num_seconds, 3.1);
     }
 
     #[test]
@@ -86,6 +86,6 @@ mod tests {
 
         assert_eq!(metadata.num_channels, 1);
         assert_eq!(metadata.sample_rate, 16000);
-        assert_relative_eq!(metadata.num_seconds, 3.0, epsilon = 0.1);
+        assert_relative_eq!(metadata.num_seconds, 3.1);
     }
 }

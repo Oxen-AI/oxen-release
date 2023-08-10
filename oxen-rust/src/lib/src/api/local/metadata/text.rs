@@ -3,21 +3,50 @@
 
 use crate::error::OxenError;
 use crate::model::metadata::MetadataText;
-use crate::util;
 
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::path::Path;
 
 /// Detects the text metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataText, OxenError> {
     let path = path.as_ref();
-    let num_lines = util::fs::count_lines(path)?;
-    Ok(MetadataText { num_lines })
+    let file = File::open(path)?;
+
+    let metadata = p_compute_metadata(file)?;
+    Ok(metadata)
 }
+
+fn p_compute_metadata<R: std::io::Read>(handle: R) -> Result<MetadataText, std::io::Error> {
+    let mut reader = BufReader::with_capacity(1024 * 32, handle);
+    let mut line_count = 1;
+    let mut char_count = 0;
+    loop {
+        let len = {
+            let buf = reader.fill_buf()?;
+            if buf.is_empty() {
+                break;
+            }
+            line_count += bytecount::count(buf, b'\n');
+            char_count += bytecount::num_chars(buf);
+            buf.len()
+        };
+        reader.consume(len);
+    }
+    Ok(MetadataText {
+        num_lines: line_count,
+        num_chars: char_count,
+    })
+}
+
 
 #[cfg(test)]
 mod tests {
     use crate::api;
     use crate::model::EntryDataType;
+    use crate::model::metadata::generic_metadata::GenericMetadata;
+    use crate::model::metadata::MetadataText;
     use crate::test;
 
     #[test]
@@ -28,8 +57,14 @@ mod tests {
         assert_eq!(metadata.size, 44);
         assert_eq!(metadata.data_type, EntryDataType::Text);
         assert_eq!(metadata.mime_type, "text/plain");
-        // assert!(metadata.meta.text.is_some());
-        // assert_eq!(metadata.meta.text.unwrap().num_lines, 3);
+
+        let metadata: MetadataText = match metadata.metadata.unwrap() {
+            GenericMetadata::MetadataText(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
+
+        assert_eq!(metadata.num_lines, 3);
+        assert_eq!(metadata.num_chars, 44);
     }
 
     #[test]
@@ -40,7 +75,13 @@ mod tests {
         assert_eq!(metadata.size, 50);
         assert_eq!(metadata.data_type, EntryDataType::Text);
         assert_eq!(metadata.mime_type, "text/markdown");
-        // assert!(metadata.meta.text.is_some());
-        // assert_eq!(metadata.meta.text.unwrap().num_lines, 4);
+
+        let metadata: MetadataText = match metadata.metadata.unwrap() {
+            GenericMetadata::MetadataText(metadata) => metadata,
+            _ => panic!("Wrong metadata type"),
+        };
+
+        assert_eq!(metadata.num_lines, 4);
+        assert_eq!(metadata.num_chars, 50);
     }
 }
