@@ -10,6 +10,7 @@ use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
 use liboxen::error::OxenError;
+use liboxen::model::commit::CommitWithBranchName;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::branch::BranchName;
@@ -112,6 +113,51 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_found(),
         commit,
+    }))
+}
+
+pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    // TODONOW: Currently ignoring the body
+    log::debug!("Beginning of commits_db_status_controller");
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    log::debug!("Made it through params parsing");
+
+    // Parse out body into a list of commit ids 
+    // TODO body should have a property name if we have a body at all 
+    // log::debug!("Here's the body {:?}", body);
+    // let commits: Vec<Commit> = serde_json::from_str(&body)?;
+    // log::debug!("Parsed body into commits");
+
+    // Now, return the commit ids where `commit_db_exists` is false 
+    let commits_to_sync = api::local::commits::list_with_missing_dbs(&repo)?;
+
+    log::debug!("About to respond with commits to sync {:?}", commits_to_sync);
+
+    Ok(HttpResponse::Ok().json(ListCommitResponse {
+        status: StatusMessage::resource_found(),
+        commits: commits_to_sync
+    }))
+
+}
+
+pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("Beginning of entries_status_controller");
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    log::debug!("Made it through params parsing");
+
+    let commits_to_sync = api::local::commits::list_with_missing_entries(&repo)?;
+
+    log::debug!("About to respond with following missing entries: {:?}", commits_to_sync);
+
+    Ok(HttpResponse::Ok().json(ListCommitResponse {
+        status: StatusMessage::resource_found(),
+        commits: commits_to_sync
     }))
 }
 
@@ -382,20 +428,82 @@ pub async fn create(
     }
 }
 
+// TODONOW consider NOT sending an array of commitwithbranchname, instead a commit w/ branch_name at the top level of the request
+// TODONOW we probably don't even need the size here. 
+pub async fn create_bulk(
+    req: HttpRequest, 
+    body: String, 
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("Got bulk commit data: {}", body);
+
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let commits: Vec<CommitWithBranchName> = match serde_json::from_str(&body) {
+        Ok(commits) => commits,
+        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
+    };
+
+    // Create commits from uri params 
+    // TODONOW: Handling error behavior here - should keep going if one is bad?
+    // TODONOW: Parallelism? 
+    // TODONOW: Does branch_name need to go outside...
+    // TODONOW: This is clumsy
+    let mut result_commits: Vec<Commit> = Vec::new();
+
+    for commit_with_branch in &commits {
+
+        // get branch name from this commit and raise error if it's not there
+        let bn = &commit_with_branch.branch_name;
+        
+        // Get commit from commit_with_branch 
+        let commit = Commit::from_with_branch_name(commit_with_branch);
+
+        if let Err(err) = api::local::commits::create_commit_object(&repository.path, &bn, &commit) {
+            log::error!("Err create_commit: {}", err);
+            match err {
+                OxenError::RootCommitDoesNotMatch(commit_id) => {
+                    log::error!("Err create_commit: RootCommitDoesNotMatch {}", commit_id);
+                    return Err(OxenHttpError::BadRequest("Remote commit history does not match local commit history. Make sure you are pushing to the correct remote.".into()));
+                }
+                _ => {
+                    return Err(OxenHttpError::InternalServerError);
+                }
+            }
+        }
+    
+        result_commits.push(commit);
+    }
+    Ok(HttpResponse::Ok().json(ListCommitResponse {
+        status: StatusMessage::resource_created(),
+        commits: result_commits.to_owned(),
+    }))
+
+    
+
+}
+
 /// Controller to upload large chunks of data that will be combined at the end
 pub async fn upload_chunk(
     req: HttpRequest,
     mut chunk: web::Payload,                   // the chunk of the file body,
     query: web::Query<ChunkedDataUploadQuery>, // gives the file
 ) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("made it to the upload controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
+    log::debug!("made it past params parsing");
+
     let commit = api::local::commits::get_by_id(&repo, &commit_id)?
         .ok_or(OxenError::revision_not_found(commit_id.into()))?;
+
+    log::debug!("made it past getting commit");
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let id = query.hash.clone();

@@ -3,10 +3,15 @@
 //! Interact with local commits.
 //!
 
+use crate::constants::{OXEN_HIDDEN_DIR, HISTORY_DIR};
+use crate::core::cache::cacher_status::CacherStatusType;
+use crate::core::cache::cachers::content_validator;
+use crate::core::cache::commit_cacher;
 use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
+use crate::util::fs::commit_content_is_valid_path;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{api, util};
 
@@ -105,6 +110,45 @@ pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
     }
 
     Ok(None)
+}
+
+pub fn list_with_missing_dbs(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+    let mut missing_db_commits: Vec<Commit> = vec![];
+
+    // Get full commit history for this repo to report any missing commits 
+    let commits = api::local::commits::list_all(repo)?;
+    for commit in commits {
+        if !commit_history_db_exists(repo, &commit)? {
+            missing_db_commits.push(commit);
+        }
+    }
+
+    Ok(missing_db_commits)
+}
+
+pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+    log::debug!("In here working on finding some commit entries");
+    let mut missing_entry_commits: Vec<Commit> = vec![];
+
+    // Get full commit history for this repo to report any missing commits 
+    let commits = api::local::commits::list_all(repo)?;
+
+
+    for commit in commits {
+        if commit_content_is_valid_path(&repo, &commit).exists() && content_validator::is_valid(&repo, &commit)? {
+            continue
+        }
+        missing_entry_commits.push(commit);
+    }
+    Ok(missing_entry_commits)
+}
+
+pub fn commit_history_db_exists(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
+    // Check if OXEN_HIDDEN_DIR/HISTORY_DIR/commit_id exists
+    let commit_history_dir = util::fs::oxen_hidden_dir(&repo.path)
+                                .join(HISTORY_DIR)
+                                .join(&commit.id);
+    Ok(commit_history_dir.exists())
 }
 
 pub fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
