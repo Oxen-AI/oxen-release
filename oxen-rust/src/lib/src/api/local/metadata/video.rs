@@ -3,17 +3,17 @@
 
 use crate::{error::OxenError, model::metadata::MetadataVideo};
 
-use std::path::Path;
+use mp4::{Mp4Track, TrackType};
 use std::fs::File;
 use std::io::BufReader;
-use mp4::{Mp4Track, TrackType};
+use std::path::Path;
 
 /// Detects the video metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError> {
     let path = path.as_ref();
     let f = match File::open(path) {
         Ok(f) => f,
-        Err(e) => return Err(OxenError::file_error(path.to_path_buf(), e)),
+        Err(e) => return Err(OxenError::file_error(path, e)),
     };
 
     let size = f.metadata()?.len();
@@ -49,10 +49,10 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError> 
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::model::EntryDataType;
-    use crate::test;
     use crate::model::metadata::generic_metadata::GenericMetadata;
     use crate::model::metadata::MetadataVideo;
+    use crate::model::EntryDataType;
+    use crate::test;
 
     use approx::assert_relative_eq;
 

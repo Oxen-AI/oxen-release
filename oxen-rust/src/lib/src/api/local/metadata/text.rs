@@ -40,13 +40,12 @@ fn p_compute_metadata<R: std::io::Read>(handle: R) -> Result<MetadataText, std::
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::model::EntryDataType;
     use crate::model::metadata::generic_metadata::GenericMetadata;
     use crate::model::metadata::MetadataText;
+    use crate::model::EntryDataType;
     use crate::test;
 
     #[test]

@@ -514,7 +514,7 @@ fn collect_added_directories(
                 Some(head_dir),
                 head_commit,
                 DiffEntryStatus::Added,
-            ));
+            )?);
         }
     }
     Ok(())
@@ -539,7 +539,7 @@ fn collect_modified_directories(
                 Some(head_dir),
                 head_commit,
                 DiffEntryStatus::Modified,
-            );
+            )?;
 
             if diff_entry.has_changes() {
                 diff_entries.push(diff_entry);
@@ -568,7 +568,7 @@ fn collect_removed_directories(
                 None,
                 head_commit,
                 DiffEntryStatus::Removed,
-            ));
+            )?);
         }
     }
     Ok(())
