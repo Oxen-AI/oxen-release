@@ -1,7 +1,10 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::index::CommitDirEntryReader;
+use crate::error::OxenError;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
@@ -52,7 +55,7 @@ impl DiffEntry {
         head_dir: Option<&PathBuf>,
         head_commit: &Commit,
         status: DiffEntryStatus,
-    ) -> DiffEntry {
+    ) -> Result<DiffEntry, OxenError> {
         // Get the metadata entries
         let base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
         let head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
@@ -63,8 +66,8 @@ impl DiffEntry {
             (base_dir.unwrap(), base_entry.to_owned().unwrap())
         };
 
-        let diff_summary = DiffEntry::diff_summary_from_dir(repo, &base_entry, &head_entry);
-        DiffEntry {
+        let diff_summary = DiffEntry::diff_summary_from_dir(repo, &base_entry, &head_entry)?;
+        Ok(DiffEntry {
             status: status.to_string(),
             data_type: EntryDataType::Dir,
             filename: current_dir.as_os_str().to_str().unwrap().to_string(),
@@ -75,7 +78,7 @@ impl DiffEntry {
             head_entry,
             base_entry,
             diff_summary,
-        }
+        })
     }
 
     pub fn from_commit_entry(
@@ -146,17 +149,100 @@ impl DiffEntry {
     }
 
     fn diff_summary_from_dir(
-        _repo: &LocalRepository,
-        _base_dir: &Option<MetadataEntry>,
-        _head_dir: &Option<MetadataEntry>,
-    ) -> Option<GenericDiffSummary> {
-        Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+        repo: &LocalRepository,
+        base_dir: &Option<MetadataEntry>,
+        head_dir: &Option<MetadataEntry>,
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
+        // if both base_dir and head_dir are none, then there is no diff summary
+        if base_dir.is_none() && head_dir.is_none() {
+            return Ok(None);
+        }
+
+        // if base_dir is some and head_dir is none, then we deleted all the files
+        if base_dir.is_some() && head_dir.is_none() {
+            let base_dir = base_dir.as_ref().unwrap();
+            let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
+            let path = PathBuf::from(&base_dir.filename);
+            let base_dir_reader = CommitDirEntryReader::new(repo, commit_id, &path)?;
+            let num_removed = base_dir_reader.num_entries();
+
+            return Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+                file_counts: AddRemoveModifyCounts {
+                    added: 0,
+                    removed: num_removed,
+                    modified: 0,
+                },
+            })));
+        }
+
+        // if head_dir is some and base_dir is none, then we added all the files
+        if head_dir.is_some() && base_dir.is_none() {
+            let head_dir = head_dir.as_ref().unwrap();
+            let commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
+            let path = PathBuf::from(&head_dir.filename);
+            let head_dir_reader = CommitDirEntryReader::new(repo, commit_id, &path)?;
+            let num_added = head_dir_reader.num_entries();
+
+            return Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+                file_counts: AddRemoveModifyCounts {
+                    added: num_added,
+                    removed: 0,
+                    modified: 0,
+                },
+            })));
+        }
+
+        // if both base_dir and head_dir are some, then we need to compare the two
+        let base_dir = base_dir.as_ref().unwrap();
+        let head_dir = head_dir.as_ref().unwrap();
+        let base_commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
+        let head_commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
+        let base_path = PathBuf::from(&base_dir.filename);
+        let head_path = PathBuf::from(&head_dir.filename);
+        let base_dir_reader = CommitDirEntryReader::new(repo, base_commit_id, &base_path)?;
+        let head_dir_reader = CommitDirEntryReader::new(repo, head_commit_id, &head_path)?;
+
+        // List the entries in hash sets
+        let head_entries = head_dir_reader.list_entries_set()?;
+        let base_entries = base_dir_reader.list_entries_set()?;
+        log::debug!(
+            "diff_summary_from_dir head_entries: {:?}",
+            head_entries.len()
+        );
+        log::debug!(
+            "diff_summary_from_dir base_entries: {:?}",
+            base_entries.len()
+        );
+
+        // Find the added entries
+        let added_entries = head_entries
+            .difference(&base_entries)
+            .collect::<HashSet<_>>();
+        let num_added = added_entries.len();
+
+        // Find the removed entries
+        let removed_entries = base_entries
+            .difference(&head_entries)
+            .collect::<HashSet<_>>();
+        let num_removed = removed_entries.len();
+
+        // Find the modified entries
+        let mut num_modified = 0;
+        for base_entry in base_entries {
+            if let Some(head_entry) = head_entries.get(&base_entry) {
+                if head_entry.hash != base_entry.hash {
+                    num_modified += 1;
+                }
+            }
+        }
+
+        Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             file_counts: AddRemoveModifyCounts {
-                added: 0,
-                removed: 0,
-                modified: 0,
+                added: num_added,
+                removed: num_removed,
+                modified: num_modified,
             },
-        }))
+        })))
     }
 
     fn diff_summary_from_file(

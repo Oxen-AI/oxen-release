@@ -182,49 +182,39 @@ pub fn get_file_metadata(
         EntryDataType::Dir => Ok(Some(GenericMetadata::MetadataDir(MetadataDir {
             data_types: vec![],
         }))),
-        EntryDataType::Text => {
-            match text::get_metadata(path) {
-                Ok(metadata) => Ok(Some(GenericMetadata::MetadataText(metadata))),
-                Err(err) => {
-                    log::warn!("could not compute text metadata: {}", err);
-                    Ok(None)
-                }
-            }
-        }
-        EntryDataType::Image => {
-            match image::get_metadata(path) {
-                Ok(metadata) => Ok(Some(GenericMetadata::MetadataImage(metadata))),
-                Err(err) => {
-                    log::warn!("could not compute image metadata: {}", err);
-                    Ok(None)
-                }
+        EntryDataType::Text => match text::get_metadata(path) {
+            Ok(metadata) => Ok(Some(GenericMetadata::MetadataText(metadata))),
+            Err(err) => {
+                log::warn!("could not compute text metadata: {}", err);
+                Ok(None)
             }
         },
-        EntryDataType::Video => {
-            match video::get_metadata(path) {
-                Ok(metadata) => Ok(Some(GenericMetadata::MetadataVideo(metadata))),
-                Err(err) => {
-                    log::warn!("could not compute video metadata: {}", err);
-                    Ok(None)
-                }
+        EntryDataType::Image => match image::get_metadata(path) {
+            Ok(metadata) => Ok(Some(GenericMetadata::MetadataImage(metadata))),
+            Err(err) => {
+                log::warn!("could not compute image metadata: {}", err);
+                Ok(None)
             }
         },
-        EntryDataType::Audio => {
-            match audio::get_metadata(path) {
-                Ok(metadata) => Ok(Some(GenericMetadata::MetadataAudio(metadata))),
-                Err(err) => {
-                    log::warn!("could not compute audio metadata: {}", err);
-                    Ok(None)
-                }
+        EntryDataType::Video => match video::get_metadata(path) {
+            Ok(metadata) => Ok(Some(GenericMetadata::MetadataVideo(metadata))),
+            Err(err) => {
+                log::warn!("could not compute video metadata: {}", err);
+                Ok(None)
             }
         },
-        EntryDataType::Tabular => {
-            match tabular::get_metadata(path) {
-                Ok(metadata) => Ok(Some(GenericMetadata::MetadataTabular(metadata))),
-                Err(err) => {
-                    log::warn!("could not compute tabular metadata: {}", err);
-                    Ok(None)
-                }
+        EntryDataType::Audio => match audio::get_metadata(path) {
+            Ok(metadata) => Ok(Some(GenericMetadata::MetadataAudio(metadata))),
+            Err(err) => {
+                log::warn!("could not compute audio metadata: {}", err);
+                Ok(None)
+            }
+        },
+        EntryDataType::Tabular => match tabular::get_metadata(path) {
+            Ok(metadata) => Ok(Some(GenericMetadata::MetadataTabular(metadata))),
+            Err(err) => {
+                log::warn!("could not compute tabular metadata: {}", err);
+                Ok(None)
             }
         },
         _ => Ok(None),
