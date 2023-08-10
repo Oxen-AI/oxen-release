@@ -54,7 +54,9 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
 }
 
 pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
-    match CsvReader::from_path(path.as_ref()) {
+    let path = path.as_ref();
+    log::debug!("read_df_csv path: {:?}", path);
+    match CsvReader::from_path(path) {
         Ok(reader) => Ok(try_infer_schema_csv(reader, delimiter)?),
         Err(err) => {
             let err = format!("{CSV_READ_ERROR}: {err:?}");
@@ -791,6 +793,14 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
     }
 
     Ok(df)
+}
+
+pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenError> {
+    let opts = DFOpts::empty();
+    let df = scan_df(input, &opts)?;
+    let schema = df.schema().expect("Could not get schema");
+
+    Ok(crate::model::Schema::from_polars(&schema))
 }
 
 pub fn schema_to_string<P: AsRef<Path>>(

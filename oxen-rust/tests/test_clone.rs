@@ -12,7 +12,7 @@ async fn test_clone_all() -> Result<(), OxenError> {
     test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
         // Create additional branch on remote repo before clone
         let branch_name = "test-branch";
-        api::remote::branches::create_from_or_get(&remote_repo, &branch_name, DEFAULT_BRANCH_NAME)
+        api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME)
             .await?;
 
         let cloned_remote = remote_repo.clone();

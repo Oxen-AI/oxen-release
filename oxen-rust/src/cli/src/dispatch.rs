@@ -20,7 +20,6 @@ use liboxen::opts::RmOpts;
 use liboxen::util;
 
 use colored::Colorize;
-use liboxen::view::DataTypeCount;
 use liboxen::view::PaginatedDirEntries;
 use minus::Pager;
 use std::env;
@@ -600,12 +599,7 @@ fn maybe_display_types(entries: &PaginatedDirEntries) {
     };
 
     // parse data_type_counts or exit function
-    let data_type_counts = match serde_json::from_value::<Vec<DataTypeCount>>(
-        entries_metadata.data_types.data.clone(),
-    ) {
-        Ok(data_type_counts) => data_type_counts,
-        Err(_) => return,
-    };
+    let data_type_counts = &entries_metadata.dir.data_types;
 
     if !data_type_counts.is_empty() {
         println!();

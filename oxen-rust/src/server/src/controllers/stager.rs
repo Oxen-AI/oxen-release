@@ -10,13 +10,12 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::NewMod;
+use liboxen::model::DataFrameSize;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitEntry, ContentType, LocalRepository, NewCommitBody,
     ObjectID, Schema,
 };
 use liboxen::opts::DFOpts;
-
-use liboxen::view::json_data_frame::JsonDataSize;
 use liboxen::view::remote_staged_status::{
     ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
 };
@@ -593,7 +592,7 @@ fn df_mods_response(
     match index::mod_stager::list_mods_df(repo, branch, user_id, entry) {
         Ok(diff) => {
             let df = if let Some(added) = diff.added_rows {
-                let og_size = JsonDataSize {
+                let og_size = DataFrameSize {
                     width: added.width(),
                     height: added.height(),
                 };

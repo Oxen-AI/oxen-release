@@ -1,9 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::view::JsonDataFrame;
+use crate::view::DataTypeCount;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetadataDir {
-    pub data_types: JsonDataFrame,
-    pub mime_types: JsonDataFrame,
+    pub dir: MetadataDirImpl,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct MetadataDirImpl {
+    pub data_types: Vec<DataTypeCount>,
+}
+
+impl MetadataDir {
+    pub fn new(data_types: Vec<DataTypeCount>) -> Self {
+        Self {
+            dir: MetadataDirImpl { data_types },
+        }
+    }
 }

@@ -2,17 +2,18 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::metadata::metadata_entry_type::EntryTypeMetadata;
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::DFOpts;
 use crate::view::entry::ResourceVersion;
+use crate::view::DataTypeCount;
 use crate::{api, util};
 use rayon::prelude::*;
 
 use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
-use crate::view::{JsonDataFrame, PaginatedDirEntries};
+use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -72,7 +73,7 @@ pub fn meta_entry_from_dir(
         }
     };
 
-    let dir_metadata = api::local::entries::get_dir_entry_metadata(repo, commit, path);
+    let dir_metadata = api::local::entries::get_dir_entry_metadata(repo, commit, path)?;
 
     let base_name = path.file_name().unwrap_or(std::ffi::OsStr::new(""));
     return Ok(MetadataEntry {
@@ -87,14 +88,7 @@ pub fn meta_entry_from_dir(
             version: revision.to_string(),
             path: String::from(path.to_string_lossy()),
         }),
-        metadata: EntryTypeMetadata {
-            dir: dir_metadata,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
     });
 }
 
@@ -182,14 +176,7 @@ pub fn meta_entry_from_commit_entry(
             path: String::from(entry.path.to_string_lossy()),
         }),
         // Not applicable for files YET, but we will also compute this metadata
-        metadata: EntryTypeMetadata {
-            dir: None,
-            text: None,
-            image: None,
-            video: None,
-            audio: None,
-            tabular: None,
-        },
+        metadata: None,
     });
 }
 
@@ -323,12 +310,12 @@ pub fn list_directory(
         total_pages,
     );
 
-    let metadata = get_dir_entry_metadata(repo, commit, directory);
+    let metadata = get_dir_entry_metadata(repo, commit, directory)?;
 
     Ok(PaginatedDirEntries {
         entries,
         resource,
-        metadata,
+        metadata: Some(metadata),
         page_size,
         page_number: page,
         total_pages,
@@ -340,35 +327,46 @@ pub fn get_dir_entry_metadata(
     repo: &LocalRepository,
     commit: &Commit,
     directory: &Path,
-) -> Option<MetadataDir> {
+) -> Result<MetadataDir, OxenError> {
     let data_types_path =
         core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "data_type");
 
-    let mime_types_path =
-        core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
+    // let mime_types_path =
+    //     core::cache::cachers::content_stats::dir_column_path(repo, commit, directory, "mime_type");
 
     log::debug!(
         "list_directory reading data types from {}",
         data_types_path.display()
     );
-    if let Ok(mut data_type_df) = core::df::tabular::read_df(&data_types_path, DFOpts::empty()) {
-        log::debug!(
-            "list_directory reading mime types from {}",
-            mime_types_path.display()
-        );
-        if let Ok(mut mime_type_df) = core::df::tabular::read_df(&mime_types_path, DFOpts::empty())
-        {
-            Some(MetadataDir {
-                data_types: JsonDataFrame::from_df(&mut data_type_df),
-                mime_types: JsonDataFrame::from_df(&mut mime_type_df),
+    if let Ok(data_type_df) = core::df::tabular::read_df(&data_types_path, DFOpts::empty()) {
+        let dt_series: Vec<&str> = data_type_df
+            .column("data_type")
+            .unwrap()
+            .utf8()
+            .unwrap()
+            .into_no_null_iter()
+            .collect();
+        let count_series: Vec<i64> = data_type_df
+            .column("count")
+            .unwrap()
+            .i64()
+            .unwrap()
+            .into_no_null_iter()
+            .collect();
+
+        let data_types: Vec<DataTypeCount> = dt_series
+            .iter()
+            .zip(count_series.iter())
+            .map(|(&data_type, &count)| DataTypeCount {
+                data_type: data_type.to_string(),
+                count: count.try_into().unwrap(),
             })
-        } else {
-            log::warn!("Unable to read {mime_types_path:?}");
-            None
-        }
+            .collect();
+
+        Ok(MetadataDir::new(data_types))
     } else {
         log::warn!("Unable to read {data_types_path:?}");
-        None
+        Ok(MetadataDir::new(vec![]))
     }
 }
 
@@ -407,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_list_all() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+        test::run_select_data_repo_test_no_commits("labels", |repo| {
             // (file already created in helper)
             let file_to_add = repo.path.join("labels.txt");
 
@@ -424,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_count_one_for_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+        test::run_select_data_repo_test_no_commits("labels", |repo| {
             // (file already created in helper)
             let file_to_add = repo.path.join("labels.txt");
 
@@ -441,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_api_local_entries_count_many_for_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
+        test::run_select_data_repo_test_no_commits("train", |repo| {
             // (files already created in helper)
             let dir_to_add = repo.path.join("train");
             let num_files = util::fs::rcount_files_in_dir(&dir_to_add);

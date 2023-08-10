@@ -5,7 +5,8 @@ pub mod base_head;
 pub mod branch;
 pub mod commit;
 pub mod content_type;
-pub mod data_frame_diff;
+pub mod data_frame_size;
+pub mod diff;
 pub mod entry;
 pub mod merge_conflict;
 pub mod metadata;
@@ -39,8 +40,8 @@ pub use crate::model::remote_branch::RemoteBranch;
 
 // Entry
 pub use crate::model::content_type::ContentType;
+pub use crate::model::diff::diff_entry::DiffEntry;
 pub use crate::model::entry::commit_entry::CommitEntry;
-pub use crate::model::entry::diff_entry::DiffEntry;
 pub use crate::model::entry::entry_data_type::EntryDataType;
 pub use crate::model::entry::metadata_entry::MetadataEntry;
 pub use crate::model::entry::mod_entry::ModEntry;
@@ -50,6 +51,8 @@ pub use crate::model::entry::ContentHashable;
 
 // Metadata
 pub use crate::model::metadata::dir_metadata_item::DirMetadataItem;
+
+pub use crate::model::data_frame_size::DataFrameSize;
 
 pub use crate::model::user::User;
 
@@ -62,7 +65,7 @@ pub use crate::model::summarized_staged_dir_stats::SummarizedStagedDirStats;
 
 pub use crate::model::remote::Remote;
 
-pub use crate::model::data_frame_diff::DataFrameDiff;
+pub use crate::model::diff::data_frame_diff::DataFrameDiff;
 
 pub use crate::model::schema::Schema;
 

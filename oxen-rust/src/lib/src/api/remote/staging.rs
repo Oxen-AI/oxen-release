@@ -338,7 +338,8 @@ pub async fn diff_staged_file(
                     let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
 
                     Ok(DataFrameDiff {
-                        base_schema: schema,
+                        head_schema: Some(schema.clone()),
+                        base_schema: Some(schema),
                         added_rows,
                         removed_rows: None,
                         added_cols: None,

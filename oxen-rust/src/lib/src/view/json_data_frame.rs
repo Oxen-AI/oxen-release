@@ -6,27 +6,17 @@ use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use crate::core::df::tabular;
+use crate::model::DataFrameSize;
+use crate::opts::PaginateOpts;
 use crate::{model::Schema, opts::DFOpts};
 
 use super::StatusMessage;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JsonDataSize {
-    pub height: usize,
-    pub width: usize,
-}
-
-impl JsonDataSize {
-    pub fn is_empty(&self) -> bool {
-        self.height == 0 && self.width == 0
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrame {
     pub schema: Schema,
-    pub slice_size: JsonDataSize,
-    pub full_size: JsonDataSize,
+    pub slice_size: DataFrameSize,
+    pub full_size: DataFrameSize,
     pub data: serde_json::Value,
 }
 
@@ -35,7 +25,7 @@ pub struct JsonDataFrameSliceResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
     pub df: JsonDataFrame,
-    pub full_size: JsonDataSize,
+    pub full_size: DataFrameSize,
     pub page_number: usize,
     pub page_size: usize,
     pub total_pages: usize,
@@ -46,11 +36,11 @@ impl JsonDataFrame {
     pub fn empty(schema: &Schema) -> JsonDataFrame {
         JsonDataFrame {
             schema: schema.to_owned(),
-            slice_size: JsonDataSize {
+            slice_size: DataFrameSize {
                 height: 0,
                 width: 0,
             },
-            full_size: JsonDataSize {
+            full_size: DataFrameSize {
                 height: 0,
                 width: 0,
             },
@@ -61,15 +51,44 @@ impl JsonDataFrame {
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
         JsonDataFrame {
             schema: Schema::from_polars(&df.schema()),
-            slice_size: JsonDataSize {
+            slice_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },
-            full_size: JsonDataSize {
+            full_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },
             data: JsonDataFrame::json_data(df),
+        }
+    }
+
+    pub fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
+        let full_height = df.height();
+        let full_width = df.width();
+
+        let page_size = opts.page_size;
+        let page = opts.page_num;
+
+        let start = if page == 0 { 0 } else { page_size * (page - 1) };
+        let end = page_size * page;
+
+        let schema = Schema::from_polars(&df.schema());
+        let mut opts = DFOpts::empty();
+        opts.slice = Some(format!("{}..{}", start, end));
+        let mut sliced_df = tabular::transform(df, opts).unwrap();
+
+        JsonDataFrame {
+            schema,
+            slice_size: DataFrameSize {
+                height: sliced_df.height(),
+                width: sliced_df.width(),
+            },
+            full_size: DataFrameSize {
+                height: full_height,
+                width: full_width,
+            },
+            data: JsonDataFrame::json_data(&mut sliced_df),
         }
     }
 
@@ -107,10 +126,10 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_slice(df: &mut DataFrame, full_size: JsonDataSize) -> JsonDataFrame {
+    pub fn from_slice(df: &mut DataFrame, full_size: DataFrameSize) -> JsonDataFrame {
         JsonDataFrame {
             schema: Schema::from_polars(&df.schema()),
-            slice_size: JsonDataSize {
+            slice_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },

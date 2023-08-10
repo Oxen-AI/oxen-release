@@ -57,7 +57,7 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
 #[tokio::test]
 async fn test_pull_data_frame() -> Result<(), OxenError> {
-    test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
+    test::run_select_data_repo_test_no_commits_async("annotations", |mut repo| async move {
         // Track a file
         let filename = "annotations/train/bounding_box.csv";
         let file_path = repo.path.join(filename);
