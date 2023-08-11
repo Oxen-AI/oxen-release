@@ -28,7 +28,7 @@ pub async fn status(
     .await?;
 
     let mut status = StagedData::empty();
-    status.added_dirs = remote_status.added_dirs;
+    status.staged_dirs = remote_status.added_dirs;
     let added_files: HashMap<PathBuf, StagedEntry> =
         HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
             (
@@ -43,7 +43,7 @@ pub async fn status(
                 StagedEntry::empty_status(StagedEntryStatus::Modified),
             )
         }));
-    status.added_files = added_files.into_iter().chain(added_mods).collect();
+    status.staged_files = added_files.into_iter().chain(added_mods).collect();
 
     Ok(status)
 }

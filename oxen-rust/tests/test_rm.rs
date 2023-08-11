@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use liboxen::api;
 use liboxen::command;
+use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::StagedEntryStatus;
 use liboxen::opts::RestoreOpts;
@@ -34,8 +35,8 @@ async fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
         // Make sure we staged these removals
         let status = command::status(&repo)?;
         status.print_stdout();
-        assert_eq!(num_files, status.added_files.len());
-        for (_path, entry) in status.added_files.iter() {
+        assert_eq!(num_files, status.staged_files.len());
+        for (_path, entry) in status.staged_files.iter() {
             assert_eq!(entry.status, StagedEntryStatus::Removed);
         }
         // Make sure directory is no longer on disk
@@ -48,7 +49,7 @@ async fn test_rm_directory_restore_directory() -> Result<(), OxenError> {
         // This should have removed all the staged files, but not restored from disk yet.
         let status = command::status(&repo)?;
         status.print_stdout();
-        assert_eq!(0, status.added_files.len());
+        assert_eq!(0, status.staged_files.len());
         assert_eq!(num_files, status.removed_files.len());
 
         // This should restore all the files from the HEAD commit
@@ -105,6 +106,15 @@ async fn test_rm_sub_directory() -> Result<(), OxenError> {
 
         let entries = api::local::entries::list_all(&repo, &commit)?;
         assert_eq!(entries.len(), 0);
+
+        let dir_reader = CommitEntryReader::new(&repo, &commit)?;
+        let dirs = dir_reader.list_dirs()?;
+        for dir in dirs.iter() {
+            println!("dir: {:?}", dir);
+        }
+
+        // Should just be the root dir, we removed the images and images/cat dir
+        assert_eq!(dirs.len(), 1);
 
         Ok(())
     })

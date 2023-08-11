@@ -19,8 +19,8 @@ fn test_command_commit_file() -> Result<(), OxenError> {
 
         // Get status and make sure it is removed from the untracked and added
         let repo_status = command::status(&repo)?;
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 0);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 0);
         assert_eq!(repo_status.untracked_dirs.len(), 0);
 
@@ -42,8 +42,8 @@ fn test_command_commit_dir() -> Result<(), OxenError> {
 
         let repo_status = command::status(&repo)?;
         repo_status.print_stdout();
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 0);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 2);
         assert_eq!(repo_status.untracked_dirs.len(), 4);
 
@@ -65,8 +65,8 @@ fn test_command_commit_dir_recursive() -> Result<(), OxenError> {
         let repo_status = command::status(&repo)?;
         repo_status.print_stdout();
 
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 0);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 2);
         assert_eq!(repo_status.untracked_dirs.len(), 4);
 
@@ -95,13 +95,13 @@ async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError
         command::add(&repo, &train_path)?;
         // Make sure we can get the status
         let status = command::status(&repo)?;
-        assert_eq!(status.added_dirs.len(), 1);
+        assert_eq!(status.staged_dirs.len(), 1);
 
         // Commit changes
         command::commit(&repo, "Adding train dir")?;
         // Make sure we can get the status and they are no longer added
         let status = command::status(&repo)?;
-        assert_eq!(status.added_dirs.len(), 0);
+        assert_eq!(status.staged_dirs.len(), 0);
 
         // checkout OG and make sure it removes the train dir
         command::checkout(&repo, orig_branch.name).await?;
@@ -166,9 +166,9 @@ fn test_command_commit_removed_dir() -> Result<(), OxenError> {
 
         // Make sure we have the correct amount of files tagged as removed
         let status = command::status(&repo)?;
-        assert_eq!(status.added_files.len(), og_file_count);
+        assert_eq!(status.staged_files.len(), og_file_count);
         assert_eq!(
-            status.added_files.iter().next().unwrap().1.status,
+            status.staged_files.iter().next().unwrap().1.status,
             StagedEntryStatus::Removed
         );
 

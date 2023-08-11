@@ -111,6 +111,7 @@ pub fn list_path_entries<T: ThreadMode, D>(
 where
     D: de::DeserializeOwned,
 {
+    log::debug!("path_db::list_path_entries({:?})", db.path());
     let iter = db.iterator(IteratorMode::Start);
     let mut paths: Vec<(PathBuf, D)> = vec![];
     for item in iter {

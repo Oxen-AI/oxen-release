@@ -322,7 +322,7 @@ async fn test_command_checkout_modified_file_from_fully_committed_repo() -> Resu
         command::add(&repo, &one_shot_path)?;
         let status = command::status(&repo)?;
         assert_eq!(status.modified_files.len(), 0);
-        assert_eq!(status.added_files.len(), 1);
+        assert_eq!(status.staged_files.len(), 1);
 
         let status = command::status(&repo)?;
         status.print_stdout();

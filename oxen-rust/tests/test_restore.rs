@@ -261,7 +261,7 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
 
         // Make sure is staged
         let status = command::status(&repo)?;
-        assert_eq!(status.added_files.len(), 1);
+        assert_eq!(status.staged_files.len(), 1);
         status.print_stdout();
 
         // Remove from staged
@@ -269,7 +269,7 @@ fn test_restore_staged_file() -> Result<(), OxenError> {
 
         // Make sure is unstaged
         let status = command::status(&repo)?;
-        assert_eq!(status.added_files.len(), 0);
+        assert_eq!(status.staged_files.len(), 0);
 
         Ok(())
     })
@@ -351,8 +351,8 @@ fn test_restore_staged_directory() -> Result<(), OxenError> {
 
         // Make sure is staged
         let status = command::status(&repo)?;
-        assert_eq!(status.added_dirs.len(), 1);
-        assert_eq!(status.added_files.len(), 6);
+        assert_eq!(status.staged_dirs.len(), 1);
+        assert_eq!(status.staged_files.len(), 6);
         status.print_stdout();
 
         // Remove from staged
@@ -360,8 +360,8 @@ fn test_restore_staged_directory() -> Result<(), OxenError> {
 
         // Make sure is unstaged
         let status = command::status(&repo)?;
-        assert_eq!(status.added_dirs.len(), 0);
-        assert_eq!(status.added_files.len(), 0);
+        assert_eq!(status.staged_dirs.len(), 0);
+        assert_eq!(status.staged_files.len(), 0);
 
         Ok(())
     })

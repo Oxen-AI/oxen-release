@@ -295,8 +295,8 @@ impl CommitWriter {
     }
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
-        log::debug!("gen_commit from {} files", status.added_files.len());
-        let entries: Vec<StagedEntry> = status.added_files.values().cloned().collect();
+        log::debug!("gen_commit from {} files", status.staged_files.len());
+        let entries: Vec<StagedEntry> = status.staged_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(commit_data, &entries);
         log::debug!("gen_commit id {}", id);
         Commit::from_new_and_id(commit_data, id)
@@ -318,7 +318,7 @@ impl CommitWriter {
             email: cfg.email,
             timestamp,
         };
-        let entries: Vec<StagedEntry> = status.added_files.values().cloned().collect();
+        let entries: Vec<StagedEntry> = status.staged_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
         self.add_commit_from_status(&commit, status, &self.repository.path)?;
@@ -774,7 +774,7 @@ mod tests {
 
             // Check that the files are no longer staged
             let status = stager.status(&entry_reader)?;
-            let files = status.added_files;
+            let files = status.staged_files;
             assert_eq!(files.len(), 0);
             let dirs = stager.list_staged_dirs()?;
             assert_eq!(dirs.len(), 0);
