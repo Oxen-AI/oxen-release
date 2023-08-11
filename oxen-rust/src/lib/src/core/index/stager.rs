@@ -524,29 +524,40 @@ impl Stager {
 
     fn process_removed_dir(
         &self,
-        path: &PathBuf,
-        entries: &Vec<CommitEntry>,
+        path: &Path,
+        dir_entries: &HashMap<PathBuf, Vec<CommitEntry>>,
     ) -> Result<(), OxenError> {
         log::debug!(
-            "Stager.add() !path.exists() {} files in dir {:?}",
-            entries.len(),
+            "Stager.add() !path.exists() {} dirs in dir {:?}",
+            dir_entries.len(),
             path
         );
 
-        if !entries.is_empty() {
-            let staged_dir: StagedDirEntryDB<MultiThreaded> =
-                StagedDirEntryDB::new(&self.repository, path)?;
+        // Make sure to remove the dir from the db
+        for (path, entries) in dir_entries {
+            log::debug!("Stager.add() rm {} files in dir {:?}", entries.len(), path);
 
-            let bar = Arc::new(ProgressBar::new(entries.len() as u64));
-            println!("Removing {} files", entries.len());
+            path_db::put(&self.dir_db, path, &StagedEntryStatus::Removed)?;
 
-            entries.par_iter().for_each(|entry| {
-                self.add_removed_file(&entry.path, entry, &staged_dir)
-                    .unwrap();
-                bar.inc(1);
-            });
+            if !entries.is_empty() {
+                let staged_dir: StagedDirEntryDB<MultiThreaded> =
+                    StagedDirEntryDB::new(&self.repository, path)?;
 
-            bar.finish();
+                let bar = Arc::new(ProgressBar::new(entries.len() as u64));
+                println!("Removing {} files", entries.len());
+
+                entries.par_iter().for_each(|entry| {
+                    match self.add_removed_file(&entry.path, entry, &staged_dir) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::error!("Error adding removed file: {:?}", e);
+                        }
+                    }
+                    bar.inc(1);
+                });
+
+                bar.finish();
+            }
         }
         Ok(())
     }
@@ -574,7 +585,7 @@ impl Stager {
         }
 
         // Is a dir
-        let files_in_dir = commit_reader.list_directory(&relative_path)?;
+        let files_in_dir = commit_reader.list_entries_per_directory(&relative_path)?;
         self.process_removed_dir(&relative_path, &files_in_dir)?;
 
         Ok(())

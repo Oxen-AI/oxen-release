@@ -102,6 +102,12 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
             status: StagedEntryStatus::Removed,
         };
 
+        log::debug!(
+            "staged_dir_entry_db {:?} add_removed_file {:?} -> {:?}",
+            self.dir,
+            path,
+            entry.status
+        );
         path_db::put(&self.db, path, &entry)?;
 
         Ok(entry)

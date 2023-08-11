@@ -558,6 +558,21 @@ fn collect_removed_directories(
     head_commit: &Commit,
     diff_entries: &mut Vec<DiffEntry>,
 ) -> Result<(), OxenError> {
+    // DEBUG
+    for base_dir in base_dirs.iter() {
+        log::debug!(
+            "collect_removed_directories BASE dir {}",
+            base_dir.display()
+        );
+    }
+
+    for head_dir in head_dirs.iter() {
+        log::debug!(
+            "collect_removed_directories HEAD dir {}",
+            head_dir.display()
+        );
+    }
+
     for base_dir in base_dirs {
         // HEAD entry is *not* in BASE
         if !head_dirs.contains(base_dir) {

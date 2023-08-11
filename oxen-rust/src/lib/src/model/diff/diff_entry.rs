@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::index::CommitDirEntryReader;
+use crate::core::index::{CommitDirEntryReader, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
@@ -161,21 +161,7 @@ impl DiffEntry {
 
         // if base_dir is some and head_dir is none, then we deleted all the files
         if base_dir.is_some() && head_dir.is_none() {
-            let base_dir = base_dir.as_ref().unwrap();
-            let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
-            let path = PathBuf::from(&base_dir.filename);
-            let base_dir_reader = CommitDirEntryReader::new(repo, commit_id, &path)?;
-            let num_removed = base_dir_reader.num_entries();
-
-            return Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
-                dir: DirDiffSummaryImpl {
-                    file_counts: AddRemoveModifyCounts {
-                        added: 0,
-                        removed: num_removed,
-                        modified: 0,
-                    },
-                },
-            })));
+            return DiffEntry::r_compute_removed_files(repo, base_dir.as_ref().unwrap());
         }
 
         // if head_dir is some and base_dir is none, then we added all the files
@@ -247,6 +233,35 @@ impl DiffEntry {
                     added: num_added,
                     removed: num_removed,
                     modified: num_modified,
+                },
+            },
+        })))
+    }
+
+    fn r_compute_removed_files(
+        repo: &LocalRepository,
+        base_dir: &MetadataEntry,
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
+        let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
+        let path = PathBuf::from(&base_dir.filename);
+
+        // Count all removals in the directory and its children
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(repo, commit_id)?;
+        let mut dirs = commit_entry_reader.list_dir_children(&path)?;
+        dirs.push(path);
+
+        let mut num_removed = 0;
+        for dir in dirs {
+            let base_dir_reader = CommitDirEntryReader::new(repo, commit_id, &dir)?;
+            num_removed += base_dir_reader.num_entries();
+        }
+
+        Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+            dir: DirDiffSummaryImpl {
+                file_counts: AddRemoveModifyCounts {
+                    added: 0,
+                    removed: num_removed,
+                    modified: 0,
                 },
             },
         })))

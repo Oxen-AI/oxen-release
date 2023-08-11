@@ -41,6 +41,7 @@ pub async fn list_diff_entries(
 #[cfg(test)]
 mod tests {
 
+    use std::path::Path;
     use std::path::PathBuf;
 
     use crate::api;
@@ -232,10 +233,339 @@ mod tests {
             let summary = entry.diff_summary.as_ref().unwrap();
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
-                    // POPULATE THESE
                     assert_eq!(summary.dir.file_counts.modified, 0);
                     assert_eq!(summary.dir.file_counts.added, 4);
                     assert_eq!(summary.dir.file_counts.removed, 0);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_entries_added_images_in_subdirs() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // create the images directory
+            let images_dir = repo.path.join("images");
+            let cats_dir = images_dir.join("cats");
+            util::fs::create_dir_all(&cats_dir)?;
+
+            // Add and commit the cats
+            for i in 1..=3 {
+                let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                let repo_filepath = cats_dir.join(test_file.file_name().unwrap());
+                util::fs::copy(&test_file, &repo_filepath)?;
+            }
+
+            command::add(&repo, &cats_dir)?;
+            command::commit(&repo, "Adding initial cat images")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "add-data";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Add and commit the dogs
+            let dogs_dir = images_dir.join("dogs");
+            util::fs::create_dir_all(&dogs_dir)?;
+            for i in 1..=4 {
+                let test_file = test::test_img_file_with_name(&format!("dog_{i}.jpg"));
+                let repo_filepath = dogs_dir.join(test_file.file_name().unwrap());
+                util::fs::copy(&test_file, &repo_filepath)?;
+            }
+
+            command::add(&repo, &dogs_dir)?;
+            command::commit(&repo, "Adding initial dog images")?;
+
+            // Modify a cat
+            let test_file = test::test_img_file_with_name("cat_1.jpg");
+            let repo_filepath = cats_dir.join(test_file.file_name().unwrap());
+            // Open the image file.
+            let img = image::open(&repo_filepath).unwrap();
+
+            // Resize the image to the specified dimensions.
+            let dims = 96;
+            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
+
+            // Save the resized image.
+            new_img.save(repo_filepath).unwrap();
+
+            // Remove a cat
+            let test_file = test::test_img_file_with_name("cat_2.jpg");
+            let repo_filepath = cats_dir.join(test_file.file_name().unwrap());
+            util::fs::remove_file(&repo_filepath)?;
+
+            command::add(&repo, &cats_dir)?;
+            command::commit(&repo, "Add and modify some cats")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::list_diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                0,
+                100,
+            )
+            .await?;
+
+            println!("COMPARE: {:#?}", compare);
+
+            // Added 4 dogs, three dirs
+            assert_eq!(compare.entries.len(), 8);
+
+            let entry = compare.entries.get(0).unwrap();
+            assert_eq!(entry.filename, "images");
+            assert_eq!(entry.status, "modified");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
+
+            let summary = entry.diff_summary.as_ref().unwrap();
+            match summary {
+                GenericDiffSummary::DirDiffSummary(summary) => {
+                    assert_eq!(summary.dir.file_counts.modified, 1);
+                    assert_eq!(summary.dir.file_counts.added, 4);
+                    assert_eq!(summary.dir.file_counts.removed, 1);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let entry = compare.entries.get(1).unwrap();
+            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(entry.status, "added");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
+
+            let summary = entry.diff_summary.as_ref().unwrap();
+            match summary {
+                GenericDiffSummary::DirDiffSummary(summary) => {
+                    assert_eq!(summary.dir.file_counts.modified, 1);
+                    assert_eq!(summary.dir.file_counts.added, 0);
+                    assert_eq!(summary.dir.file_counts.removed, 1);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let entry = compare.entries.get(2).unwrap();
+            assert_eq!(entry.filename, "images/dogs");
+            assert_eq!(entry.status, "added");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
+
+            let summary = entry.diff_summary.as_ref().unwrap();
+            match summary {
+                GenericDiffSummary::DirDiffSummary(summary) => {
+                    assert_eq!(summary.dir.file_counts.modified, 0);
+                    assert_eq!(summary.dir.file_counts.added, 4);
+                    assert_eq!(summary.dir.file_counts.removed, 0);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_entries_removing_images_in_subdir() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // create the images directory
+            let images_dir = repo.path.join("images").join("cats");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // Add and commit the cats
+            for i in 1..=3 {
+                let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+                util::fs::copy(&test_file, &repo_filepath)?;
+            }
+
+            command::add(&repo, &images_dir)?;
+            command::commit(&repo, "Adding initial cat images")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "remove-data";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Remove all the cat images
+            for i in 1..=3 {
+                let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
+                util::fs::remove_file(&repo_filepath)?;
+            }
+
+            let mut rm_opts = RmOpts::from_path(Path::new("images").join("cats"));
+            rm_opts.recursive = true;
+            command::rm(&repo, &rm_opts).await?;
+            command::commit(&repo, "Removing cat images")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::list_diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                0,
+                100,
+            )
+            .await?;
+
+            println!("COMPARE: {:#?}", compare);
+
+            // Removed 3 cats, two sub dirs
+            assert_eq!(compare.entries.len(), 5);
+
+            // images
+            let entry = compare.entries.get(0).unwrap();
+            assert_eq!(entry.filename, "images");
+            assert_eq!(entry.status, "modified");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
+
+            let summary = entry.diff_summary.as_ref().unwrap();
+            match summary {
+                GenericDiffSummary::DirDiffSummary(summary) => {
+                    assert_eq!(summary.dir.file_counts.modified, 0);
+                    assert_eq!(summary.dir.file_counts.added, 0);
+                    assert_eq!(summary.dir.file_counts.removed, 3);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            // images/cats
+            let entry = compare.entries.get(1).unwrap();
+            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(entry.status, "removed");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
+
+            let summary = entry.diff_summary.as_ref().unwrap();
+            match summary {
+                GenericDiffSummary::DirDiffSummary(summary) => {
+                    assert_eq!(summary.dir.file_counts.modified, 0);
+                    assert_eq!(summary.dir.file_counts.added, 0);
+                    assert_eq!(summary.dir.file_counts.removed, 3);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_entries_removing_images_by_rming_parent_in_subdir() -> Result<(), OxenError>
+    {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // create the images directory
+            let images_dir = repo.path.join("images").join("cats");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // Add and commit the cats
+            for i in 1..=3 {
+                let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+                util::fs::copy(&test_file, &repo_filepath)?;
+            }
+
+            command::add(&repo, &images_dir)?;
+            command::commit(&repo, "Adding initial cat images")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "remove-data";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Remove all the cat images
+            for i in 1..=3 {
+                let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
+                util::fs::remove_file(&repo_filepath)?;
+            }
+
+            // THIS IS THE CRUX of this test, do not remove images/cats, just remove images/
+            let mut rm_opts = RmOpts::from_path(Path::new("images"));
+            rm_opts.recursive = true;
+            command::rm(&repo, &rm_opts).await?;
+            command::commit(&repo, "Removing cat images")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::list_diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                0,
+                100,
+            )
+            .await?;
+
+            println!("COMPARE: {:#?}", compare);
+
+            // Removed 3 cats, one dir
+            assert_eq!(compare.entries.len(), 4);
+
+            let entry = compare.entries.get(0).unwrap();
+            assert_eq!(entry.filename, "images");
+            assert_eq!(entry.status, "removed");
+            assert_eq!(entry.data_type, EntryDataType::Dir);
+
+            let summary = entry.diff_summary.as_ref().unwrap();
+            match summary {
+                GenericDiffSummary::DirDiffSummary(summary) => {
+                    assert_eq!(summary.dir.file_counts.modified, 0);
+                    assert_eq!(summary.dir.file_counts.added, 0);
+                    assert_eq!(summary.dir.file_counts.removed, 3);
                 }
                 _ => panic!("Wrong summary type"),
             }
@@ -317,7 +647,6 @@ mod tests {
             let summary = entry.diff_summary.as_ref().unwrap();
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
-                    // POPULATE THESE
                     assert_eq!(summary.dir.file_counts.modified, 0);
                     assert_eq!(summary.dir.file_counts.added, 0);
                     assert_eq!(summary.dir.file_counts.removed, 3);
@@ -431,7 +760,6 @@ mod tests {
             let summary = entry.diff_summary.as_ref().unwrap();
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
-                    // POPULATE THESE
                     assert_eq!(summary.dir.file_counts.modified, 3);
                     assert_eq!(summary.dir.file_counts.added, 1);
                     assert_eq!(summary.dir.file_counts.removed, 1);
