@@ -347,7 +347,6 @@ pub async fn post_push_complete(
 // TODONOW data structure here?
 pub async fn get_commits_with_unsynced_dbs(
     remote_repo: &RemoteRepository,
-    commits: Vec<Commit>,
 ) -> Result<Vec<Commit>, OxenError> {
     log::debug!("At beginning of get_commits_with_unsynced_dbs");
     let uri = format!("/commits/db_status");
@@ -355,11 +354,8 @@ pub async fn get_commits_with_unsynced_dbs(
 
     log::debug!("sending to url {:?}", url);
 
-    let body = serde_json::to_string(&commits).unwrap();
-    log::debug!("made it past body");
-
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.get(&url).body(body).send().await {
+    if let Ok(res) = client.get(&url).send().await {
         let body = client::parse_json_body(&url, res).await?;
         let response: Result<ListCommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
@@ -402,7 +398,6 @@ pub async fn get_commits_with_unsynced_entries(
 
 pub async fn post_commits_to_server(
     // TODONOW need to send over a different struct..
-    // TODONOW rename bulk?
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commits: &Vec<UnsyncedCommitEntries>,
@@ -434,7 +429,6 @@ pub async fn post_commit_db_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    branch_name: String,
 ) -> Result<(), OxenError> {
     let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
