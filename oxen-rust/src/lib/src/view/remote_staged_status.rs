@@ -66,7 +66,7 @@ impl RemoteStagedStatus {
         page_size: usize,
     ) -> RemoteStagedStatus {
         let added_entries: Vec<MetadataEntry> =
-            RemoteStagedStatus::added_to_meta_entry(repo, &staged.added_files);
+            RemoteStagedStatus::added_to_meta_entry(repo, &staged.staged_files);
         let modified_entries: Vec<MetadataEntry> =
             RemoteStagedStatus::modified_to_meta_entry(repo, &staged.modified_files);
 
@@ -76,7 +76,7 @@ impl RemoteStagedStatus {
             RemoteStagedStatus::paginate_entries(modified_entries, page_num, page_size);
 
         RemoteStagedStatus {
-            added_dirs: staged.added_dirs.to_owned(),
+            added_dirs: staged.staged_dirs.to_owned(),
             added_files: added_paginated,
             modified_files: modified_paginated,
         }

@@ -210,18 +210,18 @@ impl Stager {
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
         // Start with candidate dirs from committed and added, not all the dirs
-        let mut added_dirs = self.list_staged_dirs()?;
+        let mut staged_dirs = self.list_staged_dirs()?;
         // If we specified a dir, only get the added dirs that are in that dir
         if dir.is_relative() && dir != self.repository.path {
-            added_dirs.retain(|(path, _)| path.starts_with(dir))
+            staged_dirs.retain(|(path, _)| path.starts_with(dir))
         }
 
-        log::debug!("compute_staged_data Got <added> dirs: {}", added_dirs.len());
-        for (dir, status) in added_dirs {
+        log::debug!("compute_staged_data Got <added> dirs: {}", staged_dirs.len());
+        for (dir, status) in staged_dirs {
             log::debug!("compute_staged_data considering added dir {:?}", dir);
             let full_path = self.repository.path.join(&dir);
             let stats = self.compute_staged_dir_stats(&full_path, &status)?;
-            staged_data.added_dirs.add_stats(&stats);
+            staged_data.staged_dirs.add_stats(&stats);
             log::debug!("compute_staged_data got stats {:?}", stats);
 
             log::debug!("compute_staged_data adding <added> dir {:?}", dir);
@@ -259,7 +259,7 @@ impl Stager {
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
             schemas.insert(path, schema);
         }
-        staged_data.added_schemas = schemas;
+        staged_data.staged_schemas = schemas;
 
         Ok(staged_data)
     }
@@ -327,7 +327,7 @@ impl Stager {
 
             if fullpath.is_dir() {
                 if !self.has_staged_dir(relative)
-                    && !staged_data.added_dirs.contains_key(relative)
+                    && !staged_data.staged_dirs.contains_key(relative)
                     && !root_commit_dir_reader.has_dir(relative)
                 {
                     // log::debug!("process_dir adding untracked dir {:?}", relative);
@@ -352,7 +352,7 @@ impl Stager {
                             let result = staged_dir_db.get_entry(file_name);
                             if let Ok(Some(entry)) = result {
                                 staged_data
-                                    .added_files
+                                    .staged_files
                                     .insert(relative.to_path_buf(), entry);
                             }
                         }
@@ -593,7 +593,7 @@ impl Stager {
 
     // Returns a map of directories to files to add, and a total count
     // Reads the dirs in parallel to quickly find out what needs to be added
-    fn list_unadded_files_in_dir<P: AsRef<Path>>(
+    fn list_unstaged_files_in_dir<P: AsRef<Path>>(
         &self,
         dir: P,
     ) -> (HashMap<PathBuf, Vec<PathBuf>>, usize) {
@@ -619,7 +619,7 @@ impl Stager {
                     match child_result {
                         Ok(child) => {
                             // log::debug!(
-                            //     "list_unadded_files_in_dir checking file type {:?}",
+                            //     "list_unstaged_files_in_dir checking file type {:?}",
                             //     dir_entry
                             // );
                             if !child.file_type.is_dir() {
@@ -639,7 +639,7 @@ impl Stager {
                             }
                         }
                         Err(err) => {
-                            log::error!("list_unadded_files_in_dir dir entry is err: {:?}", err);
+                            log::error!("list_unstaged_files_in_dir dir entry is err: {:?}", err);
                         }
                     }
                 });
@@ -647,13 +647,13 @@ impl Stager {
 
         for dir_entry_result in walk_dir {
             // log::debug!(
-            //     "list_unadded_files_in_dir in for loop {:?}",
+            //     "list_unstaged_files_in_dir in for loop {:?}",
             //     dir_entry_result,
             // );
             match dir_entry_result {
                 Ok(dir_entry) => {
                     // log::debug!(
-                    //     "list_unadded_files_in_dir match dir_entry_result {:?}",
+                    //     "list_unstaged_files_in_dir match dir_entry_result {:?}",
                     //     &dir_entry.client_state,
                     // );
                     if let Some(is_added) = &dir_entry.client_state {
@@ -664,12 +664,12 @@ impl Stager {
                             )
                             .unwrap();
                             // log::debug!(
-                            //     "list_unadded_files_in_dir got path {:?}",
+                            //     "list_unstaged_files_in_dir got path {:?}",
                             //     path,
                             // );
                             if let Some(parent) = path.parent() {
                                 // log::debug!(
-                                //     "list_unadded_files_in_dir adding {:?} -> {:?}",
+                                //     "list_unstaged_files_in_dir adding {:?} -> {:?}",
                                 //     parent,
                                 //     path
                                 // );
@@ -680,7 +680,7 @@ impl Stager {
                         }
                     }
                     // log::debug!(
-                    //     "list_unadded_files_in_dir match dir_entry_result done. {:?}",
+                    //     "list_unstaged_files_in_dir match dir_entry_result done. {:?}",
                     //     dir_entry,
                     // );
                 }
@@ -705,7 +705,7 @@ impl Stager {
         // log::debug!("Stager.add_dir added path {short_path:?}");
 
         // Add all untracked files and modified files
-        let (dir_paths, total) = self.list_unadded_files_in_dir(dir);
+        let (dir_paths, total) = self.list_unstaged_files_in_dir(dir);
         // log::debug!("Stager.add_dir {:?} -> {}", dir, total);
 
         // println!("Adding files in directory: {short_path:?}");
@@ -990,7 +990,7 @@ impl Stager {
         }
     }
 
-    fn list_added_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
+    fn list_staged_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
         let relative = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
         let staged_dir = StagedDirEntryReader::new(&self.repository, &relative)?;
         staged_dir.list_added_paths()
@@ -1021,7 +1021,7 @@ impl Stager {
         }
 
         // Count in db from relative path
-        let num_files_staged = self.list_added_files_in_dir(&relative_path)?.len();
+        let num_files_staged = self.list_staged_files_in_dir(&relative_path)?.len();
 
         // Make sure we have some files added
         if num_files_staged == 0 {
@@ -1097,8 +1097,8 @@ impl Stager {
         log::debug!("Remove staged dir short_path: {:?}", short_path);
 
         // Not most efficient to linearly scan, but we don't have pointers to parents or children
-        let added_dirs = self.list_staged_dirs()?;
-        for (added_dir, _) in added_dirs.iter() {
+        let staged_dirs = self.list_staged_dirs()?;
+        for (added_dir, _) in staged_dirs.iter() {
             if added_dir.starts_with(short_path) {
                 log::debug!("Removing files from added_dir: {:?}", added_dir);
 
@@ -1116,9 +1116,9 @@ impl Stager {
     }
 
     pub fn unstage(&self) -> Result<(), OxenError> {
-        let added_dirs = self.list_staged_dirs()?;
-        log::debug!("Unstage dirs: {}", added_dirs.len());
-        for (dir, _) in added_dirs {
+        let staged_dirs = self.list_staged_dirs()?;
+        log::debug!("Unstage dirs: {}", staged_dirs.len());
+        for (dir, _) in staged_dirs {
             log::debug!("Unstaging dir: {:?}", dir);
             let staged_dir: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, &dir)?;
@@ -1165,8 +1165,8 @@ mod tests {
 
             // Make sure the counts start properly
             let status = stager.status(&entry_reader)?;
-            assert_eq!(status.added_files.len(), 3);
-            assert_eq!(status.added_dirs.paths.len(), 1);
+            assert_eq!(status.staged_files.len(), 3);
+            assert_eq!(status.staged_dirs.paths.len(), 1);
 
             // Unstage
             stager.unstage()?;
@@ -1174,8 +1174,8 @@ mod tests {
             // There should no longer be any added files
             let status = stager.status(&entry_reader)?;
             status.print_stdout();
-            assert_eq!(status.added_files.len(), 0);
-            assert_eq!(status.added_dirs.paths.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
+            assert_eq!(status.staged_dirs.paths.len(), 0);
 
             Ok(())
         })
@@ -1197,7 +1197,7 @@ mod tests {
 
             // Make sure we still only have it once
             let status = stager.status(&entry_reader)?;
-            assert_eq!(status.added_files.len(), 1);
+            assert_eq!(status.staged_files.len(), 1);
 
             Ok(())
         })
@@ -1228,7 +1228,7 @@ mod tests {
 
             // make sure we don't have it added again, because the hash hadn't changed since last commit
             let status = stager.status(&entry_reader)?;
-            assert_eq!(status.added_files.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
         })
@@ -1260,7 +1260,7 @@ mod tests {
             stager.add_file(&hello_file, &entry_reader)?;
 
             let status = stager.status(&entry_reader)?;
-            assert_eq!(status.added_files.len(), 1);
+            assert_eq!(status.staged_files.len(), 1);
 
             Ok(())
         })
@@ -1282,7 +1282,7 @@ mod tests {
             assert!(stager.add_file(&file, &entry_reader).is_ok());
 
             let status = stager.status(&entry_reader)?;
-            assert_eq!(status.added_files.len(), 1);
+            assert_eq!(status.staged_files.len(), 1);
 
             Ok(())
         })
@@ -1305,7 +1305,7 @@ mod tests {
 
             let status = stager.status(&entry_reader)?;
             status.print_stdout();
-            assert_eq!(status.added_files.len(), 2);
+            assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
         })
@@ -1348,7 +1348,7 @@ mod tests {
 
             // List files
             let status = stager.status(&entry_reader)?;
-            let files = status.added_files;
+            let files = status.staged_files;
             assert_eq!(files.len(), 1);
             assert!(files.get(&relative_path).is_some());
 
@@ -1374,7 +1374,7 @@ mod tests {
 
             // List files
             let status = stager.status(&entry_reader)?;
-            let files = status.added_files;
+            let files = status.staged_files;
 
             // There is one file
             assert_eq!(files.len(), 1);
@@ -1416,9 +1416,9 @@ mod tests {
             assert_eq!(dirs.len(), 0);
 
             // And there is one tracked directory
-            let added_dirs = stager.status(&entry_reader)?.added_dirs;
-            assert_eq!(added_dirs.len(), 1);
-            let added_dir = added_dirs.get(&training_data_dir).unwrap();
+            let staged_dirs = stager.status(&entry_reader)?.staged_dirs;
+            assert_eq!(staged_dirs.len(), 1);
+            let added_dir = staged_dirs.get(&training_data_dir).unwrap();
             assert_eq!(added_dir.num_files_staged, 3);
             assert_eq!(added_dir.total_files, 3);
 
@@ -1444,7 +1444,7 @@ mod tests {
             stager.add_dir(&sub_dir, &entry_reader)?;
 
             // List files
-            let dirs = stager.status(&entry_reader)?.added_dirs;
+            let dirs = stager.status(&entry_reader)?.staged_dirs;
 
             // There is one directory
             assert_eq!(dirs.len(), 1);
@@ -1597,7 +1597,7 @@ mod tests {
             // List dirs
             let status = stager.status(&entry_reader)?;
             status.print_stdout();
-            let dirs = status.added_dirs;
+            let dirs = status.staged_dirs;
 
             // There is one directory
             assert_eq!(dirs.len(), 1);
@@ -1667,8 +1667,8 @@ mod tests {
 
             // There is one removed file, and nothing else
             assert_eq!(files.len(), 1);
-            assert_eq!(status.added_dirs.len(), 0);
-            assert_eq!(status.added_files.len(), 0);
+            assert_eq!(status.staged_dirs.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
             assert_eq!(status.untracked_dirs.len(), 0);
             assert_eq!(status.untracked_files.len(), 0);
             assert_eq!(status.modified_files.len(), 0);
@@ -1754,14 +1754,14 @@ mod tests {
             let _ = stager.add_file(&base_file_1, &entry_reader)?;
 
             // List the files
-            let added_files = stager.status(&entry_reader)?.added_files;
-            let added_dirs = stager.status(&entry_reader)?.added_dirs;
+            let staged_files = stager.status(&entry_reader)?.staged_files;
+            let staged_dirs = stager.status(&entry_reader)?.staged_dirs;
             let untracked_files = stager.list_untracked_files(&entry_reader)?;
             let untracked_dirs = stager.status(&entry_reader)?.untracked_dirs;
 
             // There is 5 added file and 1 added dir
-            assert_eq!(added_files.len(), 5);
-            assert_eq!(added_dirs.len(), 1);
+            assert_eq!(staged_files.len(), 5);
+            assert_eq!(staged_dirs.len(), 1);
 
             // There are 2 untracked files at the top level
             assert_eq!(untracked_files.len(), 2);

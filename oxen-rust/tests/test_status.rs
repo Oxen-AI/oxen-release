@@ -14,8 +14,8 @@ fn test_command_status_empty() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
         let repo_status = command::status(&repo)?;
 
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 0);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 0);
         assert_eq!(repo_status.untracked_dirs.len(), 0);
 
@@ -28,8 +28,8 @@ fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> 
     test::run_training_data_repo_test_no_commits(|repo| {
         let repo_status = command::status(&repo)?;
 
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 0);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 0);
         // README.md
         // labels.txt
         assert_eq!(repo_status.untracked_files.len(), 2);
@@ -52,8 +52,8 @@ fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
         let repo_status = command::status(&repo)?;
         repo_status.print_stdout();
 
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 1);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 1);
         // README.md
         // labels.txt
         assert_eq!(repo_status.untracked_files.len(), 1);
@@ -82,9 +82,9 @@ fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<()
         repo_status.print_stdout();
 
         // annotations/
-        assert_eq!(repo_status.added_dirs.len(), 1);
+        assert_eq!(repo_status.staged_dirs.len(), 1);
         // annotations/train/one_shot.csv
-        assert_eq!(repo_status.added_files.len(), 1);
+        assert_eq!(repo_status.staged_files.len(), 1);
         // annotations/test/
         // train/
         // large_files/
@@ -144,8 +144,8 @@ fn test_command_status_has_txt_file() -> Result<(), OxenError> {
 
         // Get status
         let repo_status = command::status(&repo)?;
-        assert_eq!(repo_status.added_dirs.len(), 0);
-        assert_eq!(repo_status.added_files.len(), 0);
+        assert_eq!(repo_status.staged_dirs.len(), 0);
+        assert_eq!(repo_status.staged_files.len(), 0);
         assert_eq!(repo_status.untracked_files.len(), 1);
         assert_eq!(repo_status.untracked_dirs.len(), 0);
 
@@ -210,9 +210,9 @@ async fn test_status_rm_regular_file() -> Result<(), OxenError> {
         let status = command::status(&repo)?;
         status.print_stdout();
 
-        assert_eq!(status.added_files.len(), 1);
+        assert_eq!(status.staged_files.len(), 1);
         assert_eq!(
-            status.added_files[&og_basename].status,
+            status.staged_files[&og_basename].status,
             StagedEntryStatus::Removed
         );
 
@@ -239,9 +239,9 @@ async fn test_status_rm_directory_file() -> Result<(), OxenError> {
         let status = command::status(&repo)?;
         status.print_stdout();
 
-        assert_eq!(status.added_files.len(), 1);
+        assert_eq!(status.staged_files.len(), 1);
         assert_eq!(
-            status.added_files[&og_basename].status,
+            status.staged_files[&og_basename].status,
             StagedEntryStatus::Removed
         );
 

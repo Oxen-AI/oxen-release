@@ -36,7 +36,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits(|repo| {
         // Make sure no schemas are staged
         let status = command::status(&repo)?;
-        assert_eq!(status.added_schemas.len(), 0);
+        assert_eq!(status.staged_schemas.len(), 0);
 
         // Make sure no schemas are committed
         let schemas = command::schemas::list(&repo, None)?;
@@ -51,8 +51,8 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
 
         // Make sure it is staged
         let status = command::status(&repo)?;
-        assert_eq!(status.added_schemas.len(), 1);
-        for (path, schema) in status.added_schemas.iter() {
+        assert_eq!(status.staged_schemas.len(), 1);
+        for (path, schema) in status.staged_schemas.iter() {
             println!("GOT SCHEMA {path:?} -> {schema:?}");
         }
 
@@ -66,7 +66,7 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
 
         // Make sure no schemas are staged after commit
         let status = command::status(&repo)?;
-        assert_eq!(status.added_schemas.len(), 0);
+        assert_eq!(status.staged_schemas.len(), 0);
 
         // Fetch schema from HEAD commit
         let schema = command::schemas::get_from_head(&repo, "bounding_box")?.unwrap();

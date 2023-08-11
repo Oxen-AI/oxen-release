@@ -57,9 +57,9 @@ impl fmt::Display for StagedData {
 
 #[derive(Debug, Clone)]
 pub struct StagedData {
-    pub added_dirs: SummarizedStagedDirStats,
-    pub added_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
-    pub added_schemas: HashMap<PathBuf, Schema>,    // All the staged entries will be in here
+    pub staged_dirs: SummarizedStagedDirStats,
+    pub staged_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
+    pub staged_schemas: HashMap<PathBuf, Schema>,    // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -70,9 +70,9 @@ pub struct StagedData {
 impl StagedData {
     pub fn empty() -> StagedData {
         StagedData {
-            added_dirs: SummarizedStagedDirStats::new(),
-            added_files: HashMap::new(),
-            added_schemas: HashMap::new(),
+            staged_dirs: SummarizedStagedDirStats::new(),
+            staged_files: HashMap::new(),
+            staged_schemas: HashMap::new(),
             untracked_dirs: vec![],
             untracked_files: vec![],
             modified_files: vec![],
@@ -82,8 +82,8 @@ impl StagedData {
     }
 
     pub fn is_clean(&self) -> bool {
-        self.added_files.is_empty()
-            && self.added_schemas.is_empty()
+        self.staged_files.is_empty()
+            && self.staged_schemas.is_empty()
             && self.untracked_files.is_empty()
             && self.untracked_dirs.is_empty()
             && self.modified_files.is_empty()
@@ -92,7 +92,7 @@ impl StagedData {
     }
 
     pub fn has_added_entries(&self) -> bool {
-        !self.added_dirs.is_empty() || !self.added_files.is_empty()
+        !self.staged_dirs.is_empty() || !self.staged_files.is_empty()
     }
 
     pub fn has_modified_entries(&self) -> bool {
@@ -127,9 +127,9 @@ impl StagedData {
             return outputs;
         }
 
-        self.__collect_added_dirs(&mut outputs, opts);
-        self.__collect_added_files(&mut outputs, opts);
-        self.__collect_added_schemas(&mut outputs, opts);
+        self.staged_dirs(&mut outputs, opts);
+        self.staged_files(&mut outputs, opts);
+        self.staged_schemas(&mut outputs, opts);
         self.__collect_modified_files(&mut outputs, opts);
         self.__collect_merge_conflicts(&mut outputs, opts);
         self.__collect_untracked_dirs(&mut outputs, opts);
@@ -200,9 +200,9 @@ impl StagedData {
         outputs.push("\n".normal());
     }
 
-    fn __collect_added_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+    fn staged_dirs(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
         let mut dirs: Vec<Vec<ColoredString>> = vec![];
-        for (path, staged_dirs) in self.added_dirs.paths.iter() {
+        for (path, staged_dirs) in self.staged_dirs.paths.iter() {
             let mut dir_row: Vec<ColoredString> = vec![];
             for staged_dir in staged_dirs.iter() {
                 if staged_dir.num_files_staged == 0 {
@@ -252,17 +252,17 @@ impl StagedData {
         outputs.push("\n".normal());
     }
 
-    fn __collect_added_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
-        if self.added_files.is_empty() {
+    fn staged_files(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+        if self.staged_files.is_empty() {
             return;
         }
         outputs.push("Files to be committed:\n".normal());
-        if (!self.added_files.is_empty() || !self.added_dirs.is_empty()) && !opts.is_remote {
+        if (!self.staged_files.is_empty() || !self.staged_dirs.is_empty()) && !opts.is_remote {
             outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
         }
 
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
-            self.added_files.iter().map(|(k, v)| (k, v)).collect();
+            self.staged_files.iter().map(|(k, v)| (k, v)).collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
@@ -291,7 +291,7 @@ impl StagedData {
         );
 
         // TODO: Can this be more generic?
-        let total = self.added_dirs.num_files_staged;
+        let total = self.staged_dirs.num_files_staged;
         if opts.is_remote && total > opts.limit {
             let remaining = total - opts.limit;
             outputs.push(format!("  ... and {remaining} others\n").normal());
@@ -299,15 +299,15 @@ impl StagedData {
         outputs.push("\n".normal());
     }
 
-    fn __collect_added_schemas(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
-        if self.added_schemas.is_empty() {
+    fn staged_schemas(&self, outputs: &mut Vec<ColoredString>, opts: &StagedDataOpts) {
+        if self.staged_schemas.is_empty() {
             return;
         }
         outputs.push("Schemas to be committed\n".normal());
         outputs.push(MSG_OXEN_SHOW_SCHEMA_STAGED.normal());
 
         let mut files_vec: Vec<(&PathBuf, &Schema)> =
-            self.added_schemas.iter().map(|(k, v)| (k, v)).collect();
+            self.staged_schemas.iter().map(|(k, v)| (k, v)).collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
@@ -510,25 +510,25 @@ mod tests {
     }
 
     #[test]
-    fn test_staged_data_collect_added_files() {
+    fn staged_files() {
         let mut staged_data = StagedData::empty();
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_1.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_2.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_3.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_4.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_5.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
@@ -550,25 +550,25 @@ mod tests {
     }
 
     #[test]
-    fn test_staged_data_collect_added_files_length() {
+    fn staged_files_length() {
         let mut staged_data = StagedData::empty();
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_1.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_2.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_3.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_4.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );
-        staged_data.added_files.insert(
+        staged_data.staged_files.insert(
             PathBuf::from("file_5.jpg"),
             StagedEntry::empty_status(StagedEntryStatus::Added),
         );

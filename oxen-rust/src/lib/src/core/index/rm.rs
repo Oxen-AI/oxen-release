@@ -199,14 +199,14 @@ mod tests {
             command::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
-            assert_eq!(status.added_files.len(), 1);
-            assert!(status.added_files.contains_key(path));
+            assert_eq!(status.staged_files.len(), 1);
+            assert!(status.staged_files.contains_key(path));
 
             let opts = RmOpts::from_staged_path(path);
             rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
-            assert_eq!(status.added_files.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
         })
@@ -222,7 +222,7 @@ mod tests {
 
             let status = command::status(&repo)?;
             status.print_stdout();
-            assert_eq!(status.added_dirs.len(), 1);
+            assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -247,7 +247,7 @@ mod tests {
 
             let status = command::status(&repo)?;
             status.print_stdout();
-            assert_eq!(status.added_dirs.len(), 1);
+            assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -259,8 +259,8 @@ mod tests {
 
             let status = command::status(&repo)?;
             status.print_stdout();
-            assert_eq!(status.added_dirs.len(), 0);
-            assert_eq!(status.added_files.len(), 0);
+            assert_eq!(status.staged_dirs.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
         })
@@ -275,7 +275,7 @@ mod tests {
             command::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
-            assert_eq!(status.added_dirs.len(), 1);
+            assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
                 path: path.to_path_buf(),
@@ -288,8 +288,8 @@ mod tests {
 
             let status = command::status(&repo)?;
             status.print_stdout();
-            assert_eq!(status.added_dirs.len(), 0);
-            assert_eq!(status.added_files.len(), 0);
+            assert_eq!(status.staged_dirs.len(), 0);
+            assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
         })
@@ -308,9 +308,9 @@ mod tests {
             let status = command::status(&repo)?;
             status.print_stdout();
 
-            assert_eq!(status.added_files.len(), 1);
+            assert_eq!(status.staged_files.len(), 1);
             assert_eq!(
-                status.added_files.get(path).unwrap().status,
+                status.staged_files.get(path).unwrap().status,
                 StagedEntryStatus::Removed
             );
 
@@ -412,8 +412,8 @@ mod tests {
             let status = command::status(&repo)?;
             status.print_stdout();
 
-            assert_eq!(status.added_files.len(), og_num_files);
-            for (_, staged_entry) in status.added_files.iter() {
+            assert_eq!(status.staged_files.len(), og_num_files);
+            for (_, staged_entry) in status.staged_files.iter() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
 
@@ -448,8 +448,8 @@ mod tests {
             let status = command::status(&repo)?;
             status.print_stdout();
 
-            assert_eq!(status.added_files.len(), og_num_files);
-            for (_, staged_entry) in status.added_files.iter() {
+            assert_eq!(status.staged_files.len(), og_num_files);
+            for (_, staged_entry) in status.staged_files.iter() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
 
@@ -476,8 +476,8 @@ mod tests {
             let status = command::status(&repo)?;
             status.print_stdout();
 
-            assert_eq!(status.added_files.len(), og_num_files);
-            for (_, staged_entry) in status.added_files.iter() {
+            assert_eq!(status.staged_files.len(), og_num_files);
+            for (_, staged_entry) in status.staged_files.iter() {
                 assert_eq!(staged_entry.status, StagedEntryStatus::Removed);
             }
 

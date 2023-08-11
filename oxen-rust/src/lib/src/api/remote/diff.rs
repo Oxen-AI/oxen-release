@@ -552,8 +552,8 @@ mod tests {
 
             println!("COMPARE: {:#?}", compare);
 
-            // Removed 3 cats, one dir
-            assert_eq!(compare.entries.len(), 4);
+            // Removed 3 cats, two parent dirs
+            assert_eq!(compare.entries.len(), 5);
 
             let entry = compare.entries.get(0).unwrap();
             assert_eq!(entry.filename, "images");

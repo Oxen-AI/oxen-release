@@ -328,7 +328,7 @@ mod tests {
                 directory,
             )?;
             staged_data.print_stdout();
-            assert_eq!(staged_data.added_files.len(), 1);
+            assert_eq!(staged_data.staged_files.len(), 1);
 
             Ok(())
         })

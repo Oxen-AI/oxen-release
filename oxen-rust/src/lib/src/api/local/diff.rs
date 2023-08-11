@@ -344,8 +344,8 @@ pub fn list_diff_entries(
 ) -> Result<EntriesDiff, OxenError> {
     log::debug!(
         "list_diff_entries base_commit: '{}', head_commit: '{}'",
-        base_commit.message,
-        head_commit.message
+        base_commit,
+        head_commit
     );
     // BASE is what we are merging into, HEAD is where it is coming from
     // We want to find all the entries that are added, modified, removed HEAD but not in BASE

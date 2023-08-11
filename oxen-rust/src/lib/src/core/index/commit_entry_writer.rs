@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db::path_db;
-use crate::core::db::{self, kv_db};
+use crate::core::db;
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::schema::Schema;
@@ -19,8 +19,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::{CommitDirEntryReader, CommitEntryReader};
-
-// type Vec2DStr = Vec<Vec<String>>;
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -142,10 +140,6 @@ impl CommitEntryWriter {
         }
     }
 
-    pub fn remove_dir(&self, dir: &Path) -> Result<(), OxenError> {
-        path_db::delete(&self.dir_db, dir)
-    }
-
     fn add_staged_entry_to_db(
         &self,
         writer: &CommitDirEntryWriter,
@@ -239,7 +233,7 @@ impl CommitEntryWriter {
     ) -> Result<(), OxenError> {
         self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
-        self.commit_schemas(commit, &staged_data.added_schemas)
+        self.commit_schemas(commit, &staged_data.staged_schemas)
     }
 
     fn commit_schemas(
@@ -287,25 +281,15 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
-        let size: u64 = unsafe { std::mem::transmute(staged_data.added_files.len()) };
+        let size: u64 = unsafe { std::mem::transmute(staged_data.staged_files.len()) };
         let bar = ProgressBar::new(size);
-        let grouped = self.group_staged_files_to_dirs(&staged_data.added_files);
+        let grouped = self.group_staged_files_to_dirs(&staged_data.staged_files);
         log::debug!(
             "commit_staged_entries_with_prog got groups {}",
             grouped.len()
         );
 
-        // Track dirs
-        for (_path, staged_dirs) in staged_data.added_dirs.paths.iter() {
-            for staged_dir in staged_dirs.iter() {
-                log::debug!(
-                    "commit_staged_entries_with_prog adding dir {:?}",
-                    staged_dir.path
-                );
-                path_db::put(&self.dir_db, &staged_dir.path, &0)?;
-            }
-        }
-
+        // Track entries in commit
         for (dir, files) in grouped.iter() {
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
@@ -316,13 +300,23 @@ impl CommitEntryWriter {
                 self.commit_staged_entry(&entry_writer, commit, origin_path, path, entry);
                 bar.inc(1);
             });
+        }
 
-            // If we removed all files from the dir, remove it from the dir_db
-            let num_entries = kv_db::count(&entry_writer.db)?;
-            if num_entries == 0 {
-                path_db::delete(&self.dir_db, dir)?;
+        // Track dirs in commit
+        for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
+            for staged_dir in staged_dirs.iter() {
+                log::debug!(
+                    "commit_staged_entries_with_prog adding dir {:?} -> {:?}",
+                    staged_dir.path, staged_dir.status
+                );
+                if staged_dir.status == StagedEntryStatus::Removed {
+                    path_db::delete(&self.dir_db, &staged_dir.path)?;
+                    continue;
+                }
+                path_db::put(&self.dir_db, &staged_dir.path, &0)?;
             }
         }
+
         bar.finish();
 
         Ok(())
