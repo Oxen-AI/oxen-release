@@ -1,5 +1,7 @@
 use crate::api::remote::client;
-use crate::constants::{COMMITS_DIR, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, HISTORY_DIR, DIRS_DIR, FILES_DIR, SCHEMAS_DIR};
+use crate::constants::{
+    COMMITS_DIR, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR,
+};
 use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
 use crate::core::index::{CommitDBReader, CommitWriter};
@@ -344,10 +346,9 @@ pub async fn post_push_complete(
 
 // TODONOW data structure here?
 pub async fn get_commits_with_unsynced_dbs(
-    remote_repo: &RemoteRepository, 
-    commits: Vec<Commit>
+    remote_repo: &RemoteRepository,
+    commits: Vec<Commit>,
 ) -> Result<Vec<Commit>, OxenError> {
-
     log::debug!("At beginning of get_commits_with_unsynced_dbs");
     let uri = format!("/commits/db_status");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -368,13 +369,14 @@ pub async fn get_commits_with_unsynced_dbs(
             ))),
         }
     } else {
-        Err(OxenError::basic_str("get_commits_with_unsynced_dbs() Request failed"))
+        Err(OxenError::basic_str(
+            "get_commits_with_unsynced_dbs() Request failed",
+        ))
     }
-
 }
 
 pub async fn get_commits_with_unsynced_entries(
-    remote_repo: &RemoteRepository, 
+    remote_repo: &RemoteRepository,
 ) -> Result<Vec<Commit>, OxenError> {
     log::debug!("At beginning of get_commits_with_unsynced_entries");
     let uri = format!("/commits/entries_status");
@@ -392,9 +394,10 @@ pub async fn get_commits_with_unsynced_entries(
             ))),
         }
     } else {
-        Err(OxenError::basic_str("get_commits_with_unsynced_entries() Request failed"))
+        Err(OxenError::basic_str(
+            "get_commits_with_unsynced_entries() Request failed",
+        ))
     }
-
 }
 
 pub async fn post_commits_to_server(
@@ -428,9 +431,9 @@ pub async fn post_commits_to_server(
 }
 
 pub async fn post_commit_db_to_server(
-    local_repo: &LocalRepository, 
-    remote_repo: &RemoteRepository, 
-    commit: &Commit, 
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
     branch_name: String,
 ) -> Result<(), OxenError> {
     let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
@@ -456,7 +459,7 @@ pub async fn post_commit_db_to_server(
             tar.append_dir_all(&tar_path, full_path)?;
         }
     }
-    
+
     tar.finish()?;
 
     log::debug!("finished with tar stuff");
@@ -855,8 +858,8 @@ mod tests {
     use crate::constants::COMMITS_DIR;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::db;
-    use crate::core::index::CommitDBReader;
     use crate::core::index::pusher::UnsyncedCommitEntries;
+    use crate::core::index::CommitDBReader;
     use crate::error::OxenError;
     use crate::model::CommitEntry;
     use crate::opts::PrintOpts;
@@ -917,23 +920,17 @@ mod tests {
             let train_dir = local_repo.path.join("annotations/train");
             command::add(&local_repo, &train_dir)?;
             // Commit the directory
-            let commit1 = command::commit(
-                &local_repo,
-                "Adding 1",
-            )?;
+            let commit1 = command::commit(&local_repo, "Adding 1")?;
 
             let test_dir = local_repo.path.join("annotations/test");
             command::add(&local_repo, &test_dir)?;
             // Commit the directory
-            let commit2 = command::commit(
-                &local_repo,
-                "Adding 2",
-            )?;
+            let commit2 = command::commit(&local_repo, "Adding 2")?;
 
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Post commit
-            
+
             let unsynced_commits = vec![
                 UnsyncedCommitEntries {
                     commit: commit1,
@@ -944,7 +941,7 @@ mod tests {
                     entries: Vec::<CommitEntry>::new(),
                 },
             ];
-    
+
             api::remote::commits::post_commits_to_server(
                 &local_repo,
                 &remote_repo,
