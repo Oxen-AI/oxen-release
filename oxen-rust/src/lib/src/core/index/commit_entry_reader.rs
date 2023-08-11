@@ -6,7 +6,7 @@ use crate::model::{Commit, CommitEntry};
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::core::db::path_db;
@@ -202,6 +202,31 @@ impl CommitEntryReader {
             }
         }
         Ok(entries)
+    }
+
+    /// Groups the entries by their parent directory and returns hashmap of dir -> vec<entry>
+    pub fn list_entries_per_directory(
+        &self,
+        dir: &Path,
+    ) -> Result<HashMap<PathBuf, Vec<CommitEntry>>, OxenError> {
+        log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
+        let mut dir_entries: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
+        // This lists all the committed dirs
+        let dirs = self.list_dirs()?;
+        for committed_dir in dirs {
+            // Have to make sure we are in a subset of the dir (not really a tree structure)
+            // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
+            if committed_dir.starts_with(dir) {
+                let entry_reader = CommitDirEntryReader::new_from_path(
+                    &self.base_path,
+                    &self.commit_id,
+                    &committed_dir,
+                )?;
+                let entries = entry_reader.list_entries()?;
+                dir_entries.insert(committed_dir, entries);
+            }
+        }
+        Ok(dir_entries)
     }
 
     pub fn has_file(&self, path: &Path) -> bool {

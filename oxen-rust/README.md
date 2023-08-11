@@ -137,7 +137,19 @@ ulimit -n 10240
 ```
 
 ```
-cargo test -- --test-threads=3
+cargo test -- --test-threads=$(nproc)
+```
+
+It can be faster (in terms of compilation and runtime) to run a specific test. To run a specific library test:
+
+```
+cargo test --lib test_get_metadata_text_readme
+```
+
+To run a specific integration test
+
+```
+cargo test --test test_rm test_rm_directory_restore_directory
 ```
 
 To run with all debug output and run a specific test
@@ -145,6 +157,8 @@ To run with all debug output and run a specific test
 ```
 env RUST_LOG=warn,liboxen=debug,integration_test=debug cargo test -- --nocapture test_command_push_clone_pull_push
 ```
+
+
 
 To set a different test host you can set the `OXEN_TEST_HOST` environment variable
 
