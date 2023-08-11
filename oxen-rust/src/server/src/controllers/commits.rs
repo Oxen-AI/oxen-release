@@ -9,6 +9,7 @@ use liboxen::constants::SCHEMAS_DIR;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
+use liboxen::core::index::CommitReader;
 use liboxen::error::OxenError;
 use liboxen::model::commit::CommitWithBranchName;
 use liboxen::model::{Commit, LocalRepository};
@@ -117,21 +118,11 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 }
 
 pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    // TODONOW: Currently ignoring the body
-    log::debug!("Beginning of commits_db_status_controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    log::debug!("Made it through params parsing");
 
-    // Parse out body into a list of commit ids
-    // TODO body should have a property name if we have a body at all
-    // log::debug!("Here's the body {:?}", body);
-    // let commits: Vec<Commit> = serde_json::from_str(&body)?;
-    // log::debug!("Parsed body into commits");
-
-    // Now, return the commit ids where `commit_db_exists` is false
     let commits_to_sync = api::local::commits::list_with_missing_dbs(&repo)?;
 
     log::debug!(
@@ -500,9 +491,11 @@ pub async fn upload_chunk(
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
+    let commit_reader = CommitReader::new(&repo)?;
+
     log::debug!("made it past params parsing");
 
-    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
+    let commit = commit_reader.get_commit_by_id(&commit_id)?
         .ok_or(OxenError::revision_not_found(commit_id.into()))?;
 
     log::debug!("made it past getting commit");
