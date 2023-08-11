@@ -125,22 +125,24 @@ pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpRespon
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     log::debug!("Made it through params parsing");
 
-    // Parse out body into a list of commit ids 
-    // TODO body should have a property name if we have a body at all 
+    // Parse out body into a list of commit ids
+    // TODO body should have a property name if we have a body at all
     // log::debug!("Here's the body {:?}", body);
     // let commits: Vec<Commit> = serde_json::from_str(&body)?;
     // log::debug!("Parsed body into commits");
 
-    // Now, return the commit ids where `commit_db_exists` is false 
+    // Now, return the commit ids where `commit_db_exists` is false
     let commits_to_sync = api::local::commits::list_with_missing_dbs(&repo)?;
 
-    log::debug!("About to respond with commits to sync {:?}", commits_to_sync);
+    log::debug!(
+        "About to respond with commits to sync {:?}",
+        commits_to_sync
+    );
 
     Ok(HttpResponse::Ok().json(ListCommitResponse {
         status: StatusMessage::resource_found(),
-        commits: commits_to_sync
+        commits: commits_to_sync,
     }))
-
 }
 
 pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -153,11 +155,14 @@ pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse,
 
     let commits_to_sync = api::local::commits::list_with_missing_entries(&repo)?;
 
-    log::debug!("About to respond with following missing entries: {:?}", commits_to_sync);
+    log::debug!(
+        "About to respond with following missing entries: {:?}",
+        commits_to_sync
+    );
 
     Ok(HttpResponse::Ok().json(ListCommitResponse {
         status: StatusMessage::resource_found(),
-        commits: commits_to_sync
+        commits: commits_to_sync,
     }))
 }
 
@@ -429,10 +434,10 @@ pub async fn create(
 }
 
 // TODONOW consider NOT sending an array of commitwithbranchname, instead a commit w/ branch_name at the top level of the request
-// TODONOW we probably don't even need the size here. 
+// TODONOW we probably don't even need the size here.
 pub async fn create_bulk(
-    req: HttpRequest, 
-    body: String, 
+    req: HttpRequest,
+    body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     log::debug!("Got bulk commit data: {}", body);
 
@@ -446,22 +451,22 @@ pub async fn create_bulk(
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
 
-    // Create commits from uri params 
+    // Create commits from uri params
     // TODONOW: Handling error behavior here - should keep going if one is bad?
-    // TODONOW: Parallelism? 
+    // TODONOW: Parallelism?
     // TODONOW: Does branch_name need to go outside...
     // TODONOW: This is clumsy
     let mut result_commits: Vec<Commit> = Vec::new();
 
     for commit_with_branch in &commits {
-
         // get branch name from this commit and raise error if it's not there
         let bn = &commit_with_branch.branch_name;
-        
-        // Get commit from commit_with_branch 
+
+        // Get commit from commit_with_branch
         let commit = Commit::from_with_branch_name(commit_with_branch);
 
-        if let Err(err) = api::local::commits::create_commit_object(&repository.path, &bn, &commit) {
+        if let Err(err) = api::local::commits::create_commit_object(&repository.path, &bn, &commit)
+        {
             log::error!("Err create_commit: {}", err);
             match err {
                 OxenError::RootCommitDoesNotMatch(commit_id) => {
@@ -473,16 +478,13 @@ pub async fn create_bulk(
                 }
             }
         }
-    
+
         result_commits.push(commit);
     }
     Ok(HttpResponse::Ok().json(ListCommitResponse {
         status: StatusMessage::resource_created(),
         commits: result_commits.to_owned(),
     }))
-
-    
-
 }
 
 /// Controller to upload large chunks of data that will be combined at the end
