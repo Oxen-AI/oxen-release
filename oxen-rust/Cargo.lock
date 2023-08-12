@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "Oxen"
-version = "0.7.10"
+version = "0.7.11"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -2731,7 +2731,7 @@ checksum = "f7012b1bbb0719e1097c47611d3898568c546d597c2e74d66f6087edd5233ff4"
 
 [[package]]
 name = "liboxen"
-version = "0.7.10"
+version = "0.7.11"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -3290,7 +3290,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "oxen-cli"
-version = "0.7.10"
+version = "0.7.11"
 dependencies = [
  "clap",
  "colored",
@@ -3305,7 +3305,7 @@ dependencies = [
 
 [[package]]
 name = "oxen-server"
-version = "0.7.10"
+version = "0.7.11"
 dependencies = [
  "actix-files",
  "actix-http",
