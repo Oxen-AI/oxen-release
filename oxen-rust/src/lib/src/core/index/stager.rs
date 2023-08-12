@@ -216,7 +216,10 @@ impl Stager {
             staged_dirs.retain(|(path, _)| path.starts_with(dir))
         }
 
-        log::debug!("compute_staged_data Got <added> dirs: {}", staged_dirs.len());
+        log::debug!(
+            "compute_staged_data Got <added> dirs: {}",
+            staged_dirs.len()
+        );
         for (dir, status) in staged_dirs {
             log::debug!("compute_staged_data considering added dir {:?}", dir);
             let full_path = self.repository.path.join(&dir);

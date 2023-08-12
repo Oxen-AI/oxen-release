@@ -150,7 +150,12 @@ fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
         //   classification/
         //     annotations/
         assert_eq!(
-            status.staged_dirs.paths.get(Path::new("nlp")).unwrap().len(),
+            status
+                .staged_dirs
+                .paths
+                .get(Path::new("nlp"))
+                .unwrap()
+                .len(),
             3
         );
         // Should add sub files
