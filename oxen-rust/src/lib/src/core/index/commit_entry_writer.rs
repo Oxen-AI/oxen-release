@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
-use crate::core::db::path_db;
 use crate::core::db;
+use crate::core::db::{kv_db, path_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::schema::Schema;
@@ -307,11 +307,20 @@ impl CommitEntryWriter {
             for staged_dir in staged_dirs.iter() {
                 log::debug!(
                     "commit_staged_entries_with_prog adding dir {:?} -> {:?}",
-                    staged_dir.path, staged_dir.status
+                    staged_dir.path,
+                    staged_dir.status
                 );
                 if staged_dir.status == StagedEntryStatus::Removed {
-                    path_db::delete(&self.dir_db, &staged_dir.path)?;
-                    continue;
+                    let entry_writer = CommitDirEntryWriter::new(
+                        &self.repository,
+                        &self.commit.id,
+                        &staged_dir.path,
+                    )?;
+                    let num_entries = kv_db::count(&entry_writer.db)?;
+                    if num_entries == 0 {
+                        path_db::delete(&self.dir_db, &staged_dir.path)?;
+                        continue;
+                    }
                 }
                 path_db::put(&self.dir_db, &staged_dir.path, &0)?;
             }

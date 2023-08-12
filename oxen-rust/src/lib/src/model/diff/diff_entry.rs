@@ -154,6 +154,9 @@ impl DiffEntry {
         base_dir: &Option<MetadataEntry>,
         head_dir: &Option<MetadataEntry>,
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
+        log::debug!("diff_summary_from_dir base_dir: {:?}", base_dir);
+        log::debug!("diff_summary_from_dir head_dir: {:?}", head_dir);
+
         // if both base_dir and head_dir are none, then there is no diff summary
         if base_dir.is_none() && head_dir.is_none() {
             return Ok(None);
@@ -166,63 +169,77 @@ impl DiffEntry {
 
         // if head_dir is some and base_dir is none, then we added all the files
         if head_dir.is_some() && base_dir.is_none() {
-            let head_dir = head_dir.as_ref().unwrap();
-            let commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
-            let path = PathBuf::from(&head_dir.filename);
-            let head_dir_reader = CommitDirEntryReader::new(repo, commit_id, &path)?;
-            let num_added = head_dir_reader.num_entries();
-
-            return Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
-                dir: DirDiffSummaryImpl {
-                    file_counts: AddRemoveModifyCounts {
-                        added: num_added,
-                        removed: 0,
-                        modified: 0,
-                    },
-                },
-            })));
+            return DiffEntry::r_compute_added_files(repo, head_dir.as_ref().unwrap());
         }
 
         // if both base_dir and head_dir are some, then we need to compare the two
         let base_dir = base_dir.as_ref().unwrap();
         let head_dir = head_dir.as_ref().unwrap();
+
+        DiffEntry::r_compute_diff_all_files(repo, base_dir, head_dir)
+    }
+
+    fn r_compute_diff_all_files(
+        repo: &LocalRepository,
+        base_dir: &MetadataEntry,
+        head_dir: &MetadataEntry,
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
         let base_commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
         let head_commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
-        let base_path = PathBuf::from(&base_dir.filename);
-        let head_path = PathBuf::from(&head_dir.filename);
-        let base_dir_reader = CommitDirEntryReader::new(repo, base_commit_id, &base_path)?;
-        let head_dir_reader = CommitDirEntryReader::new(repo, head_commit_id, &head_path)?;
 
-        // List the entries in hash sets
-        let head_entries = head_dir_reader.list_entries_set()?;
-        let base_entries = base_dir_reader.list_entries_set()?;
-        log::debug!(
-            "diff_summary_from_dir head_entries: {:?}",
-            head_entries.len()
-        );
-        log::debug!(
-            "diff_summary_from_dir base_entries: {:?}",
-            base_entries.len()
-        );
+        // base and head path will be the same so just choose base
+        let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
 
-        // Find the added entries
-        let added_entries = head_entries
-            .difference(&base_entries)
-            .collect::<HashSet<_>>();
-        let num_added = added_entries.len();
-
-        // Find the removed entries
-        let removed_entries = base_entries
-            .difference(&head_entries)
-            .collect::<HashSet<_>>();
-        let num_removed = removed_entries.len();
-
-        // Find the modified entries
+        let mut num_removed = 0;
+        let mut num_added = 0;
         let mut num_modified = 0;
-        for base_entry in base_entries {
-            if let Some(head_entry) = head_entries.get(&base_entry) {
-                if head_entry.hash != base_entry.hash {
-                    num_modified += 1;
+
+        // Find all the children of the dir and sum up their counts
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(repo, base_commit_id)?;
+        let mut dirs = commit_entry_reader.list_dir_children(&path)?;
+
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(repo, head_commit_id)?;
+        let mut other = commit_entry_reader.list_dir_children(&path)?;
+        dirs.append(&mut other);
+        dirs.push(path.clone());
+
+        // Uniq them
+        let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs.into_iter());
+
+        for dir in dirs {
+            let base_dir_reader = CommitDirEntryReader::new(repo, base_commit_id, &dir)?;
+            let head_dir_reader = CommitDirEntryReader::new(repo, head_commit_id, &dir)?;
+
+            // List the entries in hash sets
+            let head_entries = head_dir_reader.list_entries_set()?;
+            let base_entries = base_dir_reader.list_entries_set()?;
+            log::debug!(
+                "diff_summary_from_dir head_entries: {:?}",
+                head_entries.len()
+            );
+            log::debug!(
+                "diff_summary_from_dir base_entries: {:?}",
+                base_entries.len()
+            );
+
+            // Find the added entries
+            let added_entries = head_entries
+                .difference(&base_entries)
+                .collect::<HashSet<_>>();
+            num_added += added_entries.len();
+
+            // Find the removed entries
+            let removed_entries = base_entries
+                .difference(&head_entries)
+                .collect::<HashSet<_>>();
+            num_removed += removed_entries.len();
+
+            // Find the modified entries
+            for base_entry in base_entries {
+                if let Some(head_entry) = head_entries.get(&base_entry) {
+                    if head_entry.hash != base_entry.hash {
+                        num_modified += 1;
+                    }
                 }
             }
         }
@@ -243,17 +260,23 @@ impl DiffEntry {
         base_dir: &MetadataEntry,
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
         let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
-        let path = PathBuf::from(&base_dir.filename);
+        let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
+        log::debug!("r_compute_removed_files base_dir: {:?}", path);
 
         // Count all removals in the directory and its children
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(repo, commit_id)?;
         let mut dirs = commit_entry_reader.list_dir_children(&path)?;
         dirs.push(path);
 
+        log::debug!("r_compute_removed_files got dirs: {:?}", dirs.len());
+
         let mut num_removed = 0;
         for dir in dirs {
-            let base_dir_reader = CommitDirEntryReader::new(repo, commit_id, &dir)?;
-            num_removed += base_dir_reader.num_entries();
+            let dir_reader = CommitDirEntryReader::new(repo, commit_id, &dir)?;
+            let count = dir_reader.num_entries();
+            log::debug!("r_compute_removed_files dir: {:?} count: {}", dir, count);
+
+            num_removed += count;
         }
 
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
@@ -261,6 +284,41 @@ impl DiffEntry {
                 file_counts: AddRemoveModifyCounts {
                     added: 0,
                     removed: num_removed,
+                    modified: 0,
+                },
+            },
+        })))
+    }
+
+    fn r_compute_added_files(
+        repo: &LocalRepository,
+        head_dir: &MetadataEntry,
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
+        let commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
+        let path = PathBuf::from(&head_dir.resource.clone().unwrap().path);
+        log::debug!("r_compute_added_files base_dir: {:?}", path);
+
+        // Count all removals in the directory and its children
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(repo, commit_id)?;
+        let mut dirs = commit_entry_reader.list_dir_children(&path)?;
+        dirs.push(path);
+
+        log::debug!("r_compute_added_files got dirs: {:?}", dirs.len());
+
+        let mut num_added = 0;
+        for dir in dirs {
+            let dir_reader = CommitDirEntryReader::new(repo, commit_id, &dir)?;
+            let count = dir_reader.num_entries();
+            log::debug!("r_compute_added_files dir: {:?} count: {}", dir, count);
+
+            num_added += count;
+        }
+
+        Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+            dir: DirDiffSummaryImpl {
+                file_counts: AddRemoveModifyCounts {
+                    added: num_added,
+                    removed: 0,
                     modified: 0,
                 },
             },
