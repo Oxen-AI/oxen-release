@@ -424,8 +424,6 @@ pub async fn create(
     }
 }
 
-// TODONOW consider NOT sending an array of commitwithbranchname, instead a commit w/ branch_name at the top level of the request
-// TODONOW we probably don't even need the size here.
 pub async fn create_bulk(
     req: HttpRequest,
     body: String,
@@ -442,11 +440,6 @@ pub async fn create_bulk(
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
 
-    // Create commits from uri params
-    // TODONOW: Handling error behavior here - should keep going if one is bad?
-    // TODONOW: Parallelism?
-    // TODONOW: Does branch_name need to go outside...
-    // TODONOW: This is clumsy
     let mut result_commits: Vec<Commit> = Vec::new();
 
     for commit_with_branch in &commits {
@@ -495,7 +488,8 @@ pub async fn upload_chunk(
 
     log::debug!("made it past params parsing");
 
-    let commit = commit_reader.get_commit_by_id(&commit_id)?
+    let commit = commit_reader
+        .get_commit_by_id(&commit_id)?
         .ok_or(OxenError::revision_not_found(commit_id.into()))?;
 
     log::debug!("made it past getting commit");

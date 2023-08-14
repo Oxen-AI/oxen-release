@@ -2,13 +2,13 @@
 //!
 
 use crate::api::remote::commits::ChunkParams;
-use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::io::{BufReader, Read};
 use std::sync::Arc;
+use tokio::time::Duration;
 
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::constants::MANY_COMMITS;
@@ -20,7 +20,6 @@ use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, R
 use crate::opts::PrintOpts;
 use crate::{api, util};
 
-// TODONOW - this is now a dupe
 pub struct UnsyncedCommitEntries {
     pub commit: Commit,
     pub entries: Vec<CommitEntry>,
@@ -74,18 +73,12 @@ pub async fn push_remote_repo(
     }
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, &remote_repo, &head_commit, &branch).await?;
-    
-    // first 5 items of commits to sync DELETE
-    // let commits_to_sync = commits_to_sync[0..2].to_vec();
 
-    // TODONOW remove this after no longer sending body in get_commit_objects_to_sync
     push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
 
     println!("🐂 Identifying unsynced commits dbs...");
     let unsynced_db_commits =
         api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
-
-    // let unsynced_db_commits = unsynced_db_commits[0..2].to_vec();
 
     println!(
         "🐂 Pushing {} commit dbs to server",
@@ -109,8 +102,6 @@ pub async fn push_remote_repo(
 
     let unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(&remote_repo).await?;
-
-    // let unsynced_entries_commits = unsynced_entries_commits[0..2].to_vec();
 
     push_missing_commit_entries(
         &local_repo,
@@ -146,7 +137,11 @@ async fn get_commit_objects_to_sync(
     local_commit: &Commit,
     branch: &Branch,
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("hey trying to get remote branch by name {} {}", &remote_repo.name, &branch.name);
+    log::debug!(
+        "hey trying to get remote branch by name {} {}",
+        &remote_repo.name,
+        &branch.name
+    );
     let remote_branch = api::remote::branches::get_by_name(&remote_repo, &branch.name).await?;
     log::debug!("hey got remote branch by name {:?}", remote_branch);
     let mut commits_to_sync: Vec<Commit>;
@@ -161,7 +156,6 @@ async fn get_commit_objects_to_sync(
         let merger = Merger::new(local_repo)?;
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, &local_commit)?;
-        // TODONOW what order here?
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("rpush_missing_commit_objects remote branch does not exist, getting all commits from local head");
@@ -183,6 +177,7 @@ async fn push_missing_commit_objects(
 ) -> Result<(), OxenError> {
     let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
     println!("🐂 Calculating size for {} unsynced commits", commits.len());
+    let bar = ProgressBar::new(commits.len() as u64);
     for commit in commits {
         // Root commit
         if commit.parent_ids.is_empty() {
@@ -201,20 +196,30 @@ async fn push_missing_commit_objects(
                 entries,
             })
         }
+        bar.inc(1);
     }
+    bar.finish();
 
     // Bulk create on server
     println!(
         "🐂 Creating {} commit objects on server",
         unsynced_commits.len()
     );
+
+    // Spin during async bulk create
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(ProgressStyle::default_spinner());
+    spinner.enable_steady_tick(Duration::from_millis(100));
+
     api::remote::commits::post_commits_to_server(
         local_repo,
         &remote_repo,
         &unsynced_commits,
-        branch.name.clone(), // TODONOW maybe change to &str in function sig
+        branch.name.clone(),
     )
     .await?;
+
+    spinner.finish();
     Ok(())
 }
 
@@ -270,21 +275,9 @@ async fn push_missing_commit_dbs(
     remote_repo: &RemoteRepository,
     unsynced_commits: Vec<Commit>,
 ) -> Result<(), OxenError> {
-    // TODONOW remove unclear why this is necessary
-    // if !unsynced_commits.is_empty() {
-    //     // std::thread::sleep(std::time::Duration::from_millis(5000));
-    // }
-
-    // Init progress bar
     let pb = ProgressBar::new(unsynced_commits.len() as u64);
     for commit in &unsynced_commits {
-        // TODONOW parallelize
-        api::remote::commits::post_commit_db_to_server(
-            local_repo,
-            remote_repo,
-            &commit,
-        )
-        .await?;
+        api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, &commit).await?;
         pb.inc(1);
     }
     pb.finish();
@@ -315,8 +308,8 @@ async fn push_missing_commit_entries(
             });
         }
         for parent_id in &commit.parent_ids {
-            
-            let local_parent = commit_reader.get_commit_by_id(&parent_id)?
+            let local_parent = commit_reader
+                .get_commit_by_id(&parent_id)?
                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
             let entries = read_unsynced_entries(local_repo, &local_parent, &commit)?;
@@ -335,22 +328,23 @@ async fn push_missing_commit_entries(
 
     bar.finish();
 
-    println!("🐂 Pushing {} commits, total size {}", commits.len(), total_size);
+    println!(
+        "🐂 Pushing {} commits, total size {}",
+        commits.len(),
+        HumanBytes(total_size)
+    );
 
-    let bar = Arc::new(ProgressBar::new(total_size as u64));
-    bar.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar}] {bytes}/{total_bytes} ({eta})").map_err(|_| OxenError::basic_str("Failed to set progress bar style"))?);
+    let bar = Arc::new(ProgressBar::new(total_size));
+    bar.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} [{elapsed_precise}] [{wide_bar}] {bytes}/{total_bytes} ({eta})",
+        )
+        .map_err(|_| OxenError::basic_str("Failed to set progress bar style"))?,
+    );
     for unsynced in unsynced_commit_entries.iter() {
         let commit = &unsynced.commit;
         let entries = &unsynced.entries;
-        push_entries(
-            local_repo,
-            remote_repo,
-            branch,
-            entries,
-            commit,
-            &bar,
-        )
-        .await?;
+        push_entries(local_repo, remote_repo, branch, entries, commit, &bar).await?;
     }
     bar.finish();
     Ok(())
@@ -490,7 +484,7 @@ async fn chunk_and_send_large_entries(
         return Ok(());
     }
 
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{sleep};
     type PieceOfWork = (
         CommitEntry,
         LocalRepository,
@@ -863,20 +857,16 @@ mod tests {
                 .await?;
 
             // Should have one missing commit db - root created on repo creation
-            let unsynced_db_commits = api::remote::commits::get_commits_with_unsynced_dbs(
-                &remote_repo,
-            )
-            .await?;
+            let unsynced_db_commits =
+                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
             assert_eq!(unsynced_db_commits.len(), 1);
 
             // Push to the remote
-            pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits)
-                .await?;
+            pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
 
             // All commits should now have dbs
             let unsynced_db_commits =
-                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo)
-                    .await?;
+                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
             assert_eq!(unsynced_db_commits.len(), 0);
 
             Ok(())
@@ -912,12 +902,9 @@ mod tests {
                 .await?;
 
             // Get missing commit dbs and push
-            let unsynced_db_commits = api::remote::commits::get_commits_with_unsynced_dbs(
-                &remote_repo,
-            )
-            .await?;
-            pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits)
-                .await?;
+            let unsynced_db_commits =
+                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
+            pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
 
             // 2 commit should be missing - commit object and db created on repo creation, but entries not synced
             let unsynced_entries_commits =

@@ -3,10 +3,8 @@
 //! Interact with local commits.
 //!
 
-use crate::constants::{HISTORY_DIR, OXEN_HIDDEN_DIR};
-use crate::core::cache::cacher_status::CacherStatusType;
+use crate::constants::HISTORY_DIR;
 use crate::core::cache::cachers::content_validator;
-use crate::core::cache::commit_cacher;
 use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -122,7 +120,7 @@ pub fn list_with_missing_dbs(repo: &LocalRepository) -> Result<Vec<Commit>, Oxen
             missing_db_commits.push(commit);
         }
     }
-    // Reverse missing_db_commits 
+    // Reverse missing_db_commits
     missing_db_commits.reverse();
 
     Ok(missing_db_commits)
@@ -144,7 +142,7 @@ pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, 
         missing_entry_commits.push(commit);
     }
 
-    // Reverse missing entry commits 
+    // Reverse missing entry commits
     missing_entry_commits.reverse();
 
     Ok(missing_entry_commits)
