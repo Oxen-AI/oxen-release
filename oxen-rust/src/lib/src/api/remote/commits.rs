@@ -344,15 +344,11 @@ pub async fn post_push_complete(
     }
 }
 
-// TODONOW data structure here?
 pub async fn get_commits_with_unsynced_dbs(
     remote_repo: &RemoteRepository,
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("At beginning of get_commits_with_unsynced_dbs");
     let uri = format!("/commits/db_status");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    log::debug!("sending to url {:?}", url);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.get(&url).send().await {
@@ -397,13 +393,11 @@ pub async fn get_commits_with_unsynced_entries(
 }
 
 pub async fn post_commits_to_server(
-    // TODONOW need to send over a different struct..
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commits: &Vec<UnsyncedCommitEntries>,
     branch_name: String,
 ) -> Result<(), OxenError> {
-    // TODONOW this has known size...
     let mut commits_with_size: Vec<CommitWithBranchName> = Vec::new();
     for commit_with_entries in commits {
         let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
@@ -460,15 +454,25 @@ pub async fn post_commit_db_to_server(
 
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
 
-    let bar = Arc::new(ProgressBar::new(buffer.len() as u64));
-
     // Quiet mode for progress bar depending on print_opts
 
     let is_compressed = true;
     let filename = None;
     log::debug!("About to send data to server");
 
-    post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename, bar).await
+    // Pass in silent bar - TODO: should post_data_to_server take an Option<ProgressBar> - sometimes silent sometimes not
+
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    post_data_to_server(
+        remote_repo,
+        commit,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await
 }
 
 pub async fn post_commit_to_server(
