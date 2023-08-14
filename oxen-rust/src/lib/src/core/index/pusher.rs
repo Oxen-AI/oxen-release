@@ -181,8 +181,10 @@ async fn push_missing_commit_objects(
                 entries: vec![],
             });
         }
+        let commit_reader = CommitReader::new(local_repo)?;
         for parent_id in commit.parent_ids.iter() {
-            let local_parent = api::local::commits::get_by_id(local_repo, parent_id)?
+            let local_parent = commit_reader
+                .get_commit_by_id(parent_id)?
                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
             let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
 
@@ -270,7 +272,8 @@ async fn push_missing_commit_dbs(
     remote_repo: &RemoteRepository,
     unsynced_commits: Vec<Commit>,
 ) -> Result<(), OxenError> {
-    let pb = ProgressBar::new(unsynced_commits.len() as u64);
+    let pb = Arc::new(ProgressBar::new(unsynced_commits.len() as u64));
+
     for commit in &unsynced_commits {
         api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, commit).await?;
         pb.inc(1);
@@ -278,6 +281,8 @@ async fn push_missing_commit_dbs(
     pb.finish();
     Ok(())
 }
+
+// Rewrite above in parallel
 
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
@@ -294,6 +299,7 @@ async fn push_missing_commit_entries(
     let mut total_size = 0;
     // Gather our vec unsynced commits into unsyncedcommitentries
     for commit in commits {
+        // Sleep briefly to simulate old flow
         // Handle root
         if commit.parent_ids.is_empty() {
             let entries = vec![];
@@ -745,6 +751,8 @@ mod tests {
     use std::collections::VecDeque;
 
     use crate::test;
+
+    // Use empty, create 1k small files and commits within the test repo, then ditch
 
     #[tokio::test]
     async fn test_push_missing_commit_objects() -> Result<(), OxenError> {

@@ -5,7 +5,9 @@
 
 use crate::constants::HISTORY_DIR;
 use crate::core::cache::cachers::content_validator;
-use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
+use crate::core::index::{
+    CommitEntryReader, CommitReader, CommitWriter, RefReader, RefWriter, Stager,
+};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
@@ -116,14 +118,14 @@ pub fn list_with_missing_dbs(repo: &LocalRepository) -> Result<Vec<Commit>, Oxen
     // Get full commit history for this repo to report any missing commits
 
     //TODO: should list from head commit - but unclear how to handle merge commit
-    let commits = api::local::commits::list_all(repo)?;
+    let commits = api::local::commits::list(repo)?;
     for commit in commits {
         if !commit_history_db_exists(repo, &commit)? {
             missing_db_commits.push(commit);
         }
     }
     // Reverse missing_db_commits
-    // missing_db_commits.reverse();
+    missing_db_commits.reverse();
 
     Ok(missing_db_commits)
 }
@@ -135,7 +137,7 @@ pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, 
     // Get full commit history for this repo to report any missing commits
 
     // TODO: Should list from head commit - but how to handle merge commits
-    let commits = api::local::commits::list_all(repo)?;
+    let commits = api::local::commits::list(repo)?;
 
     for commit in commits {
         if commit_content_is_valid_path(repo, &commit).exists()
@@ -147,7 +149,7 @@ pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, 
     }
 
     // Reverse missing entry commits
-    // missing_entry_commits.reverse();
+    missing_entry_commits.reverse();
 
     Ok(missing_entry_commits)
 }
@@ -180,6 +182,43 @@ pub fn commit(
     let commit = commit_writer.commit(status, message)?;
     stager.unstage()?;
     Ok(commit)
+}
+
+// TODO: If this works, more tightly couple the two to be more DRY
+
+pub fn create_commit_object_with_committers(
+    repo_dir: &Path,
+    branch_name: impl AsRef<str>,
+    commit: &Commit,
+    commit_reader: &CommitReader,
+    commit_writer: &CommitWriter,
+) -> Result<(), OxenError> {
+    log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
+
+    // Instantiate repo from dir
+    let repo = LocalRepository::from_dir(repo_dir)?;
+
+    // If we have a root, and we are trying to push a new one, don't allow it
+    if let Ok(root) = commit_reader.root_commit() {
+        if commit.parent_ids.is_empty() && root.id != commit.id {
+            log::error!("Root commit does not match {} != {}", root.id, commit.id);
+            return Err(OxenError::root_commit_does_not_match(commit.to_owned()));
+        }
+    }
+
+    // Todo - add back error creating commti writer on other side
+    match commit_writer.add_commit_to_db(commit) {
+        Ok(_) => {
+            // let ref_reader = RefReader::new(&repo)?;
+            // let ref_writer = RefWriter::new(&repo)?;
+            log::debug!("Successfully added commit [{}] to db", commit.id);
+            api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
+        }
+        Err(err) => {
+            log::error!("Error adding commit to db: {:?}", err);
+        }
+    }
+    Ok(())
 }
 
 pub fn create_commit_object(
