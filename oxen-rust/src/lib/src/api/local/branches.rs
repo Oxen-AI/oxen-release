@@ -112,6 +112,26 @@ pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Bra
     }
 }
 
+// TODO: Consolidate this with `update` for more reuse if it works
+pub fn update_with_ref_readers(
+    repo: &LocalRepository,
+    name: &str,
+    commit_id: &str,
+    ref_reader: &RefReader,
+    ref_writer: &RefWriter,
+) -> Result<Branch, OxenError> {
+    match ref_reader.get_branch_by_name(name)? {
+        Some(branch) => {
+            // Set the branch to point to the commit
+            match ref_writer.set_branch_commit_id(name, commit_id) {
+                Ok(()) => Ok(branch),
+                Err(err) => Err(err),
+            }
+        }
+        None => create(repo, name, commit_id),
+    }
+}
+
 pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     if let Ok(Some(branch)) = current_branch(repo) {
         if branch.name == name {

@@ -10,6 +10,7 @@ use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
 use liboxen::core::index::CommitReader;
+use liboxen::core::index::CommitWriter;
 use liboxen::error::OxenError;
 use liboxen::model::commit::CommitWithBranchName;
 use liboxen::model::{Commit, LocalRepository};
@@ -449,7 +450,16 @@ pub async fn create_bulk(
         // Get commit from commit_with_branch
         let commit = Commit::from_with_branch_name(commit_with_branch);
 
-        if let Err(err) = api::local::commits::create_commit_object(&repository.path, bn, &commit) {
+        let commit_reader = CommitReader::new(&repository)?;
+        let commit_writer = CommitWriter::new(&repository)?;
+
+        if let Err(err) = api::local::commits::create_commit_object_with_committers(
+            &repository.path,
+            bn,
+            &commit,
+            &commit_reader,
+            &commit_writer,
+        ) {
             log::error!("Err create_commit: {}", err);
             match err {
                 OxenError::RootCommitDoesNotMatch(commit_id) => {
