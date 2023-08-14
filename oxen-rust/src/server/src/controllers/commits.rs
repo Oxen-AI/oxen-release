@@ -449,8 +449,7 @@ pub async fn create_bulk(
         // Get commit from commit_with_branch
         let commit = Commit::from_with_branch_name(commit_with_branch);
 
-        if let Err(err) = api::local::commits::create_commit_object(&repository.path, &bn, &commit)
-        {
+        if let Err(err) = api::local::commits::create_commit_object(&repository.path, bn, &commit) {
             log::error!("Err create_commit: {}", err);
             match err {
                 OxenError::RootCommitDoesNotMatch(commit_id) => {

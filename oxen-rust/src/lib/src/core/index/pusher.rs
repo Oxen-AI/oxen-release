@@ -11,13 +11,13 @@ use std::sync::Arc;
 use tokio::time::Duration;
 
 use crate::constants::AVG_CHUNK_SIZE;
-use crate::constants::MANY_COMMITS;
+
 use crate::core::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
-use crate::opts::PrintOpts;
+
 use crate::{api, util};
 
 pub struct UnsyncedCommitEntries {
@@ -86,7 +86,7 @@ pub async fn push_remote_repo(
     );
 
     // push_missing_commit_dbs
-    push_missing_commit_dbs(&local_repo, &remote_repo, unsynced_db_commits).await?;
+    push_missing_commit_dbs(local_repo, &remote_repo, unsynced_db_commits).await?;
 
         // update the branch after everything else is synced
         log::debug!(
@@ -103,13 +103,8 @@ pub async fn push_remote_repo(
     let unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(&remote_repo).await?;
 
-    push_missing_commit_entries(
-        &local_repo,
-        &remote_repo,
-        &branch,
-        &unsynced_entries_commits,
-    )
-    .await?;
+    push_missing_commit_entries(local_repo, &remote_repo, &branch, &unsynced_entries_commits)
+        .await?;
     // rpush_missing_commit_entries(&local_repo, &remote_repo, unsynced_commits, &branch);
 
     api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
@@ -142,20 +137,20 @@ async fn get_commit_objects_to_sync(
         &remote_repo.name,
         &branch.name
     );
-    let remote_branch = api::remote::branches::get_by_name(&remote_repo, &branch.name).await?;
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
     log::debug!("hey got remote branch by name {:?}", remote_branch);
     let mut commits_to_sync: Vec<Commit>;
     if let Some(remote_branch) = remote_branch {
         log::debug!(
             "rpush_missing_commit_objects found remote branch {:?}, calculating missing commits between local and remote heads", remote_branch
         );
-        let remote_commit = api::remote::commits::get_by_id(&remote_repo, &remote_branch.commit_id)
+        let remote_commit = api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id)
             .await?
             .unwrap();
         let commit_reader = CommitReader::new(local_repo)?;
         let merger = Merger::new(local_repo)?;
         commits_to_sync =
-            merger.list_commits_between_commits(&commit_reader, &remote_commit, &local_commit)?;
+            merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("rpush_missing_commit_objects remote branch does not exist, getting all commits from local head");
@@ -189,7 +184,7 @@ async fn push_missing_commit_objects(
         for parent_id in commit.parent_ids.iter() {
             let local_parent = api::local::commits::get_by_id(local_repo, parent_id)?
                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-            let entries = read_unsynced_entries(local_repo, &local_parent, &commit)?;
+            let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
 
             unsynced_commits.push(UnsyncedCommitEntries {
                 commit: commit.to_owned(),
@@ -213,7 +208,7 @@ async fn push_missing_commit_objects(
 
     api::remote::commits::post_commits_to_server(
         local_repo,
-        &remote_repo,
+        remote_repo,
         &unsynced_commits,
         branch.name.clone(),
     )
@@ -277,7 +272,7 @@ async fn push_missing_commit_dbs(
 ) -> Result<(), OxenError> {
     let pb = ProgressBar::new(unsynced_commits.len() as u64);
     for commit in &unsynced_commits {
-        api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, &commit).await?;
+        api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, commit).await?;
         pb.inc(1);
     }
     pb.finish();
@@ -309,10 +304,10 @@ async fn push_missing_commit_entries(
         }
         for parent_id in &commit.parent_ids {
             let local_parent = commit_reader
-                .get_commit_by_id(&parent_id)?
+                .get_commit_by_id(parent_id)?
                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
-            let entries = read_unsynced_entries(local_repo, &local_parent, &commit)?;
+            let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
 
             // Calculate entries size for progress bar
             let entries_size = api::local::entries::compute_entries_size(&entries)?;
@@ -418,7 +413,7 @@ async fn push_entries(
         commit.id,
         commit.message
     );
-    let total_size = api::local::entries::compute_entries_size(entries)?;
+    let _total_size = api::local::entries::compute_entries_size(entries)?;
 
     // Some files may be much larger than others....so we can't just zip them up and send them
     // since bodies will be too big. Hence we chunk and send the big ones, and bundle and send the small ones
@@ -484,7 +479,7 @@ async fn chunk_and_send_large_entries(
         return Ok(());
     }
 
-    use tokio::time::{sleep};
+    use tokio::time::sleep;
     type PieceOfWork = (
         CommitEntry,
         LocalRepository,
@@ -634,7 +629,7 @@ async fn bundle_and_send_small_entries(
     }
 
     // Split into chunks, zip up, and post to server
-    use tokio::time::{sleep, Duration};
+    use tokio::time::sleep;
     type PieceOfWork = (
         Vec<CommitEntry>,
         LocalRepository,

@@ -134,8 +134,8 @@ pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, 
     let commits = api::local::commits::list(repo)?;
 
     for commit in commits {
-        if commit_content_is_valid_path(&repo, &commit).exists()
-            && content_validator::is_valid(&repo, &commit)?
+        if commit_content_is_valid_path(repo, &commit).exists()
+            && content_validator::is_valid(repo, &commit)?
         {
             continue;
         }
