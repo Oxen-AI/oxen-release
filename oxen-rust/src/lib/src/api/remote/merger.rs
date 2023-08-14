@@ -119,8 +119,12 @@ mod tests {
             command::add(&local_repo, &path)?;
             command::commit(&local_repo, "adding file 2")?;
 
+            log::debug!("Before push");
+
             // Push commits
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
+
+            log::debug!("After push");
 
             let mergability = api::remote::merger::mergability(&remote_repo, base, head).await?;
 
