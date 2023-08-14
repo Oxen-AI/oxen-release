@@ -114,14 +114,16 @@ pub fn list_with_missing_dbs(repo: &LocalRepository) -> Result<Vec<Commit>, Oxen
     let mut missing_db_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
-    let commits = api::local::commits::list(repo)?;
+
+    //TODO: should list from head commit - but unclear how to handle merge commit
+    let commits = api::local::commits::list_all(repo)?;
     for commit in commits {
         if !commit_history_db_exists(repo, &commit)? {
             missing_db_commits.push(commit);
         }
     }
     // Reverse missing_db_commits
-    missing_db_commits.reverse();
+    // missing_db_commits.reverse();
 
     Ok(missing_db_commits)
 }
@@ -131,7 +133,9 @@ pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, 
     let mut missing_entry_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
-    let commits = api::local::commits::list(repo)?;
+
+    // TODO: Should list from head commit - but how to handle merge commits
+    let commits = api::local::commits::list_all(repo)?;
 
     for commit in commits {
         if commit_content_is_valid_path(repo, &commit).exists()
@@ -143,7 +147,7 @@ pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, 
     }
 
     // Reverse missing entry commits
-    missing_entry_commits.reverse();
+    // missing_entry_commits.reverse();
 
     Ok(missing_entry_commits)
 }
