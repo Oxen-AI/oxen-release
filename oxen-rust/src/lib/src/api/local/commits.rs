@@ -187,16 +187,17 @@ pub fn commit(
 // TODO: If this works, more tightly couple the two to be more DRY
 
 pub fn create_commit_object_with_committers(
-    repo_dir: &Path,
+    _repo_dir: &Path,
     branch_name: impl AsRef<str>,
     commit: &Commit,
     commit_reader: &CommitReader,
     commit_writer: &CommitWriter,
+    ref_writer: &RefWriter,
 ) -> Result<(), OxenError> {
     log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
 
-    // Instantiate repo from dir
-    let repo = LocalRepository::from_dir(repo_dir)?;
+    // // Instantiate repo from dir
+    // let repo = LocalRepository::from_dir(repo_dir)?;
 
     // If we have a root, and we are trying to push a new one, don't allow it
     if let Ok(root) = commit_reader.root_commit() {
@@ -212,7 +213,8 @@ pub fn create_commit_object_with_committers(
             // let ref_reader = RefReader::new(&repo)?;
             // let ref_writer = RefWriter::new(&repo)?;
             log::debug!("Successfully added commit [{}] to db", commit.id);
-            api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
+            // api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
+            ref_writer.set_branch_commit_id(branch_name.as_ref(), &commit.id)?;
         }
         Err(err) => {
             log::error!("Error adding commit to db: {:?}", err);

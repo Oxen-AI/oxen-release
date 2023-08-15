@@ -1,6 +1,6 @@
 use crate::api::remote::client;
 use crate::constants::{
-    COMMITS_DIR, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR,
+    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR,
 };
 use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
@@ -71,7 +71,7 @@ pub async fn list_commit_history(
 ) -> Result<Vec<Commit>, OxenError> {
     let mut all_commits: Vec<Commit> = Vec::new();
     let mut page_num = DEFAULT_PAGE_NUM;
-    let page_size = DEFAULT_PAGE_SIZE;
+    let page_size = 100;
 
     println!("🐂 Getting commit history...");
 
