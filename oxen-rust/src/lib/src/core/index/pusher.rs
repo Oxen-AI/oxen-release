@@ -273,12 +273,95 @@ async fn push_missing_commit_dbs(
     remote_repo: &RemoteRepository,
     unsynced_commits: Vec<Commit>,
 ) -> Result<(), OxenError> {
-    let pb = Arc::new(ProgressBar::new(unsynced_commits.len() as u64));
+    let pieces_of_work = unsynced_commits.len();
+    let pb = Arc::new(ProgressBar::new(pieces_of_work as u64));
 
-    for commit in &unsynced_commits {
-        api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, commit).await?;
-        pb.inc(1);
+    // Compute size for this subset of entries
+    let num_chunks = num_cpus::get();
+    let mut chunk_size = pieces_of_work / num_chunks;
+    if num_chunks > pieces_of_work {
+        chunk_size = pieces_of_work;
     }
+
+    // Split into chunks, process in parallel, and post to server
+    use tokio::time::sleep;
+    type PieceOfWork = (
+        LocalRepository,
+        RemoteRepository,
+        Vec<Commit>,
+        Arc<ProgressBar>,
+    );
+    type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+    type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
+    log::debug!(
+        "Creating {num_chunks} chunks from {pieces_of_work} commits with size {chunk_size}"
+    );
+    let chunks: Vec<PieceOfWork> = unsynced_commits
+        .chunks(chunk_size)
+        .map(|commits| {
+            (
+                local_repo.to_owned(),
+                remote_repo.to_owned(),
+                commits.to_owned(),
+                pb.to_owned(),
+            )
+        })
+        .collect();
+
+    let worker_count: usize = num_cpus::get();
+    let queue = Arc::new(TaskQueue::new(chunks.len()));
+    let finished_queue = Arc::new(FinishedTaskQueue::new(unsynced_commits.len()));
+    for chunk in chunks {
+        queue.try_push(chunk).unwrap();
+        finished_queue.try_push(false).unwrap();
+    }
+
+    for worker in 0..worker_count {
+        let queue = queue.clone();
+        let finished_queue = finished_queue.clone();
+        tokio::spawn(async move {
+            loop {
+                let (local_repo, remote_repo, commits, bar) = queue.pop().await;
+                log::debug!("worker[{}] processing task...", worker);
+                for commit in &commits {
+                    match api::remote::commits::post_commit_db_to_server(
+                        &local_repo,
+                        &remote_repo,
+                        commit,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            log::debug!("worker[{}] posted commit to server", worker);
+                            bar.inc(1);
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "worker[{}] failed to post commit to server: {}",
+                                worker,
+                                err
+                            );
+                        }
+                    }
+                }
+                finished_queue.pop().await;
+            }
+        });
+    }
+    while finished_queue.len() > 0 {
+        // log::debug!("Waiting for {} workers to finish...", queue.len());
+        sleep(Duration::from_secs(1)).await;
+    }
+    log::debug!("All tasks done. :-)");
+
+    // Sleep again to let things sync...
+    sleep(Duration::from_secs(1)).await;
+
+    // for commit in &unsynced_commits {
+    //     api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, commit).await?;
+    //     pb.inc(1);
+    // }
     pb.finish();
     Ok(())
 }
