@@ -78,6 +78,7 @@ pub enum OxenError {
     DB(rocksdb::Error),
     DUCKDB(duckdb::Error),
     ENV(std::env::VarError),
+    RedisError(redis::RedisError),
 
     // Fallback
     Basic(StringError),
@@ -411,6 +412,12 @@ impl From<serde_json::Error> for OxenError {
 impl From<std::str::Utf8Error> for OxenError {
     fn from(error: std::str::Utf8Error) -> Self {
         OxenError::Encoding(error)
+    }
+}
+
+impl From<redis::RedisError> for OxenError {
+    fn from(err: redis::RedisError) -> Self {
+        OxenError::RedisError(err)
     }
 }
 

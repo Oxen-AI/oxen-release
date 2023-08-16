@@ -33,6 +33,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::create_bulk),
         )
         .route(
+            "/{namespace}/{repo_name}/commits/complete",
+            web::post().to(controllers::commits::complete_bulk),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/db_status",
             web::get().to(controllers::commits::commits_db_status),
         )
@@ -43,6 +47,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/commits_db", // download the database of all the commits and their parents
             web::get().to(controllers::commits::download_commits_db),
+        )
+        .route(
+            "/{namespace}/{repo_name}/commits/latest_synced",
+            web::get().to(controllers::commits::latest_synced)
         )
         .route(
             "/{namespace}/{repo_name}/commits/{commit_id}",

@@ -14,10 +14,12 @@ use liboxen::core::index::CommitWriter;
 
 use liboxen::core::index::RefWriter;
 use liboxen::error::OxenError;
+use liboxen::model::RepositoryNew;
 use liboxen::model::commit::CommitWithBranchName;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::branch::BranchName;
+use liboxen::view::commit::CommitSyncStatusResponse;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -32,6 +34,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
+use crate::tasks::post_push_complete::PostPushComplete;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use bytesize::ByteSize;
@@ -158,6 +161,94 @@ pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse,
         status: StatusMessage::resource_found(),
         commits: commits_to_sync,
     }))
+}
+
+pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, &repo_name)?;
+
+    // Get all commits
+    // TODONOW: Send a head here to get full branch trace. 
+    let commits = api::local::commits::list(&repository)?;
+    let mut latest_synced: Option<Commit> = None;
+    let mut commits_to_sync: Vec<Commit> = Vec::new();
+
+    // Iterate first to last over commits
+    for commit in commits {
+        let response = match commit_cacher::get_status(&repository, &commit) {
+            Ok(Some(CacherStatusType::Success)) => {
+                match content_validator::is_valid(&repository, &commit) {
+                    Ok(true) => {
+                        // Iterating backwards, so this is the latest synced commit
+                        // For this to work, we need to maintain relative order of commits in redis queue push
+                        latest_synced = Some(commit);
+                        break;
+                    }
+                    Ok(false) => {
+                        // Desired behavior here?
+                        return Ok(HttpResponse::Ok().json(IsValidStatusMessage {
+                            status: String::from(STATUS_ERROR),
+                            status_message: String::from(MSG_CONTENT_IS_INVALID),
+                            status_description: "Content is not valid".to_string(),
+                            is_processing: false,
+                            is_valid: false,
+                        }))
+                    }
+                    err => {
+                        // Desired behavior here?
+                        return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                            status: String::from(STATUS_ERROR),
+                            status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
+                            status_description: format!("Err: {err:?}"),
+                            is_processing: false,
+                            is_valid: false,
+                        }))
+                    }
+                }
+            },
+            Ok(Some(CacherStatusType::Pending)) => commits_to_sync.push(commit),
+            Ok(Some(CacherStatusType::Failed)) => {
+                let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
+                let error_str = errors
+                    .into_iter()
+                    .map(|e| e.status_message)
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                log::error!("CacherStatusType::Failed for commit {error_str}");
+                return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                    status: String::from(STATUS_ERROR),
+                    status_message: String::from(MSG_FAILED_PROCESS),
+                    status_description: format!("Err: {error_str}"),
+                    is_processing: false,
+                    is_valid: false,
+                }))
+            }
+            Ok(None) => {
+                commits_to_sync.push(commit);
+            }
+
+            err => {
+                log::error!("Error getting status... {:?}", err);
+                return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                    status: String::from(STATUS_ERROR),
+                    status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
+                    status_description: format!("Err: {err:?}"),
+                    is_processing: false,
+                    is_valid: false,
+                }));
+            }
+            
+        };
+    }
+
+    Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
+        status: StatusMessage::resource_found(),
+        latest_synced,
+        num_unsynced: commits_to_sync.len(),
+    }))
+
 }
 
 pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -772,6 +863,85 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
     }
+}
+
+// TODO use this more
+
+// Bulk complete 
+pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("In the commits controller");
+    let app_data = req.app_data::<OxenAppData>().unwrap();
+    // name to the repo, should be in url path so okay to unwrap
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    // Deserialize the "commits" param into Vec<Commit> with serde 
+    let commits: Vec<Commit> = match serde_json::from_str(&body) {
+        Ok(commits) => commits,
+        Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
+    };
+
+    // Redis connection - TODO, make a globally accessible connection pool 
+
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost".to_string());
+    let redis_client = redis::Client::open(redis_url)?;
+    let mut con = redis_client.get_connection()?;
+
+    
+    // Get repo by name 
+    let repo = api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
+        .ok_or(OxenError::repo_not_found(RepositoryNew::new(
+            namespace, 
+            repo_name
+        )))?;
+
+    let repo_path = repo.path.clone();
+
+    let commit_reader = CommitReader::new(&repo)?;
+    
+
+
+    for req_commit in commits {
+        let commit_id = req_commit.id;
+        let commit = commit_reader.get_commit_by_id(&commit_id)?.ok_or(OxenError::revision_not_found(commit_id.clone().into()))?;
+        // TODO: don't clone repo 
+        let repo_path_clone = repo_path.clone();
+        // let repo_clone = repo.clone();
+        // std::thread::spawn(move || {
+        //     log::debug!("Processing commit {:?} on repo {:?}", commit, &repo_path_clone);
+        // });
+
+        // Append a task to the queue 
+        let task = PostPushComplete{ commit: commit.clone(), repo: repo.clone()};
+        let task_bytes = bincode::serialize(&task).unwrap();
+
+        let _: isize = redis::cmd("LPUSH").arg("commit_queue")
+            .arg(task_bytes.clone())
+            .query(&mut con)?;
+
+        // let force = false;
+        //     match commit_cacher::run_all(&repo_clone, &commit, force) {
+        //         Ok(_) => {
+        //             log::debug!(
+        //                 "Success processing commit {:?} on repo {:?}",
+        //                 commit,
+        //                 &repo_path_clone
+        //             );
+        //         }
+        //         Err(err) => {
+        //             log::error!(
+        //                 "Could not process commit {:?} on repo {:?}: {}",
+        //                 commit,
+        //                 &repo_path_clone,
+        //                 err
+        //             );
+        //     }
+        // };
+        log::debug!("continuing on with the controller for now...")
+
+    }
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
+    
 }
 
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {

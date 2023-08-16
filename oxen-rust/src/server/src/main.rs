@@ -1,4 +1,7 @@
+use actix_http::Request;
+use actix_web::web::{Bytes, BytesMut};
 use liboxen::config::UserConfig;
+use liboxen::error::OxenError;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -8,17 +11,27 @@ pub mod errors;
 pub mod helpers;
 pub mod params;
 pub mod routes;
+pub mod tasks;
 pub mod test;
 pub mod view;
 
 extern crate log;
 
+
 use actix_web::middleware::{Condition, Logger};
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, HttpServer, HttpRequest, HttpResponse};
+use bincode;
+use tokio::time::sleep;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
 use env_logger::Env;
+use redis;
+use serde::{Serialize, Deserialize};
 use std::path::Path;
+use std::time::Duration;
+
+use crate::errors::OxenHttpError;
+use crate::tasks::post_push_complete::PostPushComplete;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -29,6 +42,12 @@ const START_SERVER_USAGE: &str = "Usage: `oxen-server start -i 0.0.0.0 -p 3000`"
 
 const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IncomingBody {
+    pub one: String, 
+    pub two: i32
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
@@ -37,6 +56,44 @@ async fn main() -> std::io::Result<()> {
         Ok(dir) => dir,
         Err(_) => String::from("data"),
     };
+
+
+    // Redis polling worker setup 
+    async fn run_redis_poller() {
+        let redis_client = redis::Client::open("redis://127.0.0.1/").unwrap();
+
+        let mut con = redis_client.get_connection().unwrap();
+        loop {
+            // let body = PostPushComplete{commit_id: "ojfdskfsdne".to_owned()};
+            // let bytes = bincode::serialize(&body).unwrap();
+
+            let outcome: Option<Vec<u8>>;
+            {
+
+                // Pop off of the queue 
+                outcome = redis::cmd("LPOP").arg("commit_queue")
+                    .query(&mut con).unwrap();
+
+                match outcome {
+                    Some(data) => {
+                        log::debug!("Got queue item: {:?}", data);
+                        let task: PostPushComplete = 
+                        bincode::deserialize(&data).unwrap();
+                        println!("{:?}", task);
+                        task.run();
+                    },
+                    None => {
+                        log::debug!("No queue items found");
+                        let five_seconds = Duration::from_secs(3);
+                        sleep(five_seconds).await;
+                    }
+                }
+            }
+        }
+
+    }
+    
+
 
     let command = Command::new("oxen-server")
         .version(VERSION)
@@ -116,6 +173,12 @@ async fn main() -> std::io::Result<()> {
                     println!("Running on {host}:{port}");
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
+
+
+                    // Poll redis in background 
+                    tokio::spawn(async {run_redis_poller().await});
+
+                    log::debug!("Still continuing through the program!");
 
                     let data = app_data::OxenAppData::from(&sync_dir);
                     HttpServer::new(move || {

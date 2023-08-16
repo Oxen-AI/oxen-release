@@ -10,6 +10,7 @@ use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::{PaginateOpts, PrintOpts};
 use crate::util::hasher::hash_buffer;
+use crate::view::commit::CommitSyncStatusResponse;
 use crate::{api, constants};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
@@ -166,6 +167,38 @@ pub async fn commit_is_synced(
         }
     } else {
         Err(OxenError::basic_str("commit_is_synced() Request failed"))
+    }
+}
+
+pub async fn latest_commit_synced(
+    remote_repo: &RemoteRepository, 
+) -> Result<CommitSyncStatusResponse, OxenError> {
+    let uri = format!("/commits/latest_synced");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("latest_commit_synced checking URL: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        log::debug!("latest_commit_synced Got response [{}]", res.status());
+        if res.status() == 404 {
+            return Err(OxenError::basic_str("No synced commits found"));
+        }
+
+        let body = client::parse_json_body(&url, res).await?;
+        log::debug!("latest_commit_synced got response body: {}", body);
+        // Sync status response 
+        let response: Result<CommitSyncStatusResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(result) => Ok(result),
+            Err(err) => {
+                log::debug!("Error getting remote commit {}", err);
+                Err(OxenError::basic_str(
+                    "latest_commit_synced() unable to parse body",
+                ))
+            }
+        }
+    } else {
+        Err(OxenError::basic_str("latest_commit_synced() Request failed"))
     }
 }
 
@@ -344,6 +377,37 @@ pub async fn post_push_complete(
     }
 }
 
+// Commits in oldest-to-newest-order
+pub async fn bulk_post_push_complete(
+    remote_repo: &RemoteRepository, 
+    branch: &Branch,
+    commits: &Vec<Commit>,) -> Result<(), OxenError> {
+    use serde_json::json;
+
+    let uri = format!("/commits/complete");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("bulk_post_push_complete: {}", url);
+    let body = serde_json::to_string(&json!(
+        commits
+    )).unwrap();
+
+    log::debug!("Sending this body... {:?}", body);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).body(body).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(_) => Ok(()),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "bulk_post_push_complete() Could not deserialize response [{err}]\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("bulk_post_push_complete() Request failed"))
+    }
+}
+
 pub async fn get_commits_with_unsynced_dbs(
     remote_repo: &RemoteRepository,
 ) -> Result<Vec<Commit>, OxenError> {
@@ -393,6 +457,33 @@ pub async fn get_commits_with_unsynced_entries(
 }
 
 pub async fn post_commits_to_server(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commits: &Vec<UnsyncedCommitEntries>,
+    branch_name: String,
+) -> Result<(), OxenError> {
+    let mut commits_with_size: Vec<CommitWithBranchName> = Vec::new();
+    for commit_with_entries in commits {
+        let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
+            .join(HISTORY_DIR)
+            .join(&commit_with_entries.commit.id);
+        let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
+        let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + entries_size;
+
+        let commit_with_size = CommitWithBranchName::from_commit(
+            &commit_with_entries.commit,
+            size,
+            branch_name.clone(),
+        );
+
+        commits_with_size.push(commit_with_size);
+    }
+
+    bulk_create_commit_obj_on_server(remote_repo, &commits_with_size).await?;
+    Ok(())
+}
+
+pub async fn complete_commits(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commits: &Vec<UnsyncedCommitEntries>,
