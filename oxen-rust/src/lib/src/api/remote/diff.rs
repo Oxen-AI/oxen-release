@@ -1,8 +1,10 @@
+use std::path::Path;
+
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::RemoteRepository;
-use crate::view::compare::CompareEntries;
+use crate::model::{DiffEntry, RemoteRepository};
+use crate::view::compare::{CompareEntries, CompareEntryResponse};
 use crate::view::CompareEntriesResponse;
 
 pub async fn list_diff_entries(
@@ -27,12 +29,46 @@ pub async fn list_diff_entries(
             match response {
                 Ok(val) => Ok(val.compare),
                 Err(err) => Err(OxenError::basic_str(format!(
-                    "api::dir::list_dir error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                    "api::remote::diff::list_diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
             }
         }
         Err(err) => {
-            let err = format!("api::dir::list_dir Err {err:?} request failed: {url}");
+            let err =
+                format!("api::remote::diff::list_diff_entries Err {err:?} request failed: {url}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
+pub async fn diff_entries(
+    remote_repo: &RemoteRepository,
+    base: impl AsRef<str>,
+    head: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<DiffEntry, OxenError> {
+    let base = base.as_ref();
+    let head = head.as_ref();
+    let path = path.as_ref();
+    let uri = format!("/compare/file/{base}..{head}/{}", path.to_string_lossy());
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("list_page got body: {}", body);
+            let response: Result<CompareEntryResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val.compare),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "api::remote::diff::diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                ))),
+            }
+        }
+        Err(err) => {
+            let err = format!("api::remote::diff::diff_entries Err {err:?} request failed: {url}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -55,8 +91,80 @@ mod tests {
     use crate::util;
     use image::imageops;
 
+    // Test diff add image
     #[tokio::test]
-    async fn test_diff_entries_cifar_csvs() -> Result<(), OxenError> {
+    async fn test_diff_entries_add_image() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // create the images directory
+            let images_dir = repo.path.join("images");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // Add and commit the first cat
+            let test_file = test::test_img_file_with_name("cat_1.jpg");
+            let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &images_dir)?;
+            command::commit(&repo, "Adding initial cat image")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "feat/collect-another-cat";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Add and commit the first cat
+            let test_file = test::test_img_file_with_name("cat_2.jpg");
+            let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &images_dir)?;
+            command::commit(&repo, "Adding a second cat")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                &PathBuf::from("images").join("cat_2.jpg"),
+            )
+            .await?;
+
+            println!("compare: {:#?}", compare);
+
+            // Make sure base entry is empty
+            assert!(compare.base_entry.is_none());
+            let entry = compare.head_entry.as_ref().unwrap();
+
+            assert_eq!(entry.filename, "cat_2.jpg");
+            assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_2.jpg");
+            assert_eq!(compare.status, "added");
+            assert_eq!(entry.data_type, EntryDataType::Image);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_diff_entries_cifar_csvs() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -163,7 +271,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_added_images_in_dir() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_added_images_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -246,7 +354,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_added_images_in_subdirs() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_added_images_in_subdirs() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -389,7 +497,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_removing_images_in_subdir() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_removing_images_in_subdir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -492,8 +600,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_removing_images_by_rming_parent_in_subdir() -> Result<(), OxenError>
-    {
+    async fn test_list_diff_entries_removing_images_by_rming_parent_in_subdir(
+    ) -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -597,7 +705,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_adding_images_in_one_subdir_two_levels() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_adding_images_in_one_subdir_two_levels() -> Result<(), OxenError>
+    {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -717,7 +826,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_adding_images_in_subdirs() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_adding_images_in_subdirs() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -845,7 +954,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_modifying_images_in_subdir() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_modifying_images_in_subdir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -955,7 +1064,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_removing_images_in_dir() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_removing_images_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -1039,7 +1148,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_diff_entries_changed_images_in_dir() -> Result<(), OxenError> {
+    async fn test_list_diff_entries_changed_images_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
             // Get the current branch
             let og_branch = api::local::branches::current_branch(&repo)?.unwrap();

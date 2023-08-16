@@ -38,6 +38,13 @@ pub struct CompareEntries {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CompareEntryResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub compare: DiffEntry,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CompareEntriesResponse {
     #[serde(flatten)]
     pub status: StatusMessage,

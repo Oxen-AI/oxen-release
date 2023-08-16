@@ -37,7 +37,8 @@ struct DiffCommitEntry {
     pub base_entry: Option<CommitEntry>,
 }
 
-pub fn diff(
+/// Get a String representation of a diff between two commits given a file
+pub fn single_diff_str(
     repo: &LocalRepository,
     original: &Commit,
     compare: &Commit,
@@ -332,6 +333,44 @@ pub fn compute_new_columns_from_dfs(
         added_cols,
         removed_cols,
     })
+}
+
+pub fn diff_entries(
+    repo: &LocalRepository,
+    base_entry: Option<CommitEntry>,
+    base_commit: &Commit,
+    head_entry: Option<CommitEntry>,
+    head_commit: &Commit,
+) -> Result<DiffEntry, OxenError> {
+    if base_entry.is_none() && head_entry.is_none() {
+        return Err(OxenError::basic_str(
+            "diff_entries called with no base or head entry",
+        ));
+    }
+
+    // Assume both entries exist
+    let mut status = DiffEntryStatus::Modified;
+
+    // If base entry is none, then it was added
+    if base_entry.is_none() && head_entry.is_some() {
+        status = DiffEntryStatus::Added;
+    }
+
+    // If head entry is none, then it was removed
+    if head_entry.is_none() && base_entry.is_some() {
+        status = DiffEntryStatus::Removed;
+    }
+
+    let entry = DiffEntry::from_commit_entry(
+        repo,
+        base_entry,
+        base_commit,
+        head_entry,
+        head_commit,
+        status,
+    );
+
+    Ok(entry)
 }
 
 /// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
