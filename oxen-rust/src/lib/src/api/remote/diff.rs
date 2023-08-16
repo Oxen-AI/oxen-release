@@ -86,6 +86,8 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::diff::generic_diff_summary::GenericDiffSummary;
     use crate::model::EntryDataType;
+    use crate::model::metadata::generic_metadata::GenericMetadata;
+    use crate::model::metadata::metadata_image::ImgColorSpace;
     use crate::opts::RmOpts;
     use crate::test;
     use crate::util;
@@ -124,7 +126,7 @@ mod tests {
             let branch_name = "feat/collect-another-cat";
             command::create_checkout(&repo, branch_name)?;
 
-            // Add and commit the first cat
+            // Add and commit the second cat
             let test_file = test::test_img_file_with_name("cat_2.jpg");
             let repo_filepath = images_dir.join(test_file.file_name().unwrap());
             util::fs::copy(&test_file, &repo_filepath)?;
@@ -157,6 +159,186 @@ mod tests {
             assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_2.jpg");
             assert_eq!(compare.status, "added");
             assert_eq!(entry.data_type, EntryDataType::Image);
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Test diff modify image
+    #[tokio::test]
+    async fn test_diff_entries_modify_image() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // create the images directory
+            let images_dir = repo.path.join("images");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // Add and commit the first cat
+            let test_file = test::test_img_file_with_name("cat_1.jpg");
+            let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &images_dir)?;
+            command::commit(&repo, "Adding initial cat image")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "feat/modify-dat-cat";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Modify and commit the first cat
+            let repo_filepath = images_dir.join(format!("cat_1.jpg"));
+
+            // Open the image file.
+            let img = image::open(&repo_filepath).unwrap();
+
+            // Resize the image to the specified dimensions.
+            let dims: usize = 96;
+            let new_img = imageops::resize(&img, dims as u32, dims as u32, imageops::Nearest);
+
+            // Save the resized image.
+            new_img.save(repo_filepath).unwrap();
+
+            command::add(&repo, &images_dir)?;
+            command::commit(&repo, "Modifying the cat")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                &PathBuf::from("images").join("cat_1.jpg"),
+            )
+            .await?;
+
+            println!("compare: {:#?}", compare);
+
+            // Make sure base entry is empty
+            assert!(compare.base_entry.is_some());
+            assert!(compare.head_entry.is_some());
+            let entry = compare.head_entry.as_ref().unwrap();
+
+            assert_eq!(entry.filename, "cat_1.jpg");
+            assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_1.jpg");
+            assert_eq!(compare.status, "modified");
+            assert_eq!(entry.data_type, EntryDataType::Image);
+
+
+            let metadata = entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataImage(metadata) => {
+                    assert_eq!(metadata.image.width, dims);
+                    assert_eq!(metadata.image.height, dims);
+                    assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Test diff modify image passing the commit ids instead of the branch names
+    #[tokio::test]
+    async fn test_diff_entries_modify_image_pass_commit_ids() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // create the images directory
+            let images_dir = repo.path.join("images");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // Add and commit the first cat
+            let test_file = test::test_img_file_with_name("cat_1.jpg");
+            let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &images_dir)?;
+            let og_commit = command::commit(&repo, "Adding initial cat image")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "feat/modify-dat-cat";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Modify and commit the first cat
+            let repo_filepath = images_dir.join(format!("cat_1.jpg"));
+
+            // Open the image file.
+            let img = image::open(&repo_filepath).unwrap();
+
+            // Resize the image to the specified dimensions.
+            let dims: usize = 96;
+            let new_img = imageops::resize(&img, dims as u32, dims as u32, imageops::Nearest);
+
+            // Save the resized image.
+            new_img.save(repo_filepath).unwrap();
+
+            command::add(&repo, &images_dir)?;
+            let new_commit = command::commit(&repo, "Modifying the cat")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::diff_entries(
+                &remote_repo,
+                &og_commit.id,
+                &new_commit.id,
+                &PathBuf::from("images").join("cat_1.jpg"),
+            )
+            .await?;
+
+            println!("compare: {:#?}", compare);
+
+            // Make sure base entry is empty
+            assert!(compare.base_entry.is_some());
+            assert!(compare.head_entry.is_some());
+            let entry = compare.head_entry.as_ref().unwrap();
+
+            assert_eq!(entry.filename, "cat_1.jpg");
+            assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_1.jpg");
+            assert_eq!(compare.status, "modified");
+            assert_eq!(entry.data_type, EntryDataType::Image);
+
+            let metadata = entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataImage(metadata) => {
+                    assert_eq!(metadata.image.width, dims);
+                    assert_eq!(metadata.image.height, dims);
+                    assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
+                }
+                _ => panic!("Wrong summary type"),
+            }
 
             Ok(())
         })

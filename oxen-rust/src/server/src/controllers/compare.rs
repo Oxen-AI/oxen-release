@@ -160,15 +160,13 @@ fn parse_base_head_resource(
         .ok_or(OxenError::revision_not_found(base.into()))?;
 
     // Split on / and find longest branch name
-    let mut split_head = head.split('/');
-    let longest_str = split_head
-        .next()
-        .ok_or(OxenError::resource_not_found(base_head))?;
+    let split_head = head.split('/');
+    let mut longest_str = String::from("");
     let mut head_commit: Option<Commit> = None;
     let mut resource: Option<PathBuf> = None;
 
-    for str in split_head {
-        let maybe_revision = format!("{}/{}", longest_str, str);
+    for s in split_head {
+        let maybe_revision = format!("{}{}", longest_str, s);
         let commit = api::local::revisions::get(repo, &maybe_revision)?;
         if commit.is_some() {
             head_commit = commit;
@@ -177,6 +175,7 @@ fn parse_base_head_resource(
             r_str.remove(0);
             resource = Some(PathBuf::from(r_str));
         }
+        longest_str = format!("{}/", longest_str);
     }
 
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
