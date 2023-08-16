@@ -39,6 +39,9 @@ pub async fn get(
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
+    // Clear these for the first transform
+    opts.page = None;
+    opts.page_size = None;
 
     log::debug!("Full df {:?}", df);
 
@@ -48,14 +51,22 @@ pub async fn get(
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
     let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
-    let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
-
     let start = if page == 0 { 0 } else { page_size * (page - 1) };
     let end = page_size * page;
 
-    opts.slice = Some(format!("{}..{}", start, end));
-    let mut sliced_df = tabular::transform(df, opts)?;
+    // We have to run the query param transforms, then paginate separately
+    let sliced_df = tabular::transform(df, opts)?;
     log::debug!("Sliced df {:?}", sliced_df);
+
+    let sliced_width = sliced_df.width();
+    let sliced_height = sliced_df.height();
+
+    // Paginate after transform
+    let mut paginate_opts = DFOpts::empty();
+    paginate_opts.slice = Some(format!("{}..{}", start, end));
+    let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
+
+    let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
 
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
@@ -63,11 +74,15 @@ pub async fn get(
             width: full_width,
             height: full_height,
         },
-        df: JsonDataFrame::from_df(&mut sliced_df),
+        slice_size: DataFrameSize {
+            width: sliced_width,
+            height: sliced_height,
+        },
+        df: JsonDataFrame::from_df(&mut paginated_df),
         page_number: page,
         page_size,
         total_pages,
-        total_entries: full_height,
+        total_entries: sliced_height,
     };
     Ok(HttpResponse::Ok().json(response))
 }

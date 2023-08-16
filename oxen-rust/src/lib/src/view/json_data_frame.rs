@@ -26,6 +26,7 @@ pub struct JsonDataFrameSliceResponse {
     pub status: StatusMessage,
     pub df: JsonDataFrame,
     pub full_size: DataFrameSize,
+    pub slice_size: DataFrameSize,
     pub page_number: usize,
     pub page_size: usize,
     pub total_pages: usize,
