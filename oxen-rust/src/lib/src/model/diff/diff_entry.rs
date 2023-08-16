@@ -58,8 +58,8 @@ impl DiffEntry {
         status: DiffEntryStatus,
     ) -> Result<DiffEntry, OxenError> {
         // Get the metadata entries
-        let base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
-        let head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
+        let mut base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
+        let mut head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
         // Need to check whether we have the head or base entry to check data about the file
         let (current_dir, current_entry) = if let Some(dir) = head_dir {
             (dir, head_entry.to_owned().unwrap())
@@ -68,14 +68,25 @@ impl DiffEntry {
         };
 
         let diff_summary = DiffEntry::diff_summary_from_dir(repo, &base_entry, &head_entry)?;
+        let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
+        let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
+
+        if base_entry.is_some() {
+            base_entry.as_mut().unwrap().resource = base_resource.clone();
+        }
+
+        if head_entry.is_some() {
+            head_entry.as_mut().unwrap().resource = head_resource.clone();
+        }
+
         Ok(DiffEntry {
             status: status.to_string(),
             data_type: EntryDataType::Dir,
             filename: current_dir.as_os_str().to_str().unwrap().to_string(),
             is_dir: true,
             size: current_entry.size,
-            head_resource: DiffEntry::resource_from_dir(head_dir, head_commit),
-            base_resource: DiffEntry::resource_from_dir(base_dir, base_commit),
+            head_resource,
+            base_resource,
             head_entry,
             base_entry,
             diff_summary,
@@ -101,16 +112,32 @@ impl DiffEntry {
         };
         let data_type = util::fs::file_data_type(&version_path);
 
+        let base_resource = DiffEntry::resource_from_entry(base_entry.clone());
+        let head_resource = DiffEntry::resource_from_entry(head_entry.clone());
+
+        let mut base_meta_entry =
+            MetadataEntry::from_commit_entry(repo, base_entry.clone(), base_commit);
+        let mut head_meta_entry =
+            MetadataEntry::from_commit_entry(repo, head_entry.clone(), head_commit);
+
+        if base_entry.is_some() {
+            base_meta_entry.as_mut().unwrap().resource = base_resource.clone();
+        }
+
+        if head_entry.is_some() {
+            head_meta_entry.as_mut().unwrap().resource = head_resource.clone();
+        }
+
         DiffEntry {
             status: status.to_string(),
             data_type: data_type.clone(),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
             is_dir: false,
             size: current_entry.num_bytes,
-            head_resource: DiffEntry::resource_from_entry(head_entry.clone()),
-            base_resource: DiffEntry::resource_from_entry(base_entry.clone()),
-            head_entry: MetadataEntry::from_commit_entry(repo, head_entry.clone(), head_commit),
-            base_entry: MetadataEntry::from_commit_entry(repo, base_entry.clone(), base_commit),
+            head_resource,
+            base_resource,
+            head_entry: head_meta_entry,
+            base_entry: base_meta_entry,
             diff_summary: DiffEntry::diff_summary_from_file(
                 repo,
                 data_type,
