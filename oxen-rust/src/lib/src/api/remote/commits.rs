@@ -806,6 +806,8 @@ async fn upload_data_to_server_in_chunks(
             ByteSize::b(chunks.len() as u64)
         );
 
+        
+
         let params = ChunkParams {
             chunk_num: i,
             total_chunks: chunks.len(),
@@ -829,7 +831,6 @@ async fn upload_data_to_server_in_chunks(
                 log::error!("Err uploading chunk: {}", err)
             }
         }
-        bar.inc(chunk.len() as u64)
     }
     Ok(())
 }
