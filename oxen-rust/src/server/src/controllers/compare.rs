@@ -25,6 +25,8 @@ pub async fn commits(
     let name = path_param(&req, "repo_name")?;
     let base_head = path_param(&req, "base_head")?;
 
+    log::debug!("Here is basehead {}", base_head);
+
     // Get the repository or return error
     let repository = get_repo(&app_data.path, namespace, name)?;
 
@@ -38,6 +40,7 @@ pub async fn commits(
 
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
+
 
     // Check if mergeable
     let merger = Merger::new(&repository)?;
@@ -62,6 +65,7 @@ pub async fn commits(
     Ok(HttpResponse::Ok().json(view))
 }
 
+// List one - log this stuff
 pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
@@ -70,6 +74,8 @@ pub async fn entries(
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let base_head = path_param(&req, "base_head")?;
+
+    log::debug!("Got base head {:?}", base_head);
 
     // Get the repository or return error
     let repository = get_repo(&app_data.path, namespace, name)?;
@@ -84,6 +90,9 @@ pub async fn entries(
 
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
+
+    log::debug!("Got base commit: {}", base_commit);
+    log::debug!("Got head commit: {}", head_commit);
 
     let entries_diff = api::local::diff::list_diff_entries(
         &repository,
