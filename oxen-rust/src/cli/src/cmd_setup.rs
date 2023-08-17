@@ -372,6 +372,12 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("sql")
+                .long("sql")
+                .help("Run a sql query on the data frame.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("unique")
                 .long("unique")
                 .short('u')
