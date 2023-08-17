@@ -141,12 +141,12 @@ impl DiffEntry {
         // TODO: Clean this up, but want to get a prototype to work first
         // if tabular, and should_do_full_diff
         //     do full diff
-        log::debug!(
-            "checking if should do full diff for tabular {},{},{}",
-            data_type,
-            should_do_full_diff,
-            pagination.is_some()
-        );
+        // log::debug!(
+        //     "checking if should do full diff for tabular {},{},{}",
+        //     data_type,
+        //     should_do_full_diff,
+        //     pagination.is_some()
+        // );
         if let Some(pagination) = pagination {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
