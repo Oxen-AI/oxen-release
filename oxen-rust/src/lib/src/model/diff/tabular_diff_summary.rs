@@ -33,6 +33,9 @@ impl TabularDiffSummary {
 
         let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
 
+        // log::debug!("TabularDiffSummary::from_commit_entries: schema_has_changed: {}", schema_has_changed);
+        // log::debug!("TabularDiffSummary::from_commit_entries: base_df: {:?}", base_df);
+        // log::debug!("TabularDiffSummary::from_commit_entries: head_df: {:?}", head_df);
         let mut num_added_rows = 0;
         let mut num_removed_rows = 0;
         if !schema_has_changed {
