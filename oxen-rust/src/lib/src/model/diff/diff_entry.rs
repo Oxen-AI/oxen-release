@@ -149,12 +149,8 @@ impl DiffEntry {
         );
         if let Some(pagination) = pagination {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
-                let diff = TabularDiff::from_commit_entries(
-                    repo,
-                    &base_entry,
-                    &head_entry,
-                    pagination,
-                );
+                let diff =
+                    TabularDiff::from_commit_entries(repo, &base_entry, &head_entry, pagination);
                 let diff_summary = DiffEntry::diff_summary_from_file(
                     repo,
                     data_type.clone(),

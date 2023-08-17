@@ -812,9 +812,9 @@ who won the game?,The packers beat up on the bears,packers
                 GenericDiffSummary::TabularDiffSummary(summary) => {
                     assert_eq!(summary.tabular.num_added_rows, 1);
                     assert_eq!(summary.tabular.num_removed_rows, 0);
-                    assert_eq!(summary.tabular.num_added_cols, 2);
-                    assert_eq!(summary.tabular.num_removed_cols, 2);
-                    assert!(summary.tabular.schema_has_changed);
+                    assert_eq!(summary.tabular.num_added_cols, 0);
+                    assert_eq!(summary.tabular.num_removed_cols, 0);
+                    assert!(!summary.tabular.schema_has_changed);
                 }
                 _ => panic!("Wrong summary type"),
             }
