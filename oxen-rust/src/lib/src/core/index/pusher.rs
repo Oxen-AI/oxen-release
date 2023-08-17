@@ -256,6 +256,8 @@ async fn poll_until_synced(
                 if sync_status.num_unsynced == 0 {
                     bar.finish();
                     println!("✅ push successful\n");
+                    // Tiny additional sync time 
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                     return Ok(());
                 }
             }

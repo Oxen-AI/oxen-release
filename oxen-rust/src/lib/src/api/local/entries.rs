@@ -26,6 +26,7 @@ pub fn get_meta_entry(
 ) -> Result<MetadataEntry, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
+    log::debug!("Remove later - commit at this point {:?}", commit);
     // Check if the path is a dir or is the root
     if entry_reader.has_dir(path) || path == Path::new("") {
         log::debug!("get_meta_entry found dir: {:?}", path);
@@ -52,6 +53,7 @@ pub fn meta_entry_from_dir(
     revision: &str,
 ) -> Result<MetadataEntry, OxenError> {
     // We cache the latest commit and size for each file in the directory after commit
+    log::debug!("Reading commit here...{:?}", commit);
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
     let latest_commit = match util::fs::read_from_path(latest_commit_path) {
@@ -61,6 +63,8 @@ pub fn meta_entry_from_dir(
             compute_latest_commit(repo, commit, path, commit_reader)?
         }
     };
+
+    log::debug!("Reading latest commit here...{:?}", latest_commit);
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
     let total_size = match util::fs::read_from_path(total_size_path) {
