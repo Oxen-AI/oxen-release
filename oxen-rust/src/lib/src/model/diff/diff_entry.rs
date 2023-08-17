@@ -7,7 +7,7 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
-use crate::opts::PaginateOpts;
+use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
 use crate::{
@@ -109,7 +109,7 @@ impl DiffEntry {
         head_commit: &Commit,
         status: DiffEntryStatus,
         should_do_full_diff: bool,
-        pagination: Option<PaginateOpts>, // only for tabular
+        df_opts: Option<DFOpts>, // only for tabular
     ) -> DiffEntry {
         // Need to check whether we have the head or base entry to check data about the file
         let (current_entry, version_path) = if let Some(entry) = &head_entry {
@@ -147,10 +147,10 @@ impl DiffEntry {
         //     should_do_full_diff,
         //     pagination.is_some()
         // );
-        if let Some(pagination) = pagination {
+        if let Some(df_opts) = df_opts {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
-                    TabularDiff::from_commit_entries(repo, &base_entry, &head_entry, pagination);
+                    TabularDiff::from_commit_entries(repo, &base_entry, &head_entry, df_opts);
                 let diff_summary = DiffEntry::diff_summary_from_file(
                     repo,
                     data_type.clone(),

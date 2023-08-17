@@ -3,7 +3,7 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::model::DataFrameSize;
+use liboxen::model::{DataFrameSize, Schema};
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -36,6 +36,7 @@ pub async fn get(
 
     // Have to read full df to get the full size
     let df = tabular::read_df(&version_path, DFOpts::empty())?;
+    let og_schema = Schema::from_polars(&df.schema());
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -67,18 +68,19 @@ pub async fn get(
     let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
 
     let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
+    let full_size = DataFrameSize {
+        width: full_width,
+        height: full_height,
+    };
 
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
-        full_size: DataFrameSize {
-            width: full_width,
-            height: full_height,
-        },
+        full_size: full_size.to_owned(),
         slice_size: DataFrameSize {
             width: sliced_width,
             height: sliced_height,
         },
-        df: JsonDataFrame::from_df(&mut paginated_df),
+        df: JsonDataFrame::from_slice(&mut paginated_df, og_schema, full_size),
         page_number: page,
         page_size,
         total_pages,

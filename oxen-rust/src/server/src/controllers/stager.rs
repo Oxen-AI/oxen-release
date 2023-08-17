@@ -599,17 +599,17 @@ fn df_mods_response(
                 log::debug!("added rows: {:?}", added);
 
                 let polars_schema = added.schema();
-                let schema = Schema::from_polars(&polars_schema);
+                let og_schema = Schema::from_polars(&polars_schema);
 
                 if og_size.is_empty() {
-                    Some(JsonDataFrame::empty(&schema))
+                    Some(JsonDataFrame::empty(&og_schema))
                 } else {
-                    let mut filter = DFOpts::from_schema_columns_exclude_hidden(&schema);
+                    let mut filter = DFOpts::from_schema_columns_exclude_hidden(&og_schema);
                     log::debug!("Initial filter {:?}", filter);
                     filter = df_opts_query::parse_opts(&query, &mut filter);
                     let mut df = tabular::transform(added, filter).unwrap();
 
-                    let df = JsonDataFrame::from_slice(&mut df, og_size);
+                    let df = JsonDataFrame::from_slice(&mut df, og_schema, og_size);
                     Some(df)
                 }
             } else {

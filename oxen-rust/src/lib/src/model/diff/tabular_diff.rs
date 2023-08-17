@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api;
 use crate::model::{CommitEntry, LocalRepository, Schema};
-use crate::opts::PaginateOpts;
+use crate::opts::DFOpts;
 use crate::view::JsonDataFrame;
 
 use super::tabular_diff_summary::{TabularDiffSummary, TabularDiffSummaryImpl};
@@ -32,7 +32,7 @@ impl TabularDiff {
         repo: &LocalRepository,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
-        pagination: PaginateOpts,
+        df_opts: DFOpts,
     ) -> TabularDiff {
         let base_df = TabularDiffSummary::maybe_get_df(repo, base_entry);
         let head_df = TabularDiffSummary::maybe_get_df(repo, head_entry);
@@ -60,10 +60,10 @@ impl TabularDiff {
 
                 let added_cols = df_diff
                     .added_cols
-                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+                    .map(|df| JsonDataFrame::from_df_opts(df, df_opts.clone()));
                 let removed_cols = df_diff
                     .removed_cols
-                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+                    .map(|df| JsonDataFrame::from_df_opts(df, df_opts.clone()));
 
                 let summary = TabularDiffSummary {
                     tabular: TabularDiffSummaryImpl {
@@ -99,10 +99,10 @@ impl TabularDiff {
 
                 let added_rows = df_diff
                     .added_rows
-                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+                    .map(|df| JsonDataFrame::from_df_opts(df, df_opts.clone()));
                 let removed_rows = df_diff
                     .removed_rows
-                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+                    .map(|df| JsonDataFrame::from_df_opts(df, df_opts.clone()));
 
                 let summary = TabularDiffSummary {
                     tabular: TabularDiffSummaryImpl {
@@ -138,7 +138,7 @@ impl TabularDiff {
             // we added the dataframe
             let head_schema = head_schema.clone().unwrap();
             let head_df = head_df.unwrap();
-            let added_df = Some(JsonDataFrame::from_df_paginated(head_df, &pagination));
+            let added_df = Some(JsonDataFrame::from_df_opts(head_df, df_opts.clone()));
 
             let summary = TabularDiffSummary {
                 tabular: TabularDiffSummaryImpl {
@@ -167,7 +167,7 @@ impl TabularDiff {
             // we removed the dataframe
             let base_schema = base_schema.clone().unwrap();
             let base_df = base_df.unwrap();
-            let removed_df = Some(JsonDataFrame::from_df_paginated(base_df, &pagination));
+            let removed_df = Some(JsonDataFrame::from_df_opts(base_df, df_opts.clone()));
 
             let summary = TabularDiffSummary {
                 tabular: TabularDiffSummaryImpl {
