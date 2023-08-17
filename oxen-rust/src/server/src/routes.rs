@@ -37,11 +37,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::complete_bulk),
         )
         .route(
-            "/{namespace}/{repo_name}/commits/db_status",
+            "/{namespace}/{repo_name}/commits/{commit_id}/db_status",
             web::get().to(controllers::commits::commits_db_status),
         )
         .route(
-            "/{namespace}/{repo_name}/commits/entries_status",
+            "/{namespace}/{repo_name}/commits/{commit_id}/entries_status",
             web::get().to(controllers::commits::entries_status),
         )
         .route(

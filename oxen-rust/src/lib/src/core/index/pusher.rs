@@ -79,7 +79,7 @@ pub async fn push_remote_repo(
 
     println!("🐂 Identifying unsynced commits dbs...");
     let unsynced_db_commits =
-        api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
+        api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
 
     println!(
         "🐂 Pushing {} commit dbs to server",
@@ -102,7 +102,7 @@ pub async fn push_remote_repo(
     // Get commit_entries_to_sync
 
     let unsynced_entries_commits =
-        api::remote::commits::get_commits_with_unsynced_entries(&remote_repo).await?;
+        api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch).await?;
 
     push_missing_commit_entries(local_repo, &remote_repo, &branch, &unsynced_entries_commits)
         .await?;
@@ -121,11 +121,6 @@ pub async fn push_remote_repo(
 
     let bar = Arc::new(ProgressBar::new(unsynced_entries_commits.len() as u64));
     poll_until_synced(&remote_repo, bar).await?;
-
-    // Remotely validate commit
-    // This is an async process on the server so good to stall the user here so they don't push again
-    // If they did push again before this is finished they would get a still syncing error
-    poll_until_synced(&remote_repo, &head_commit).await?;
 
     Ok(remote_repo)
 }
@@ -409,7 +404,7 @@ async fn push_missing_commit_entries(
         bar.inc(1);
     }
 
-    // bar.finish();
+    bar.finish();
 
     println!("🐂 Posting entries to server");
 
@@ -1030,7 +1025,7 @@ mod tests {
 
             // Should have one missing commit db - root created on repo creation
             let unsynced_db_commits =
-                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
+                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
             assert_eq!(unsynced_db_commits.len(), 1);
 
             // Push to the remote
@@ -1038,7 +1033,7 @@ mod tests {
 
             // All commits should now have dbs
             let unsynced_db_commits =
-                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
+                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
             assert_eq!(unsynced_db_commits.len(), 0);
 
             Ok(())
@@ -1075,12 +1070,12 @@ mod tests {
 
             // Get missing commit dbs and push
             let unsynced_db_commits =
-                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo).await?;
+                api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
             pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
 
             // 2 commit should be missing - commit object and db created on repo creation, but entries not synced
             let unsynced_entries_commits =
-                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo).await?;
+                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch).await?;
             assert_eq!(unsynced_entries_commits.len(), 2);
 
             // Full push (to catch the final poll_until_synced)
@@ -1089,7 +1084,7 @@ mod tests {
 
             // All should now be synced
             let unsynced_entries_commits =
-                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo).await?;
+                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch).await?;
             assert_eq!(unsynced_entries_commits.len(), 0);
 
             Ok(())

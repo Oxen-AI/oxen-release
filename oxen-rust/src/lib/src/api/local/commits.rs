@@ -112,13 +112,13 @@ pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
     Ok(None)
 }
 
-pub fn list_with_missing_dbs(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+pub fn list_with_missing_dbs(repo: &LocalRepository, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
     let mut missing_db_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
 
     //TODO: should list from head commit - but unclear how to handle merge commit
-    let commits = api::local::commits::list(repo)?;
+    let commits = api::local::commits::list_from(repo, commit_id)?;
     for commit in commits {
         if !commit_history_db_exists(repo, &commit)? {
             missing_db_commits.push(commit);
@@ -130,14 +130,14 @@ pub fn list_with_missing_dbs(repo: &LocalRepository) -> Result<Vec<Commit>, Oxen
     Ok(missing_db_commits)
 }
 
-pub fn list_with_missing_entries(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+pub fn list_with_missing_entries(repo: &LocalRepository, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
     log::debug!("In here working on finding some commit entries");
     let mut missing_entry_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
 
     // TODO: Should list from head commit - but how to handle merge commits
-    let commits = api::local::commits::list(repo)?;
+    let commits = api::local::commits::list_from(repo, commit_id)?;
 
     for commit in commits {
         if commit_content_is_valid_path(repo, &commit).exists()

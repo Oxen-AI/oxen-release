@@ -127,9 +127,10 @@ pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpRespon
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
+    let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let commits_to_sync = api::local::commits::list_with_missing_dbs(&repo)?;
+    let commits_to_sync = api::local::commits::list_with_missing_dbs(&repo, &commit_id)?;
 
     log::debug!(
         "About to respond with {} commits to sync",
@@ -147,10 +148,11 @@ pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse,
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
+    let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     log::debug!("Made it through params parsing");
 
-    let commits_to_sync = api::local::commits::list_with_missing_entries(&repo)?;
+    let commits_to_sync = api::local::commits::list_with_missing_entries(&repo, &commit_id)?;
 
     log::debug!(
         "About to respond with following missing entries: {:?}",

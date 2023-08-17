@@ -410,8 +410,11 @@ pub async fn bulk_post_push_complete(
 
 pub async fn get_commits_with_unsynced_dbs(
     remote_repo: &RemoteRepository,
+    branch: &Branch
 ) -> Result<Vec<Commit>, OxenError> {
-    let uri = "/commits/db_status".to_string();
+    let revision = branch.commit_id.clone();
+
+    let uri = format!("/commits/{revision}/db_status");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -433,10 +436,11 @@ pub async fn get_commits_with_unsynced_dbs(
 
 pub async fn get_commits_with_unsynced_entries(
     remote_repo: &RemoteRepository,
+    branch: &Branch
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("At beginning of get_commits_with_unsynced_entries");
-    let uri = "/commits/entries_status".to_string();
-
+    let commit_id = branch.commit_id.clone();
+    
+    let uri = format!("/commits/{commit_id}/entries_status");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
