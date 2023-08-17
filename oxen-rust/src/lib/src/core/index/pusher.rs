@@ -1,6 +1,7 @@
 //! Pushes commits and entries to the remote repository
 //!
 
+use crate::api::local::entries::compute_entries_size;
 use crate::api::remote::commits::ChunkParams;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -103,7 +104,7 @@ pub async fn push_remote_repo(
     let unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(&remote_repo).await?;
 
-    new_push_missing_commit_entries(local_repo, &remote_repo, &branch, &unsynced_entries_commits)
+    push_missing_commit_entries(local_repo, &remote_repo, &branch, &unsynced_entries_commits)
         .await?;
     // rpush_missing_commit_entries(&local_repo, &remote_repo, unsynced_commits, &branch);
 
@@ -119,8 +120,7 @@ pub async fn push_remote_repo(
     // poll_until_synced(&remote_repo, &head_commit).await?;
 
     let bar = Arc::new(ProgressBar::new(unsynced_entries_commits.len() as u64));
-
-    poll_until_synced_new(&remote_repo, bar).await?;
+    poll_until_synced(&remote_repo, bar).await?;
 
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
@@ -243,38 +243,8 @@ async fn remote_is_ahead_of_local(
     Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
 }
 
-// async fn poll_until_synced(
-//     remote_repo: &RemoteRepository,
-//     commit: &Commit,
-// ) -> Result<(), OxenError> {
-//     println!("Remote verifying commit...");
-//     let progress = ProgressBar::new_spinner();
 
-//     loop {
-//         progress.tick();
-//         match api::remote::commits::commit_is_synced(remote_repo, &commit.id).await {
-//             Ok(Some(sync_status)) => {
-//                 if sync_status.is_valid {
-//                     progress.finish();
-//                     println!("✅ push successful\n");
-//                     return Ok(());
-//                 }
-//             }
-//             Ok(None) => {
-//                 progress.finish();
-//                 return Err(OxenError::basic_str("Err: Commit never got pushed"));
-//             }
-//             Err(err) => {
-//                 progress.finish();
-//                 return Err(err);
-//             }
-//         }
-//         std::thread::sleep(std::time::Duration::from_millis(1000));
-//     }
-// }
-
-
-async fn poll_until_synced_new(
+async fn poll_until_synced(
     remote_repo: &RemoteRepository,
     bar: Arc<ProgressBar>, 
 ) -> Result<(), OxenError> {
@@ -408,7 +378,7 @@ async fn push_missing_commit_dbs(
 
 // Rewrite above in parallel
 
-async fn new_push_missing_commit_entries(
+async fn push_missing_commit_entries(
     local_repo: &LocalRepository, 
     remote_repo: &RemoteRepository, 
     branch: &Branch, 
@@ -417,8 +387,6 @@ async fn new_push_missing_commit_entries(
     log::debug!("rpush_entries num unsynced {}", commits.len());
     println!("🐂 Computing diffs for {} commits", commits.len());
 
-    let bar = Arc::new(ProgressBar::new(commits.len() as u64));
-    let mut unsynced_commit_entries: Vec<UnsyncedCommitEntries> = Vec::new();
     let commit_reader = CommitReader::new(local_repo)?;
     let mut total_size = 0;
 
@@ -426,18 +394,22 @@ async fn new_push_missing_commit_entries(
     println!("🐂 Collecting entries for {} unsynced commits", commits.len());
     let bar = Arc::new(ProgressBar::new(commits.len() as u64));
     // Gather the unsynced commits into one giant vec of unsynced 
+
     for commit in commits {
-        // Root has no entries 
         for parent_id in &commit.parent_ids {
             let local_parent = commit_reader
                 .get_commit_by_id(parent_id)?
                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
             let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
-            
+            // Get size of these entries 
+            let entries_size = api::local::entries::compute_entries_size(&entries)?;
+            total_size += entries_size;
             unsynced_entries.extend(entries);
         }
         bar.inc(1);
     }
+
+    // bar.finish();
 
     println!("🐂 Posting entries to server");
 
@@ -453,16 +425,13 @@ async fn new_push_missing_commit_entries(
         entries: unsynced_entries,
     };
 
-    // Let's do it 
-    let bar = Arc::new(ProgressBar::new(all_entries.entries.len() as u64));
+    let bar = Arc::new(ProgressBar::new(total_size as u64));
 
-
-    // Push as one big blob 
     push_entries(local_repo, remote_repo, branch, &all_entries.entries, &all_entries.commit, &bar).await?;
 
-
+    // bar.finish();
     // Now send all commit objects in a batch for validation from oldest to newest 
-    // Flip order of commits - TODO save memory here 
+    // Flip order of commits - TODO how to save memory here 
     let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
 
     api::remote::commits::bulk_post_push_complete(remote_repo, branch, &old_to_new_commits).await?;
@@ -470,7 +439,7 @@ async fn new_push_missing_commit_entries(
     Ok(())
 }
 
-async fn push_missing_commit_entries(
+async fn old_push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     branch: &Branch,
@@ -485,7 +454,6 @@ async fn push_missing_commit_entries(
     let mut total_size = 0;
     // Gather our vec unsynced commits into unsyncedcommitentries
     for commit in commits {
-        // Sleep briefly to simulate old flow
         // Handle root
         if commit.parent_ids.is_empty() {
             let entries = vec![];
@@ -866,6 +834,14 @@ async fn bundle_and_send_small_entries(
                 let enc = GzEncoder::new(Vec::new(), Compression::default());
                 let mut tar = tar::Builder::new(enc);
                 log::debug!("Chunk size {}", chunk.len());
+                let chunk_size = match compute_entries_size(&chunk) {
+                    Ok(size) => size,
+                    Err(e) => {
+                        log::error!("Failed to compute entries size: {}", e);
+                        continue;  // or break or decide on another error-handling strategy
+                    }
+                };
+
                 log::debug!("got repo {:?}", &repo.path);
                 for entry in chunk.into_iter() {
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
@@ -894,13 +870,18 @@ async fn bundle_and_send_small_entries(
                 // Send tar.gz to server
                 let is_compressed = true;
                 let file_name = None;
+
+                // TODO - fix this temp quiet bar 
+                // Init a silent bar 
+                let quiet_bar = Arc::new(ProgressBar::hidden());
+
                 match api::remote::commits::post_data_to_server(
                     &remote_repo,
                     &commit,
                     buffer,
                     is_compressed,
                     &file_name,
-                    bar,
+                    quiet_bar,
                 )
                 .await
                 {
@@ -911,6 +892,7 @@ async fn bundle_and_send_small_entries(
                         log::error!("Error uploading chunk: {:?}", err)
                     }
                 }
+                bar.inc(chunk_size);
                 finished_queue.pop().await;
             }
         });
