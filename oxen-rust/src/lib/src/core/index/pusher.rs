@@ -410,21 +410,21 @@ async fn push_missing_commit_entries(
 
     // Treat this as one giant commit for testing - the commit dbs will know the difference. 
 
-    if unsynced_entries.len() == 0 {
-        println!("🐂 No entries to sync");
-        return Ok(());
+    if unsynced_entries.len() != 0 {
+        let all_entries = UnsyncedCommitEntries {
+            commit: commits[0].to_owned(),
+            entries: unsynced_entries,
+        };
+    
+        let bar = Arc::new(ProgressBar::new(total_size as u64));
+    
+        push_entries(local_repo, remote_repo, branch, &all_entries.entries, &all_entries.commit, &bar).await?;
+    
+        // bar.finish();
+    } else {
+        println!("🐂 No entries to push")
     }
 
-    let all_entries = UnsyncedCommitEntries {
-        commit: commits[0].to_owned(),
-        entries: unsynced_entries,
-    };
-
-    let bar = Arc::new(ProgressBar::new(total_size as u64));
-
-    push_entries(local_repo, remote_repo, branch, &all_entries.entries, &all_entries.commit, &bar).await?;
-
-    // bar.finish();
     // Now send all commit objects in a batch for validation from oldest to newest 
     // Flip order of commits - TODO how to save memory here 
     let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();

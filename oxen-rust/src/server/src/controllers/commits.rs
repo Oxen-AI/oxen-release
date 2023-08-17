@@ -179,7 +179,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
 
     // Iterate first to last over commits
     for commit in commits {
-        let response = match commit_cacher::get_status(&repository, &commit) {
+        let _response = match commit_cacher::get_status(&repository, &commit) {
             Ok(Some(CacherStatusType::Success)) => {
                 match content_validator::is_valid(&repository, &commit) {
                     Ok(true) => {
@@ -210,7 +210,10 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                     }
                 }
             },
-            Ok(Some(CacherStatusType::Pending)) => commits_to_sync.push(commit),
+            Ok(Some(CacherStatusType::Pending)) => {
+                log::debug!("Adding commit from pending branch...{}", commit.id);
+                commits_to_sync.push(commit);
+            },
             Ok(Some(CacherStatusType::Failed)) => {
                 let errors = commit_cacher::get_failures(&repository, &commit).unwrap();
                 let error_str = errors
@@ -228,6 +231,9 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                 }))
             }
             Ok(None) => {
+                log::debug!("Adding commit from None branch: {}", commit.id);
+                // Panic to fail the test 
+                // panic!("NONE WORLD IS IN HERE");
                 commits_to_sync.push(commit);
             }
 
@@ -916,6 +922,8 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         // Append a task to the queue 
         let task = PostPushComplete{ commit: commit.clone(), repo: repo.clone()};
         let task_bytes = bincode::serialize(&task).unwrap();
+
+        log::debug!("Adding to queue for commit {:?} on repo {:?}", commit, &repo_path_clone);
 
         let _: isize = redis::cmd("LPUSH").arg("commit_queue")
             .arg(task_bytes.clone())
