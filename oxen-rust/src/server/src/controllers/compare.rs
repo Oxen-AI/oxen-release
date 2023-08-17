@@ -6,7 +6,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
-use liboxen::opts::PaginateOpts;
+use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
 };
@@ -14,7 +14,10 @@ use liboxen::view::{CompareEntriesResponse, StatusMessage};
 use liboxen::{api, constants, util};
 
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_base_head, path_param, resolve_base_head, PageNumQuery};
+use crate::params::{
+    app_data, df_opts_query, parse_base_head, path_param, resolve_base_head, DFOptsQuery,
+    PageNumQuery,
+};
 
 pub async fn commits(
     req: HttpRequest,
@@ -111,7 +114,7 @@ pub async fn entries(
 
 pub async fn file(
     req: HttpRequest,
-    query: web::Query<PageNumQuery>,
+    query: web::Query<DFOptsQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -133,10 +136,15 @@ pub async fn file(
     let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
     let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
 
-    let pagination = PaginateOpts {
-        page_num: query.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
-        page_size: query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
-    };
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+    let start = if page == 0 { 0 } else { page_size * (page - 1) };
+    let end = page_size * page;
+    opts.slice = Some(format!("{}..{}", start, end));
 
     let diff = api::local::diff::diff_entries(
         &repository,
@@ -144,7 +152,7 @@ pub async fn file(
         &base_commit,
         head_entry,
         &head_commit,
-        pagination,
+        opts,
     )?;
 
     let view = CompareEntryResponse {

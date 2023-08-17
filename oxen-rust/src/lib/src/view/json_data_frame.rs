@@ -99,6 +99,29 @@ impl JsonDataFrame {
         }
     }
 
+    pub fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
+        let full_height = df.height();
+        let full_width = df.width();
+
+        let schema = Schema::from_polars(&df.schema());
+        let mut sliced_df = tabular::transform(df, opts).unwrap();
+        let slice_schema = Schema::from_polars(&sliced_df.schema());
+
+        JsonDataFrame {
+            schema,
+            slice_schema,
+            slice_size: DataFrameSize {
+                height: sliced_df.height(),
+                width: sliced_df.width(),
+            },
+            full_size: DataFrameSize {
+                height: full_height,
+                width: full_width,
+            },
+            data: JsonDataFrame::json_data(&mut sliced_df),
+        }
+    }
+
     pub fn to_df(&self) -> DataFrame {
         if self.data == serde_json::Value::Null {
             DataFrame::empty()
