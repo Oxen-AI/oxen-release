@@ -65,7 +65,7 @@ minus = { version = "5.3.1", features = ["static_output", "search"] }
 nom = "7.1.1"
 num_cpus = "1.13.1"
 pluralizer = "0.4.0"
-polars = { version = "0.31.1", features = ["lazy", "parquet", "json", "ipc", "ipc_streaming", "dtype-struct"] }
+polars = { version = "0.32.1", features = ["lazy", "parquet", "json", "ipc", "ipc_streaming", "dtype-struct"] }
 qsv-sniffer = "0.10.0"
 rand = "0.8.5"
 rayon = "1.7.0"

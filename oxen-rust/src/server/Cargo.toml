@@ -21,12 +21,13 @@ flate2 = "1.0.23"
 futures = "0.3.21"
 futures-util = "0.3.21"
 hex = "0.4.3"
+image = "0.24.6"
 jsonwebtoken = "8"
 liboxen = { path = "../lib" }
 log = "0.4.17"
 rand = "0.8.0"
 rocksdb = { version = "0.21.0", default-features = false, features = ["lz4", "snappy", "zstd", "zlib"] }
-sanitize-filename = "0.4.0"
+sanitize-filename = "0.5.0"
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.78"
 tar = "0.4.38"

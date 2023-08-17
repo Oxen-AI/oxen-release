@@ -75,6 +75,30 @@ pub fn version_path_for_commit_id(
     }
 }
 
+pub fn resized_path_for_commit_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+    filepath: &Path,
+    width: u32,
+    height: u32,
+) -> Result<PathBuf, OxenError> {
+    match api::local::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
+            Some(entry) => {
+                let path = version_path(repo, &entry);
+                let extension = path.extension().unwrap().to_str().unwrap();
+                let resized_path = path
+                    .parent()
+                    .unwrap()
+                    .join(format!("{}x{}.{}", width, height, extension));
+                Ok(resized_path)
+            }
+            None => Err(OxenError::path_does_not_exist(filepath)),
+        },
+        None => Err(OxenError::revision_not_found(commit_id.into())),
+    }
+}
+
 pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<u64, OxenError> {
     let version_path = version_path(repo, entry);
     // if is_tabular(&version_path) {

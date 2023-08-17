@@ -24,7 +24,8 @@ use super::{
     filter::{DFFilterExp, DFFilterOp, DFFilterVal},
 };
 
-const DEFAULT_INFER_SCHEMA_LEN: usize = 10000;
+const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
+const DEFAULT_SAMPLE_SIZE: usize = 1024;
 const READ_ERROR: &str = "Could not read tabular data from path";
 const COLLECT_ERROR: &str = "Could not collect DataFrame";
 const TAKE_ERROR: &str = "Could not take DataFrame";
@@ -34,9 +35,13 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
     log::debug!("try_infer_schema_csv delimiter: {:?}", delimiter as char);
     let result = reader
         .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .sample_size(DEFAULT_SAMPLE_SIZE)
         .with_ignore_errors(true)
         .has_header(true)
         .with_delimiter(delimiter)
+        .with_end_of_line_char(b'\n')
+        .with_quote_char(Some(b'"'))
+        .with_rechunk(true)
         .with_encoding(CsvEncoding::LossyUtf8)
         .finish();
 
