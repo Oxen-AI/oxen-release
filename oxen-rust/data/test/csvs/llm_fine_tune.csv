@@ -2,4 +2,6 @@ instruction,context,response,category
 answer the question,what is the capital of france?,paris,geography
 answer the question,who was the 44th president of the united states?,barack obama,politics
 turn xml to json,<body><name>Bessie</name></body>,{"body": {"name": "bessie"}},code
-who won the game,,I don't know what game you are referring to,random
+who won the game,,I don't know what game you are referring to,sports
+who won the game,broncos 23 v chargers 17,broncos,sports
+who won the game?,The packers beat up on the bears,packers,sports

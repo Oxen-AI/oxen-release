@@ -84,6 +84,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::error::OxenError;
+    use crate::model::diff::generic_diff::GenericDiff;
     use crate::model::diff::generic_diff_summary::GenericDiffSummary;
     use crate::model::metadata::generic_metadata::GenericMetadata;
     use crate::model::metadata::metadata_image::ImgColorSpace;
@@ -312,14 +313,28 @@ mod tests {
             // Make sure base entry is empty
             assert!(compare.base_entry.is_some());
             assert!(compare.head_entry.is_some());
-            let entry = compare.head_entry.as_ref().unwrap();
-
-            assert_eq!(entry.filename, "llm_fine_tune.csv");
-            assert_eq!(entry.resource.as_ref().unwrap().path, "llm_fine_tune.csv");
             assert_eq!(compare.status, "modified");
-            assert_eq!(entry.data_type, EntryDataType::Tabular);
 
-            let metadata = entry.metadata.as_ref().unwrap();
+            let head_entry = compare.head_entry.as_ref().unwrap();
+            assert_eq!(head_entry.filename, "llm_fine_tune.csv");
+            assert_eq!(head_entry.resource.as_ref().unwrap().path, "llm_fine_tune.csv");
+            assert_eq!(head_entry.data_type, EntryDataType::Tabular);
+
+            let metadata = head_entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataTabular(metadata) => {
+                    assert_eq!(metadata.tabular.height, 8);
+                    assert_eq!(metadata.tabular.width, 4);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let base_entry = compare.base_entry.as_ref().unwrap();
+            assert_eq!(base_entry.filename, "llm_fine_tune.csv");
+            assert_eq!(base_entry.resource.as_ref().unwrap().path, "llm_fine_tune.csv");
+            assert_eq!(base_entry.data_type, EntryDataType::Tabular);
+
+            let metadata = base_entry.metadata.as_ref().unwrap();
             match metadata {
                 GenericMetadata::MetadataTabular(metadata) => {
                     assert_eq!(metadata.tabular.height, 6);
@@ -328,8 +343,302 @@ mod tests {
                 _ => panic!("Wrong summary type"),
             }
 
-            // TODO: add tests for diff summary and diff
-            // TODO: add more complex tabular diffs
+            let diff_summary = compare.diff_summary.as_ref().unwrap();
+            match diff_summary {
+                GenericDiffSummary::TabularDiffSummary(diff_summary) => {
+                    assert_eq!(diff_summary.tabular.num_added_rows, 2);
+                    assert_eq!(diff_summary.tabular.num_removed_rows, 0);
+                    assert_eq!(diff_summary.tabular.num_added_cols, 0);
+                    assert_eq!(diff_summary.tabular.num_removed_cols, 0);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let diff = compare.diff.as_ref().unwrap();
+            match diff {
+                GenericDiff::TabularDiff(diff) => {
+                    assert_eq!(diff.tabular.added_rows.as_ref().unwrap().slice_size.height, 2);
+                    assert!(diff.tabular.added_cols.as_ref().is_none());
+                    assert!(diff.tabular.removed_cols.as_ref().is_none());
+                    assert!(diff.tabular.removed_rows.as_ref().is_none());
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Test diff add rows to a csv
+    #[tokio::test]
+    async fn test_diff_entries_modify_add_and_remove_rows_csv() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // Add and commit the initial data
+            let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
+            let repo_filepath = repo.path.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &repo_filepath)?;
+            command::commit(&repo, "Adding initial csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "feat/add-some-data";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Modify and commit the dataframe
+            let repo_filepath = test::write_txt_file_to_path(
+                repo_filepath,
+                r#"instruction,context,response,category
+answer the question,what is the capital of france?,paris,geography
+answer the question,who was the 44th president of the united states?,barack obama,politics
+who won the game,,I don't know what game you are referring to,sports
+who won the game?,The packers beat up on the bears,packers,sports
+define the word,what does the word 'the' mean?,it is a stopword.,language
+"#,
+            )?;
+
+            command::add(&repo, &repo_filepath)?;
+            command::commit(&repo, "Modifying the csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                &PathBuf::from("llm_fine_tune.csv"),
+            )
+            .await?;
+
+            println!("compare: {:#?}", compare);
+
+            // Make sure base entry is empty
+            assert!(compare.base_entry.is_some());
+            assert!(compare.head_entry.is_some());
+            assert_eq!(compare.status, "modified");
+
+            let head_entry = compare.head_entry.as_ref().unwrap();
+            assert_eq!(head_entry.filename, "llm_fine_tune.csv");
+            assert_eq!(
+                head_entry.resource.as_ref().unwrap().path,
+                "llm_fine_tune.csv"
+            );
+            assert_eq!(head_entry.data_type, EntryDataType::Tabular);
+
+            let metadata = head_entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataTabular(metadata) => {
+                    assert_eq!(metadata.tabular.height, 5);
+                    assert_eq!(metadata.tabular.width, 4);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let base_entry = compare.base_entry.as_ref().unwrap();
+            assert_eq!(base_entry.filename, "llm_fine_tune.csv");
+            assert_eq!(
+                base_entry.resource.as_ref().unwrap().path,
+                "llm_fine_tune.csv"
+            );
+            assert_eq!(base_entry.data_type, EntryDataType::Tabular);
+
+            let metadata = base_entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataTabular(metadata) => {
+                    assert_eq!(metadata.tabular.height, 6);
+                    assert_eq!(metadata.tabular.width, 4);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let diff_summary = compare.diff_summary.as_ref().unwrap();
+            match diff_summary {
+                GenericDiffSummary::TabularDiffSummary(diff_summary) => {
+                    assert_eq!(diff_summary.tabular.num_added_rows, 1);
+                    assert_eq!(diff_summary.tabular.num_removed_rows, 2);
+                    assert_eq!(diff_summary.tabular.num_added_cols, 0);
+                    assert_eq!(diff_summary.tabular.num_removed_cols, 0);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let diff = compare.diff.as_ref().unwrap();
+            match diff {
+                GenericDiff::TabularDiff(diff) => {
+                    assert_eq!(
+                        diff.tabular.added_rows.as_ref().unwrap().slice_size.height,
+                        1
+                    );
+                    assert_eq!(
+                        diff.tabular
+                            .removed_rows
+                            .as_ref()
+                            .unwrap()
+                            .slice_size
+                            .height,
+                        2
+                    );
+                    assert!(diff.tabular.added_cols.as_ref().is_none());
+                    assert!(diff.tabular.removed_cols.as_ref().is_none());
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Test diff add cols to a csv
+    #[tokio::test]
+    async fn test_diff_entries_modify_remove_columns_csv() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // Add and commit the initial data
+            let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
+            let repo_filepath = repo.path.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &repo_filepath)?;
+            command::commit(&repo, "Adding initial csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "feat/add-some-data";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Modify and commit the dataframe
+            let repo_filepath = test::write_txt_file_to_path(
+                repo_filepath,
+                r#"instruction,context,response
+answer the question,what is the capital of france?,paris
+answer the question,who was the 44th president of the united states?,barack obama
+turn xml to json,<body><name>Bessie</name></body>,{"body": {"name": "bessie"}}
+who won the game,,I don't know what game you are referring to
+who won the game,broncos 23 v chargers 17,broncos
+who won the game?,The packers beat up on the bears,packers
+"#,
+            )?;
+
+            command::add(&repo, &repo_filepath)?;
+            command::commit(&repo, "Modifying the csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                &PathBuf::from("llm_fine_tune.csv"),
+            )
+            .await?;
+
+            println!("compare: {:#?}", compare);
+
+            // Make sure base entry is empty
+            assert!(compare.base_entry.is_some());
+            assert!(compare.head_entry.is_some());
+            assert_eq!(compare.status, "modified");
+
+            let head_entry = compare.head_entry.as_ref().unwrap();
+            assert_eq!(head_entry.filename, "llm_fine_tune.csv");
+            assert_eq!(
+                head_entry.resource.as_ref().unwrap().path,
+                "llm_fine_tune.csv"
+            );
+            assert_eq!(head_entry.data_type, EntryDataType::Tabular);
+
+            let metadata = head_entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataTabular(metadata) => {
+                    assert_eq!(metadata.tabular.height, 6);
+                    assert_eq!(metadata.tabular.width, 3);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let base_entry = compare.base_entry.as_ref().unwrap();
+            assert_eq!(base_entry.filename, "llm_fine_tune.csv");
+            assert_eq!(
+                base_entry.resource.as_ref().unwrap().path,
+                "llm_fine_tune.csv"
+            );
+            assert_eq!(base_entry.data_type, EntryDataType::Tabular);
+
+            let metadata = base_entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataTabular(metadata) => {
+                    assert_eq!(metadata.tabular.height, 6);
+                    assert_eq!(metadata.tabular.width, 4);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let diff_summary = compare.diff_summary.as_ref().unwrap();
+            match diff_summary {
+                GenericDiffSummary::TabularDiffSummary(diff_summary) => {
+                    assert_eq!(diff_summary.tabular.num_added_rows, 0);
+                    assert_eq!(diff_summary.tabular.num_removed_rows, 0);
+                    assert_eq!(diff_summary.tabular.num_added_cols, 0);
+                    assert_eq!(diff_summary.tabular.num_removed_cols, 1);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            let diff = compare.diff.as_ref().unwrap();
+            match diff {
+                GenericDiff::TabularDiff(diff) => {
+                    assert_eq!(
+                        diff.tabular
+                            .removed_cols
+                            .as_ref()
+                            .unwrap()
+                            .slice_size
+                            .height,
+                        6
+                    );
+                    assert_eq!(
+                        diff.tabular.removed_cols.as_ref().unwrap().slice_size.width,
+                        1
+                    );
+                }
+                _ => panic!("Wrong summary type"),
+            }
 
             Ok(())
         })

@@ -166,18 +166,85 @@ pub fn diff_tabular(
     }
 }
 
+pub fn count_added_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize, OxenError> {
+    // Hash the rows
+    let base_df = tabular::df_hash_rows(base_df)?;
+    let head_df = tabular::df_hash_rows(head_df)?;
+
+    log::debug!("count_added_rows got base_df {}", base_df);
+    log::debug!("count_added_rows got head_df {}", head_df);
+
+    let base_hash_indices: HashSet<String> = base_df
+        .column(constants::ROW_HASH_COL_NAME)
+        .unwrap()
+        .utf8()
+        .unwrap()
+        .into_iter()
+        .map(|v| v.unwrap().to_string())
+        .collect();
+
+    let head_hash_indices: HashSet<String> = head_df
+        .column(constants::ROW_HASH_COL_NAME)
+        .unwrap()
+        .utf8()
+        .unwrap()
+        .into_iter()
+        .map(|v| v.unwrap().to_string())
+        .collect();
+
+    // Count the number of new rows
+    let num_new_rows = head_hash_indices.difference(&base_hash_indices).count();
+    log::debug!("count_added_rows got num_new_rows {}", num_new_rows);
+    Ok(num_new_rows)
+}
+
+pub fn count_removed_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize, OxenError> {
+    // Hash the rows
+    let base_df = tabular::df_hash_rows(base_df)?;
+    let head_df = tabular::df_hash_rows(head_df)?;
+
+    log::debug!("count_removed_rows got base_df {}", base_df);
+    log::debug!("count_removed_rows got head_df {}", head_df);
+
+    let base_hash_indices: HashSet<String> = base_df
+        .column(constants::ROW_HASH_COL_NAME)
+        .unwrap()
+        .utf8()
+        .unwrap()
+        .into_iter()
+        .map(|v| v.unwrap().to_string())
+        .collect();
+
+    let head_hash_indices: HashSet<String> = head_df
+        .column(constants::ROW_HASH_COL_NAME)
+        .unwrap()
+        .utf8()
+        .unwrap()
+        .into_iter()
+        .map(|v| v.unwrap().to_string())
+        .collect();
+
+    // Count the number of removed rows
+    let num_removed_rows = base_hash_indices.difference(&head_hash_indices).count();
+    log::debug!(
+        "count_removed_rows got num_removed_rows {}",
+        num_removed_rows
+    );
+    Ok(num_removed_rows)
+}
+
 pub fn compute_new_rows(
     base_df: DataFrame,
     head_df: DataFrame,
     schema: &Schema,
 ) -> Result<DataFrameDiff, OxenError> {
     // Hash the rows
-    let versioned_df = tabular::df_hash_rows(base_df)?;
-    let current_df = tabular::df_hash_rows(head_df)?;
+    let base_df = tabular::df_hash_rows(base_df)?;
+    let head_df = tabular::df_hash_rows(head_df)?;
 
     // log::debug!("diff_current got current hashes {}", current_df);
 
-    let base_hash_indices: HashMap<String, u32> = current_df
+    let base_hash_indices: HashMap<String, u32> = base_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
         .utf8()
@@ -187,7 +254,7 @@ pub fn compute_new_rows(
         .map(|(i, v)| (v.unwrap().to_string(), i as u32))
         .collect();
 
-    let head_hash_indices: HashMap<String, u32> = versioned_df
+    let head_hash_indices: HashMap<String, u32> = head_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
         .utf8()
@@ -197,18 +264,18 @@ pub fn compute_new_rows(
         .map(|(i, v)| (v.unwrap().to_string(), i as u32))
         .collect();
 
-    // Added is all the row hashes that are in current that are not in other
-    let mut added_indices: Vec<u32> = base_hash_indices
+    // Added is all the row hashes that are in head that are not in base
+    let mut added_indices: Vec<u32> = head_hash_indices
         .iter()
-        .filter(|(hash, _indices)| !head_hash_indices.contains_key(*hash))
+        .filter(|(hash, _indices)| !base_hash_indices.contains_key(*hash))
         .map(|(_hash, index_pair)| *index_pair)
         .collect();
     added_indices.sort(); // so is deterministic and returned in correct order
 
-    // Removed is all the row hashes that are in other that are not in current
-    let mut removed_indices: Vec<u32> = head_hash_indices
+    // Removed is all the row hashes that are in base that are not in head
+    let mut removed_indices: Vec<u32> = base_hash_indices
         .iter()
-        .filter(|(hash, _indices)| !base_hash_indices.contains_key(*hash))
+        .filter(|(hash, _indices)| !head_hash_indices.contains_key(*hash))
         .map(|(_hash, index_pair)| *index_pair)
         .collect();
     removed_indices.sort(); // so is deterministic and returned in correct order
@@ -219,13 +286,13 @@ pub fn compute_new_rows(
 
     // Take added from the current df
     let opts = DFOpts::from_schema_columns(schema);
-    let current_df = tabular::transform(current_df, opts)?;
-    let added_rows = tabular::take(current_df.lazy(), added_indices)?;
+    let head_df = tabular::transform(head_df, opts)?;
+    let added_rows = tabular::take(head_df.lazy(), added_indices)?;
 
     // Take removed from versioned df
     let opts = DFOpts::from_schema_columns(schema);
-    let versioned_df = tabular::transform(versioned_df, opts)?;
-    let removed_rows = tabular::take(versioned_df.lazy(), removed_indices)?;
+    let base_df = tabular::transform(base_df, opts)?;
+    let removed_rows = tabular::take(base_df.lazy(), removed_indices)?;
 
     Ok(DataFrameDiff {
         head_schema: Some(schema.to_owned()),
@@ -341,7 +408,7 @@ pub fn diff_entries(
     base_commit: &Commit,
     head_entry: Option<CommitEntry>,
     head_commit: &Commit,
-    pagination: PaginateOpts
+    pagination: PaginateOpts,
 ) -> Result<DiffEntry, OxenError> {
     if base_entry.is_none() && head_entry.is_none() {
         return Err(OxenError::basic_str(
@@ -372,7 +439,7 @@ pub fn diff_entries(
         head_commit,
         status,
         should_do_full_diff,
-        Some(pagination)
+        Some(pagination),
     );
 
     Ok(entry)
@@ -499,7 +566,7 @@ pub fn list_diff_entries(
                 head_commit,
                 entry.status,
                 false,
-                None
+                None,
             )
         })
         .collect();
