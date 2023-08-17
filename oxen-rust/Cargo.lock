@@ -3324,6 +3324,7 @@ dependencies = [
  "futures",
  "futures-util",
  "hex",
+ "image",
  "jsonwebtoken",
  "liboxen",
  "log",
