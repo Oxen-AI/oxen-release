@@ -84,6 +84,10 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
             width: num_cols,
             height: num_rows,
         },
+        slice_size: DataFrameSize {
+            width: num_cols,
+            height: num_rows,
+        },
         df: JsonDataFrame::from_df(&mut sliced_df),
         page_number: 0,
         page_size: limit,
@@ -141,6 +145,10 @@ pub async fn agg_dir(
         let response = JsonDataFrameSliceResponse {
             status: StatusMessage::resource_found(),
             full_size: DataFrameSize {
+                width: df.width(),
+                height: df.height(),
+            },
+            slice_size: DataFrameSize {
                 width: df.width(),
                 height: df.height(),
             },
