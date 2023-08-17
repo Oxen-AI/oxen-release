@@ -84,8 +84,7 @@ async fn main() -> std::io::Result<()> {
                     },
                     None => {
                         log::debug!("No queue items found");
-                        let five_seconds = Duration::from_secs(3);
-                        sleep(five_seconds).await;
+                        sleep(Duration::from_millis(500)).await;
                     }
                 }
             }

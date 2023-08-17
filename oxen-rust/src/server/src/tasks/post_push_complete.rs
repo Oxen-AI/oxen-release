@@ -11,7 +11,6 @@ pub struct PostPushComplete {
 impl PostPushComplete {
     pub fn run(self) -> () {
         log::debug!("Running cachers for commit {:?} on repo {:?} from redis queue", self.commit.id, &self.repo.path);
-        let duration = time::Duration::from_secs(1);
         println!("Here is the commit id: {}", self.commit.id);
         let force = false;
         match commit_cacher::run_all(&self.repo, &self.commit, force) {
