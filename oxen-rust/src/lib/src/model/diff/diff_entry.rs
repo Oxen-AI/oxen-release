@@ -43,7 +43,7 @@ pub struct DiffEntry {
     pub diff_summary: Option<GenericDiffSummary>,
 
     // Full Diff (only exposed sometimes for performance reasons)
-    pub diff: Option<GenericDiff>
+    pub diff: Option<GenericDiff>,
 }
 
 impl DiffEntry {
@@ -96,10 +96,11 @@ impl DiffEntry {
             head_entry,
             base_entry,
             diff_summary,
-            diff: None // TODO: Come back to what we want a full directory diff to look like
+            diff: None, // TODO: Come back to what we want a full directory diff to look like
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn from_commit_entry(
         repo: &LocalRepository,
         base_entry: Option<CommitEntry>,
@@ -140,32 +141,39 @@ impl DiffEntry {
         // TODO: Clean this up, but want to get a prototype to work first
         // if tabular, and should_do_full_diff
         //     do full diff
-        log::debug!("checking if should do full diff for tabular {},{},{}", data_type, should_do_full_diff, pagination.is_some());
-        if data_type == EntryDataType::Tabular && should_do_full_diff && pagination.is_some() {
-            let diff = TabularDiff::from_commit_entries(
-                repo,
-                &base_entry,
-                &head_entry,
-                pagination.unwrap(),
-            );
-            let diff_summary = DiffEntry::diff_summary_from_file(
-                repo,
-                data_type.clone(),
-                &base_entry,
-                &head_entry,
-            );
-            return DiffEntry {
-                status: status.to_string(),
-                data_type: data_type.clone(),
-                filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
-                is_dir: false,
-                size: current_entry.num_bytes,
-                head_resource,
-                base_resource,
-                head_entry: head_meta_entry,
-                base_entry: base_meta_entry,
-                diff_summary,
-                diff: Some(GenericDiff::TabularDiff(diff))
+        log::debug!(
+            "checking if should do full diff for tabular {},{},{}",
+            data_type,
+            should_do_full_diff,
+            pagination.is_some()
+        );
+        if let Some(pagination) = pagination {
+            if data_type == EntryDataType::Tabular && should_do_full_diff {
+                let diff = TabularDiff::from_commit_entries(
+                    repo,
+                    &base_entry,
+                    &head_entry,
+                    pagination,
+                );
+                let diff_summary = DiffEntry::diff_summary_from_file(
+                    repo,
+                    data_type.clone(),
+                    &base_entry,
+                    &head_entry,
+                );
+                return DiffEntry {
+                    status: status.to_string(),
+                    data_type: data_type.clone(),
+                    filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
+                    is_dir: false,
+                    size: current_entry.num_bytes,
+                    head_resource,
+                    base_resource,
+                    head_entry: head_meta_entry,
+                    base_entry: base_meta_entry,
+                    diff_summary,
+                    diff: Some(GenericDiff::TabularDiff(diff)),
+                };
             }
         }
 
@@ -185,7 +193,7 @@ impl DiffEntry {
                 &base_entry,
                 &head_entry,
             ),
-            diff: None // TODO: other full diffs...
+            diff: None, // TODO: other full diffs...
         }
     }
 

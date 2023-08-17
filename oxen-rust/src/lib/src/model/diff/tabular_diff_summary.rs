@@ -1,6 +1,7 @@
 use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
+use crate::api;
 use crate::core::df::tabular;
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;
@@ -30,16 +31,17 @@ impl TabularDiffSummary {
         let base_df = TabularDiffSummary::maybe_get_df(repo, base_entry);
         let head_df = TabularDiffSummary::maybe_get_df(repo, head_entry);
 
-        let base_size = TabularDiffSummary::maybe_get_size(&base_df);
-        let head_size = TabularDiffSummary::maybe_get_size(&head_df);
+        let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
 
-        let num_added_rows = TabularDiffSummary::maybe_get_added_rows(&base_size, &head_size);
-        // removed is just opposite of added
-        let num_removed_rows = TabularDiffSummary::maybe_get_added_rows(&head_size, &base_size);
+        let mut num_added_rows = 0;
+        let mut num_removed_rows = 0;
+        if !schema_has_changed {
+            num_added_rows = TabularDiffSummary::maybe_count_added_rows(&base_df, &head_df);
+            num_removed_rows = TabularDiffSummary::maybe_count_removed_rows(&base_df, &head_df);
+        }
+
         let num_added_cols = TabularDiffSummary::compute_num_added_cols(&base_df, &head_df);
         let num_removed_cols = TabularDiffSummary::compute_num_removed_cols(&base_df, &head_df);
-
-        let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
 
         TabularDiffSummary {
             tabular: TabularDiffSummaryImpl {
@@ -65,18 +67,40 @@ impl TabularDiffSummary {
         }
     }
 
-    pub fn maybe_get_added_rows(
-        base_size: &Option<DataFrameSize>,
-        head_size: &Option<DataFrameSize>,
+    pub fn maybe_count_added_rows(
+        base_df: &Option<DataFrame>,
+        head_df: &Option<DataFrame>,
     ) -> usize {
-        match (base_size, head_size) {
-            (Some(base_size), Some(head_size)) => {
-                if base_size.height < head_size.height {
-                    head_size.height - base_size.height
-                } else {
-                    0
+        match (base_df, head_df) {
+            (Some(base_df), Some(head_df)) => {
+                match api::local::diff::count_added_rows(base_df.clone(), head_df.clone()) {
+                    Ok(count) => count,
+                    Err(err) => {
+                        log::error!("Error counting added rows: {}", err);
+                        0
+                    }
                 }
             }
+            (None, Some(head_df)) => head_df.height(),
+            _ => 0,
+        }
+    }
+
+    pub fn maybe_count_removed_rows(
+        base_df: &Option<DataFrame>,
+        head_df: &Option<DataFrame>,
+    ) -> usize {
+        match (base_df, head_df) {
+            (Some(base_df), Some(head_df)) => {
+                match api::local::diff::count_removed_rows(base_df.clone(), head_df.clone()) {
+                    Ok(count) => count,
+                    Err(err) => {
+                        log::error!("Error counting added rows: {}", err);
+                        0
+                    }
+                }
+            }
+            (None, Some(head_df)) => head_df.height(),
             _ => 0,
         }
     }
