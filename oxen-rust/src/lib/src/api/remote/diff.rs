@@ -85,9 +85,9 @@ mod tests {
     use crate::constants;
     use crate::error::OxenError;
     use crate::model::diff::generic_diff_summary::GenericDiffSummary;
-    use crate::model::EntryDataType;
     use crate::model::metadata::generic_metadata::GenericMetadata;
     use crate::model::metadata::metadata_image::ImgColorSpace;
+    use crate::model::EntryDataType;
     use crate::opts::RmOpts;
     use crate::test;
     use crate::util;
@@ -199,7 +199,7 @@ mod tests {
             command::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the first cat
-            let repo_filepath = images_dir.join(format!("cat_1.jpg"));
+            let repo_filepath = images_dir.join("cat_1.jpg");
 
             // Open the image file.
             let img = image::open(&repo_filepath).unwrap();
@@ -240,7 +240,6 @@ mod tests {
             assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_1.jpg");
             assert_eq!(compare.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Image);
-
 
             let metadata = entry.metadata.as_ref().unwrap();
             match metadata {
@@ -288,7 +287,7 @@ mod tests {
             command::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the first cat
-            let repo_filepath = images_dir.join(format!("cat_1.jpg"));
+            let repo_filepath = images_dir.join("cat_1.jpg");
 
             // Open the image file.
             let img = image::open(&repo_filepath).unwrap();
