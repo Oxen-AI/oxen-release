@@ -4,17 +4,18 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct DFOptsQuery {
-    pub slice: Option<String>,
-    pub take: Option<String>,
-    pub delimiter: Option<String>,
-    pub columns: Option<String>,
-    pub filter: Option<String>,
     pub aggregate: Option<String>,
-    pub sort_by: Option<String>,
+    pub columns: Option<String>,
+    pub delimiter: Option<String>,
+    pub filter: Option<String>,
+    pub page_size: Option<usize>,
+    pub page: Option<usize>,
     pub randomize: Option<bool>,
     pub reverse: Option<bool>,
-    pub page: Option<usize>,
-    pub page_size: Option<usize>,
+    pub slice: Option<String>,
+    pub sort_by: Option<String>,
+    pub sql: Option<String>,
+    pub take: Option<String>,
 }
 
 /// Provide some default vals for opts
@@ -36,15 +37,16 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
         filter_ops.columns = Some(columns);
     }
 
+    filter_ops.aggregate = query.aggregate.clone();
+    filter_ops.delimiter = query.delimiter.clone();
+    filter_ops.filter = query.filter.clone();
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
-    filter_ops.delimiter = query.delimiter.clone();
-    filter_ops.take = query.take.clone();
-    filter_ops.filter = query.filter.clone();
-    filter_ops.aggregate = query.aggregate.clone();
-    filter_ops.sort_by = query.sort_by.clone();
     filter_ops.should_randomize = query.randomize.unwrap_or(false);
     filter_ops.should_reverse = query.reverse.unwrap_or(false);
+    filter_ops.sort_by = query.sort_by.clone();
+    filter_ops.sql = query.sql.clone();
+    filter_ops.take = query.take.clone();
 
     filter_ops.clone()
 }

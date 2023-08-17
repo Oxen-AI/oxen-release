@@ -1,4 +1,5 @@
 use polars::{lazy::dsl::Expr, prelude::*};
+use polars_sql::SQLContext;
 
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
@@ -401,6 +402,10 @@ pub fn transform_lazy(
         df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
+    if let Some(query) = &opts.sql {
+        df = run_sql(df, query)?;
+    }
+
     match opts.get_filter() {
         Ok(filter) => {
             if let Some(filter) = filter {
@@ -443,7 +448,14 @@ pub fn transform_lazy(
 
     // These ops should be the last ops since they depends on order
     if let Some(indices) = opts.take_indices() {
-        df = take(df, indices).unwrap().lazy();
+        match take(df.clone(), indices) {
+            Ok(new_df) => {
+                df = new_df.lazy();
+            }
+            Err(err) => {
+                log::error!("error taking indices from df {err:?}")
+            }
+        }
     }
 
     // Maybe slice it up
@@ -459,7 +471,25 @@ pub fn transform_lazy(
         return Ok(df);
     }
 
-    Ok(df.collect().expect(COLLECT_ERROR))
+    match df.collect() {
+        Ok(df) => Ok(df),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "Could not collect df: {}",
+            err
+        ))),
+    }
+}
+
+fn run_sql(df: LazyFrame, q: &str) -> Result<LazyFrame, OxenError> {
+    let mut ctx = SQLContext::new();
+    ctx.register("df", df.clone());
+    match ctx.execute(q) {
+        Ok(sql_df) => Ok(sql_df),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "Could not parse SQL query: {}",
+            err
+        ))),
+    }
 }
 
 fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
