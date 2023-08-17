@@ -401,13 +401,6 @@ pub fn transform_lazy(
         df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
-    if let Some(columns) = opts.columns_names() {
-        if !columns.is_empty() {
-            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
-            df = df.select(&cols);
-        }
-    }
-
     match opts.get_filter() {
         Ok(filter) => {
             if let Some(filter) = filter {
@@ -439,6 +432,13 @@ pub fn transform_lazy(
 
     if opts.should_reverse {
         df = df.reverse();
+    }
+
+    if let Some(columns) = opts.columns_names() {
+        if !columns.is_empty() {
+            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+            df = df.select(&cols);
+        }
     }
 
     // These ops should be the last ops since they depends on order
