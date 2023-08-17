@@ -171,8 +171,8 @@ pub fn count_added_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize,
     let base_df = tabular::df_hash_rows(base_df)?;
     let head_df = tabular::df_hash_rows(head_df)?;
 
-    log::debug!("count_added_rows got base_df {}", base_df);
-    log::debug!("count_added_rows got head_df {}", head_df);
+    // log::debug!("count_added_rows got base_df {}", base_df);
+    // log::debug!("count_added_rows got head_df {}", head_df);
 
     let base_hash_indices: HashSet<String> = base_df
         .column(constants::ROW_HASH_COL_NAME)
@@ -194,7 +194,7 @@ pub fn count_added_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize,
 
     // Count the number of new rows
     let num_new_rows = head_hash_indices.difference(&base_hash_indices).count();
-    log::debug!("count_added_rows got num_new_rows {}", num_new_rows);
+    // log::debug!("count_added_rows got num_new_rows {}", num_new_rows);
     Ok(num_new_rows)
 }
 
@@ -203,8 +203,8 @@ pub fn count_removed_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usiz
     let base_df = tabular::df_hash_rows(base_df)?;
     let head_df = tabular::df_hash_rows(head_df)?;
 
-    log::debug!("count_removed_rows got base_df {}", base_df);
-    log::debug!("count_removed_rows got head_df {}", head_df);
+    // log::debug!("count_removed_rows got base_df {}", base_df);
+    // log::debug!("count_removed_rows got head_df {}", head_df);
 
     let base_hash_indices: HashSet<String> = base_df
         .column(constants::ROW_HASH_COL_NAME)
@@ -226,10 +226,10 @@ pub fn count_removed_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usiz
 
     // Count the number of removed rows
     let num_removed_rows = base_hash_indices.difference(&head_hash_indices).count();
-    log::debug!(
-        "count_removed_rows got num_removed_rows {}",
-        num_removed_rows
-    );
+    // log::debug!(
+    //     "count_removed_rows got num_removed_rows {}",
+    //     num_removed_rows
+    // );
     Ok(num_removed_rows)
 }
 
