@@ -256,6 +256,86 @@ mod tests {
         .await
     }
 
+    // Test diff add rows to a csv
+    #[tokio::test]
+    async fn test_diff_entries_modify_add_rows_csv() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
+            // Get the current branch
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            // Add and commit the initial data
+            let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
+            let repo_filepath = repo.path.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+
+            command::add(&repo, &repo_filepath)?;
+            command::commit(&repo, "Adding initial csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push it real good
+            command::push(&repo).await?;
+
+            // Create branch
+            let branch_name = "feat/add-some-data";
+            command::create_checkout(&repo, branch_name)?;
+
+            // Modify and commit the dataframe
+            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the sky?,blue,trivia\n")?;
+            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the ocean?,blue-ish green sometimes,trivia\n")?;
+
+            command::add(&repo, &repo_filepath)?;
+            command::commit(&repo, "Modifying the csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Push new branch real good
+            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+
+            let compare = api::remote::diff::diff_entries(
+                &remote_repo,
+                &og_branch.name,
+                &branch_name,
+                &PathBuf::from("llm_fine_tune.csv"),
+            )
+            .await?;
+
+            println!("compare: {:#?}", compare);
+
+            // Make sure base entry is empty
+            assert!(compare.base_entry.is_some());
+            assert!(compare.head_entry.is_some());
+            let entry = compare.head_entry.as_ref().unwrap();
+
+            assert_eq!(entry.filename, "llm_fine_tune.csv");
+            assert_eq!(entry.resource.as_ref().unwrap().path, "llm_fine_tune.csv");
+            assert_eq!(compare.status, "modified");
+            assert_eq!(entry.data_type, EntryDataType::Tabular);
+
+            let metadata = entry.metadata.as_ref().unwrap();
+            match metadata {
+                GenericMetadata::MetadataTabular(metadata) => {
+                    assert_eq!(metadata.tabular.height, 6);
+                    assert_eq!(metadata.tabular.width, 4);
+                }
+                _ => panic!("Wrong summary type"),
+            }
+
+            // TODO: add tests for diff summary and diff
+            // TODO: add more complex tabular diffs
+
+            Ok(())
+        })
+        .await
+    }
+
     // Test diff modify image passing the commit ids instead of the branch names
     #[tokio::test]
     async fn test_diff_entries_modify_image_pass_commit_ids() -> Result<(), OxenError> {

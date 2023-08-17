@@ -6,6 +6,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
+use liboxen::opts::PaginateOpts;
 use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
 };
@@ -108,7 +109,10 @@ pub async fn entries(
     Ok(HttpResponse::Ok().json(view))
 }
 
-pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+pub async fn file(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -129,12 +133,18 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
     let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
 
+    let pagination = PaginateOpts {
+        page_num: query.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
+        page_size: query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
+    };
+
     let diff = api::local::diff::diff_entries(
         &repository,
         base_entry,
         &base_commit,
         head_entry,
         &head_commit,
+        pagination,
     )?;
 
     let view = CompareEntryResponse {
@@ -148,6 +158,8 @@ fn parse_base_head_resource(
     repo: &LocalRepository,
     base_head: &str,
 ) -> Result<(Commit, Commit, PathBuf), OxenError> {
+    log::debug!("Parsing base_head_resource: {}", base_head);
+
     let mut split = base_head.split("..");
     let base = split
         .next()
@@ -156,9 +168,14 @@ fn parse_base_head_resource(
         .next()
         .ok_or(OxenError::resource_not_found(base_head))?;
 
+    log::debug!("Checking base: {}", base);
+
     let base_commit = api::local::revisions::get(repo, base)?
         .ok_or(OxenError::revision_not_found(base.into()))?;
 
+    log::debug!("Got base_commit: {}", base_commit);
+
+    log::debug!("Checking head: {}", head);
     // Split on / and find longest branch name
     let split_head = head.split('/');
     let mut longest_str = String::from("");
@@ -167,6 +184,7 @@ fn parse_base_head_resource(
 
     for s in split_head {
         let maybe_revision = format!("{}{}", longest_str, s);
+        log::debug!("Checking maybe head revision: {}", maybe_revision);
         let commit = api::local::revisions::get(repo, &maybe_revision)?;
         if commit.is_some() {
             head_commit = commit;
@@ -175,8 +193,11 @@ fn parse_base_head_resource(
             r_str.remove(0);
             resource = Some(PathBuf::from(r_str));
         }
-        longest_str = format!("{}/", longest_str);
+        longest_str = format!("{}/", maybe_revision);
     }
+
+    log::debug!("Got head_commit: {:?}", head_commit);
+    log::debug!("Got resource: {:?}", resource);
 
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let resource = resource.ok_or(OxenError::revision_not_found(head.into()))?;

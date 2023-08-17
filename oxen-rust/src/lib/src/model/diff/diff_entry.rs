@@ -7,6 +7,7 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
+use crate::opts::PaginateOpts;
 use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
 use crate::{
@@ -17,7 +18,9 @@ use crate::{
 
 use super::diff_entry_status::DiffEntryStatus;
 use super::dir_diff_summary::DirDiffSummary;
+use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
+use super::tabular_diff::TabularDiff;
 use super::tabular_diff_summary::TabularDiffSummary;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -38,6 +41,9 @@ pub struct DiffEntry {
 
     // Diff summary
     pub diff_summary: Option<GenericDiffSummary>,
+
+    // Full Diff (only exposed sometimes for performance reasons)
+    pub diff: Option<GenericDiff>
 }
 
 impl DiffEntry {
@@ -90,6 +96,7 @@ impl DiffEntry {
             head_entry,
             base_entry,
             diff_summary,
+            diff: None // TODO: Come back to what we want a full directory diff to look like
         })
     }
 
@@ -100,6 +107,8 @@ impl DiffEntry {
         head_entry: Option<CommitEntry>,
         head_commit: &Commit,
         status: DiffEntryStatus,
+        should_do_full_diff: bool,
+        pagination: Option<PaginateOpts>, // only for tabular
     ) -> DiffEntry {
         // Need to check whether we have the head or base entry to check data about the file
         let (current_entry, version_path) = if let Some(entry) = &head_entry {
@@ -128,6 +137,38 @@ impl DiffEntry {
             head_meta_entry.as_mut().unwrap().resource = head_resource.clone();
         }
 
+        // TODO: Clean this up, but want to get a prototype to work first
+        // if tabular, and should_do_full_diff
+        //     do full diff
+        log::debug!("checking if should do full diff for tabular {},{},{}", data_type, should_do_full_diff, pagination.is_some());
+        if data_type == EntryDataType::Tabular && should_do_full_diff && pagination.is_some() {
+            let diff = TabularDiff::from_commit_entries(
+                repo,
+                &base_entry,
+                &head_entry,
+                pagination.unwrap(),
+            );
+            let diff_summary = DiffEntry::diff_summary_from_file(
+                repo,
+                data_type.clone(),
+                &base_entry,
+                &head_entry,
+            );
+            return DiffEntry {
+                status: status.to_string(),
+                data_type: data_type.clone(),
+                filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
+                is_dir: false,
+                size: current_entry.num_bytes,
+                head_resource,
+                base_resource,
+                head_entry: head_meta_entry,
+                base_entry: base_meta_entry,
+                diff_summary,
+                diff: Some(GenericDiff::TabularDiff(diff))
+            }
+        }
+
         DiffEntry {
             status: status.to_string(),
             data_type: data_type.clone(),
@@ -144,6 +185,7 @@ impl DiffEntry {
                 &base_entry,
                 &head_entry,
             ),
+            diff: None // TODO: other full diffs...
         }
     }
 

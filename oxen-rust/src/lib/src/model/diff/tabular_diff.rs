@@ -56,96 +56,94 @@ impl TabularDiff {
         let base_schema = TabularDiff::maybe_get_schema(&base_df);
         let head_schema = TabularDiff::maybe_get_schema(&head_df);
 
-        if schema_has_changed {
-            if base_schema.is_some() && head_schema.is_some() {
-                let base_schema = base_schema.clone().unwrap();
-                let head_schema = head_schema.clone().unwrap();
-                let base_df = base_df.unwrap();
-                let head_df = head_df.unwrap();
+        if base_schema.is_some() && head_schema.is_some() {
+            let base_schema = base_schema.clone().unwrap();
+            let head_schema = head_schema.clone().unwrap();
+            let base_df = base_df.unwrap();
+            let head_df = head_df.unwrap();
 
-                if head_schema.hash != base_schema.hash {
-                    // compute new columns
-                    let df_diff = api::local::diff::compute_new_columns_from_dfs(
-                        base_df,
-                        head_df,
-                        &base_schema,
-                        &head_schema,
-                    )
-                    .unwrap();
+            if schema_has_changed {
+                // compute new columns
+                let df_diff = api::local::diff::compute_new_columns_from_dfs(
+                    base_df,
+                    head_df,
+                    &base_schema,
+                    &head_schema,
+                )
+                .unwrap();
 
-                    let added_cols = df_diff
-                        .added_cols
-                        .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
-                    let removed_cols = df_diff
-                        .removed_cols
-                        .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
-
-                    return TabularDiff {
-                        summary,
-                        base_schema: Some(base_schema),
-                        head_schema: Some(head_schema),
-                        added_rows: None,
-                        removed_rows: None,
-                        added_cols,
-                        removed_cols,
-                    };
-                } else {
-                    // compute new rows
-                    let df_diff =
-                        api::local::diff::compute_new_rows(base_df, head_df, &base_schema).unwrap();
-
-                    let added_rows = df_diff
-                        .added_rows
-                        .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
-                    let removed_rows = df_diff
-                        .removed_rows
-                        .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
-
-                    return TabularDiff {
-                        summary,
-                        base_schema: Some(base_schema),
-                        head_schema: Some(head_schema),
-                        added_rows,
-                        removed_rows,
-                        added_cols: None,
-                        removed_cols: None,
-                    };
-                }
-            }
-
-            if base_schema.is_none() && head_schema.is_some() {
-                // we added the dataframe
-                let head_schema = head_schema.clone().unwrap();
-                let head_df = head_df.unwrap();
-                let added_df = Some(JsonDataFrame::from_df_paginated(head_df, &pagination));
-
-                return TabularDiff {
-                    summary,
-                    base_schema: None,
-                    head_schema: Some(head_schema),
-                    added_rows: added_df,
-                    removed_rows: None,
-                    added_cols: None,
-                    removed_cols: None,
-                };
-            }
-
-            if base_schema.is_some() && head_schema.is_none() {
-                // we removed the dataframe
-                let base_schema = base_schema.clone().unwrap();
-                let base_df = base_df.unwrap();
-                let removed_df = Some(JsonDataFrame::from_df_paginated(base_df, &pagination));
+                let added_cols = df_diff
+                    .added_cols
+                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+                let removed_cols = df_diff
+                    .removed_cols
+                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
 
                 return TabularDiff {
                     summary,
                     base_schema: Some(base_schema),
-                    head_schema: None,
+                    head_schema: Some(head_schema),
                     added_rows: None,
-                    removed_rows: removed_df,
+                    removed_rows: None,
+                    added_cols,
+                    removed_cols,
+                };
+            } else {
+                // compute new rows
+                let df_diff =
+                    api::local::diff::compute_new_rows(base_df, head_df, &base_schema).unwrap();
+
+                let added_rows = df_diff
+                    .added_rows
+                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+                let removed_rows = df_diff
+                    .removed_rows
+                    .map(|df| JsonDataFrame::from_df_paginated(df, &pagination));
+
+                return TabularDiff {
+                    summary,
+                    base_schema: Some(base_schema),
+                    head_schema: Some(head_schema),
+                    added_rows,
+                    removed_rows,
                     added_cols: None,
                     removed_cols: None,
                 };
             }
+        }
+
+        if base_schema.is_none() && head_schema.is_some() {
+            // we added the dataframe
+            let head_schema = head_schema.clone().unwrap();
+            let head_df = head_df.unwrap();
+            let added_df = Some(JsonDataFrame::from_df_paginated(head_df, &pagination));
+
+            return TabularDiff {
+                summary,
+                base_schema: None,
+                head_schema: Some(head_schema),
+                added_rows: added_df,
+                removed_rows: None,
+                added_cols: None,
+                removed_cols: None,
+            };
+        }
+
+        if base_schema.is_some() && head_schema.is_none() {
+            // we removed the dataframe
+            let base_schema = base_schema.clone().unwrap();
+            let base_df = base_df.unwrap();
+            let removed_df = Some(JsonDataFrame::from_df_paginated(base_df, &pagination));
+
+            return TabularDiff {
+                summary,
+                base_schema: Some(base_schema),
+                head_schema: None,
+                added_rows: None,
+                removed_rows: removed_df,
+                added_cols: None,
+                removed_cols: None,
+            };
         }
 
         // schema has not changed
