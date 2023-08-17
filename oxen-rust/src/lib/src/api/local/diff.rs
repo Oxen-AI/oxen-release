@@ -5,7 +5,7 @@ use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
-use crate::opts::DFOpts;
+use crate::opts::{DFOpts, PaginateOpts};
 use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::Pagination;
 use crate::{constants, util};
@@ -341,6 +341,7 @@ pub fn diff_entries(
     base_commit: &Commit,
     head_entry: Option<CommitEntry>,
     head_commit: &Commit,
+    pagination: PaginateOpts
 ) -> Result<DiffEntry, OxenError> {
     if base_entry.is_none() && head_entry.is_none() {
         return Err(OxenError::basic_str(
@@ -361,6 +362,8 @@ pub fn diff_entries(
         status = DiffEntryStatus::Removed;
     }
 
+    let should_do_full_diff = true;
+
     let entry = DiffEntry::from_commit_entry(
         repo,
         base_entry,
@@ -368,6 +371,8 @@ pub fn diff_entries(
         head_entry,
         head_commit,
         status,
+        should_do_full_diff,
+        Some(pagination)
     );
 
     Ok(entry)
@@ -493,6 +498,8 @@ pub fn list_diff_entries(
                 entry.head_entry,
                 head_commit,
                 entry.status,
+                false,
+                None
             )
         })
         .collect();
