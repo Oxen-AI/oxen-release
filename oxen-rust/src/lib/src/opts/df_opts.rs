@@ -23,53 +23,55 @@ pub struct IndexedItem {
 
 #[derive(Clone, Debug)]
 pub struct DFOpts {
-    pub output: Option<PathBuf>,
-    pub delimiter: Option<String>,
-    pub slice: Option<String>,
-    pub take: Option<String>,
-    pub columns: Option<String>,
-    pub filter: Option<String>,
-    pub aggregate: Option<String>,
-    pub col_at: Option<String>,
-    pub vstack: Option<Vec<PathBuf>>,
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub aggregate: Option<String>,
+    pub col_at: Option<String>,
+    pub columns: Option<String>,
+    pub content_type: ContentType,
     pub delete_row: Option<String>,
-    pub sort_by: Option<String>,
-    pub unique: Option<String>,
+    pub delimiter: Option<String>,
+    pub filter: Option<String>,
+    pub head: Option<usize>,
+    pub output: Option<PathBuf>,
+    pub page_size: Option<usize>,
+    pub page: Option<usize>,
     pub should_randomize: bool,
     pub should_reverse: bool,
-    pub content_type: ContentType,
-    pub head: Option<usize>,
+    pub slice: Option<String>,
+    pub sort_by: Option<String>,
+    pub sql: Option<String>,
     pub tail: Option<usize>,
-    pub page: Option<usize>,
-    pub page_size: Option<usize>,
+    pub take: Option<String>,
+    pub unique: Option<String>,
+    pub vstack: Option<Vec<PathBuf>>,
 }
 
 impl DFOpts {
     pub fn empty() -> DFOpts {
         DFOpts {
-            output: None,
-            delimiter: None,
-            slice: None,
-            take: None,
-            columns: None,
-            filter: None,
-            aggregate: None,
-            col_at: None,
-            vstack: None,
             add_col: None,
             add_row: None,
+            aggregate: None,
+            col_at: None,
+            columns: None,
+            content_type: ContentType::Json,
             delete_row: None,
-            sort_by: None,
-            unique: None,
+            delimiter: None,
+            filter: None,
+            head: None,
+            output: None,
+            page_size: None,
+            page: None,
             should_randomize: false,
             should_reverse: false,
-            content_type: ContentType::Json,
-            head: None,
+            slice: None,
+            sort_by: None,
+            sql: None,
             tail: None,
-            page: None,
-            page_size: None,
+            take: None,
+            unique: None,
+            vstack: None,
         }
     }
 
@@ -121,23 +123,24 @@ impl DFOpts {
     }
 
     pub fn has_transform(&self) -> bool {
-        self.slice.is_some()
-            || self.page.is_some()
-            || self.page_size.is_some()
-            || self.head.is_some()
-            || self.tail.is_some()
-            || self.take.is_some()
-            || self.columns.is_some()
-            || self.vstack.is_some()
-            || self.add_col.is_some()
+        self.add_col.is_some()
             || self.add_row.is_some()
-            || self.filter.is_some()
             || self.aggregate.is_some()
             || self.col_at.is_some()
-            || self.sort_by.is_some()
-            || self.unique.is_some()
+            || self.columns.is_some()
+            || self.filter.is_some()
+            || self.head.is_some()
+            || self.page_size.is_some()
+            || self.page.is_some()
             || self.should_randomize
             || self.should_reverse
+            || self.slice.is_some()
+            || self.sort_by.is_some()
+            || self.sql.is_some()
+            || self.tail.is_some()
+            || self.take.is_some()
+            || self.unique.is_some()
+            || self.vstack.is_some()
     }
 
     pub fn slice_indices(&self) -> Option<(i64, i64)> {
@@ -267,18 +270,19 @@ impl DFOpts {
             None
         };
         let params = vec![
-            ("slice", self.slice.clone()),
-            ("take", self.take.clone()),
-            ("columns", self.columns.clone()),
-            ("filter", self.filter.clone()),
             ("aggregate", self.aggregate.clone()),
             ("col-at", self.col_at.clone()),
-            ("sort-by", self.sort_by.clone()),
-            ("unique", self.unique.clone()),
+            ("columns", self.columns.clone()),
+            ("filter", self.filter.clone()),
+            ("page_size", page_size),
+            ("page", page),
             ("randomize", randomize),
             ("reverse", should_reverse),
-            ("page", page),
-            ("page_size", page_size),
+            ("slice", self.slice.clone()),
+            ("sort-by", self.sort_by.clone()),
+            ("sql", self.sql.clone()),
+            ("take", self.take.clone()),
+            ("unique", self.unique.clone()),
         ];
 
         let mut query = String::new();

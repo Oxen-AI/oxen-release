@@ -15,6 +15,7 @@ use super::StatusMessage;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrame {
     pub schema: Schema,
+    pub slice_schema: Schema,
     pub slice_size: DataFrameSize,
     pub full_size: DataFrameSize,
     pub data: serde_json::Value,
@@ -37,6 +38,7 @@ impl JsonDataFrame {
     pub fn empty(schema: &Schema) -> JsonDataFrame {
         JsonDataFrame {
             schema: schema.to_owned(),
+            slice_schema: schema.to_owned(),
             slice_size: DataFrameSize {
                 height: 0,
                 width: 0,
@@ -50,8 +52,10 @@ impl JsonDataFrame {
     }
 
     pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
+        let schema = Schema::from_polars(&df.schema());
         JsonDataFrame {
-            schema: Schema::from_polars(&df.schema()),
+            schema: schema.to_owned(),
+            slice_schema: schema.to_owned(),
             slice_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
@@ -78,9 +82,34 @@ impl JsonDataFrame {
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
         let mut sliced_df = tabular::transform(df, opts).unwrap();
+        let slice_schema = Schema::from_polars(&sliced_df.schema());
 
         JsonDataFrame {
             schema,
+            slice_schema,
+            slice_size: DataFrameSize {
+                height: sliced_df.height(),
+                width: sliced_df.width(),
+            },
+            full_size: DataFrameSize {
+                height: full_height,
+                width: full_width,
+            },
+            data: JsonDataFrame::json_data(&mut sliced_df),
+        }
+    }
+
+    pub fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
+        let full_height = df.height();
+        let full_width = df.width();
+
+        let schema = Schema::from_polars(&df.schema());
+        let mut sliced_df = tabular::transform(df, opts).unwrap();
+        let slice_schema = Schema::from_polars(&sliced_df.schema());
+
+        JsonDataFrame {
+            schema,
+            slice_schema,
             slice_size: DataFrameSize {
                 height: sliced_df.height(),
                 width: sliced_df.width(),
@@ -127,14 +156,19 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_slice(df: &mut DataFrame, full_size: DataFrameSize) -> JsonDataFrame {
+    pub fn from_slice(
+        df: &mut DataFrame,
+        og_schema: Schema,
+        og_size: DataFrameSize,
+    ) -> JsonDataFrame {
         JsonDataFrame {
-            schema: Schema::from_polars(&df.schema()),
+            schema: og_schema,
+            slice_schema: Schema::from_polars(&df.schema()),
             slice_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },
-            full_size,
+            full_size: og_size,
             data: JsonDataFrame::json_data(df),
         }
     }

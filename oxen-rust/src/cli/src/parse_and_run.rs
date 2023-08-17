@@ -518,6 +518,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
             .get_one::<String>("delete-row")
             .map(String::from),
         sort_by: sub_matches.get_one::<String>("sort").map(String::from),
+        sql: sub_matches.get_one::<String>("sql").map(String::from),
         unique: sub_matches.get_one::<String>("unique").map(String::from),
         content_type: ContentType::from_str(content_type).unwrap(),
         should_randomize: sub_matches.get_flag("randomize"),
