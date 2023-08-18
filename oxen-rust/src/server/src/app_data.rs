@@ -1,5 +1,5 @@
-use std::{path::PathBuf, sync::Arc};
 use redis::Client;
+use std::{path::PathBuf, sync::Arc};
 
 #[derive(Debug, Clone)]
 pub struct OxenAppData {

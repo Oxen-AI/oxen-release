@@ -112,7 +112,10 @@ pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
     Ok(None)
 }
 
-pub fn list_with_missing_dbs(repo: &LocalRepository, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
+pub fn list_with_missing_dbs(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Vec<Commit>, OxenError> {
     let mut missing_db_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
@@ -130,7 +133,10 @@ pub fn list_with_missing_dbs(repo: &LocalRepository, commit_id: &str) -> Result<
     Ok(missing_db_commits)
 }
 
-pub fn list_with_missing_entries(repo: &LocalRepository, commit_id: &str) -> Result<Vec<Commit>, OxenError> {
+pub fn list_with_missing_entries(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Vec<Commit>, OxenError> {
     log::debug!("In here working on finding some commit entries");
     let mut missing_entry_commits: Vec<Commit> = vec![];
 

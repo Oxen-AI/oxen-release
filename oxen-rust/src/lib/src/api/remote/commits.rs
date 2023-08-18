@@ -171,9 +171,10 @@ pub async fn commit_is_synced(
 }
 
 pub async fn latest_commit_synced(
-    remote_repo: &RemoteRepository, 
+    remote_repo: &RemoteRepository,
+    commit_id: &str,
 ) -> Result<CommitSyncStatusResponse, OxenError> {
-    let uri = format!("/commits/latest_synced");
+    let uri = format!("/commits/{commit_id}/latest_synced");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("latest_commit_synced checking URL: {}", url);
 
@@ -186,8 +187,9 @@ pub async fn latest_commit_synced(
 
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("latest_commit_synced got response body: {}", body);
-        // Sync status response 
-        let response: Result<CommitSyncStatusResponse, serde_json::Error> = serde_json::from_str(&body);
+        // Sync status response
+        let response: Result<CommitSyncStatusResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
             Ok(result) => Ok(result),
             Err(err) => {
@@ -198,7 +200,9 @@ pub async fn latest_commit_synced(
             }
         }
     } else {
-        Err(OxenError::basic_str("latest_commit_synced() Request failed"))
+        Err(OxenError::basic_str(
+            "latest_commit_synced() Request failed",
+        ))
     }
 }
 
@@ -379,17 +383,15 @@ pub async fn post_push_complete(
 
 // Commits in oldest-to-newest-order
 pub async fn bulk_post_push_complete(
-    remote_repo: &RemoteRepository, 
-    branch: &Branch,
-    commits: &Vec<Commit>,) -> Result<(), OxenError> {
+    remote_repo: &RemoteRepository,
+    commits: &Vec<Commit>,
+) -> Result<(), OxenError> {
     use serde_json::json;
 
     let uri = format!("/commits/complete");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("bulk_post_push_complete: {}", url);
-    let body = serde_json::to_string(&json!(
-        commits
-    )).unwrap();
+    let body = serde_json::to_string(&json!(commits)).unwrap();
 
     log::debug!("Sending this body... {:?}", body);
 
@@ -404,13 +406,15 @@ pub async fn bulk_post_push_complete(
             ))),
         }
     } else {
-        Err(OxenError::basic_str("bulk_post_push_complete() Request failed"))
+        Err(OxenError::basic_str(
+            "bulk_post_push_complete() Request failed",
+        ))
     }
 }
 
 pub async fn get_commits_with_unsynced_dbs(
     remote_repo: &RemoteRepository,
-    branch: &Branch
+    branch: &Branch,
 ) -> Result<Vec<Commit>, OxenError> {
     let revision = branch.commit_id.clone();
 
@@ -436,10 +440,10 @@ pub async fn get_commits_with_unsynced_dbs(
 
 pub async fn get_commits_with_unsynced_entries(
     remote_repo: &RemoteRepository,
-    branch: &Branch
+    branch: &Branch,
 ) -> Result<Vec<Commit>, OxenError> {
     let commit_id = branch.commit_id.clone();
-    
+
     let uri = format!("/commits/{commit_id}/entries_status");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
@@ -699,7 +703,6 @@ pub async fn post_data_to_server(
             chunk_size,
             is_compressed,
             filename,
-            bar,
         )
         .await?;
     } else {
@@ -788,7 +791,6 @@ async fn upload_data_to_server_in_chunks(
     chunk_size: usize,
     is_compressed: bool,
     filename: &Option<String>,
-    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let total_size = buffer.len();
     log::debug!(
@@ -809,8 +811,6 @@ async fn upload_data_to_server_in_chunks(
             i,
             ByteSize::b(chunks.len() as u64)
         );
-
-        
 
         let params = ChunkParams {
             chunk_num: i,

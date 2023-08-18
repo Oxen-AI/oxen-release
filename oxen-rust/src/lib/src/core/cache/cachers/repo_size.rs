@@ -3,6 +3,7 @@
 use fs_extra::dir::get_size;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use crate::api;
 use crate::constants::{CACHE_DIR, DIRS_DIR, HISTORY_DIR};
@@ -69,7 +70,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // TODO: do not copy pasta this code
         for entry in entries {
-            log::debug!("looking for latest commit entry fro {:?} on commit {:?}", entry.path, entry.commit_id);
+            log::debug!(
+                "looking for latest commit entry fro {:?} on commit {:?}",
+                entry.path,
+                entry.commit_id
+            );
             let commit = if commits.contains_key(&entry.commit_id) {
                 Some(commits[&entry.commit_id].clone())
             } else {
@@ -77,12 +82,25 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             };
 
             if latest_commit.is_none() {
-                log::debug!("FOUND LATEST COMMIT PARENT EMPTY {:?} -> {:?}", entry.path, commit);
+                log::debug!(
+                    "FOUND LATEST COMMIT PARENT EMPTY {:?} -> {:?}",
+                    entry.path,
+                    commit
+                );
                 latest_commit = commit.clone();
             } else {
-                log::debug!("CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}", entry.path, latest_commit.as_ref().unwrap().timestamp, commit.as_ref().unwrap().timestamp);
+                log::debug!(
+                    "CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}",
+                    entry.path,
+                    latest_commit.as_ref().unwrap().timestamp,
+                    commit.as_ref().unwrap().timestamp
+                );
                 if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
-                    log::debug!("FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}", entry.path, commit);
+                    log::debug!(
+                        "FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}",
+                        entry.path,
+                        commit
+                    );
                     latest_commit = commit.clone();
                 }
             }
@@ -138,6 +156,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 latest_commit.id,
                 latest_commit_path
             );
+            // Write timestamp
+            let now = Instant::now();
+            log::debug!("Wrote latest commit at {:?}", now);
             // create parent directory if not exists
             if let Some(parent) = latest_commit_path.parent() {
                 util::fs::create_dir_all(parent)?;

@@ -30,7 +30,6 @@ pub struct CommitSyncStatusResponse {
     pub status: StatusMessage,
     pub latest_synced: Option<Commit>,
     pub num_unsynced: usize,
-
 }
 
 impl ListCommitResponse {
