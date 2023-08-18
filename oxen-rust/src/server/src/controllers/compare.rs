@@ -25,8 +25,6 @@ pub async fn commits(
     let name = path_param(&req, "repo_name")?;
     let base_head = path_param(&req, "base_head")?;
 
-    log::debug!("Here is basehead {}", base_head);
-
     // Get the repository or return error
     let repository = get_repo(&app_data.path, namespace, name)?;
 
@@ -64,7 +62,6 @@ pub async fn commits(
     Ok(HttpResponse::Ok().json(view))
 }
 
-// List one - log this stuff
 pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
@@ -73,8 +70,6 @@ pub async fn entries(
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let base_head = path_param(&req, "base_head")?;
-
-    log::debug!("Got base head {:?}", base_head);
 
     // Get the repository or return error
     let repository = get_repo(&app_data.path, namespace, name)?;
@@ -89,9 +84,6 @@ pub async fn entries(
 
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
-
-    log::debug!("Got base commit: {}", base_commit);
-    log::debug!("Got head commit: {}", head_commit);
 
     let entries_diff = api::local::diff::list_diff_entries(
         &repository,
@@ -134,10 +126,6 @@ pub async fn file(
     //   main..feature/add-data/path/to/file.txt
     let (base_commit, head_commit, resource) = parse_base_head_resource(&repository, &base_head)?;
 
-    log::debug!("Got base commit: {}", base_commit);
-    log::debug!("Got head commit: {}", head_commit);
-    log::debug!("Got resource: {}", resource.display());
-
     let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
     let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
 
@@ -176,14 +164,9 @@ fn parse_base_head_resource(
         .next()
         .ok_or(OxenError::resource_not_found(base_head))?;
 
-    log::debug!("Checking base: {}", base);
-
     let base_commit = api::local::revisions::get(repo, base)?
         .ok_or(OxenError::revision_not_found(base.into()))?;
 
-    log::debug!("Got base_commit: {}", base_commit);
-
-    log::debug!("Checking head: {}", head);
     // Split on / and find longest branch name
     let split_head = head.split('/');
     let mut longest_str = String::from("");

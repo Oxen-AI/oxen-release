@@ -26,7 +26,6 @@ pub fn get_meta_entry(
 ) -> Result<MetadataEntry, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
-    log::debug!("Remove later - commit at this point {:?}", commit);
     // Check if the path is a dir or is the root
     if entry_reader.has_dir(path) || path == Path::new("") {
         log::debug!("get_meta_entry found dir: {:?}", path);
@@ -53,33 +52,13 @@ pub fn meta_entry_from_dir(
     revision: &str,
 ) -> Result<MetadataEntry, OxenError> {
     // We cache the latest commit and size for each file in the directory after commit
-    log::debug!("Reading commit here...{:?}", commit);
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
-    // Check if latest_commit_path exsists.
-
-    if latest_commit_path.exists() {
-        log::debug!("latest_commit_path does exist at commit {:?}", commit);
-    } else {
-        log::debug!("latest_commit_path does not exist at commit {:?}", commit);
-    }
 
     let latest_commit = match util::fs::read_from_path(latest_commit_path) {
         Ok(id) => commit_reader.get_commit_by_id(id)?,
-        Err(e) => {
-            // Log the error
-            log::debug!("Error reading latest commit from path: {:?}", e);
-            // cache failed, go compute it
-            log::debug!("going to compute the file, then.");
-            compute_latest_commit(repo, commit, path, commit_reader)?
-        }
+        Err(_) => compute_latest_commit(repo, commit, path, commit_reader)?,
     };
-
-    log::debug!("Reading latest commit here...{:?}", latest_commit);
-
-    log::debug!("About to micro nap server");
-    // std::thread::sleep(std::time::Duration::from_millis(100));
-    log::debug!("finished micro nap server");
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
     let total_size = match util::fs::read_from_path(total_size_path) {
@@ -121,11 +100,6 @@ fn compute_latest_commit(
     let commits: HashMap<String, Commit> = HashMap::new();
     let mut latest_commit = Some(commit.to_owned());
     // This lists all the committed dirs
-    log::debug!(
-        "computing latest commit for path {:?} at commit {:?}",
-        path,
-        commit
-    );
     let dirs = entry_reader.list_dirs()?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
@@ -139,33 +113,16 @@ fn compute_latest_commit(
                 };
 
                 if latest_commit.is_none() {
-                    log::debug!("updating latest commit bc there wasn't one to {:?}", commit);
                     latest_commit = commit.clone();
                 }
 
                 if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
-                    log::debug!(
-                        "updating latest commit bc it's newer to {:?} from {:?}",
-                        commit,
-                        latest_commit
-                    );
                     log::debug!(
                         "timestamp {:?} > {:?}",
                         latest_commit.as_ref().unwrap().timestamp,
                         commit.as_ref().unwrap().timestamp
                     );
                     latest_commit = commit.clone();
-                } else {
-                    log::debug!(
-                        "skipping commit bc it's older than latest commit {:?} to {:?}",
-                        commit,
-                        latest_commit
-                    );
-                    log::debug!(
-                        "timestamp {:?} < {:?}",
-                        latest_commit.as_ref().unwrap().timestamp,
-                        commit.as_ref().unwrap().timestamp
-                    );
                 }
             }
         }

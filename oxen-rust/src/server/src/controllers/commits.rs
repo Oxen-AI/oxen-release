@@ -144,20 +144,13 @@ pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpRespon
 }
 
 pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    log::debug!("Beginning of entries_status_controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    log::debug!("Made it through params parsing");
 
     let commits_to_sync = api::local::commits::list_with_missing_entries(&repo, &commit_id)?;
-
-    log::debug!(
-        "About to respond with following missing entries: {:?}",
-        commits_to_sync
-    );
 
     Ok(HttpResponse::Ok().json(ListCommitResponse {
         status: StatusMessage::resource_found(),
@@ -184,13 +177,14 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                 match content_validator::is_valid(&repository, &commit) {
                     Ok(true) => {
                         // Iterating backwards, so this is the latest synced commit
-                        // For this to work, we need to maintain relative order of commits in redis queue push
+                        // For this to work, we need to maintain relative order of commits in redis queue push // one worker, for now.
+                        // TODO: If we want to move to multiple workers or break this order,
+                        // we can make this more robust (but slower) by checking the full commit history
                         log::debug!("latest_synced commit is valid: {:?}", commit.id);
                         latest_synced = Some(commit);
                         break;
                     }
                     Ok(false) => {
-                        // Desired behavior here?
                         log::debug!("latest_synced commit is invalid: {:?}", commit.id);
                         return Ok(HttpResponse::Ok().json(IsValidStatusMessage {
                             status: String::from(STATUS_ERROR),
@@ -201,7 +195,6 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                         }));
                     }
                     err => {
-                        // Desired behavior here?
                         log::error!("latest_synced content_validator::is_valid error {err:?}");
                         return Ok(HttpResponse::InternalServerError().json(
                             IsValidStatusMessage {
@@ -537,8 +530,6 @@ pub async fn create_bulk(
     req: HttpRequest,
     body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    log::debug!("Got bulk commit data: {}", body);
-
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -562,8 +553,6 @@ pub async fn create_bulk(
 
         // Get commit from commit_with_branch
         let commit = Commit::from_with_branch_name(commit_with_branch);
-
-        log::debug!("Creating commit: {:?}", commit);
 
         if let Err(err) = api::local::commits::create_commit_object_with_committers(
             &repository.path,
@@ -599,7 +588,6 @@ pub async fn upload_chunk(
     mut chunk: web::Payload,                   // the chunk of the file body,
     query: web::Query<ChunkedDataUploadQuery>, // gives the file
 ) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("made it to the upload controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -608,13 +596,9 @@ pub async fn upload_chunk(
 
     let commit_reader = CommitReader::new(&repo)?;
 
-    log::debug!("made it past params parsing");
-
     let commit = commit_reader
         .get_commit_by_id(&commit_id)?
         .ok_or(OxenError::revision_not_found(commit_id.into()))?;
-
-    log::debug!("made it past getting commit");
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let id = query.hash.clone();
@@ -882,8 +866,6 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     }
 }
 
-// TODO use this more
-
 // Bulk complete
 pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("In the commits controller");
@@ -897,8 +879,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         Ok(commits) => commits,
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
-
-    // Redis connection - TODO, make a globally accessible connection pool
 
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost/".to_string());
     let redis_client = redis::Client::open(redis_url).expect("Failed to connect to redis");

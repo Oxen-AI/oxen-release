@@ -49,7 +49,6 @@ fn write_is_valid(repo: &LocalRepository, commit: &Commit, val: &str) -> Result<
 
 fn read_is_valid(repo: &LocalRepository, commit: &Commit) -> Result<String, OxenError> {
     let hash_file_path = util::fs::commit_content_is_valid_path(repo, commit);
-    log::debug!("Checking validity at hash_file_path {:?}", hash_file_path);
     let value = util::fs::read_from_path(hash_file_path)?;
     Ok(value)
 }

@@ -892,11 +892,6 @@ who won the game?,The packers beat up on the bears,packers
             // Push new branch real good
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
-            log::debug!("Push is done, moving onto diff.");
-            // Log the current time
-            let now = Instant::now();
-            log::debug!("Push finished at {:?}", now);
-
             let compare = api::remote::diff::list_diff_entries(
                 &remote_repo,
                 &og_branch.name,
@@ -906,10 +901,6 @@ who won the game?,The packers beat up on the bears,packers
             )
             .await?;
 
-            log::debug!("Diff is done.");
-
-            log::debug!("Here's our total compare situation: {:#?}", compare);
-
             // Added 4 dogs, one dir
             assert_eq!(compare.entries.len(), 5);
 
@@ -918,11 +909,8 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
-            log::debug!("here's our diff entry: {:#?}", entry);
-
             let summary = entry.diff_summary.as_ref().unwrap();
 
-            log::debug!("here's our diff summary: {:#?}", summary);
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
                     assert_eq!(summary.dir.file_counts.modified, 0);

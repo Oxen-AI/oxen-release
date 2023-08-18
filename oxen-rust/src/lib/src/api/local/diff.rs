@@ -453,7 +453,6 @@ pub fn list_diff_entries(
     page: usize,
     page_size: usize,
 ) -> Result<EntriesDiff, OxenError> {
-    // Okay, this part is working correctly.
     log::debug!(
         "list_diff_entries base_commit: '{}', head_commit: '{}'",
         base_commit,
@@ -470,7 +469,6 @@ pub fn list_diff_entries(
     );
     let head_entries = read_entries_from_commit(repo, head_commit)?;
     log::debug!("Got {} head entries", head_entries.len());
-    // Got 7 head entries
     log::debug!(
         "Reading entries from base commit {} -> {}",
         base_commit.id,
@@ -537,15 +535,11 @@ pub fn list_diff_entries(
         "Collected {} collect_modified_entries",
         modified_commit_entries.len()
     );
-
     let counts = AddRemoveModifyCounts {
         added: added_commit_entries.len(),
         removed: removed_commit_entries.len(),
         modified: modified_commit_entries.len(),
     };
-
-    log::debug!("Here are our counts...{:?}", counts);
-
     let mut combined: Vec<_> = added_commit_entries
         .into_iter()
         .chain(removed_commit_entries)
@@ -582,8 +576,6 @@ pub fn list_diff_entries(
     log::debug!("Page num {} Page size {}", page, page_size);
 
     let all = dirs.into_iter().chain(diff_entries).collect();
-
-    log::debug!("Final result all {:?}", all);
 
     Ok(EntriesDiff {
         entries: all,

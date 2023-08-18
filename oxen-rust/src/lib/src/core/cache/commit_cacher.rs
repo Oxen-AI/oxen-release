@@ -150,9 +150,6 @@ fn get_db_connection(
 /// Run all the cachers and update their status's as you go
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
     // Write the LOCK file and delete when we are done processin
-
-    // std::thread::sleep(std::time::Duration::from_millis(500));
-
     let lock_path = cached_status_lock_path(repo, commit);
     log::warn!("run_all called on commit {} force? {}", commit, force);
 
@@ -197,18 +194,12 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
             }
             Err(err) => {
                 let err = format!("{err}");
-                log::debug!("issue with running cachers?");
                 log::error!("{}", err);
                 let status_failed = CacherStatus::failed(&err);
                 str_json_db::put(&db, name, &status_failed)?;
             }
         }
-        // Right after each cacher?
     }
-
-    // Right after the cachers...
-    // Sleep 500 ms
-
     // Delete the LOCK file
     log::debug!("run_all Deleting lock file {:?}", lock_path);
     util::fs::remove_file(lock_path)?;

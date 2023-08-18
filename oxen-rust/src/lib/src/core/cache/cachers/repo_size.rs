@@ -3,7 +3,6 @@
 use fs_extra::dir::get_size;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
 use crate::api;
 use crate::constants::{CACHE_DIR, DIRS_DIR, HISTORY_DIR};
@@ -156,9 +155,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 latest_commit.id,
                 latest_commit_path
             );
-            // Write timestamp
-            let now = Instant::now();
-            log::debug!("Wrote latest commit at {:?}", now);
             // create parent directory if not exists
             if let Some(parent) = latest_commit_path.parent() {
                 util::fs::create_dir_all(parent)?;

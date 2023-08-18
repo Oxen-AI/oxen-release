@@ -243,7 +243,8 @@ impl EntryIndexer {
             api::remote::commits::list_commit_history(remote_repo, &remote_branch.commit_id)
                 .await?;
 
-        log::debug!("LISTING REMOTE COMMITS {:?}", remote_commits);
+        // TODONOW that tiny optimization todo elswwhere
+
         // We may not have any commits yet, in the case of a fresh clone
         let local_commits: Vec<Commit> = match CommitReader::new(&self.repository) {
             // empty vector if we can't read the commits db

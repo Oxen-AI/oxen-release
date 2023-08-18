@@ -21,6 +21,7 @@ use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, R
 
 use crate::{api, util};
 
+// TODONOW if stuff broke, this is why
 pub struct UnsyncedCommitEntries {
     pub commit: Commit,
     pub entries: Vec<CommitEntry>,
@@ -29,7 +30,6 @@ pub async fn push(
     repo: &LocalRepository,
     rb: &RemoteBranch,
 ) -> Result<RemoteRepository, OxenError> {
-    log::debug!("Pushing to remote branch {:?}", rb);
     let ref_reader = RefReader::new(repo)?;
     let branch = ref_reader.get_branch_by_name(&rb.branch)?;
     if branch.is_none() {
@@ -95,18 +95,13 @@ pub async fn push_remote_repo(
         &branch.name,
         &head_commit
     );
-    //     // Push data for unsynced commits
-    //     rpush_entries(local_repo, &remote_repo, &branch, &unsynced_commits).await?;
     println!("🐂 Identifying commits with unsynced entries...");
 
-    // Get commit_entries_to_sync
-
+    // Get commits with unsynced entries
     let unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch).await?;
 
-    push_missing_commit_entries(local_repo, &remote_repo, &branch, &unsynced_entries_commits)
-        .await?;
-    // rpush_missing_commit_entries(&local_repo, &remote_repo, unsynced_commits, &branch);
+    push_missing_commit_entries(local_repo, &remote_repo, &unsynced_entries_commits).await?;
 
     api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
     println!(
@@ -131,17 +126,11 @@ async fn get_commit_objects_to_sync(
     local_commit: &Commit,
     branch: &Branch,
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!(
-        "hey trying to get remote branch by name {} {}",
-        &remote_repo.name,
-        &branch.name
-    );
     let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
-    log::debug!("hey got remote branch by name {:?}", remote_branch);
     let mut commits_to_sync: Vec<Commit>;
     if let Some(remote_branch) = remote_branch {
         log::debug!(
-            "rpush_missing_commit_objects found remote branch {:?}, calculating missing commits between local and remote heads", remote_branch
+            "get_commit_objects_to_sync found remote branch {:?}, calculating missing commits between local and remote heads", remote_branch
         );
         let remote_commit = api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id)
             .await?
@@ -152,13 +141,11 @@ async fn get_commit_objects_to_sync(
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
     } else {
         // Branch does not exist on remote yet - get all commits?
-        log::debug!("rpush_missing_commit_objects remote branch does not exist, getting all commits from local head");
+        log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
         commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
     }
 
-    log::debug!("Got commit objects to sync: {:?}", commits_to_sync);
-
-    // Order from first to last
+    // Order from BASE to HEAD
     commits_to_sync.reverse();
     Ok(commits_to_sync)
 }
@@ -242,7 +229,7 @@ async fn poll_until_synced(
     commit: &Commit,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    println!("Remote verifying commit(s)...");
+    println!("🐂 Remote verifying commit(s)...");
 
     let commits_to_sync = bar.length().unwrap();
 
@@ -257,10 +244,6 @@ async fn poll_until_synced(
                 if sync_status.num_unsynced == 0 {
                     bar.finish();
                     println!("✅ push successful\n");
-                    // Tiny additional sync time
-                    // log::debug!("About to micro nap");
-                    // std::thread::sleep(std::time::Duration::from_millis(100));
-                    // log::debug!("Done with micro nap");
                     return Ok(());
                 }
             }
@@ -381,10 +364,9 @@ async fn push_missing_commit_dbs(
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    _branch: &Branch,
     commits: &Vec<Commit>,
 ) -> Result<(), OxenError> {
-    log::debug!("rpush_entries num unsynced {}", commits.len());
+    log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
     println!("🐂 Computing diffs for {} commits", commits.len());
 
     let commit_reader = CommitReader::new(local_repo)?;
@@ -416,8 +398,7 @@ async fn push_missing_commit_entries(
 
     println!("🐂 Posting entries to server");
 
-    // Treat this as one giant commit for testing - the commit dbs will know the difference.
-
+    // TODONOW refactor here
     if !unsynced_entries.is_empty() {
         let all_entries = UnsyncedCommitEntries {
             commit: commits[0].to_owned(),
@@ -434,16 +415,12 @@ async fn push_missing_commit_entries(
             &bar,
         )
         .await?;
-
-        // bar.finish();
     } else {
         println!("🐂 No entries to push")
     }
 
     // Now send all commit objects in a batch for validation from oldest to newest
-    // Flip order of commits - TODO how to save memory here
     let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
-
     api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
 
     Ok(())
@@ -465,7 +442,6 @@ fn read_unsynced_entries(
         grouped.len()
     );
 
-    // let bar = ProgressBar::new(this_entries.len() as u64);
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
         log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
@@ -474,7 +450,6 @@ fn read_unsynced_entries(
         let mut entries: Vec<CommitEntry> = dir_entries
             .into_par_iter()
             .filter(|entry| {
-                // bar.inc(1);
                 // If hashes are different, or it is a new entry, we'll keep it
                 let filename = entry.path.file_name().unwrap().to_str().unwrap();
                 match last_entry_reader.get_entry(filename) {
@@ -496,7 +471,6 @@ fn read_unsynced_entries(
             .collect();
         entries_to_sync.append(&mut entries);
     }
-    // bar.finish();
 
     log::debug!("Got {} entries to sync", entries_to_sync.len());
 
@@ -516,8 +490,6 @@ async fn push_entries(
         commit.id,
         commit.message
     );
-    let _total_size = api::local::entries::compute_entries_size(entries)?;
-
     // Some files may be much larger than others....so we can't just zip them up and send them
     // since bodies will be too big. Hence we chunk and send the big ones, and bundle and send the small ones
 
@@ -554,8 +526,7 @@ async fn push_entries(
 
     match tokio::join!(large_entries_sync, small_entries_sync) {
         (Ok(_), Ok(_)) => {
-            log::debug!("post push complete");
-            // api::remote::commits::post_push_complete(remote_repo, branch, &commit.id).await
+            log::debug!("Moving on to post-push validation");
             Ok(())
         }
         (Err(err), Ok(_)) => {
@@ -579,7 +550,6 @@ async fn chunk_and_send_large_entries(
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     if entries.is_empty() {
-        log::debug!("No large files to send");
         return Ok(());
     }
 
@@ -814,7 +784,7 @@ async fn bundle_and_send_small_entries(
                 let is_compressed = true;
                 let file_name = None;
 
-                // TODO - fix this temp quiet bar
+                // TODONOW - fix this temp quiet bar
                 // Init a silent bar
                 let quiet_bar = Arc::new(ProgressBar::hidden());
 
@@ -858,9 +828,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::core::index::pusher;
-    use crate::core::index::pusher::UnsyncedCommitEntries;
     use crate::error::OxenError;
-    use std::collections::VecDeque;
 
     use crate::test;
 
@@ -1041,84 +1009,4 @@ mod tests {
         })
         .await
     }
-
-    // #[tokio::test]
-    // async fn test_rpush_missing_commit_objects() -> Result<(), OxenError> {
-    //     test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
-    //         // Set the proper remote
-    //         let name = repo.dirname();
-    //         let remote = test::repo_remote_url_from(&name);
-    //         command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-    //         let remote_repo = api::remote::repositories::create(
-    //             &repo,
-    //             constants::DEFAULT_NAMESPACE,
-    //             &name,
-    //             test::test_host(),
-    //         )
-    //         .await?;
-
-    //         // Make a few more commits, and then make sure the total count is correct to push
-    //         let head_commit = api::local::commits::head_commit(&repo)?;
-    //         let branch = api::local::branches::current_branch(&repo)?.unwrap();
-    //         let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
-    //         pusher::rpush_missing_commit_objects(
-    //             &repo,
-    //             &remote_repo,
-    //             &head_commit,
-    //             &mut unsynced_commits,
-    //             &branch,
-    //         )
-    //         .await?;
-
-    //         // The initial commit and the one after
-    //         assert_eq!(unsynced_commits.len(), 2);
-
-    //         // Push to the remote
-    //         command::push(&repo).await?;
-
-    //         // There should be none unsynced
-    //         let head_commit = api::local::commits::head_commit(&repo)?;
-    //         let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
-    //         pusher::rpush_missing_commit_objects(
-    //             &repo,
-    //             &remote_repo,
-    //             &head_commit,
-    //             &mut unsynced_commits,
-    //             &branch,
-    //         )
-    //         .await?;
-
-    //         // The initial commit and the one after
-    //         assert_eq!(unsynced_commits.len(), 0);
-
-    //         // Modify README
-    //         let readme_path = repo.path.join("README.md");
-    //         let readme_path = test::modify_txt_file(readme_path, "I am the readme now.")?;
-    //         command::add(&repo, readme_path)?;
-
-    //         // Commit again
-    //         let head_commit = command::commit(&repo, "Changed the readme")?;
-    //         let mut unsynced_commits: VecDeque<UnsyncedCommitEntries> = VecDeque::new();
-    //         pusher::rpush_missing_commit_objects(
-    //             &repo,
-    //             &remote_repo,
-    //             &head_commit,
-    //             &mut unsynced_commits,
-    //             &branch,
-    //         )
-    //         .await?;
-
-    //         println!("Num unsynced {}", unsynced_commits.len());
-    //         for commit in unsynced_commits.iter() {
-    //             println!("FOUND UNSYNCED: {:?}", commit.commit);
-    //         }
-
-    //         // Should be one more
-    //         assert_eq!(unsynced_commits.len(), 1);
-
-    //         Ok(())
-    //     })
-    //     .await
-    // }
 }
