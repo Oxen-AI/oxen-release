@@ -388,7 +388,7 @@ pub async fn bulk_post_push_complete(
 ) -> Result<(), OxenError> {
     use serde_json::json;
 
-    let uri = format!("/commits/complete");
+    let uri = "/commits/complete".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("bulk_post_push_complete: {}", url);
     let body = serde_json::to_string(&json!(commits)).unwrap();

@@ -381,7 +381,7 @@ async fn push_missing_commit_dbs(
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    branch: &Branch,
+    _branch: &Branch,
     commits: &Vec<Commit>,
 ) -> Result<(), OxenError> {
     log::debug!("rpush_entries num unsynced {}", commits.len());
@@ -418,13 +418,13 @@ async fn push_missing_commit_entries(
 
     // Treat this as one giant commit for testing - the commit dbs will know the difference.
 
-    if unsynced_entries.len() != 0 {
+    if !unsynced_entries.is_empty() {
         let all_entries = UnsyncedCommitEntries {
             commit: commits[0].to_owned(),
             entries: unsynced_entries,
         };
 
-        let bar = Arc::new(ProgressBar::new(total_size as u64));
+        let bar = Arc::new(ProgressBar::new(total_size));
 
         push_entries(
             local_repo,
