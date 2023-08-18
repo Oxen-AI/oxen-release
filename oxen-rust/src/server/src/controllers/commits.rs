@@ -1,6 +1,7 @@
 use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
+use liboxen::constants::COMMIT_QUEUE_NAME;
 use liboxen::constants::DIRS_DIR;
 use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
@@ -917,7 +918,7 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         );
 
         let _: isize = redis::cmd("LPUSH")
-            .arg("commit_queue")
+            .arg(COMMIT_QUEUE_NAME)
             .arg(task_bytes.clone())
             .query(&mut con)?;
     }

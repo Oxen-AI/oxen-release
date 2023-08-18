@@ -185,7 +185,6 @@ pub fn commit(
     Ok(commit)
 }
 
-//TODONOW refactor this
 pub fn create_commit_object_with_committers(
     _repo_dir: &Path,
     branch_name: impl AsRef<str>,
@@ -227,30 +226,19 @@ pub fn create_commit_object(
     // Instantiate repo from dir
     let repo = LocalRepository::from_dir(repo_dir)?;
 
-    // If we have a root, and we are trying to push a new one, don't allow it
-    if let Ok(root) = root_commit(&repo) {
-        if commit.parent_ids.is_empty() && root.id != commit.id {
-            log::error!("Root commit does not match {} != {}", root.id, commit.id);
-            return Err(OxenError::root_commit_does_not_match(commit.to_owned()));
-        }
-    }
+    // Create readers and writers
+    let commit_reader = CommitReader::new(&repo)?;
+    let commit_writer = CommitWriter::new(&repo)?;
+    let ref_writer = RefWriter::new(&repo)?;
 
-    let result = CommitWriter::new(&repo);
-    match result {
-        Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
-            Ok(_) => {
-                log::debug!("Successfully added commit [{}] to db", commit.id);
-                api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
-            }
-            Err(err) => {
-                log::error!("Error adding commit to db: {:?}", err);
-            }
-        },
-        Err(err) => {
-            log::error!("Error creating commit writer: {:?}", err);
-        }
-    };
-    Ok(())
+    create_commit_object_with_committers(
+        repo_dir,
+        branch_name,
+        commit,
+        &commit_reader,
+        &commit_writer,
+        &ref_writer,
+    )
 }
 
 /// List commits on the current branch from HEAD

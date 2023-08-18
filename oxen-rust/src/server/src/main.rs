@@ -22,12 +22,12 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
 use env_logger::Env;
 
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::tasks::post_push_complete::PostPushComplete;
+use liboxen::constants::COMMIT_QUEUE_NAME;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -59,7 +59,7 @@ async fn main() -> std::io::Result<()> {
             {
                 // Pop off of the queue
                 outcome = redis::cmd("LPOP")
-                    .arg("commit_queue")
+                    .arg(COMMIT_QUEUE_NAME)
                     .query(&mut con)
                     .unwrap();
 
