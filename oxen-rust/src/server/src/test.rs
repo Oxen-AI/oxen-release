@@ -28,8 +28,8 @@ pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
 
 pub fn get_redis_client() -> Result<Arc<redis::Client>, OxenError> {
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost".to_string());
-    let client = redis::Client::open(redis_url.as_str())?; 
-    Ok(Arc::new(client)) 
+    let client = redis::Client::open(redis_url.as_str())?;
+    Ok(Arc::new(client))
 }
 pub fn create_local_repo(
     sync_dir: &Path,

@@ -17,18 +17,17 @@ pub mod view;
 
 extern crate log;
 
-
 use actix_web::middleware::{Condition, Logger};
-use actix_web::{web, App, HttpServer, HttpRequest, HttpResponse};
-use bincode;
-use tokio::time::sleep;
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
+use bincode;
 use clap::{Arg, Command};
 use env_logger::Env;
 use redis;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Duration;
+use tokio::time::sleep;
 
 use crate::errors::OxenHttpError;
 use crate::tasks::post_push_complete::PostPushComplete;
@@ -44,8 +43,8 @@ const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct IncomingBody {
-    pub one: String, 
-    pub two: i32
+    pub one: String,
+    pub two: i32,
 }
 
 #[actix_web::main]
@@ -57,8 +56,7 @@ async fn main() -> std::io::Result<()> {
         Err(_) => String::from("data"),
     };
 
-
-    // Redis polling worker setup 
+    // Redis polling worker setup
     async fn run_redis_poller() {
         let redis_client = redis::Client::open("redis://127.0.0.1/").unwrap();
 
@@ -69,19 +67,19 @@ async fn main() -> std::io::Result<()> {
 
             let outcome: Option<Vec<u8>>;
             {
-
-                // Pop off of the queue 
-                outcome = redis::cmd("LPOP").arg("commit_queue")
-                    .query(&mut con).unwrap();
+                // Pop off of the queue
+                outcome = redis::cmd("LPOP")
+                    .arg("commit_queue")
+                    .query(&mut con)
+                    .unwrap();
 
                 match outcome {
                     Some(data) => {
                         log::debug!("Got queue item: {:?}", data);
-                        let task: PostPushComplete = 
-                        bincode::deserialize(&data).unwrap();
+                        let task: PostPushComplete = bincode::deserialize(&data).unwrap();
                         println!("{:?}", task);
                         task.run();
-                    },
+                    }
                     None => {
                         log::debug!("No queue items found");
                         sleep(Duration::from_millis(500)).await;
@@ -89,10 +87,7 @@ async fn main() -> std::io::Result<()> {
                 }
             }
         }
-
     }
-    
-
 
     let command = Command::new("oxen-server")
         .version(VERSION)
@@ -173,9 +168,8 @@ async fn main() -> std::io::Result<()> {
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
 
-
-                    // Poll redis in background 
-                    tokio::spawn(async {run_redis_poller().await});
+                    // Poll redis in background
+                    tokio::spawn(async { run_redis_poller().await });
 
                     log::debug!("Still continuing through the program!");
 

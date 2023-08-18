@@ -79,6 +79,7 @@ mod tests {
 
     use std::path::Path;
     use std::path::PathBuf;
+    use std::time::Instant;
 
     use crate::api;
     use crate::command;
@@ -891,6 +892,11 @@ who won the game?,The packers beat up on the bears,packers
             // Push new branch real good
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
+            log::debug!("Push is done, moving onto diff.");
+            // Log the current time
+            let now = Instant::now();
+            log::debug!("Push finished at {:?}", now);
+
             let compare = api::remote::diff::list_diff_entries(
                 &remote_repo,
                 &og_branch.name,
@@ -899,6 +905,8 @@ who won the game?,The packers beat up on the bears,packers
                 100,
             )
             .await?;
+
+            log::debug!("Diff is done.");
 
             log::debug!("Here's our total compare situation: {:#?}", compare);
 

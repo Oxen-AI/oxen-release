@@ -41,7 +41,6 @@ pub async fn commits(
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
-
     // Check if mergeable
     let merger = Merger::new(&repository)?;
 

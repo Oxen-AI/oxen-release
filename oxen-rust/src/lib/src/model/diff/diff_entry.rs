@@ -82,7 +82,6 @@ impl DiffEntry {
         let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
         let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
 
-
         log::debug!("head resource in from_dir: {:?}", head_resource);
         log::debug!("base resource in from_dir: {:?}", base_resource);
 
@@ -93,7 +92,7 @@ impl DiffEntry {
         if head_entry.is_some() {
             head_entry.as_mut().unwrap().resource = head_resource.clone();
         }
-        
+
         log::debug!("head entry in from_dir: {:?}", head_entry);
         log::debug!("base entry in from_dir: {:?}", base_entry);
 
@@ -291,8 +290,7 @@ impl DiffEntry {
         // Uniq them
         let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs.into_iter());
 
-
-        // What base_commit_id and head_commit_id are happening here? 
+        // What base_commit_id and head_commit_id are happening here?
         log::debug!("base_commit_id 284 is {:?}", base_commit_id);
         log::debug!("head_commit_id 285 is {:?}", head_commit_id);
 
