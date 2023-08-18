@@ -63,14 +63,10 @@ impl DiffEntry {
         head_commit: &Commit,
         status: DiffEntryStatus,
     ) -> Result<DiffEntry, OxenError> {
-        log::debug!("head commit in from_dir: {:?}", head_commit);
-        log::debug!("base commit in from_dir: {:?}", base_commit);
         // Get the metadata entries
         let mut base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
         let mut head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
 
-        log::debug!("Base entry top of from_dir: {:?}", base_entry);
-        log::debug!("Head entry top of from_dir: {:?}", head_entry);
         // Need to check whether we have the head or base entry to check data about the file
         let (current_dir, current_entry) = if let Some(dir) = head_dir {
             (dir, head_entry.to_owned().unwrap())
@@ -82,9 +78,6 @@ impl DiffEntry {
         let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
         let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
 
-        log::debug!("head resource in from_dir: {:?}", head_resource);
-        log::debug!("base resource in from_dir: {:?}", base_resource);
-
         if base_entry.is_some() {
             base_entry.as_mut().unwrap().resource = base_resource.clone();
         }
@@ -92,9 +85,6 @@ impl DiffEntry {
         if head_entry.is_some() {
             head_entry.as_mut().unwrap().resource = head_resource.clone();
         }
-
-        log::debug!("head entry in from_dir: {:?}", head_entry);
-        log::debug!("base entry in from_dir: {:?}", base_entry);
 
         Ok(DiffEntry {
             status: status.to_string(),

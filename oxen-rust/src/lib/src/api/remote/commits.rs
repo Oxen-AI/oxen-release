@@ -8,7 +8,7 @@ use crate::core::index::{CommitDBReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
-use crate::opts::{PaginateOpts, PrintOpts};
+use crate::opts::PaginateOpts;
 use crate::util::hasher::hash_buffer;
 use crate::view::commit::CommitSyncStatusResponse;
 use crate::{api, constants};
@@ -381,7 +381,7 @@ pub async fn post_push_complete(
     }
 }
 
-// Commits in oldest-to-newest-order
+// Commits must be in oldest-to-newest-order
 pub async fn bulk_post_push_complete(
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
@@ -392,8 +392,6 @@ pub async fn bulk_post_push_complete(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("bulk_post_push_complete: {}", url);
     let body = serde_json::to_string(&json!(commits)).unwrap();
-
-    log::debug!("Sending this body... {:?}", body);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.post(&url).body(body).send().await {
@@ -527,8 +525,6 @@ pub async fn post_commit_db_to_server(
         .join(HISTORY_DIR)
         .join(commit.id.clone());
 
-    log::debug!("Commit dir {:?}", commit_dir);
-
     // This will be the subdir within the tarball
     let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
 
@@ -538,7 +534,6 @@ pub async fn post_commit_db_to_server(
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
     let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
 
-    log::debug!("setting up tar stuff");
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
         let tar_path = tar_subdir.join(dir);
@@ -549,19 +544,14 @@ pub async fn post_commit_db_to_server(
 
     tar.finish()?;
 
-    log::debug!("finished with tar stuff");
-
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-
-    // Quiet mode for progress bar depending on print_opts
 
     let is_compressed = true;
     let filename = None;
-    log::debug!("About to send data to server");
-
-    // Pass in silent bar - TODO: should post_data_to_server take an Option<ProgressBar> - sometimes silent sometimes not
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    //TODONOW see if we can take this out
 
     post_data_to_server(
         remote_repo,
@@ -580,7 +570,6 @@ pub async fn post_commit_to_server(
     commit: &Commit,
     unsynced_entries_size: u64,
     branch_name: String,
-    print_opts: &PrintOpts,
 ) -> Result<(), OxenError> {
     // Compute the size of the commit
     let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
@@ -593,16 +582,10 @@ pub async fn post_commit_to_server(
     create_commit_obj_on_server(remote_repo, &commit_w_size).await?;
 
     // Then zip up and send the history db
-    if print_opts.verbose {
-        println!("Compressing commit {}", commit.id);
-    }
-
     // zip up the rocksdb in history dir, and post to server
     let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
         .join(commit.id.clone());
-
-    log::debug!("Commit dir {:?}", commit_dir);
 
     // This will be the subdir within the tarball
     let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
@@ -614,20 +597,8 @@ pub async fn post_commit_to_server(
     tar.finish()?;
 
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-    if print_opts.verbose {
-        println!(
-            "Syncing commit {} with size {}",
-            commit.id,
-            ByteSize::b(buffer.len() as u64)
-        );
-    }
 
     let bar = Arc::new(ProgressBar::new(buffer.len() as u64));
-
-    // Quiet mode for progress bar depending on print_opts
-    if !print_opts.verbose {
-        bar.set_draw_target(ProgressDrawTarget::hidden())
-    }
 
     let is_compressed = true;
     let filename = None;
@@ -693,9 +664,7 @@ pub async fn post_data_to_server(
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
-    log::debug!("in post_data_to_server");
     if buffer.len() > chunk_size {
-        log::debug!("about to upload data to server in chunks");
         upload_data_to_server_in_chunks(
             remote_repo,
             commit,
@@ -706,10 +675,8 @@ pub async fn post_data_to_server(
         )
         .await?;
     } else {
-        log::debug!("about to upload data to server in single tarball");
         upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, bar).await?;
     }
-    log::debug!("made it out of post_data_to_server");
     Ok(())
 }
 
@@ -720,12 +687,10 @@ pub async fn upload_single_tarball_to_server_with_retry(
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
-    log::debug!("server upload try {}", total_tries);
 
     while total_tries < constants::NUM_HTTP_RETRIES {
         match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
             Ok(_) => {
-                log::debug!("successfully uploaded tarball");
                 return Ok(());
             }
             Err(err) => {
@@ -759,13 +724,10 @@ async fn upload_single_tarball_to_server(
         .build()?;
 
     let size = buffer.len() as u64;
-    log::debug!("About to try the post request");
     match client.post(&url).body(buffer.to_owned()).send().await {
         Ok(res) => {
-            log::debug!("in happy path of post request before parsing body");
             let body = client::parse_json_body(&url, res).await?;
 
-            log::debug!("upload_single_tarball_to_server got response {}", body);
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => {
@@ -956,7 +918,7 @@ mod tests {
     use crate::core::index::CommitDBReader;
     use crate::error::OxenError;
     use crate::model::CommitEntry;
-    use crate::opts::PrintOpts;
+
     use crate::test;
     use rocksdb::{DBWithThreadMode, MultiThreaded};
 
@@ -984,14 +946,12 @@ mod tests {
 
             // Post commit
             let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
-            let print_opts = PrintOpts { verbose: true };
             api::remote::commits::post_commit_to_server(
                 &local_repo,
                 &remote_repo,
                 &commit,
                 entries_size,
                 branch.name.clone(),
-                &print_opts,
             )
             .await?;
 
@@ -1109,7 +1069,6 @@ mod tests {
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Post commit but not the actual files
-            let print_opts = PrintOpts { verbose: true };
             let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
             api::remote::commits::post_commit_to_server(
                 &local_repo,
@@ -1117,7 +1076,6 @@ mod tests {
                 &commit,
                 entries_size,
                 branch.name.clone(),
-                &print_opts,
             )
             .await?;
 

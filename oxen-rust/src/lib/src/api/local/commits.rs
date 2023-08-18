@@ -119,15 +119,13 @@ pub fn list_with_missing_dbs(
     let mut missing_db_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
-
-    //TODO: should list from head commit - but unclear how to handle merge commit
     let commits = api::local::commits::list_from(repo, commit_id)?;
     for commit in commits {
         if !commit_history_db_exists(repo, &commit)? {
             missing_db_commits.push(commit);
         }
     }
-    // Reverse missing_db_commits
+    // BASE-->HEAD order
     missing_db_commits.reverse();
 
     Ok(missing_db_commits)
@@ -141,8 +139,6 @@ pub fn list_with_missing_entries(
     let mut missing_entry_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
-
-    // TODO: Should list from head commit - but how to handle merge commits
     let commits = api::local::commits::list_from(repo, commit_id)?;
 
     for commit in commits {
@@ -154,7 +150,7 @@ pub fn list_with_missing_entries(
         missing_entry_commits.push(commit);
     }
 
-    // Reverse missing entry commits
+    // BASE-->HEAD order - essential for ensuring sync order
     missing_entry_commits.reverse();
 
     Ok(missing_entry_commits)
@@ -164,7 +160,6 @@ pub fn commit_history_db_exists(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<bool, OxenError> {
-    // Check if OXEN_HIDDEN_DIR/HISTORY_DIR/commit_id exists
     let commit_history_dir = util::fs::oxen_hidden_dir(&repo.path)
         .join(HISTORY_DIR)
         .join(&commit.id);
@@ -190,8 +185,7 @@ pub fn commit(
     Ok(commit)
 }
 
-// TODO: If this works, more tightly couple the two to be more DRY
-
+//TODONOW refactor this
 pub fn create_commit_object_with_committers(
     _repo_dir: &Path,
     branch_name: impl AsRef<str>,
@@ -202,9 +196,6 @@ pub fn create_commit_object_with_committers(
 ) -> Result<(), OxenError> {
     log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
 
-    // // Instantiate repo from dir
-    // let repo = LocalRepository::from_dir(repo_dir)?;
-
     // If we have a root, and we are trying to push a new one, don't allow it
     if let Ok(root) = commit_reader.root_commit() {
         if commit.parent_ids.is_empty() && root.id != commit.id {
@@ -213,13 +204,10 @@ pub fn create_commit_object_with_committers(
         }
     }
 
-    // Todo - add back error creating commti writer on other side
+    // Todo - add back error creating commit writer on other side
     match commit_writer.add_commit_to_db(commit) {
         Ok(_) => {
-            // let ref_reader = RefReader::new(&repo)?;
-            // let ref_writer = RefWriter::new(&repo)?;
             log::debug!("Successfully added commit [{}] to db", commit.id);
-            // api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
             ref_writer.set_branch_commit_id(branch_name.as_ref(), &commit.id)?;
         }
         Err(err) => {

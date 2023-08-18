@@ -38,12 +38,6 @@ const START_SERVER_USAGE: &str = "Usage: `oxen-server start -i 0.0.0.0 -p 3000`"
 
 const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct IncomingBody {
-    pub one: String,
-    pub two: i32,
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
@@ -61,9 +55,6 @@ async fn main() -> std::io::Result<()> {
 
         let mut con = redis_client.get_connection().unwrap();
         loop {
-            // let body = PostPushComplete{commit_id: "ojfdskfsdne".to_owned()};
-            // let bytes = bincode::serialize(&body).unwrap();
-
             let outcome: Option<Vec<u8>>;
             {
                 // Pop off of the queue
@@ -80,8 +71,7 @@ async fn main() -> std::io::Result<()> {
                         task.run();
                     }
                     None => {
-                        log::debug!("No queue items found");
-                        sleep(Duration::from_millis(500)).await;
+                        sleep(Duration::from_millis(3000)).await;
                     }
                 }
             }
@@ -167,10 +157,8 @@ async fn main() -> std::io::Result<()> {
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
 
-                    // Poll redis in background
+                    // Poll for post-commit tasks in background
                     tokio::spawn(async { run_redis_poller().await });
-
-                    log::debug!("Still continuing through the program!");
 
                     let data = app_data::OxenAppData::from(&sync_dir);
                     HttpServer::new(move || {
