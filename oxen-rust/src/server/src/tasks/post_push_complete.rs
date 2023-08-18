@@ -3,7 +3,6 @@ use liboxen::{
     model::{Commit, LocalRepository},
 };
 use serde::{Deserialize, Serialize};
-use std::{thread, time};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PostPushComplete {
@@ -12,7 +11,7 @@ pub struct PostPushComplete {
 }
 
 impl PostPushComplete {
-    pub fn run(self) -> () {
+    pub fn run(self) {
         log::debug!(
             "Running cachers for commit {:?} on repo {:?} from redis queue",
             self.commit.id,

@@ -179,7 +179,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     // Iterate first to last over commits
     for commit in commits {
         log::debug!("latest_synced checking commit {:?}", commit.id);
-        let _response = match commit_cacher::get_status(&repository, &commit) {
+        match commit_cacher::get_status(&repository, &commit) {
             Ok(Some(CacherStatusType::Success)) => {
                 match content_validator::is_valid(&repository, &commit) {
                     Ok(true) => {
@@ -203,15 +203,15 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                     err => {
                         // Desired behavior here?
                         log::error!("latest_synced content_validator::is_valid error {err:?}");
-                        return Ok(
-                            HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                        return Ok(HttpResponse::InternalServerError().json(
+                            IsValidStatusMessage {
                                 status: String::from(STATUS_ERROR),
                                 status_message: String::from(MSG_INTERNAL_SERVER_ERROR),
                                 status_description: format!("Err: {err:?}"),
                                 is_processing: false,
                                 is_valid: false,
-                            }),
-                        );
+                            },
+                        ));
                     }
                 }
             }
@@ -891,7 +891,7 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     // name to the repo, should be in url path so okay to unwrap
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let _repo = get_repo(&app_data.path, namespace, repo_name)?;
     // Deserialize the "commits" param into Vec<Commit> with serde
     let commits: Vec<Commit> = match serde_json::from_str(&body) {
         Ok(commits) => commits,
@@ -900,8 +900,8 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
 
     // Redis connection - TODO, make a globally accessible connection pool
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost".to_string());
-    let redis_client = redis::Client::open(redis_url)?;
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost/".to_string());
+    let redis_client = redis::Client::open(redis_url).expect("Failed to connect to redis");
     let mut con = redis_client.get_connection()?;
 
     // Get repo by name
@@ -920,12 +920,8 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         let commit = commit_reader
             .get_commit_by_id(&commit_id)?
             .ok_or(OxenError::revision_not_found(commit_id.clone().into()))?;
-        // TODO: don't clone repo
+
         let repo_path_clone = repo_path.clone();
-        // let repo_clone = repo.clone();
-        // std::thread::spawn(move || {
-        //     log::debug!("Processing commit {:?} on repo {:?}", commit, &repo_path_clone);
-        // });
 
         // Append a task to the queue
         let task = PostPushComplete {
@@ -944,26 +940,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
             .arg("commit_queue")
             .arg(task_bytes.clone())
             .query(&mut con)?;
-
-        // let force = false;
-        //     match commit_cacher::run_all(&repo_clone, &commit, force) {
-        //         Ok(_) => {
-        //             log::debug!(
-        //                 "Success processing commit {:?} on repo {:?}",
-        //                 commit,
-        //                 &repo_path_clone
-        //             );
-        //         }
-        //         Err(err) => {
-        //             log::error!(
-        //                 "Could not process commit {:?} on repo {:?}: {}",
-        //                 commit,
-        //                 &repo_path_clone,
-        //                 err
-        //             );
-        //     }
-        // };
-        log::debug!("continuing on with the controller for now...")
     }
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }

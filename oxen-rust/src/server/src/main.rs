@@ -1,7 +1,5 @@
-use actix_http::Request;
-use actix_web::web::{Bytes, BytesMut};
 use liboxen::config::UserConfig;
-use liboxen::error::OxenError;
+
 use liboxen::model::User;
 
 pub mod app_data;
@@ -18,18 +16,17 @@ pub mod view;
 extern crate log;
 
 use actix_web::middleware::{Condition, Logger};
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
-use bincode;
+
 use clap::{Arg, Command};
 use env_logger::Env;
-use redis;
+
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::errors::OxenHttpError;
 use crate::tasks::post_push_complete::PostPushComplete;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
@@ -58,7 +55,9 @@ async fn main() -> std::io::Result<()> {
 
     // Redis polling worker setup
     async fn run_redis_poller() {
-        let redis_client = redis::Client::open("redis://127.0.0.1/").unwrap();
+        let redis_url =
+            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost/".to_string());
+        let redis_client = redis::Client::open(redis_url).expect("Failed to connect to redis");
 
         let mut con = redis_client.get_connection().unwrap();
         loop {
