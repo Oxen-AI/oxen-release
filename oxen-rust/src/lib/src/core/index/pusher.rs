@@ -21,7 +21,6 @@ use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, R
 
 use crate::{api, util};
 
-// TODONOW if stuff broke, this is why
 pub struct UnsyncedCommitEntries {
     pub commit: Commit,
     pub entries: Vec<CommitEntry>,
@@ -128,6 +127,8 @@ async fn get_commit_objects_to_sync(
 ) -> Result<Vec<Commit>, OxenError> {
     let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
     let mut commits_to_sync: Vec<Commit>;
+    // TODO: If remote branch does not yet, recreates all commits regardless of shared history.
+    // Not a huge deal performance-wise right now, but could be for very commit-heavy repos
     if let Some(remote_branch) = remote_branch {
         log::debug!(
             "get_commit_objects_to_sync found remote branch {:?}, calculating missing commits between local and remote heads", remote_branch
@@ -398,7 +399,8 @@ async fn push_missing_commit_entries(
 
     println!("🐂 Posting entries to server");
 
-    // TODONOW refactor here
+    // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
+    // For now, will send the HEAD commit through for logging purposes
     if !unsynced_entries.is_empty() {
         let all_entries = UnsyncedCommitEntries {
             commit: commits[0].to_owned(),
@@ -784,8 +786,7 @@ async fn bundle_and_send_small_entries(
                 let is_compressed = true;
                 let file_name = None;
 
-                // TODONOW - fix this temp quiet bar
-                // Init a silent bar
+                // TODO: Refactor where the bars are being passed so we don't need silent here
                 let quiet_bar = Arc::new(ProgressBar::hidden());
 
                 match api::remote::commits::post_data_to_server(

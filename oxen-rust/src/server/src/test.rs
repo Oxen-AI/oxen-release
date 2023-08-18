@@ -9,7 +9,6 @@ use env_logger::Env;
 use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 pub fn init_test_env() {
     let env = Env::default();

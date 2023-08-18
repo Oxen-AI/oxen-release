@@ -29,7 +29,7 @@ use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 pub struct ChunkParams {
@@ -550,8 +550,6 @@ pub async fn post_commit_db_to_server(
     let filename = None;
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
-
-    //TODONOW see if we can take this out
 
     post_data_to_server(
         remote_repo,
