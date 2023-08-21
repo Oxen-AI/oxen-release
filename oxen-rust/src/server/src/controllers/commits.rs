@@ -807,6 +807,7 @@ pub async fn upload(
     }))
 }
 
+// Deprecated in favor of bulk - can we remove?
 /// Notify that the push should be complete, and we should start doing our background processing
 pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();

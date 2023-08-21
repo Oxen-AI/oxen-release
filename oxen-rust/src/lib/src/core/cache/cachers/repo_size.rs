@@ -69,11 +69,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // TODO: do not copy pasta this code
         for entry in entries {
-            log::debug!(
-                "looking for latest commit entry fro {:?} on commit {:?}",
-                entry.path,
-                entry.commit_id
-            );
             let commit = if commits.contains_key(&entry.commit_id) {
                 Some(commits[&entry.commit_id].clone())
             } else {
@@ -81,25 +76,25 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             };
 
             if latest_commit.is_none() {
-                log::debug!(
-                    "FOUND LATEST COMMIT PARENT EMPTY {:?} -> {:?}",
-                    entry.path,
-                    commit
-                );
+                // log::debug!(
+                //     "FOUND LATEST COMMIT PARENT EMPTY {:?} -> {:?}",
+                //     entry.path,
+                //     commit
+                // );
                 latest_commit = commit.clone();
             } else {
-                log::debug!(
-                    "CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}",
-                    entry.path,
-                    latest_commit.as_ref().unwrap().timestamp,
-                    commit.as_ref().unwrap().timestamp
-                );
+                // log::debug!(
+                //     "CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}",
+                //     entry.path,
+                //     latest_commit.as_ref().unwrap().timestamp,
+                //     commit.as_ref().unwrap().timestamp
+                // );
                 if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
-                    log::debug!(
-                        "FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}",
-                        entry.path,
-                        commit
-                    );
+                    // log::debug!(
+                    //     "FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}",
+                    //     entry.path,
+                    //     commit
+                    // );
                     latest_commit = commit.clone();
                 }
             }

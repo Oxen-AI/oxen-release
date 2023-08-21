@@ -79,7 +79,6 @@ mod tests {
 
     use std::path::Path;
     use std::path::PathBuf;
-    use std::time::Instant;
 
     use crate::api;
     use crate::command;

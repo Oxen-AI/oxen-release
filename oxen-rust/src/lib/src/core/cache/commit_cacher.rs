@@ -149,7 +149,7 @@ fn get_db_connection(
 
 /// Run all the cachers and update their status's as you go
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
-    // Write the LOCK file and delete when we are done processin
+    // Write the LOCK file and delete when we are done processing
     let lock_path = cached_status_lock_path(repo, commit);
     log::warn!("run_all called on commit {} force? {}", commit, force);
 
@@ -203,7 +203,6 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
     // Delete the LOCK file
     log::debug!("run_all Deleting lock file {:?}", lock_path);
     util::fs::remove_file(lock_path)?;
-    log::debug!("lock file deleted for commit {:?}", commit);
 
     Ok(())
 }

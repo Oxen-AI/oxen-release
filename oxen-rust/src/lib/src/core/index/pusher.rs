@@ -351,16 +351,9 @@ async fn push_missing_commit_dbs(
 
     // Sleep again to let things sync...
     sleep(Duration::from_secs(1)).await;
-
-    // for commit in &unsynced_commits {
-    //     api::remote::commits::post_commit_db_to_server(local_repo, remote_repo, commit).await?;
-    //     pb.inc(1);
-    // }
     pb.finish();
     Ok(())
 }
-
-// Rewrite above in parallel
 
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
@@ -428,7 +421,7 @@ async fn push_missing_commit_entries(
     Ok(())
 }
 
-fn read_unsynced_entries(
+pub fn read_unsynced_entries(
     local_repo: &LocalRepository,
     last_commit: &Commit,
     this_commit: &Commit,
@@ -832,8 +825,6 @@ mod tests {
     use crate::error::OxenError;
 
     use crate::test;
-
-    // Use empty, create 1k small files and commits within the test repo, then ditch
 
     #[tokio::test]
     async fn test_push_missing_commit_objects() -> Result<(), OxenError> {
