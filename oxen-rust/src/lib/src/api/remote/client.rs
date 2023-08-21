@@ -40,8 +40,15 @@ pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {
 pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenError> {
     let builder = builder();
 
-    let config = UserConfig::get()?;
+    let config = match UserConfig::get() {
+        Ok(config) => config,
+        Err(err) => {
+            log::debug!("remote::client::new_for_host error getting config: {}", err);
+            return Ok(builder);
+        }
+    };
     if let Some(auth_token) = config.auth_token_for_host(host.as_ref()) {
+        log::debug!("SETTING AUTH TOKEN FOR HOST: {}", host.as_ref());
         let auth_header = format!("Bearer {auth_token}");
         let mut auth_value = match header::HeaderValue::from_str(auth_header.as_str()) {
             Ok(header) => header,
@@ -57,6 +64,7 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
         headers.insert(header::AUTHORIZATION, auth_value);
         Ok(builder.default_headers(headers))
     } else {
+        eprintln!("Warning: No auth token found for host '{}'\n\nTo set a token run:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n", host.as_ref());
         Ok(builder)
     }
 }
@@ -67,6 +75,15 @@ fn builder() -> ClientBuilder {
 
 /// Performs an extra parse to validate that the response is success
 pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
+    parse_json_body_with_err_msg(url, res, None).await
+}
+
+/// Used to override error message when parsing json body
+pub async fn parse_json_body_with_err_msg(
+    url: &str,
+    res: reqwest::Response,
+    msg: Option<&str>,
+) -> Result<String, OxenError> {
     let status = res.status();
     let body = res.text().await?;
 
@@ -74,7 +91,7 @@ pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String
 
     let response: Result<OxenResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
-        Ok(response) => parse_status_and_message(url, body, status, response),
+        Ok(response) => parse_status_and_message(url, body, status, response, msg),
         Err(err) => {
             log::debug!("Err: {}", err);
             Err(OxenError::basic_str(format!(
@@ -89,6 +106,7 @@ fn parse_status_and_message(
     body: String,
     status: reqwest::StatusCode,
     response: OxenResponse,
+    msg: Option<&str>,
 ) -> Result<String, OxenError> {
     match response.status.as_str() {
         http::STATUS_SUCCESS => {
@@ -107,10 +125,16 @@ fn parse_status_and_message(
             "Remote Warning: {}",
             response.desc_or_msg()
         ))),
-        http::STATUS_ERROR => Err(OxenError::basic_str(format!(
-            "Remote Err: {}",
-            response.desc_or_msg()
-        ))),
+        http::STATUS_ERROR => {
+            if let Some(msg) = msg {
+                Err(OxenError::basic_str(msg))
+            } else {
+                Err(OxenError::basic_str(format!(
+                    "Remote Err: {}",
+                    response.desc_or_msg()
+                )))
+            }
+        }
         status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),
     }
 }
