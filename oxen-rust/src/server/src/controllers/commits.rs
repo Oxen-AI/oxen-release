@@ -172,7 +172,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
 
     // Iterate first to last over commits
     for commit in commits {
-        log::debug!("latest_synced checking commit {:?}", commit.id);
+        // log::debug!("latest_synced checking commit {:?}", commit.id);
         match commit_cacher::get_status(&repository, &commit) {
             Ok(Some(CacherStatusType::Success)) => {
                 match content_validator::is_valid(&repository, &commit) {
@@ -181,7 +181,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                         // For this to work, we need to maintain relative order of commits in redis queue push // one worker, for now.
                         // TODO: If we want to move to multiple workers or break this order,
                         // we can make this more robust (but slower) by checking the full commit history
-                        log::debug!("latest_synced commit is valid: {:?}", commit.id);
+                        // log::debug!("latest_synced commit is valid: {:?}", commit.id);
                         latest_synced = Some(commit);
                         break;
                     }
@@ -210,7 +210,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                 }
             }
             Ok(Some(CacherStatusType::Pending)) => {
-                log::debug!("latest_synced commit is pending {}", commit.id);
+                // log::debug!("latest_synced commit is pending {}", commit.id);
                 commits_to_sync.push(commit);
             }
             Ok(Some(CacherStatusType::Failed)) => {
@@ -232,7 +232,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                 );
             }
             Ok(None) => {
-                log::debug!("latest_synced commit not yet processing: {}", commit.id);
+                // log::debug!("latest_synced commit not yet processing: {}", commit.id);
                 // Panic to fail the test
                 // panic!("NONE WORLD IS IN HERE");
                 commits_to_sync.push(commit);
