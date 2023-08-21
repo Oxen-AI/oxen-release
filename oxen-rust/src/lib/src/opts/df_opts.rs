@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::constants::{FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
+use crate::constants::{DEFAULT_HOST, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
 use crate::core::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
 use crate::model::schema::Field;
@@ -33,6 +33,7 @@ pub struct DFOpts {
     pub delimiter: Option<String>,
     pub filter: Option<String>,
     pub head: Option<usize>,
+    pub host: Option<String>,
     pub output: Option<PathBuf>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
@@ -41,6 +42,7 @@ pub struct DFOpts {
     pub slice: Option<String>,
     pub sort_by: Option<String>,
     pub sql: Option<String>,
+    pub text2sql: Option<String>,
     pub tail: Option<usize>,
     pub take: Option<String>,
     pub unique: Option<String>,
@@ -60,6 +62,7 @@ impl DFOpts {
             delimiter: None,
             filter: None,
             head: None,
+            host: None,
             output: None,
             page_size: None,
             page: None,
@@ -68,6 +71,7 @@ impl DFOpts {
             slice: None,
             sort_by: None,
             sql: None,
+            text2sql: None,
             tail: None,
             take: None,
             unique: None,
@@ -139,6 +143,7 @@ impl DFOpts {
             || self.sql.is_some()
             || self.tail.is_some()
             || self.take.is_some()
+            || self.text2sql.is_some()
             || self.unique.is_some()
             || self.vstack.is_some()
     }
@@ -192,6 +197,13 @@ impl DFOpts {
             return Some(split);
         }
         None
+    }
+
+    pub fn get_host(&self) -> String {
+        match &self.host {
+            Some(host) => host.to_owned(),
+            None => String::from(DEFAULT_HOST),
+        }
     }
 
     pub fn get_filter(&self) -> Result<Option<DFFilterExp>, OxenError> {
