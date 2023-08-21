@@ -76,14 +76,11 @@ pub async fn push_remote_repo(
 
     push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
 
-    println!("🐂 Identifying unsynced commits dbs...");
+    log::debug!("🐂 Identifying unsynced commits dbs...");
     let unsynced_db_commits =
         api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
 
-    println!(
-        "🐂 Pushing {} commit dbs to server",
-        unsynced_db_commits.len()
-    );
+    println!("🐂 Syncing databases");
 
     // push_missing_commit_dbs
     push_missing_commit_dbs(local_repo, &remote_repo, unsynced_db_commits).await?;
@@ -94,7 +91,7 @@ pub async fn push_remote_repo(
         &branch.name,
         &head_commit
     );
-    println!("🐂 Identifying commits with unsynced entries...");
+    log::debug!("🐂 Identifying commits with unsynced entries...");
 
     // Get commits with unsynced entries
     let unsynced_entries_commits =
@@ -390,7 +387,7 @@ async fn push_missing_commit_entries(
 
     bar.finish();
 
-    println!("🐂 Posting entries to server");
+    println!("🐂 Pushing entries to server");
 
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
