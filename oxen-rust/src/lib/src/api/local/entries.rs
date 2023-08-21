@@ -117,11 +117,6 @@ fn compute_latest_commit(
                 }
 
                 if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
-                    log::debug!(
-                        "timestamp {:?} > {:?}",
-                        latest_commit.as_ref().unwrap().timestamp,
-                        commit.as_ref().unwrap().timestamp
-                    );
                     latest_commit = commit.clone();
                 }
             }

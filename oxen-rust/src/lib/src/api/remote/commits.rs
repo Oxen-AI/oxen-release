@@ -489,33 +489,6 @@ pub async fn post_commits_to_server(
     Ok(())
 }
 
-pub async fn complete_commits(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    commits: &Vec<UnsyncedCommitEntries>,
-    branch_name: String,
-) -> Result<(), OxenError> {
-    let mut commits_with_size: Vec<CommitWithBranchName> = Vec::new();
-    for commit_with_entries in commits {
-        let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
-            .join(HISTORY_DIR)
-            .join(&commit_with_entries.commit.id);
-        let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
-        let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + entries_size;
-
-        let commit_with_size = CommitWithBranchName::from_commit(
-            &commit_with_entries.commit,
-            size,
-            branch_name.clone(),
-        );
-
-        commits_with_size.push(commit_with_size);
-    }
-
-    bulk_create_commit_obj_on_server(remote_repo, &commits_with_size).await?;
-    Ok(())
-}
-
 pub async fn post_commit_db_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -560,72 +533,6 @@ pub async fn post_commit_db_to_server(
         quiet_bar,
     )
     .await
-}
-
-pub async fn post_commit_to_server(
-    local_repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    commit: &Commit,
-    unsynced_entries_size: u64,
-    branch_name: String,
-) -> Result<(), OxenError> {
-    // Compute the size of the commit
-    let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
-        .join(HISTORY_DIR)
-        .join(&commit.id);
-    let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + unsynced_entries_size;
-
-    // First create commit on server with size
-    let commit_w_size = CommitWithBranchName::from_commit(commit, size, branch_name);
-    create_commit_obj_on_server(remote_repo, &commit_w_size).await?;
-
-    // Then zip up and send the history db
-    // zip up the rocksdb in history dir, and post to server
-    let commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
-        .join(HISTORY_DIR)
-        .join(commit.id.clone());
-
-    // This will be the subdir within the tarball
-    let tar_subdir = Path::new(HISTORY_DIR).join(commit.id.clone());
-
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
-    tar.append_dir_all(&tar_subdir, commit_dir)?;
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-
-    let bar = Arc::new(ProgressBar::new(buffer.len() as u64));
-
-    let is_compressed = true;
-    let filename = None;
-    post_data_to_server(remote_repo, commit, buffer, is_compressed, &filename, bar).await
-}
-
-async fn create_commit_obj_on_server(
-    remote_repo: &RemoteRepository,
-    commit: &CommitWithBranchName,
-) -> Result<CommitResponse, OxenError> {
-    let url = api::endpoint::url_from_repo(remote_repo, "/commits")?;
-    log::debug!("create_commit_obj_on_server {}\n{:?}", url, commit);
-
-    let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).json(commit).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        log::debug!("create_commit_obj_on_server got response {}", body);
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
-        match response {
-            Ok(response) => Ok(response),
-            Err(_) => Err(OxenError::basic_str(format!(
-                "create_commit_obj_on_server Err deserializing \n\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "create_commit_obj_on_server error sending data from file",
-        ))
-    }
 }
 
 pub async fn bulk_create_commit_obj_on_server(
@@ -923,42 +830,6 @@ mod tests {
     use std::thread;
 
     #[tokio::test]
-    async fn test_remote_commits_post_commit_to_server() -> Result<(), OxenError> {
-        test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
-            // Track the annotations dir
-            // has format
-            //   annotations/
-            //     train/
-            //       one_shot.csv
-            //       annotations.txt
-            //     test/
-            //       annotations.txt
-            let annotations_dir = local_repo.path.join("annotations");
-            command::add(&local_repo, &annotations_dir)?;
-            // Commit the directory
-            let commit = command::commit(
-                &local_repo,
-                "Adding annotations data dir, which has two levels",
-            )?;
-            let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
-
-            // Post commit
-            let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
-            api::remote::commits::post_commit_to_server(
-                &local_repo,
-                &remote_repo,
-                &commit,
-                entries_size,
-                branch.name.clone(),
-            )
-            .await?;
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
         test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
             // Track the annotations dir
@@ -1066,13 +937,18 @@ mod tests {
             )?;
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
-            // Post commit but not the actual files
-            let entries_size = 1000; // doesn't matter, since we aren't verifying size in tests
-            api::remote::commits::post_commit_to_server(
+            // Dummy entries, not checking this
+            let entries = Vec::<CommitEntry>::new();
+
+            let unsynced_commits = vec![UnsyncedCommitEntries {
+                commit: commit.clone(),
+                entries,
+            }];
+
+            api::remote::commits::post_commits_to_server(
                 &local_repo,
                 &remote_repo,
-                &commit,
-                entries_size,
+                &unsynced_commits,
                 branch.name.clone(),
             )
             .await?;
@@ -1194,6 +1070,67 @@ mod tests {
             .await?;
 
             Ok(remote_clone)
+        })
+        .await
+    }
+    #[tokio::test]
+    async fn test_latest_commit_synced() -> Result<(), OxenError> {
+        test::run_training_data_sync_test_no_commits(|mut local_repo, remote_repo| async move {
+            // Track the annotations dir
+            // has format
+            //   annotations/
+            //     train/
+            //       one_shot.csv
+            //       annotations.txt
+            //     test/
+            //       annotations.txt
+            let annotations_dir = local_repo.path.join("annotations");
+            command::add(&local_repo, &annotations_dir)?;
+            // Commit the directory
+            let commit = command::commit(
+                &local_repo,
+                "Adding annotations data dir, which has two levels",
+            )?;
+            let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
+
+            // Post commit but not the actual files
+            let entries = Vec::<CommitEntry>::new(); // actual entries doesn't matter, since we aren't verifying size in tests
+            api::remote::commits::post_commits_to_server(
+                &local_repo,
+                &remote_repo,
+                &vec![UnsyncedCommitEntries {
+                    commit: commit.clone(),
+                    entries,
+                }],
+                branch.name.clone(),
+            )
+            .await?;
+
+            // Should not be synced because we didn't actually post the files
+            let latest_synced =
+                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
+
+            assert!(latest_synced.latest_synced.is_none());
+
+            // Initial and followon
+            assert_eq!(latest_synced.num_unsynced, 2);
+
+            // Set remote and push
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+            command::push(&local_repo).await?;
+
+            // Should now be synced
+            let latest_synced =
+                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
+
+            assert_eq!(latest_synced.latest_synced.unwrap(), commit);
+            assert_eq!(latest_synced.num_unsynced, 0);
+
+            Ok(remote_repo)
         })
         .await
     }
