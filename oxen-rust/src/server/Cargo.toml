@@ -26,6 +26,7 @@ jsonwebtoken = "8"
 liboxen = { path = "../lib" }
 log = "0.4.17"
 rand = "0.8.0"
+redis = "0.23.2"
 rocksdb = { version = "0.21.0", default-features = false, features = ["lz4", "snappy", "zstd", "zlib"] }
 sanitize-filename = "0.5.0"
 serde = { version = "1.0.136", features = ["derive"] }
