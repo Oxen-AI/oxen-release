@@ -49,12 +49,8 @@ async fn main() -> std::io::Result<()> {
 
     // Redis polling worker setup
     async fn run_redis_poller() {
-        let redis_url =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost/".to_string());
-        log::debug!("Connecting to redis on {}", redis_url);
-        let redis_client = redis::Client::open(redis_url).expect("Failed to connect to redis");
+        let mut con = helpers::get_redis_connection().unwrap();
 
-        let mut con = redis_client.get_connection().unwrap();
         loop {
             let outcome: Option<Vec<u8>>;
             {
