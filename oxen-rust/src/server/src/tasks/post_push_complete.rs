@@ -4,14 +4,16 @@ use liboxen::{
 };
 use serde::{Deserialize, Serialize};
 
+use super::{Task, Runnable};
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PostPushComplete {
     pub commit: Commit,
     pub repo: LocalRepository,
 }
 
-impl PostPushComplete {
-    pub fn run(self) {
+impl Runnable for PostPushComplete {
+    fn run(&self) {
         log::debug!(
             "Running cachers for commit {:?} on repo {:?} from redis queue",
             self.commit.id,
