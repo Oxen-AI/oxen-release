@@ -8,6 +8,7 @@ pub mod controllers;
 pub mod errors;
 pub mod helpers;
 pub mod params;
+pub mod queues;
 pub mod routes;
 pub mod tasks;
 pub mod test;
@@ -26,8 +27,10 @@ use std::path::Path;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 use crate::tasks::post_push_complete::PostPushComplete;
 use liboxen::constants::COMMIT_QUEUE_NAME;
+use crate::tasks::Runnable;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -47,30 +50,58 @@ async fn main() -> std::io::Result<()> {
         Err(_) => String::from("data"),
     };
 
-    // Redis polling worker setup
-    async fn run_redis_poller() {
-        let mut con = helpers::get_redis_connection().unwrap();
-
+    // Polling worker setup
+    async fn poll_queue(mut queue: Box<dyn TaskQueue>) {
         loop {
-            let outcome: Option<Vec<u8>>;
-            {
-                // Pop off of the queue
-                outcome = redis::cmd("LPOP")
-                    .arg(COMMIT_QUEUE_NAME)
-                    .query(&mut con)
-                    .unwrap();
-
-                match outcome {
-                    Some(data) => {
-                        log::debug!("Got queue item: {:?}", data);
-                        let task: PostPushComplete = bincode::deserialize(&data).unwrap();
-                        println!("{:?}", task);
-                        task.run();
-                    }
-                    None => {
-                        sleep(Duration::from_millis(3000)).await;
-                    }
+            match queue.pop() {
+                Some(task) => {
+                    log::debug!("Got queue item: {:?}", task);
+                    task.run();
                 }
+                None => {
+                    log::debug!("No queue items found, sleeping");
+                    sleep(Duration::from_millis(3000)).await;
+                }
+            }
+        }
+    }
+
+    // async fn run_redis_poller() {
+    //     let mut con = helpers::get_redis_connection().unwrap();
+
+    //     loop {
+    //         let outcome: Option<Vec<u8>>;
+    //         {
+    //             // Pop off of the queue
+    //             outcome = redis::cmd("LPOP")
+    //                 .arg(COMMIT_QUEUE_NAME)
+    //                 .query(&mut con)
+    //                 .unwrap();
+
+    //             match outcome {
+    //                 Some(data) => {
+    //                     log::debug!("Got queue item: {:?}", data);
+    //                     let task: PostPushComplete = bincode::deserialize(&data).unwrap();
+    //                     println!("{:?}", task);
+    //                     task.run();
+    //                 }
+    //                 None => {
+    //                     sleep(Duration::from_millis(3000)).await;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+
+    pub fn init_queue() -> Box<dyn TaskQueue> {
+        match helpers::get_redis_connection() {
+            Ok(conn) => {
+                println!("connecting to redis established, initializing queue");
+                Box::new(RedisTaskQueue { conn })
+            }
+            Err(_) => {
+                println!("Failed to connect to Redis. Falling back to in-memory queue.");
+                Box::new(InMemoryTaskQueue::new())
             }
         }
     }
@@ -155,9 +186,15 @@ async fn main() -> std::io::Result<()> {
                     let enable_auth = sub_matches.get_flag("auth");
 
                     // Poll for post-commit tasks in background
-                    tokio::spawn(async { run_redis_poller().await });
+                    // tokio::spawn(async { run_redis_poller().await });
+                    // Init queue here
 
-                    let data = app_data::OxenAppData::from(&sync_dir);
+                    let queue = init_queue();
+
+                    // Poll for post-commit tasks in background
+                    tokio::spawn(async { poll_queue(queue).await });
+
+                    let data = app_data::OxenAppData::new(&sync_dir, queue);
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())
