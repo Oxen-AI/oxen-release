@@ -29,8 +29,8 @@ use tokio::time::sleep;
 
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 use crate::tasks::post_push_complete::PostPushComplete;
-use liboxen::constants::COMMIT_QUEUE_NAME;
 use crate::tasks::Runnable;
+use liboxen::constants::COMMIT_QUEUE_NAME;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -60,7 +60,7 @@ async fn main() -> std::io::Result<()> {
                 }
                 None => {
                     log::debug!("No queue items found, sleeping");
-                    sleep(Duration::from_millis(3000)).await;
+                    sleep(Duration::from_millis(1000)).await;
                 }
             }
         }

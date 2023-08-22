@@ -885,7 +885,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
 
-
     // Get repo by name
     let repo =
         api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
@@ -1176,7 +1175,7 @@ mod tests {
             App::new()
                 .app_data(OxenAppData {
                     path: sync_dir.clone(),
-                    queue
+                    queue,
                 })
                 .route(
                     "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
