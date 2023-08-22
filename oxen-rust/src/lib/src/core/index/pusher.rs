@@ -238,6 +238,7 @@ async fn poll_until_synced(
     loop {
         match api::remote::commits::latest_commit_synced(remote_repo, head_commit_id).await {
             Ok(sync_status) => {
+                retries = 0;
                 log::debug!("Got latest synced commit {:?}", sync_status.latest_synced);
                 log::debug!("Got n unsynced commits {:?}", sync_status.num_unsynced);
                 bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
