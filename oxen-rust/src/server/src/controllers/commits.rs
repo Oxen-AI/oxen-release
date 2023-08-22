@@ -35,6 +35,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::{get_redis_connection, get_repo};
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
+use crate::tasks;
 use crate::tasks::post_push_complete::PostPushComplete;
 
 use actix_web::{web, Error, HttpRequest, HttpResponse};
@@ -872,6 +873,8 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
 pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("In the commits controller");
     let app_data = req.app_data::<OxenAppData>().unwrap();
+    let mut queue = app_data.queue.clone();
+
     // name to the repo, should be in url path so okay to unwrap
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -882,7 +885,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
 
-    let mut con = get_redis_connection()?;
 
     // Get repo by name
     let repo =
@@ -908,18 +910,20 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
             commit: commit.clone(),
             repo: repo.clone(),
         };
-        let task_bytes = bincode::serialize(&task).unwrap();
+        // let task_bytes = bincode::serialize(&task).unwrap();
 
-        log::debug!(
-            "Adding to queue for commit {:?} on repo {:?}",
-            commit,
-            &repo_path_clone
-        );
+        // log::debug!(
+        //     "Adding to queue for commit {:?} on repo {:?}",
+        //     commit,
+        //     &repo_path_clone
+        // );
 
-        let _: isize = redis::cmd("LPUSH")
-            .arg(COMMIT_QUEUE_NAME)
-            .arg(task_bytes.clone())
-            .query(&mut con)?;
+        queue.push(tasks::Task::PostPushComplete(task))
+
+        // let _: isize = redis::cmd("LPUSH")
+        //     .arg(COMMIT_QUEUE_NAME)
+        //     .arg(task_bytes.clone())
+        //     .query(&mut con)?;
     }
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
@@ -986,13 +990,13 @@ mod tests {
     async fn test_controllers_commits_index_empty() -> Result<(), OxenError> {
         init_test_env();
         let sync_dir = test::get_sync_dir()?;
-
+        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         test::create_local_repo(&sync_dir, namespace, name)?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
-        let req = test::repo_request(&sync_dir, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await;
 
@@ -1012,7 +1016,7 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_two_commits() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-
+        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -1025,7 +1029,7 @@ mod tests {
         command::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
-        let req = test::repo_request(&sync_dir, &uri, namespace, name);
+        let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
         let resp = controllers::commits::index(req).await;
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -1043,7 +1047,7 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-
+        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1062,6 +1066,7 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{repo_name}/commits/{branch_name}/history");
         let req = test::repo_request_with_param(
             &sync_dir,
+            queue,
             &uri,
             namespace,
             repo_name,
@@ -1088,7 +1093,7 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_list_some_commits_on_branch() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-
+        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1112,6 +1117,7 @@ mod tests {
         );
         let req = test::repo_request_with_param(
             &sync_dir,
+            queue,
             &uri,
             namespace,
             repo_name,
@@ -1137,7 +1143,7 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_commits_upload() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-
+        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
@@ -1170,6 +1176,7 @@ mod tests {
             App::new()
                 .app_data(OxenAppData {
                     path: sync_dir.clone(),
+                    queue
                 })
                 .route(
                     "/oxen/{namespace}/{repo_name}/commits/{commit_id}",

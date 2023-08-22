@@ -51,7 +51,7 @@ async fn main() -> std::io::Result<()> {
     };
 
     // Polling worker setup
-    async fn poll_queue(mut queue: Box<dyn TaskQueue>) {
+    async fn poll_queue(mut queue: TaskQueue) {
         loop {
             match queue.pop() {
                 Some(task) => {
@@ -93,15 +93,15 @@ async fn main() -> std::io::Result<()> {
     //     }
     // }
 
-    pub fn init_queue() -> Box<dyn TaskQueue> {
+    pub fn init_queue() -> TaskQueue {
         match helpers::get_redis_connection() {
-            Ok(conn) => {
+            Ok(pool) => {
                 println!("connecting to redis established, initializing queue");
-                Box::new(RedisTaskQueue { conn })
+                TaskQueue::Redis(RedisTaskQueue { pool })
             }
             Err(_) => {
                 println!("Failed to connect to Redis. Falling back to in-memory queue.");
-                Box::new(InMemoryTaskQueue::new())
+                TaskQueue::InMemory(InMemoryTaskQueue::new())
             }
         }
     }
@@ -191,10 +191,10 @@ async fn main() -> std::io::Result<()> {
 
                     let queue = init_queue();
 
+                    let data = app_data::OxenAppData::new(&sync_dir, queue.clone());
                     // Poll for post-commit tasks in background
                     tokio::spawn(async { poll_queue(queue).await });
 
-                    let data = app_data::OxenAppData::new(&sync_dir, queue);
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())
