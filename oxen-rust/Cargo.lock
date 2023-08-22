@@ -2801,6 +2801,7 @@ dependencies = [
  "qsv-sniffer",
  "rand",
  "rayon",
+ "redis",
  "reqwest",
  "rocksdb",
  "serde",

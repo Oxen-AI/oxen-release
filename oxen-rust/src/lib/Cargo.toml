@@ -60,6 +60,7 @@ polars = { version = "0.32.1", features = ["lazy", "parquet", "json", "ipc", "ip
 qsv-sniffer = "0.10.0"
 rand = "0.8.5"
 rayon = "1.7.0"
+redis = "0.23.2"
 reqwest = { version = "0.11.16", features = ["multipart", "json", "gzip", "stream"] }
 rocksdb = { version = "0.21.0", default-features = false, features = ["lz4", "snappy", "zstd", "zlib"] }
 serde = { version = "1.0.136", features = ["derive"] }
