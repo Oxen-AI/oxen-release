@@ -1,13 +1,13 @@
 use polars::{lazy::dsl::Expr, prelude::*};
 use polars_sql::SQLContext;
 
-use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::ContentType;
 use crate::opts::DFOpts;
 use crate::util::hasher;
+use crate::{api, constants};
 
 use colored::Colorize;
 use comfy_table::Table;
@@ -379,7 +379,6 @@ pub fn transform_lazy(
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     log::debug!("Got transform ops {:?}", opts);
-
     if let Some(vstack) = &opts.vstack {
         log::debug!("Got files to stack {:?}", vstack);
         for path in vstack.iter() {
@@ -400,6 +399,10 @@ pub fn transform_lazy(
 
     if let Some(col_vals) = opts.add_col_vals() {
         df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+    }
+
+    if let Some(query) = &opts.text2sql {
+        df = run_text2sql(df, query, opts.get_host())?;
     }
 
     if let Some(query) = &opts.sql {
@@ -473,10 +476,7 @@ pub fn transform_lazy(
 
     match df.collect() {
         Ok(df) => Ok(df),
-        Err(err) => Err(OxenError::basic_str(format!(
-            "Could not collect df: {}",
-            err
-        ))),
+        Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
     }
 }
 
@@ -490,6 +490,18 @@ fn run_sql(df: LazyFrame, q: &str) -> Result<LazyFrame, OxenError> {
             err
         ))),
     }
+}
+
+async fn get_sql(df: LazyFrame, q: &str, host: String) -> Result<String, OxenError> {
+    let schema_str = schema_to_flat_str(&df.schema().unwrap());
+
+    api::remote::text2sql::convert(q, &schema_str, Some(host.to_string())).await
+}
+
+pub fn run_text2sql(df: LazyFrame, q: &str, host: String) -> Result<LazyFrame, OxenError> {
+    let sql = futures::executor::block_on(get_sql(df.clone(), q, host))?;
+    println!("\n{}\n", sql);
+    run_sql(df, &sql)
 }
 
 fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
@@ -847,18 +859,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
     let schema = df.schema().expect("Could not get schema");
 
     if flatten {
-        let mut result = String::new();
-        for (i, field) in schema.iter_fields().enumerate() {
-            if i != 0 {
-                result = format!("{result},");
-            }
-
-            let dtype = DataType::from_polars(field.data_type());
-            let field_str = field.name().to_string();
-            let dtype_str = String::from(DataType::as_str(&dtype));
-            result = format!("{result}{field_str}:{dtype_str}");
-        }
-
+        let result = schema_to_flat_str(&schema);
         Ok(result)
     } else {
         let mut table = Table::new();
@@ -873,6 +874,22 @@ pub fn schema_to_string<P: AsRef<Path>>(
 
         Ok(format!("{table}"))
     }
+}
+
+fn schema_to_flat_str(schema: &Schema) -> String {
+    let mut result = String::new();
+    for (i, field) in schema.iter_fields().enumerate() {
+        if i != 0 {
+            result = format!("{result},");
+        }
+
+        let dtype = DataType::from_polars(field.data_type());
+        let field_str = field.name().to_string();
+        let dtype_str = String::from(DataType::as_str(&dtype));
+        result = format!("{result}{field_str}:{dtype_str}");
+    }
+
+    result
 }
 
 #[cfg(test)]
