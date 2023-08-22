@@ -378,6 +378,18 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("text2sql")
+                .long("text2sql")
+                .help("Run a text query that translates to sql on the data frame.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("host")
+                .long("host")
+                .help("What remote host to run the query against. Ie: hub.oxen.ai")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("unique")
                 .long("unique")
                 .short('u')
