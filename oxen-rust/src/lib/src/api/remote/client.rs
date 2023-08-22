@@ -75,23 +75,31 @@ fn builder() -> ClientBuilder {
 
 /// Performs an extra parse to validate that the response is success
 pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
-    parse_json_body_with_err_msg(url, res, None).await
+    parse_json_body_with_err_msg(url, res, None, None).await
 }
 
 /// Used to override error message when parsing json body
 pub async fn parse_json_body_with_err_msg(
     url: &str,
     res: reqwest::Response,
-    msg: Option<&str>,
+    response_type: Option<&str>,
+    response_msg_override: Option<&str>,
 ) -> Result<String, OxenError> {
     let status = res.status();
     let body = res.text().await?;
 
-    log::debug!("parse_json_body url: {url}\nstatus: {status}\nbody: {body}");
+    log::debug!("parse_json_body_with_err_msg url: {url}\nstatus: {status}\nbody: {body}");
 
     let response: Result<OxenResponse, serde_json::Error> = serde_json::from_str(&body);
     match response {
-        Ok(response) => parse_status_and_message(url, body, status, response, msg),
+        Ok(response) => parse_status_and_message(
+            url,
+            body,
+            status,
+            response,
+            response_type,
+            response_msg_override,
+        ),
         Err(err) => {
             log::debug!("Err: {}", err);
             Err(OxenError::basic_str(format!(
@@ -106,10 +114,12 @@ fn parse_status_and_message(
     body: String,
     status: reqwest::StatusCode,
     response: OxenResponse,
-    msg: Option<&str>,
+    response_type: Option<&str>,
+    response_msg_override: Option<&str>,
 ) -> Result<String, OxenError> {
     match response.status.as_str() {
         http::STATUS_SUCCESS => {
+            log::debug!("Status success: {status}");
             if !status.is_success() {
                 return Err(OxenError::basic_str(format!(
                     "Err status [{}] from url {} [{}]",
@@ -121,19 +131,27 @@ fn parse_status_and_message(
 
             Ok(body)
         }
-        http::STATUS_WARNING => Err(OxenError::basic_str(format!(
-            "Remote Warning: {}",
-            response.desc_or_msg()
-        ))),
+        http::STATUS_WARNING => {
+            log::debug!("Status warning: {status}");
+            Err(OxenError::basic_str(format!(
+                "Remote Warning: {}",
+                response.desc_or_msg()
+            )))
+        }
         http::STATUS_ERROR => {
-            if let Some(msg) = msg {
-                Err(OxenError::basic_str(msg))
-            } else {
-                Err(OxenError::basic_str(format!(
-                    "Remote Err: {}",
-                    response.desc_or_msg()
-                )))
+            log::debug!("Status error: {status} {}", response.desc_or_msg());
+            if let Some(msg) = response_msg_override {
+                if let Some(response_type) = response_type {
+                    if response.desc_or_msg() == response_type {
+                        return Err(OxenError::basic_str(msg));
+                    }
+                }
             }
+
+            Err(OxenError::basic_str(format!(
+                "Remote Err: {}",
+                response.desc_or_msg()
+            )))
         }
         status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),
     }
