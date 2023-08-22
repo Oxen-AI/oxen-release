@@ -3335,6 +3335,7 @@ dependencies = [
  "actix-service",
  "actix-web",
  "actix-web-httpauth",
+ "bincode",
  "bytesize",
  "chrono",
  "clap",
@@ -3351,12 +3352,15 @@ dependencies = [
  "liboxen",
  "log",
  "rand",
+ "redis",
  "rocksdb",
  "sanitize-filename",
  "serde",
  "serde_json",
  "tar",
  "time 0.3.22",
+ "tokio",
+ "tokio-util",
  "uuid",
 ]
 
