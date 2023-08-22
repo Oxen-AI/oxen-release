@@ -1,4 +1,6 @@
 use crate::app_data::OxenAppData;
+use crate::helpers;
+use crate::queues::{TaskQueue, RedisTaskQueue, InMemoryTaskQueue};
 
 use liboxen::command;
 use liboxen::error::OxenError;
@@ -10,6 +12,7 @@ use serde::Serialize;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+
 pub fn init_test_env() {
     let env = Env::default();
     if env_logger::try_init_from_env(env).is_ok() {
@@ -17,6 +20,22 @@ pub fn init_test_env() {
     }
 
     std::env::set_var("TEST", "true");
+
+    init_queue();
+
+}
+
+pub fn init_queue() -> TaskQueue {
+    match helpers::get_redis_connection() {
+        Ok(pool) => {
+            println!("connecting to redis established, initializing queue");
+            TaskQueue::Redis(RedisTaskQueue { pool })
+        }
+        Err(_) => {
+            println!("Failed to connect to Redis. Falling back to in-memory queue.");
+            TaskQueue::InMemory(InMemoryTaskQueue::new())
+        }
+    }
 }
 
 pub fn get_sync_dir() -> Result<PathBuf, OxenError> {
@@ -59,22 +78,25 @@ where
     Ok(())
 }
 
-pub fn request(sync_dir: &Path, uri: &str) -> actix_web::HttpRequest {
+pub fn request(sync_dir: &Path, queue: TaskQueue, uri: &str) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .to_http_request()
 }
 
 pub fn namespace_request(
     sync_dir: &Path,
+    queue: TaskQueue,
     uri: &str,
     repo_namespace: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .param("namespace", repo_namespace)
         .to_http_request()
@@ -82,6 +104,7 @@ pub fn namespace_request(
 
 pub fn repo_request(
     sync_dir: &Path,
+    queue: TaskQueue,
     uri: &str,
     repo_namespace: impl Into<Cow<'static, str>>,
     repo_name: impl Into<Cow<'static, str>>,
@@ -89,6 +112,7 @@ pub fn repo_request(
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .param("namespace", repo_namespace)
         .param("repo_name", repo_name)
@@ -97,6 +121,7 @@ pub fn repo_request(
 
 pub fn repo_request_with_param(
     sync_dir: &Path,
+    queue: TaskQueue,
     uri: &str,
     repo_namespace: impl Into<Cow<'static, str>>,
     repo_name: impl Into<Cow<'static, str>>,
@@ -106,6 +131,7 @@ pub fn repo_request_with_param(
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .param("namespace", repo_namespace)
         .param("repo_name", repo_name)
@@ -115,6 +141,7 @@ pub fn repo_request_with_param(
 
 pub fn request_with_param(
     sync_dir: &Path,
+    queue: TaskQueue,
     uri: &str,
     key: impl Into<Cow<'static, str>>,
     val: impl Into<Cow<'static, str>>,
@@ -122,6 +149,7 @@ pub fn request_with_param(
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .param(key, val)
         .to_http_request()
@@ -129,12 +157,14 @@ pub fn request_with_param(
 
 pub fn request_with_json(
     sync_dir: &Path,
+    queue: TaskQueue,
     uri: &str,
     data: impl Serialize,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .set_json(data)
         .to_http_request()
@@ -142,6 +172,7 @@ pub fn request_with_json(
 
 pub fn request_with_payload_and_entry(
     sync_dir: &Path,
+    queue: TaskQueue,
     uri: &str,
     filename: impl Into<Cow<'static, str>>,
     hash: impl Into<Cow<'static, str>>,
@@ -150,6 +181,7 @@ pub fn request_with_payload_and_entry(
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
             path: sync_dir.to_path_buf(),
+            queue
         })
         .param("filename", filename)
         .param("hash", hash)

@@ -5,6 +5,9 @@ use liboxen::constants::DEFAULT_REDIS_URL;
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, RepositoryNew};
 
+use r2d2;
+
+
 use crate::errors::OxenHttpError;
 
 pub fn get_repo(
@@ -19,10 +22,11 @@ pub fn get_repo(
     )
 }
 
-pub fn get_redis_connection() -> Result<redis::Connection, OxenError> {
+pub fn get_redis_connection() -> Result<r2d2::Pool<redis::Client>, OxenError> {
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| DEFAULT_REDIS_URL.to_string());
-    let redis_client = redis::Client::open(redis_url.clone())?;
-
-    let con = redis_client.get_connection()?;
-    Ok(con)
+    let redis_client = redis::Client::open(redis_url).unwrap();
+    let pool = r2d2::Pool::builder()
+        .build(redis_client)
+        .unwrap();
+    Ok(pool)
 }

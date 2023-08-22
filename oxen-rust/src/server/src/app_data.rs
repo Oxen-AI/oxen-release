@@ -4,11 +4,11 @@ use crate::queues::TaskQueue;
 
 pub struct OxenAppData {
     pub path: PathBuf,
-    pub queue: Box<dyn TaskQueue>,
+    pub queue: TaskQueue,
 }
 
 impl OxenAppData {
-    pub fn new(path: &str, queue: Box<dyn TaskQueue>) -> OxenAppData {
+    pub fn new(path: &str, queue: TaskQueue) -> OxenAppData {
         OxenAppData {
             path: PathBuf::from(path),
             queue,
@@ -20,7 +20,7 @@ impl Clone for OxenAppData {
     fn clone(&self) -> Self {
         OxenAppData {
             path: self.path.clone(),
-            queue: (*self.queue).clone_box(),
+            queue: self.queue.clone(),
         }
     }
 }

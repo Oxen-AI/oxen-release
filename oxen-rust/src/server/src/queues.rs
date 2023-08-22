@@ -2,22 +2,61 @@ use std::sync::Mutex;
 use std::{collections::VecDeque, sync::Arc};
 
 use liboxen::constants::COMMIT_QUEUE_NAME;
+use liboxen::error::OxenError;
 use redis::Connection;
+
+use std::ops::DerefMut;
 
 use crate::tasks::post_push_complete::PostPushComplete;
 use crate::tasks::Task;
 
-pub trait TaskQueue: Send {
-    fn push(&mut self, task: Task);
-    fn pop(&mut self) -> Option<Task>;
+#[derive(Clone)]
+pub enum TaskQueue {
+    InMemory(InMemoryTaskQueue),
+    Redis(RedisTaskQueue),
 }
 
+
+impl TaskQueue {
+    pub fn push(&mut self, task: Task) {
+        match self {
+            TaskQueue::InMemory(queue) => queue.push(task),
+            TaskQueue::Redis(queue) => queue.push(task),
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<Task> {
+        match self {
+            TaskQueue::InMemory(queue) => queue.pop(),
+            TaskQueue::Redis(queue) => queue.pop(),
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct RedisTaskQueue {
-    pub conn: redis::Connection,
+    pub pool: r2d2::Pool<redis::Client>
 }
 
-impl TaskQueue for RedisTaskQueue {
+// impl Clone for RedisTaskQueue {
+//     fn clone(&self) -> Self {
+//         Self::new()
+//     }
+// }
+
+impl RedisTaskQueue {
+    pub fn new(pool: r2d2::Pool<redis::Client>) -> Self {
+        RedisTaskQueue { pool }
+    }
+
+    // fn create_connection(url: &str) -> Result<Connection, OxenError> {
+    //     let redis_client = redis::Client::open(url).unwrap();
+    //     let pool: r2d2::Pool<redis::Client> = r2d2::Pool::builder().build(client).unwrap();
+    //     Ok(conn)
+    // }
+
     fn push(&mut self, task: Task) {
+        let mut conn = self.pool.get().unwrap();
         let data: Vec<u8>;
         match task {
             Task::PostPushComplete(task) => {
@@ -28,15 +67,16 @@ impl TaskQueue for RedisTaskQueue {
         let _: isize = redis::cmd("LPUSH")
             .arg(COMMIT_QUEUE_NAME)
             .arg(data)
-            .query(&mut self.conn)
+            .query(&mut conn)
             .unwrap();
     }
 
     fn pop(&mut self) -> Option<Task> {
+        let mut conn = self.pool.get().unwrap();
         let outcome: Option<Vec<u8>>;
         outcome = redis::cmd("LPOP")
             .arg(COMMIT_QUEUE_NAME)
-            .query(&mut self.conn)
+            .query(&mut conn)
             .unwrap();
 
         match outcome {
@@ -50,17 +90,18 @@ impl TaskQueue for RedisTaskQueue {
     }
 }
 
-impl RedisTaskQueue {
-    pub fn new(conn: Connection) -> Self {
-        RedisTaskQueue { conn }
-    }
-}
-
+#[derive(Clone)]
 pub struct InMemoryTaskQueue {
     queue: Arc<Mutex<VecDeque<Task>>>,
 }
 
-impl TaskQueue for InMemoryTaskQueue {
+impl InMemoryTaskQueue {
+    pub fn new() -> Self {
+        InMemoryTaskQueue {
+            queue: Arc::new(Mutex::new(VecDeque::new())),
+        }
+    }
+
     fn push(&mut self, task: Task) {
         let mut queue = self.queue.lock().unwrap();
         queue.push_back(task);
@@ -72,10 +113,3 @@ impl TaskQueue for InMemoryTaskQueue {
     }
 }
 
-impl InMemoryTaskQueue {
-    pub fn new() -> Self {
-        InMemoryTaskQueue {
-            queue: Arc::new(Mutex::new(VecDeque::new())),
-        }
-    }
-}
