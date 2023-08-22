@@ -51,6 +51,7 @@ async fn main() -> std::io::Result<()> {
     async fn run_redis_poller() {
         let redis_url =
             std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost/".to_string());
+        log::debug!("Connecting to redis on {}", redis_url);
         let redis_client = redis::Client::open(redis_url).expect("Failed to connect to redis");
 
         let mut con = redis_client.get_connection().unwrap();
