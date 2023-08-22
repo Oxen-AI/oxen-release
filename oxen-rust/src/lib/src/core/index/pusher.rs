@@ -11,7 +11,7 @@ use std::io::{BufReader, Read};
 use std::sync::Arc;
 use tokio::time::Duration;
 
-use crate::constants::AVG_CHUNK_SIZE;
+use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
 use crate::core::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
@@ -233,6 +233,8 @@ async fn poll_until_synced(
 
     let head_commit_id = &commit.id;
 
+    let mut retries = 0;
+
     loop {
         match api::remote::commits::latest_commit_synced(remote_repo, head_commit_id).await {
             Ok(sync_status) => {
@@ -246,8 +248,20 @@ async fn poll_until_synced(
                 }
             }
             Err(err) => {
-                bar.finish();
-                return Err(err);
+                retries += 1;
+                // Back off, but don't want to go all the way to 100s
+                let sleep_time = 2 * retries;
+                if retries >= NUM_HTTP_RETRIES {
+                    bar.finish();
+                    return Err(err);
+                }
+                log::warn!(
+                    "Server error encountered, retrying... ({}/{})",
+                    retries,
+                    NUM_HTTP_RETRIES
+                );
+                // Extra sleep time in error cases
+                std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
         std::thread::sleep(std::time::Duration::from_millis(1000));

@@ -32,7 +32,7 @@ use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, St
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
-use crate::helpers::get_repo;
+use crate::helpers::{get_redis_connection, get_repo};
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
 use crate::tasks::post_push_complete::PostPushComplete;
@@ -882,9 +882,7 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
         Err(_) => return Err(OxenHttpError::BadRequest("Invalid commit data".into())),
     };
 
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost/".to_string());
-    let redis_client = redis::Client::open(redis_url).expect("Failed to connect to redis");
-    let mut con = redis_client.get_connection()?;
+    let mut con = get_redis_connection()?;
 
     // Get repo by name
     let repo =

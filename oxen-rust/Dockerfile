@@ -49,6 +49,6 @@ FROM debian:bullseye-slim AS runtime
 WORKDIR /oxen-server
 COPY --from=builder /usr/src/oxen-server/target/release/oxen-server /usr/local/bin
 ENV SYNC_DIR=/var/oxen/data
-ENV REDIS_URL=localhost:6379
+ENV REDIS_URL=redis://localhost:6379
 EXPOSE 3001
 CMD ["oxen-server", "start", "-p", "3001"]

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use liboxen::api;
+use liboxen::constants::DEFAULT_REDIS_URL;
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, RepositoryNew};
 
@@ -16,4 +17,16 @@ pub fn get_repo(
             OxenError::repo_not_found(RepositoryNew::new(&namespace, &name)),
         )?,
     )
+}
+
+pub fn get_redis_connection() -> Result<redis::Connection, OxenError> {
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| DEFAULT_REDIS_URL.to_string());
+    let redis_client = redis::Client::open(redis_url.clone())
+        .unwrap_or_else(|_| panic!("Could not connect to redis at {}", redis_url));
+
+    let con = redis_client
+        .get_connection()
+        .unwrap_or_else(|_| panic!("Failed to get redis connection at {}", redis_url));
+
+    Ok(con)
 }
