@@ -200,7 +200,6 @@ pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(
             }
         }
     }
-
     // Delete the LOCK file
     log::debug!("run_all Deleting lock file {:?}", lock_path);
     util::fs::remove_file(lock_path)?;

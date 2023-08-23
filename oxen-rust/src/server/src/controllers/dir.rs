@@ -57,7 +57,7 @@ mod tests {
         test::init_test_env();
 
         let sync_dir = test::get_sync_dir()?;
-
+        let queue = test::init_queue();
         let namespace = "Testing-Namespace";
         let name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, name)?;
@@ -79,6 +79,7 @@ mod tests {
             App::new()
                 .app_data(OxenAppData {
                     path: sync_dir.clone(),
+                    queue,
                 })
                 .route(
                     "/oxen/{namespace}/{repo_name}/dir/{resource:.*}",
