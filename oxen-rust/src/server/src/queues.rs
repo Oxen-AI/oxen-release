@@ -1,21 +1,15 @@
 use std::sync::Mutex;
 use std::{collections::VecDeque, sync::Arc};
 
-use liboxen::constants::COMMIT_QUEUE_NAME;
-use liboxen::error::OxenError;
-use redis::Connection;
-
-use std::ops::DerefMut;
-
 use crate::tasks::post_push_complete::PostPushComplete;
 use crate::tasks::Task;
+use liboxen::constants::COMMIT_QUEUE_NAME;
 
 #[derive(Clone)]
 pub enum TaskQueue {
     InMemory(InMemoryTaskQueue),
     Redis(RedisTaskQueue),
 }
-
 
 impl TaskQueue {
     pub fn push(&mut self, task: Task) {
@@ -35,34 +29,20 @@ impl TaskQueue {
 
 #[derive(Clone)]
 pub struct RedisTaskQueue {
-    pub pool: r2d2::Pool<redis::Client>
+    pub pool: r2d2::Pool<redis::Client>,
 }
-
-// impl Clone for RedisTaskQueue {
-//     fn clone(&self) -> Self {
-//         Self::new()
-//     }
-// }
 
 impl RedisTaskQueue {
     pub fn new(pool: r2d2::Pool<redis::Client>) -> Self {
         RedisTaskQueue { pool }
     }
 
-    // fn create_connection(url: &str) -> Result<Connection, OxenError> {
-    //     let redis_client = redis::Client::open(url).unwrap();
-    //     let pool: r2d2::Pool<redis::Client> = r2d2::Pool::builder().build(client).unwrap();
-    //     Ok(conn)
-    // }
-
     fn push(&mut self, task: Task) {
         let mut conn = self.pool.get().unwrap();
-        let data: Vec<u8>;
-        match task {
-            Task::PostPushComplete(task) => {
-                data = bincode::serialize(&task).unwrap();
-            }
-        }
+
+        let data: Vec<u8> = match task {
+            Task::PostPushComplete(task) => bincode::serialize(&task).unwrap(),
+        };
 
         let _: isize = redis::cmd("LPUSH")
             .arg(COMMIT_QUEUE_NAME)
@@ -73,8 +53,7 @@ impl RedisTaskQueue {
 
     fn pop(&mut self) -> Option<Task> {
         let mut conn = self.pool.get().unwrap();
-        let outcome: Option<Vec<u8>>;
-        outcome = redis::cmd("LPOP")
+        let outcome: Option<Vec<u8>> = redis::cmd("LPOP")
             .arg(COMMIT_QUEUE_NAME)
             .query(&mut conn)
             .unwrap();
@@ -112,4 +91,8 @@ impl InMemoryTaskQueue {
         queue.pop_front()
     }
 }
-
+impl Default for InMemoryTaskQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}

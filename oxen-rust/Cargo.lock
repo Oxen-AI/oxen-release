@@ -3353,6 +3353,7 @@ dependencies = [
  "jsonwebtoken",
  "liboxen",
  "log",
+ "r2d2",
  "rand",
  "redis",
  "rocksdb",

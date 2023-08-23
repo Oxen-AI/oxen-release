@@ -82,7 +82,6 @@ pub async fn push_remote_repo(
 
     println!("🐂 Syncing databases");
 
-    // push_missing_commit_dbs
     push_missing_commit_dbs(local_repo, &remote_repo, unsynced_db_commits).await?;
 
     // update the branch after everything else is synced

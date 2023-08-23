@@ -1,7 +1,6 @@
 use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
-use liboxen::constants::COMMIT_QUEUE_NAME;
 use liboxen::constants::DIRS_DIR;
 use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
@@ -32,7 +31,7 @@ use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, St
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
-use crate::helpers::{get_redis_connection, get_repo};
+use crate::helpers::get_repo;
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
 use crate::tasks;
@@ -892,8 +891,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
                 namespace, repo_name,
             )))?;
 
-    let repo_path = repo.path.clone();
-
     let commit_reader = CommitReader::new(&repo)?;
 
     for req_commit in commits {
@@ -902,27 +899,13 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
             .get_commit_by_id(&commit_id)?
             .ok_or(OxenError::revision_not_found(commit_id.clone().into()))?;
 
-        let repo_path_clone = repo_path.clone();
-
         // Append a task to the queue
         let task = PostPushComplete {
             commit: commit.clone(),
             repo: repo.clone(),
         };
-        // let task_bytes = bincode::serialize(&task).unwrap();
-
-        // log::debug!(
-        //     "Adding to queue for commit {:?} on repo {:?}",
-        //     commit,
-        //     &repo_path_clone
-        // );
 
         queue.push(tasks::Task::PostPushComplete(task))
-
-        // let _: isize = redis::cmd("LPUSH")
-        //     .arg(COMMIT_QUEUE_NAME)
-        //     .arg(task_bytes.clone())
-        //     .query(&mut con)?;
     }
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
