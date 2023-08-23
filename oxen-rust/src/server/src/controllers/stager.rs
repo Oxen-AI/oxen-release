@@ -172,6 +172,8 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         OxenError::revision_not_found(branch.commit_id.to_owned().into()),
     )?;
 
+    // If entry does not exist, create it, and stage it with the first row being the data.
+
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
         .ok_or(OxenError::entry_does_not_exist(resource.file_path))?;
 

@@ -1,0 +1,5 @@
+prompt,response,is_correct,response_time,difficulty
+who is it?,issa me,true,0.5,1
+who is it?,issa you,false,0.9,1
+who is it?,issa them,false,0.1,2
+what is going on?,nothing,true,0.3,3

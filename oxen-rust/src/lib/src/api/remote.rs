@@ -11,6 +11,7 @@ pub mod entries;
 pub mod merger;
 pub mod metadata;
 pub mod repositories;
+pub mod schemas;
 pub mod staging;
 pub mod text2sql;
 pub mod version;
