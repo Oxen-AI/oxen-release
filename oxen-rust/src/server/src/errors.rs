@@ -1,7 +1,7 @@
 use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::error::{OxenError, StringError};
-use liboxen::view::{StatusMessage, StatusMessageDescription};
+use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 use std::io;
 
 #[derive(Debug, Display, Error)]
@@ -11,6 +11,7 @@ pub enum OxenHttpError {
     NotFound,
     AppDataDoesNotExist,
     PathParamDoesNotExist(StringError),
+    SQLParseError(StringError),
 
     // Translate OxenError to OxenHttpError
     InternalOxenError(OxenError),
@@ -59,6 +60,9 @@ impl error::ResponseError for OxenHttpError {
             }
             OxenHttpError::BadRequest(desc) => HttpResponse::BadRequest()
                 .json(StatusMessageDescription::bad_request(desc.to_string())),
+            OxenHttpError::SQLParseError(query) => {
+                HttpResponse::BadRequest().json(SQLParseError::new(query.to_string()))
+            }
             OxenHttpError::AppDataDoesNotExist => {
                 log::error!("AppData does not exist");
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
@@ -167,6 +171,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::AppDataDoesNotExist => StatusCode::BAD_REQUEST,
             OxenHttpError::PathParamDoesNotExist(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::BadRequest(_) => StatusCode::BAD_REQUEST,
+            OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
