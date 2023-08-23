@@ -738,7 +738,7 @@ mod tests {
     }
 
     #[test]
-    fn test_commit_staged() -> Result<(), OxenError> {
+    fn test_commit() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, repo| {
             // Create committer with no commits
             let repo_path = &repo.path;
@@ -843,13 +843,8 @@ mod tests {
                 message: "Appending tabular data".to_string(),
             };
 
-            let commit = remote_dir_stager::commit_staged(
-                &repo,
-                &branch_repo,
-                &branch,
-                &new_commit,
-                &identity,
-            )?;
+            let commit =
+                remote_dir_stager::commit(&repo, &branch_repo, &branch, &new_commit, &identity)?;
 
             // Make sure version file is updated
             let entry = api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();

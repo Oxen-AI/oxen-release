@@ -55,7 +55,7 @@ async fn add_row(
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
-        let modification = api::remote::staging::stage_modification(
+        let modification = api::remote::staging::modify_df(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -82,14 +82,9 @@ pub async fn delete_staged_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let modification = api::remote::staging::delete_staged_modification(
-            &remote_repo,
-            &branch.name,
-            &user_id,
-            path,
-            uuid,
-        )
-        .await?;
+        let modification =
+            api::remote::staging::rm_df_mod(&remote_repo, &branch.name, &user_id, path, uuid)
+                .await?;
         modification.to_df()
     } else {
         Err(OxenError::basic_str(
