@@ -365,13 +365,8 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
             Ok(Some(branch)) => {
                 let branch_repo =
                     index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
-                match index::remote_dir_stager::commit_staged(
-                    &repo,
-                    &branch_repo,
-                    &branch,
-                    &data,
-                    user_id,
-                ) {
+                match index::remote_dir_stager::commit(&repo, &branch_repo, &branch, &data, user_id)
+                {
                     Ok(commit) => {
                         log::debug!("stager::commit ✅ success! commit {:?}", commit);
 

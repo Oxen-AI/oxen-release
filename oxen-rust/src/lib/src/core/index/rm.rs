@@ -153,8 +153,7 @@ async fn remove_remote_staged_file(repo: &LocalRepository, path: &Path) -> Resul
     let branch_name = branch.name;
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     let user_id = UserConfig::identifier()?;
-    api::remote::staging::rm_staged_file(&remote_repo, &branch_name, &user_id, path.to_path_buf())
-        .await
+    api::remote::staging::rm_file(&remote_repo, &branch_name, &user_id, path.to_path_buf()).await
 }
 
 fn remove_staged(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
@@ -192,7 +191,7 @@ mod tests {
     use crate::util;
 
     #[tokio::test]
-    async fn test_rm_staged_file() -> Result<(), OxenError> {
+    async fn test_rm_file() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("README", |repo| async move {
             // Stage the README.md file
             let path = Path::new("README.md");
@@ -297,7 +296,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_rm_file() -> Result<(), OxenError> {
+    async fn test_staged_rm_file() -> Result<(), OxenError> {
         test::run_select_data_repo_test_committed_async("README", |repo| async move {
             // Remove the readme
             let path = Path::new("README.md");
