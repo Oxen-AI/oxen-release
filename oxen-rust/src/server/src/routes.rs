@@ -212,6 +212,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // ----- Schemas ----- //
         .route(
             "/{namespace}/{repo_name}/schemas/{resource:.*}",
-            web::get().to(controllers::schemas::get),
+            web::get().to(controllers::schemas::list_or_get),
         );
 }
