@@ -482,6 +482,36 @@ impl EntryIndexer {
         Ok(entries[0..limit].to_vec())
     }
 
+    pub async fn pull_entries_for_commits(
+        &self, 
+        remote_repo: &RemoteRepository, 
+        commits: Vec<Commit>, 
+    ) -> Result<(), OxenError> {
+        log::debug!(
+            "🐂 pulling entries for {:?} commits",
+            commits.len()
+        );
+
+        let mut all_entries: Vec<CommitEntry> = Vec::new();
+
+        for commit in commits {
+            if index::commit_sync_status::commit_is_synced(&self.repository, &commit) {
+                log::debug!(
+                    "🐂 commit {} -> '{}' is already synced",
+                    commit.id,
+                    commit.message
+                );
+                continue;
+            }
+
+            let entries = self.read_pulled_commit_entries(&commit, 0)?;
+            all_entries.extend(entries);
+        }
+
+
+        Ok(())
+    }
+
     pub async fn pull_entries_for_commit(
         &self,
         remote_repo: &RemoteRepository,
