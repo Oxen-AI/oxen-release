@@ -19,6 +19,7 @@ pub mod pagination;
 pub mod remote_staged_status;
 pub mod repository;
 pub mod schema;
+pub mod sql_parse_error;
 pub mod status_message;
 
 pub use crate::view::compare::CompareEntriesResponse;
@@ -61,3 +62,5 @@ pub use crate::view::remote_staged_status::{
     ListStagedFileModResponseDF, ListStagedFileModResponseRaw, RemoteStagedStatus,
     RemoteStagedStatusResponse, StagedFileModResponse,
 };
+
+pub use crate::view::sql_parse_error::SQLParseError;

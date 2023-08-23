@@ -485,10 +485,10 @@ fn run_sql(df: LazyFrame, q: &str) -> Result<LazyFrame, OxenError> {
     ctx.register("df", df.clone());
     match ctx.execute(q) {
         Ok(sql_df) => Ok(sql_df),
-        Err(err) => Err(OxenError::basic_str(format!(
-            "Could not parse SQL query: {}",
-            err
-        ))),
+        Err(err) => {
+            log::error!("Error running sql: {err}");
+            Err(OxenError::sql_parse_error(q))
+        }
     }
 }
 

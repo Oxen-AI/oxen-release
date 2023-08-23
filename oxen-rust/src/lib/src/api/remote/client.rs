@@ -48,7 +48,7 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
         }
     };
     if let Some(auth_token) = config.auth_token_for_host(host.as_ref()) {
-        log::debug!("SETTING AUTH TOKEN FOR HOST: {}", host.as_ref());
+        log::debug!("Setting auth token for host: {}", host.as_ref());
         let auth_header = format!("Bearer {auth_token}");
         let mut auth_value = match header::HeaderValue::from_str(auth_header.as_str()) {
             Ok(header) => header,
@@ -64,7 +64,7 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
         headers.insert(header::AUTHORIZATION, auth_value);
         Ok(builder.default_headers(headers))
     } else {
-        eprintln!("Warning: No auth token found for host '{}'\n\nTo set a token run:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n", host.as_ref());
+        eprintln!("Warning: No auth token found for host '{}'\n\nTo set a token run:\n\n  oxen config --auth {} YOUR_AUTH_TOKEN\n", host.as_ref(), host.as_ref());
         Ok(builder)
     }
 }
