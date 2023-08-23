@@ -3,6 +3,7 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
+use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
 use liboxen::{constants, current_function};
 
@@ -56,35 +57,46 @@ pub async fn get(
     let end = page_size * page;
 
     // We have to run the query param transforms, then paginate separately
-    let sliced_df = tabular::transform(df, opts)?;
-    log::debug!("Sliced df {:?}", sliced_df);
+    match tabular::transform(df, opts) {
+        Ok(sliced_df) => {
+            log::debug!("Sliced df {:?}", sliced_df);
 
-    let sliced_width = sliced_df.width();
-    let sliced_height = sliced_df.height();
+            let sliced_width = sliced_df.width();
+            let sliced_height = sliced_df.height();
 
-    // Paginate after transform
-    let mut paginate_opts = DFOpts::empty();
-    paginate_opts.slice = Some(format!("{}..{}", start, end));
-    let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
+            // Paginate after transform
+            let mut paginate_opts = DFOpts::empty();
+            paginate_opts.slice = Some(format!("{}..{}", start, end));
+            let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
 
-    let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
-    let full_size = DataFrameSize {
-        width: full_width,
-        height: full_height,
-    };
+            let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
+            let full_size = DataFrameSize {
+                width: full_width,
+                height: full_height,
+            };
 
-    let response = JsonDataFrameSliceResponse {
-        status: StatusMessage::resource_found(),
-        full_size: full_size.to_owned(),
-        slice_size: DataFrameSize {
-            width: sliced_width,
-            height: sliced_height,
-        },
-        df: JsonDataFrame::from_slice(&mut paginated_df, og_schema, full_size),
-        page_number: page,
-        page_size,
-        total_pages,
-        total_entries: sliced_height,
-    };
-    Ok(HttpResponse::Ok().json(response))
+            let response = JsonDataFrameSliceResponse {
+                status: StatusMessage::resource_found(),
+                full_size: full_size.to_owned(),
+                slice_size: DataFrameSize {
+                    width: sliced_width,
+                    height: sliced_height,
+                },
+                df: JsonDataFrame::from_slice(&mut paginated_df, og_schema, full_size),
+                page_number: page,
+                page_size,
+                total_pages,
+                total_entries: sliced_height,
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(OxenError::SQLParseError(sql)) => {
+            log::error!("Error parsing SQL: {}", sql);
+            Err(OxenHttpError::SQLParseError(sql))
+        }
+        Err(e) => {
+            log::error!("Error transforming df: {}", e);
+            Err(OxenHttpError::InternalServerError)
+        }
+    }
 }
