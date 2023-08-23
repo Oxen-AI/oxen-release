@@ -28,9 +28,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
-use crate::tasks::post_push_complete::PostPushComplete;
 use crate::tasks::Runnable;
-use liboxen::constants::COMMIT_QUEUE_NAME;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -66,33 +64,7 @@ async fn main() -> std::io::Result<()> {
         }
     }
 
-    // async fn run_redis_poller() {
-    //     let mut con = helpers::get_redis_connection().unwrap();
-
-    //     loop {
-    //         let outcome: Option<Vec<u8>>;
-    //         {
-    //             // Pop off of the queue
-    //             outcome = redis::cmd("LPOP")
-    //                 .arg(COMMIT_QUEUE_NAME)
-    //                 .query(&mut con)
-    //                 .unwrap();
-
-    //             match outcome {
-    //                 Some(data) => {
-    //                     log::debug!("Got queue item: {:?}", data);
-    //                     let task: PostPushComplete = bincode::deserialize(&data).unwrap();
-    //                     println!("{:?}", task);
-    //                     task.run();
-    //                 }
-    //                 None => {
-    //                     sleep(Duration::from_millis(3000)).await;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
+    // If redis connection is available, use redis queue, else in-memory
     pub fn init_queue() -> TaskQueue {
         match helpers::get_redis_connection() {
             Ok(pool) => {
@@ -184,10 +156,6 @@ async fn main() -> std::io::Result<()> {
                     println!("Running on {host}:{port}");
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
-
-                    // Poll for post-commit tasks in background
-                    // tokio::spawn(async { run_redis_poller().await });
-                    // Init queue here
 
                     let queue = init_queue();
 

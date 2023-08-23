@@ -4,7 +4,7 @@ use liboxen::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{Runnable, Task};
+use super::Runnable;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PostPushComplete {
